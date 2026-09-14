@@ -1,0 +1,7 @@
+# 本地项目数据目录（不纳入版本库）
+.workbuddy/
+
+# 通用忽略
+*.tmp
+*.log
+.DS_Store

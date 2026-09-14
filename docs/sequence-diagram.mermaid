@@ -1,0 +1,102 @@
+%% SunFocus MVP 关键流程时序图（与 架构设计_SunFocus_MVP.md §4 同源）
+
+%% ① 一次完整专注
+sequenceDiagram
+    actor Child
+    participant EP as EntryPage
+    participant FP as FocusPage(打盹屏)
+    participant FE as FocusEngine
+    participant PD as PresenceDetector
+    participant SL as SunlightService
+    participant LED as SunlightRepository
+    participant FS as FocusRepository
+    participant UI as feedback_overlay
+    Child->>EP: 选时长 / 手动进入
+    EP->>FP: 进入横屏打盹屏
+    FP->>FE: start(plannedDuration)
+    FE->>FP: 保持屏幕常亮 + 锁横屏
+    loop 专注中
+        PD->>PD: 监听灭屏/竖屏/无触摸超时
+        alt 检测到离席（强判定）
+            PD->>FE: onAbsent()
+            FE->>FE: 产出停止(不扣减)
+            FE->>UI: L2(90s)/L3(180s) 唤醒(≤3场,§4.1.4)
+        else 恢复在场
+            PD->>FE: onPresent()
+            FE->>FE: 10秒线性回满(§4.1.5)
+            FE->>UI: 三档光晕·欢迎回来
+        end
+        FE->>FE: 在场 +1 阳光/分钟
+    end
+    Child->>FP: 竖屏退出 / 到时
+    FP->>FE: stop()
+    FE->>FE: 实际专注 ≥5分钟?(§6.2)
+    alt ≥5分钟
+        FE->>SL: computeSoftCap(rawS)
+        SL->>LED: appendEarn(gross=S, net=有效)
+        FE->>FS: saveSession()
+        FP->>FP: 结算动画(光回罐)
+        FP->>UI: 家长转述表扬(结算后,§4.9)
+    else <5分钟
+        FE->>FS: saveSession(无产出)
+    end
+
+%% ② 兑换申请 → 免确认判定 → 家长核销 → 阳光扣除
+sequenceDiagram
+    actor Child
+    participant SP as StorePage
+    participant RS as RedemptionService
+    participant CD as CooldownService
+    participant MP as MonthlyPoolRepo
+    participant LED as SunlightRepository
+    actor Parent
+    participant PP as ParentRewardPage
+    Child->>SP: 选奖励发起兑换
+    SP->>RS: createRequest(templateId)
+    RS->>RS: cost=参考值×K(消耗侧,§4.5)
+    RS->>CD: checkCooldown(template)
+    alt 冷却中
+        CD-->>SP: 状态化冷却(冷色/时钟)+强制替代推荐(§4.8)
+        SP-->>Child: 推荐同价位可兑换项(不空手)
+    else 阳光不足
+        SP-->>Child: 暖色/数字提示
+    else 可兑换
+        RS->>RS: 免确认双条件?(单笔≤130/50 且 月累计自动≤池25% 且 非自服务)
+        alt 满足→自动放行
+            RS->>MP: addAutoReleased(cost)
+            RS->>LED: appendSpend(-cost)
+            RS-->>SP: 兑换成功
+        else 不满足→进队列
+            RS->>MP: 池是否超?
+            alt 超池
+                RS->>RS: status=queued(排队,下月1日放行)
+                RS-->>SP: 排队中(N位)
+            else 未超
+                RS->>RS: status=pending(待核销)
+                RS-->>PP: 生成核销卡
+                Parent->>PP: 现实兑现后点"已兑现"
+                PP->>RS: verify(requestId)
+                RS->>LED: appendSpend(-cost)
+                RS->>MP: addUsed(cost)
+            end
+        end
+    end
+
+%% ③ 软顶与月度池的联合计算
+sequenceDiagram
+    participant FE as FocusEngine(结算)
+    participant TS as TaskService(打卡)
+    participant SL as SunlightService
+    participant LED as SunlightRepository
+    participant RS as RedemptionService
+    participant MP as MonthlyPoolRepo
+    Note over FE,TS: 日终/每次结算聚合(读 §4.5)
+    FE->>SL: rawFocusMin=实际专注分钟
+    TS->>SL: taskCount, perfectDayCoeff(×1.5)
+    SL->>SL: S=专注分钟×1+任务数×12×完美日系数
+    SL->>SL: 有效=min(S,60)+max(0,min(S,90)-60)×0.5+max(0,min(S,110)-90)×0.2
+    SL->>LED: appendEarn(gross=S, net=有效)  %% 软顶可追溯
+    Note over MP: 月池仅在兑换时联动
+    RS->>MP: 查询本月 used/budget
+    MP-->>RS: 剩余=预算-used-自动放行累计
+    RS->>LED: 兑换扣减(net=-cost)  %% 三套规则对账点

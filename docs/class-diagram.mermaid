@@ -1,0 +1,191 @@
+%% SunFocus MVP 类图（与 架构设计_SunFocus_MVP.md §2/§3 同源）
+
+classDiagram
+    %% 实体
+    class FocusSession {
+        +String id
+        +DateTime start
+        +DateTime end
+        +int plannedMin
+        +double actualFocusMin
+        +FocusStatus status
+        +double sunlightEarned
+    }
+    class SunlightEntry {
+        +String id
+        +DateTime ts
+        +LedgerType type
+        +double gross
+        +double net
+        +double balanceAfter
+        +String refId
+        +String dayKey
+    }
+    class Task {
+        +String id
+        +String name
+        +String subject
+        +bool requiresFocus
+        +int sunlightReward
+    }
+    class CheckIn {
+        +String id
+        +String taskId
+        +DateTime date
+        +String sessionId
+        +bool isPerfectDay
+    }
+    class Plant {
+        +String id
+        +String speciesId
+        +int potIndex
+        +PlantStage stage
+        +double growthFactor
+        +PlantStatus status
+    }
+    class PlantSpecies {
+        +String id
+        +Rarity rarity
+        +int baseCostHigh
+        +int baseCostLow
+    }
+    class RewardTemplate {
+        +String id
+        +String name
+        +RewardCategory category
+        +int baseCostHigh
+        +int baseCostLow
+        +FrequencyLimit freqLimit
+    }
+    class RedemptionRequest {
+        +String id
+        +String templateId
+        +DateTime requestedAt
+        +int cost
+        +RequestStatus status
+        +bool autoApproved
+        +int queuePosition
+        +DateTime verifiedAt
+    }
+    class MonthlyPool {
+        +String monthKey
+        +int budget
+        +int used
+        +int autoReleased
+        +DateTime resetAt
+    }
+    class CooldownCounter {
+        +String templateId
+        +String periodKey
+        +int usedCount
+    }
+    class Settings {
+        +AgeTier ageTier
+        +TimeOfDay nightBoundary
+        +int dailyFocusCap
+        +int monthlyPoolBudget
+        +String parentPinHash
+    }
+    class TrackingEvent {
+        +String id
+        +TrackType type
+        +DateTime ts
+        +String payload
+    }
+
+    %% 抽象 Repository 接口（为云同步留口）
+    class FocusRepository {
+        <<interface>>
+        +saveSession()
+        +getTodaySessions()
+    }
+    class SunlightRepository {
+        <<interface>>
+        +appendEarn()
+        +appendSpend()
+        +balance()
+    }
+    class TaskRepository {
+        <<interface>>
+    }
+    class PlantRepository {
+        <<interface>>
+    }
+    class RewardRepository {
+        <<interface>>
+    }
+    class SettingsRepository {
+        <<interface>>
+    }
+    class TrackingRepository {
+        <<interface>>
+    }
+
+    %% 领域服务
+    class FocusEngine {
+        +start()
+        +onAbsent()
+        +onPresent()
+        +stop()
+    }
+    class PresenceDetector {
+        +listen()
+        +isAbsent()
+    }
+    class SunlightService {
+        +computeSoftCap(S)
+        +earn()
+    }
+    class RedemptionService {
+        +createRequest()
+        +verify()
+        +releaseQueue()
+    }
+    class CooldownService {
+        +check()
+    }
+    class AntiAddictionService {
+        +checkNightBoundary()
+    }
+    class MetricsService {
+        +wfd()
+        +fulfillmentRate()
+    }
+    class SunlightScoreService {
+        <<interface>>
+        +convert()
+    }
+    class AccountService {
+        <<interface>>
+        +signIn()
+        +linkFamily()
+    }
+
+    FocusEngine --> PresenceDetector
+    FocusEngine --> SunlightService
+    SunlightService --> SunlightRepository
+    RedemptionService --> RewardRepository
+    RedemptionService --> MonthlyPool : reads
+    RedemptionService --> SunlightRepository
+    CooldownService --> CooldownCounter
+    MetricsService --> TrackingRepository
+
+    FocusRepository <|.. LocalFocusRepository
+    SunlightRepository <|.. LocalSunlightRepository
+    TaskRepository <|.. LocalTaskRepository
+    PlantRepository <|.. LocalPlantRepository
+    RewardRepository <|.. LocalRewardRepository
+    SettingsRepository <|.. LocalSettingsRepository
+    TrackingRepository <|.. LocalTrackingRepository
+
+    LocalFocusRepository --> AppDatabase
+    LocalSunlightRepository --> AppDatabase
+    LocalTaskRepository --> AppDatabase
+    LocalPlantRepository --> AppDatabase
+    LocalRewardRepository --> AppDatabase
+    LocalSettingsRepository --> SettingsStore
+    LocalTrackingRepository --> AppDatabase
+
+    note for SunlightScoreService "V2 阳光分数化换算接口（桩）"
+    note for AccountService "G2+ 账号/家庭组占位（Plan B 抛 Unsupported）"
+    note for RedemptionService "免确认双条件 + 月池 + 排队（§4.8）"

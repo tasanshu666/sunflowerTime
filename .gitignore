@@ -5,3 +5,20 @@
 *.tmp
 *.log
 .DS_Store
+
+# Flutter / Dart 构建与工具产物
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+build/
+*.apk
+*.aar
+*.ipa
+*.app
+.gradle/
+.idea/
+*.iml
+*.swp
+.fleet/
+.vscode/

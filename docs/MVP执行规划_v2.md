@@ -49,7 +49,7 @@
 |---|---|
 | C1 | 形态统一为无账号单机版；`account_service` 留桩抛 `Unsupported`；数据模型保留 `childId` |
 | C2 | 埋点前移到 M2 内；G2 起跑 = 埋点完成 + 1 周校准 |
-| C3 | `kPlaceMinMinutes=5` / `kValidFocusMinutes=15` / `kCompletionRateThreshold=0.9`，三者不互引 |
+| C3 | `kMinFocusMinutes=5` / `kValidFocusMinutes=15` / `kCompletionRateThreshold=0.9`，不互引；`kPlaceMinMinutes` 已废止 |
 | C4 | 核销主口径 48h |
 | C5 | `monthlyAutoApproveCap = min(100/40, 月池×25%)` |
 | C6 | G1 改为 T+0 单户深潜，不阻塞开发 |

@@ -1,5 +1,5 @@
 name: sunflower_time
-description: 《向日葵专注 SunFocus》MVP 三个 spike（S1/S2/S3）最小可运行工程。
+description: 《向日葵专注 SunFocus》MVP（Plan B 无账号单机版）。分支 m0/skeleton：工程/导航/加密本地库/PIN锁/同意流骨架。
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -9,7 +9,29 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # S3 打盹屏专注页：屏幕常亮 + 真实方向检测（架构设计 §1.2 / §1.3）
+  # ── 状态管理 + DI（架构设计 §1.1）
+  flutter_riverpod: ^2.5.0
+  # ── 路由（声明式，横竖屏页切换 / 深层链接，§1.1）
+  go_router: ^14.0.0
+  # ── 本地关系型 DB + 加密（Drift + SQLCipher，§10.4 C13）
+  drift: ^2.20.0
+  # 只保留 SQLCipher 版：sqlite3_flutter_libs 与 sqlcipher_flutter_libs 共用同一个
+  # Android namespace（eu.simonbinder.sqlite3_flutter_libs），同时存在会让 AGP 报
+  # "Namespace ... is used in multiple modules and/or libraries" 而构建失败。
+  # 本工程用 SQLCipher（hook name_android: sqlcipher），普通版无需引入。
+  sqlcipher_flutter_libs: ^0.5.0
+  path_provider: ^2.1.0
+  # ── 简单 KV 设置（§1.1）
+  shared_preferences: ^2.2.0
+  # ── 家长 PIN 哈希 + salt 存系统安全区（§4.9 / §10.4）
+  flutter_secure_storage: ^9.0.0
+  # ── ID（实体主键，§1.1）
+  uuid: ^4.0.0
+  # ── 家长 PIN 哈希（sha256 + salt，§4.9 / §10.4）
+  crypto: ^3.0.3
+  # ── 时间/区域（月池重置 / 夜间边界，§1.1）
+  intl: ^0.19.0
+  # ── S3 已验证：屏幕常亮 + 真实方向检测（§1.3）
   wakelock_plus: ^1.2.0
   native_device_orientation: ^2.0.0
 
@@ -17,8 +39,25 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  # S2 为纯逻辑，提供纯 Dart 测试入口（dart test 不依赖 Flutter 引擎，规避沙箱环境 flutter_tester 连接问题）
+  # S2 纯逻辑单测入口（dart test 不依赖 Flutter 引擎）
   test: ^1.24.0
+  # Drift 代码生成
+  drift_dev: ^2.20.0
+  build_runner: ^2.4.0
 
 flutter:
   uses-material-design: true
+
+# ── 原生资产（native assets / hooks）配置 ────────────────────────────
+# sqlite3 包默认会从 GitHub Releases 下载预编译库（libsqlite3.arm.android.so 等）。
+# 本机代理屏蔽 github.com（502 Proxy failed to establish tunnel），下载必然失败，
+# 导致 `flutter build apk` 报 "Target dart_build failed: Building native assets failed"。
+# 改为 source: system —— 不下载、不编译，直接使用随包/系统提供的动态库：
+#   · Android：由 sqlcipher_flutter_libs 经 Maven (net.zetetic:android-database-sqlcipher)
+#     提供 libsqlcipher.so（ABI 兼容 sqlite3），配合 open.overrideFor 打开 SQLCipher；
+#   · macOS：dlopen 系统 libsqlite3（dyld shared cache，供 dart test 使用）。
+hooks:
+  user_defines:
+    sqlite3:
+      source: system
+      name_android: sqlcipher

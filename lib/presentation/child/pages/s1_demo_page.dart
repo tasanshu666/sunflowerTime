@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sunflower_time/presentation/child/widgets/feedback_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
 
@@ -27,7 +28,15 @@ class _S1DemoPageState extends State<S1DemoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('S1 · 四档反馈 + 向日葵画布')),
+      appBar: AppBar(
+        title: const Text('S1 · 四档反馈 + 向日葵画布'),
+        // 本页经 go('/s1-demo') 进入 = 路由栈底，AppBar 不会自动出现返回箭头（B19 同类问题）
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: '返回孩子端',
+          onPressed: () => context.go('/'),
+        ),
+      ),
       body: Column(
         children: [
           Expanded(

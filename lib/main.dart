@@ -1,52 +1,24 @@
+/// 应用入口（§5 T01 工程脚手架）：初始化 SharedPreferences → bootstrap → ProviderScope(App)。
+///
+/// 替换 spike 阶段的最小入口；S1/S3 的 demo 仍保留为路由入口（`/s1-demo`、`/focus`）。
+library main;
+
 import 'package:flutter/material.dart';
-import 'package:sunflower_time/presentation/child/pages/focus_page.dart';
-import 'package:sunflower_time/presentation/child/pages/s1_demo_page.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() => runApp(const SunFocusApp());
+import 'package:sunflower_time/app.dart';
+import 'package:sunflower_time/bootstrap.dart';
+import 'package:sunflower_time/core/di/providers.dart';
 
-/// 最小可运行工程入口（spike 阶段）。仅用于本地预览三个 spike，非产品最终壳。
-class SunFocusApp extends StatelessWidget {
-  const SunFocusApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SunFocus · Spike',
-      theme: ThemeData(primarySwatch: Colors.amber),
-      home: const HomePage(),
-    );
-  }
-}
-
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('SunFocus · Spike 演示')),
-      body: ListView(
-        children: [
-          ListTile(
-            title: const Text('S1 · 四档反馈 + 向日葵画布'),
-            subtitle: const Text('一屏 demo，四档可切换预览'),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const S1DemoPage()),
-            ),
-          ),
-          ListTile(
-            title: const Text('S3 · 打盹屏专注页'),
-            subtitle: const Text('横屏 + 计时 + 常亮 + 方向锁（真机验证常亮/计时）'),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const FocusPage(plannedMinutes: 20),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  await bootstrap();
+  runApp(
+    ProviderScope(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      child: const App(),
+    ),
+  );
 }

@@ -1,15 +1,14 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 
-/// 四档反馈档位（PRD §4.1.3）。前两档「陪」，后两档「看」。
-enum FeedbackLevel {
-  lvl1, // 一档 · 常态产光：全程默认态，无声
-  lvl2, // 二档 · 随光报信：每完成 1/3 进度，送一粒光 + 气泡（不夸奖）
-  lvl3, // 三档 · 欢迎回来：离席后恢复在场，纯视觉光晕 / 半秒眨眼
-  lvl4, // 四档 · 唤醒提醒：离席持续超阈值，睁眼说软话（语音占位）
-}
+import 'package:sunflower_time/domain/services/focus_engine.dart';
 
-/// 各档对外标签（演示用，非上屏产品文案）。
+/// 四档反馈档位定义在领域层 [FeedbackLevel]（保持引擎零 Flutter 依赖），
+/// 此处转发以便既有 UI 代码继续 `import sunflower_canvas.dart` 使用同一枚举。
+export 'package:sunflower_time/domain/services/focus_engine.dart'
+    show FeedbackLevel;
+
+/// 各档对外标签（演示用，非上屏产品文案；S1 demo 页可继续使用）。
 const Map<FeedbackLevel, String> kFeedbackLevelLabel = {
   FeedbackLevel.lvl1: '一档 · 常态产光',
   FeedbackLevel.lvl2: '二档 · 随光报信',
@@ -17,17 +16,29 @@ const Map<FeedbackLevel, String> kFeedbackLevelLabel = {
   FeedbackLevel.lvl4: '四档 · 唤醒提醒',
 };
 
-/// 向日葵画布（S1）：CustomPainter 绘制 + 呼吸式明暗/极慢姿态动画。
+/// 向日葵画布（T08）：CustomPainter 绘制 + 呼吸式明暗/极慢姿态动画。
 ///
 /// 这是「打盹屏」中央那朵在做自己事的花（PRD §4.1.1）：慢而不突，零突事件。
+///
+/// M1 演进新增：
+/// - [progress]（0..1）：会话进度，缓慢驱动外圈微光（慢状态，非突事件）；
+/// - [emitParticle]：二档每 1/3 进度送出的那粒光（离散事件）；
+/// - [welcoming]：三档「欢迎回来」额外光晕；
+/// - [celebrating]：结算时「醒着庆祝」（高光留结算，PRD §4.1.1）。
 class SunflowerCanvas extends StatefulWidget {
   final FeedbackLevel level;
   final bool emitParticle; // 二档：往外送出一粒光
+  final double progress; // 0..1 会话进度（慢状态）
+  final bool welcoming; // 三档：欢迎回来光晕
+  final bool celebrating; // 结算：醒着庆祝
 
   const SunflowerCanvas({
     super.key,
     this.level = FeedbackLevel.lvl1,
     this.emitParticle = false,
+    this.progress = 0.0,
+    this.welcoming = false,
+    this.celebrating = false,
   });
 
   @override
@@ -69,6 +80,9 @@ class _SunflowerCanvasState extends State<SunflowerCanvas>
             opacity: opacity,
             level: widget.level,
             emitParticle: widget.emitParticle,
+            progress: widget.progress.clamp(0.0, 1.0),
+            welcoming: widget.welcoming,
+            celebrating: widget.celebrating,
           ),
           size: const Size(300, 300),
         );
@@ -83,6 +97,9 @@ class _SunflowerPainter extends CustomPainter {
   final double opacity;
   final FeedbackLevel level;
   final bool emitParticle;
+  final double progress;
+  final bool welcoming;
+  final bool celebrating;
 
   _SunflowerPainter({
     required this.breath,
@@ -90,6 +107,9 @@ class _SunflowerPainter extends CustomPainter {
     required this.opacity,
     required this.level,
     required this.emitParticle,
+    required this.progress,
+    required this.welcoming,
+    required this.celebrating,
   });
 
   @override
@@ -101,17 +121,31 @@ class _SunflowerPainter extends CustomPainter {
     canvas.scale(scale);
     canvas.translate(-center.dx, -center.dy);
 
-    // 三档：欢迎回来光晕（纯视觉，无声）
-    if (level == FeedbackLevel.lvl3) {
+    // 会话进度微光（慢状态）：外圈随进度极缓变亮，不抢注意力。
+    final progressGlow = Paint()
+      ..color = const Color(0xFFFFF176).withValues(alpha: 0.06 + 0.10 * progress)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, 150 + 4 * breath, progressGlow);
+
+    // 三档：欢迎回来光晕（纯视觉，无声）；welcoming 时额外叠加一层。
+    if (level == FeedbackLevel.lvl3 || welcoming) {
       final glow = Paint()
-        ..color = const Color(0xFFFFE082).withValues(alpha:0.35 * opacity)
+        ..color = const Color(0xFFFFE082).withValues(alpha: 0.5 * opacity)
         ..style = PaintingStyle.fill;
-      canvas.drawCircle(center, 135 + 6 * breath, glow);
+      canvas.drawCircle(center, 145 + 6 * breath, glow);
+    }
+
+    // 结算：醒着庆祝的暖金光晕（全场的视觉高光，PRD §4.1.1 / §4.1.2）。
+    if (celebrating) {
+      final celebrate = Paint()
+        ..color = const Color(0xFFFFF59D).withValues(alpha: 0.45 * opacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(center, 150 + 12 * breath, celebrate);
     }
 
     // 花瓣（12 片，随呼吸极慢微旋）
     final petalPaint = Paint()
-      ..color = const Color(0xFFFFC107).withValues(alpha:opacity)
+      ..color = const Color(0xFFFFC107).withValues(alpha: opacity)
       ..style = PaintingStyle.fill;
     const petalCount = 12;
     for (int i = 0; i < petalCount; i++) {
@@ -126,13 +160,13 @@ class _SunflowerPainter extends CustomPainter {
 
     // 花心
     final corePaint = Paint()
-      ..color = const Color(0xFF6D4C41).withValues(alpha:opacity)
+      ..color = const Color(0xFF6D4C41).withValues(alpha: opacity)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, 42, corePaint);
 
     // 花心种子纹理（三层）
     final seedPaint = Paint()
-      ..color = const Color(0xFF3E2723).withValues(alpha:opacity)
+      ..color = const Color(0xFF3E2723).withValues(alpha: opacity)
       ..style = PaintingStyle.fill;
     for (int r = 1; r <= 3; r++) {
       final count = r * 6;
@@ -147,10 +181,10 @@ class _SunflowerPainter extends CustomPainter {
       }
     }
 
-    // 四档：睁眼（觉醒，开口说软话前的那一眼）
-    if (level == FeedbackLevel.lvl4) {
-      final eyeWhite = Paint()..color = Colors.white.withValues(alpha:opacity);
-      final pupil = Paint()..color = Colors.black87.withValues(alpha:opacity);
+    // 四档唤醒 / 结算庆祝：睁眼（醒着的那一眼）
+    if (level == FeedbackLevel.lvl4 || celebrating) {
+      final eyeWhite = Paint()..color = Colors.white.withValues(alpha: opacity);
+      final pupil = Paint()..color = Colors.black87.withValues(alpha: opacity);
       for (final dx in [-14.0, 14.0]) {
         canvas.drawCircle(Offset(center.dx + dx, center.dy - 6), 7, eyeWhite);
         canvas.drawCircle(Offset(center.dx + dx, center.dy - 6), 3.2, pupil);
@@ -160,11 +194,11 @@ class _SunflowerPainter extends CustomPainter {
     // 二档：往外送出一粒光（朝屏外走）
     if (emitParticle) {
       final dist = 60 + 70 * breath;
-      final pAngle = -pi / 2; // 向上送出
+      const pAngle = -pi / 2; // 向上送出
       final px = center.dx + dist * cos(pAngle);
       final py = center.dy + dist * sin(pAngle);
       final particle = Paint()
-        ..color = const Color(0xFFFFF59D).withValues(alpha:0.9 * (1 - breath))
+        ..color = const Color(0xFFFFF59D).withValues(alpha: 0.9 * (1 - breath))
         ..style = PaintingStyle.fill;
       canvas.drawCircle(Offset(px, py), 6, particle);
     }
@@ -178,5 +212,8 @@ class _SunflowerPainter extends CustomPainter {
       old.level != level ||
       old.emitParticle != emitParticle ||
       old.opacity != opacity ||
-      old.scale != scale;
+      old.scale != scale ||
+      old.progress != progress ||
+      old.welcoming != welcoming ||
+      old.celebrating != celebrating;
 }

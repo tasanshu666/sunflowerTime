@@ -4,6 +4,8 @@ library datetime_ext;
 
 import 'package:intl/intl.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
+
 /// 月份键：形如 `2026-09`，用于 `monthly_pool.month_key` 与按日聚合。
 String monthKey(DateTime t) => DateFormat('yyyy-MM').format(t);
 
@@ -26,7 +28,11 @@ int countMonthlyResets(DateTime from, DateTime to) {
 }
 
 /// 是否处于夜间（读 Settings.nightBoundary 唯一值；此处以默认边界做纯函数判断）。
-bool isNight(DateTime t, {int boundaryHour = 21, int boundaryMinute = 0}) {
+bool isNight(
+  DateTime t, {
+  int boundaryHour = kNightBoundaryHour,
+  int boundaryMinute = kNightBoundaryMinute,
+}) {
   final boundary = boundaryHour * 60 + boundaryMinute;
   final now = t.hour * 60 + t.minute;
   // 夜间 = [边界, 24:00) ∪ [00:00, 边界) 视为次日；简化：now >= boundary。

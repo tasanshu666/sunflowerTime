@@ -20,8 +20,8 @@ class ChildHomePage extends StatelessWidget {
             const Text('M0 骨架占位 · M1 接入今日状态卡与底部导航'),
             const SizedBox(height: 28),
             ElevatedButton(
-              onPressed: () => context.go('/focus'),
-              child: const Text('进入打盹屏（S3）'),
+              onPressed: () => context.go('/entry'),
+              child: const Text('开始专注'),
             ),
             const SizedBox(height: 12),
             OutlinedButton(

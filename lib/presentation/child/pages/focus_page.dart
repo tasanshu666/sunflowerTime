@@ -1,54 +1,125 @@
+/// 打盹屏专注页（T09，横屏，独占屏）。
+///
+/// 依据 PRD §4.1（专注模式）/ §4.2（布局）/ §4.3（屏幕交互检测）/ §4.1.6（退出路径）。
+///
+/// 必须保留的既有修复（不得回退）：
+/// - **B18**：方向宽限期 `kOrientationGraceSeconds`(3s) + 武装条件（须先观察到一次横屏，
+///   之后的竖屏才算退出意图）——由 [PresenceDetector] 承载；
+/// - **B20**：结束时用 `context.go('/settle')` / `context.go('/')` 而非 `Navigator.pop()`
+///   （go_router 的 go 是替换路由栈，pop 会黑屏）；外层 `PopScope(canPop: false)` 拦
+///   Android 返回键并走「暂停 + 确认」。
+///
+/// M1 新增：接入 [FocusEngine]（tick 驱动 + 事件流驱动四档呈现）；顶部只留
+/// 「本次 mm:ss / mm:ss」（不显示阳光池数字，PRD §4.2）；离席降亮、恢复 lvl3 光晕；
+/// 到时 / 打断 / 手动结束进入结算页。
+///
+/// M1 第二批（B27 亮屏欢迎光晕更明显更久；F01 专注期系统勿扰 DND）。
+library focus_page;
+
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:native_device_orientation/native_device_orientation.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/services/focus_engine.dart';
+import 'package:sunflower_time/domain/services/presence_detector.dart';
+import 'package:sunflower_time/domain/services/sunlight_service.dart';
+import 'package:sunflower_time/platform/dnd_controller.dart';
+import 'package:sunflower_time/presentation/child/widgets/feedback_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
 
-/// S3 打盹屏专注页（最小实现）：横屏 + 计时 + 常亮保持 + 方向锁。
-///
-/// 验收（真机）：常亮稳定（国内 ROM 省电可能杀常亮，3–5 台连跑 30–60min 验证）；
-/// 计时在灭屏恢复后不漂移。
-///
-/// 计时用「墙钟差」而非 tick 计数：灭屏期间系统时间仍走，恢复后 elapsed 自然连续，
-/// 不依赖后台计时器（C3 / 验证计划 §2.5 / 架构 §1.3）。
-class FocusPage extends StatefulWidget {
+class FocusPage extends ConsumerStatefulWidget {
   final int plannedMinutes;
 
-  const FocusPage({super.key, this.plannedMinutes = 20});
+  /// 专注期是否启用系统勿扰（DND）屏蔽通知；入口页可选，默认开（F01）。
+  final bool dnd;
+
+  const FocusPage({
+    super.key,
+    this.plannedMinutes = kFocusDurationDefaultMinutes,
+    this.dnd = true,
+  });
 
   @override
-  State<FocusPage> createState() => _FocusPageState();
+  ConsumerState<FocusPage> createState() => _FocusPageState();
 }
 
-class _FocusPageState extends State<FocusPage> {
-  late DateTime _startTime;
-  late final Duration _planned;
-  Duration _elapsed = Duration.zero;
+class _FocusPageState extends ConsumerState<FocusPage>
+    with WidgetsBindingObserver {
+  late final FocusEngine _engine;
+  StreamSubscription<FocusEvent>? _eventSub;
+  PresenceDetector? _presence;
   Timer? _ticker;
-  StreamSubscription<NativeDeviceOrientation>? _orientSub;
+  Timer? _pulseTimer; // 二档送光脉冲
+  Timer? _bubbleTimer; // 气泡/唤醒文案驻留
+
+  FeedbackLevel _level = FeedbackLevel.lvl1;
+  WakeIntensity _wake = WakeIntensity.none;
+  bool _emitParticle = false;
+  bool _welcoming = false;
+  bool _absent = false;
   bool _paused = false;
   bool _finished = false;
+  String? _bubbleKey;
 
-  /// 方向宽限期截止时刻：抑制「传感器订阅首帧回调」与进入瞬间的方向抖动。
-  late DateTime _graceUntil;
-
-  /// 「已武装」标记：必须先观察到一次**横屏**，之后的竖屏才视为中途退出意图。
-  ///
-  /// 传感器模式在订阅瞬间即回调当前物理方向，孩子竖握手机进入时首帧就是
-  /// portrait —— 不武装就会误弹「确定结束吗？」（真机实测 B18）。
-  bool _armed = false;
+  final DndController _dnd = DndController();
+  bool _dndHintShown = false;
+  bool _dndBanner = false; // 未获勿扰授权时顶部常驻提示条幅（B30）
 
   @override
   void initState() {
     super.initState();
-    _startTime = DateTime.now();
-    _planned = Duration(minutes: widget.plannedMinutes);
-    _graceUntil =
-        _startTime.add(const Duration(seconds: kOrientationGraceSeconds));
+    WidgetsBinding.instance.addObserver(this); // B30：监听生命周期以在返回设置后重查 DND
+    _engine = FocusEngine(planned: Duration(minutes: widget.plannedMinutes));
+    _eventSub = _engine.events.listen(_onEvent);
     _enterFocusMode();
+    unawaited(_applyDndOnEnter()); // F01：专注开始启用勿扰（如已授权）
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_finished) return;
+      _engine.tick(DateTime.now());
+      if (mounted) setState(() {});
+    });
+    _presence = PresenceDetector(
+      onAbsent: _onAbsent,
+      onPresent: _onPresent,
+      onPortraitIntent: _requestExit,
+      grace: const Duration(seconds: kOrientationGraceSeconds),
+    )..start();
+    // start() 会同步发出 lvl1 事件；延后到首帧后再启动，避免在 initState 中 setState。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _engine.start();
+    });
+  }
+
+  /// F01：专注开始尝试启用系统勿扰（DND）。
+  ///
+  /// - 已授权 → 立即生效；
+  /// - 未授权 → 跳转系统勿扰权限设置页引导开启，顶部常驻提示条幅；
+  ///   用户从设置返回（resumed）后会由 [didChangeAppLifecycleState] 自动重查并启用（B30 修复）。
+  Future<void> _applyDndOnEnter() async {
+    if (!widget.dnd) return; // 用户关闭勿扰：不处理
+    final bool granted = await _dnd.isGranted();
+    if (granted) {
+      await _dnd.setEnabled(true);
+    } else {
+      // 引导去系统设置开启勿扰权限；用户回来后 resumed 时自动重查启用（B30）。
+      await _dnd.requestAccess();
+      if (mounted) setState(() => _dndBanner = true);
+      if (mounted && !_dndHintShown) {
+        _dndHintShown = true;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('请在系统设置中开启勿扰权限以屏蔽通知'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _enterFocusMode() async {
@@ -64,56 +135,85 @@ class _FocusPageState extends State<FocusPage> {
       ]);
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     } catch (_) {}
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
-    _orientSub = NativeDeviceOrientationCommunicator()
-        .onOrientationChanged(useSensor: true) // 传感器模式：物理方向，不受 SystemChrome 横屏锁影响
-        .listen(_onOrientation);
   }
 
-  void _tick() {
-    if (_paused || _finished) return;
-    final e = DateTime.now().difference(_startTime); // 墙钟差：灭屏恢复不漂移
-    if (mounted) setState(() => _elapsed = e);
-    if (e >= _planned) _finish();
-  }
-
-  void _onOrientation(NativeDeviceOrientation orient) {
-    if (_finished) return;
-    // 宽限期内一律忽略：传感器订阅首帧会立刻回调当前物理方向，
-    // 孩子竖握手机进入打盹屏时首帧即 portrait，不应视为退出意图（B18）。
-    if (DateTime.now().isBefore(_graceUntil)) return;
-
-    final isLandscape =
-        orient == NativeDeviceOrientation.landscapeLeft ||
-            orient == NativeDeviceOrientation.landscapeRight;
-    if (isLandscape) {
-      // 已确认横屏放置 → 武装，此后出现的竖屏才算「中途退出意图」
-      _armed = true;
+  // ── 引擎事件 → 四档呈现 ───────────────────────────────────────
+  void _onEvent(FocusEvent event) {
+    if (event.isFinished) {
+      _handleOutcome(event.outcome!);
       return;
     }
-
-    final isPortrait = orient == NativeDeviceOrientation.portraitUp ||
-        orient == NativeDeviceOrientation.portraitDown;
-    // 物理竖屏 = 中途退出意图（PRD §4.1.6 退出路径）：暂停 + 确认。
-    // 仅在「已武装」后生效，避免进入瞬间误弹。
-    if (isPortrait && _armed) {
-      _requestExit();
+    if (!mounted) return;
+    switch (event.level) {
+      case FeedbackLevel.lvl1:
+        setState(() {
+          _level = FeedbackLevel.lvl1;
+          _wake = WakeIntensity.none;
+        });
+      case FeedbackLevel.lvl2:
+        setState(() => _level = FeedbackLevel.lvl2);
+        _pulseParticle();
+        _showBubble(event.textKey);
+      case FeedbackLevel.lvl3:
+        setState(() {
+          _level = FeedbackLevel.lvl3;
+          _welcoming = true;
+        });
+        _clearWelcomeAfter(const Duration(seconds: 3)); // B27：欢迎光晕延长至 3 秒
+      case FeedbackLevel.lvl4:
+        setState(() {
+          _level = FeedbackLevel.lvl4;
+          _wake = event.wakeIntensity;
+        });
+        _showBubble(event.textKey);
     }
   }
 
-  /// 退出意图的统一入口：暂停 + 「确定结束吗？」确认框。
-  ///
-  /// 两类触发共用（架构 §1.3：「竖屏动作（物理竖屏 OR 手动退出）→ 暂停+确认」）：
-  /// ① 物理竖屏（PRD §4.1.6）；② Android 返回键（手动退出）。
-  /// 打盹屏本身不提供任何可点控件（§4.1）。
+  void _pulseParticle() {
+    _pulseTimer?.cancel();
+    setState(() => _emitParticle = true);
+    _pulseTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _emitParticle = false);
+    });
+  }
+
+  void _showBubble(String? textKey) {
+    if (textKey == null) return;
+    _bubbleTimer?.cancel();
+    setState(() => _bubbleKey = textKey);
+    _bubbleTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _bubbleKey = null);
+    });
+  }
+
+  void _clearWelcomeAfter(Duration d) {
+    Timer(d, () {
+      if (mounted) setState(() => _welcoming = false);
+    });
+  }
+
+  // ── 在场检测回调 ──────────────────────────────────────────────
+  void _onAbsent() {
+    _engine.onAbsent();
+    if (mounted) setState(() => _absent = true);
+  }
+
+  void _onPresent() {
+    _engine.onPresent();
+    if (mounted) setState(() => _absent = false);
+  }
+
+  // ── 退出路径（B18 / B20）─────────────────────────────────────
+  /// 退出意图统一入口：物理竖屏与系统返回键**共用**，行为一致（暂停 + 确认框）。
   void _requestExit() {
     if (_finished || _paused) return; // 已在确认中/已结束则不重复弹
     setState(() => _paused = true);
+    _engine.pause();
     _showExitConfirm();
   }
 
   void _showExitConfirm() {
-    showDialog(
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
@@ -130,7 +230,7 @@ class _FocusPageState extends State<FocusPage> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              _finish();
+              _engine.stop(); // 手动结束 → 引擎发 finished → 结算
             },
             child: const Text('结束'),
           ),
@@ -140,42 +240,79 @@ class _FocusPageState extends State<FocusPage> {
   }
 
   void _resume() {
-    // 保留已专注时长，把基准时间回拨，避免竖屏期间被计入
-    _startTime = DateTime.now().subtract(_elapsed);
-    setState(() => _paused = false);
+    _engine.resume();
+    if (mounted) setState(() => _paused = false);
   }
 
-  void _finish() {
+  // ── 结算 ─────────────────────────────────────────────────────
+  Future<void> _handleOutcome(FocusOutcome outcome) async {
     if (_finished) return;
     _finished = true;
     _ticker?.cancel();
-    _orientSub?.cancel();
-    _restoreSystemChrome();
-    if (mounted) {
-      // 回孩子端首页（M1 在此接入结算动画）。
-      //
-      // ⚠️ 必须用 `go('/')` 而非 `Navigator.pop()`：打盹屏是经 `go('/focus')`
-      // 进入的，go_router 的 go 是**替换路由栈**而非入栈，`/` 已不在栈中，
-      // pop 会把最后一个页面弹掉 → 黑屏（真机实测 B20）。
-      context.go('/');
-    }
+    _pulseTimer?.cancel();
+    _bubbleTimer?.cancel();
+    _presence?.stop();
+    await _dnd.setEnabled(false); // F01：退出专注恢复通知
+    await _restoreSystemChrome();
+
+    final DateTime start = _engine.startedAt ?? DateTime.now();
+    final FocusSettlement settlement =
+        await ref.read(sunlightServiceProvider).settle(
+              outcome: outcome,
+              start: start,
+              end: DateTime.now(),
+              plannedMin: widget.plannedMinutes,
+            );
+    if (!mounted) return;
+    // go 是替换路由栈（B20）；结算页经 go 进入，退出用 go('/')。
+    context.go('/settle', extra: settlement);
   }
 
-  void _restoreSystemChrome() {
-    WakelockPlus.disable();
-    SystemChrome.setPreferredOrientations([]); // 复位方向
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.manual,
-      overlays: SystemUiOverlay.values,
-    );
+  Future<void> _restoreSystemChrome() async {
+    try {
+      await WakelockPlus.disable();
+    } catch (_) {}
+    try {
+      await SystemChrome.setPreferredOrientations([]); // 复位方向
+      await SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.manual,
+        overlays: SystemUiOverlay.values,
+      );
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // B30：移除生命周期监听
     _ticker?.cancel();
-    _orientSub?.cancel();
+    _pulseTimer?.cancel();
+    _bubbleTimer?.cancel();
+    _eventSub?.cancel();
+    _presence?.stop();
+    _engine.dispose();
+    // F01：万一 _handleOutcome 未跑（如进程被杀），退出时仍尝试恢复通知。
+    unawaited(_dnd.setEnabled(false));
     _restoreSystemChrome();
     super.dispose();
+  }
+
+  /// B30：从系统设置返回后，若已获勿扰授权则自动启用；否则常驻提示条幅。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && widget.dnd && !_finished && !_paused) {
+      _reapplyDndIfGranted();
+    }
+  }
+
+  Future<void> _reapplyDndIfGranted() async {
+    final bool granted = await _dnd.isGranted();
+    if (!mounted) return;
+    if (granted) {
+      await _dnd.setEnabled(true);
+      setState(() => _dndBanner = false);
+    } else {
+      setState(() => _dndBanner = true);
+    }
   }
 
   String _fmt(Duration d) =>
@@ -183,10 +320,14 @@ class _FocusPageState extends State<FocusPage> {
 
   @override
   Widget build(BuildContext context) {
-    final remaining = _planned - _elapsed;
-    final showRemaining = remaining > Duration.zero ? remaining : Duration.zero;
+    final Duration elapsed = _engine.elapsed;
+    final Duration planned = _engine.planned;
+    final double progress = planned.inMicroseconds == 0
+        ? 0
+        : (elapsed.inMicroseconds / planned.inMicroseconds).clamp(0.0, 1.0);
+
     // 打盹屏经 go('/focus') 进入 = 路由栈底，不拦的话 Android 返回键会直接退出 App。
-    // 按架构 §1.3，「手动退出」与物理竖屏同路：暂停 + 确认框。
+    // 按架构 §1.3 / M0 §7 约定，「手动退出」与物理竖屏同路：暂停 + 确认框。
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -199,14 +340,52 @@ class _FocusPageState extends State<FocusPage> {
           alignment: Alignment.center,
           children: [
             // 中央：在做自己事的花（呼吸式明暗，零突事件）
-            const SunflowerCanvas(level: FeedbackLevel.lvl1),
-            // 顶部：本次倒计时（只留倒计时，不显示阳光池数字，PRD §4.2）
+            SunflowerCanvas(
+              level: _level,
+              emitParticle: _emitParticle,
+              progress: progress,
+              welcoming: _welcoming,
+            ),
+            // B30：未获勿扰授权时的顶部常驻提示条幅（用户从设置返回后自动消失）。
+            if (_dndBanner && widget.dnd && !_finished)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  color: const Color(0xFF5D4037),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '未开启勿扰，通知仍会打扰',
+                          style: TextStyle(color: Color(0xFFFFE082), fontSize: 13),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          await _dnd.requestAccess();
+                          unawaited(_reapplyDndIfGranted());
+                        },
+                        child: const Text(
+                          '去开启',
+                          style: TextStyle(color: Color(0xFFFFE082)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            // 顶部：只留本次倒计时（不显示阳光池数字，PRD §4.2）
+            // B30：顶部出现 DND 提示条幅时，倒计时下移避免遮挡。
             Positioned(
-              top: 24,
+              top: _dndBanner && widget.dnd && !_finished ? 56 : 24,
               left: 0,
               right: 0,
               child: Text(
-                '本次 ${_fmt(_elapsed)} / ${_fmt(_planned)}',
+                '本次 ${_fmt(elapsed)} / ${_fmt(planned)}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Color(0xFFBDBDBD),
@@ -215,6 +394,22 @@ class _FocusPageState extends State<FocusPage> {
                 ),
               ),
             ),
+            // B27：三档「欢迎回来」文字（亮屏瞬间补判），与离席遮罩区分，2–3 秒后消失。
+            if (_welcoming)
+              const Positioned(
+                top: 76,
+                left: 0,
+                right: 0,
+                child: Text(
+                  '欢迎回来',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFFFFE082),
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             // 底部：本屏不可交互提示
             const Positioned(
               bottom: 20,
@@ -226,7 +421,20 @@ class _FocusPageState extends State<FocusPage> {
                 style: TextStyle(color: Color(0xFF616161), fontSize: 14),
               ),
             ),
-            // 暂停遮罩
+            // 二档/四档气泡层（lvl1/lvl3 不出气泡）
+            if (_bubbleKey != null)
+              FeedbackOverlay(level: _level, wakeIntensity: _wake),
+            // 离席降亮（灭屏=离席；离席产出停止，不扣减，PRD §4.3 / §4.1.5）
+            if (_absent)
+              Container(
+                color: Colors.black.withValues(alpha: 0.45),
+                alignment: Alignment.center,
+                child: const Text(
+                  '向日葵在等你回来',
+                  style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 18),
+                ),
+              ),
+            // 暂停遮罩（退出确认）
             if (_paused)
               Container(
                 color: Colors.black54,
@@ -235,17 +443,6 @@ class _FocusPageState extends State<FocusPage> {
                       style: TextStyle(color: Colors.white, fontSize: 28)),
                 ),
               ),
-            // 真机调试用：剩余时间小字（产品页将移除）
-            Positioned(
-              top: 60,
-              left: 0,
-              right: 0,
-              child: Text(
-                '剩余 ${_fmt(showRemaining)}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF757575), fontSize: 14),
-              ),
-            ),
           ],
         ),
       ),

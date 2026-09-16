@@ -1,30 +1,82 @@
 /// 专注入口页（T09，竖屏）：选时长 + 音效/背景音乐开关 + 横屏引导。
 ///
 /// 依据 PRD §4.1.2（进入前选时长）/ §4.1.6（音效、背景音乐前移至进入前设置页）/ §4.2。
-/// 点「开始专注」→ `/focus?minutes=N&dnd=1|0`（横屏打盹屏，独占屏，经 go 进入）。
+/// 点「开始专注」→ 先经防沉迷服务（T11）评估：夜间锁定跳 /lock、达每日上限提示、需休息跳
+/// /rest，否则 → `/focus?minutes=N&dnd=1|0`（横屏打盹屏，独占屏，经 go 进入）。
 library entry_page;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
 
-class EntryPage extends StatefulWidget {
+class EntryPage extends ConsumerStatefulWidget {
   const EntryPage({super.key});
 
   @override
-  State<EntryPage> createState() => _EntryPageState();
+  ConsumerState<EntryPage> createState() => _EntryPageState();
 }
 
-class _EntryPageState extends State<EntryPage> {
+class _EntryPageState extends ConsumerState<EntryPage> {
   int _minutes = kFocusDurationDefaultMinutes;
   // B29：音频功能属 M2，本批不接音频播放；开关仅占位展示，故设为 final（不可切换）。
   final bool _soundOn = true; // 音效开关默认值（占位）
   final bool _bgmOn = false; // 背景音乐默认值（占位）
   bool _dndOn = true; // 屏蔽通知（勿扰），默认开（F01）
 
-  void _start() =>
-      context.go('/focus?minutes=$_minutes&dnd=${_dndOn ? 1 : 0}');
+  /// 开始专注前经防沉迷服务（T11）评估；按决策跳转或拦截。
+  Future<void> _start() async {
+    final AppSettings settings =
+        await ref.read(settingsRepositoryProvider).getSettings();
+    if (!mounted) return;
+
+    final String day = dayKey(DateTime.now());
+    final sessions = await ref.read(focusRepositoryProvider).sessionsOfDay(day);
+    if (!mounted) return;
+
+    final double todayFocusMin = sessions
+        .where((s) => s.status == FocusStatus.completed)
+        .fold(0.0, (a, s) => a + s.actualFocusMin);
+    final int todayValid =
+        sessions.where((s) => s.status == FocusStatus.completed).length;
+
+    final AntiAddictionDecision decision = AntiAddictionService().evaluate(
+      s: settings,
+      now: DateTime.now(),
+      todayFocusMin: todayFocusMin,
+      todayValidSessions: todayValid,
+      restSatisfied: ref.read(restSatisfiedProvider),
+    );
+
+    switch (decision) {
+      case AntiAddictionDecision.nightLocked:
+        context.go('/lock');
+      case AntiAddictionDecision.dailyCapReached:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '今日专注已达上限（${settings.dailyFocusCap} 分钟），明天再来哦',
+            ),
+          ),
+        );
+        return; // 不启动专注
+      case AntiAddictionDecision.restRequired:
+        context.go('/rest');
+        return;
+      case AntiAddictionDecision.allowed:
+        if (ref.read(restSatisfiedProvider)) {
+          // 用完清零，避免下次免休息时间窗。
+          ref.read(restSatisfiedProvider.notifier).state = false;
+        }
+        context.go('/focus?minutes=$_minutes&dnd=${_dndOn ? 1 : 0}');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -105,7 +157,7 @@ class _EntryPageState extends State<EntryPage> {
             ),
             const SizedBox(height: 32),
             FilledButton(
-              onPressed: _start,
+              onPressed: () => _start(),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 textStyle: const TextStyle(fontSize: 18),

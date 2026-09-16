@@ -20,6 +20,8 @@ import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
+import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
+import 'package:sunflower_time/domain/entities/settings.dart';
 
 /// SharedPreferences 实例（main 初始化后 override 注入，见 main.dart）。
 final sharedPreferencesProvider = Provider<SharedPreferences>(
@@ -75,3 +77,23 @@ final sunlightServiceProvider = Provider<SunlightService>(
 final pinSetupProvider = FutureProvider<bool>(
   (ref) => ref.watch(secureStoreProvider).hasPin(),
 );
+
+/// 全局设置（FutureProvider 包装 [SettingsRepository]，供 UI 异步读取）。
+///
+/// 防沉迷页/入口页读取休息时长等字段时复用，避免各自直接拿 Repository。
+final settingsProvider = FutureProvider<AppSettings>(
+  (ref) => ref.watch(settingsRepositoryProvider).getSettings(),
+);
+
+/// 防沉迷服务（T11，§6.1 / §6.3）。
+///
+/// 领域服务零依赖，此处装配为单例 Provider，便于替换与单测。
+final antiAddictionServiceProvider = Provider<AntiAddictionService>(
+  (ref) => AntiAddictionService(),
+);
+
+/// 本次「已休息满足」标记（T11，§6.3）。
+///
+/// 休息页倒计时归零后置 true；入口页 evaluate 命中 restRequired 后放行，
+/// 并在启动专注时清零（用完即焚）。
+final restSatisfiedProvider = StateProvider<bool>((ref) => false);

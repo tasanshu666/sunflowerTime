@@ -12,6 +12,8 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/presentation/child/pages/child_home_page.dart';
 import 'package:sunflower_time/presentation/child/pages/entry_page.dart';
+import 'package:sunflower_time/presentation/child/pages/lock_page.dart';
+import 'package:sunflower_time/presentation/child/pages/rest_page.dart';
 import 'package:sunflower_time/presentation/child/pages/focus_page.dart';
 import 'package:sunflower_time/presentation/child/pages/s1_demo_page.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
@@ -30,6 +32,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/entry',
         builder: (context, state) => const EntryPage(),
+      ),
+      GoRoute(
+        path: '/lock',
+        builder: (context, state) => const LockPage(),
+      ),
+      GoRoute(
+        path: '/rest',
+        builder: (context, state) => const RestPage(),
       ),
       GoRoute(
         path: '/focus',

@@ -53,6 +53,38 @@ const int kNightBoundaryMinute = 0;
 /// 首帧即 portrait，若不加宽限期会立刻误弹「确定结束吗？」（真机实测 B18）。
 const int kOrientationGraceSeconds = 3;
 
+/// 竖屏退出去抖时长（秒）：连续保持竖屏达该时长才判定为「中途退出意图」（B26），
+/// 避免传感器极灵敏导致的轻微晃动即触发「确定结束吗？」确认框。
+const double kPortraitExitDebounceSeconds = 1.5;
+
+// ── M1 专注闭环（PRD §4.1.2 / §4.1.4 / §4.1.5）────────────────────
+/// 打断时长（秒）：L3 唤醒（180s）后再持续 120s（累计 300s）→ 本次专注自然结束
+/// （PRD §4.1.4 声量账表「打断」行）。
+const int kInterruptSeconds = 120;
+
+/// 唤醒语音每场上限（PRD §4.1.4 声量账：L2+L3 合计 ≤ 3 次/场）。
+const int kWakeMaxPerSession = 3;
+
+/// 唤醒「加重」每场上限（PRD §4.1.4 声量账：L3 单场至多 1 次）。
+const int kWakeStrongMaxPerSession = 1;
+
+/// 专注产出速率：1 阳光/分钟（PRD §4.1.5 / §4.5 产出表；产出侧不乘 K，§0）。
+const double kSunlightPerFocusMinute = 1.0;
+
+/// 随光报信触发占比（PRD §4.1.3 / §4.1.4：每完成 1/3 进度送一粒光，天然 2 次）。
+const List<double> kReportBoundaryFractions = [1 / 3, 2 / 3];
+
+/// 进入专注前可选时长档位（分钟）（PRD §4.1.2 进入前选时长；数值口径见用户裁定）。
+const List<int> kFocusDurationOptions = [15, 20, 25, 30, 45];
+
+/// 自定义时长的上限（分钟）：入口页「自定义」数字输入校验上界（PRD §4.1.2 自由时长）。
+///
+/// 约束取值上限，避免任意超大整数透传进 FocusPage；入口页自定义输入范围 [1, 本值]。
+const int kFocusDurationMaxMinutes = 180;
+
+/// 进入专注默认时长（分钟）（PRD §4.1.2「默认上次使用值」，首启默认 20）。
+const int kFocusDurationDefaultMinutes = 20;
+
 // ── 加密本地库（§10.4 C13）────────────────────────────────────────
 /// 数据库文件名（SQLCipher 加密）。
 const String kDatabaseFileName = 'sunfocus.sqlite';

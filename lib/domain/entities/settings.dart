@@ -43,4 +43,49 @@ class AppSettings {
     this.themeDark = true,
     this.autonomousMode = false,
   });
+
+  /// 不可变副本（M2 入口页持久化音效 / 背景音乐开关时使用）。
+  AppSettings copyWith({
+    AgeTier? ageTier,
+    int? nightBoundaryHour,
+    int? nightBoundaryMinute,
+    int? dailyFocusCap,
+    int? dailyAppCapMinutes,
+    int? restAfterSessions,
+    int? restMinutes,
+    int? taskSunlight,
+    int? monthlyPoolBudget,
+    bool? quietMode,
+    bool? soundOn,
+    bool? bgmOn,
+    bool? detectionOn,
+    int? autoConfirmSingleHigh,
+    int? autoConfirmSingleLow,
+    double? autoConfirmMonthlyPct,
+    double? currencyRate,
+    bool? themeDark,
+    bool? autonomousMode,
+  }) {
+    return AppSettings(
+      ageTier: ageTier ?? this.ageTier,
+      nightBoundaryHour: nightBoundaryHour ?? this.nightBoundaryHour,
+      nightBoundaryMinute: nightBoundaryMinute ?? this.nightBoundaryMinute,
+      dailyFocusCap: dailyFocusCap ?? this.dailyFocusCap,
+      dailyAppCapMinutes: dailyAppCapMinutes ?? this.dailyAppCapMinutes,
+      restAfterSessions: restAfterSessions ?? this.restAfterSessions,
+      restMinutes: restMinutes ?? this.restMinutes,
+      taskSunlight: taskSunlight ?? this.taskSunlight,
+      monthlyPoolBudget: monthlyPoolBudget ?? this.monthlyPoolBudget,
+      quietMode: quietMode ?? this.quietMode,
+      soundOn: soundOn ?? this.soundOn,
+      bgmOn: bgmOn ?? this.bgmOn,
+      detectionOn: detectionOn ?? this.detectionOn,
+      autoConfirmSingleHigh: autoConfirmSingleHigh ?? this.autoConfirmSingleHigh,
+      autoConfirmSingleLow: autoConfirmSingleLow ?? this.autoConfirmSingleLow,
+      autoConfirmMonthlyPct: autoConfirmMonthlyPct ?? this.autoConfirmMonthlyPct,
+      currencyRate: currencyRate ?? this.currencyRate,
+      themeDark: themeDark ?? this.themeDark,
+      autonomousMode: autonomousMode ?? this.autonomousMode,
+    );
+  }
 }

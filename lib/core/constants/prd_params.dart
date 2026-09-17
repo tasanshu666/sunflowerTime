@@ -71,6 +71,12 @@ const int kSoftCapSeg2 = 90;
 /// 软顶第三段上限（PRD §4.5：90–110 计 20%）
 const int kSoftCapSeg3 = 110;
 
+/// 软顶第二段计入比例（PRD §4.5：60–90 段 50%）
+const double kSoftCapSeg2Rate = 0.5;
+
+/// 软顶第三段计入比例（PRD §4.5：90–110 段 20%）
+const double kSoftCapSeg3Rate = 0.2;
+
 /// 有效专注成长速度系数（PRD §4.6 H2：当日有效专注 ≥15min → ×1.3，否则 ×1.0）
 const double kGrowthFactorFocused = 1.3;
 

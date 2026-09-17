@@ -7,10 +7,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/presentation/child/pages/child_home_page.dart';
+import 'package:sunflower_time/presentation/child/pages/entry_page.dart';
+import 'package:sunflower_time/presentation/child/pages/lock_page.dart';
+import 'package:sunflower_time/presentation/child/pages/rest_page.dart';
 import 'package:sunflower_time/presentation/child/pages/focus_page.dart';
 import 'package:sunflower_time/presentation/child/pages/s1_demo_page.dart';
+import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_home_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_login_page.dart';
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
@@ -24,8 +30,34 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ChildHomePage(),
       ),
       GoRoute(
+        path: '/entry',
+        builder: (context, state) => const EntryPage(),
+      ),
+      GoRoute(
+        path: '/lock',
+        builder: (context, state) => const LockPage(),
+      ),
+      GoRoute(
+        path: '/rest',
+        builder: (context, state) => const RestPage(),
+      ),
+      GoRoute(
         path: '/focus',
-        builder: (context, state) => const FocusPage(),
+        builder: (context, state) {
+          final minutes = int.tryParse(
+                state.uri.queryParameters['minutes'] ?? '',
+              ) ??
+              kFocusDurationDefaultMinutes;
+          // dnd 默认开：仅当显式传 '0' 才关闭（F01）。
+          final dnd = state.uri.queryParameters['dnd'] != '0';
+          return FocusPage(plannedMinutes: minutes, dnd: dnd);
+        },
+      ),
+      GoRoute(
+        path: '/settle',
+        // 结算参数经 go extra 传入（当前会话内即时导航；不做深链持久化）。
+        builder: (context, state) =>
+            SettlePage(settlement: state.extra as FocusSettlement?),
       ),
       GoRoute(
         path: '/s1-demo',

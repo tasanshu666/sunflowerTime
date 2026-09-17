@@ -132,3 +132,73 @@
 - **总计**：9 项全部关闭，无遗留缺陷
 - 收尾校验：`flutter analyze` **无 error / 无 warning**（12 info）；`dart test` **13/13 通过**；`flutter build apk --debug` 成功；小米 14 Pro 全路径验收通过
 - 复用沉淀：技能 `flutter-gorouter-orientation-pitfalls`、`flutter-android-apk-build`、`flutter-offline-pub-cache`；经验表 E2 已纠正（本机**可以**打 APK）
+
+---
+
+# M1 批次一（专注闭环 T06–T10）· 缺陷记录
+
+> 本批首次启用「工程师实现 → QA 独立验证」两段流程，下述 3 条**全部由 QA 在编码期发现并定级**，均未流入真机验收。
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| B22 | M1/专注引擎 | **离席时段被吞入专注时长**（P1）：真机灭屏（OS 挂起 ticker）期间即便一次 tick 都没有，亮屏后首帧仍把整段离席当 running 计入 | `onAbsent()` / `onPresent()` 未推进 `_lastTick`（而 `resume()` 有）→ 两者不对称；后续 `now - _lastTick` 把离席窗口整段按 running 结算。三重后果：① `actualFocusMin` 注水，可误越 5 分钟门槛；② 结算按注水时长发阳光 → **给离席时间发阳光**（违背用户拍板的灭屏口径）；③ 离席满 300s 的**打断被整段跳过** | 抽出**共享推进内核 `_advance(now)`**：tick 与两个事件入口共用同一套"按当前状态切分时段归属"逻辑（`onPresent` 入口先 `_advance`，把整段离席窗口按 absent 归属并触发唤醒/打断，打断则早退）。**未采用**"仅在事件入口补 `_lastTick`"的朴素方案——那会让打断整段丢失 | ✅ 已修复（QA Round 2 复验通过） |
+| B23 | M1/阳光记账 | **产出双源**（P2）：引擎 `rawSunlight` 走精确斜坡积分，结算层却用 `actualFocusMin` 重算 S | `SunlightService.computeRawS` 收 `focusMin` 反推，忽略 10s 回满斜坡 → **每次离席恢复系统性多算 5/60 阳光**，引擎的精确积分被白做 | `computeRawS` 参数改为 `focusSunlight`；`settle()` 改为传 `outcome.rawSunlight`（对外签名不变，调用点无需改） | ✅ 已修复（QA 用例 N1） |
+| B24 | M1/口径单点 | 本批新代码 2 处裸字面量，且顺带发现既有常量"定义了却没用" | ① `presence_detector.dart:54` 默认 `Duration(seconds: 3)` 与 `kOrientationGraceSeconds` 孪生；② `focus_engine.dart:308,317` 用 `/60.0` 编码速率；③ **既有**：`math_ext.dart` 分段软顶用 60/90/110/0.5/0.2/79 裸值，而同名常量 `kSoftCapSeg1/Seg2/Seg3`、`kSoftCapDailyMax` 早已存在未被引用；`datetime_ext.dart:29` 的 21 同理 | ①③ 全部改为引用常量（**数值不变**，S=162→79、91.8→75.4、47.6→47.6 三锚点保持）；`autoApproveMonthlyCap` 默认参数改 `double?` 可空 + 内部回落常量；新增 `kSoftCapSeg2Rate` / `kSoftCapSeg3Rate` 到 `prd_params.dart` | ✅ 已修复（QA 复核无数值漂移） |
+
+**证据锚点**
+
+| 缺陷 | 修复前 | 修复后 |
+|---|---|---|
+| B22 | 在场 10s + 离席 60s（0 tick）+ 恢复 → `actualFocusMin = 71/60` | **11/60** |
+| B22 | 离席 300s（0 tick）→ 未打断 | 恢复调用内即 `isFinished / interrupted` |
+| B23 | `settle` 用 actualFocusMin 反推 S（多算 5/60） | 账本 `gross` == 引擎 `rawSunlight`；且 `rawS < actualFocusMin × rate` |
+
+**QA 独立验证的其它产出**
+
+- **45 条**新用例（edge 29 + P1 缺陷证据 2 + `_advance` 内核 9 + 结算端到端 5）；其中 2 条曾作为"故意保留的红测"作为缺陷证据，修复后转绿。
+- **口径巡检**：本批裸字面量清零；`0.5` / `0.2` / `0.90` 全仓仅剩常量定义处与注释。
+- **接线审查**（本机跑不了 UI，以代码审查替代）：`focus_page` 真接引擎与检测器（非"只建不用"）；**B18 / B20 两处旧修复未回退**；路由参数与页面构造参数一致；`focusRepositoryProvider` 已由桩换真实实现。
+
+---
+
+# M1 批次一 · 汇总
+
+- **编码期缺陷**：B22–B24（3 项，全部 ✅ 已修复）
+- **真机验收缺陷**：⏳ 待玄参大人执行（验收路径见 `docs/产品开发文档_M1.md` §5 的 11 步）
+- **收尾校验**：`flutter analyze` **0 error / 0 warning**（11 info）；`dart test` **67/67 通过**；`flutter build apk --debug` 成功；`adb install -r` 成功；启动进程存活、无 FATAL
+- **明确未验证**（不含糊通过）：UI 实际渲染 / 动画帧率 / 常亮是否被国内 ROM 杀 / ticker 是否真被 OS 挂起（此四条须真机）
+- **M0 遗留台账**（本批未动，待 M2 清）：见 `docs/软件设计文档_M1.md` §11
+
+---
+
+# M1 批次二（T06–T10 真机验收修复）· 分支 `m1/focus-loop`
+
+> 玄参大人真机实测 M1 批次一 APK，分两轮反馈：首轮 **7 条** → B25–B29 + F01（新功能）；
+> 次轮 **3 通过 / 3 失败** → 失败项 B30/B31/B32，第三轮复测全部通过。
+
+## 首轮（7 条反馈）
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| B25 | M1/结算 | 横屏1min+竖屏退出后结算「本次专注 1 秒」 | `settle_page.dart` 旧 `_fmtMinutes` 把 `actualFocusMin`（单位=分钟）当**秒**拆 → 1.0 分钟显示"1 秒"。引擎其实正常累计了 60s | 新增顶层纯函数 `formatFocusMinutes(minutes)`：先 `×60` 转总秒再拆「分+秒」；调用点换用，删旧私有方法。**结论：纯显示 bug，引擎无需重构** | ✅ 已修复（次轮复测：6分56秒 显示正确） |
+| B26 | M1/在场检测 | 竖屏检测太灵敏，稍晃即弹「再坐一会」 | 原判定 `isPortrait && !_paused` 无「持续时长」门槛 | `presence_detector.dart` 新增 `_portraitSince` + 常量 `kPortraitExitDebounceSeconds=1.5`：竖屏需**连续保持 ≥1.5s** 才触发；横屏清计时、非横非竖忽略 | ✅ 已修复（次轮复测：轻晃不误弹） |
+| B27 | M1/亮屏补判 | 灭屏30–60s 亮屏未见欢迎光晕；灭屏2min+ 无唤醒文案 | 灭屏=离席语义（OS 挂起 ticker，无法实时提醒，合理取舍）；亮屏补判偏弱 | `focus_page.dart` lvl3 欢迎时长 2s→3s + 新增「欢迎回来」文字；`sunflower_canvas.dart` 光晕 alpha 0.35→0.5、半径 135→145 | ✅ 已修复（次轮复测：灭屏30s亮屏有「欢迎回来」约3s） |
+| B28 | M1/结算 | 结算「从下往上增长进度条」语义不清 | 罐动画语义未对齐「光回罐」叙事 | 仅 `net>0` 显示「光回罐」上涨动画 + "向日葵把光收进罐子里 ☀️" 小字；`net==0/null` 只留「这次太短啦」文案、不显示上涨罐 | ✅ 已修复（次轮复测：手动返回结算+7阳光+阳光特效） |
+| B29 | M1/入口 | 入口开音效/BGM 开关但无声 | 音频功能属 M2（T18），本批未接 | 开关 `onChanged:null` 禁用 + 副标题「音频功能即将上线（M2）」，不接 just_audio | ✅ 诚实化（不实现） |
+| F01 | M1/新功能 | 入口新增「屏蔽通知（勿扰）」开关（默认开） | 专注期需屏蔽微信等打扰 | 新增 `dnd_controller.dart`(`MethodChannel('sunfocus/dnd')`，`Platform.isAndroid` 守卫) + `MainActivity.kt`(`isDndPolicyGranted/openDndSettings/setDnd` NONE/ALL, try/catch) + `AndroidManifest.xml`(`ACCESS_NOTIFICATION_POLICY`)；入口开关 → `/focus?dnd=1`；进专注启用、结束/dispose 恢复 | ✅ 已实现（B30 初版失效，见下） |
+
+## 次轮（3 失败 → B30/B31/B32，第三轮复测全部通过）
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| B30 | M1/DND | 开启勿扰仍收微信弹窗+声音（语音也一样） | 进专注时若未授权，`requestAccess()` 跳设置后即 `setEnabled(true)` 抛 `SecurityException` 被 Kotlin 静默吞 → DND 从未真开；用户从设置返回也**不重查授权** | 三处联动：①`focus_page.dart` 加 `WidgetsBindingObserver`，`resumed` 重查 `isGranted()` 自动 `setEnabled(true)`、未授权显顶部常驻条幅+「去开启」；②`MainActivity.kt` `setDnd` 执行后读 `currentInterruptionFilter` 返回 Dart 自证（`-1`=未生效）+ `Log.d`；③`dnd_controller.dart` `setEnabled` 返回 `int` 并 `debugPrint`，try/catch 不再抛异常只回 -1 | ✅ 第三轮复测通过（微信消息/语音均被屏蔽） |
+| B31 | M1/在场检测 | 横→竖静止放 >5s 不弹结束卡片（测3次失败） | 真机证实 `native_device_orientation` **手机静止后不再回调** orientation 事件 → 旧 `_portraitSince` 时长判定依赖连续事件，永远达不成 | `presence_detector.dart` 改 **Timer 到期判定**：arm 后首见竖屏起 `Timer(1.5s)`，到点必触发 `onPortraitIntent`；重复竖屏不重置；landscape/非横非竖取消 timer；加 `_portraitFired` 防一次持有重复弹；`stop()` 取消防泄漏 | ✅ 第三轮复测通过（静止竖放>1.5s 弹框） |
+| B32 | M1/结算 | <5 分钟结算向日葵消失（截图中央全黑） | `net==0` 分支把含 `SunflowerCanvas` 的整块换成 `SizedBox.shrink()`，花罐一起藏 | `settle_page.dart` 中央**始终**渲染 `SunflowerCanvas`；`net>0`→celebrating:true+光点+罐涨+小字；`net==0/null`→celebrating:false 静态呼吸花（罐/光点不显示，仅保留「这次太短啦」文案） | ✅ 第三轮复测通过（结算有向日葵） |
+
+## M1 批次二 · 汇总与校验
+
+- **首轮**：B25–B29（5 缺陷）+ F01（1 新功能）全部 ✅
+- **次轮**：B30/B31/B32（P1/P1/P2）第三轮复测全部 ✅
+- **收尾校验**（次轮修复后）：`flutter analyze` **0 error / 0 warning**（11 info 为 M0 既有 lint）；`flutter test` **73/73 全绿**；`flutter build apk --debug` 成功；`adb install -r` 推小米 14 Pro 第三轮验收全通过
+- **5 项口径已裁定**（均保持现状，详见口径裁定表 v1 · C9）：送光基准 / 离席不冻结 / 时长档位 15·20·25·30·45 / 无触摸关闭 / 唤醒恢复瞬间补判。仅文档钉死，M1 无代码改动。
+- **仍后置**：T11 防沉迷骨架（分两批）、M2 音频（点3）

@@ -21,6 +21,7 @@ import 'package:sunflower_time/domain/repositories/task_repository.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
+import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 
 /// SharedPreferences 实例（main 初始化后 override 注入，见 main.dart）。
@@ -97,3 +98,6 @@ final antiAddictionServiceProvider = Provider<AntiAddictionService>(
 /// 休息页倒计时归零后置 true；入口页 evaluate 命中 restRequired 后放行，
 /// 并在启动专注时清零（用完即焚）。
 final restSatisfiedProvider = StateProvider<bool>((ref) => false);
+
+/// 单例音频服务（M2 音频模块，§1.1）。跨 focus/settle 页面复用，避免重复 new 播放器。
+final audioServiceProvider = Provider<AudioService>((ref) => AudioService.instance);

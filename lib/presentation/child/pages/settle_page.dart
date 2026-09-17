@@ -7,10 +7,13 @@
 library settle_page;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
+import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
 
 /// 专注时长格式化（B25 修复）：[minutes] 单位为**分钟**。
@@ -24,17 +27,17 @@ String formatFocusMinutes(double minutes) {
   return s == 0 ? '$m 分钟' : '$m 分 $s 秒';
 }
 
-class SettlePage extends StatefulWidget {
+class SettlePage extends ConsumerStatefulWidget {
   /// 结算参数（由专注页经 go extra 传入；深链缺失时为 null）。
   final FocusSettlement? settlement;
 
   const SettlePage({super.key, this.settlement});
 
   @override
-  State<SettlePage> createState() => _SettlePageState();
+  ConsumerState<SettlePage> createState() => _SettlePageState();
 }
 
-class _SettlePageState extends State<SettlePage>
+class _SettlePageState extends ConsumerState<SettlePage>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
 
@@ -45,6 +48,10 @@ class _SettlePageState extends State<SettlePage>
       vsync: this,
       duration: const Duration(milliseconds: 2400),
     )..forward();
+    // M2：net > 0 光回罐动画启动时播放结算奖励音（受 soundOn 保护，缺素材静默降级）。
+    if ((widget.settlement?.net ?? 0) > 0) {
+      ref.read(audioServiceProvider).playSfx(AudioCue.taskReward);
+    }
   }
 
   @override
@@ -61,9 +68,17 @@ class _SettlePageState extends State<SettlePage>
     final double actualMin = settlement?.actualFocusMin ?? 0;
     final bool shortAborted = settlement?.status == FocusStatus.shortAborted;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF1B1B2F),
-      body: SafeArea(
+    // B20 修复：结算页经 go('/settle') 进入 → 路由栈底唯一页。
+    // 用 PopScope 拦截系统返回手势（Android 右滑 / iOS 边缘滑动），
+    // 把「返回意图」导向孩子首页 '/'（与现有「回首页」按钮行为一致），避免栈空直接退出 App。
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop) context.go('/');
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF1B1B2F),
+        body: SafeArea(
         child: AnimatedBuilder(
           animation: _anim,
           builder: (context, _) {
@@ -167,6 +182,7 @@ class _SettlePageState extends State<SettlePage>
             );
           },
         ),
+      ),
       ),
     );
   }

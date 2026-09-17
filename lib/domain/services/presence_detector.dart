@@ -56,8 +56,10 @@ class PresenceDetector with WidgetsBindingObserver {
     Duration grace = const Duration(seconds: kOrientationGraceSeconds),
     this.touchTimeoutEnabled = false,
     DateTime Function()? clock,
+    Stream<NativeDeviceOrientation>? orientationStream,
   })  : _grace = grace,
-        _clock = clock ?? DateTime.now;
+        _clock = clock ?? DateTime.now,
+        _orientationStream = orientationStream;
 
   /// 灭屏 / 离席回调（PRD §4.3）。
   final void Function()? onAbsent;
@@ -77,9 +79,17 @@ class PresenceDetector with WidgetsBindingObserver {
   final Duration _grace;
   final DateTime Function() _clock;
 
+  /// 可注入的物理方向流（仅用于测试）。为 null 时走生产路径
+  /// `NativeDeviceOrientationCommunicator().onOrientationChanged(...)`。
+  final Stream<NativeDeviceOrientation>? _orientationStream;
+
+  /// 最近一次观测到的物理方向（宽限期/静止期间也保留），用于宽限期后判定武装。
+  NativeDeviceOrientation? _lastOrientation;
+
   StreamSubscription<NativeDeviceOrientation>? _sub;
   DateTime? _graceUntil;
   Timer? _portraitTimer; // 竖屏退出定时器（B26 去抖 + B31 修复）
+  Timer? _graceTimer; // 宽限期后尝试武装的一次性定时器（本次修复新增）
   bool _portraitFired = false; // 本次「竖屏持有」是否已触发过（防重复弹框）
   bool _armed = false;
   bool _started = false;
@@ -91,9 +101,29 @@ class PresenceDetector with WidgetsBindingObserver {
     _started = true;
     _graceUntil = _clock().add(_grace);
     WidgetsBinding.instance.addObserver(this);
-    _sub = NativeDeviceOrientationCommunicator()
-        .onOrientationChanged(useSensor: true) // 传感器模式：物理方向，不受横屏锁影响（B12）
-        .listen(_onOrientation);
+
+    // 订阅物理方向传感器流：默认生产路径；可注入 stream 用于测试（避免依赖真实传感器）。
+    final Stream<NativeDeviceOrientation> stream = _orientationStream ??
+        NativeDeviceOrientationCommunicator()
+            .onOrientationChanged(useSensor: true); // 传感器模式，不受横屏锁影响（B12）
+    _sub = stream.listen(_onOrientation);
+
+    // 生产路径：立即取一次当前方向存入 [_lastOrientation]。
+    // 修复「横屏静止不弹确认框」：native_device_orientation 在设备「横屏静止」后不再回调，
+    // 宽限期后若无任何方向事件则无法武装。此处预取当前方向，使「静止横屏」也能在宽限期后武装。
+    if (_orientationStream == null) {
+      NativeDeviceOrientationCommunicator()
+          .orientation(useSensor: true)
+          .then((NativeDeviceOrientation o) {
+        _lastOrientation = o;
+      }).catchError((Object _) {
+        /* 传感器不可用时忽略，武装逻辑不受影响 */
+      });
+    }
+
+    // 宽限期一到即尝试武装：即便设备横屏静止（宽限期后无方向事件）也能完成武装。
+    _graceTimer = Timer(_grace, _maybeArmAfterGrace);
+
     // touchTimeout 信号预留：M1 默认关闭，见 touchTimeoutEnabled 说明。
   }
 
@@ -104,6 +134,8 @@ class PresenceDetector with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _sub?.cancel();
     _sub = null;
+    _graceTimer?.cancel();
+    _graceTimer = null;
     _cancelPortraitTimer();
   }
 
@@ -111,6 +143,22 @@ class PresenceDetector with WidgetsBindingObserver {
     _portraitTimer?.cancel();
     _portraitTimer = null;
   }
+
+  /// 宽限期结束后一次性尝试武装：若最近一次观测方向为横屏，则置 [_armed] = true。
+  ///
+  /// 这是修复「横屏静止不弹确认框」的关键：不依赖宽限期后的方向事件，
+  /// 只要宽限期内曾观测到横屏（静止时 [_lastOrientation] 已被记录）即可武装。
+  void _maybeArmAfterGrace() {
+    _graceTimer = null;
+    if (_lastOrientation != null && _isLandscape(_lastOrientation!)) {
+      _armed = true;
+    }
+  }
+
+  /// 是否为横屏方向（landscapeLeft / landscapeRight）。
+  bool _isLandscape(NativeDeviceOrientation o) =>
+      o == NativeDeviceOrientation.landscapeLeft ||
+      o == NativeDeviceOrientation.landscapeRight;
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -129,6 +177,10 @@ class PresenceDetector with WidgetsBindingObserver {
   }
 
   void _onOrientation(NativeDeviceOrientation orient) {
+    // 记录最近一次物理方向（即便处于宽限期/设备静止也不再回调，也保留最近方向，
+    // 供宽限期后 [_maybeArmAfterGrace] 判定武装）。
+    _lastOrientation = orient;
+
     // 宽限期一律忽略：抑制传感器订阅首帧回调与进场抖动（B18）。
     final DateTime now = _clock();
     if (_graceUntil != null && now.isBefore(_graceUntil!)) return;

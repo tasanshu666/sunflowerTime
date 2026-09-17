@@ -6,6 +6,7 @@
 library entry_page;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -25,10 +26,10 @@ class EntryPage extends ConsumerStatefulWidget {
 
 class _EntryPageState extends ConsumerState<EntryPage> {
   int _minutes = kFocusDurationDefaultMinutes;
-  // B29：音频功能属 M2，本批不接音频播放；开关仅占位展示，故设为 final（不可切换）。
-  final bool _soundOn = true; // 音效开关默认值（占位）
-  final bool _bgmOn = false; // 背景音乐默认值（占位）
   bool _dndOn = true; // 屏蔽通知（勿扰），默认开（F01）
+
+  /// 是否选中「自定义」时长档（与预设档互斥；默认保持某个预设选中）。
+  bool _custom = false;
 
   /// 开始专注前经防沉迷服务（T11）评估；按决策跳转或拦截。
   Future<void> _start() async {
@@ -78,8 +79,20 @@ class _EntryPageState extends ConsumerState<EntryPage> {
     }
   }
 
+  /// M2：将音效 / 背景音乐开关持久化写入设置仓储，并刷新 [settingsProvider] 内存值。
+  Future<void> _persistSettings({bool? soundOn, bool? bgmOn}) async {
+    final AppSettings s = await ref.read(settingsRepositoryProvider).getSettings();
+    await ref.read(settingsRepositoryProvider).saveSettings(
+          s.copyWith(soundOn: soundOn, bgmOn: bgmOn),
+        );
+    ref.invalidate(settingsProvider);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final AsyncValue<AppSettings> settingsAsync = ref.watch(settingsProvider);
+    final bool soundOn = settingsAsync.valueOrNull?.soundOn ?? true;
+    final bool bgmOn = settingsAsync.valueOrNull?.bgmOn ?? false;
     return Scaffold(
       appBar: AppBar(
         title: const Text('开始专注'),
@@ -102,15 +115,52 @@ class _EntryPageState extends ConsumerState<EntryPage> {
             Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: kFocusDurationOptions.map((m) {
-                final selected = m == _minutes;
-                return ChoiceChip(
-                  label: Text('$m 分钟'),
-                  selected: selected,
-                  onSelected: (_) => setState(() => _minutes = m),
-                );
-              }).toList(),
+              children: <Widget>[
+                ...kFocusDurationOptions.map((int m) {
+                  final bool selected = !_custom && m == _minutes;
+                  return ChoiceChip(
+                    label: Text('$m 分钟'),
+                    selected: selected,
+                    onSelected: (_) => setState(() {
+                      _minutes = m;
+                      _custom = false;
+                    }),
+                  );
+                }),
+                // 「自定义」档：选中后在其下显示数字输入（见下方）。
+                ChoiceChip(
+                  label: const Text('自定义'),
+                  selected: _custom,
+                  onSelected: (_) => setState(() => _custom = true),
+                ),
+              ],
             ),
+            if (_custom) ...<Widget>[
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('customMinutesField'),
+                keyboardType: TextInputType.number,
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly
+                ],
+                decoration: const InputDecoration(
+                  labelText: '自定义时长（分钟）',
+                  hintText: '1 – $kFocusDurationMaxMinutes',
+                  helperText: '可选 $kFocusDurationMaxMinutes 分钟以内',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (String value) {
+                  final int? parsed = int.tryParse(value);
+                  // 仅在校验范围 [1, kFocusDurationMaxMinutes] 内更新 _minutes，
+                  // 超出或空时保留最近一次合法值，避免开始专注时透传非法时长。
+                  if (parsed != null &&
+                      parsed >= 1 &&
+                      parsed <= kFocusDurationMaxMinutes) {
+                    setState(() => _minutes = parsed);
+                  }
+                },
+              ),
+            ],
             const SizedBox(height: 28),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -120,20 +170,23 @@ class _EntryPageState extends ConsumerState<EntryPage> {
               onChanged: (v) => setState(() => _dndOn = v),
             ),
             const SizedBox(height: 12),
-            // B29：音频功能属 M2，本批不接音频播放；开关诚实置灰，避免误导用户以为已生效。
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('音效'),
-              subtitle: const Text('音频功能即将上线（M2）'),
-              value: _soundOn, // 默认值保持（音效 true），但不可切换
-              onChanged: null,
+              subtitle: const Text('专注时播放轻提示音'),
+              value: soundOn,
+              onChanged: (v) {
+                _persistSettings(soundOn: v);
+              },
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('背景音乐'),
-              subtitle: const Text('音频功能即将上线（M2）'),
-              value: _bgmOn, // 默认值保持（BGM false），但不可切换
-              onChanged: null,
+              subtitle: const Text('专注时循环轻柔背景乐'),
+              value: bgmOn,
+              onChanged: (v) {
+                _persistSettings(bgmOn: v);
+              },
             ),
             const SizedBox(height: 24),
             Container(

@@ -34,6 +34,8 @@ dependencies:
   # ── S3 已验证：屏幕常亮 + 真实方向检测（§1.3）
   wakelock_plus: ^1.2.0
   native_device_orientation: ^2.0.0
+  # ── 音频播放（M2 音频模块，§1.1）：单例播放器，资源缺失静默降级
+  just_audio: ^0.9.42
 
 dev_dependencies:
   flutter_test:
@@ -47,6 +49,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/audio/sfx/
+    - assets/audio/bgm/
 
 # ── 原生资产（native assets / hooks）配置 ────────────────────────────
 # sqlite3 包默认会从 GitHub Releases 下载预编译库（libsqlite3.arm.android.so 等）。

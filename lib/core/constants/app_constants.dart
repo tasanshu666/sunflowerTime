@@ -77,6 +77,11 @@ const List<double> kReportBoundaryFractions = [1 / 3, 2 / 3];
 /// 进入专注前可选时长档位（分钟）（PRD §4.1.2 进入前选时长；数值口径见用户裁定）。
 const List<int> kFocusDurationOptions = [15, 20, 25, 30, 45];
 
+/// 自定义时长的上限（分钟）：入口页「自定义」数字输入校验上界（PRD §4.1.2 自由时长）。
+///
+/// 约束取值上限，避免任意超大整数透传进 FocusPage；入口页自定义输入范围 [1, 本值]。
+const int kFocusDurationMaxMinutes = 180;
+
 /// 进入专注默认时长（分钟）（PRD §4.1.2「默认上次使用值」，首启默认 20）。
 const int kFocusDurationDefaultMinutes = 20;
 

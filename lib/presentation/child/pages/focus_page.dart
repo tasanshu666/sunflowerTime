@@ -29,7 +29,9 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/services/focus_engine.dart';
 import 'package:sunflower_time/domain/services/presence_detector.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
+import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/platform/dnd_controller.dart';
+import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/feedback_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
 
@@ -79,6 +81,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
     _eventSub = _engine.events.listen(_onEvent);
     _enterFocusMode();
     unawaited(_applyDndOnEnter()); // F01：专注开始启用勿扰（如已授权）
+    unawaited(_applyAudioOnEnter()); // M2：按设置启动 BGM（如开启）
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_finished) return;
       _engine.tick(DateTime.now());
@@ -122,6 +125,15 @@ class _FocusPageState extends ConsumerState<FocusPage>
     }
   }
 
+  /// M2：进入专注时按设置装配音频——应用 soundOn/bgmOn，开启则启动 BGM 循环。
+  Future<void> _applyAudioOnEnter() async {
+    final AppSettings s = await ref.read(settingsRepositoryProvider).getSettings();
+    if (!mounted) return;
+    final AudioService audio = ref.read(audioServiceProvider);
+    audio.applySettings(soundOn: s.soundOn, bgmOn: s.bgmOn);
+    if (s.bgmOn) unawaited(audio.startBgm());
+  }
+
   Future<void> _enterFocusMode() async {
     // 常亮保持（P6 风险：国内 ROM 省电可能杀常亮，待真机验证）
     try {
@@ -154,18 +166,21 @@ class _FocusPageState extends ConsumerState<FocusPage>
         setState(() => _level = FeedbackLevel.lvl2);
         _pulseParticle();
         _showBubble(event.textKey);
+        ref.read(audioServiceProvider).playSfx(AudioCue.progress); // M2：送光提示音
       case FeedbackLevel.lvl3:
         setState(() {
           _level = FeedbackLevel.lvl3;
           _welcoming = true;
         });
         _clearWelcomeAfter(const Duration(seconds: 3)); // B27：欢迎光晕延长至 3 秒
+        ref.read(audioServiceProvider).playSfx(AudioCue.welcomeBack); // M2：「欢迎回来」
       case FeedbackLevel.lvl4:
         setState(() {
           _level = FeedbackLevel.lvl4;
           _wake = event.wakeIntensity;
         });
         _showBubble(event.textKey);
+        ref.read(audioServiceProvider).playSfx(AudioCue.wake); // M2：唤醒提示音
     }
   }
 
@@ -290,6 +305,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
     _eventSub?.cancel();
     _presence?.stop();
     _engine.dispose();
+    // M2：退出专注停止并释放音频播放器（下次进入懒加载重建）。
+    unawaited(ref.read(audioServiceProvider).stopBgm());
+    unawaited(ref.read(audioServiceProvider).dispose());
     // F01：万一 _handleOutcome 未跑（如进程被杀），退出时仍尝试恢复通知。
     unawaited(_dnd.setEnabled(false));
     _restoreSystemChrome();
@@ -336,9 +354,10 @@ class _FocusPageState extends ConsumerState<FocusPage>
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF1B1B2F), // 低亮深色打盹屏底
-        body: Stack(
-          alignment: Alignment.center,
-          children: [
+      body: Stack(
+        fit: StackFit.expand,
+        alignment: Alignment.center,
+        children: [
             // 中央：在做自己事的花（呼吸式明暗，零突事件）
             SunflowerCanvas(
               level: _level,

@@ -47,8 +47,11 @@ class _StoreLoad {
   });
 }
 
-/// 商店数据：档位 + 全部模板 + 逐模板冷却态 + 待核销申请（一次性加载，成功后 invalidate 刷新）。
+/// 商店数据：档位 + 全部模板 + 逐模板冷却态 + 待核销申请（随 [economyRevisionProvider] 重算）。
 final _storeLoadProvider = FutureProvider<_StoreLoad>((ref) async {
+  // 依赖经济修订号：家长端「核销/拒绝」或孩子端兑换后自增 → 本 provider 重算，
+  // 避免家长端处理完返回孩子端时仍显示旧缓存（待核销总额/卡片禁用态不同步）。
+  ref.watch(economyRevisionProvider);
   final AppSettings settings = await ref.watch(settingsProvider.future);
   final RewardRepository rewardRepo = ref.watch(rewardRepositoryProvider);
   final List<RewardTemplate> templates = await rewardRepo.templates();
@@ -74,9 +77,11 @@ final _storeLoadProvider = FutureProvider<_StoreLoad>((ref) async {
   );
 });
 
-/// 当前阳光余额（实际可用，未扣待核销）。
-final _balanceProvider =
-    FutureProvider<double>((ref) => ref.watch(sunlightRepositoryProvider).balance());
+/// 当前阳光余额（实际可用，未扣待核销）；随 [economyRevisionProvider] 重算。
+final _balanceProvider = FutureProvider<double>((ref) {
+  ref.watch(economyRevisionProvider); // 家长端核销后会扣账本，余额需重算
+  return ref.watch(sunlightRepositoryProvider).balance();
+});
 
 /// 正在提交兑换的模板 id（防止并发点击）。
 final _submittingProvider = StateProvider<String?>((ref) => null);
@@ -265,8 +270,8 @@ class _StorePageState extends ConsumerState<StorePage> {
     } else {
       _toast(message);
     }
-    ref.invalidate(_storeLoadProvider);
-    ref.invalidate(_balanceProvider);
+    // 经济已变更 → 递增修订号，令本页 provider 重算（与家长端「核销/拒绝」共用同一机制）。
+    ref.read(economyRevisionProvider.notifier).state++;
   }
 
   /// 待核销反馈：若 requestedAt 距今 > kPendingReminderHours 展示兜底文案。

@@ -155,6 +155,41 @@ class _FakeRedemptionOrchestrationService
       );
 }
 
+/// 可变假仓储：测试中动态增删 pending，用于验证「经济修订号自增 → 商店重算」。
+class _MutableRewardRepository implements RewardRepository {
+  final List<RedemptionRequest> pending = <RedemptionRequest>[];
+
+  static const List<RewardTemplate> _seeds = <RewardTemplate>[
+    RewardTemplate(
+      id: 'tpl_extra_episode',
+      name: '选今晚动画片',
+      category: RewardCategory.selfService,
+      baseCost: 60,
+      frequencyLimitPerWeek: 1,
+    ),
+  ];
+
+  @override
+  Future<List<RewardTemplate>> templates() async => _seeds;
+  @override
+  Future<void> saveTemplate(RewardTemplate t) async {}
+  @override
+  Future<void> createRequest(RedemptionRequest r) async {}
+  @override
+  Future<List<RedemptionRequest>> pendingAndQueued() async =>
+      List<RedemptionRequest>.of(pending);
+  @override
+  Future<List<RedemptionRequest>> verifiedRequests() async =>
+      <RedemptionRequest>[];
+  @override
+  Future<List<RedemptionRequest>> queuedOfMonth(String monthKey) async =>
+      <RedemptionRequest>[];
+  @override
+  Future<void> updateRequest(RedemptionRequest r) async {}
+  @override
+  Future<int> cooldownCount(String templateId, CooldownPeriod window) async => 0;
+}
+
 void main() {
   testWidgets('StorePage 渲染：标题「阳光商店」+ 种子奖励可见', (tester) async {
     final reward = _FakeRewardRepository();
@@ -178,5 +213,62 @@ void main() {
     // 种子奖励名（中文）经 rewardRepositoryProvider 注入并渲染。
     expect(find.text('小零食'), findsWidgets);
     expect(find.text('多看一集动画片'), findsWidgets);
+  });
+
+  testWidgets('家长端处理后同步：economyRevision 自增 → 商店重算（待核销归零、兑换解除禁用）',
+      (tester) async {
+    final reward = _MutableRewardRepository()
+      ..pending.add(RedemptionRequest(
+        id: 'r1',
+        childId: 'c1',
+        templateId: 'tpl_extra_episode',
+        requestedAt: DateTime(2026, 9, 20, 22, 50),
+        cost: 60,
+        status: RequestStatus.pending,
+      ));
+
+    final container = ProviderContainer(
+      overrides: <Override>[
+        redemptionOrchestrationServiceProvider
+            .overrideWithValue(_FakeRedemptionOrchestrationService()),
+        rewardRepositoryProvider.overrideWithValue(reward),
+        settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
+        sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: StorePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 初始：右上角「待核销 60」，卡片停在「待家长核销」禁用态（兑换不可点）。
+    expect(find.text('待核销 60'), findsOneWidget);
+    expect(find.text('待家长核销'), findsOneWidget);
+    expect(
+      tester
+          .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '兑换'))
+          .onPressed,
+      isNull,
+    );
+
+    // 模拟家长端「拒绝」：数据变更 + 经济修订号自增（与 VerificationCard 行为一致）。
+    reward.pending.clear();
+    container.read(economyRevisionProvider.notifier).state++;
+    await tester.pumpAndSettle();
+
+    // 重算后：待核销归零（>0 才渲染），卡片恢复可兑换。
+    expect(find.text('待核销 60'), findsNothing);
+    expect(find.text('待家长核销'), findsNothing);
+    expect(
+      tester
+          .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '兑换'))
+          .onPressed,
+      isNotNull,
+    );
   });
 }

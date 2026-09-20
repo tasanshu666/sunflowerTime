@@ -493,6 +493,107 @@ void main() {
     });
   });
 
+  group('RedemptionOrchestrationService.reject（家长拒绝回流）', () {
+    RewardTemplate animTpl() => const RewardTemplate(
+          id: 'seed_extra_episode',
+          name: '选今晚动画片',
+          category: RewardCategory.selfService,
+          baseCost: 60,
+          frequencyLimitPerWeek: 1,
+        );
+
+    test('(g1) pending 拒绝 → rejected，退出待处理列表，不写账本、余额分毫未动', () async {
+      final reward = FakeRewardRepository()..addTemplate(animTpl());
+      final ledger = FakeSunlightRepository()..balance_ = 100;
+      final tracking = FakeTrackingRepository();
+      final svc = build(
+        reward: reward,
+        poolRepo: FakeMonthlyPoolRepository(),
+        ledger: ledger,
+        tracking: tracking,
+        settings: FakeSettingsRepository(lowSettings),
+      );
+
+      final submitted = await svc.submit(
+        'seed_extra_episode',
+        AgeTier.low,
+        DateTime(2026, 9, 20, 22, 50),
+      );
+      expect(submitted.outcome, SubmitOutcome.pending);
+      expect(ledger.entries, isEmpty); // pending 阶段从未扣账本
+
+      await svc.reject(submitted.requestId!, DateTime(2026, 9, 20, 23, 10));
+
+      final req = reward.requests[submitted.requestId!]!;
+      expect(req.status, RequestStatus.rejected);
+      expect(req.verifiedAt, isNull);
+      // 核心不变式：拒绝 = 从不做扣减，故账本始终为空、余额不变（阳光「原路返回」）
+      expect(ledger.entries, isEmpty);
+      expect(await ledger.balance(), 100);
+      // 退出家长端待处理列表（卡应消失）
+      expect(await svc.pendingList(), isEmpty);
+
+      final ev = tracking.events
+          .firstWhere((e) => e.name == TrackingEventNames.rewardRejected);
+      expect(ev.payload['source'], 'pending');
+      expect(ev.payload['amount'], 60);
+    });
+
+    test('(g2) queued 拒绝 → rejected，source=queued，仍不扣账本', () async {
+      final reward = FakeRewardRepository();
+      reward.requests['q1'] = RedemptionRequest(
+        id: 'q1',
+        childId: kChildIdDefault,
+        templateId: 'seed_extra_episode',
+        requestedAt: DateTime(2026, 8, 15),
+        cost: 20,
+        status: RequestStatus.queued,
+        autoApproved: false,
+        queuePosition: 1,
+      );
+      final ledger = FakeSunlightRepository()..balance_ = 100;
+      final tracking = FakeTrackingRepository();
+      final svc = build(
+        reward: reward,
+        poolRepo: FakeMonthlyPoolRepository(),
+        ledger: ledger,
+        tracking: tracking,
+        settings: FakeSettingsRepository(lowSettings),
+      );
+
+      await svc.reject('q1', DateTime(2026, 9, 20, 23, 10));
+
+      expect(reward.requests['q1']!.status, RequestStatus.rejected);
+      expect(ledger.entries, isEmpty);
+      final ev = tracking.events
+          .firstWhere((e) => e.name == TrackingEventNames.rewardRejected);
+      expect(ev.payload['source'], 'queued');
+    });
+
+    test('(g3) 已核销的申请再拒绝 → 抛 StateError（核销/拒绝互斥）', () async {
+      final reward = FakeRewardRepository()..addTemplate(animTpl());
+      final svc = build(
+        reward: reward,
+        poolRepo: FakeMonthlyPoolRepository(),
+        ledger: FakeSunlightRepository()..balance_ = 100,
+        tracking: FakeTrackingRepository(),
+        settings: FakeSettingsRepository(lowSettings),
+      );
+
+      final submitted = await svc.submit(
+        'seed_extra_episode',
+        AgeTier.low,
+        DateTime(2026, 9, 20, 22, 50),
+      );
+      await svc.verify(submitted.requestId!, DateTime(2026, 9, 20, 23, 0));
+
+      await expectLater(
+        () => svc.reject(submitted.requestId!, DateTime(2026, 9, 20, 23, 10)),
+        throwsA(isA<StateError>()),
+      );
+    });
+  });
+
   group('pendingList', () {
     test('按 requested_at 升序返回 pending + queued', () async {
       final reward = FakeRewardRepository();

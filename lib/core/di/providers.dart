@@ -122,6 +122,14 @@ final monthlyPoolServiceProvider = Provider<MonthlyPoolService>((ref) =>
     MonthlyPoolService(ref.watch(monthlyPoolRepositoryProvider),
         ref.watch(settingsRepositoryProvider), ref.watch(trackingRepositoryProvider)));
 
+/// 经济数据修订号（M2 家长-孩子同步）。
+///
+/// 任何会改变孩子端经济展示的操作成功后自增：孩子端兑换、家长端核销、家长端拒绝。
+/// 孩子端商店页的缓存 `FutureProvider`（storeLoad / storeBalance）`watch` 本值，
+/// 修订号一变即重算 —— 否则家长端处理完返回孩子端，商店仍显示旧缓存
+/// （待核销总额不变、卡片仍停在「待家长核销」禁用态），即真机 BUG「拒绝后不同步」。
+final economyRevisionProvider = StateProvider<int>((ref) => 0);
+
 /// 兑换编排服务（§3.2 / §4.1–4.3）：submit / verify / releaseQueue / pendingList。
 final redemptionOrchestrationServiceProvider =
     Provider<RedemptionOrchestrationService>((ref) =>

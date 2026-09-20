@@ -91,8 +91,8 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
       builder: (BuildContext ctx) => AlertDialog(
         title: const Text('确认拒绝？'),
         content: Text(
-          '拒绝「${widget.template.name}」(${widget.request.cost} 阳光）将不核销，'
-          '阳光原路返回孩子（不扣除）。\n此操作不可撤销。',
+          '拒绝「${widget.template.name}」（${widget.request.cost} 阳光）后将不核销该奖励。\n'
+          '待核销期间阳光从未被扣除，故孩子阳光不受影响。\n此操作不可撤销。',
         ),
         actions: <Widget>[
           TextButton(
@@ -126,6 +126,8 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('已确认兑换 🎉 阳光已扣除')),
       );
+      // 同步孩子端：递增经济修订号 → 孩子端商店重算（待核销数↓、卡片解除禁用、余额↓）。
+      ref.read(economyRevisionProvider.notifier).state++;
       widget.onResolved?.call(); // 触发父列表刷新（卡消失）
     } catch (e) {
       if (!mounted) return;
@@ -145,8 +147,10 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
           .reject(widget.request.id, DateTime.now());
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已拒绝核销，阳光已原路返回 🌞')),
+        const SnackBar(content: Text('已拒绝该兑换 🌞 阳光未被扣除')),
       );
+      // 同步孩子端：递增经济修订号 → 孩子端商店重算（待核销数↓、卡片解除「待家长核销」禁用态）。
+      ref.read(economyRevisionProvider.notifier).state++;
       widget.onResolved?.call(); // 触发父列表刷新（卡消失）
     } catch (e) {
       if (!mounted) return;
@@ -234,30 +238,42 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
               const SizedBox(height: 8),
             ],
             const SizedBox(height: 4),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isPending && !_busy ? _confirmAndVerify : null,
-                child: _busy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(isQueued ? '下月自动释放' : '确认兑换'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: !_busy ? _confirmAndReject : null,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red.shade700,
-                  side: BorderSide(color: Colors.red.shade300),
+            // 左右并排：拒绝（次级/破坏性，左）+ 确认兑换（主操作，右），中间留 12 间距。
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: !_busy ? _confirmAndReject : null,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red.shade700,
+                      side: BorderSide(color: Colors.red.shade300),
+                      minimumSize: const Size(0, 46),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      textStyle: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700),
+                    ),
+                    child: const Text('拒绝'),
+                  ),
                 ),
-                child: const Text('拒绝'),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: isPending && !_busy ? _confirmAndVerify : null,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 46),
+                    ),
+                    child: _busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(isQueued ? '下月自动释放' : '确认兑换'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

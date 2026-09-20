@@ -4,11 +4,17 @@
 /// 首次进入为「设置 PIN」，之后为「校验 PIN」。PIN 哈希 + salt 存系统安全区。
 library parent_login_page;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
+import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/tracking_event.dart';
 
 class ParentLoginPage extends ConsumerStatefulWidget {
   const ParentLoginPage({super.key});
@@ -28,6 +34,26 @@ class _ParentLoginPageState extends ConsumerState<ParentLoginPage> {
     super.dispose();
   }
 
+  // ── T-B 埋点（仅新增，不重构既有逻辑）─────────────────────────
+
+  /// parent_dau：PIN 校验通过进入家长端时上报（ts / 档位）。
+  Future<void> _trackParentDau() async {
+    try {
+      final AgeTier tier =
+          (await ref.read(settingsRepositoryProvider).getSettings()).ageTier;
+      await ref.read(trackingRepositoryProvider).track(TrackingEvent(
+        id: Uuid().v4(),
+        name: TrackingEventNames.parentDau,
+        type: TrackingType.metric,
+        ts: DateTime.now(),
+        payload: {
+          'ts': DateTime.now().toIso8601String(),
+          'tier': tier.name,
+        },
+      ));
+    } catch (_) {}
+  }
+
   Future<void> _submit() async {
     final pin = _pinController.text.trim();
     if (pin.length < 4) {
@@ -44,12 +70,16 @@ class _ParentLoginPageState extends ConsumerState<ParentLoginPage> {
       // 首次：设置 PIN
       await secure.setupPin(pin);
       ref.invalidate(pinSetupProvider);
-      if (mounted) context.go('/parent/home');
+      if (mounted) {
+        unawaited(_trackParentDau()); // T-B：parent_dau 埋点
+        context.go('/parent/home');
+      }
       return;
     }
     final ok = await secure.verify(pin);
     if (!mounted) return;
     if (ok) {
+      unawaited(_trackParentDau()); // T-B：parent_dau 埋点
       context.go('/parent/home');
     } else {
       setState(() {

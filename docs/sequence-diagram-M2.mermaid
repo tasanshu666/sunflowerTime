@@ -1,0 +1,145 @@
+%% 《向日葵专注 SunFocus》M2 经济与商店核销 · 时序图（4 条主流程）
+%% 真源：docs/软件设计文档_M2.md §4（修改请同步两处）
+%% 本文件为 M2 专用，不覆盖 M0 的 sequence-diagram.mermaid
+
+%% ① 孩子端发起兑换（含免确认自动放行 / 待核销 / 排队三条分支）
+sequenceDiagram
+    autonumber
+    participant C as 孩子
+    participant SP as StorePage
+    participant RO as RedemptionOrchestrationService
+    participant AC as AccountService(桩)
+    participant RR as RewardRepository
+    participant MP as MonthlyPoolService
+    participant RS as RedemptionService(纯S2)
+    participant LD as SunlightRepository
+    participant TR as TrackingRepository
+
+    C->>SP: 点击「兑换」某奖励卡
+    SP->>RO: submit(templateId, now)
+    RO->>RR: templates() 取模板
+    RR-->>RO: RewardTemplate(t, category, baseCost, cooldownRule)
+    RO->>RR: cooldownCount(templateId, 本周窗口)
+    RR-->>RO: usedCount
+    alt 本周已领 ≥1（D4）
+        RO-->>SP: 拒绝：冷却中（视觉强区分禁用态）
+        Note over SP: 不生成申请、不埋 reward_* 事件
+    else 冷却通过
+        RO->>MP: ensureAndReset(now)
+        MP-->>RO: MonthlyPool(monthKey, budget, used, autoReleased)
+        RO->>RO: cost = applyAgeTierK(baseCost, K(tier)).round()
+        RO->>RO: balance = await LD.balance()
+        alt balance < cost
+            RO-->>SP: 提示：阳光不足（不埋 reward_*）
+        else 余额充足
+            RO->>RS: decide(template, cost, tier, pool)
+            Note over RS: C5 ①cost≤maxCost ②autoReleased+cost≤min(天花板,池×25%) 且 used+autoReleased+cost≤budget ③非自服务
+            RS-->>RO: RedemptionDecision(status, autoApproved)
+            RO->>AC: currentChildId()（PlanB 固定值）
+            RO->>RR: createRequest(RedemptionRequest(childId, ..., status))
+            RO->>TR: track(reward_redeem_request)
+
+            alt status = verified（自动放行）
+                RO->>LD: append(SunlightEntry(net=-cost, type=redeem))
+                RO->>MP: applyRedemption(pool, cost, auto=true) → autoReleased+=cost
+                RO-->>SP: 即时放行 + 庆祝表现
+            else status = pending（待家长核销）
+                RO-->>SP: 生成待核销卡（可见）
+                Note over SP: ≥48h 未核销 → 展示 D5 兜底文案<br/>「这次的阳光奖励还在等你确认哦～」
+            else status = queued（超池排队）
+                RO->>TR: track(reward_queue)
+                RO-->>SP: 排队中（第 N 位，下月 1 日释放）
+            end
+        end
+    end
+
+%% ② 跨月 releaseQueue()（含长期不开 App 的补跑）
+sequenceDiagram
+    autonumber
+    participant App as App 启动 / 定时任务
+    participant RO as RedemptionOrchestrationService
+    participant MP as MonthlyPoolService
+    participant RR as RewardRepository
+    participant LD as SunlightRepository
+    participant TR as TrackingRepository
+
+    App->>MP: ensureAndReset(now)
+    MP->>MP: 计算 lastMonthKey → currentMonthKey 跨度
+    alt 发生跨月
+        MP->>MP: 建新 MonthlyPool(budget=默认/家长设定)
+        MP->>TR: track(monthly_pool_reset)
+    end
+    MP-->>RO: 当前 MonthlyPool
+    App->>RO: releaseQueue(monthKey, now)
+    RO->>RR: queuedOfMonth(lastMonthKey) 按 requested_at 升序
+    RR-->>RO: List~RedemptionRequest~
+    loop 每条 queued 请求（升序）
+        RO->>LD: balance()
+        alt 余额 ≥ cost 且 新月池未超
+            RO->>LD: append(SunlightEntry(net=-cost, type=queueRelease, refId=requestId))
+            RO->>MP: applyRedemption(newPool, cost, auto=false) → used+=cost
+            RO->>RR: updateRequest(status=verified, verifiedAt=now, queuePosition=null)
+            RO->>TR: track(reward_verified(auto=false, source=queueRelease))
+        else 余额/池不足
+            RO->>RO: 保留 queued，顺延至下月（不拒绝、不失效）
+        end
+    end
+    RO-->>App: ReleaseReport(released, deferred)
+
+%% ③ 家长核销 verify()（48h 主口径，≤2 步）
+sequenceDiagram
+    autonumber
+    participant P as 家长
+    participant PH as ParentHomePage(TabBar)
+    participant VC as VerificationCard
+    participant RO as RedemptionOrchestrationService
+    participant RR as RewardRepository
+    participant LD as SunlightRepository
+    participant MP as MonthlyPoolService
+    participant TR as TrackingRepository
+
+    Note over P,PH: 第1步：进入 /parent/home 「今日」看到核销卡<br/>第2步：现实兑现后点「已兑现」
+    P->>PH: PIN 登录后进入（track(parent_dau)）
+    PH->>RO: pendingList()
+    RO->>RR: pendingAndQueued()（status ∈ pending,queued）
+    RR-->>RO: 申请列表（含 requestedAt）
+    RO-->>PH: 按 requestedAt 升序的核销卡
+    P->>VC: 点击「已兑现」
+    VC->>RO: verify(requestId, now)
+    RO->>RR: updateRequest(status=verified, verifiedAt=now, parentNote?)
+    RO->>LD: append(SunlightEntry(net=-cost, type=redeem, refId=requestId))
+    RO->>MP: applyRedemption(pool, cost, auto=false) → used+=cost
+    RO->>TR: track(reward_verified(within_48h = now-requestedAt ≤ 48h, amount, tier, is_small))
+    RO-->>VC: 成功（卡消失 + 正向反馈）
+    Note over RO,TR: 对账口径（C4 主口径 48h）：<br/>履约率 = 48h 内显式处理 ÷ 进入待处理队列<br/>分母排除免确认自动通过（D1/C5 自动放行不计分母）
+
+%% ④ M1 focus/settle 链路插入埋点（9 事件中的 4 个）
+sequenceDiagram
+    autonumber
+    participant U as 孩子
+    participant FP as FocusPage
+    participant FE as FocusEngine(纯Dart)
+    participant SS as SunlightService
+    participant LD as SunlightRepository
+    participant SE as SettlePage
+    participant TR as TrackingRepository
+
+    U->>FP: 进入打盹屏
+    FP->>FP: engine.start()（postFrame 回调）
+    FP->>TR: track(focus_session_start(session_id, planned_min, tier))
+    loop 每秒 tick
+        FP->>FE: tick(now)
+        FE-->>FP: FocusEvent(lvl1..lvl4)
+    end
+    FE->>FE: finish(reason) → FocusOutcome(rawSunlight, status)
+    FE-->>FP: FocusEvent(outcome)
+    FP->>TR: track(focus_session_end(session_id, actual_min, reason, tier))
+    FP->>SS: settle(outcome, start, end, plannedMin)
+    SS->>SS: net = computeSoftCap(computeRawS(rawSunlight))
+    SS->>LD: append(SunlightEntry(gross=rawS, net, balanceAfter, type=earn))
+    LD-->>SS: balanceAfter
+    SS-->>FP: FocusSettlement(net, todayNet, balanceAfter, status)
+    FP->>TR: track(sun_earned(gross, net, balance_after, capped))
+    FP->>TR: track(valid_focus_day(day_key, actual_min, met))
+    FP->>SE: context.go('/settle', extra=FocusSettlement)
+    SE->>SE: 光回罐动画（net>0）

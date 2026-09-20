@@ -8,12 +8,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart';
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/local_stub_repositories.dart';
+import 'package:sunflower_time/data/local/repositories/monthly_pool_local_repository.dart';
+import 'package:sunflower_time/data/local/repositories/reward_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/settings_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/sunlight_local_repository.dart';
+import 'package:sunflower_time/data/local/repositories/tracking_local_repository.dart';
 import 'package:sunflower_time/data/local/secure_store.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
+import 'package:sunflower_time/domain/repositories/monthly_pool_repository.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
@@ -21,6 +25,9 @@ import 'package:sunflower_time/domain/repositories/task_repository.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
+import 'package:sunflower_time/domain/services/account_service.dart';
+import 'package:sunflower_time/domain/services/monthly_pool_service.dart';
+import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 
@@ -57,10 +64,13 @@ final plantRepositoryProvider = Provider<PlantRepository>(
   (ref) => PlantLocalRepositoryStub(),
 );
 final rewardRepositoryProvider = Provider<RewardRepository>(
-  (ref) => RewardLocalRepositoryStub(),
+  (ref) => RewardLocalRepository(ref.watch(appDatabaseProvider)),
 );
 final trackingRepositoryProvider = Provider<TrackingRepository>(
-  (ref) => TrackingLocalRepositoryStub(),
+  (ref) => TrackingLocalRepository(ref.watch(appDatabaseProvider)),
+);
+final monthlyPoolRepositoryProvider = Provider<MonthlyPoolRepository>(
+  (ref) => MonthlyPoolLocalRepository(ref.watch(appDatabaseProvider)),
 );
 
 /// 阳光记账与软顶服务（T10，§4.5 / §3.2）。专注页结算时读取。
@@ -101,3 +111,25 @@ final restSatisfiedProvider = StateProvider<bool>((ref) => false);
 
 /// 单例音频服务（M2 音频模块，§1.1）。跨 focus/settle 页面复用，避免重复 new 播放器。
 final audioServiceProvider = Provider<AudioService>((ref) => AudioService.instance);
+
+// ── M2 经济与商店核销：服务装配（T-C 独占本段）────────────────────────────
+
+/// 账号服务（Plan B 单机版留桩，§3.2 / §7.6）。
+final accountServiceProvider = Provider<AccountService>((ref) => AccountService());
+
+/// 月度池服务（§3.2 / §4.1）：取/建/重置月度池 + C5 上限计算。
+final monthlyPoolServiceProvider = Provider<MonthlyPoolService>((ref) =>
+    MonthlyPoolService(ref.watch(monthlyPoolRepositoryProvider),
+        ref.watch(settingsRepositoryProvider), ref.watch(trackingRepositoryProvider)));
+
+/// 兑换编排服务（§3.2 / §4.1–4.3）：submit / verify / releaseQueue / pendingList。
+final redemptionOrchestrationServiceProvider =
+    Provider<RedemptionOrchestrationService>((ref) =>
+        RedemptionOrchestrationService(
+          reward: ref.watch(rewardRepositoryProvider),
+          pools: ref.watch(monthlyPoolServiceProvider),
+          ledger: ref.watch(sunlightRepositoryProvider),
+          tracking: ref.watch(trackingRepositoryProvider),
+          account: ref.watch(accountServiceProvider),
+          settings: ref.watch(settingsRepositoryProvider),
+        ));

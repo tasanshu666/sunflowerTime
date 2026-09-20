@@ -15,7 +15,7 @@ class App extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'SunFocus 向日葵专注',
-      theme: darkTheme,
+      theme: lightTheme,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );

@@ -1876,24 +1876,28 @@ class $RewardTemplatesTable extends RewardTemplates
   late final GeneratedColumn<int> category = GeneratedColumn<int>(
       'category', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
-  static const VerificationMeta _baseCostHighMeta =
-      const VerificationMeta('baseCostHigh');
+  static const VerificationMeta _baseCostMeta =
+      const VerificationMeta('baseCost');
   @override
-  late final GeneratedColumn<int> baseCostHigh = GeneratedColumn<int>(
-      'base_cost_high', aliasedName, false,
-      type: DriftSqlType.int, requiredDuringInsert: true);
-  static const VerificationMeta _baseCostLowMeta =
-      const VerificationMeta('baseCostLow');
-  @override
-  late final GeneratedColumn<int> baseCostLow = GeneratedColumn<int>(
-      'base_cost_low', aliasedName, false,
-      type: DriftSqlType.int, requiredDuringInsert: true);
+  late final GeneratedColumn<int> baseCost = GeneratedColumn<int>(
+      'base_cost', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(50));
   static const VerificationMeta _freqLimitMeta =
       const VerificationMeta('freqLimit');
   @override
   late final GeneratedColumn<int> freqLimit = GeneratedColumn<int>(
       'freq_limit', aliasedName, true,
       type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _cooldownRuleMeta =
+      const VerificationMeta('cooldownRule');
+  @override
+  late final GeneratedColumn<int> cooldownRule = GeneratedColumn<int>(
+      'cooldown_rule', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
   static const VerificationMeta _enabledMeta =
       const VerificationMeta('enabled');
   @override
@@ -1906,7 +1910,7 @@ class $RewardTemplatesTable extends RewardTemplates
       defaultValue: const Constant(true));
   @override
   List<GeneratedColumn> get $columns =>
-      [id, name, category, baseCostHigh, baseCostLow, freqLimit, enabled];
+      [id, name, category, baseCost, freqLimit, cooldownRule, enabled];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1934,25 +1938,19 @@ class $RewardTemplatesTable extends RewardTemplates
     } else if (isInserting) {
       context.missing(_categoryMeta);
     }
-    if (data.containsKey('base_cost_high')) {
-      context.handle(
-          _baseCostHighMeta,
-          baseCostHigh.isAcceptableOrUnknown(
-              data['base_cost_high']!, _baseCostHighMeta));
-    } else if (isInserting) {
-      context.missing(_baseCostHighMeta);
-    }
-    if (data.containsKey('base_cost_low')) {
-      context.handle(
-          _baseCostLowMeta,
-          baseCostLow.isAcceptableOrUnknown(
-              data['base_cost_low']!, _baseCostLowMeta));
-    } else if (isInserting) {
-      context.missing(_baseCostLowMeta);
+    if (data.containsKey('base_cost')) {
+      context.handle(_baseCostMeta,
+          baseCost.isAcceptableOrUnknown(data['base_cost']!, _baseCostMeta));
     }
     if (data.containsKey('freq_limit')) {
       context.handle(_freqLimitMeta,
           freqLimit.isAcceptableOrUnknown(data['freq_limit']!, _freqLimitMeta));
+    }
+    if (data.containsKey('cooldown_rule')) {
+      context.handle(
+          _cooldownRuleMeta,
+          cooldownRule.isAcceptableOrUnknown(
+              data['cooldown_rule']!, _cooldownRuleMeta));
     }
     if (data.containsKey('enabled')) {
       context.handle(_enabledMeta,
@@ -1973,12 +1971,12 @@ class $RewardTemplatesTable extends RewardTemplates
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       category: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}category'])!,
-      baseCostHigh: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}base_cost_high'])!,
-      baseCostLow: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}base_cost_low'])!,
+      baseCost: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}base_cost'])!,
       freqLimit: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}freq_limit']),
+      cooldownRule: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}cooldown_rule'])!,
       enabled: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}enabled'])!,
     );
@@ -1994,17 +1992,17 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
   final String id;
   final String name;
   final int category;
-  final int baseCostHigh;
-  final int baseCostLow;
+  final int baseCost;
   final int? freqLimit;
+  final int cooldownRule;
   final bool enabled;
   const RewardTemplate(
       {required this.id,
       required this.name,
       required this.category,
-      required this.baseCostHigh,
-      required this.baseCostLow,
+      required this.baseCost,
       this.freqLimit,
+      required this.cooldownRule,
       required this.enabled});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2012,11 +2010,11 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['category'] = Variable<int>(category);
-    map['base_cost_high'] = Variable<int>(baseCostHigh);
-    map['base_cost_low'] = Variable<int>(baseCostLow);
+    map['base_cost'] = Variable<int>(baseCost);
     if (!nullToAbsent || freqLimit != null) {
       map['freq_limit'] = Variable<int>(freqLimit);
     }
+    map['cooldown_rule'] = Variable<int>(cooldownRule);
     map['enabled'] = Variable<bool>(enabled);
     return map;
   }
@@ -2026,11 +2024,11 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
       id: Value(id),
       name: Value(name),
       category: Value(category),
-      baseCostHigh: Value(baseCostHigh),
-      baseCostLow: Value(baseCostLow),
+      baseCost: Value(baseCost),
       freqLimit: freqLimit == null && nullToAbsent
           ? const Value.absent()
           : Value(freqLimit),
+      cooldownRule: Value(cooldownRule),
       enabled: Value(enabled),
     );
   }
@@ -2042,9 +2040,9 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       category: serializer.fromJson<int>(json['category']),
-      baseCostHigh: serializer.fromJson<int>(json['baseCostHigh']),
-      baseCostLow: serializer.fromJson<int>(json['baseCostLow']),
+      baseCost: serializer.fromJson<int>(json['baseCost']),
       freqLimit: serializer.fromJson<int?>(json['freqLimit']),
+      cooldownRule: serializer.fromJson<int>(json['cooldownRule']),
       enabled: serializer.fromJson<bool>(json['enabled']),
     );
   }
@@ -2055,9 +2053,9 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'category': serializer.toJson<int>(category),
-      'baseCostHigh': serializer.toJson<int>(baseCostHigh),
-      'baseCostLow': serializer.toJson<int>(baseCostLow),
+      'baseCost': serializer.toJson<int>(baseCost),
       'freqLimit': serializer.toJson<int?>(freqLimit),
+      'cooldownRule': serializer.toJson<int>(cooldownRule),
       'enabled': serializer.toJson<bool>(enabled),
     };
   }
@@ -2066,17 +2064,17 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
           {String? id,
           String? name,
           int? category,
-          int? baseCostHigh,
-          int? baseCostLow,
+          int? baseCost,
           Value<int?> freqLimit = const Value.absent(),
+          int? cooldownRule,
           bool? enabled}) =>
       RewardTemplate(
         id: id ?? this.id,
         name: name ?? this.name,
         category: category ?? this.category,
-        baseCostHigh: baseCostHigh ?? this.baseCostHigh,
-        baseCostLow: baseCostLow ?? this.baseCostLow,
+        baseCost: baseCost ?? this.baseCost,
         freqLimit: freqLimit.present ? freqLimit.value : this.freqLimit,
+        cooldownRule: cooldownRule ?? this.cooldownRule,
         enabled: enabled ?? this.enabled,
       );
   RewardTemplate copyWithCompanion(RewardTemplatesCompanion data) {
@@ -2084,12 +2082,11 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       category: data.category.present ? data.category.value : this.category,
-      baseCostHigh: data.baseCostHigh.present
-          ? data.baseCostHigh.value
-          : this.baseCostHigh,
-      baseCostLow:
-          data.baseCostLow.present ? data.baseCostLow.value : this.baseCostLow,
+      baseCost: data.baseCost.present ? data.baseCost.value : this.baseCost,
       freqLimit: data.freqLimit.present ? data.freqLimit.value : this.freqLimit,
+      cooldownRule: data.cooldownRule.present
+          ? data.cooldownRule.value
+          : this.cooldownRule,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
     );
   }
@@ -2100,9 +2097,9 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('category: $category, ')
-          ..write('baseCostHigh: $baseCostHigh, ')
-          ..write('baseCostLow: $baseCostLow, ')
+          ..write('baseCost: $baseCost, ')
           ..write('freqLimit: $freqLimit, ')
+          ..write('cooldownRule: $cooldownRule, ')
           ..write('enabled: $enabled')
           ..write(')'))
         .toString();
@@ -2110,7 +2107,7 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
 
   @override
   int get hashCode => Object.hash(
-      id, name, category, baseCostHigh, baseCostLow, freqLimit, enabled);
+      id, name, category, baseCost, freqLimit, cooldownRule, enabled);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2118,9 +2115,9 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
           other.id == this.id &&
           other.name == this.name &&
           other.category == this.category &&
-          other.baseCostHigh == this.baseCostHigh &&
-          other.baseCostLow == this.baseCostLow &&
+          other.baseCost == this.baseCost &&
           other.freqLimit == this.freqLimit &&
+          other.cooldownRule == this.cooldownRule &&
           other.enabled == this.enabled);
 }
 
@@ -2128,18 +2125,18 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
   final Value<String> id;
   final Value<String> name;
   final Value<int> category;
-  final Value<int> baseCostHigh;
-  final Value<int> baseCostLow;
+  final Value<int> baseCost;
   final Value<int?> freqLimit;
+  final Value<int> cooldownRule;
   final Value<bool> enabled;
   final Value<int> rowid;
   const RewardTemplatesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.category = const Value.absent(),
-    this.baseCostHigh = const Value.absent(),
-    this.baseCostLow = const Value.absent(),
+    this.baseCost = const Value.absent(),
     this.freqLimit = const Value.absent(),
+    this.cooldownRule = const Value.absent(),
     this.enabled = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -2147,23 +2144,21 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
     required String id,
     required String name,
     required int category,
-    required int baseCostHigh,
-    required int baseCostLow,
+    this.baseCost = const Value.absent(),
     this.freqLimit = const Value.absent(),
+    this.cooldownRule = const Value.absent(),
     this.enabled = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
-        category = Value(category),
-        baseCostHigh = Value(baseCostHigh),
-        baseCostLow = Value(baseCostLow);
+        category = Value(category);
   static Insertable<RewardTemplate> custom({
     Expression<String>? id,
     Expression<String>? name,
     Expression<int>? category,
-    Expression<int>? baseCostHigh,
-    Expression<int>? baseCostLow,
+    Expression<int>? baseCost,
     Expression<int>? freqLimit,
+    Expression<int>? cooldownRule,
     Expression<bool>? enabled,
     Expression<int>? rowid,
   }) {
@@ -2171,9 +2166,9 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (category != null) 'category': category,
-      if (baseCostHigh != null) 'base_cost_high': baseCostHigh,
-      if (baseCostLow != null) 'base_cost_low': baseCostLow,
+      if (baseCost != null) 'base_cost': baseCost,
       if (freqLimit != null) 'freq_limit': freqLimit,
+      if (cooldownRule != null) 'cooldown_rule': cooldownRule,
       if (enabled != null) 'enabled': enabled,
       if (rowid != null) 'rowid': rowid,
     });
@@ -2183,18 +2178,18 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
       {Value<String>? id,
       Value<String>? name,
       Value<int>? category,
-      Value<int>? baseCostHigh,
-      Value<int>? baseCostLow,
+      Value<int>? baseCost,
       Value<int?>? freqLimit,
+      Value<int>? cooldownRule,
       Value<bool>? enabled,
       Value<int>? rowid}) {
     return RewardTemplatesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       category: category ?? this.category,
-      baseCostHigh: baseCostHigh ?? this.baseCostHigh,
-      baseCostLow: baseCostLow ?? this.baseCostLow,
+      baseCost: baseCost ?? this.baseCost,
       freqLimit: freqLimit ?? this.freqLimit,
+      cooldownRule: cooldownRule ?? this.cooldownRule,
       enabled: enabled ?? this.enabled,
       rowid: rowid ?? this.rowid,
     );
@@ -2212,14 +2207,14 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
     if (category.present) {
       map['category'] = Variable<int>(category.value);
     }
-    if (baseCostHigh.present) {
-      map['base_cost_high'] = Variable<int>(baseCostHigh.value);
-    }
-    if (baseCostLow.present) {
-      map['base_cost_low'] = Variable<int>(baseCostLow.value);
+    if (baseCost.present) {
+      map['base_cost'] = Variable<int>(baseCost.value);
     }
     if (freqLimit.present) {
       map['freq_limit'] = Variable<int>(freqLimit.value);
+    }
+    if (cooldownRule.present) {
+      map['cooldown_rule'] = Variable<int>(cooldownRule.value);
     }
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
@@ -2236,9 +2231,9 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('category: $category, ')
-          ..write('baseCostHigh: $baseCostHigh, ')
-          ..write('baseCostLow: $baseCostLow, ')
+          ..write('baseCost: $baseCost, ')
           ..write('freqLimit: $freqLimit, ')
+          ..write('cooldownRule: $cooldownRule, ')
           ..write('enabled: $enabled, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -2307,6 +2302,14 @@ class $RedemptionRequestsTable extends RedemptionRequests
   late final GeneratedColumn<String> parentNote = GeneratedColumn<String>(
       'parent_note', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -2317,7 +2320,8 @@ class $RedemptionRequestsTable extends RedemptionRequests
         autoApproved,
         queuePosition,
         verifiedAt,
-        parentNote
+        parentNote,
+        childId
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2386,6 +2390,10 @@ class $RedemptionRequestsTable extends RedemptionRequests
           parentNote.isAcceptableOrUnknown(
               data['parent_note']!, _parentNoteMeta));
     }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
     return context;
   }
 
@@ -2413,6 +2421,8 @@ class $RedemptionRequestsTable extends RedemptionRequests
           .read(DriftSqlType.dateTime, data['${effectivePrefix}verified_at']),
       parentNote: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}parent_note']),
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
     );
   }
 
@@ -2433,6 +2443,7 @@ class RedemptionRequest extends DataClass
   final int? queuePosition;
   final DateTime? verifiedAt;
   final String? parentNote;
+  final String childId;
   const RedemptionRequest(
       {required this.id,
       required this.templateId,
@@ -2442,7 +2453,8 @@ class RedemptionRequest extends DataClass
       required this.autoApproved,
       this.queuePosition,
       this.verifiedAt,
-      this.parentNote});
+      this.parentNote,
+      required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2461,6 +2473,7 @@ class RedemptionRequest extends DataClass
     if (!nullToAbsent || parentNote != null) {
       map['parent_note'] = Variable<String>(parentNote);
     }
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
@@ -2481,6 +2494,7 @@ class RedemptionRequest extends DataClass
       parentNote: parentNote == null && nullToAbsent
           ? const Value.absent()
           : Value(parentNote),
+      childId: Value(childId),
     );
   }
 
@@ -2497,6 +2511,7 @@ class RedemptionRequest extends DataClass
       queuePosition: serializer.fromJson<int?>(json['queuePosition']),
       verifiedAt: serializer.fromJson<DateTime?>(json['verifiedAt']),
       parentNote: serializer.fromJson<String?>(json['parentNote']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -2512,6 +2527,7 @@ class RedemptionRequest extends DataClass
       'queuePosition': serializer.toJson<int?>(queuePosition),
       'verifiedAt': serializer.toJson<DateTime?>(verifiedAt),
       'parentNote': serializer.toJson<String?>(parentNote),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
@@ -2524,7 +2540,8 @@ class RedemptionRequest extends DataClass
           bool? autoApproved,
           Value<int?> queuePosition = const Value.absent(),
           Value<DateTime?> verifiedAt = const Value.absent(),
-          Value<String?> parentNote = const Value.absent()}) =>
+          Value<String?> parentNote = const Value.absent(),
+          String? childId}) =>
       RedemptionRequest(
         id: id ?? this.id,
         templateId: templateId ?? this.templateId,
@@ -2536,6 +2553,7 @@ class RedemptionRequest extends DataClass
             queuePosition.present ? queuePosition.value : this.queuePosition,
         verifiedAt: verifiedAt.present ? verifiedAt.value : this.verifiedAt,
         parentNote: parentNote.present ? parentNote.value : this.parentNote,
+        childId: childId ?? this.childId,
       );
   RedemptionRequest copyWithCompanion(RedemptionRequestsCompanion data) {
     return RedemptionRequest(
@@ -2556,6 +2574,7 @@ class RedemptionRequest extends DataClass
           data.verifiedAt.present ? data.verifiedAt.value : this.verifiedAt,
       parentNote:
           data.parentNote.present ? data.parentNote.value : this.parentNote,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
@@ -2570,14 +2589,15 @@ class RedemptionRequest extends DataClass
           ..write('autoApproved: $autoApproved, ')
           ..write('queuePosition: $queuePosition, ')
           ..write('verifiedAt: $verifiedAt, ')
-          ..write('parentNote: $parentNote')
+          ..write('parentNote: $parentNote, ')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(id, templateId, requestedAt, cost, status,
-      autoApproved, queuePosition, verifiedAt, parentNote);
+      autoApproved, queuePosition, verifiedAt, parentNote, childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2590,7 +2610,8 @@ class RedemptionRequest extends DataClass
           other.autoApproved == this.autoApproved &&
           other.queuePosition == this.queuePosition &&
           other.verifiedAt == this.verifiedAt &&
-          other.parentNote == this.parentNote);
+          other.parentNote == this.parentNote &&
+          other.childId == this.childId);
 }
 
 class RedemptionRequestsCompanion extends UpdateCompanion<RedemptionRequest> {
@@ -2603,6 +2624,7 @@ class RedemptionRequestsCompanion extends UpdateCompanion<RedemptionRequest> {
   final Value<int?> queuePosition;
   final Value<DateTime?> verifiedAt;
   final Value<String?> parentNote;
+  final Value<String> childId;
   final Value<int> rowid;
   const RedemptionRequestsCompanion({
     this.id = const Value.absent(),
@@ -2614,6 +2636,7 @@ class RedemptionRequestsCompanion extends UpdateCompanion<RedemptionRequest> {
     this.queuePosition = const Value.absent(),
     this.verifiedAt = const Value.absent(),
     this.parentNote = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RedemptionRequestsCompanion.insert({
@@ -2626,6 +2649,7 @@ class RedemptionRequestsCompanion extends UpdateCompanion<RedemptionRequest> {
     this.queuePosition = const Value.absent(),
     this.verifiedAt = const Value.absent(),
     this.parentNote = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         templateId = Value(templateId),
@@ -2642,6 +2666,7 @@ class RedemptionRequestsCompanion extends UpdateCompanion<RedemptionRequest> {
     Expression<int>? queuePosition,
     Expression<DateTime>? verifiedAt,
     Expression<String>? parentNote,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2654,6 +2679,7 @@ class RedemptionRequestsCompanion extends UpdateCompanion<RedemptionRequest> {
       if (queuePosition != null) 'queue_position': queuePosition,
       if (verifiedAt != null) 'verified_at': verifiedAt,
       if (parentNote != null) 'parent_note': parentNote,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2668,6 +2694,7 @@ class RedemptionRequestsCompanion extends UpdateCompanion<RedemptionRequest> {
       Value<int?>? queuePosition,
       Value<DateTime?>? verifiedAt,
       Value<String?>? parentNote,
+      Value<String>? childId,
       Value<int>? rowid}) {
     return RedemptionRequestsCompanion(
       id: id ?? this.id,
@@ -2679,6 +2706,7 @@ class RedemptionRequestsCompanion extends UpdateCompanion<RedemptionRequest> {
       queuePosition: queuePosition ?? this.queuePosition,
       verifiedAt: verifiedAt ?? this.verifiedAt,
       parentNote: parentNote ?? this.parentNote,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2713,6 +2741,9 @@ class RedemptionRequestsCompanion extends UpdateCompanion<RedemptionRequest> {
     if (parentNote.present) {
       map['parent_note'] = Variable<String>(parentNote.value);
     }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2731,6 +2762,7 @@ class RedemptionRequestsCompanion extends UpdateCompanion<RedemptionRequest> {
           ..write('queuePosition: $queuePosition, ')
           ..write('verifiedAt: $verifiedAt, ')
           ..write('parentNote: $parentNote, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4095,6 +4127,13 @@ class $TrackingEventsTable extends TrackingEvents
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
       'id', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(''));
   static const VerificationMeta _typeMeta = const VerificationMeta('type');
   @override
   late final GeneratedColumn<int> type = GeneratedColumn<int>(
@@ -4112,7 +4151,7 @@ class $TrackingEventsTable extends TrackingEvents
       'payload', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
   @override
-  List<GeneratedColumn> get $columns => [id, type, ts, payload];
+  List<GeneratedColumn> get $columns => [id, name, type, ts, payload];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4127,6 +4166,10 @@ class $TrackingEventsTable extends TrackingEvents
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
       context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
     }
     if (data.containsKey('type')) {
       context.handle(
@@ -4156,6 +4199,8 @@ class $TrackingEventsTable extends TrackingEvents
     return TrackingEvent(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       type: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}type'])!,
       ts: attachedDatabase.typeMapping
@@ -4173,11 +4218,13 @@ class $TrackingEventsTable extends TrackingEvents
 
 class TrackingEvent extends DataClass implements Insertable<TrackingEvent> {
   final String id;
+  final String name;
   final int type;
   final DateTime ts;
   final String payload;
   const TrackingEvent(
       {required this.id,
+      required this.name,
       required this.type,
       required this.ts,
       required this.payload});
@@ -4185,6 +4232,7 @@ class TrackingEvent extends DataClass implements Insertable<TrackingEvent> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
     map['type'] = Variable<int>(type);
     map['ts'] = Variable<DateTime>(ts);
     map['payload'] = Variable<String>(payload);
@@ -4194,6 +4242,7 @@ class TrackingEvent extends DataClass implements Insertable<TrackingEvent> {
   TrackingEventsCompanion toCompanion(bool nullToAbsent) {
     return TrackingEventsCompanion(
       id: Value(id),
+      name: Value(name),
       type: Value(type),
       ts: Value(ts),
       payload: Value(payload),
@@ -4205,6 +4254,7 @@ class TrackingEvent extends DataClass implements Insertable<TrackingEvent> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return TrackingEvent(
       id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
       type: serializer.fromJson<int>(json['type']),
       ts: serializer.fromJson<DateTime>(json['ts']),
       payload: serializer.fromJson<String>(json['payload']),
@@ -4215,6 +4265,7 @@ class TrackingEvent extends DataClass implements Insertable<TrackingEvent> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
       'type': serializer.toJson<int>(type),
       'ts': serializer.toJson<DateTime>(ts),
       'payload': serializer.toJson<String>(payload),
@@ -4222,9 +4273,14 @@ class TrackingEvent extends DataClass implements Insertable<TrackingEvent> {
   }
 
   TrackingEvent copyWith(
-          {String? id, int? type, DateTime? ts, String? payload}) =>
+          {String? id,
+          String? name,
+          int? type,
+          DateTime? ts,
+          String? payload}) =>
       TrackingEvent(
         id: id ?? this.id,
+        name: name ?? this.name,
         type: type ?? this.type,
         ts: ts ?? this.ts,
         payload: payload ?? this.payload,
@@ -4232,6 +4288,7 @@ class TrackingEvent extends DataClass implements Insertable<TrackingEvent> {
   TrackingEvent copyWithCompanion(TrackingEventsCompanion data) {
     return TrackingEvent(
       id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
       type: data.type.present ? data.type.value : this.type,
       ts: data.ts.present ? data.ts.value : this.ts,
       payload: data.payload.present ? data.payload.value : this.payload,
@@ -4242,6 +4299,7 @@ class TrackingEvent extends DataClass implements Insertable<TrackingEvent> {
   String toString() {
     return (StringBuffer('TrackingEvent(')
           ..write('id: $id, ')
+          ..write('name: $name, ')
           ..write('type: $type, ')
           ..write('ts: $ts, ')
           ..write('payload: $payload')
@@ -4250,12 +4308,13 @@ class TrackingEvent extends DataClass implements Insertable<TrackingEvent> {
   }
 
   @override
-  int get hashCode => Object.hash(id, type, ts, payload);
+  int get hashCode => Object.hash(id, name, type, ts, payload);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is TrackingEvent &&
           other.id == this.id &&
+          other.name == this.name &&
           other.type == this.type &&
           other.ts == this.ts &&
           other.payload == this.payload);
@@ -4263,12 +4322,14 @@ class TrackingEvent extends DataClass implements Insertable<TrackingEvent> {
 
 class TrackingEventsCompanion extends UpdateCompanion<TrackingEvent> {
   final Value<String> id;
+  final Value<String> name;
   final Value<int> type;
   final Value<DateTime> ts;
   final Value<String> payload;
   final Value<int> rowid;
   const TrackingEventsCompanion({
     this.id = const Value.absent(),
+    this.name = const Value.absent(),
     this.type = const Value.absent(),
     this.ts = const Value.absent(),
     this.payload = const Value.absent(),
@@ -4276,6 +4337,7 @@ class TrackingEventsCompanion extends UpdateCompanion<TrackingEvent> {
   });
   TrackingEventsCompanion.insert({
     required String id,
+    this.name = const Value.absent(),
     required int type,
     required DateTime ts,
     required String payload,
@@ -4286,6 +4348,7 @@ class TrackingEventsCompanion extends UpdateCompanion<TrackingEvent> {
         payload = Value(payload);
   static Insertable<TrackingEvent> custom({
     Expression<String>? id,
+    Expression<String>? name,
     Expression<int>? type,
     Expression<DateTime>? ts,
     Expression<String>? payload,
@@ -4293,6 +4356,7 @@ class TrackingEventsCompanion extends UpdateCompanion<TrackingEvent> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (name != null) 'name': name,
       if (type != null) 'type': type,
       if (ts != null) 'ts': ts,
       if (payload != null) 'payload': payload,
@@ -4302,12 +4366,14 @@ class TrackingEventsCompanion extends UpdateCompanion<TrackingEvent> {
 
   TrackingEventsCompanion copyWith(
       {Value<String>? id,
+      Value<String>? name,
       Value<int>? type,
       Value<DateTime>? ts,
       Value<String>? payload,
       Value<int>? rowid}) {
     return TrackingEventsCompanion(
       id: id ?? this.id,
+      name: name ?? this.name,
       type: type ?? this.type,
       ts: ts ?? this.ts,
       payload: payload ?? this.payload,
@@ -4320,6 +4386,9 @@ class TrackingEventsCompanion extends UpdateCompanion<TrackingEvent> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
     }
     if (type.present) {
       map['type'] = Variable<int>(type.value);
@@ -4340,6 +4409,7 @@ class TrackingEventsCompanion extends UpdateCompanion<TrackingEvent> {
   String toString() {
     return (StringBuffer('TrackingEventsCompanion(')
           ..write('id: $id, ')
+          ..write('name: $name, ')
           ..write('type: $type, ')
           ..write('ts: $ts, ')
           ..write('payload: $payload, ')
@@ -4369,6 +4439,16 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
   late final SunlightLedgerDao sunlightLedgerDao =
       SunlightLedgerDao(this as AppDatabase);
+  late final RewardTemplateDao rewardTemplateDao =
+      RewardTemplateDao(this as AppDatabase);
+  late final RedemptionRequestDao redemptionRequestDao =
+      RedemptionRequestDao(this as AppDatabase);
+  late final MonthlyPoolDao monthlyPoolDao =
+      MonthlyPoolDao(this as AppDatabase);
+  late final CooldownCounterDao cooldownCounterDao =
+      CooldownCounterDao(this as AppDatabase);
+  late final TrackingEventDao trackingEventDao =
+      TrackingEventDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5254,9 +5334,9 @@ typedef $$RewardTemplatesTableCreateCompanionBuilder = RewardTemplatesCompanion
   required String id,
   required String name,
   required int category,
-  required int baseCostHigh,
-  required int baseCostLow,
+  Value<int> baseCost,
   Value<int?> freqLimit,
+  Value<int> cooldownRule,
   Value<bool> enabled,
   Value<int> rowid,
 });
@@ -5265,9 +5345,9 @@ typedef $$RewardTemplatesTableUpdateCompanionBuilder = RewardTemplatesCompanion
   Value<String> id,
   Value<String> name,
   Value<int> category,
-  Value<int> baseCostHigh,
-  Value<int> baseCostLow,
+  Value<int> baseCost,
   Value<int?> freqLimit,
+  Value<int> cooldownRule,
   Value<bool> enabled,
   Value<int> rowid,
 });
@@ -5290,14 +5370,14 @@ class $$RewardTemplatesTableFilterComposer
   ColumnFilters<int> get category => $composableBuilder(
       column: $table.category, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<int> get baseCostHigh => $composableBuilder(
-      column: $table.baseCostHigh, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<int> get baseCostLow => $composableBuilder(
-      column: $table.baseCostLow, builder: (column) => ColumnFilters(column));
+  ColumnFilters<int> get baseCost => $composableBuilder(
+      column: $table.baseCost, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get freqLimit => $composableBuilder(
       column: $table.freqLimit, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get cooldownRule => $composableBuilder(
+      column: $table.cooldownRule, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get enabled => $composableBuilder(
       column: $table.enabled, builder: (column) => ColumnFilters(column));
@@ -5321,15 +5401,15 @@ class $$RewardTemplatesTableOrderingComposer
   ColumnOrderings<int> get category => $composableBuilder(
       column: $table.category, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<int> get baseCostHigh => $composableBuilder(
-      column: $table.baseCostHigh,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<int> get baseCostLow => $composableBuilder(
-      column: $table.baseCostLow, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<int> get baseCost => $composableBuilder(
+      column: $table.baseCost, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get freqLimit => $composableBuilder(
       column: $table.freqLimit, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get cooldownRule => $composableBuilder(
+      column: $table.cooldownRule,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<bool> get enabled => $composableBuilder(
       column: $table.enabled, builder: (column) => ColumnOrderings(column));
@@ -5353,14 +5433,14 @@ class $$RewardTemplatesTableAnnotationComposer
   GeneratedColumn<int> get category =>
       $composableBuilder(column: $table.category, builder: (column) => column);
 
-  GeneratedColumn<int> get baseCostHigh => $composableBuilder(
-      column: $table.baseCostHigh, builder: (column) => column);
-
-  GeneratedColumn<int> get baseCostLow => $composableBuilder(
-      column: $table.baseCostLow, builder: (column) => column);
+  GeneratedColumn<int> get baseCost =>
+      $composableBuilder(column: $table.baseCost, builder: (column) => column);
 
   GeneratedColumn<int> get freqLimit =>
       $composableBuilder(column: $table.freqLimit, builder: (column) => column);
+
+  GeneratedColumn<int> get cooldownRule => $composableBuilder(
+      column: $table.cooldownRule, builder: (column) => column);
 
   GeneratedColumn<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => column);
@@ -5396,9 +5476,9 @@ class $$RewardTemplatesTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<int> category = const Value.absent(),
-            Value<int> baseCostHigh = const Value.absent(),
-            Value<int> baseCostLow = const Value.absent(),
+            Value<int> baseCost = const Value.absent(),
             Value<int?> freqLimit = const Value.absent(),
+            Value<int> cooldownRule = const Value.absent(),
             Value<bool> enabled = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -5406,9 +5486,9 @@ class $$RewardTemplatesTableTableManager extends RootTableManager<
             id: id,
             name: name,
             category: category,
-            baseCostHigh: baseCostHigh,
-            baseCostLow: baseCostLow,
+            baseCost: baseCost,
             freqLimit: freqLimit,
+            cooldownRule: cooldownRule,
             enabled: enabled,
             rowid: rowid,
           ),
@@ -5416,9 +5496,9 @@ class $$RewardTemplatesTableTableManager extends RootTableManager<
             required String id,
             required String name,
             required int category,
-            required int baseCostHigh,
-            required int baseCostLow,
+            Value<int> baseCost = const Value.absent(),
             Value<int?> freqLimit = const Value.absent(),
+            Value<int> cooldownRule = const Value.absent(),
             Value<bool> enabled = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -5426,9 +5506,9 @@ class $$RewardTemplatesTableTableManager extends RootTableManager<
             id: id,
             name: name,
             category: category,
-            baseCostHigh: baseCostHigh,
-            baseCostLow: baseCostLow,
+            baseCost: baseCost,
             freqLimit: freqLimit,
+            cooldownRule: cooldownRule,
             enabled: enabled,
             rowid: rowid,
           ),
@@ -5465,6 +5545,7 @@ typedef $$RedemptionRequestsTableCreateCompanionBuilder
   Value<int?> queuePosition,
   Value<DateTime?> verifiedAt,
   Value<String?> parentNote,
+  Value<String> childId,
   Value<int> rowid,
 });
 typedef $$RedemptionRequestsTableUpdateCompanionBuilder
@@ -5478,6 +5559,7 @@ typedef $$RedemptionRequestsTableUpdateCompanionBuilder
   Value<int?> queuePosition,
   Value<DateTime?> verifiedAt,
   Value<String?> parentNote,
+  Value<String> childId,
   Value<int> rowid,
 });
 
@@ -5516,6 +5598,9 @@ class $$RedemptionRequestsTableFilterComposer
 
   ColumnFilters<String> get parentNote => $composableBuilder(
       column: $table.parentNote, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
 }
 
 class $$RedemptionRequestsTableOrderingComposer
@@ -5555,6 +5640,9 @@ class $$RedemptionRequestsTableOrderingComposer
 
   ColumnOrderings<String> get parentNote => $composableBuilder(
       column: $table.parentNote, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$RedemptionRequestsTableAnnotationComposer
@@ -5592,6 +5680,9 @@ class $$RedemptionRequestsTableAnnotationComposer
 
   GeneratedColumn<String> get parentNote => $composableBuilder(
       column: $table.parentNote, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
 }
 
 class $$RedemptionRequestsTableTableManager extends RootTableManager<
@@ -5631,6 +5722,7 @@ class $$RedemptionRequestsTableTableManager extends RootTableManager<
             Value<int?> queuePosition = const Value.absent(),
             Value<DateTime?> verifiedAt = const Value.absent(),
             Value<String?> parentNote = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               RedemptionRequestsCompanion(
@@ -5643,6 +5735,7 @@ class $$RedemptionRequestsTableTableManager extends RootTableManager<
             queuePosition: queuePosition,
             verifiedAt: verifiedAt,
             parentNote: parentNote,
+            childId: childId,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -5655,6 +5748,7 @@ class $$RedemptionRequestsTableTableManager extends RootTableManager<
             Value<int?> queuePosition = const Value.absent(),
             Value<DateTime?> verifiedAt = const Value.absent(),
             Value<String?> parentNote = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               RedemptionRequestsCompanion.insert(
@@ -5667,6 +5761,7 @@ class $$RedemptionRequestsTableTableManager extends RootTableManager<
             queuePosition: queuePosition,
             verifiedAt: verifiedAt,
             parentNote: parentNote,
+            childId: childId,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -6405,6 +6500,7 @@ typedef $$CooldownCountersTableProcessedTableManager = ProcessedTableManager<
 typedef $$TrackingEventsTableCreateCompanionBuilder = TrackingEventsCompanion
     Function({
   required String id,
+  Value<String> name,
   required int type,
   required DateTime ts,
   required String payload,
@@ -6413,6 +6509,7 @@ typedef $$TrackingEventsTableCreateCompanionBuilder = TrackingEventsCompanion
 typedef $$TrackingEventsTableUpdateCompanionBuilder = TrackingEventsCompanion
     Function({
   Value<String> id,
+  Value<String> name,
   Value<int> type,
   Value<DateTime> ts,
   Value<String> payload,
@@ -6430,6 +6527,9 @@ class $$TrackingEventsTableFilterComposer
   });
   ColumnFilters<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get type => $composableBuilder(
       column: $table.type, builder: (column) => ColumnFilters(column));
@@ -6453,6 +6553,9 @@ class $$TrackingEventsTableOrderingComposer
   ColumnOrderings<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get type => $composableBuilder(
       column: $table.type, builder: (column) => ColumnOrderings(column));
 
@@ -6474,6 +6577,9 @@ class $$TrackingEventsTableAnnotationComposer
   });
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
 
   GeneratedColumn<int> get type =>
       $composableBuilder(column: $table.type, builder: (column) => column);
@@ -6513,6 +6619,7 @@ class $$TrackingEventsTableTableManager extends RootTableManager<
               $$TrackingEventsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
             Value<int> type = const Value.absent(),
             Value<DateTime> ts = const Value.absent(),
             Value<String> payload = const Value.absent(),
@@ -6520,6 +6627,7 @@ class $$TrackingEventsTableTableManager extends RootTableManager<
           }) =>
               TrackingEventsCompanion(
             id: id,
+            name: name,
             type: type,
             ts: ts,
             payload: payload,
@@ -6527,6 +6635,7 @@ class $$TrackingEventsTableTableManager extends RootTableManager<
           ),
           createCompanionCallback: ({
             required String id,
+            Value<String> name = const Value.absent(),
             required int type,
             required DateTime ts,
             required String payload,
@@ -6534,6 +6643,7 @@ class $$TrackingEventsTableTableManager extends RootTableManager<
           }) =>
               TrackingEventsCompanion.insert(
             id: id,
+            name: name,
             type: type,
             ts: ts,
             payload: payload,

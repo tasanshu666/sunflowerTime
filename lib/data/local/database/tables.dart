@@ -4,10 +4,12 @@ library tables;
 
 import 'package:drift/drift.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
+
 /// 全局设置（单例行，id 固定 = 1）。夜间边界为唯一收口值（§6.1）。
 class Settings extends Table {
   IntColumn get id => integer()();
-  IntColumn get ageTier => integer()(); // 0=low,1=high
+  IntColumn get ageTier => integer()(); // 0=low,1=mid,2=high（D2 三档；迁移时旧 1 重编号为 2）
   IntColumn get nightBoundaryHour => integer().withDefault(const Constant(21))();
   IntColumn get nightBoundaryMinute => integer().withDefault(const Constant(0))();
   IntColumn get dailyFocusCap => integer()();
@@ -67,9 +69,11 @@ class RewardTemplates extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   IntColumn get category => integer()(); // RewardCategory index
-  IntColumn get baseCostHigh => integer()();
-  IntColumn get baseCostLow => integer()();
+  IntColumn get baseCost =>
+      integer().withDefault(const Constant(50))(); // 单基准价（消耗侧，未乘 K）
   IntColumn get freqLimit => integer().nullable()();
+  IntColumn get cooldownRule =>
+      integer().withDefault(const Constant(1))(); // 冷却规则（D3，默认 weekly；CooldownRule.weekly.index == 1）
   BoolColumn get enabled => boolean().withDefault(const Constant(true))();
 
   @override
@@ -87,6 +91,8 @@ class RedemptionRequests extends Table {
   IntColumn get queuePosition => integer().nullable()();
   DateTimeColumn get verifiedAt => dateTime().nullable()();
   TextColumn get parentNote => text().nullable()();
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子（C1/D2）
 
   @override
   Set<Column> get primaryKey => {id};
@@ -145,6 +151,8 @@ class CooldownCounters extends Table {
 /// 埋点（§3.1 tracking_event）。
 class TrackingEvents extends Table {
   TextColumn get id => text()();
+  TextColumn get name =>
+      text().withDefault(const Constant(''))(); // 事件名（供查询/导出）
   IntColumn get type => integer()(); // TrackingType index
   DateTimeColumn get ts => dateTime()();
   TextColumn get payload => text()(); // JSON

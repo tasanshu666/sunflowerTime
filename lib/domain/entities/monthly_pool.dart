@@ -8,11 +8,13 @@ class MonthlyPool {
   final int budget;
   final int used;
   final int autoReleased;
+  final DateTime? resetAt; // 最近一次重置时间（表列已存在，实体补齐）
 
   const MonthlyPool({
     required this.monthKey,
     required this.budget,
     this.used = 0,
     this.autoReleased = 0,
+    this.resetAt,
   });
 }

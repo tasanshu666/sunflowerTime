@@ -1,3 +1,4 @@
+import 'package:sunflower_time/core/constants/age_tier_params.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/monthly_pool.dart';
@@ -40,10 +41,9 @@ class RedemptionService {
     required MonthlyPool pool,
   }) {
     final bool isSelfService = template.category == RewardCategory.selfService;
-    final int maxCost =
-        ageTier == AgeTier.high ? kAutoApproveMaxCostHigh : kAutoApproveMaxCostLow;
-    final int ceiling =
-        ageTier == AgeTier.high ? kAutoApproveCapCeilingHigh : kAutoApproveCapCeilingLow;
+    final AgeTierParams p = kAgeTierParams[ageTier]!;
+    final int maxCost = p.autoApproveMaxCost; // C5① 单笔候选阈值（查表）
+    final int ceiling = p.autoApproveCapCeiling; // C5② 固定天花板（查表）
 
     // ② 月累计自动放行上限 = min(固定天花板, 月池 × 25%)
     final int capFromPool = (pool.budget * kAutoApprovePoolRatio).floor();

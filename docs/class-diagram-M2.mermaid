@@ -1,0 +1,296 @@
+%% 《向日葵专注 SunFocus》M2 经济与商店核销 · 类图
+%% 真源：docs/软件设计文档_M2.md §3.1（修改请同步两处）
+%% 本文件为 M2 专用，不覆盖 M0 的 class-diagram.mermaid
+classDiagram
+    direction TB
+
+    class AppSettings {
+        +AgeTier ageTier
+        +int monthlyPoolBudget
+        +int autoConfirmSingleHigh
+        +int autoConfirmSingleLow
+        +double autoConfirmMonthlyPct
+        +double currencyRate
+        +copyWith(...) AppSettings
+    }
+
+    class AgeTier {
+        <<enumeration>>
+        low
+        mid
+        high
+    }
+
+    class RewardCategory {
+        <<enumeration>>
+        selfService
+        parentHandled
+    }
+
+    class RequestStatus {
+        <<enumeration>>
+        pending
+        queued
+        verified
+        rejected
+    }
+
+    class CooldownRule {
+        <<enumeration>>
+        none
+        weekly
+        monthly
+    }
+
+    class SunlightType {
+        <<enumeration>>
+        earn
+        redeem
+        queueRelease
+    }
+
+    class TrackingType {
+        <<enumeration>>
+        milestone
+        metric
+    }
+
+    class AgeTierParams {
+        +int ageMin
+        +int ageMax
+        +double k
+        +int autoApproveMaxCost
+        +int autoApproveCapCeiling
+        +int monthlyPoolDefault
+        +int dailyFocusCap
+    }
+
+    class kAgeTierParams {
+        <<const map>>
+        +byTier(AgeTier) AgeTierParams
+    }
+    class AgeTierFn {
+        <<functions>>
+        +tierForAge(int age) AgeTier
+        +ageTierK(AgeTier tier) double
+        +capFor(AgeTier tier, int budget) int
+    }
+
+    class RewardTemplate {
+        +String id
+        +String name
+        +RewardCategory category
+        +int baseCost
+        +int frequencyLimitPerWeek
+        +CooldownRule cooldownRule
+        +bool enabled
+    }
+
+    class RedemptionRequest {
+        +String id
+        +String childId
+        +String templateId
+        +DateTime requestedAt
+        +int cost
+        +RequestStatus status
+        +bool autoApproved
+        +int? queuePosition
+        +DateTime? verifiedAt
+        +String? parentNote
+    }
+
+    class MonthlyPool {
+        +String monthKey
+        +int budget
+        +int used
+        +int autoReleased
+        +DateTime? resetAt
+    }
+
+    class CooldownCounter {
+        +String templateId
+        +CooldownPeriod period
+        +int usedCount
+    }
+
+    class TrackingEvent {
+        +String id
+        +String name
+        +TrackingType type
+        +DateTime ts
+        +Map~String,dynamic~ payload
+    }
+
+    class SunlightEntry {
+        +String id
+        +DateTime ts
+        +SunlightType type
+        +double gross
+        +double net
+        +double balanceAfter
+        +String? refType
+        +String? refId
+        +String dayKey
+    }
+
+    class RedemptionDecision {
+        +RequestStatus status
+        +bool autoApproved
+        +String reason
+    }
+
+    %% 纯判定层（S2 既有，语义不变）
+    class RedemptionService {
+        <<static / pure>>
+        +decide(template, cost, ageTier, pool) RedemptionDecision
+    }
+
+    %% 编排层（M2 新建）
+    class RedemptionOrchestrationService {
+        -RewardRepository _rewards
+        -MonthlyPoolService _pools
+        -SunlightRepository _ledger
+        -TrackingRepository _tracking
+        +submit(templateId, ageTier, now) Future~SubmitResult~
+        +verify(requestId, now) Future~void~
+        +releaseQueue(monthKey, now) Future~ReleaseReport~
+        +pendingList() Future~List~RedemptionRequest~~
+        +_priceFor(tpl, tier) int
+        +_checkCooldown(tpl, now) Future~bool~
+    }
+
+    class MonthlyPoolService {
+        -MonthlyPoolRepository _repo
+        +ensureAndReset(now) Future~MonthlyPool~
+        +pool(monthKey) Future~MonthlyPool~
+        +autoApproveCap(pool, tier) int
+        +applyRedemption(pool, cost, auto) Future~void~
+    }
+
+    class MonthlyPoolRepository {
+        <<interface>>
+        +get(monthKey) Future~MonthlyPool?~
+        +upsert(pool) Future~void~
+        +monthsBetween(fromKey, toKey) List~String~
+    }
+
+    class RewardRepository {
+        <<interface>>
+        +templates() Future~List~RewardTemplate~~
+        +saveTemplate(t) Future~void~
+        +createRequest(r) Future~void~
+        +pendingAndQueued() Future~List~RedemptionRequest~~
+        +queuedOfMonth(monthKey) Future~List~RedemptionRequest~~
+        +updateRequest(r) Future~void~
+        +cooldownCount(templateId, window) Future~int~
+    }
+
+    class TrackingRepository {
+        <<interface>>
+        +track(TrackingEvent) Future~void~
+        +eventsOfType(TrackingType) Future~List~TrackingEvent~~
+        +exportJsonl(from, to) Future~String~
+    }
+
+    class SunlightRepository {
+        <<interface / existing>>
+        +append(SunlightEntry) Future~double~
+        +balance() Future~double~
+        +dayNet(dayKey) Future~double~
+        +verifiedRedeemTotal() Future~double~
+    }
+
+    class AccountService {
+        <<PlanB stub>>
+        +currentChildId() String
+        +signIn() Never
+        +linkFamily() Never
+        +syncProfile() Never
+    }
+
+    %% 数据层实现
+    class RewardLocalRepository {
+        <<implements RewardRepository>>
+    }
+    class MonthlyPoolLocalRepository {
+        <<implements MonthlyPoolRepository>>
+    }
+    class TrackingLocalRepository {
+        <<implements TrackingRepository>>
+    }
+    class RewardTemplateDao {
+        +all() +watchEnabled() +upsert()
+    }
+    class RedemptionRequestDao {
+        +insert() +update()
+        +pendingAndQueued() +queuedOfMonth()
+    }
+    class MonthlyPoolDao {
+        +of(monthKey) +upsert()
+    }
+    class CooldownCounterDao {
+        +bump(templateId, period) +count(templateId, window)
+    }
+    class TrackingEventDao {
+        +insert() +ofType() +inRange()
+    }
+    class AppDatabase {
+        +int schemaVersion = 2
+        +MigrationStrategy migration
+    }
+
+    %% UI
+    class StorePage {
+        +build()
+    }
+    class ParentHomePage {
+        +TabBar today/reward/praise
+    }
+    class VerificationCard {
+        +onVerified()
+    }
+
+    %% 关系
+    RedemptionOrchestrationService ..> RedemptionService : 调用 decide()
+    RedemptionOrchestrationService --> MonthlyPoolService : 依赖
+    RedemptionOrchestrationService --> RewardRepository : 依赖
+    RedemptionOrchestrationService --> SunlightRepository : 扣账本
+    RedemptionOrchestrationService --> TrackingRepository : track()
+    MonthlyPoolService --> MonthlyPoolRepository : 依赖
+    RedemptionOrchestrationService ..> AccountService : currentChildId()
+
+    RewardLocalRepository ..|> RewardRepository
+    MonthlyPoolLocalRepository ..|> MonthlyPoolRepository
+    TrackingLocalRepository ..|> TrackingRepository
+
+    RewardLocalRepository --> RewardTemplateDao
+    RewardLocalRepository --> RedemptionRequestDao
+    RewardLocalRepository --> CooldownCounterDao
+    MonthlyPoolLocalRepository --> MonthlyPoolDao
+    TrackingLocalRepository --> TrackingEventDao
+    AppDatabase --> RewardTemplateDao
+    AppDatabase --> RedemptionRequestDao
+    AppDatabase --> MonthlyPoolDao
+    AppDatabase --> CooldownCounterDao
+    AppDatabase --> TrackingEventDao
+
+    AppSettings --> AgeTier
+    AppSettings ..> MonthlyPool : budget 默认值来源
+    kAgeTierParams --> AgeTierParams
+    kAgeTierParams --> AgeTier
+    AgeTierFn ..> kAgeTierParams
+    RedemptionService ..> kAgeTierParams : 取代三元
+    AgeTierFn ..> RewardTemplate : K 作用价格
+    RewardTemplate --> RewardCategory
+    RewardTemplate --> CooldownRule
+    RedemptionRequest --> RequestStatus
+    RedemptionRequest ..> RewardTemplate : templateId
+    MonthlyPool ..> RedemptionRequest : used/autoReleased 由此累计
+    RedemptionService ..> RedemptionDecision
+    RedemptionDecision --> RequestStatus
+    TrackingEvent --> TrackingType
+    SunlightEntry --> SunlightType
+    StorePage ..> RedemptionOrchestrationService : submit()
+    ParentHomePage ..> RedemptionOrchestrationService : verify()
+    VerificationCard ..> ParentHomePage
+    MonthlyPoolService ..> AgeTierParams : cap 计算

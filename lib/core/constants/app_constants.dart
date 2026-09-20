@@ -35,11 +35,8 @@ const int kTaskSunlightReward = 12;
 /// 完美日系数：同日同科「专注+打卡」×1.5（§4.5）。
 const double kPerfectDayCoefficient = 1.5;
 
-/// 月度池自动放行占月池比例：25%（C5）。
-const double kAutoConfirmMonthlyPct = 0.25;
-
-/// 货币换算系数（占位，§4.8）：K 仅作用于消耗侧，产出一律 1/min。
-const double kCurrencyRate = 1.0;
+// 注：`currencyRate` 真源统一为 `AppSettings.currencyRate`（默认 0.25，§7.6），
+// 此处不再另设裸值，杜绝双源（T-A 常量单点清理）。
 
 // ── 夜间边界（PRD §6.1，Settings.nightBoundary 为唯一值）────────────
 /// 夜间边界默认：21:00（§6.1 不变式；实际以 Settings 单例为准）。
@@ -98,6 +95,12 @@ const String kDatabasePassphrase = 'sunfocus-planb-dev-passphrase-2026';
 // ── 合规 / 首启（G0 合规落地，T25）─────────────────────────────────
 /// 首次启动同意流是否已完成的标记键（shared_preferences）。
 const String kPrefFirstLaunchConsented = 'first_launch_consented';
+
+/// 孩子端已读「家长核销成功」通知的申请 id 列表（shared_preferences）。
+///
+/// 家长核销后孩子端需要一次性弹窗提醒；已展示过的申请 id 记在此处，
+/// 避免同一笔核销反复弹窗（M2 家长-孩子同步）。
+const String kPrefAckedVerifyIds = 'acked_verify_ids';
 
 /// 家长 PIN 是否已在安全区落库的标记键（flutter_secure_storage）。
 const String kSecurePinHash = 'parent_pin_hash';

@@ -5,4 +5,8 @@ import 'package:sunflower_time/domain/entities/tracking_event.dart';
 abstract class TrackingRepository {
   Future<void> track(TrackingEvent event);
   Future<List<TrackingEvent>> eventsOfType(TrackingType type);
+
+  /// 导出区间内事件为 JSONL 字符串（每行一条 JSON，'\n' 拼接）。
+  /// 落盘由上层决定，此处只返回内容。
+  Future<String> exportJsonl(DateTime from, DateTime to);
 }

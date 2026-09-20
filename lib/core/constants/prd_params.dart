@@ -12,9 +12,6 @@ library prd_params;
 // C3「有效专注」同名不同义：两个不同用途的常量，不互相引用、不出现字面量 5/15/0.9
 // ───────────────────────────────────────────────────────────────────────────
 
-/// G1：一次有效横屏放置（验证计划 §2.5 / PRD §6.2「自然结束同样要求实际专注 ≥5 分钟」）
-const int kPlaceMinMinutes = 5;
-
 /// WFD：一个有效专注日（验证计划 §3.3 / PRD §8.3 北极星口径）
 const int kValidFocusMinutes = 15;
 
@@ -82,3 +79,19 @@ const double kGrowthFactorFocused = 1.3;
 
 /// 夜间边界默认（PRD §6.1 H5：唯一值，默认 21:00，家长可放到 21:30–22:00）
 const int kNightBoundaryDefaultHour = 21;
+
+// ───────────────────────────────────────────────────────────────────────────
+// M2 经济与商店核销 · 基础层常量（T-A，§0 D5 / C1 / D4）
+// ───────────────────────────────────────────────────────────────────────────
+
+/// Plan B 单孩子固定 childId（§7.6 单点；AccountService.currentChildId 返回）。
+const String kChildIdDefault = 'single-child';
+
+/// 待核销 48h 兜底提示时长（小时，D5）。≥ 该时长未核销展示兜底文案。
+const int kPendingReminderHours = 48;
+
+/// 待核销 48h 兜底文案（D5 原文）。
+const String kPendingReminderText = '这次的阳光奖励还在等你确认哦～';
+
+/// 冷却默认每周限领次数（D4：每奖励每周限领 1 次）。
+const int kCooldownWeeklyDefault = 1;

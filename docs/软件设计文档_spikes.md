@@ -74,7 +74,7 @@ UI 层不持有业务判定，S2 判定为纯函数（无 `BuildContext`、无 `
 ## 3. S2 · 兑换服务纯逻辑
 
 ### 3.1 状态机
-`RequestStatus { pending, queued, verified }`
+`RequestStatus { pending, queued, verified, rejected }`
 - 满足免确认双条件 → `verified`（`autoApproved = true`）
 - 不满足 且 整体池未满 → `pending`（待家长显式核销，分母计入核销履约率）
 - 不满足 且 整体池已满 → `queued`（下月 1 日按申请先后自动放行，不拒绝、不失效）

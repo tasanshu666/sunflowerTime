@@ -5,12 +5,11 @@ import 'package:sunflower_time/domain/entities/monthly_pool.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/services/redemption_service.dart';
 
-RewardTemplate tpl(RewardCategory c, {int hi = 50, int lo = 20}) => RewardTemplate(
+RewardTemplate tpl(RewardCategory c, {int baseCost = 50}) => RewardTemplate(
       id: 'r1',
       name: '测试奖励',
       category: c,
-      baseCostHigh: hi,
-      baseCostLow: lo,
+      baseCost: baseCost,
       frequencyLimitPerWeek: 3,
     );
 
@@ -63,7 +62,7 @@ void main() {
 
     test('自服务类即使极低价也一律不自动放行', () {
       final d = RedemptionService.decide(
-        template: tpl(RewardCategory.selfService, hi: 10, lo: 4),
+        template: tpl(RewardCategory.selfService, baseCost: 10),
         cost: 4,
         ageTier: age,
         pool: pool,
@@ -119,7 +118,7 @@ void main() {
       expect(d2.status, RequestStatus.pending); // 45+10=55 > 50
     });
 
-    test('低年段：池=200 → 公式上限 40（与 C5 正文「20」不符，已标记待用户确认）', () {
+    test('低年段：池=200 → 公式上限 40（C5 分母已裁定为 40）', () {
       // min(40, 200*0.25=50) = 40
       final pool = MonthlyPool(monthKey: '2026-09', budget: 200, autoReleased: 30);
       final d = RedemptionService.decide(

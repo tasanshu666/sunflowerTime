@@ -6,12 +6,19 @@
 /// 预留「家长转述表扬」占位区（M2 夸夸台接入，PRD §4.9）：M1 先留空位。
 library settle_page;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/tracking_event.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
@@ -52,12 +59,59 @@ class _SettlePageState extends ConsumerState<SettlePage>
     if ((widget.settlement?.net ?? 0) > 0) {
       ref.read(audioServiceProvider).playSfx(AudioCue.taskReward);
     }
+    // T-B：结算后注入 sun_earned / valid_focus_day 埋点（settlement 非空时）。
+    final FocusSettlement? settlement = widget.settlement;
+    if (settlement != null) {
+      unawaited(_trackSunEarned(settlement));
+      unawaited(_trackValidFocusDay(settlement));
+    }
   }
 
   @override
   void dispose() {
     _anim.dispose();
     super.dispose();
+  }
+
+  // ── T-B 埋点（仅新增，不重构既有逻辑）─────────────────────────
+
+  /// sun_earned：本次到账阳光（gross / net / 余额 / 是否触顶）。
+  Future<void> _trackSunEarned(FocusSettlement s) async {
+    try {
+      await ref.read(trackingRepositoryProvider).track(TrackingEvent(
+        id: Uuid().v4(),
+        name: TrackingEventNames.sunEarned,
+        type: TrackingType.metric,
+        ts: DateTime.now(),
+        payload: {
+          'gross': s.rawS,
+          'net': s.net,
+          'balance_after': s.balanceAfter,
+          'capped': s.rawS > kSoftCapSeg1,
+        },
+      ));
+    } catch (_) {}
+  }
+
+  /// valid_focus_day：有效专注日判定（≥15min 且完成率≥0.90）。
+  Future<void> _trackValidFocusDay(FocusSettlement s) async {
+    try {
+      final bool met = s.actualFocusMin >= kValidFocusMinutes &&
+          (s.plannedMin > 0
+              ? s.actualFocusMin / s.plannedMin >= kCompletionRateThreshold
+              : false);
+      await ref.read(trackingRepositoryProvider).track(TrackingEvent(
+        id: Uuid().v4(),
+        name: TrackingEventNames.validFocusDay,
+        type: TrackingType.metric,
+        ts: DateTime.now(),
+        payload: {
+          'day_key': dayKey(DateTime.now()),
+          'actual_min': s.actualFocusMin,
+          'met': met,
+        },
+      ));
+    } catch (_) {}
   }
 
   @override

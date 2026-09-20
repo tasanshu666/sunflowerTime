@@ -22,14 +22,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/entities/tracking_event.dart';
 import 'package:sunflower_time/domain/services/focus_engine.dart';
 import 'package:sunflower_time/domain/services/presence_detector.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
-import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/platform/dnd_controller.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/feedback_overlay.dart';
@@ -69,6 +73,12 @@ class _FocusPageState extends ConsumerState<FocusPage>
   bool _finished = false;
   String? _bubbleKey;
 
+  /// 本次专注会话 id（埋点 focus_session_start/end 关联用，T-B）。
+  late final String _sessionId = Uuid().v4();
+
+  /// 当前分龄档（进入时从设置读取，供埋点 payload.tier，T-B）。
+  AgeTier _tier = AgeTier.low;
+
   final DndController _dnd = DndController();
   bool _dndHintShown = false;
   bool _dndBanner = false; // 未获勿扰授权时顶部常驻提示条幅（B30）
@@ -96,6 +106,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
     // start() 会同步发出 lvl1 事件；延后到首帧后再启动，避免在 initState 中 setState。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _engine.start();
+      unawaited(_trackSessionStart()); // T-B：focus_session_start 埋点
     });
   }
 
@@ -129,6 +140,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
   Future<void> _applyAudioOnEnter() async {
     final AppSettings s = await ref.read(settingsRepositoryProvider).getSettings();
     if (!mounted) return;
+    _tier = s.ageTier; // T-B：记录档位供埋点
     final AudioService audio = ref.read(audioServiceProvider);
     audio.applySettings(soundOn: s.soundOn, bgmOn: s.bgmOn);
     if (s.bgmOn) unawaited(audio.startBgm());
@@ -263,6 +275,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
   Future<void> _handleOutcome(FocusOutcome outcome) async {
     if (_finished) return;
     _finished = true;
+    unawaited(_trackSessionEnd(outcome)); // T-B：focus_session_end 埋点
     _ticker?.cancel();
     _pulseTimer?.cancel();
     _bubbleTimer?.cancel();
@@ -293,6 +306,43 @@ class _FocusPageState extends ConsumerState<FocusPage>
         SystemUiMode.manual,
         overlays: SystemUiOverlay.values,
       );
+    } catch (_) {}
+  }
+
+  // ── T-B 埋点（仅新增，不重构既有逻辑）─────────────────────────
+
+  /// focus_session_start：引擎启动后上报（会话 id / 计划时长 / 档位）。
+  Future<void> _trackSessionStart() async {
+    try {
+      await ref.read(trackingRepositoryProvider).track(TrackingEvent(
+        id: Uuid().v4(),
+        name: TrackingEventNames.focusSessionStart,
+        type: TrackingType.metric,
+        ts: DateTime.now(),
+        payload: {
+          'session_id': _sessionId,
+          'planned_min': widget.plannedMinutes,
+          'tier': _tier.name,
+        },
+      ));
+    } catch (_) {}
+  }
+
+  /// focus_session_end：结算时上报（会话 id / 实际时长 / 结束原因 / 档位）。
+  Future<void> _trackSessionEnd(FocusOutcome outcome) async {
+    try {
+      await ref.read(trackingRepositoryProvider).track(TrackingEvent(
+        id: Uuid().v4(),
+        name: TrackingEventNames.focusSessionEnd,
+        type: TrackingType.metric,
+        ts: DateTime.now(),
+        payload: {
+          'session_id': _sessionId,
+          'actual_min': outcome.actualFocusMin,
+          'reason': outcome.endReason.name,
+          'tier': _tier.name,
+        },
+      ));
     } catch (_) {}
   }
 

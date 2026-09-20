@@ -2,7 +2,6 @@
 /// 对应架构设计 §3.2（软顶可追溯）、§4.5（公式③）。
 library math_ext;
 
-import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 
 /// 软顶（每日产出上限）计算骨架。
@@ -48,7 +47,7 @@ double autoApproveMonthlyCap(
 }) {
   final double hi = ceilingHigh ?? kAutoApproveCapCeilingHigh.toDouble();
   final double lo = ceilingLow ?? kAutoApproveCapCeilingLow.toDouble();
-  final double capFromPool = monthlyPoolBudget * kAutoConfirmMonthlyPct;
+  final double capFromPool = monthlyPoolBudget * kAutoApprovePoolRatio;
   // 占位：实际按 ageTier 选 100（高）或 40（低），此处取较小者保守。
   final double ceiling = hi < lo ? hi : lo;
   return capFromPool < ceiling ? capFromPool : ceiling;

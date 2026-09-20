@@ -15,4 +15,12 @@ class SettingsStore {
 
   Future<void> setFirstLaunchConsented(bool value) async =>
       _sp.setBool(kPrefFirstLaunchConsented, value);
+
+  /// 孩子端已展示过的「家长核销成功」申请 id（默认空）。
+  Future<List<String>> acknowledgedVerifyIds() async =>
+      _sp.getStringList(kPrefAckedVerifyIds) ?? <String>[];
+
+  /// 覆写「家长核销成功」已读 id 列表。
+  Future<void> setAcknowledgedVerifyIds(List<String> ids) async =>
+      _sp.setStringList(kPrefAckedVerifyIds, ids);
 }

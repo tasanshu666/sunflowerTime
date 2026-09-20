@@ -39,6 +39,9 @@ class FocusSettlement {
   /// 当日累计净产出（含本次）。
   final double todayNet;
 
+  /// 本次计划专注分钟（埋点 valid_focus_day 完成率计算需要，§3.3）。
+  final double plannedMin;
+
   /// 结算状态。
   final FocusStatus status;
 
@@ -52,6 +55,7 @@ class FocusSettlement {
     required this.net,
     required this.balanceAfter,
     required this.todayNet,
+    required this.plannedMin,
     required this.status,
     required this.endReason,
   });
@@ -155,6 +159,7 @@ class SunlightService {
       net: net,
       balanceAfter: balanceAfter,
       todayNet: todayNet,
+      plannedMin: plannedMin.toDouble(),
       status: outcome.status,
       endReason: outcome.endReason,
     );

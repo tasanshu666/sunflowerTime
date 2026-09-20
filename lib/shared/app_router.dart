@@ -17,6 +17,7 @@ import 'package:sunflower_time/presentation/child/pages/rest_page.dart';
 import 'package:sunflower_time/presentation/child/pages/focus_page.dart';
 import 'package:sunflower_time/presentation/child/pages/s1_demo_page.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
+import 'package:sunflower_time/presentation/child/pages/store_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_home_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_login_page.dart';
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
@@ -74,6 +75,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/parent/home',
         builder: (context, state) => const ParentHomePage(),
+      ),
+      GoRoute(
+        path: '/store',
+        builder: (context, state) => const StorePage(),
       ),
     ],
     // 首启同意流守卫：未同意 → /consent；已同意访问 /consent → /

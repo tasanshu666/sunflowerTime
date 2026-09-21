@@ -16,6 +16,9 @@ library reward_dao_test;
 import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart' as db;
+import 'package:sunflower_time/data/local/repositories/reward_local_repository.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -104,6 +107,45 @@ void main() {
       expect(pool.budget, 300);
       expect(pool.used, 120);
       expect(pool.autoReleased, 40);
+    });
+  });
+
+  group('RewardLocalRepository · 落单即 bump 本周冷却计数（D4 回归）', () {
+    // 回归锁：此前 createRequest 只 insert、从不 bump 冷却计数，
+    // 导致 cooldownCount 恒为 0、孩子端「剩余次数」永远等于限领值、_onCooldown 闸门失效。
+    late RewardLocalRepository repo;
+
+    setUp(() {
+      repo = RewardLocalRepository(database);
+    });
+
+    RedemptionRequest _req(String id, String tpl) => RedemptionRequest(
+          id: id,
+          childId: 'c1',
+          templateId: tpl,
+          requestedAt: DateTime(2026, 9, 21, 10),
+          cost: 40,
+          status: RequestStatus.pending,
+          autoApproved: false,
+          queuePosition: null,
+          verifiedAt: null,
+          parentNote: null,
+        );
+
+    test('同一模板落单 N 次，cooldownCount 返回 N', () async {
+      expect(await repo.cooldownCount('tpl_snack', CooldownPeriod.weekly), 0);
+      await repo.createRequest(_req('r1', 'tpl_snack'));
+      expect(await repo.cooldownCount('tpl_snack', CooldownPeriod.weekly), 1);
+      await repo.createRequest(_req('r2', 'tpl_snack'));
+      await repo.createRequest(_req('r3', 'tpl_snack'));
+      expect(await repo.cooldownCount('tpl_snack', CooldownPeriod.weekly), 3);
+    });
+
+    test('不同模板的冷却计数相互独立', () async {
+      await repo.createRequest(_req('a1', 'tpl_a'));
+      await repo.createRequest(_req('b1', 'tpl_b'));
+      expect(await repo.cooldownCount('tpl_a', CooldownPeriod.weekly), 1);
+      expect(await repo.cooldownCount('tpl_b', CooldownPeriod.weekly), 1);
     });
   });
 }

@@ -73,6 +73,12 @@ class FakeRewardRepository implements RewardRepository {
   @override
   Future<int> cooldownCount(String templateId, CooldownPeriod window) async =>
       cooldown[templateId] ?? 0;
+
+  @override
+  Future<void> decrementCooldown(String templateId, CooldownPeriod window) async {
+    final int current = cooldown[templateId] ?? 0;
+    cooldown[templateId] = (current - 1).clamp(0, current);
+  }
 }
 
 class FakeWeeklyPoolRepository implements WeeklyPoolRepository {
@@ -599,6 +605,44 @@ void main() {
         () => svc.reject(submitted.requestId!, DateTime(2026, 9, 20, 23, 10)),
         throwsA(isA<StateError>()),
       );
+    });
+
+    test('(g4) 拒绝回流 → 本周冷却计数回退 1（可兑换次数不因被拒而减少，第4轮第3点）',
+        () async {
+      final reward = FakeRewardRepository()..addTemplate(RewardTemplate(
+            id: 'seed_popsicle',
+            name: '吃冰棍儿',
+            category: RewardCategory.parentHandled,
+            baseCost: 40,
+            frequencyLimitPerWeek: 3, // 每周可兑换 3 次
+          ));
+      final svc = build(
+        reward: reward,
+        poolRepo: FakeWeeklyPoolRepository(),
+        ledger: FakeSunlightRepository()..balance_ = 200,
+        tracking: FakeTrackingRepository(),
+        settings: FakeSettingsRepository(lowSettings),
+      );
+
+      // 孩子落单 2 次（孩子端恒传 forcePending:true）→ 冷却计数 2（剩余 1）。
+      final r1 = await svc.submit(
+          'seed_popsicle', AgeTier.low, DateTime(2026, 9, 20, 22, 50),
+          forcePending: true);
+      final r2 = await svc.submit(
+          'seed_popsicle', AgeTier.low, DateTime(2026, 9, 20, 22, 55),
+          forcePending: true);
+      expect(r1.outcome, SubmitOutcome.pending);
+      expect(r2.outcome, SubmitOutcome.pending);
+      expect(await reward.cooldownCount('seed_popsicle', CooldownPeriod.weekly),
+          2);
+
+      // 家长拒绝第 1 笔 → 冷却计数应回退为 1，可兑换次数恢复（3 - 1 = 2）。
+      await svc.reject(r1.requestId!, DateTime(2026, 9, 20, 23, 10));
+      expect(await reward.cooldownCount('seed_popsicle', CooldownPeriod.weekly),
+          1);
+      // 被拒的这笔不再计入待处理列表。
+      expect(await svc.pendingList(),
+          hasLength(1)); // 仅剩 r2
     });
   });
 

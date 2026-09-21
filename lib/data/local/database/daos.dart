@@ -171,8 +171,22 @@ class CooldownCounterDao extends DatabaseAccessor<AppDatabase>
     final CooldownCounter? row = await (select(cooldownCounters)
           ..where((c) =>
               c.templateId.equals(templateId) & c.period.equals(period.index)))
-        .getSingleOrNull();
+          .getSingleOrNull();
     return row?.usedCount ?? 0;
+  }
+
+  /// 冲减 used_count（下限 0），用于拒绝/撤销兑换时回退「已领次数」。
+  ///
+  /// 行不存在时静默跳过（createRequest 一定先 bump 确保行存在，正常不会触发，
+  /// 但拒绝路径独立调用以防边界情况下出现负计数）。
+  Future<void> decrement(String templateId, CooldownPeriod period) async {
+    final int existing = await count(templateId, period);
+    if (existing <= 0) return; // 无记录即 0，无需操作
+    await customStatement(
+      'UPDATE cooldown_counters SET used_count = MAX(0, used_count - 1) '
+      'WHERE template_id = ? AND period = ?',
+      [templateId, period.index],
+    );
   }
 }
 

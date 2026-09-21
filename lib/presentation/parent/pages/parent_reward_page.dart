@@ -14,6 +14,7 @@ import 'package:uuid/uuid.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
+import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/presentation/parent/widgets/pool_indicator.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
 
@@ -27,21 +28,34 @@ class ParentRewardPage extends ConsumerStatefulWidget {
 
 class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
   List<RewardTemplate> _templates = <RewardTemplate>[];
+  Map<String, int> _weeklyUsed = <String, int>{}; // templateId -> 本周已领次数（cooldownCount），供算剩余
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
+    // 监听经济修订号：孩子端兑换 / 家长核销 / 拒绝都会自增 → 本页重算「剩余次数」。
+    // 注意：initState 中必须用 listenManual（ref.listen 只允许在 build 内调用，
+    // 否则真机会抛 "ref.listen can only be used within the build method" 断言崩溃）。
+    ref.listenManual(economyRevisionProvider, (_, __) {
+      if (mounted) _load();
+    });
     _load();
   }
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final List<RewardTemplate> list =
-        await ref.read(rewardRepositoryProvider).templates();
+    final RewardRepository repo = ref.read(rewardRepositoryProvider);
+    final List<RewardTemplate> list = await repo.templates();
+    // 逐模板取本周已领次数（cooldownCount），与卡片「剩余次数」口径一致。
+    final Map<String, int> used = <String, int>{};
+    for (final RewardTemplate t in list) {
+      used[t.id] = await repo.cooldownCount(t.id, CooldownPeriod.weekly);
+    }
     if (mounted) {
       setState(() {
         _templates = list;
+        _weeklyUsed = used;
         _loading = false;
       });
     }
@@ -160,10 +174,27 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (BuildContext context, int i) {
               final RewardTemplate t = _templates[i];
+              // 家长端展示「剩余可兑换次数」= 配置限领 − 本周已领（cooldownCount），
+              // 核销 1 次即从 N 变为 N-1，与孩子端口径一致，避免时间长忘了设了几条。
+              final String? freqLabel =
+                  weeklyRedeemLabel(t.frequencyLimitPerWeek, _weeklyUsed[t.id] ?? 0);
               return ListTile(
                 leading: const Icon(Icons.card_giftcard),
                 title: Text(t.name),
-                subtitle: Text(categoryLabel(t.category)),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(categoryLabel(t.category)),
+                    if (freqLabel != null)
+                      Text(
+                        freqLabel,
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall
+                            ?.copyWith(color: Colors.blueGrey.shade600),
+                      ),
+                  ],
+                ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[

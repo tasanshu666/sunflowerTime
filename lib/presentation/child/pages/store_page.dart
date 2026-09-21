@@ -32,6 +32,7 @@ class _StoreLoad {
   final AgeTier tier;
   final List<RewardTemplate> templates;
   final Map<String, bool> onCooldown;
+  final Map<String, int> weeklyUsed; // templateId -> 本周已领次数（cooldownCount），供卡片算剩余
   final List<RedemptionRequest> pending; // pending + queued（待家长处理）
   final Map<String, bool> hasActive; // templateId -> 存在未核销申请
   final Map<String, int> pendingCount; // templateId -> 待核销笔数
@@ -42,6 +43,7 @@ class _StoreLoad {
     required this.tier,
     required this.templates,
     required this.onCooldown,
+    required this.weeklyUsed,
     required this.pending,
     required this.hasActive,
     required this.pendingCount,
@@ -59,6 +61,7 @@ final _storeLoadProvider = FutureProvider<_StoreLoad>((ref) async {
   final RewardRepository rewardRepo = ref.watch(rewardRepositoryProvider);
   final List<RewardTemplate> templates = await rewardRepo.templates();
   final Map<String, bool> cooldown = <String, bool>{};
+  final Map<String, int> weeklyUsed = <String, int>{}; // 本周已领次数（cooldownCount）
   final List<RedemptionRequest> pending = await rewardRepo.pendingAndQueued();
   final Map<String, bool> hasActive = <String, bool>{};
   final Map<String, int> pendingCount = <String, int>{};
@@ -78,11 +81,13 @@ final _storeLoadProvider = FutureProvider<_StoreLoad>((ref) async {
           await rewardRepo.cooldownCount(t.id, CooldownPeriod.weekly);
       // 按模板各自的每周限领次数放行（frequencyLimitPerWeek<=0 视为不限）。
       cooldown[t.id] = t.frequencyLimitPerWeek > 0 && count >= t.frequencyLimitPerWeek;
+      weeklyUsed[t.id] = count; // 供卡片展示「剩余次数 = limit - count」
     }
   return _StoreLoad(
     tier: settings.ageTier,
     templates: templates,
     onCooldown: cooldown,
+    weeklyUsed: weeklyUsed,
     pending: pending,
     hasActive: hasActive,
     pendingCount: pendingCount,
@@ -220,6 +225,7 @@ class _StorePageState extends ConsumerState<StorePage> {
         hasActiveRequest: active,
         pendingCount: load.pendingCount[tpl.id] ?? 0,
         weeklyLimit: tpl.frequencyLimitPerWeek,
+        weeklyUsed: load.weeklyUsed[tpl.id] ?? 0,
         submitting: submitting,
         hasQueuedRequest: queued,
         onCancelQueue: queued

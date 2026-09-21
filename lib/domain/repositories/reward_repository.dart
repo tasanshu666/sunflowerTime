@@ -21,4 +21,11 @@ abstract class RewardRepository {
   Future<List<RedemptionRequest>> queuedOfWeek(String weekKey);
   Future<void> updateRequest(RedemptionRequest request);
   Future<int> cooldownCount(String templateId, CooldownPeriod window);
+
+  /// 冲减本周冷却计数（拒绝/撤销兑换时回退「已领次数」）。
+  ///
+  /// 用于家长拒绝一笔 pending/queued 申请时，把落单时 [createRequest] bump 上去的
+  /// used_count 退回 1，使「每周可兑换次数」不因被拒而减少（M2 真机验收·第4轮 第3点）。
+  /// used_count 下限为 0（不出现负数）。
+  Future<void> decrementCooldown(String templateId, CooldownPeriod window);
 }

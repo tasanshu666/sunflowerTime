@@ -3,10 +3,12 @@
 /// 纯展示组件：所有异步（冷却查询、submit）由 StorePage 预算好
 /// [onCooldown] / [submitting] 后传入，卡内不做任何异步。
 ///
-/// [weeklyLimit] 为该模板「每周可兑换次数」上限（来自 RewardTemplate.frequencyLimitPerWeek）：
-///   · >1  → 卡片展示「可兑换次数为 N」；
-///   · ==1 → 展示「仅兑换一次」；
-///   · <=0 → 视为不限次数，展示「不限次数」。
+/// [weeklyLimit] 为该模板「每周可兑换次数」上限（来自 RewardTemplate.frequencyLimitPerWeek）；
+/// [weeklyUsed] 为本周已领次数（来自 cooldownCount）。卡片展示「剩余次数」= limit - used：
+///   · limit<=0              → 「不限次数」；
+///   · remaining>=2          → 「可兑换次数为 N」；
+///   · remaining==1          → 「仅可兑换 1 次」；
+///   · remaining==0（领完）  → 隐藏（由卡片禁用态 / 「本周已领」承载）。
 /// 注意：冷却放行逻辑在 StorePage / RedemptionOrchestrationService 侧，本卡只负责展示文案。
 library reward_card;
 
@@ -26,6 +28,7 @@ class RewardCard extends StatelessWidget {
   final bool hasQueuedRequest; // 已有排队中申请（次月释放）
   final VoidCallback? onCancelQueue; // 孩子撤销排队
   final int weeklyLimit; // 该模板每周可兑换次数上限（frequencyLimitPerWeek；<=0 不限）
+  final int weeklyUsed; // 本周已领次数（cooldownCount）；卡片展示 = limit - used 的剩余次数
 
   const RewardCard({
     super.key,
@@ -39,6 +42,7 @@ class RewardCard extends StatelessWidget {
     this.hasQueuedRequest = false,
     this.onCancelQueue,
     this.weeklyLimit = 0,
+    this.weeklyUsed = 0,
   });
 
   @override
@@ -51,6 +55,9 @@ class RewardCard extends StatelessWidget {
     final String? inlineHint = hasActiveRequest
         ? (pendingCount > 1 ? '代家长核销 +$pendingCount' : '待家长核销')
         : (onCooldown ? '本周已领' : null);
+
+    // 每周可兑换次数提示：按「剩余次数」（limit - used）动态渲染，领完则隐藏。
+    final Widget? weeklyHint = _weeklyLimitHint(theme);
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -111,8 +118,8 @@ class RewardCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 14),
-            // 每周可兑换次数提示：N>=2「可兑换次数为 N」/ N==1「仅兑换一次」/ N<=0「不限次数」。
-            _weeklyLimitHint(theme),
+            // 每周可兑换次数提示（动态剩余：限领 - 本周已领）：N>=2「可兑换次数为 N」/ N==1「仅兑换一次」/ N<=0 隐藏。
+            if (weeklyHint != null) weeklyHint,
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -162,19 +169,14 @@ class RewardCard extends StatelessWidget {
     );
   }
 
-  /// 每周可兑换次数提示文案部件。
+  /// 每周可兑换次数提示文案部件（按「剩余次数」动态渲染）。
   ///
-  /// 口径（与用户原话一致）：N>=2「可兑换次数为 N」、N==1「仅兑换一次」、
-  /// N<=0（frequencyLimitPerWeek 未设）「不限次数」。
-  Widget _weeklyLimitHint(ThemeData theme) {
-    final String text;
-    if (weeklyLimit <= 0) {
-      text = '不限次数';
-    } else if (weeklyLimit == 1) {
-      text = '仅兑换一次';
-    } else {
-      text = '可兑换次数为$weeklyLimit';
-    }
+  /// 口径（与用户原话一致）：limit<=0「不限次数」；remaining>=2「可兑换次数为 N」；
+  /// remaining==1「仅可兑换 1 次」；remaining==0（领完）→ 返回 null 隐藏，
+  /// 由卡片禁用态 / 「本周已领」承载，避免重复。
+  Widget? _weeklyLimitHint(ThemeData theme) {
+    final String? text = weeklyRedeemLabel(weeklyLimit, weeklyUsed);
+    if (text == null) return null;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(

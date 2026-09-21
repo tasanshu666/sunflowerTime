@@ -282,6 +282,9 @@ class RedemptionOrchestrationService {
     );
     final String source =
         req.status == RequestStatus.queued ? 'queued' : 'pending';
+    // 拒绝 = 该次兑换不生效：回退落单时 bump 的本周冷却计数，
+    // 使「每周可兑换次数」不因被拒而减少（M2 真机验收·第4轮 第3点）。
+    await _reward.decrementCooldown(req.templateId, CooldownPeriod.weekly);
     await _reward.updateRequest(RedemptionRequest(
       id: req.id,
       childId: req.childId,

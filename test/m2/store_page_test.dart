@@ -86,6 +86,8 @@ class _FakeRewardRepository implements RewardRepository {
   Future<void> updateRequest(RedemptionRequest r) async {}
   @override
   Future<int> cooldownCount(String templateId, CooldownPeriod window) async => 0;
+  @override
+  Future<void> decrementCooldown(String templateId, CooldownPeriod window) async {}
 }
 
 class _FakeSettingsRepository implements SettingsRepository {
@@ -198,6 +200,8 @@ class _MutableRewardRepository implements RewardRepository {
   Future<void> updateRequest(RedemptionRequest r) async {}
   @override
   Future<int> cooldownCount(String templateId, CooldownPeriod window) async => 0;
+  @override
+  Future<void> decrementCooldown(String templateId, CooldownPeriod window) async {}
 }
 
 void main() {

@@ -42,8 +42,13 @@ class RewardLocalRepository implements RewardRepository {
   }
 
   @override
-  Future<void> createRequest(RedemptionRequest r) =>
-      _db.redemptionRequestDao.insert(_requestCompanion(r));
+  Future<void> createRequest(RedemptionRequest r) async {
+    await _db.redemptionRequestDao.insert(_requestCompanion(r));
+    // 落单即 bump 本周冷却计数（D4）：使「每周限领次数」真正生效——
+    // 既驱动孩子端卡片「剩余次数」递减，也驱动 RedemptionOrchestrationService._onCooldown 冷却闸门。
+    // 与 redemption_orchestration_test 的 FakeRewardRepository.createRequest 行为对齐（落申请即 +1）。
+    await _db.cooldownCounterDao.bump(r.templateId, CooldownPeriod.weekly);
+  }
 
   @override
   Future<List<RedemptionRequest>> pendingAndQueued() async {
@@ -85,6 +90,10 @@ class RewardLocalRepository implements RewardRepository {
   @override
   Future<int> cooldownCount(String templateId, CooldownPeriod window) =>
       _db.cooldownCounterDao.count(templateId, window);
+
+  @override
+  Future<void> decrementCooldown(String templateId, CooldownPeriod window) =>
+      _db.cooldownCounterDao.decrement(templateId, window);
 
   db.RedemptionRequestsCompanion _requestCompanion(RedemptionRequest r) =>
       db.RedemptionRequestsCompanion(

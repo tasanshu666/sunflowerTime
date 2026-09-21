@@ -253,7 +253,7 @@
 
 - **新增单测**：`test/domain/reward_template_test.dart`（纯函数 `weeklyRedeemLabel` 9 断言，覆盖不限/限1/限≥2/领完隐藏/边界）。
 - **收尾校验**：`flutter analyze` **0 error / 0 warning**（31 info）；`flutter test` **168/168 全绿**（163 基线 + 5 新）；`flutter build apk --debug` 成功；`adb install -r` 推小米 14 Pro（待真机复测）。
-- **未提交**（等玄参大人真机复测通过后授权再 push `m2/economy`，不合 main）。
+- **已提交**：commit `645c89b` 已推 `origin/m2/economy`（不合 main）。
 
 ---
 
@@ -271,7 +271,7 @@
 
 - **新增回归测试**：`test/m2/reward_dao_test.dart`「落单即 bump 本周冷却计数」组（真实内存 Drift 库，验证同模板落单 N 次→cooldownCount=N、不同模板独立）。锁死本根因，避免再次回潮。
 - **收尾校验**：`flutter analyze` **0 error / 0 warning**（32 info）；`flutter test` 全绿（168 + 2 新 = 170，含新回归测试）；`flutter build apk --debug` 成功；`adb install -r` 推小米 14 Pro（待真机复测）。
-- **未提交**（等玄参大人真机复测通过后授权再 push `m2/economy`，不合 main）。
+- **已提交**：commit `645c89b` 已推 `origin/m2/economy`（不合 main）。
 
 ---
 
@@ -290,4 +290,4 @@
 - **新增回归测试**：`test/m2/redemption_orchestration_test.dart` reject 组新增 `(g4) 拒绝回流 → 本周冷却计数回退 1`（限领 3 落单 2 次→cooldown=2，拒绝 1→cooldown 回退为 1 且待处理列表仅剩 1 笔）。锁死 F06 不变式。
 - **测试 Fake 同步**：`redemption_orchestration_test` Fake 与 `store_page_test` 两个 Fake 均补齐 `decrementCooldown` 实现（map 计数 `clamp(0,...)`），否则编译不过。
 - **收尾校验**：`flutter analyze` **0 error / 0 warning**（33 info，均为既有 lint hint）；`flutter test` **171/171 全绿**（170 基线 + 1 新 g4）；`flutter build apk --debug` 成功；`adb install -r` 推小米 14 Pro（`f05bbc46`）成功（待真机复测）。
-- **未提交**（等玄参大人真机复测通过后授权再 push `m2/economy`，不合 main）。
+- **已提交**：commit `645c89b` 已推 `origin/m2/economy`（不合 main）。

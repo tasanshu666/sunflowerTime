@@ -30,7 +30,7 @@ void main() {
       expect(TrackingEventNames.rewardRedeemRequest, 'reward_redeem_request');
       expect(TrackingEventNames.rewardVerified, 'reward_verified');
       expect(TrackingEventNames.rewardQueue, 'reward_queue');
-      expect(TrackingEventNames.monthlyPoolReset, 'monthly_pool_reset');
+      expect(TrackingEventNames.weeklyPoolReset, 'weekly_pool_reset');
       expect(TrackingEventNames.parentDau, 'parent_dau');
     });
   });
@@ -123,9 +123,9 @@ void main() {
             'month': '2026-09',
           },
         ),
-        TrackingEventNames.monthlyPoolReset: TrackingEvent(
+        TrackingEventNames.weeklyPoolReset: TrackingEvent(
           id: 'e8',
-          name: TrackingEventNames.monthlyPoolReset,
+          name: TrackingEventNames.weeklyPoolReset,
           type: TrackingType.metric,
           ts: now,
           payload: {
@@ -189,9 +189,9 @@ void main() {
       expect(e.payload.keys.toSet(),
           {'request_id', 'queue_rank', 'month'});
     });
-    test('monthly_pool_reset', () {
-      final e = events[TrackingEventNames.monthlyPoolReset]!;
-      expect(e.name, 'monthly_pool_reset');
+    test('weekly_pool_reset', () {
+      final e = events[TrackingEventNames.weeklyPoolReset]!;
+      expect(e.name, 'weekly_pool_reset');
       expect(e.payload.keys.toSet(), {'pool_size', 'tier'});
     });
     test('parent_dau', () {

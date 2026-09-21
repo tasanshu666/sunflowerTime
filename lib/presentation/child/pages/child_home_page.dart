@@ -30,7 +30,7 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
   void initState() {
     super.initState();
     // 首帧后再弹窗，避免在 build 期间触发路由/覆盖层变更。
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkVerifiedNotices());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAllNotices());
   }
 
   /// 进入孩子端即检查「家长已核销」通知：有未读则弹窗告知，并标记已读。
@@ -99,6 +99,76 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
     }
   }
 
+  /// 进入孩子端即检查「家长拒绝」通知（B4 对称通知）：家长拒绝后孩子端也弹窗告知。
+  ///
+  /// 判定口径：`rejectedRequests()` 中 id 不在 shared_preferences 已读列表里的申请。
+  /// 任何异常都不阻塞首页（通知属增强能力）。
+  Future<void> _checkRejectedNotices() async {
+    try {
+      final RewardRepository repo = ref.read(rewardRepositoryProvider);
+      final SettingsStore store = ref.read(settingsStoreProvider);
+
+      final List<RedemptionRequest> rejected = await repo.rejectedRequests();
+      if (rejected.isEmpty) return;
+
+      final List<String> acked = await store.acknowledgedRejectIds();
+      final Set<String> ackedSet = acked.toSet();
+      final List<RedemptionRequest> news =
+          rejected.where((RedemptionRequest r) => !ackedSet.contains(r.id)).toList();
+      if (news.isEmpty) return;
+
+      final List<RewardTemplate> tpls = await repo.templates();
+      final Map<String, String> names = <String, String>{
+        for (final RewardTemplate t in tpls) t.id: t.name,
+      };
+      if (!mounted) return;
+
+      await showDialog<void>(
+        context: context,
+        builder: (BuildContext ctx) => AlertDialog(
+          title: const Text('🚫 兑换未被通过'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              for (final RedemptionRequest r in news)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    '· ${names[r.templateId] ?? '奖励'}'
+                    '（${r.parentNote ?? '家长拒绝了该申请'}）',
+                  ),
+                ),
+              const SizedBox(height: 4),
+              const Text(
+                '本次阳光未被扣除，可重新兑换其他奖励',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('知道啦'),
+            ),
+          ],
+        ),
+      );
+
+      await store.setAcknowledgedRejectIds(
+        <String>{...acked, ...news.map((RedemptionRequest r) => r.id)}.toList(),
+      );
+    } catch (_) {
+      // 通知检查失败不阻塞孩子端首页。
+    }
+  }
+
+  /// 汇总检查：家长已核销（M2）+ 家长拒绝（B4）两类通知。
+  Future<void> _checkAllNotices() async {
+    await _checkVerifiedNotices();
+    await _checkRejectedNotices();
+  }
+
   /// DEBUG ONLY — 测试用临时入口，提交前删除。
   /// 追加一条 +1000 阳光账本（net 为正、balanceAfter 累加），便于真机验收兑换链路。
   Future<void> _grantDebugSunlight() async {
@@ -126,6 +196,13 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // B5：核销同步弹窗时机修复 —— 家长核销会自增经济修订号，孩子端首页（若仍挂载）
+    // 监听修订号变化即重新检查「家长已核销」通知，避免仅 initState 触发一次、
+    // 页面未重建则不弹的隐患。已读集合在仓库层去重，不会重复弹窗。
+    ref.listen(economyRevisionProvider, (_, __) {
+      if (mounted) _checkAllNotices();
+    });
+
     return Scaffold(
       appBar: AppBar(title: const Text('向日葵专注')),
       body: Center(

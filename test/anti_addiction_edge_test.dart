@@ -20,7 +20,7 @@ AppSettings _settings({int restAfterSessions = 2, int dailyFocusCap = 60}) =>
       restAfterSessions: restAfterSessions,
       restMinutes: 10,
       taskSunlight: 12,
-      monthlyPoolBudget: 400,
+      poolBudget: 400,
     );
 
 void main() {

@@ -10,7 +10,7 @@ class AppSettings {
   final int restAfterSessions; // 2
   final int restMinutes; // 10
   final int taskSunlight; // 12
-  final int monthlyPoolBudget; // 400(高)/160(低)，区间 100–1200
+  final int poolBudget; // 周阳光池预算（家长可设定，建议值 400，区间 50–1200）
   final bool quietMode;
   final bool soundOn;
   final bool bgmOn;
@@ -31,7 +31,7 @@ class AppSettings {
     required this.restAfterSessions,
     required this.restMinutes,
     required this.taskSunlight,
-    required this.monthlyPoolBudget,
+    required this.poolBudget,
     this.quietMode = false,
     this.soundOn = true,
     this.bgmOn = false,
@@ -54,7 +54,7 @@ class AppSettings {
     int? restAfterSessions,
     int? restMinutes,
     int? taskSunlight,
-    int? monthlyPoolBudget,
+    int? poolBudget,
     bool? quietMode,
     bool? soundOn,
     bool? bgmOn,
@@ -75,7 +75,7 @@ class AppSettings {
       restAfterSessions: restAfterSessions ?? this.restAfterSessions,
       restMinutes: restMinutes ?? this.restMinutes,
       taskSunlight: taskSunlight ?? this.taskSunlight,
-      monthlyPoolBudget: monthlyPoolBudget ?? this.monthlyPoolBudget,
+      poolBudget: poolBudget ?? this.poolBudget,
       quietMode: quietMode ?? this.quietMode,
       soundOn: soundOn ?? this.soundOn,
       bgmOn: bgmOn ?? this.bgmOn,

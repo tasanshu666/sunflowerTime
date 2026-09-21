@@ -147,15 +147,15 @@ void main() {
       expect(computeSoftCap(1000), closeTo(79.0, 1e-9));
     });
 
-    test('O3 autoApproveMonthlyCap 默认参数改可空后无语义漂移', () {
+    test('O3 autoApprovePoolCap 默认参数改可空后无语义漂移', () {
       // 旧行为：ceiling=min(100,40)=40；返回 min(pool*0.25, 40)
-      expect(autoApproveMonthlyCap(400), closeTo(40.0, 1e-9));
-      expect(autoApproveMonthlyCap(100), closeTo(25.0, 1e-9));
-      expect(autoApproveMonthlyCap(0), closeTo(0.0, 1e-9));
+      expect(autoApprovePoolCap(400), closeTo(40.0, 1e-9));
+      expect(autoApprovePoolCap(100), closeTo(25.0, 1e-9));
+      expect(autoApprovePoolCap(0), closeTo(0.0, 1e-9));
       // 显式传参路径仍可用
-      expect(autoApproveMonthlyCap(400, ceilingHigh: 100, ceilingLow: 40),
+      expect(autoApprovePoolCap(400, ceilingHigh: 100, ceilingLow: 40),
           closeTo(40.0, 1e-9));
-      expect(autoApproveMonthlyCap(1000, ceilingHigh: 500, ceilingLow: 300),
+      expect(autoApprovePoolCap(1000, ceilingHigh: 500, ceilingLow: 300),
           closeTo(250.0, 1e-9));
     });
   });

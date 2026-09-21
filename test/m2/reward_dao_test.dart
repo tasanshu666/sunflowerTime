@@ -48,6 +48,23 @@ void main() {
     });
   });
 
+  group('RewardTemplateDao · deleteById 硬删除', () {
+    test('插入后 deleteById，all() 不再包含该模板', () async {
+      await database.rewardTemplateDao.upsert(
+        db.RewardTemplatesCompanion(
+          id: const Value('tpl_del'),
+          name: const Value('待删'),
+          category: const Value(0),
+          baseCost: const Value(10),
+        ),
+      );
+      expect(await database.rewardTemplateDao.all(), hasLength(1));
+      final int removed = await database.rewardTemplateDao.deleteById('tpl_del');
+      expect(removed, 1);
+      expect(await database.rewardTemplateDao.all(), isEmpty);
+    });
+  });
+
   group('TrackingEventDao · name 列往返（v1→v2 迁移健全性）', () {
     test('插入含 name 的埋点，读回 name 一致', () async {
       await database.trackingEventDao.insert(

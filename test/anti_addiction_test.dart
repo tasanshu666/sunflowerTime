@@ -17,7 +17,7 @@ AppSettings _highSettings() => const AppSettings(
       restAfterSessions: 2,
       restMinutes: 10,
       taskSunlight: 12,
-      monthlyPoolBudget: 400,
+      poolBudget: 400,
     );
 
 /// 低年段设置（cap=90，边界 21:00，休息每 2 场）。
@@ -28,7 +28,7 @@ AppSettings _lowSettings() => const AppSettings(
       restAfterSessions: 2,
       restMinutes: 10,
       taskSunlight: 12,
-      monthlyPoolBudget: 160,
+      poolBudget: 160,
     );
 
 void main() {
@@ -63,7 +63,7 @@ void main() {
         restAfterSessions: 2,
         restMinutes: 10,
         taskSunlight: 12,
-        monthlyPoolBudget: 400,
+        poolBudget: 400,
       );
       expect(
         AntiAddictionService().isNightLocked(s2, DateTime(2026, 9, 15, 21, 30)),
@@ -79,7 +79,7 @@ void main() {
         restAfterSessions: 2,
         restMinutes: 10,
         taskSunlight: 12,
-        monthlyPoolBudget: 400,
+        poolBudget: 400,
       );
       expect(
         AntiAddictionService().isNightLocked(s2, DateTime(2026, 9, 15, 22, 0)),

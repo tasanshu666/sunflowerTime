@@ -1,25 +1,25 @@
 /// 兑换编排服务（§2.4 / §3.2 / §4.1–4.3）：M2 核心。
 ///
 /// 在 S2 纯判定 [RedemptionService.decide] 之上做完整兑换链路：
-/// 读模板 → 算含 K 价 → 取/建月度池 → decide() → 落 RedemptionRequest →
-/// 扣账本 → 更新池 → 埋点。**不改动 decide() 的判定语义**（13 单测回归基线）。
+/// 读模板 → 算价（baseCost，2026-09-21 起不再叠加分龄系数 K）→ 取/建周池 →
+/// decide() → 落 RedemptionRequest → 扣账本 → 更新池 → 埋点。
+/// **不改动 decide() 的判定语义**（13 单测回归基线）。
 ///
 /// 设计纪律（§7）：
-///  · K 仅作用消耗侧：`cost = applyAgeTierK(baseCost, ageTierK(tier)).round()`；
-///  · ledger 单一账本 + 月池独立对账：每笔兑换（自动放行/家长核销/次月排队释放）
+///  · 2026-09-21 决策：定价不再叠加分龄系数 K，显示价 = 扣费价 = baseCost；
+///    `k` 字段与 `ageTierK()` 保留为档位参数单点，但生产定价链路不得再调用；
+///  · ledger 单一账本 + 周池独立对账：每笔兑换（自动放行/家长核销/次周排队释放）
 ///    都写一条 SunlightEntry，且 queued 状态**绝不**提前扣账本/扣池；
 ///  · 阳光不足 / 冷却未过 → 不生成申请、不埋 reward_* 事件。
 library redemption_orchestration_service;
 
 import 'package:uuid/uuid.dart';
 
-import 'package:sunflower_time/core/constants/age_tier_params.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
-import 'package:sunflower_time/core/utils/math_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
-import 'package:sunflower_time/domain/entities/monthly_pool.dart';
+import 'package:sunflower_time/domain/entities/weekly_pool.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
@@ -29,14 +29,14 @@ import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
-import 'package:sunflower_time/domain/services/monthly_pool_service.dart';
+import 'package:sunflower_time/domain/services/weekly_pool_service.dart';
 import 'package:sunflower_time/domain/services/redemption_service.dart';
 
 /// submit() 的结果类别。
 enum SubmitOutcome {
   verified, // 免确认自动放行
   pending, // 待家长核销
-  queued, // 超池排队（次月释放）
+  queued, // 超池排队（次周释放）
   rejectedCooldown, // 冷却中（每周限领 1 次）
   rejectedBalance, // 阳光余额不足
 }
@@ -61,7 +61,7 @@ class SubmitResult {
 /// releaseQueue() 返回值（不可变）。
 class ReleaseReport {
   final int released; // 本次成功释放数
-  final int deferred; // 顺延至下月数
+  final int deferred; // 顺延至下周数
 
   const ReleaseReport(this.released, this.deferred);
 }
@@ -69,7 +69,7 @@ class ReleaseReport {
 /// 兑换编排服务。
 class RedemptionOrchestrationService {
   final RewardRepository _reward;
-  final MonthlyPoolService _pools;
+  final WeeklyPoolService _pools;
   final SunlightRepository _ledger;
   final TrackingRepository _tracking;
   final AccountService _account;
@@ -80,7 +80,7 @@ class RedemptionOrchestrationService {
 
   RedemptionOrchestrationService({
     required RewardRepository reward,
-    required MonthlyPoolService pools,
+    required WeeklyPoolService pools,
     required SunlightRepository ledger,
     required TrackingRepository tracking,
     required AccountService account,
@@ -92,14 +92,18 @@ class RedemptionOrchestrationService {
         _account = account,
         _settings = settings;
 
-  /// 消耗侧价格：基准价 × 分龄系数 K（仅消耗侧乘，产出侧不乘）。
-  int _priceFor(RewardTemplate t, AgeTier tier) =>
-      applyAgeTierK(t.baseCost.toDouble(), ageTierK(tier)).round();
+  /// 消耗侧价格：2026-09-21 决策后不再叠加分龄系数 K —— 显示价 = 扣费价 = 家长设定价。
+  ///
+  /// [tier] 形参保留以不动调用点与签名（未来如需分档展示可复用，但当前不参与定价）。
+  int _priceFor(RewardTemplate t, AgeTier tier) => t.baseCost;
 
-  /// 冷却判定：本周已领次数 ≥ 默认每周限领次数（D4）。
-  Future<bool> _onCooldown(RewardTemplate t) async =>
-      (await _reward.cooldownCount(t.id, CooldownPeriod.weekly)) >=
-      kCooldownWeeklyDefault;
+  /// 冷却判定：本周已领次数 ≥ 该模板的每周限领次数（frequencyLimitPerWeek）。
+  /// frequencyLimitPerWeek <= 0 视为不限次数（永不冷却，按钮不灰）。
+  Future<bool> _onCooldown(RewardTemplate t) async {
+    if (t.frequencyLimitPerWeek <= 0) return false;
+    return (await _reward.cooldownCount(t.id, CooldownPeriod.weekly)) >=
+        t.frequencyLimitPerWeek;
+  }
 
   /// 孩子端发起一笔兑换（§4.1 时序）。
   /// [forcePending]：孩子端发起时传 true，强制走「待家长核销」——不立即扣账本，
@@ -121,7 +125,7 @@ class RedemptionOrchestrationService {
       return const SubmitResult(outcome: SubmitOutcome.rejectedCooldown);
     }
 
-    final MonthlyPool pool = await _pools.ensureAndReset(now);
+    final WeeklyPool pool = await _pools.ensureAndReset(now);
     final int cost = _priceFor(tpl, ageTier);
 
     // 阳光不足 → 拒绝（不生成申请、不埋 reward_*）。
@@ -147,7 +151,7 @@ class RedemptionOrchestrationService {
 
     final String childId = _account.currentChildId();
     final int? queueRank = decision.status == RequestStatus.queued
-        ? (await _reward.queuedOfMonth(monthKey(now))).length + 1
+        ? (await _reward.queuedOfWeek(weekKey(now))).length + 1
         : null;
 
     final String id = _uuid.v4();
@@ -202,7 +206,7 @@ class RedemptionOrchestrationService {
           payload: {
             'request_id': req.id,
             'queue_rank': queueRank,
-            'month': monthKey(now),
+            'week': weekKey(now),
           },
         ));
         return SubmitResult(
@@ -303,16 +307,16 @@ class RedemptionOrchestrationService {
     ));
   }
 
-  /// 跨月释放排队请求（§4.2 时序）：按 requested_at 升序逐条尝试释放。
+  /// 跨周释放排队请求（§4.2 时序）：按 requested_at 升序逐条尝试释放。
   ///
-  /// 余额 ≥ cost 且 新月池未超 → 释放为 verified（写账本 + 扣池 + 埋点）；
-  /// 否则 → 顺延下月（不拒绝、不失效）。
-  Future<ReleaseReport> releaseQueue(String monthKey, DateTime now) async {
+  /// 余额 ≥ cost 且 新周池未超 → 释放为 verified（写账本 + 扣池 + 埋点）；
+  /// 否则 → 顺延下周（不拒绝、不失效）。
+  Future<ReleaseReport> releaseQueue(String weekKey, DateTime now) async {
     final List<RedemptionRequest> queue =
-        (await _reward.queuedOfMonth(monthKey))
+        (await _reward.queuedOfWeek(weekKey))
           ..sort((a, b) => a.requestedAt.compareTo(b.requestedAt));
 
-    final MonthlyPool newPool = await _pools.ensureAndReset(now);
+    final WeeklyPool newPool = await _pools.ensureAndReset(now);
     int released = 0;
     int deferred = 0;
 
@@ -346,10 +350,52 @@ class RedemptionOrchestrationService {
         ));
         released += 1;
       } else {
-        deferred += 1; // 顺延下月
+        deferred += 1; // 顺延下周
       }
     }
     return ReleaseReport(released, deferred);
+  }
+
+  /// 家长强制立即释放一笔排队请求（A3）：跳过等次周，余额/周池充足时立即放行。
+  ///
+  /// 与 [releaseQueue] 单条逻辑一致：写账本 + 扣池 + 置 verified + 埋点；
+  /// 余额或周池不足则抛 [StateError]（由 UI 捕获提示），不修改任何状态。
+  Future<void> forceRelease(String requestId, DateTime now) async {
+    final List<RedemptionRequest> list = await _reward.pendingAndQueued();
+    final RedemptionRequest req = list.firstWhere(
+      (r) => r.id == requestId && r.status == RequestStatus.queued,
+      orElse: () => throw StateError('no queued'),
+    );
+    final WeeklyPool newPool = await _pools.ensureAndReset(now);
+    if ((await _ledger.balance()) < req.cost ||
+        (newPool.used + newPool.autoReleased + req.cost) > newPool.budget) {
+      throw StateError('余额或周池不足，无法立即释放');
+    }
+    await _appendLedger(now, req.cost, SunlightType.queueRelease, req.id);
+    await _pools.applyRedemption(newPool, req.cost, auto: false);
+    await _reward.updateRequest(RedemptionRequest(
+      id: req.id,
+      childId: req.childId,
+      templateId: req.templateId,
+      requestedAt: req.requestedAt,
+      cost: req.cost,
+      status: RequestStatus.verified,
+      autoApproved: req.autoApproved,
+      queuePosition: null,
+      verifiedAt: now,
+      parentNote: req.parentNote,
+    ));
+    await _tracking.track(TrackingEvent(
+      id: _uuid.v4(),
+      name: TrackingEventNames.rewardVerified,
+      type: TrackingType.metric,
+      ts: now,
+      payload: {
+        'request_id': req.id,
+        'source': 'queueForceRelease',
+        'amount': req.cost,
+      },
+    ));
   }
 
   /// 待处理列表（pending + queued），按 requested_at 升序，供家长端核销卡。

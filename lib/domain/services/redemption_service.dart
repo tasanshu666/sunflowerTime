@@ -1,7 +1,7 @@
 import 'package:sunflower_time/core/constants/age_tier_params.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
-import 'package:sunflower_time/domain/entities/monthly_pool.dart';
+import 'package:sunflower_time/domain/entities/weekly_pool.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 
 /// 兑换申请的判定结果（S2 纯逻辑，不落库）。
@@ -38,7 +38,7 @@ class RedemptionService {
     required RewardTemplate template,
     required int cost,
     required AgeTier ageTier,
-    required MonthlyPool pool,
+    required WeeklyPool pool,
   }) {
     final bool isSelfService = template.category == RewardCategory.selfService;
     final AgeTierParams p = kAgeTierParams[ageTier]!;

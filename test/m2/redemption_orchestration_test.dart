@@ -4,19 +4,19 @@
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
-import 'package:sunflower_time/domain/entities/monthly_pool.dart';
+import 'package:sunflower_time/domain/entities/weekly_pool.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/entities/tracking_event.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
-import 'package:sunflower_time/domain/repositories/monthly_pool_repository.dart';
+import 'package:sunflower_time/domain/repositories/weekly_pool_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
-import 'package:sunflower_time/domain/services/monthly_pool_service.dart';
+import 'package:sunflower_time/domain/services/weekly_pool_service.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
 import 'package:test/test.dart';
 
@@ -34,6 +34,9 @@ class FakeRewardRepository implements RewardRepository {
 
   @override
   Future<void> saveTemplate(RewardTemplate t) async => templates_[t.id] = t;
+
+  @override
+  Future<void> deleteTemplate(String id) async => templates_.remove(id);
 
   @override
   Future<void> createRequest(RedemptionRequest r) async {
@@ -54,7 +57,12 @@ class FakeRewardRepository implements RewardRepository {
       .toList();
 
   @override
-  Future<List<RedemptionRequest>> queuedOfMonth(String monthKey) async =>
+  Future<List<RedemptionRequest>> rejectedRequests() async => requests.values
+      .where((r) => r.status == RequestStatus.rejected)
+      .toList();
+
+  @override
+  Future<List<RedemptionRequest>> queuedOfWeek(String weekKey) async =>
       requests.values
           .where((r) => r.status == RequestStatus.queued)
           .toList();
@@ -67,14 +75,14 @@ class FakeRewardRepository implements RewardRepository {
       cooldown[templateId] ?? 0;
 }
 
-class FakeMonthlyPoolRepository implements MonthlyPoolRepository {
-  final Map<String, MonthlyPool> store = {};
+class FakeWeeklyPoolRepository implements WeeklyPoolRepository {
+  final Map<String, WeeklyPool> store = {};
   @override
-  Future<MonthlyPool?> get(String monthKey) async => store[monthKey];
+  Future<WeeklyPool?> get(String weekKey) async => store[weekKey];
   @override
-  Future<void> upsert(MonthlyPool pool) async => store[pool.monthKey] = pool;
+  Future<void> upsert(WeeklyPool pool) async => store[pool.weekKey] = pool;
   @override
-  List<String> monthsBetween(String fromKey, String toKey) => [fromKey, toKey];
+  List<String> weeksBetween(String fromKey, String toKey) => [fromKey, toKey];
 }
 
 class FakeSunlightRepository implements SunlightRepository {
@@ -134,12 +142,12 @@ class FakeAccountService implements AccountService {
 
 RedemptionOrchestrationService build({
   required FakeRewardRepository reward,
-  required FakeMonthlyPoolRepository poolRepo,
+  required FakeWeeklyPoolRepository poolRepo,
   required FakeSunlightRepository ledger,
   required FakeTrackingRepository tracking,
   required FakeSettingsRepository settings,
 }) {
-  final poolService = MonthlyPoolService(poolRepo, settings, tracking);
+  final poolService = WeeklyPoolService(poolRepo, settings, tracking);
   return RedemptionOrchestrationService(
     reward: reward,
     pools: poolService,
@@ -157,7 +165,7 @@ const lowSettings = AppSettings(
   restAfterSessions: 2,
   restMinutes: 10,
   taskSunlight: 12,
-  monthlyPoolBudget: 160,
+  poolBudget: 160,
 );
 
 void main() {
@@ -177,7 +185,7 @@ void main() {
       final settings = FakeSettingsRepository(lowSettings);
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: ledger,
         tracking: tracking,
         settings: settings,
@@ -199,7 +207,7 @@ void main() {
         tracking.events.any((e) => e.name == TrackingEventNames.rewardRedeemRequest),
         isTrue,
       );
-      // 月度池 autoReleased 累计
+      // 周池 autoReleased 累计
       expect(
         (await svc.pendingList()),
         isEmpty,
@@ -218,7 +226,7 @@ void main() {
       final ledger = FakeSunlightRepository()..balance_ = 100;
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: ledger,
         tracking: FakeTrackingRepository(),
         settings: FakeSettingsRepository(lowSettings),
@@ -248,7 +256,7 @@ void main() {
       final tracking = FakeTrackingRepository();
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: ledger,
         tracking: tracking,
         settings: FakeSettingsRepository(lowSettings),
@@ -288,7 +296,7 @@ void main() {
       final tracking = FakeTrackingRepository();
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: ledger,
         tracking: tracking,
         settings: FakeSettingsRepository(lowSettings),
@@ -324,7 +332,7 @@ void main() {
       final tracking = FakeTrackingRepository();
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: ledger,
         tracking: tracking,
         settings: FakeSettingsRepository(lowSettings),
@@ -366,7 +374,7 @@ void main() {
       final tracking = FakeTrackingRepository();
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: FakeSunlightRepository()..balance_ = 100,
         tracking: tracking,
         settings: FakeSettingsRepository(lowSettings),
@@ -382,7 +390,7 @@ void main() {
   });
 
   group('RedemptionOrchestrationService.releaseQueue', () {
-    test('(f1) 次月新月池充足 → queued 释放为 verified + 扣账本', () async {
+    test('(f1) 次周新周池充足 → queued 释放为 verified + 扣账本', () async {
       final reward = FakeRewardRepository();
       reward.addTemplate(const RewardTemplate(
         id: 'seed_snack',
@@ -391,12 +399,12 @@ void main() {
         baseCost: 20,
         frequencyLimitPerWeek: 1,
       ));
-      // 手动注入一条 queued 请求（上月）
+      // 手动注入一条 queued 请求（上周）
       reward.requests['q1'] = RedemptionRequest(
         id: 'q1',
         childId: kChildIdDefault,
         templateId: 'seed_snack',
-        requestedAt: DateTime(2026, 8, 15),
+        requestedAt: DateTime(2026, 8, 31),
         cost: 20,
         status: RequestStatus.queued,
         autoApproved: false,
@@ -406,13 +414,13 @@ void main() {
       final tracking = FakeTrackingRepository();
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: ledger,
         tracking: tracking,
         settings: FakeSettingsRepository(lowSettings),
       );
 
-      final report = await svc.releaseQueue('2026-08', DateTime(2026, 9, 1));
+      final report = await svc.releaseQueue('2026-08-31', DateTime(2026, 9, 1));
       expect(report.released, 1);
       expect(report.deferred, 0);
       expect(reward.requests['q1']!.status, RequestStatus.verified);
@@ -421,7 +429,7 @@ void main() {
       expect(ledger.entries.first.net, -20);
     });
 
-    test('(f2) 余额不足 → queued 顺延下月（deferred）', () async {
+    test('(f2) 余额不足 → queued 顺延下周（deferred）', () async {
       final reward = FakeRewardRepository();
       reward.addTemplate(const RewardTemplate(
         id: 'seed_snack',
@@ -434,7 +442,7 @@ void main() {
         id: 'q1',
         childId: kChildIdDefault,
         templateId: 'seed_snack',
-        requestedAt: DateTime(2026, 8, 15),
+        requestedAt: DateTime(2026, 8, 31),
         cost: 20,
         status: RequestStatus.queued,
         autoApproved: false,
@@ -443,20 +451,20 @@ void main() {
       final ledger = FakeSunlightRepository()..balance_ = 0; // 余额不足
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: ledger,
         tracking: FakeTrackingRepository(),
         settings: FakeSettingsRepository(lowSettings),
       );
 
-      final report = await svc.releaseQueue('2026-08', DateTime(2026, 9, 1));
+      final report = await svc.releaseQueue('2026-08-31', DateTime(2026, 9, 1));
       expect(report.released, 0);
       expect(report.deferred, 1);
       expect(reward.requests['q1']!.status, RequestStatus.queued); // 仍排队
       expect(ledger.entries, isEmpty);
     });
 
-    test('(f3) 新月池已满 → queued 顺延下月（deferred）', () async {
+    test('(f3) 新周池已满 → queued 顺延下周（deferred）', () async {
       final reward = FakeRewardRepository();
       reward.addTemplate(const RewardTemplate(
         id: 'seed_snack',
@@ -469,16 +477,16 @@ void main() {
         id: 'q1',
         childId: kChildIdDefault,
         templateId: 'seed_snack',
-        requestedAt: DateTime(2026, 8, 15),
+        requestedAt: DateTime(2026, 8, 31),
         cost: 20,
         status: RequestStatus.queued,
         autoApproved: false,
         queuePosition: 1,
       );
-      // 预置已用满的当月池
-      final poolRepo = FakeMonthlyPoolRepository();
-      poolRepo.store['2026-09'] =
-          MonthlyPool(monthKey: '2026-09', budget: 160, used: 160);
+      // 预置已用满的当周池
+      final poolRepo = FakeWeeklyPoolRepository();
+      poolRepo.store['2026-08-31'] =
+          WeeklyPool(weekKey: '2026-08-31', budget: 160, used: 160);
       final svc = build(
         reward: reward,
         poolRepo: poolRepo,
@@ -487,7 +495,7 @@ void main() {
         settings: FakeSettingsRepository(lowSettings),
       );
 
-      final report = await svc.releaseQueue('2026-08', DateTime(2026, 9, 1));
+      final report = await svc.releaseQueue('2026-08-31', DateTime(2026, 9, 1));
       expect(report.released, 0);
       expect(report.deferred, 1);
     });
@@ -508,7 +516,7 @@ void main() {
       final tracking = FakeTrackingRepository();
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: ledger,
         tracking: tracking,
         settings: FakeSettingsRepository(lowSettings),
@@ -545,7 +553,7 @@ void main() {
         id: 'q1',
         childId: kChildIdDefault,
         templateId: 'seed_extra_episode',
-        requestedAt: DateTime(2026, 8, 15),
+        requestedAt: DateTime(2026, 8, 31),
         cost: 20,
         status: RequestStatus.queued,
         autoApproved: false,
@@ -555,7 +563,7 @@ void main() {
       final tracking = FakeTrackingRepository();
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: ledger,
         tracking: tracking,
         settings: FakeSettingsRepository(lowSettings),
@@ -574,7 +582,7 @@ void main() {
       final reward = FakeRewardRepository()..addTemplate(animTpl());
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: FakeSunlightRepository()..balance_ = 100,
         tracking: FakeTrackingRepository(),
         settings: FakeSettingsRepository(lowSettings),
@@ -623,7 +631,7 @@ void main() {
       );
       final svc = build(
         reward: reward,
-        poolRepo: FakeMonthlyPoolRepository(),
+        poolRepo: FakeWeeklyPoolRepository(),
         ledger: FakeSunlightRepository(),
         tracking: FakeTrackingRepository(),
         settings: FakeSettingsRepository(lowSettings),

@@ -23,14 +23,14 @@ import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/entities/tracking_event.dart';
-import 'package:sunflower_time/domain/entities/monthly_pool.dart';
-import 'package:sunflower_time/domain/repositories/monthly_pool_repository.dart';
+import 'package:sunflower_time/domain/entities/weekly_pool.dart';
+import 'package:sunflower_time/domain/repositories/weekly_pool_repository.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
-import 'package:sunflower_time/domain/services/monthly_pool_service.dart';
+import 'package:sunflower_time/domain/services/weekly_pool_service.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
 import 'package:sunflower_time/presentation/child/pages/store_page.dart';
 
@@ -42,7 +42,7 @@ const _lowSettings = AppSettings(
   restAfterSessions: 2,
   restMinutes: 10,
   taskSunlight: 12,
-  monthlyPoolBudget: 160,
+  poolBudget: 160,
 );
 
 class _FakeRewardRepository implements RewardRepository {
@@ -68,6 +68,8 @@ class _FakeRewardRepository implements RewardRepository {
   @override
   Future<void> saveTemplate(RewardTemplate t) async {}
   @override
+  Future<void> deleteTemplate(String id) async {}
+  @override
   Future<void> createRequest(RedemptionRequest r) async {}
   @override
   Future<List<RedemptionRequest>> pendingAndQueued() async => <RedemptionRequest>[];
@@ -75,7 +77,10 @@ class _FakeRewardRepository implements RewardRepository {
   Future<List<RedemptionRequest>> verifiedRequests() async =>
       <RedemptionRequest>[];
   @override
-  Future<List<RedemptionRequest>> queuedOfMonth(String monthKey) async =>
+  Future<List<RedemptionRequest>> rejectedRequests() async =>
+      <RedemptionRequest>[];
+  @override
+  Future<List<RedemptionRequest>> queuedOfWeek(String weekKey) async =>
       <RedemptionRequest>[];
   @override
   Future<void> updateRequest(RedemptionRequest r) async {}
@@ -111,13 +116,13 @@ class _FakeTrackingRepository implements TrackingRepository {
   Future<String> exportJsonl(DateTime from, DateTime to) async => '';
 }
 
-class _FakeMonthlyPoolRepository implements MonthlyPoolRepository {
+class _FakeWeeklyPoolRepository implements WeeklyPoolRepository {
   @override
-  Future<MonthlyPool?> get(String monthKey) async => null;
+  Future<WeeklyPool?> get(String weekKey) async => null;
   @override
-  Future<void> upsert(MonthlyPool pool) async {}
+  Future<void> upsert(WeeklyPool pool) async {}
   @override
-  List<String> monthsBetween(String fromKey, String toKey) => <String>[
+  List<String> weeksBetween(String fromKey, String toKey) => <String>[
     fromKey,
     toKey,
   ];
@@ -129,8 +134,8 @@ class _FakeRedemptionOrchestrationService
   _FakeRedemptionOrchestrationService()
       : super(
           reward: _FakeRewardRepository(),
-          pools: MonthlyPoolService(
-            _FakeMonthlyPoolRepository(),
+          pools: WeeklyPoolService(
+            _FakeWeeklyPoolRepository(),
             _FakeSettingsRepository(),
             _FakeTrackingRepository(),
           ),
@@ -174,6 +179,8 @@ class _MutableRewardRepository implements RewardRepository {
   @override
   Future<void> saveTemplate(RewardTemplate t) async {}
   @override
+  Future<void> deleteTemplate(String id) async {}
+  @override
   Future<void> createRequest(RedemptionRequest r) async {}
   @override
   Future<List<RedemptionRequest>> pendingAndQueued() async =>
@@ -182,7 +189,10 @@ class _MutableRewardRepository implements RewardRepository {
   Future<List<RedemptionRequest>> verifiedRequests() async =>
       <RedemptionRequest>[];
   @override
-  Future<List<RedemptionRequest>> queuedOfMonth(String monthKey) async =>
+  Future<List<RedemptionRequest>> rejectedRequests() async =>
+      <RedemptionRequest>[];
+  @override
+  Future<List<RedemptionRequest>> queuedOfWeek(String weekKey) async =>
       <RedemptionRequest>[];
   @override
   Future<void> updateRequest(RedemptionRequest r) async {}

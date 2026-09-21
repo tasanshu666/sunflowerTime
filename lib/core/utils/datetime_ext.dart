@@ -1,31 +1,25 @@
-/// 时间工具：月池重置（每月 1 日 0 点）、夜间边界判断、日键。
-/// 对应架构设计 §1.1（intl）、§3.2（月池每月 1 日 0 点重置）、§6.1（夜间边界唯一值）。
+/// 时间工具：周池重置（每周一 0 点）、夜间边界判断、日键。
+/// 对应架构设计 §1.1（intl）、§3.2（周池每周一 0 点重置）、§6.1（夜间边界唯一值）。
 library datetime_ext;
 
 import 'package:intl/intl.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
 
-/// 月份键：形如 `2026-09`，用于 `monthly_pool.month_key` 与按日聚合。
-String monthKey(DateTime t) => DateFormat('yyyy-MM').format(t);
+/// 周键：所在周的周一，形如 `2026-09-07`（yyyy-MM-dd），用于周池。
+String weekKey(DateTime t) => DateFormat('yyyy-MM-dd').format(_mondayOf(t));
+
+/// 上周周键：用于启动时释放「上周排队」（次周周一自动放行，§4.2）。
+String previousWeekKey(DateTime t) => weekKey(t.subtract(const Duration(days: 7)));
+
+/// 取 [t] 所在周的周一（零点）。
+DateTime _mondayOf(DateTime t) {
+  final int daysSinceMonday = t.weekday - 1;
+  return DateTime(t.year, t.month, t.day).subtract(Duration(days: daysSinceMonday));
+}
 
 /// 日键：形如 `2026-09-15`，用于 `focus_session.day_key` / `sunlight_ledger.day_key`。
 String dayKey(DateTime t) => DateFormat('yyyy-MM-dd').format(t);
-
-/// 计算从 [from] 到 [to] 之间「应重置月池」的次数（含跨年）。
-///
-/// 规则：每月 1 日 0 点重置。若 App 长期未打开，启动即补跑。
-/// 例：from=2026-08-15, to=2026-09-10 → 1 次（9 月 1 日）。
-int countMonthlyResets(DateTime from, DateTime to) {
-  if (to.isBefore(from)) return 0;
-  int resets = 0;
-  DateTime cursor = DateTime(from.year, from.month + 1, 1);
-  while (!cursor.isAfter(to)) {
-    resets += 1;
-    cursor = DateTime(cursor.year, cursor.month + 1, 1);
-  }
-  return resets;
-}
 
 /// 是否处于夜间（读 Settings.nightBoundary 唯一值；此处以默认边界做纯函数判断）。
 bool isNight(

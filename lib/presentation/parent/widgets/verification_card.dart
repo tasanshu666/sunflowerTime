@@ -161,6 +161,56 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
     }
   }
 
+  /// 家长强制立即释放一笔排队请求（A3）：跳过等次月，余额/月池充足时立即放行。
+  Future<void> _forceRelease() async {
+    if (_busy || widget.request.status != RequestStatus.queued) return;
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('立即发放？'),
+        content: Text(
+          '确认为「${widget.template.name}」立即发放 ${widget.request.cost} 阳光？\n'
+          '将跳过排队等待，立即从孩子阳光中扣除。',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('立即发放'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(redemptionOrchestrationServiceProvider)
+          .forceRelease(widget.request.id, DateTime.now());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已立即发放 🎉 阳光已扣除')),
+      );
+      ref.read(economyRevisionProvider.notifier).state++;
+      widget.onResolved?.call();
+    } on StateError catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('无法立即发放：$e')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('发放失败：$e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final RedemptionRequest req = widget.request;
@@ -260,7 +310,9 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: isPending && !_busy ? _confirmAndVerify : null,
+                    onPressed: isPending
+                        ? _confirmAndVerify
+                        : (isQueued && !_busy ? _forceRelease : null),
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(0, 46),
                     ),
@@ -270,7 +322,7 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : Text(isQueued ? '下月自动释放' : '确认兑换'),
+                        : Text(isQueued ? '立即发放' : '确认兑换'),
                   ),
                 ),
               ],

@@ -12,7 +12,7 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 
-/// 5 条占位奖励模板（D3）。baseCost 为消耗侧基准价（未乘 K），价格 = applyAgeTierK。
+/// 5 条占位奖励模板（D3）。baseCost 为家长设定单价，显示价 = 扣费价（不再叠加分龄系数 K）。
 const List<RewardTemplate> kSeedRewardTemplates = [
   RewardTemplate(
     id: 'seed_snack',

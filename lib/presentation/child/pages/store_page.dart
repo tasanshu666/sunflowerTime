@@ -2,8 +2,9 @@
 ///
 /// 行为：
 ///  1. 读 settingsProvider 拿当前 AgeTier；
-///  2. 取全部奖励模板，按档位算含 K 价（K 仅作用于消耗侧）；
-///  3. 逐模板查本周冷却（cooldownCount >= kCooldownWeeklyDefault）进入禁用态；
+///  2. 取全部奖励模板，按家长设定价（baseCost，不再叠加分龄系数 K）展示与扣费；
+///  3. 逐模板查本周冷却（cooldownCount >= 该模板 frequencyLimitPerWeek 进入禁用态；
+///     frequencyLimitPerWeek <= 0 视为不限次数）；
 ///  4. 点兑换 → **弹窗二次确认** → 调 submit()，按 SubmitOutcome 反馈；成功后刷新。
 ///
 /// 展示口径（真机反馈收敛）：
@@ -16,10 +17,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:sunflower_time/core/constants/age_tier_params.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
-import 'package:sunflower_time/core/utils/math_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
@@ -36,6 +35,8 @@ class _StoreLoad {
   final List<RedemptionRequest> pending; // pending + queued（待家长处理）
   final Map<String, bool> hasActive; // templateId -> 存在未核销申请
   final Map<String, int> pendingCount; // templateId -> 待核销笔数
+  final Map<String, bool> hasQueued; // templateId -> 存在排队中申请（次月释放）
+  final Map<String, String> queuedId; // templateId -> 排队申请 id（供撤销）
 
   const _StoreLoad({
     required this.tier,
@@ -44,6 +45,8 @@ class _StoreLoad {
     required this.pending,
     required this.hasActive,
     required this.pendingCount,
+    this.hasQueued = const <String, bool>{},
+    this.queuedId = const <String, String>{},
   });
 }
 
@@ -59,14 +62,23 @@ final _storeLoadProvider = FutureProvider<_StoreLoad>((ref) async {
   final List<RedemptionRequest> pending = await rewardRepo.pendingAndQueued();
   final Map<String, bool> hasActive = <String, bool>{};
   final Map<String, int> pendingCount = <String, int>{};
+  final Map<String, bool> hasQueued = <String, bool>{};
+  final Map<String, String> queuedId = <String, String>{};
   for (final RedemptionRequest r in pending) {
-    hasActive[r.templateId] = true; // 已有未核销申请 → 该模板卡显示待核销提示
     pendingCount[r.templateId] = (pendingCount[r.templateId] ?? 0) + 1;
+    if (r.status == RequestStatus.queued) {
+      hasQueued[r.templateId] = true; // 排队中 → 次月释放
+      queuedId[r.templateId] = r.id;
+    } else {
+      hasActive[r.templateId] = true; // 待核销（pending）→ 该模板卡显示待核销提示
+    }
   }
-  for (final RewardTemplate t in templates) {
-    final int count = await rewardRepo.cooldownCount(t.id, CooldownPeriod.weekly);
-    cooldown[t.id] = count >= kCooldownWeeklyDefault;
-  }
+    for (final RewardTemplate t in templates) {
+      final int count =
+          await rewardRepo.cooldownCount(t.id, CooldownPeriod.weekly);
+      // 按模板各自的每周限领次数放行（frequencyLimitPerWeek<=0 视为不限）。
+      cooldown[t.id] = t.frequencyLimitPerWeek > 0 && count >= t.frequencyLimitPerWeek;
+    }
   return _StoreLoad(
     tier: settings.ageTier,
     templates: templates,
@@ -74,6 +86,8 @@ final _storeLoadProvider = FutureProvider<_StoreLoad>((ref) async {
     pending: pending,
     hasActive: hasActive,
     pendingCount: pendingCount,
+    hasQueued: hasQueued,
+    queuedId: queuedId,
   );
 });
 
@@ -117,31 +131,38 @@ class _StorePageState extends ConsumerState<StorePage> {
             padding: const EdgeInsets.only(right: 16),
             child: Center(
               child: balanceAsync.when(
-                data: (double b) => Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: <Widget>[
-                    Text(
-                      '☀ ${b.round()}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.brown.shade700,
-                      ),
-                    ),
-                    if (pendingTotal > 0) ...<Widget>[
-                      const SizedBox(width: 6),
+                data: (double b) {
+                  // 金色 = 可用余额（账本余额 − 已兑换未扣的阳光）。
+                  // 注意：pending / queued 按 §7.4 不变式 **不扣账本/不扣池**，
+                  // 此处仅在展示口径上做减法，绝不真去扣账本或扣池（否则违反项目不变式）。
+                  final int available = (b - pendingTotal).round();
+                  final int golden = available < 0 ? 0 : available;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: <Widget>[
                       Text(
-                        '待核销 $pendingTotal',
+                        '☀ $golden',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.brown.shade700,
                         ),
                       ),
+                      if (pendingTotal > 0) ...<Widget>[
+                        const SizedBox(width: 6),
+                        Text(
+                          '待核销 $pendingTotal',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
+                  );
+                },
                 loading: () => const SizedBox(
                   width: 16,
                   height: 16,
@@ -187,10 +208,10 @@ class _StorePageState extends ConsumerState<StorePage> {
 
     final List<Widget> children = <Widget>[];
     for (final RewardTemplate tpl in load.templates) {
-      final int cost =
-          applyAgeTierK(tpl.baseCost.toDouble(), ageTierK(load.tier)).round();
+      final int cost = tpl.baseCost;
       final bool onCd = load.onCooldown[tpl.id] ?? false;
       final bool active = load.hasActive[tpl.id] ?? false;
+      final bool queued = load.hasQueued[tpl.id] ?? false;
       final bool submitting = submittingId == tpl.id;
       children.add(RewardCard(
         template: tpl,
@@ -198,8 +219,13 @@ class _StorePageState extends ConsumerState<StorePage> {
         onCooldown: onCd,
         hasActiveRequest: active,
         pendingCount: load.pendingCount[tpl.id] ?? 0,
+        weeklyLimit: tpl.frequencyLimitPerWeek,
         submitting: submitting,
-        onRedeem: (onCd || active || submitting)
+        hasQueuedRequest: queued,
+        onCancelQueue: queued
+            ? () => _onCancelQueue(tpl, load.queuedId[tpl.id])
+            : null,
+        onRedeem: (onCd || active || queued || submitting)
             ? null
             : () => _onRedeem(tpl, cost, load.tier),
       ));
@@ -243,6 +269,44 @@ class _StorePageState extends ConsumerState<StorePage> {
       await _handleResult(result);
     } finally {
       if (mounted) ref.read(_submittingProvider.notifier).state = null;
+    }
+  }
+
+  /// 孩子撤销一笔排队中的兑换（A3）：二次确认 → reject（不扣账本）→ 自增修订号 → 刷新。
+  Future<void> _onCancelQueue(RewardTemplate tpl, String? requestId) async {
+    if (requestId == null || !mounted) return;
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('撤销排队？'),
+        content: Text(
+          '确定要撤销「${tpl.name}」的排队吗？\n'
+          '撤销后该奖励将不再次月自动释放，可重新兑换。',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('再想想'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('撤销排队'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ref
+          .read(redemptionOrchestrationServiceProvider)
+          .reject(requestId, DateTime.now(), note: '孩子撤销排队');
+      if (!mounted) return;
+      _toast('已撤销排队');
+      // 经济已变更 → 递增修订号，令本页 provider 重算（排队提示消失、兑换恢复可用）。
+      ref.read(economyRevisionProvider.notifier).state++;
+    } catch (e) {
+      if (!mounted) return;
+      _toast('撤销失败：$e');
     }
   }
 

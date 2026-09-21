@@ -22,9 +22,15 @@ class LockPage extends ConsumerWidget {
     final int boundary =
         ref.watch(settingsProvider).value?.nightBoundaryHour ?? kNightBoundaryHour;
 
-    return Scaffold(
-      // 显式返回箭头回孩子端（B19 约定）。
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        context.go('/'); // 系统返回键/边缘手势 → 回孩子端，而非退 App（B19）。
+      },
+      child: Scaffold(
+        // 显式返回箭头回孩子端（B19 约定）。
+        appBar: AppBar(
         title: const Text('睡觉时间'),
         backgroundColor: const Color(0xFF1B1B2F),
         leading: IconButton(
@@ -71,6 +77,7 @@ class LockPage extends ConsumerWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

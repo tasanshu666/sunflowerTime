@@ -29,8 +29,8 @@ class TrackingEventNames {
   /// 家长拒绝核销（reject 成功后）：不扣阳光，仅记拒办。
   static const rewardRejected = 'reward_rejected';
 
-  /// 月度池跨月重置（MonthlyPoolService.ensureAndReset 发生跨月）。
-  static const monthlyPoolReset = 'monthly_pool_reset';
+  /// 周阳光池跨周重置（WeeklyPoolService.ensureAndReset 发生跨周）。
+  static const weeklyPoolReset = 'weekly_pool_reset';
 
   /// 家长日活（parent_login_page PIN 校验通过）。
   static const parentDau = 'parent_dau';

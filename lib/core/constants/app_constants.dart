@@ -101,6 +101,7 @@ const String kPrefFirstLaunchConsented = 'first_launch_consented';
 /// 家长核销后孩子端需要一次性弹窗提醒；已展示过的申请 id 记在此处，
 /// 避免同一笔核销反复弹窗（M2 家长-孩子同步）。
 const String kPrefAckedVerifyIds = 'acked_verify_ids';
+const String kPrefAckedRejectIds = 'acked_reject_ids';
 
 /// 家长 PIN 是否已在安全区落库的标记键（flutter_secure_storage）。
 const String kSecurePinHash = 'parent_pin_hash';

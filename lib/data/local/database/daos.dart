@@ -76,6 +76,10 @@ class RewardTemplateDao extends DatabaseAccessor<AppDatabase>
   /// 插入或更新（按主键冲突合并）。
   Future<void> upsert(RewardTemplatesCompanion row) =>
       into(rewardTemplates).insertOnConflictUpdate(row);
+
+  /// 硬删除一个奖励模板（按主键 id）。
+  Future<int> deleteById(String id) =>
+      (delete(rewardTemplates)..where((t) => t.id.equals(id))).go();
 }
 
 /// 兑换申请 DAO（§3.2）。
@@ -105,14 +109,20 @@ class RedemptionRequestDao extends DatabaseAccessor<AppDatabase>
             ..where((r) => r.status.equals(RequestStatus.verified.index)))
           .get();
 
-  /// 某月排队中的申请（status==queued 且 requestedAt >= 当月首日）。
-  Future<List<RedemptionRequest>> queuedOfMonth(String monthKey) =>
+  /// 已拒绝的申请（status==rejected），供孩子端「拒绝对称通知」使用（B4）。
+  Future<List<RedemptionRequest>> rejected() =>
       (select(redemptionRequests)
-            ..where((r) =>
-                r.status.equals(RequestStatus.queued.index) &
-                r.requestedAt
-                    .isBiggerOrEqualValue(DateTime.parse('$monthKey-01'))))
+            ..where((r) => r.status.equals(RequestStatus.rejected.index)))
           .get();
+
+  /// 某周排队中的申请（status==queued 且 requestedAt >= 当周周一）。
+  Future<List<RedemptionRequest>> queuedOfWeek(String weekKey) {
+    final query = select(redemptionRequests)
+      ..where((r) =>
+          r.status.equals(RequestStatus.queued.index) &
+          r.requestedAt.isBiggerOrEqualValue(DateTime.parse(weekKey)));
+    return query.get();
+  }
 }
 
 /// 月度池 DAO（§3.2）。

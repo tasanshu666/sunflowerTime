@@ -6,6 +6,7 @@ import 'package:sunflower_time/domain/entities/reward_template.dart';
 abstract class RewardRepository {
   Future<List<RewardTemplate>> templates();
   Future<void> saveTemplate(RewardTemplate t);
+  Future<void> deleteTemplate(String id);
   Future<void> createRequest(RedemptionRequest request);
   Future<List<RedemptionRequest>> pendingAndQueued();
 
@@ -14,7 +15,10 @@ abstract class RewardRepository {
   /// 供孩子端「家长已核销」同步提醒使用（M2 家长-孩子同步）。
   Future<List<RedemptionRequest>> verifiedRequests();
 
-  Future<List<RedemptionRequest>> queuedOfMonth(String monthKey);
+  /// 已拒绝的申请（status==rejected），供孩子端「拒绝对称通知」使用（B4）。
+  Future<List<RedemptionRequest>> rejectedRequests();
+
+  Future<List<RedemptionRequest>> queuedOfWeek(String weekKey);
   Future<void> updateRequest(RedemptionRequest request);
   Future<int> cooldownCount(String templateId, CooldownPeriod window);
 }

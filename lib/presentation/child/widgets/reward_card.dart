@@ -2,6 +2,12 @@
 ///
 /// 纯展示组件：所有异步（冷却查询、submit）由 StorePage 预算好
 /// [onCooldown] / [submitting] 后传入，卡内不做任何异步。
+///
+/// [weeklyLimit] 为该模板「每周可兑换次数」上限（来自 RewardTemplate.frequencyLimitPerWeek）：
+///   · >1  → 卡片展示「可兑换次数为 N」；
+///   · ==1 → 展示「仅兑换一次」；
+///   · <=0 → 视为不限次数，展示「不限次数」。
+/// 注意：冷却放行逻辑在 StorePage / RedemptionOrchestrationService 侧，本卡只负责展示文案。
 library reward_card;
 
 import 'package:flutter/material.dart';
@@ -17,6 +23,9 @@ class RewardCard extends StatelessWidget {
   final int pendingCount; // 该模板待核销笔数（>=2 时显示 +N）
   final bool submitting;
   final VoidCallback? onRedeem;
+  final bool hasQueuedRequest; // 已有排队中申请（次月释放）
+  final VoidCallback? onCancelQueue; // 孩子撤销排队
+  final int weeklyLimit; // 该模板每周可兑换次数上限（frequencyLimitPerWeek；<=0 不限）
 
   const RewardCard({
     super.key,
@@ -27,6 +36,9 @@ class RewardCard extends StatelessWidget {
     this.pendingCount = 0,
     this.submitting = false,
     this.onRedeem,
+    this.hasQueuedRequest = false,
+    this.onCancelQueue,
+    this.weeklyLimit = 0,
   });
 
   @override
@@ -99,6 +111,8 @@ class RewardCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 14),
+            // 每周可兑换次数提示：N>=2「可兑换次数为 N」/ N==1「仅兑换一次」/ N<=0「不限次数」。
+            _weeklyLimitHint(theme),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -124,8 +138,56 @@ class RewardCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (onCancelQueue != null) ...<Widget>[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: onCancelQueue,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.blue.shade700,
+                    side: BorderSide(color: Colors.blue.shade300),
+                    minimumSize: const Size(0, 42),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('撤销排队'),
+                ),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// 每周可兑换次数提示文案部件。
+  ///
+  /// 口径（与用户原话一致）：N>=2「可兑换次数为 N」、N==1「仅兑换一次」、
+  /// N<=0（frequencyLimitPerWeek 未设）「不限次数」。
+  Widget _weeklyLimitHint(ThemeData theme) {
+    final String text;
+    if (weeklyLimit <= 0) {
+      text = '不限次数';
+    } else if (weeklyLimit == 1) {
+      text = '仅兑换一次';
+    } else {
+      text = '可兑换次数为$weeklyLimit';
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(Icons.repeat, size: 14, color: Colors.blueGrey.shade400),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: Colors.blueGrey.shade600),
+          ),
+        ],
       ),
     );
   }

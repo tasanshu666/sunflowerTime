@@ -40,11 +40,11 @@ const int kAutoApproveCapCeilingLow = 40;
 /// 月池 25% 上限比例（口径裁定 C5：`月累计自动放行 ≤ 当月池 × 25%`）
 const double kAutoApprovePoolRatio = 0.25;
 
-/// 月度池默认值 · 高年级（PRD §4.8 E9：400 阳光/月）
-const int kMonthlyPoolDefaultHigh = 400;
+/// 周阳光池默认预算 · 高年级（PRD §4.8 E9：400 阳光/周）
+const int kPoolBudgetDefaultHigh = 400;
 
-/// 月度池默认值 · 低年级（PRD §4.8 E9：160 阳光/月）
-const int kMonthlyPoolDefaultLow = 160;
+/// 周阳光池默认预算 · 低年级（PRD §4.8 E9：160 阳光/周）
+const int kPoolBudgetDefaultLow = 160;
 
 /// 月度池可调下限（PRD §4.8 E9：100–1,200）
 const int kMonthlyPoolMin = 100;

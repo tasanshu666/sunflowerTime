@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sunflower_time/app.dart';
 import 'package:sunflower_time/bootstrap.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/data/local/repositories/reward_seed.dart';
 
 Future<void> main() async {
@@ -33,6 +34,18 @@ Future<void> main() async {
         debugPrint('[seed] 奖励模板播种失败：$e\n$st');
       },
     ),
+  );
+
+  // M2（A1）：跨周排队释放 —— 启动即尝试释放「上周排队」（次周周一自动放行，§4.2）。
+  // queued 状态从不扣账本/扣池，释放时才扣减；幂等（已释放的不再处于 queued）。
+  unawaited(
+    container
+        .read(redemptionOrchestrationServiceProvider)
+        .releaseQueue(previousWeekKey(DateTime.now()), DateTime.now())
+        .then((_) {})
+        .catchError((Object e, StackTrace st) {
+      debugPrint('[releaseQueue] 跨周排队释放失败：$e\n$st');
+    }),
   );
 
   runApp(

@@ -37,6 +37,11 @@ class RewardLocalRepository implements RewardRepository {
       );
 
   @override
+  Future<void> deleteTemplate(String id) async {
+    await _db.rewardTemplateDao.deleteById(id);
+  }
+
+  @override
   Future<void> createRequest(RedemptionRequest r) =>
       _db.redemptionRequestDao.insert(_requestCompanion(r));
 
@@ -60,9 +65,16 @@ class RewardLocalRepository implements RewardRepository {
   }
 
   @override
-  Future<List<RedemptionRequest>> queuedOfMonth(String monthKey) async {
+  Future<List<RedemptionRequest>> rejectedRequests() async {
     final List<db.RedemptionRequest> rows =
-        await _db.redemptionRequestDao.queuedOfMonth(monthKey);
+        await _db.redemptionRequestDao.rejected();
+    return rows.map(_toRequest).toList();
+  }
+
+  @override
+  Future<List<RedemptionRequest>> queuedOfWeek(String weekKey) async {
+    final List<db.RedemptionRequest> rows =
+        await _db.redemptionRequestDao.queuedOfWeek(weekKey);
     return rows.map(_toRequest).toList();
   }
 

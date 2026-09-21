@@ -25,7 +25,7 @@ class SettingsLocalRepository implements SettingsRepository {
         restAfterSessions: 2,
         restMinutes: 10,
         taskSunlight: 12,
-        monthlyPoolBudget: 400,
+        poolBudget: 400,
       );
     }
     return AppSettings(
@@ -37,7 +37,7 @@ class SettingsLocalRepository implements SettingsRepository {
       restAfterSessions: row.restAfterSessions,
       restMinutes: row.restMinutes,
       taskSunlight: row.taskSunlight,
-      monthlyPoolBudget: row.monthlyPoolBudget,
+      poolBudget: row.monthlyPoolBudget,
       quietMode: row.quietMode,
       soundOn: row.soundOn,
       bgmOn: row.bgmOn,
@@ -64,7 +64,7 @@ class SettingsLocalRepository implements SettingsRepository {
         restAfterSessions: Value(s.restAfterSessions),
         restMinutes: Value(s.restMinutes),
         taskSunlight: Value(s.taskSunlight),
-        monthlyPoolBudget: Value(s.monthlyPoolBudget),
+        monthlyPoolBudget: Value(s.poolBudget),
         quietMode: Value(s.quietMode),
         soundOn: Value(s.soundOn),
         bgmOn: Value(s.bgmOn),

@@ -64,8 +64,14 @@ class _RestPageState extends ConsumerState<RestPage> {
   @override
   Widget build(BuildContext context) {
     final bool done = _remainingSeconds <= 0;
-    return Scaffold(
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        context.go('/entry'); // 系统返回键/边缘手势 → 回入口页，而非退 App（B19）。
+      },
+      child: Scaffold(
+        appBar: AppBar(
         title: const Text('休息一下'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -96,6 +102,7 @@ class _RestPageState extends ConsumerState<RestPage> {
           ),
         ),
       ),
+    ),
     );
   }
 }

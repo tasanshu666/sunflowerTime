@@ -12,11 +12,12 @@ library prd_params;
 // C3「有效专注」同名不同义：两个不同用途的常量，不互相引用、不出现字面量 5/15/0.9
 // ───────────────────────────────────────────────────────────────────────────
 
-/// G1：一次有效横屏放置（验证计划 §2.5 / PRD §6.2「自然结束同样要求实际专注 ≥5 分钟」）
-const int kPlaceMinMinutes = 5;
-
 /// WFD：一个有效专注日（验证计划 §3.3 / PRD §8.3 北极星口径）
 const int kValidFocusMinutes = 15;
+
+/// 单次有效专注门槛（C3：§6.2；实际专注 < 5 分钟记 shortAborted、无产出）。
+/// 与 [kValidFocusMinutes]=15 不互引、不共用——前者是「一次专注」下限，后者是「一天」口径。
+const int kMinFocusMinutes = 5;
 
 /// WFD：完成率门槛（同上）。completion_rate = actual_focus_min / duration_setting
 const double kCompletionRateThreshold = 0.90;
@@ -43,11 +44,11 @@ const int kAutoApproveCapCeilingLow = 40;
 /// 月池 25% 上限比例（口径裁定 C5：`月累计自动放行 ≤ 当月池 × 25%`）
 const double kAutoApprovePoolRatio = 0.25;
 
-/// 月度池默认值 · 高年级（PRD §4.8 E9：400 阳光/月）
-const int kMonthlyPoolDefaultHigh = 400;
+/// 周阳光池默认预算 · 高年级（PRD §4.8 E9：400 阳光/周）
+const int kPoolBudgetDefaultHigh = 400;
 
-/// 月度池默认值 · 低年级（PRD §4.8 E9：160 阳光/月）
-const int kMonthlyPoolDefaultLow = 160;
+/// 周阳光池默认预算 · 低年级（PRD §4.8 E9：160 阳光/周）
+const int kPoolBudgetDefaultLow = 160;
 
 /// 月度池可调下限（PRD §4.8 E9：100–1,200）
 const int kMonthlyPoolMin = 100;
@@ -82,3 +83,138 @@ const double kGrowthFactorFocused = 1.3;
 
 /// 夜间边界默认（PRD §6.1 H5：唯一值，默认 21:00，家长可放到 21:30–22:00）
 const int kNightBoundaryDefaultHour = 21;
+
+/// 夜间边界可调档位（[时, 分]）：默认 21:00，家长端设置页下拉选择（PRD §6.1）。
+const List<List<int>> kNightBoundaryOptions = <List<int>>[
+  <int>[20, 30],
+  <int>[21, 0],
+  <int>[21, 30],
+  <int>[22, 0],
+];
+
+/// 每日专注上限（分钟）：高年段（PRD §6.1 不变式）。
+const int kDailyFocusCapHigh = 60;
+
+/// 每日专注上限（分钟）：低/中年段（PRD §6.1 不变式）。
+const int kDailyFocusCapLow = 90;
+
+// ───────────────────────────────────────────────────────────────────────────
+// M2 经济与商店核销 · 基础层常量（T-A，§0 D5 / C1 / D4）
+// ───────────────────────────────────────────────────────────────────────────
+
+/// Plan B 单孩子固定 childId（§7.6 单点；AccountService.currentChildId 返回）。
+const String kChildIdDefault = 'single-child';
+
+/// 待核销 48h 兜底提示时长（小时，D5）。≥ 该时长未核销展示兜底文案。
+const int kPendingReminderHours = 48;
+
+/// 待核销 48h 兜底文案（D5 原文）。
+const String kPendingReminderText = '这次的阳光奖励还在等你确认哦～';
+
+/// 冷却默认每周限领次数（D4：每奖励每周限领 1 次）。
+const int kCooldownWeeklyDefault = 1;
+
+// ───────────────────────────────────────────────────────────────────────────
+// M3 植物养成 / 家长赠予 常量（U1，数值直引 PRD §4.5 / §4.6；禁止裸字面量）
+// ───────────────────────────────────────────────────────────────────────────
+
+/// 家长阳光赠予 · 日上限（PRD §4.5：当日赠予 ≤ 20 阳光）。
+const int kParentGiftDaily = 20;
+
+/// 家长阳光赠予 · 月上限（PRD §4.5：当月赠予 ≤ 150 阳光）。
+const int kParentGiftMonthly = 150;
+
+/// 浇水消耗（M3 修订：**固定 5 阳光/次**，不再按年龄分档；口径由玄参大人 2026-09-21 拍板）。
+const int kPlantWaterCost = 5;
+
+/// 施肥消耗（M3 修订：**固定 10 阳光/次**，不再按年龄分档）。
+const int kPlantFertilizeCost = 10;
+
+/// 单株每日浇水次数上限（M3 修订：每天最多浇 3 次）。
+const int kPlantWaterMaxPerDay = 3;
+
+/// 单株每日施肥次数上限（M3 修订：每天最多施 1 次）。
+const int kPlantFertilizeMaxPerDay = 1;
+
+/// 两次浇水的最小间隔（分钟）：不能连续浇水（M3 修订）。
+const int kPlantWaterIntervalMinutes = 30;
+
+/// 枯萎救回消耗 · 高年段（PRD §4.6）。
+const int kPlantReviveCostHigh = 20;
+
+/// 枯萎救回消耗 · 低年段（PRD §4.6）。
+const int kPlantReviveCostLow = 8;
+
+/// 花盆扩容消耗 · 高年段（PRD §4.6，解锁 +1 盆）。
+const int kPlantPotExpandCostHigh = 400;
+
+/// 花盆扩容消耗 · 低年段（PRD §4.6）。
+const int kPlantPotExpandCostLow = 160;
+
+/// 未浇水触发枯萎的天数（PRD §4.6 H2：7 天未浇水 → wilting）。
+const int kPlantWiltDays = 7;
+
+/// 枯萎后触发死亡的天数（PRD §4.6 H2：wilting 再 7 天 → dead）。
+const int kPlantDeathDays = 7;
+
+/// 死亡返还比例（仅与养护挂钩，绝不因专注表现杀死；PRD §4.6）。
+const double kPlantDeathRefundRate = 0.30;
+
+/// 花园初始花盆容量（PRD §4.6 / §3.1 settings.garden_pot_capacity 默认）。
+const int kGardenPotCapacityDefault = 4;
+
+/// 花园最大花盆容量（PRD §4.6 解锁上限）。
+const int kGardenPotCapacityMax = 12;
+
+/// 每阶段成长所需时长（小时）· 普通植物（§3.1 plant_species，V2）。
+///
+/// 玄参大人 2026-09-22 拍板：完全不养护正好 **30 天**长成 → 3 阶段 × 10 天 = 240 小时/阶段。
+const double kPlantGrowthHoursPerStageDefault = 240.0;
+
+/// 每阶段成长所需时长（小时）· 精品植物（legendary，如仙人掌，V2）。
+///
+/// 同批拍板：精品植物不养护 **60 天**长成 → 3 阶段 × 20 天 = 480 小时/阶段。
+const double kPlantGrowthHoursPerStagePremium = 480.0;
+
+/// 浇水固定进度增量（当前阶段 0..1，绝对比例，非「剩余比例」）。
+/// 玄参大人 2026-09-22 改口径：每次 +1%，每天最多 [kPlantWaterMaxPerDay] 次 → 每天至多 +3%。
+const double kPlantWaterProgressGain = 0.01;
+
+/// 施肥固定进度增量（当前阶段 0..1，绝对比例）。
+/// 玄参大人 2026-09-22 改口径：每次 +5%，每天最多 [kPlantFertilizeMaxPerDay] 次 → 每天 +5%。
+const double kPlantFertilizeProgressGain = 0.05;
+
+/// 真实时间自动成长缩放系数（V2 起 = 1.0，不再额外缓速）。
+///
+/// 旧值 0.2 是为了压住「24 小时/阶段」带来的秒开花；V2 里
+/// [kPlantGrowthHoursPerStageDefault] / [kPlantGrowthHoursPerStagePremium] 已经是
+/// 「不养护也要 N 天长成」的**真实目标时长**，故不再额外缩放。
+/// 每天最大推进 = 自动 24h/240h = 10% + 养护（3×1% + 5%）= 8% → 18%/阶段·天，
+/// 勤快养护可把 30 天缩短到约 17 天。
+const double kPlantAutoGrowthScale = 1.0;
+
+/// 成长进度浮点容差（判定「本阶段长满 1.0」时允许的下限误差）。
+///
+/// `24h / 240h` 累加 10 次在 IEEE754 下是 0.9999999999999999 而非 1.0，严格
+/// `>= 1.0` 会把「正好 10 天一阶段 / 30 天长成」推成 11 天 / 31 天。故用 1e-9
+/// 容差判定，跨阶段时把残留的 -1e-16 归零。
+const double kGrowthEpsilon = 1e-9;
+
+// ───────────────────────────────────────────────────────────────────────────
+// M3 任务模板配置常量（T05，§4.4 / §8.2）。禁止裸字面量。
+// ───────────────────────────────────────────────────────────────────────────
+
+/// 任务最少专注分钟默认值（§8.3 对齐 WFD 门槛 15）。
+const int kTaskMinFocusDefault = 15;
+
+/// 任务阳光奖励默认值（§4.4；用户 2026-09-21 拍板：非联动项默认 8 ☀）。
+const int kTaskRewardDefault = 8;
+
+/// 任务阳光奖励下限（§4.4 区间 5–15）。
+const int kTaskRewardMin = 5;
+
+/// 任务阳光奖励上限（§4.4；用户 2026-09-21 拍板：非联动项最大 15 ☀）。
+const int kTaskRewardMax = 15;
+
+/// 联动成长项奖励阳光比例上限：奖励 ≤ 最少专注分钟 × 40%（用户 2026-09-21 拍板）。
+const double kTaskRewardRatio = 0.4;

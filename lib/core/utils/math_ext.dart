@@ -2,7 +2,6 @@
 /// 对应架构设计 §3.2（软顶可追溯）、§4.5（公式③）。
 library math_ext;
 
-import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 
 /// 软顶（每日产出上限）计算骨架。
@@ -30,25 +29,19 @@ double computeSoftCap(double rawS) {
   return kSoftCapDailyMax; // 软顶封顶
 }
 
-/// 分龄换算骨架：消耗侧定价乘 K（分龄系数）。
-///
-/// K 仅作用于消耗侧（§0 产出侧不乘 K）。此处返回「含 K 的消耗成本」，
-/// 真实 K 由 `Settings.ageTier` + `redemption_service` 在 M2 落地。
-double applyAgeTierK(double baseCost, double k) => baseCost * k;
-
-/// 免确认月度自动放行上限（C5）：
-/// `min(固定天花板 100/40, 月池 × 25%)`。
+/// 免确认周自动放行上限（C5）：
+/// `min(固定天花板 100/40, 周池 × 25%)`。
 ///
 /// 天花板默认引用 prd_params 常量（[kAutoApproveCapCeilingHigh]/[kAutoApproveCapCeilingLow]）；
 /// 骨架阶段统一用 min，M2 按 `ageTier` 分流。
-double autoApproveMonthlyCap(
-  double monthlyPoolBudget, {
+double autoApprovePoolCap(
+  double poolBudget, {
   double? ceilingHigh,
   double? ceilingLow,
 }) {
   final double hi = ceilingHigh ?? kAutoApproveCapCeilingHigh.toDouble();
   final double lo = ceilingLow ?? kAutoApproveCapCeilingLow.toDouble();
-  final double capFromPool = monthlyPoolBudget * kAutoConfirmMonthlyPct;
+  final double capFromPool = poolBudget * kAutoApprovePoolRatio;
   // 占位：实际按 ageTier 选 100（高）或 40（低），此处取较小者保守。
   final double ceiling = hi < lo ? hi : lo;
   return capFromPool < ceiling ? capFromPool : ceiling;

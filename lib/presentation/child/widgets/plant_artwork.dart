@@ -1,0 +1,375 @@
+/// 植物外观组件（渲染层抽象，2026-09-22 玄参大人拍板）。
+///
+/// ## 目的
+/// 植物当前只是「卡片 + Material 图标」，美术资源到位后需要**不改动任何调用方代码**
+/// 就能替换成正式插画。本组件把「植物长什么样」从 [PlantCard] 里彻底抽离。
+///
+/// ## 美术资源命名规范（三级回退，美术只需按规范丢图，代码零改动）
+/// 资源根目录 `assets/plants/`，按「物种_阶段_状态」命名，从最精确往回找：
+/// ```
+/// ① assets/plants/{speciesId}_{stage}_{status}.png   最精确，用于特殊状态
+/// ② assets/plants/{speciesId}_{stage}.png            常用
+/// ③ assets/plants/{speciesId}.png                    该物种通用
+/// ④ 以上都没有 → 回退到内置自绘简笔（[PlantPlaceholderArt]）
+/// ```
+/// 其中：
+/// - `{speciesId}` = `PlantSpecies.id`，当前为 `species_sunflower` / `species_daisy` / `species_cactus`
+/// - `{stage}` = `seed` / `sprout` / `adult`
+/// - `{status}` = `growing` / `bloomed` / `wilting` / `dead`
+///
+/// 例：`assets/plants/species_sunflower_adult_bloomed.png`
+/// 只要文件名对上就会自动生效，新增植物/阶段都不需要改本文件。
+///
+/// 资源是否存在的判定走 `AssetManifest.json`（编译期生成），结果按
+/// 「物种_阶段_状态」缓存，整个进程只解析一次清单。
+library plant_artwork;
+
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/plant.dart';
+import 'package:sunflower_time/domain/entities/plant_species.dart';
+
+/// 资源清单缓存（懒加载，进程内只解析一次 AssetManifest.json）。
+class _PlantArtAssets {
+  static Map<String, Object?>? _manifest;
+
+  /// 已解析结果缓存：key = 「物种_阶段_状态」→ 命中的资源路径（null = 无资源，走占位）。
+  static final Map<String, String?> _resolved = <String, String?>{};
+
+  static Future<Map<String, Object?>> _loadManifest() async {
+    final Map<String, Object?>? cached = _manifest;
+    if (cached != null) return cached;
+    final String raw = await rootBundle.loadString('AssetManifest.json');
+    final Object? decoded = json.decode(raw);
+    return _manifest = (decoded as Map<Object?, Object?>).cast<String, Object?>();
+  }
+
+  /// 按三级回退规则解析资源路径；无资源返回 null（调用方改用自绘占位）。
+  static Future<String?> resolve({
+    required Plant plant,
+    required PlantSpecies species,
+  }) async {
+    final String stage = plant.stage.name;
+    final String status = plant.status.name;
+    final String key = '${species.id}_${stage}_$status';
+
+    final String? cached = _resolved[key];
+    if (cached != null || _resolved.containsKey(key)) return cached;
+
+    final Map<String, Object?> manifest = await _loadManifest();
+    const String dir = 'assets/plants';
+    final List<String> candidates = <String>[
+      '$dir/${species.id}_${stage}_$status.png',
+      '$dir/${species.id}_$stage.png',
+      '$dir/${species.id}.png',
+    ];
+    String? hit;
+    for (final String path in candidates) {
+      if (manifest.containsKey(path)) {
+        hit = path;
+        break;
+      }
+    }
+    return _resolved[key] = hit;
+  }
+}
+
+/// 植物外观（美术资源优先，缺失自动回退内置自绘简笔）。
+///
+/// 调用方只需传 [plant] / [species] / [size]，无需关心当前有没有美术资源：
+/// 资源到位后自动切换，UI 代码不用动。
+class PlantArtwork extends StatelessWidget {
+  final Plant plant;
+  final PlantSpecies species;
+
+  /// 正方形边长。
+  final double size;
+
+  /// 状态色（用于占位底色；与卡片状态色保持一致）。
+  final Color? tint;
+
+  const PlantArtwork({
+    super.key,
+    required this.plant,
+    required this.species,
+    this.size = 44,
+    this.tint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg = tint ?? Colors.teal.shade600;
+    return FutureBuilder<String?>(
+      future: _PlantArtAssets.resolve(plant: plant, species: species),
+      builder: (BuildContext context, AsyncSnapshot<String?> snap) {
+        final String? path = snap.data;
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: bg.withOpacity(0.15),
+            shape: BoxShape.circle,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: path == null
+              ? PlantPlaceholderArt(
+                  plant: plant,
+                  species: species,
+                  size: size,
+                )
+              : Image.asset(
+                  path,
+                  fit: BoxFit.contain,
+                  // 资源存在但解码失败时（坏图）不至于整页崩掉。
+                  errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+                      PlantPlaceholderArt(
+                    plant: plant,
+                    species: species,
+                    size: size,
+                  ),
+                ),
+        );
+      },
+    );
+  }
+}
+
+/// 内置自绘简笔植物（美术资源缺失时的占位）。
+///
+/// 刻意画得可辨识：按物种区分形态（向日葵 / 小雏菊 / 仙人掌），
+/// 按阶段区分高矮（种子 / 幼苗 / 成株），按状态调色（枯萎转褐、死亡转灰）。
+class PlantPlaceholderArt extends StatelessWidget {
+  final Plant plant;
+  final PlantSpecies species;
+  final double size;
+
+  const PlantPlaceholderArt({
+    super.key,
+    required this.plant,
+    required this.species,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+        size: Size.square(size),
+        painter: _PlantPlaceholderPainter(
+          speciesId: species.id,
+          stage: plant.stage,
+          status: plant.status,
+        ),
+      );
+}
+
+/// 简笔植物绘制器。
+class _PlantPlaceholderPainter extends CustomPainter {
+  final String speciesId;
+  final PlantStage stage;
+  final PlantStatus status;
+
+  const _PlantPlaceholderPainter({
+    required this.speciesId,
+    required this.stage,
+    required this.status,
+  });
+
+  static const Color _soil = Color(0xFF8D6E63);
+
+  bool get _isDead => status == PlantStatus.dead;
+  bool get _isWilting => status == PlantStatus.wilting;
+
+  Color get _stem =>
+      _isDead ? Colors.grey.shade600 : (_isWilting ? Colors.brown.shade400 : Colors.green.shade700);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final double groundY = h * 0.80;
+
+    _drawSoil(canvas, w, groundY);
+
+    switch (stage) {
+      case PlantStage.seed:
+        _drawSeed(canvas, w, groundY);
+        break;
+      case PlantStage.sprout:
+        _drawStem(canvas, w, groundY, h * 0.42);
+        _drawLeaves(canvas, w, groundY, h * 0.42, big: false);
+        break;
+      case PlantStage.adult:
+        _drawStem(canvas, w, groundY, h * 0.58);
+        _drawLeaves(canvas, w, groundY, h * 0.58, big: true);
+        _drawFlower(canvas, w, groundY - h * 0.58);
+        break;
+    }
+  }
+
+  void _drawSoil(Canvas canvas, double w, double groundY) {
+    final Paint paint = Paint()
+      ..color = _isDead ? Colors.grey.shade400 : _soil
+      ..style = PaintingStyle.fill;
+    canvas.drawArc(
+      Rect.fromLTWH(w * 0.20, groundY, w * 0.60, w * 0.34),
+      0,
+      3.14159,
+      true,
+      paint,
+    );
+  }
+
+  void _drawSeed(Canvas canvas, double w, double groundY) {
+    final Paint paint = Paint()
+      ..color = _isDead ? Colors.grey.shade500 : const Color(0xFFC9A227)
+      ..style = PaintingStyle.fill;
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(w * 0.5, groundY - w * 0.06),
+          width: w * 0.16,
+          height: w * 0.11),
+      paint,
+    );
+  }
+
+  void _drawStem(Canvas canvas, double w, double groundY, double height) {
+    final Paint paint = Paint()
+      ..color = _stem
+      ..strokeWidth = w * 0.055
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    // 枯萎时茎向右弯，视觉上「蔫了」。
+    final double bend = _isWilting ? w * 0.10 : (_isDead ? -w * 0.06 : 0);
+    final Offset top = Offset(w * 0.5 + bend, groundY - height);
+    canvas.drawLine(Offset(w * 0.5, groundY), top, paint);
+  }
+
+  void _drawLeaves(
+    Canvas canvas,
+    double w,
+    double groundY,
+    double height, {
+    required bool big,
+  }) {
+    if (_isCactus) return; // 仙人掌无叶片，用刺代替（见 _drawFlower）
+    final Paint paint = Paint()
+      ..color = _stem.withOpacity(0.85)
+      ..style = PaintingStyle.fill;
+    final double leafW = big ? w * 0.26 : w * 0.19;
+    final double leafH = big ? w * 0.13 : w * 0.09;
+    final double midY = groundY - height * 0.55;
+    // 左叶
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(w * 0.5 - leafW * 0.5, midY),
+          width: leafW,
+          height: leafH),
+      paint,
+    );
+    // 右叶
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(w * 0.5 + leafW * 0.5, midY + leafH * 0.35),
+          width: leafW,
+          height: leafH),
+      paint,
+    );
+  }
+
+  bool get _isCactus => speciesId == 'species_cactus';
+  bool get _isDaisy => speciesId == 'species_daisy';
+
+  void _drawFlower(Canvas canvas, double w, double centerY) {
+    if (_isCactus) {
+      _drawCactusBody(canvas, w, centerY);
+      return;
+    }
+    final bool dead = _isDead || _isWilting;
+    final Color petal = dead ? Colors.grey.shade500 : const Color(0xFFF6C445);
+    final Color core = dead ? Colors.grey.shade700 : const Color(0xFF6D4C41);
+    final double cx = w * 0.5;
+    final double cy = centerY + w * 0.02;
+    final double r = _isDaisy ? w * 0.13 : w * 0.17;
+
+    // 花瓣（8 片，绕中心）
+    final Paint petalPaint = Paint()
+      ..color = petal
+      ..style = PaintingStyle.fill;
+    for (int i = 0; i < 8; i++) {
+      final double angle = i * 3.14159 / 4;
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(cx + r * 0.95 * _cos(angle), cy + r * 0.95 * _sin(angle)),
+          width: r * 0.72,
+          height: r * 0.46,
+        ),
+        petalPaint,
+      );
+    }
+    // 花心
+    canvas.drawCircle(Offset(cx, cy), r * 0.62, Paint()..color = core);
+  }
+
+  void _drawCactusBody(Canvas canvas, double w, double centerY) {
+    // 仙人掌：柱体 + 两侧小臂 + 顶部小花（死亡/枯萎转灰褐）
+    final bool dead = _isDead || _isWilting;
+    final Color body = dead ? Colors.grey.shade500 : Colors.green.shade600;
+    final Paint paint = Paint()
+      ..color = body
+      ..style = PaintingStyle.fill;
+    final double cx = w * 0.5;
+    final double topY = centerY;
+    final double bottomY = w * 0.80;
+
+    // 主干
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - w * 0.09, topY, w * 0.18, bottomY - topY),
+        Radius.circular(w * 0.09),
+      ),
+      paint,
+    );
+    // 左右小臂
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - w * 0.20, topY + w * 0.16, w * 0.09, w * 0.20),
+        Radius.circular(w * 0.045),
+      ),
+      paint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx + w * 0.11, topY + w * 0.24, w * 0.09, w * 0.20),
+        Radius.circular(w * 0.045),
+      ),
+      paint,
+    );
+    // 顶部小花
+    if (!dead) {
+      canvas.drawCircle(
+        Offset(cx, topY - w * 0.02),
+        w * 0.055,
+        Paint()..color = const Color(0xFFEC7BA0),
+      );
+    }
+  }
+
+  // 轻量三角函数（避免引入 dart:math 仅为两次调用）。
+  static double _cos(double a) => _taylorCos(a);
+  static double _sin(double a) => _taylorCos(a - 1.5707963267948966);
+
+  static double _taylorCos(double x) {
+    double v = x % 6.283185307179586;
+    if (v > 3.141592653589793) v -= 6.283185307179586;
+    if (v < -3.141592653589793) v += 6.283185307179586;
+    final double x2 = v * v;
+    return 1 - x2 / 2 + x2 * x2 / 24 - x2 * x2 * x2 / 720;
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlantPlaceholderPainter old) =>
+      old.speciesId != speciesId || old.stage != stage || old.status != status;
+}

@@ -35,4 +35,14 @@ class SecureStore {
     await _storage.delete(key: kSecurePinHash);
     await _storage.delete(key: kSecurePinSalt);
   }
+
+  /// 重设 PIN（家长端设置页「PIN 重设」用，不改 settings 表）。
+  ///
+  /// 旧 PIN 校验由调用方负责（先 [verify] 通过再调用），本方法仅覆写哈希 + salt。
+  Future<void> resetPin(String pin) async {
+    final String salt = newSalt();
+    final String hash = hashPin(pin, salt);
+    await _storage.write(key: kSecurePinSalt, value: salt);
+    await _storage.write(key: kSecurePinHash, value: hash);
+  }
 }

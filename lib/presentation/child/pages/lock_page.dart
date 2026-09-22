@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 
 class LockPage extends ConsumerWidget {
@@ -20,11 +20,17 @@ class LockPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 夜间边界唯一值来自 settings（§6.1）；未就绪时回退默认 21:00。
     final int boundary =
-        ref.watch(settingsProvider).value?.nightBoundaryHour ?? kNightBoundaryHour;
+        ref.watch(settingsProvider).value?.nightBoundaryHour ?? kNightBoundaryDefaultHour;
 
-    return Scaffold(
-      // 显式返回箭头回孩子端（B19 约定）。
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        context.go('/'); // 系统返回键/边缘手势 → 回孩子端，而非退 App（B19）。
+      },
+      child: Scaffold(
+        // 显式返回箭头回孩子端（B19 约定）。
+        appBar: AppBar(
         title: const Text('睡觉时间'),
         backgroundColor: const Color(0xFF1B1B2F),
         leading: IconButton(
@@ -71,6 +77,7 @@ class LockPage extends ConsumerWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

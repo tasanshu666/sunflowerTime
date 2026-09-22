@@ -93,16 +93,23 @@ class _EntryPageState extends ConsumerState<EntryPage> {
     final AsyncValue<AppSettings> settingsAsync = ref.watch(settingsProvider);
     final bool soundOn = settingsAsync.valueOrNull?.soundOn ?? true;
     final bool bgmOn = settingsAsync.valueOrNull?.bgmOn ?? false;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('开始专注'),
-        // 本页经 go('/entry') 进入 = 路由栈底，显式返回箭头回孩子端（B19 约定）。
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: '返回',
-          onPressed: () => context.go('/'),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        context.go('/'); // 系统返回键/边缘手势 → 回孩子端，而非退 App（B19）。
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('开始专注'),
+          // 本页经 go('/entry') 进入 = 路由栈底；系统返回键经 PopScope 拦截，
+          // 显式箭头作可见返回入口（B19 约定）。
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: '返回',
+            onPressed: () => context.go('/'),
+          ),
         ),
-      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -220,6 +227,7 @@ class _EntryPageState extends ConsumerState<EntryPage> {
           ],
         ),
       ),
+    ),
     );
   }
 }

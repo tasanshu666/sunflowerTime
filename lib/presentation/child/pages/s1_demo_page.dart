@@ -27,11 +27,18 @@ class _S1DemoPageState extends State<S1DemoPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('S1 · 四档反馈 + 向日葵画布'),
-        // 本页经 go('/s1-demo') 进入 = 路由栈底，AppBar 不会自动出现返回箭头（B19 同类问题）
-        leading: IconButton(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        context.go('/'); // 系统返回键/边缘手势 → 回孩子端，而非退 App（B19）。
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('S1 · 四档反馈 + 向日葵画布'),
+          // 本页经 go('/s1-demo') 进入 = 路由栈底；系统返回键经 PopScope 拦截，
+          // 显式箭头作可见返回入口（B19 约定）。
+          leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: '返回孩子端',
           onPressed: () => context.go('/'),
@@ -69,6 +76,7 @@ class _S1DemoPageState extends State<S1DemoPage> {
           ),
         ],
       ),
+    ),
     );
   }
 }

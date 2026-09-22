@@ -202,3 +202,92 @@
 - **收尾校验**（次轮修复后）：`flutter analyze` **0 error / 0 warning**（11 info 为 M0 既有 lint）；`flutter test` **73/73 全绿**；`flutter build apk --debug` 成功；`adb install -r` 推小米 14 Pro 第三轮验收全通过
 - **5 项口径已裁定**（均保持现状，详见口径裁定表 v1 · C9）：送光基准 / 离席不冻结 / 时长档位 15·20·25·30·45 / 无触摸关闭 / 唤醒恢复瞬间补判。仅文档钉死，M1 无代码改动。
 - **仍后置**：T11 防沉迷骨架（分两批）、M2 音频（点3）
+
+---
+
+# M2 真机验收·第 1 轮（2026-09-21，小米 14 Pro，分支 `m2/economy`）
+
+> 玄参大人真机实测 M2 APK，分两批反馈：首批 **5 条**（B33–B37）+ 导航同步（B38）；
+> 次批 **1 条新功能**（F02）。本轮同时锁定两项口径决策：① **定价取消分龄系数 K**；
+> ② **孩子端金色阳光 = 余额 −（待核销+排队中）**。均详见口径裁定表 v1 变更记录与 C10。
+
+## 首批（5 条缺陷 + 导航同步）
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| B33 | M2/家长端奖励页 | 家长端「奖励」Tab 键盘弹出后 `BOTTOM OVERFLOWED 47px` | `parent_reward_page` 根布局用 `Column`+`Expanded`，键盘弹出后可用高度被压缩、子内容溢出 | 根 `Column`→`ListView`；内层模板列表 `shrinkWrap:true` + `NeverScrollableScrollPhysics()` | ✅ 已修复（待真机） |
+| B34 | M2/家长端 | 「每周阳光池预算」设定卡 与「周阳光池」展示卡 分立两张 | 设计把"预算设定"与"池展示"拆成两张独立卡 | 删独立预算卡，重写 `pool_indicator.dart` → `WeeklyPoolCard` 合并卡（预算输入+保存按钮+进度条+「已用 X / 池 Y」+「当前档免确认上限 N」）；`parent_reward_page` 改为 `const WeeklyPoolCard()` | ✅ 已修复（待真机） |
+| B35 | M2/周阳光池 | 预算设 600 保存成功，但展示卡仍显示 400 不刷新 | ①`WeeklyPoolService.pool()` 对已存在行直接返回旧快照 budget；②`FutureBuilder` 的 `initState` future 永不重载 | ①新增 `updateBudget(now, budget)`：仅替换当周池 budget，保留 `used/autoReleased/resetAt`；不存在则新建；②保存后 `setState(() => _future = _load())` + 自增 `economyRevisionProvider` | ✅ 已修复（待真机） |
+| B36 | M2/定价 | 家长设价 20，孩子端显示/扣 30 | 消耗侧价 = `baseCost × 分龄系数 K`（高年级 K=1.5）→ 20×1.5=30 | **2026-09-21 玄参大人拍板取消分龄系数 K**：`_priceFor` 与 `store_page` 均直接用 `baseCost`；删 `math_ext.applyAgeTierK`；`k`/`ageTierK()` 保留但生产定价链路不得调用（见 C10） | ✅ 已修复（待真机） |
+| B37 | M2/展示口径 | 孩子端兑换后右上角金色阳光不变（应 = 余额 − 兑换值，如 600−50=550） | `store_page` 读账本余额，pending/queued 按 §7.4 不变式**不扣账本** → 仅展示口径未做减法 | 金色改为 `balance - pendingTotal`（pending+queued 均计入，≥0 截断）；并补「待核销 N」灰色小字 | ✅ 已修复（待真机） |
+| B38 | M2/导航 | 孩子端经 `go` 进入的栈底页无系统返回键 | 同 M0 B19/B20：`go` 替换路由栈 → 栈底页 `PopScope` 未拦截 Android 返回键 | 孩子端相关栈底页补 `PopScope(canPop:false)` + 显式返回入口 | ✅ 已修复（待真机） |
+
+## 次批（F02 新功能）
+
+| ID | 模块 | 现象 / 需求 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F02 | M2/新功能 | 多次兑换的奖励卡片显示「本周可兑换次数」：N=3→「可兑换次数为3」、N=1→「仅兑换一次」；且按钮应**真正按次数放行**（而非兑1次就灰） | 原冷却用全局阈值 `kCooldownWeeklyDefault=1`，**不认每个模板的 `frequencyLimitPerWeek`** → 设"每周3次"实际只能兑1次就灰 | ①`RedemptionOrchestrationService._onCooldown` 改用 `t.frequencyLimitPerWeek`（≤0 视为不限次数，永不冷却）；②`store_page` 冷却循环按各模板 `frequencyLimitPerWeek` 放行；③`reward_card` 新增 `weeklyLimit` 字段 + 卡片文案（N≥2「可兑换次数为 N」/ N==1「仅兑换一次」/ N≤0「不限次数」） | ✅ 已实现（待真机） |
+
+## M2 第 1 轮 · 汇总与校验
+
+- **首批**：B33–B37（5 缺陷）+ B38（导航同步）全部 ✅
+- **次批**：F02（1 新功能）✅
+- **收尾校验**：`flutter analyze` **0 error / 0 warning**（31 info 为既有 lint）；`flutter test` **163/163 全绿**；`flutter build apk --debug` 成功；`adb install -r` 推小米 14 Pro（验收路径由玄参大人真机执行）
+- **两项口径决策（已落地代码）**：
+  1. 定价不再叠加分龄系数 K（显示价 = 扣费价 = 家长设定价 `baseCost`）；
+  2. 金色阳光 = 账本余额 −（待核销 + 排队中），pending/queued 不真扣账本/池（守 §7.4 不变式）。
+- **明确未验证**（不含糊通过）：UI 实际渲染 / 卡片次数文案真机观感 / 键盘溢出复测 / 周池预算刷新复测（此四条须真机，由玄参大人执行）
+
+---
+
+# M2 真机验收·第 2 轮（2026-09-21，小米 14 Pro，分支 `m2/economy`）
+
+> 玄参大人真机复测第 1 轮 APK 后新增两条反馈：孩子端卡片次数未随消耗递减；家长端模板卡不显示可兑换次数。
+
+| ID | 模块 | 现象 / 需求 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F03 | M2/孩子端商店 | 设「吃冰棍」限领 3 次，兑换 1 次并核销后，卡片仍显示「可兑换次数为 3」（应递减为 2） | 卡片用**静态** `frequencyLimitPerWeek` 展示，未扣本周已领次数 | `reward_card` 新增 `weeklyUsed` 字段；展示文案改用共享函数 `weeklyRedeemLabel(limit, used)`（`lib/domain/entities/reward_template.dart`）：按「剩余 = limit − cooldownCount」渲染（N≥2「可兑换次数为 N」/ N==1「仅可兑换 1 次」/ N≤0 隐藏）；`store_page` 把 `cooldownCount` 作为 `weeklyUsed` 传入 | ✅ 已实现（待真机） |
+| F04 | M2/家长端奖励页 | 家长端模板卡片不显示可兑换次数，时间长忘了设了几条 | 家长 `ListTile` 副标题只显示分类，未含 `frequencyLimitPerWeek` | `parent_reward_page` 模板 `ListTile` 副标题追加 `weeklyRedeemLabel(limit, 0)`（用配置值，即 used=0），与 child 端共用同一函数，口径一致 | ✅ 已实现（待真机） |
+
+## M2 第 2 轮 · 校验
+
+- **新增单测**：`test/domain/reward_template_test.dart`（纯函数 `weeklyRedeemLabel` 9 断言，覆盖不限/限1/限≥2/领完隐藏/边界）。
+- **收尾校验**：`flutter analyze` **0 error / 0 warning**（31 info）；`flutter test` **168/168 全绿**（163 基线 + 5 新）；`flutter build apk --debug` 成功；`adb install -r` 推小米 14 Pro（待真机复测）。
+- **已提交**：commit `645c89b` 已推 `origin/m2/economy`（不合 main）。
+
+---
+
+# M2 真机验收·第 3 轮（2026-09-21，小米 14 Pro，分支 `m2/economy`）
+
+> 玄参大人真机复测第 2 轮 APK：孩子端卡片仍显示「可兑换次数为 3」（核销 1 次后未变 2）；家长端已能显示限领值，但核销后也未递减。
+> **根因**：第 2 轮只接好了「展示口径」，却漏了最底层——**冷却计数从未被写入**。
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F03（根因） | M2/冷却计数 | 兑换落单后 `cooldownCount` 恒为 0，导致卡片剩余次数永远 = 限领值、且 `_onCooldown` 闸门失效 | `RewardLocalRepository.createRequest` 只 `insert` 兑换申请，**从不调用** `CooldownCounterDao.bump()`（全仓无任何调用点）；而测试 mock 的 `createRequest` 会自行 +1，掩盖了生产缺失 | `RewardLocalRepository.createRequest` 落单后调用 `cooldownCounterDao.bump(templateId, CooldownPeriod.weekly)`（与 `redemption_orchestration_test` 的 Fake 行为对齐）；`createRequest` 仅被 `submit()` 调用，无其它路径污染 | ✅ 已修复（待真机） |
+| F04（动态） | M2/家长端奖励页 | 家长端核销 1 次后，模板卡应显示「可兑换次数为 2」而非静态 3 | 第 2 轮家长端用 `weeklyRedeemLabel(limit, 0)`（静态）；未取本周已领次数，也未随核销刷新 | `parent_reward_page._load` 逐模板取 `cooldownCount(weekly)` 存 `_weeklyUsed`；展示改 `weeklyRedeemLabel(limit, _weeklyUsed[t.id] ?? 0)`；`initState` 监听 `economyRevisionProvider` → 孩子兑换 / 家长核销后自动重算 | ✅ 已修复（待真机） |
+
+## M2 第 3 轮 · 校验
+
+- **新增回归测试**：`test/m2/reward_dao_test.dart`「落单即 bump 本周冷却计数」组（真实内存 Drift 库，验证同模板落单 N 次→cooldownCount=N、不同模板独立）。锁死本根因，避免再次回潮。
+- **收尾校验**：`flutter analyze` **0 error / 0 warning**（32 info）；`flutter test` 全绿（168 + 2 新 = 170，含新回归测试）；`flutter build apk --debug` 成功；`adb install -r` 推小米 14 Pro（待真机复测）。
+- **已提交**：commit `645c89b` 已推 `origin/m2/economy`（不合 main）。
+
+---
+
+# M2 真机验收·第 4 轮（2026-09-21，小米 14 Pro，分支 `m2/economy`）
+
+> 玄参大人真机复测第 3 轮 APK，三点反馈：①家长端奖励页面报错（崩溃）；②家长端确认核销 → 孩子端核减为 1（逻辑正确，无需改）；③家长端点「拒绝」后孩子端阳光虽返回，但可兑换次数仍减了 1（错误）。
+
+| ID | 模块 | 现象 / 需求 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F05 | M2/家长端奖励页 | 家长端奖励页面打开即报错（崩溃，附截图） | 第 3 轮在 `parent_reward_page` 的 `initState` 中调用 `ref.listen(...)`，违反 riverpod 2.6.1 铁律（`ref.listen` 仅允许在 `build()` 内调用，否则运行时断言崩溃） | 改用 `ref.listenManual(economyRevisionProvider, (_, __) { if (mounted) _load(); })`（返回 `ProviderSubscription`，专用于 `State.initState` 场景） | ✅ 已修复（待真机） |
+| — | M2/核销同步 | 家长端确认核销 → 孩子端商城核减为 1（吃冰棍限领 3、核销 1） | 无（第 3 轮已修，本次真机确认正确） | 不改 | ✅ 已确认正确 |
+| F06 | M2/拒绝回流 | 家长端点「拒绝」后，孩子端阳光原路返回（正确），但可兑换次数仍减了 1（错误） | 落单时 `createRequest` 已 `bump` 本周冷却计数（D4）；但 `reject()` 只把状态置 `rejected`，**未回退该计数** → 剩余次数被无端占掉一次，孩子后续可兑换次数凭空少 1 | `RewardRepository` 新增 `decrementCooldown(templateId, window)`；`CooldownCounterDao.decrement` 用 `UPDATE ... SET used_count = MAX(0, used_count-1)`（下限 0）；`RewardLocalRepository` 实现；`RedemptionOrchestrationService.reject()` 在定位请求后调用 `decrementCooldown(req.templateId, CooldownPeriod.weekly)`，使「被拒不占次数」 | ✅ 已修复（待真机） |
+
+## M2 第 4 轮 · 校验
+
+- **新增回归测试**：`test/m2/redemption_orchestration_test.dart` reject 组新增 `(g4) 拒绝回流 → 本周冷却计数回退 1`（限领 3 落单 2 次→cooldown=2，拒绝 1→cooldown 回退为 1 且待处理列表仅剩 1 笔）。锁死 F06 不变式。
+- **测试 Fake 同步**：`redemption_orchestration_test` Fake 与 `store_page_test` 两个 Fake 均补齐 `decrementCooldown` 实现（map 计数 `clamp(0,...)`），否则编译不过。
+- **收尾校验**：`flutter analyze` **0 error / 0 warning**（33 info，均为既有 lint hint）；`flutter test` **171/171 全绿**（170 基线 + 1 新 g4）；`flutter build apk --debug` 成功；`adb install -r` 推小米 14 Pro（`f05bbc46`）成功（待真机复测）。
+- **已提交**：commit `645c89b` 已推 `origin/m2/economy`（不合 main）。

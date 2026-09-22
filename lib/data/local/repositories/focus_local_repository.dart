@@ -10,6 +10,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart' as db;
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
+import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 
 class FocusLocalRepository implements FocusRepository {
@@ -61,15 +62,47 @@ class FocusLocalRepository implements FocusRepository {
 
     final Set<String> validDays = <String>{};
     for (final db.FocusSession r in rows) {
-      final double completion =
-          r.plannedMin == 0 ? 0.0 : r.actualFocusMin / r.plannedMin;
-      if (r.actualFocusMin >= kValidFocusMinutes &&
-          completion >= kCompletionRateThreshold) {
-        validDays.add('${r.start.year}-${r.start.month}-${r.start.day}');
+      if (_isValidSession(r)) {
+        validDays.add(_dayKeyOf(r.start));
       }
     }
     return validDays.length;
   }
+
+  @override
+  Future<FocusStats> totalStats() async {
+    // 全量聚合（§3.3）：累计专注分钟 / 会话数 / 有效专注日。
+    // 数据量级为单机孩子的历史会话数，全量取内存聚合足够（不做分页/SQL 聚合）。
+    final List<db.FocusSession> rows = await _db.select(_db.focusSessions).get();
+
+    double totalMinutes = 0.0;
+    final Set<String> validDays = <String>{};
+    for (final db.FocusSession r in rows) {
+      totalMinutes += r.actualFocusMin;
+      if (_isValidSession(r)) {
+        validDays.add(_dayKeyOf(r.start));
+      }
+    }
+
+    return FocusStats(
+      totalFocusMinutes: totalMinutes,
+      totalSessions: rows.length,
+      totalValidDays: validDays.length,
+    );
+  }
+
+  /// 有效专注判定（单点）：实际专注 ≥ [kValidFocusMinutes] 且完成率 ≥
+  /// [kCompletionRateThreshold]。[countValidFocusDaysLastWeek] 与 [totalStats]
+  /// 共用同一口径，避免判定逻辑孪生。
+  bool _isValidSession(db.FocusSession r) {
+    final double completion =
+        r.plannedMin == 0 ? 0.0 : r.actualFocusMin / r.plannedMin;
+    return r.actualFocusMin >= kValidFocusMinutes &&
+        completion >= kCompletionRateThreshold;
+  }
+
+  /// 会话日键 `yyyy-M-d`（用于有效日去重；仅作内存 Set key，不对齐零填充）。
+  String _dayKeyOf(DateTime d) => '${d.year}-${d.month}-${d.day}';
 
   FocusSession _toDomain(db.FocusSession r) => FocusSession(
         id: r.id,

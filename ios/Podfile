@@ -1,0 +1,60 @@
+# Uncomment this line to define a global platform for your project
+platform :ios, '15.0'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+
+  # ── 本机离线构建的依赖顶替（仅 iOS，可随时删除）────────────────────────────
+  # 问题：sqlcipher_flutter_libs 依赖 CocoaPods 上的 `SQLCipher ~> 4.5.4`，而该 pod 的
+  #       源码指向 github.com/sqlcipher/sqlcipher.git —— 本机屏蔽 github（http=000），
+  #       `pod install` 必然失败。iOS 与 macOS 都会卡在这一步。
+  # 处置：用同名同版本的**本地空壳 pod** 顶替（见 local_pods/SQLCipher/SQLCipher.podspec）。
+  # 安全性：pubspec 里 sqlite3 native assets 配了 `source: system`（iOS 用系统
+  #       libsqlite3），且 sqlcipher_flutter_libs 的 iOS 原生类是空实现、不引用任何
+  #       SQLCipher 符号 —— 故顶替不影响 App 在 iOS 上的行为。
+  # 差异：iOS 上数据库不加密（与 source: system 的既定行为一致；加密只在 Android 生效）。
+  # 影响：只在 iOS 构建生效；Android 构建完全不读本文件。
+  pod 'SQLCipher', :path => 'local_pods/SQLCipher'
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      # 本机 Xcode/iOS 26 SDK 要求模拟器部署目标 >= 15.0；
+      # 部分三方 pod 自带 9.0/12.0，统一抬到 15.0 以通过 Target Integrity 校验。
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+    end
+  end
+end

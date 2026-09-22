@@ -1,0 +1,83 @@
+sequenceDiagram
+    autonumber
+    participant U as 孩子/家长
+    participant GP as GardenPage
+    participant PG as PlantGrowthService
+    participant PR as PlantRepository
+    participant FR as FocusRepository
+    participant LD as SunlightRepository
+    participant SR as SettingsRepository
+
+    Note over U,SR: ① 种植（扣费 + 落 Plant）
+    U->>GP: 选物种种植(potIndex)
+    GP->>PG: plant(speciesId, potIndex, now)
+    PG->>SR: getSettings() → tier
+    PG->>LD: balance()
+    LD-->>PG: bal
+    alt bal < 种植价
+        PG-->>GP: 提示阳光不足
+    else 余额充足
+        PG->>LD: append(net=-cost, refType='plant_plant')
+        PG->>PR: savePlant(Plant(seed, plantedAt=now, growthProgress=0, status=growing))
+        PG-->>GP: Plant
+    end
+
+    Note over U,SR: ② 成长计时 tick（软绑定 + WFD 系数）
+    U->>GP: 打开花园 / 定时触发
+    GP->>PG: tickAll(now)
+    loop 每株 Plant
+        PG->>PG: 计算 elapsed 跨过的每天
+        PG->>FR: sessionsOfDay(dayKey) → _hasValidFocusDay?
+        FR-->>PG: bool(hasWFD)
+        PG->>PG: factor = hasWFD ? kGrowthFactorFocused(1.3) : 1.0
+        PG->>PG: growthProgress += elapsedHours / (growthHoursPerStage / factor)
+        alt progress >= 1.0
+            PG->>PG: 进阶段(seed→sprout→adult)；adult满→status=bloomed；重置 water/fertilizerUsed
+        end
+        alt now - lastWaterAt > kPlantWiltDays(7)
+            PG->>PG: status=wilting, wiltedAt=now
+        else wilting 且 now - wiltedAt > kPlantWiltDays(7)
+            PG->>PG: status=dead
+            PG->>LD: append(net=+0.3*cost, refType='plant_death_refund')
+            PG->>PR: deletePlant / 释放 pot
+        end
+        PG->>PR: savePlant(updated)
+    end
+
+    Note over U,SR: ③ 浇水加速 / 枯萎救回
+    U->>GP: 点浇水
+    GP->>PG: water(plantId, now)
+    PG->>LD: append(net=-kPlantWaterCost, refType='plant_water')
+    PG->>PG: 剩余时间×0.7；waterUsed=true；lastWaterAt=now（重置枯萎计时）
+    PG->>PR: savePlant
+    U->>GP: 点救回(wilting)
+    GP->>PG: revive(plantId, now)
+    PG->>LD: append(net=-kPlantReviveCost, refType='plant_revive')
+    PG->>PG: status=growing, wiltedAt=null, lastWaterAt=now
+    PG->>PR: savePlant
+
+    Note over U,SR: ④ 家长阳光赠予（设置页）
+    participant PS as ParentSettingsPage
+    U->>PS: 赠予阳光
+    PS->>LD: append(net=+amount, refType='parent_gift')
+    Note over PS: 日/月上限经 dayKey/monthKey 统计 ≤ kParentGiftDaily(20)/kParentGiftMonthly(150)
+
+    Note over U,SR: ⑤ 删除入口（合规 §10.4 C5，先导后清）
+    participant PD as ParentDeletePage
+    participant DM as DataManagementService
+    U->>PD: 确认删除全部数据
+    PD->>DM: clearAll()
+    DM->>PR: deleteAll (Plants/Tasks/...)
+    DM->>LD: deleteAll (ledger)
+    DM->>SR: deleteSettings
+    DM->>DM: SettingsStore.clear + SecureStore.clearPin
+    DM-->>PD: 完成
+
+    Note over U,SR: ⑥ 专注报告聚合（G2 可读）
+    participant RP as ParentReportPage
+    participant RS as FocusReportService
+    U->>RP: 打开报告(周/月)
+    RP->>RS: weeklyReport(now) / monthlyReport(now)
+    RS->>FR: sessionsOfDay / countValidFocusDaysLastWeek
+    RS->>LD: dayNet / balance
+    RS-->>RP: WFD/时段分布/稳定度/阳光汇总

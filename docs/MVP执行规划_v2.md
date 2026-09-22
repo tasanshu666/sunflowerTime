@@ -107,7 +107,7 @@
 
 ## 6. 埋点最低事件集（M2 内必须完成）
 
-`focus_session_start`、`focus_session_end`、`valid_focus_day`、`sun_earned`、`reward_redeem_request`、`reward_verified`、`reward_queue`、`monthly_pool_reset`、`parent_dau`
+`focus_session_start`、`focus_session_end`、`valid_focus_day`、`sun_earned`、`reward_redeem_request`、`reward_verified`、`reward_queue`、`weekly_pool_reset`、`parent_dau`
 
 字段口径见验证计划 §3.2，一字不改。
 
@@ -140,3 +140,4 @@
 | 日期 | 内容 |
 |---|---|
 | 2026-09-15 | v2 建立：形态统一、spike 前置、埋点前移、G1 改为单户深潜 |
+| 2026-09-21 | **M2 关闭**：周池口径对齐（monthly_pool_reset→weekly_pool_reset，同步 §6 / 口径裁定表 C2 / 软件设计文档_M2 / sequence-diagram-M2）；P1 标定值裸字面量全部归位 prd_params；C3 常量单点收口（kMinFocusMinutes 移入 prd_params、夜间边界重复常量合并、kDailyFocusCap* 移入 prd_params）。G2 起跑硬条件「埋点最低事件集上线」达成（9 项真实埋点），剩 1 周校准期（运行时数据） |

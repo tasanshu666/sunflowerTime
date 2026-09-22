@@ -204,7 +204,7 @@
 | `reward_redeem_request` | 孩子发起兑换申请（待确认） | reward_id, cost_sun, category(自服务/家长经手), tier, is_auto_pass(bool) | 核销队列（分母） |
 | `reward_verified` | 家长核销（显式处理） | verify_ts, within_48h(bool), amount, tier, is_small(≤50)/is_large(>50) | 核销履约率（分子） |
 | `reward_queue` | 超池改「排队中」 | queue_rank, month | 月度池吸收率 |
-| `monthly_pool_reset` | 每月 1 日重置 | pool_size, tier | 池吸收率 |
+| `weekly_pool_reset` | 每月 1 日重置 | pool_size, tier | 池吸收率 |
 | `parent_dau` | 家长进入家长端（PIN） | date, pin_enter(bool) | 家长周活跃 |
 | `parent_setting_change` | 配置变更（定价/池/时长） | field, old, new | 默认定价保持率 |
 | `praise_sent` | 夸夸台语录送达 | content_hash, ts | 纪念册原料 |
@@ -303,7 +303,7 @@
 - [ ] **免确认双条件**自动放行（单笔≤130/50 ＋ 月累计≤池 25%＝100/40）；自服务类一律 0（§4.8 E6）
 - [ ] **月度池** 400/160 默认、可调 100–1,200、超池改「排队中」下月 1 日按序放行（§4.8 E9）
 - [ ] 冷却期（状态化表达/强制替代推荐/双拒绝熔断/视觉强区分，§4.8 P2）
-- [ ] 埋点：`reward_redeem_request` / `reward_verified` / `reward_queue` / `monthly_pool_reset` 上线（§3.2）
+- [ ] 埋点：`reward_redeem_request` / `reward_verified` / `reward_queue` / `weekly_pool_reset` 上线（§3.2）
 
 ### 4.4 M3 花园/任务/家长端补齐 DoD
 

@@ -4,6 +4,7 @@ library sunlight_local_repository;
 import 'package:drift/drift.dart';
 
 import 'package:sunflower_time/data/local/database/app_database.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 
@@ -36,9 +37,53 @@ class SunlightLocalRepository implements SunlightRepository {
   Future<double> balance() => _db.sunlightLedgerDao.balance();
 
   @override
+  Future<List<SunlightEntry>> all() async {
+    final List<SunlightLedger> rows = await _db.sunlightLedgerDao.allDesc();
+    return rows.map((SunlightLedger r) => SunlightEntry(
+      id: r.id,
+      ts: r.ts,
+      type: SunlightType.values[r.type],
+      gross: r.gross,
+      net: r.net,
+      balanceAfter: r.balanceAfter,
+      refType: r.refType,
+      refId: r.refId,
+      dayKey: r.dayKey,
+    )).toList();
+  }
+
+  @override
   Future<double> dayNet(String dayKey) => _db.sunlightLedgerDao.dayNet(dayKey);
+
+  @override
+  Future<double> earnGrossOnDay(String dayKey) =>
+      _db.sunlightLedgerDao.sumEarnGrossOnDay(dayKey);
+
+  @override
+  Future<double> earnNetOnDay(String dayKey) =>
+      _db.sunlightLedgerDao.sumEarnNetOnDay(dayKey);
 
   @override
   Future<double> verifiedRedeemTotal() =>
       _db.sunlightLedgerDao.verifiedRedeemTotal();
+
+  @override
+  Future<double> netByRefTypeOnDay(String refType, String dayKey) =>
+      _db.sunlightLedgerDao.sumNetByRefTypeDay(refType, dayKey);
+
+  @override
+  Future<double> netByRefTypeInMonth(String refType, String monthKey) =>
+      _db.sunlightLedgerDao.sumNetByRefTypeMonth(refType, monthKey);
+
+  @override
+  Future<int> countByRefTypeAndRefIdOnDay(
+    String refType,
+    String refId,
+    String dayKey,
+  ) =>
+      _db.sunlightLedgerDao.countByRefTypeAndRefIdOnDay(refType, refId, dayKey);
+
+  @override
+  Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) =>
+      _db.sunlightLedgerDao.lastTsByRefTypeAndRefId(refType, refId);
 }

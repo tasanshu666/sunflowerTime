@@ -27,3 +27,96 @@ class SunlightLedgerDaoManager {
       $$SunlightLedgersTableTableManager(
           _db.attachedDatabase, _db.sunlightLedgers);
 }
+
+mixin _$PlantDaoMixin on DatabaseAccessor<AppDatabase> {
+  $PlantsTable get plants => attachedDatabase.plants;
+  PlantDaoManager get managers => PlantDaoManager(this);
+}
+
+class PlantDaoManager {
+  final _$PlantDaoMixin _db;
+  PlantDaoManager(this._db);
+  $$PlantsTableTableManager get plants =>
+      $$PlantsTableTableManager(_db.attachedDatabase, _db.plants);
+}
+
+mixin _$TaskDaoMixin on DatabaseAccessor<AppDatabase> {
+  $TasksTable get tasks => attachedDatabase.tasks;
+  $CheckInsTable get checkIns => attachedDatabase.checkIns;
+  TaskDaoManager get managers => TaskDaoManager(this);
+}
+
+class TaskDaoManager {
+  final _$TaskDaoMixin _db;
+  TaskDaoManager(this._db);
+  $$TasksTableTableManager get tasks =>
+      $$TasksTableTableManager(_db.attachedDatabase, _db.tasks);
+  $$CheckInsTableTableManager get checkIns =>
+      $$CheckInsTableTableManager(_db.attachedDatabase, _db.checkIns);
+}
+
+mixin _$RewardTemplateDaoMixin on DatabaseAccessor<AppDatabase> {
+  $RewardTemplatesTable get rewardTemplates => attachedDatabase.rewardTemplates;
+  RewardTemplateDaoManager get managers => RewardTemplateDaoManager(this);
+}
+
+class RewardTemplateDaoManager {
+  final _$RewardTemplateDaoMixin _db;
+  RewardTemplateDaoManager(this._db);
+  $$RewardTemplatesTableTableManager get rewardTemplates =>
+      $$RewardTemplatesTableTableManager(
+          _db.attachedDatabase, _db.rewardTemplates);
+}
+
+mixin _$RedemptionRequestDaoMixin on DatabaseAccessor<AppDatabase> {
+  $RedemptionRequestsTable get redemptionRequests =>
+      attachedDatabase.redemptionRequests;
+  RedemptionRequestDaoManager get managers => RedemptionRequestDaoManager(this);
+}
+
+class RedemptionRequestDaoManager {
+  final _$RedemptionRequestDaoMixin _db;
+  RedemptionRequestDaoManager(this._db);
+  $$RedemptionRequestsTableTableManager get redemptionRequests =>
+      $$RedemptionRequestsTableTableManager(
+          _db.attachedDatabase, _db.redemptionRequests);
+}
+
+mixin _$MonthlyPoolDaoMixin on DatabaseAccessor<AppDatabase> {
+  $MonthlyPoolsTable get monthlyPools => attachedDatabase.monthlyPools;
+  MonthlyPoolDaoManager get managers => MonthlyPoolDaoManager(this);
+}
+
+class MonthlyPoolDaoManager {
+  final _$MonthlyPoolDaoMixin _db;
+  MonthlyPoolDaoManager(this._db);
+  $$MonthlyPoolsTableTableManager get monthlyPools =>
+      $$MonthlyPoolsTableTableManager(_db.attachedDatabase, _db.monthlyPools);
+}
+
+mixin _$CooldownCounterDaoMixin on DatabaseAccessor<AppDatabase> {
+  $CooldownCountersTable get cooldownCounters =>
+      attachedDatabase.cooldownCounters;
+  CooldownCounterDaoManager get managers => CooldownCounterDaoManager(this);
+}
+
+class CooldownCounterDaoManager {
+  final _$CooldownCounterDaoMixin _db;
+  CooldownCounterDaoManager(this._db);
+  $$CooldownCountersTableTableManager get cooldownCounters =>
+      $$CooldownCountersTableTableManager(
+          _db.attachedDatabase, _db.cooldownCounters);
+}
+
+mixin _$TrackingEventDaoMixin on DatabaseAccessor<AppDatabase> {
+  $TrackingEventsTable get trackingEvents => attachedDatabase.trackingEvents;
+  TrackingEventDaoManager get managers => TrackingEventDaoManager(this);
+}
+
+class TrackingEventDaoManager {
+  final _$TrackingEventDaoMixin _db;
+  TrackingEventDaoManager(this._db);
+  $$TrackingEventsTableTableManager get trackingEvents =>
+      $$TrackingEventsTableTableManager(
+          _db.attachedDatabase, _db.trackingEvents);
+}

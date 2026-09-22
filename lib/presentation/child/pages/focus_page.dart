@@ -22,16 +22,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/focus_session.dart';
+import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/domain/entities/tracking_event.dart';
 import 'package:sunflower_time/domain/services/focus_engine.dart';
 import 'package:sunflower_time/domain/services/presence_detector.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
-import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/platform/dnd_controller.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
+import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/feedback_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
 
@@ -41,10 +50,16 @@ class FocusPage extends ConsumerStatefulWidget {
   /// 专注期是否启用系统勿扰（DND）屏蔽通知；入口页可选，默认开（F01）。
   final bool dnd;
 
+  /// 从「成长」联动项进入时携带的成长项 id（M4）；自由专注为 null。
+  ///
+  /// 非空时，本次专注结束后按会话自动结算该成长项（见 [_FocusPageState._handleOutcome]）。
+  final String? taskId;
+
   const FocusPage({
     super.key,
     this.plannedMinutes = kFocusDurationDefaultMinutes,
     this.dnd = true,
+    this.taskId,
   });
 
   @override
@@ -68,6 +83,12 @@ class _FocusPageState extends ConsumerState<FocusPage>
   bool _paused = false;
   bool _finished = false;
   String? _bubbleKey;
+
+  /// 本次专注会话 id（埋点 focus_session_start/end 关联用，T-B）。
+  late final String _sessionId = Uuid().v4();
+
+  /// 当前分龄档（进入时从设置读取，供埋点 payload.tier，T-B）。
+  AgeTier _tier = AgeTier.low;
 
   final DndController _dnd = DndController();
   bool _dndHintShown = false;
@@ -96,6 +117,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
     // start() 会同步发出 lvl1 事件；延后到首帧后再启动，避免在 initState 中 setState。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _engine.start();
+      unawaited(_trackSessionStart()); // T-B：focus_session_start 埋点
     });
   }
 
@@ -129,6 +151,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
   Future<void> _applyAudioOnEnter() async {
     final AppSettings s = await ref.read(settingsRepositoryProvider).getSettings();
     if (!mounted) return;
+    _tier = s.ageTier; // T-B：记录档位供埋点
     final AudioService audio = ref.read(audioServiceProvider);
     audio.applySettings(soundOn: s.soundOn, bgmOn: s.bgmOn);
     if (s.bgmOn) unawaited(audio.startBgm());
@@ -263,6 +286,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
   Future<void> _handleOutcome(FocusOutcome outcome) async {
     if (_finished) return;
     _finished = true;
+    unawaited(_trackSessionEnd(outcome)); // T-B：focus_session_end 埋点
     _ticker?.cancel();
     _pulseTimer?.cancel();
     _bubbleTimer?.cancel();
@@ -278,9 +302,72 @@ class _FocusPageState extends ConsumerState<FocusPage>
               end: DateTime.now(),
               plannedMin: widget.plannedMinutes,
             );
+
+    // M4：联动成长项自动结算（仅从「成长」进入的专注带 taskId）。
+    //
+    // 纪律：此处任何失败 / 取不到会话 **都不影响「专注本身已成功」**（专注阳光已由上面的
+    // settle 入账），只影响该成长项，故一律降级为非阻塞提示，**绝不回滚、绝不报错页**。
+    TaskCheckInOutcome? taskOutcome;
+    String? taskName;
+    bool taskSettleSkipped = false;
+    final String? taskId = widget.taskId;
+    if (taskId != null) {
+      try {
+        final List<Task> tasks = await ref.read(taskRepositoryProvider).tasks();
+        Task? task;
+        for (final Task x in tasks) {
+          if (x.id == taskId) {
+            task = x;
+            break;
+          }
+        }
+        if (task != null) {
+          taskName = task.name;
+          // 取**真实落库**的会话对象（settle 内部已 saveSession），按 sessionId 精确匹配，
+          // 绝不自造假会话（后端结算会校验 sessionId）。
+          final List<FocusSession> todaySessions = await ref
+              .read(focusRepositoryProvider)
+              .sessionsOfDay(dayKey(DateTime.now()));
+          FocusSession? session;
+          for (final FocusSession s in todaySessions) {
+            if (s.id == settlement.sessionId) {
+              session = s;
+              break;
+            }
+          }
+          if (session == null) {
+            taskSettleSkipped = true; // 兜底：正常不应发生
+          } else {
+            taskOutcome = await ref
+                .read(taskCheckInServiceProvider)
+                .settleFocusLinked(
+                  task: task,
+                  session: session,
+                  now: DateTime.now(),
+                );
+            // 达标入账后自增经济修订号 → 孩子端「成长 / 今日」下次进入即自动打勾。
+            if (taskOutcome.status == CheckInStatus.verified) {
+              ref.read(economyRevisionProvider.notifier).state++;
+            }
+          }
+        }
+      } catch (_) {
+        // 成长项结算异常不影响专注成功：仅标记跳过（见上方纪律）。
+        taskSettleSkipped = true;
+      }
+    }
+
     if (!mounted) return;
     // go 是替换路由栈（B20）；结算页经 go 进入，退出用 go('/')。
-    context.go('/settle', extra: settlement);
+    context.go(
+      '/settle',
+      extra: SettleArgs(
+        settlement: settlement,
+        taskOutcome: taskOutcome,
+        taskName: taskName,
+        taskSettleSkipped: taskSettleSkipped,
+      ),
+    );
   }
 
   Future<void> _restoreSystemChrome() async {
@@ -293,6 +380,43 @@ class _FocusPageState extends ConsumerState<FocusPage>
         SystemUiMode.manual,
         overlays: SystemUiOverlay.values,
       );
+    } catch (_) {}
+  }
+
+  // ── T-B 埋点（仅新增，不重构既有逻辑）─────────────────────────
+
+  /// focus_session_start：引擎启动后上报（会话 id / 计划时长 / 档位）。
+  Future<void> _trackSessionStart() async {
+    try {
+      await ref.read(trackingRepositoryProvider).track(TrackingEvent(
+        id: Uuid().v4(),
+        name: TrackingEventNames.focusSessionStart,
+        type: TrackingType.metric,
+        ts: DateTime.now(),
+        payload: {
+          'session_id': _sessionId,
+          'planned_min': widget.plannedMinutes,
+          'tier': _tier.name,
+        },
+      ));
+    } catch (_) {}
+  }
+
+  /// focus_session_end：结算时上报（会话 id / 实际时长 / 结束原因 / 档位）。
+  Future<void> _trackSessionEnd(FocusOutcome outcome) async {
+    try {
+      await ref.read(trackingRepositoryProvider).track(TrackingEvent(
+        id: Uuid().v4(),
+        name: TrackingEventNames.focusSessionEnd,
+        type: TrackingType.metric,
+        ts: DateTime.now(),
+        payload: {
+          'session_id': _sessionId,
+          'actual_min': outcome.actualFocusMin,
+          'reason': outcome.endReason.name,
+          'tier': _tier.name,
+        },
+      ));
     } catch (_) {}
   }
 

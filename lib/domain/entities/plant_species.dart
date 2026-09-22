@@ -5,9 +5,10 @@ class PlantSpecies {
   final String id;
   final String name;
   final Rarity rarity;
-  final int baseCostHigh; // 高年段基础成本
+  final int baseCostHigh; // 高年段基础成本（§4.6 两档，保留稀有度经济平衡）
   final int baseCostLow; // 低年段基础成本
   final double growthHoursPerStage;
+  final bool subscriptionOnly; // 是否订阅专属（M3 全部 false，V2 划归）
 
   const PlantSpecies({
     required this.id,
@@ -16,5 +17,6 @@ class PlantSpecies {
     required this.baseCostHigh,
     required this.baseCostLow,
     required this.growthHoursPerStage,
+    this.subscriptionOnly = false,
   });
 }

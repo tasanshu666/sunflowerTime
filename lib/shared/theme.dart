@@ -50,10 +50,44 @@ final ThemeData parentTheme = lightTheme.copyWith(
   ),
 );
 
-/// 保留旧深色主题（暂未使用，避免误引用报红）。
+/// 深色主题（孩子端）：深底 + 阳光黄点缀。
+///
+/// M3 修订：原先只在 `app.dart` 挂了 `theme: lightTheme`、**完全没接 `themeMode`**，
+/// 于是家长端「深色主题」开关写进库却无人消费（玄参大人真机反馈「开关没变化」）。
+/// 现在由 `settings.themeDark` 驱动 `MaterialApp.themeMode`，此处补齐可用的深色皮肤。
 final ThemeData darkTheme = ThemeData(
   useMaterial3: true,
   brightness: Brightness.dark,
   colorSchemeSeed: sunlightYellow,
-  scaffoldBackgroundColor: const Color(0xFF1B1B2F),
+  scaffoldBackgroundColor: const Color(0xFF16162A),
+  appBarTheme: const AppBarTheme(
+    backgroundColor: Color(0xFF16162A),
+    foregroundColor: Color(0xFFF3E3B8),
+    elevation: 0,
+    centerTitle: true,
+  ),
+  cardTheme: CardThemeData(
+    elevation: 1,
+    color: const Color(0xFF23233C),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+  ),
 );
+
+/// 家长端深色主题：深蓝灰底 + 青蓝主色（与孩子端深色可区分）。
+final ThemeData parentDarkTheme = darkTheme.copyWith(
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: parentSeed,
+    brightness: Brightness.dark,
+  ),
+  scaffoldBackgroundColor: const Color(0xFF121A1F),
+  appBarTheme: const AppBarTheme(
+    backgroundColor: Color(0xFF121A1F),
+    foregroundColor: Color(0xFFCFE3EA),
+    elevation: 0,
+    centerTitle: true,
+  ),
+);
+
+/// 按当前亮度取家长端主题（浅色 = 青蓝冷调；深色 = 家长端深色）。
+ThemeData parentThemeFor(Brightness brightness) =>
+    brightness == Brightness.dark ? parentDarkTheme : parentTheme;

@@ -6,6 +6,14 @@
 *.log
 .DS_Store
 
+# iOS：CocoaPods 产物与含本机绝对路径的 Xcode 配置（换机器执行 pod install 重新生成）
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/ephemeral/
+**/xcuserdata/
+
 # Flutter / Dart 构建与工具产物
 .dart_tool/
 .flutter-plugins

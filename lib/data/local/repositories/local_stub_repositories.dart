@@ -20,16 +20,24 @@ class TaskLocalRepositoryStub implements TaskRepository {
   @override
   Future<void> saveTask(Task task) async {}
   @override
+  Future<void> deleteTaskById(String id) async {}
+  @override
   Future<void> checkIn(CheckIn checkIn) async {}
   @override
   Future<List<CheckIn>> checkInsOfDay(String dayKey) async => const [];
+  @override
+  Future<int> totalCheckInCount() async => 0;
 }
 
 class PlantLocalRepositoryStub implements PlantRepository {
   @override
   Future<List<Plant>> plants() async => const [];
   @override
+  Future<Plant?> plant(String id) async => null;
+  @override
   Future<List<PlantSpecies>> species() async => const [];
   @override
   Future<void> savePlant(Plant plant) async {}
+  @override
+  Future<void> deletePlant(String id) async {}
 }

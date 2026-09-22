@@ -26,7 +26,7 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       'night_boundary_hour', aliasedName, false,
       type: DriftSqlType.int,
       requiredDuringInsert: false,
-      defaultValue: const Constant(21));
+      defaultValue: const Constant(kNightBoundaryDefaultHour));
   static const VerificationMeta _nightBoundaryMinuteMeta =
       const VerificationMeta('nightBoundaryMinute');
   @override
@@ -117,7 +117,7 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       'auto_confirm_single_high', aliasedName, false,
       type: DriftSqlType.int,
       requiredDuringInsert: false,
-      defaultValue: const Constant(130));
+      defaultValue: const Constant(kAutoApproveMaxCostHigh));
   static const VerificationMeta _autoConfirmSingleLowMeta =
       const VerificationMeta('autoConfirmSingleLow');
   @override
@@ -125,7 +125,7 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       'auto_confirm_single_low', aliasedName, false,
       type: DriftSqlType.int,
       requiredDuringInsert: false,
-      defaultValue: const Constant(50));
+      defaultValue: const Constant(kAutoApproveMaxCostLow));
   static const VerificationMeta _autoConfirmMonthlyPctMeta =
       const VerificationMeta('autoConfirmMonthlyPct');
   @override
@@ -133,7 +133,7 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       GeneratedColumn<double>('auto_confirm_monthly_pct', aliasedName, false,
           type: DriftSqlType.double,
           requiredDuringInsert: false,
-          defaultValue: const Constant(0.25));
+          defaultValue: const Constant(kAutoApprovePoolRatio));
   static const VerificationMeta _currencyRateMeta =
       const VerificationMeta('currencyRate');
   @override
@@ -141,7 +141,7 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       'currency_rate', aliasedName, false,
       type: DriftSqlType.double,
       requiredDuringInsert: false,
-      defaultValue: const Constant(0.25));
+      defaultValue: const Constant(kAutoApprovePoolRatio));
   static const VerificationMeta _themeDarkMeta =
       const VerificationMeta('themeDark');
   @override
@@ -151,7 +151,7 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       requiredDuringInsert: false,
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("theme_dark" IN (0, 1))'),
-      defaultValue: const Constant(true));
+      defaultValue: const Constant(false));
   static const VerificationMeta _autonomousModeMeta =
       const VerificationMeta('autonomousMode');
   @override
@@ -162,6 +162,14 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("autonomous_mode" IN (0, 1))'),
       defaultValue: const Constant(false));
+  static const VerificationMeta _gardenPotCapacityMeta =
+      const VerificationMeta('gardenPotCapacity');
+  @override
+  late final GeneratedColumn<int> gardenPotCapacity = GeneratedColumn<int>(
+      'garden_pot_capacity', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kGardenPotCapacityDefault));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -183,7 +191,8 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
         autoConfirmMonthlyPct,
         currencyRate,
         themeDark,
-        autonomousMode
+        autonomousMode,
+        gardenPotCapacity
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -316,6 +325,12 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
           autonomousMode.isAcceptableOrUnknown(
               data['autonomous_mode']!, _autonomousModeMeta));
     }
+    if (data.containsKey('garden_pot_capacity')) {
+      context.handle(
+          _gardenPotCapacityMeta,
+          gardenPotCapacity.isAcceptableOrUnknown(
+              data['garden_pot_capacity']!, _gardenPotCapacityMeta));
+    }
     return context;
   }
 
@@ -366,6 +381,8 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
           .read(DriftSqlType.bool, data['${effectivePrefix}theme_dark'])!,
       autonomousMode: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}autonomous_mode'])!,
+      gardenPotCapacity: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}garden_pot_capacity'])!,
     );
   }
 
@@ -396,6 +413,7 @@ class Setting extends DataClass implements Insertable<Setting> {
   final double currencyRate;
   final bool themeDark;
   final bool autonomousMode;
+  final int gardenPotCapacity;
   const Setting(
       {required this.id,
       required this.ageTier,
@@ -416,7 +434,8 @@ class Setting extends DataClass implements Insertable<Setting> {
       required this.autoConfirmMonthlyPct,
       required this.currencyRate,
       required this.themeDark,
-      required this.autonomousMode});
+      required this.autonomousMode,
+      required this.gardenPotCapacity});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -440,6 +459,7 @@ class Setting extends DataClass implements Insertable<Setting> {
     map['currency_rate'] = Variable<double>(currencyRate);
     map['theme_dark'] = Variable<bool>(themeDark);
     map['autonomous_mode'] = Variable<bool>(autonomousMode);
+    map['garden_pot_capacity'] = Variable<int>(gardenPotCapacity);
     return map;
   }
 
@@ -465,6 +485,7 @@ class Setting extends DataClass implements Insertable<Setting> {
       currencyRate: Value(currencyRate),
       themeDark: Value(themeDark),
       autonomousMode: Value(autonomousMode),
+      gardenPotCapacity: Value(gardenPotCapacity),
     );
   }
 
@@ -496,6 +517,7 @@ class Setting extends DataClass implements Insertable<Setting> {
       currencyRate: serializer.fromJson<double>(json['currencyRate']),
       themeDark: serializer.fromJson<bool>(json['themeDark']),
       autonomousMode: serializer.fromJson<bool>(json['autonomousMode']),
+      gardenPotCapacity: serializer.fromJson<int>(json['gardenPotCapacity']),
     );
   }
   @override
@@ -522,6 +544,7 @@ class Setting extends DataClass implements Insertable<Setting> {
       'currencyRate': serializer.toJson<double>(currencyRate),
       'themeDark': serializer.toJson<bool>(themeDark),
       'autonomousMode': serializer.toJson<bool>(autonomousMode),
+      'gardenPotCapacity': serializer.toJson<int>(gardenPotCapacity),
     };
   }
 
@@ -545,7 +568,8 @@ class Setting extends DataClass implements Insertable<Setting> {
           double? autoConfirmMonthlyPct,
           double? currencyRate,
           bool? themeDark,
-          bool? autonomousMode}) =>
+          bool? autonomousMode,
+          int? gardenPotCapacity}) =>
       Setting(
         id: id ?? this.id,
         ageTier: ageTier ?? this.ageTier,
@@ -569,6 +593,7 @@ class Setting extends DataClass implements Insertable<Setting> {
         currencyRate: currencyRate ?? this.currencyRate,
         themeDark: themeDark ?? this.themeDark,
         autonomousMode: autonomousMode ?? this.autonomousMode,
+        gardenPotCapacity: gardenPotCapacity ?? this.gardenPotCapacity,
       );
   Setting copyWithCompanion(SettingsCompanion data) {
     return Setting(
@@ -618,6 +643,9 @@ class Setting extends DataClass implements Insertable<Setting> {
       autonomousMode: data.autonomousMode.present
           ? data.autonomousMode.value
           : this.autonomousMode,
+      gardenPotCapacity: data.gardenPotCapacity.present
+          ? data.gardenPotCapacity.value
+          : this.gardenPotCapacity,
     );
   }
 
@@ -643,33 +671,36 @@ class Setting extends DataClass implements Insertable<Setting> {
           ..write('autoConfirmMonthlyPct: $autoConfirmMonthlyPct, ')
           ..write('currencyRate: $currencyRate, ')
           ..write('themeDark: $themeDark, ')
-          ..write('autonomousMode: $autonomousMode')
+          ..write('autonomousMode: $autonomousMode, ')
+          ..write('gardenPotCapacity: $gardenPotCapacity')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id,
-      ageTier,
-      nightBoundaryHour,
-      nightBoundaryMinute,
-      dailyFocusCap,
-      dailyAppCapMinutes,
-      restAfterSessions,
-      restMinutes,
-      taskSunlight,
-      monthlyPoolBudget,
-      quietMode,
-      soundOn,
-      bgmOn,
-      detectionOn,
-      autoConfirmSingleHigh,
-      autoConfirmSingleLow,
-      autoConfirmMonthlyPct,
-      currencyRate,
-      themeDark,
-      autonomousMode);
+  int get hashCode => Object.hashAll([
+        id,
+        ageTier,
+        nightBoundaryHour,
+        nightBoundaryMinute,
+        dailyFocusCap,
+        dailyAppCapMinutes,
+        restAfterSessions,
+        restMinutes,
+        taskSunlight,
+        monthlyPoolBudget,
+        quietMode,
+        soundOn,
+        bgmOn,
+        detectionOn,
+        autoConfirmSingleHigh,
+        autoConfirmSingleLow,
+        autoConfirmMonthlyPct,
+        currencyRate,
+        themeDark,
+        autonomousMode,
+        gardenPotCapacity
+      ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -693,7 +724,8 @@ class Setting extends DataClass implements Insertable<Setting> {
           other.autoConfirmMonthlyPct == this.autoConfirmMonthlyPct &&
           other.currencyRate == this.currencyRate &&
           other.themeDark == this.themeDark &&
-          other.autonomousMode == this.autonomousMode);
+          other.autonomousMode == this.autonomousMode &&
+          other.gardenPotCapacity == this.gardenPotCapacity);
 }
 
 class SettingsCompanion extends UpdateCompanion<Setting> {
@@ -717,6 +749,7 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
   final Value<double> currencyRate;
   final Value<bool> themeDark;
   final Value<bool> autonomousMode;
+  final Value<int> gardenPotCapacity;
   const SettingsCompanion({
     this.id = const Value.absent(),
     this.ageTier = const Value.absent(),
@@ -738,6 +771,7 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     this.currencyRate = const Value.absent(),
     this.themeDark = const Value.absent(),
     this.autonomousMode = const Value.absent(),
+    this.gardenPotCapacity = const Value.absent(),
   });
   SettingsCompanion.insert({
     this.id = const Value.absent(),
@@ -760,6 +794,7 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     this.currencyRate = const Value.absent(),
     this.themeDark = const Value.absent(),
     this.autonomousMode = const Value.absent(),
+    this.gardenPotCapacity = const Value.absent(),
   })  : ageTier = Value(ageTier),
         dailyFocusCap = Value(dailyFocusCap),
         dailyAppCapMinutes = Value(dailyAppCapMinutes),
@@ -788,6 +823,7 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     Expression<double>? currencyRate,
     Expression<bool>? themeDark,
     Expression<bool>? autonomousMode,
+    Expression<int>? gardenPotCapacity,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -815,6 +851,7 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
       if (currencyRate != null) 'currency_rate': currencyRate,
       if (themeDark != null) 'theme_dark': themeDark,
       if (autonomousMode != null) 'autonomous_mode': autonomousMode,
+      if (gardenPotCapacity != null) 'garden_pot_capacity': gardenPotCapacity,
     });
   }
 
@@ -838,7 +875,8 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
       Value<double>? autoConfirmMonthlyPct,
       Value<double>? currencyRate,
       Value<bool>? themeDark,
-      Value<bool>? autonomousMode}) {
+      Value<bool>? autonomousMode,
+      Value<int>? gardenPotCapacity}) {
     return SettingsCompanion(
       id: id ?? this.id,
       ageTier: ageTier ?? this.ageTier,
@@ -862,6 +900,7 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
       currencyRate: currencyRate ?? this.currencyRate,
       themeDark: themeDark ?? this.themeDark,
       autonomousMode: autonomousMode ?? this.autonomousMode,
+      gardenPotCapacity: gardenPotCapacity ?? this.gardenPotCapacity,
     );
   }
 
@@ -931,6 +970,9 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     if (autonomousMode.present) {
       map['autonomous_mode'] = Variable<bool>(autonomousMode.value);
     }
+    if (gardenPotCapacity.present) {
+      map['garden_pot_capacity'] = Variable<int>(gardenPotCapacity.value);
+    }
     return map;
   }
 
@@ -956,7 +998,732 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
           ..write('autoConfirmMonthlyPct: $autoConfirmMonthlyPct, ')
           ..write('currencyRate: $currencyRate, ')
           ..write('themeDark: $themeDark, ')
-          ..write('autonomousMode: $autonomousMode')
+          ..write('autonomousMode: $autonomousMode, ')
+          ..write('gardenPotCapacity: $gardenPotCapacity')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PlantsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _speciesIdMeta =
+      const VerificationMeta('speciesId');
+  @override
+  late final GeneratedColumn<String> speciesId = GeneratedColumn<String>(
+      'species_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _potIndexMeta =
+      const VerificationMeta('potIndex');
+  @override
+  late final GeneratedColumn<int> potIndex = GeneratedColumn<int>(
+      'pot_index', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _stageMeta = const VerificationMeta('stage');
+  @override
+  late final GeneratedColumn<int> stage = GeneratedColumn<int>(
+      'stage', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _stageStartedAtMeta =
+      const VerificationMeta('stageStartedAt');
+  @override
+  late final GeneratedColumn<DateTime> stageStartedAt =
+      GeneratedColumn<DateTime>('stage_started_at', aliasedName, false,
+          type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _growthProgressMeta =
+      const VerificationMeta('growthProgress');
+  @override
+  late final GeneratedColumn<double> growthProgress = GeneratedColumn<double>(
+      'growth_progress', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _growthFactorMeta =
+      const VerificationMeta('growthFactor');
+  @override
+  late final GeneratedColumn<double> growthFactor = GeneratedColumn<double>(
+      'growth_factor', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1.0));
+  static const VerificationMeta _waterUsedMeta =
+      const VerificationMeta('waterUsed');
+  @override
+  late final GeneratedColumn<bool> waterUsed = GeneratedColumn<bool>(
+      'water_used', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("water_used" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _fertilizerUsedMeta =
+      const VerificationMeta('fertilizerUsed');
+  @override
+  late final GeneratedColumn<bool> fertilizerUsed = GeneratedColumn<bool>(
+      'fertilizer_used', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("fertilizer_used" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<int> status = GeneratedColumn<int>(
+      'status', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _plantedAtMeta =
+      const VerificationMeta('plantedAt');
+  @override
+  late final GeneratedColumn<DateTime> plantedAt = GeneratedColumn<DateTime>(
+      'planted_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _lastWaterAtMeta =
+      const VerificationMeta('lastWaterAt');
+  @override
+  late final GeneratedColumn<DateTime> lastWaterAt = GeneratedColumn<DateTime>(
+      'last_water_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _wiltedAtMeta =
+      const VerificationMeta('wiltedAt');
+  @override
+  late final GeneratedColumn<DateTime> wiltedAt = GeneratedColumn<DateTime>(
+      'wilted_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _deadAtMeta = const VerificationMeta('deadAt');
+  @override
+  late final GeneratedColumn<DateTime> deadAt = GeneratedColumn<DateTime>(
+      'dead_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _moodMeta = const VerificationMeta('mood');
+  @override
+  late final GeneratedColumn<int> mood = GeneratedColumn<int>(
+      'mood', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        speciesId,
+        potIndex,
+        stage,
+        stageStartedAt,
+        growthProgress,
+        growthFactor,
+        waterUsed,
+        fertilizerUsed,
+        status,
+        plantedAt,
+        lastWaterAt,
+        wiltedAt,
+        deadAt,
+        mood
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'plants';
+  @override
+  VerificationContext validateIntegrity(Insertable<Plant> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('species_id')) {
+      context.handle(_speciesIdMeta,
+          speciesId.isAcceptableOrUnknown(data['species_id']!, _speciesIdMeta));
+    } else if (isInserting) {
+      context.missing(_speciesIdMeta);
+    }
+    if (data.containsKey('pot_index')) {
+      context.handle(_potIndexMeta,
+          potIndex.isAcceptableOrUnknown(data['pot_index']!, _potIndexMeta));
+    } else if (isInserting) {
+      context.missing(_potIndexMeta);
+    }
+    if (data.containsKey('stage')) {
+      context.handle(
+          _stageMeta, stage.isAcceptableOrUnknown(data['stage']!, _stageMeta));
+    } else if (isInserting) {
+      context.missing(_stageMeta);
+    }
+    if (data.containsKey('stage_started_at')) {
+      context.handle(
+          _stageStartedAtMeta,
+          stageStartedAt.isAcceptableOrUnknown(
+              data['stage_started_at']!, _stageStartedAtMeta));
+    } else if (isInserting) {
+      context.missing(_stageStartedAtMeta);
+    }
+    if (data.containsKey('growth_progress')) {
+      context.handle(
+          _growthProgressMeta,
+          growthProgress.isAcceptableOrUnknown(
+              data['growth_progress']!, _growthProgressMeta));
+    }
+    if (data.containsKey('growth_factor')) {
+      context.handle(
+          _growthFactorMeta,
+          growthFactor.isAcceptableOrUnknown(
+              data['growth_factor']!, _growthFactorMeta));
+    }
+    if (data.containsKey('water_used')) {
+      context.handle(_waterUsedMeta,
+          waterUsed.isAcceptableOrUnknown(data['water_used']!, _waterUsedMeta));
+    }
+    if (data.containsKey('fertilizer_used')) {
+      context.handle(
+          _fertilizerUsedMeta,
+          fertilizerUsed.isAcceptableOrUnknown(
+              data['fertilizer_used']!, _fertilizerUsedMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('planted_at')) {
+      context.handle(_plantedAtMeta,
+          plantedAt.isAcceptableOrUnknown(data['planted_at']!, _plantedAtMeta));
+    } else if (isInserting) {
+      context.missing(_plantedAtMeta);
+    }
+    if (data.containsKey('last_water_at')) {
+      context.handle(
+          _lastWaterAtMeta,
+          lastWaterAt.isAcceptableOrUnknown(
+              data['last_water_at']!, _lastWaterAtMeta));
+    }
+    if (data.containsKey('wilted_at')) {
+      context.handle(_wiltedAtMeta,
+          wiltedAt.isAcceptableOrUnknown(data['wilted_at']!, _wiltedAtMeta));
+    }
+    if (data.containsKey('dead_at')) {
+      context.handle(_deadAtMeta,
+          deadAt.isAcceptableOrUnknown(data['dead_at']!, _deadAtMeta));
+    }
+    if (data.containsKey('mood')) {
+      context.handle(
+          _moodMeta, mood.isAcceptableOrUnknown(data['mood']!, _moodMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Plant map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Plant(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      speciesId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}species_id'])!,
+      potIndex: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}pot_index'])!,
+      stage: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}stage'])!,
+      stageStartedAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}stage_started_at'])!,
+      growthProgress: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}growth_progress'])!,
+      growthFactor: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}growth_factor'])!,
+      waterUsed: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}water_used'])!,
+      fertilizerUsed: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}fertilizer_used'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}status'])!,
+      plantedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}planted_at'])!,
+      lastWaterAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}last_water_at']),
+      wiltedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}wilted_at']),
+      deadAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}dead_at']),
+      mood: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}mood'])!,
+    );
+  }
+
+  @override
+  $PlantsTable createAlias(String alias) {
+    return $PlantsTable(attachedDatabase, alias);
+  }
+}
+
+class Plant extends DataClass implements Insertable<Plant> {
+  final String id;
+  final String speciesId;
+  final int potIndex;
+  final int stage;
+  final DateTime stageStartedAt;
+  final double growthProgress;
+  final double growthFactor;
+  final bool waterUsed;
+  final bool fertilizerUsed;
+  final int status;
+  final DateTime plantedAt;
+  final DateTime? lastWaterAt;
+  final DateTime? wiltedAt;
+  final DateTime? deadAt;
+  final int mood;
+  const Plant(
+      {required this.id,
+      required this.speciesId,
+      required this.potIndex,
+      required this.stage,
+      required this.stageStartedAt,
+      required this.growthProgress,
+      required this.growthFactor,
+      required this.waterUsed,
+      required this.fertilizerUsed,
+      required this.status,
+      required this.plantedAt,
+      this.lastWaterAt,
+      this.wiltedAt,
+      this.deadAt,
+      required this.mood});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['species_id'] = Variable<String>(speciesId);
+    map['pot_index'] = Variable<int>(potIndex);
+    map['stage'] = Variable<int>(stage);
+    map['stage_started_at'] = Variable<DateTime>(stageStartedAt);
+    map['growth_progress'] = Variable<double>(growthProgress);
+    map['growth_factor'] = Variable<double>(growthFactor);
+    map['water_used'] = Variable<bool>(waterUsed);
+    map['fertilizer_used'] = Variable<bool>(fertilizerUsed);
+    map['status'] = Variable<int>(status);
+    map['planted_at'] = Variable<DateTime>(plantedAt);
+    if (!nullToAbsent || lastWaterAt != null) {
+      map['last_water_at'] = Variable<DateTime>(lastWaterAt);
+    }
+    if (!nullToAbsent || wiltedAt != null) {
+      map['wilted_at'] = Variable<DateTime>(wiltedAt);
+    }
+    if (!nullToAbsent || deadAt != null) {
+      map['dead_at'] = Variable<DateTime>(deadAt);
+    }
+    map['mood'] = Variable<int>(mood);
+    return map;
+  }
+
+  PlantsCompanion toCompanion(bool nullToAbsent) {
+    return PlantsCompanion(
+      id: Value(id),
+      speciesId: Value(speciesId),
+      potIndex: Value(potIndex),
+      stage: Value(stage),
+      stageStartedAt: Value(stageStartedAt),
+      growthProgress: Value(growthProgress),
+      growthFactor: Value(growthFactor),
+      waterUsed: Value(waterUsed),
+      fertilizerUsed: Value(fertilizerUsed),
+      status: Value(status),
+      plantedAt: Value(plantedAt),
+      lastWaterAt: lastWaterAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastWaterAt),
+      wiltedAt: wiltedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(wiltedAt),
+      deadAt:
+          deadAt == null && nullToAbsent ? const Value.absent() : Value(deadAt),
+      mood: Value(mood),
+    );
+  }
+
+  factory Plant.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Plant(
+      id: serializer.fromJson<String>(json['id']),
+      speciesId: serializer.fromJson<String>(json['speciesId']),
+      potIndex: serializer.fromJson<int>(json['potIndex']),
+      stage: serializer.fromJson<int>(json['stage']),
+      stageStartedAt: serializer.fromJson<DateTime>(json['stageStartedAt']),
+      growthProgress: serializer.fromJson<double>(json['growthProgress']),
+      growthFactor: serializer.fromJson<double>(json['growthFactor']),
+      waterUsed: serializer.fromJson<bool>(json['waterUsed']),
+      fertilizerUsed: serializer.fromJson<bool>(json['fertilizerUsed']),
+      status: serializer.fromJson<int>(json['status']),
+      plantedAt: serializer.fromJson<DateTime>(json['plantedAt']),
+      lastWaterAt: serializer.fromJson<DateTime?>(json['lastWaterAt']),
+      wiltedAt: serializer.fromJson<DateTime?>(json['wiltedAt']),
+      deadAt: serializer.fromJson<DateTime?>(json['deadAt']),
+      mood: serializer.fromJson<int>(json['mood']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'speciesId': serializer.toJson<String>(speciesId),
+      'potIndex': serializer.toJson<int>(potIndex),
+      'stage': serializer.toJson<int>(stage),
+      'stageStartedAt': serializer.toJson<DateTime>(stageStartedAt),
+      'growthProgress': serializer.toJson<double>(growthProgress),
+      'growthFactor': serializer.toJson<double>(growthFactor),
+      'waterUsed': serializer.toJson<bool>(waterUsed),
+      'fertilizerUsed': serializer.toJson<bool>(fertilizerUsed),
+      'status': serializer.toJson<int>(status),
+      'plantedAt': serializer.toJson<DateTime>(plantedAt),
+      'lastWaterAt': serializer.toJson<DateTime?>(lastWaterAt),
+      'wiltedAt': serializer.toJson<DateTime?>(wiltedAt),
+      'deadAt': serializer.toJson<DateTime?>(deadAt),
+      'mood': serializer.toJson<int>(mood),
+    };
+  }
+
+  Plant copyWith(
+          {String? id,
+          String? speciesId,
+          int? potIndex,
+          int? stage,
+          DateTime? stageStartedAt,
+          double? growthProgress,
+          double? growthFactor,
+          bool? waterUsed,
+          bool? fertilizerUsed,
+          int? status,
+          DateTime? plantedAt,
+          Value<DateTime?> lastWaterAt = const Value.absent(),
+          Value<DateTime?> wiltedAt = const Value.absent(),
+          Value<DateTime?> deadAt = const Value.absent(),
+          int? mood}) =>
+      Plant(
+        id: id ?? this.id,
+        speciesId: speciesId ?? this.speciesId,
+        potIndex: potIndex ?? this.potIndex,
+        stage: stage ?? this.stage,
+        stageStartedAt: stageStartedAt ?? this.stageStartedAt,
+        growthProgress: growthProgress ?? this.growthProgress,
+        growthFactor: growthFactor ?? this.growthFactor,
+        waterUsed: waterUsed ?? this.waterUsed,
+        fertilizerUsed: fertilizerUsed ?? this.fertilizerUsed,
+        status: status ?? this.status,
+        plantedAt: plantedAt ?? this.plantedAt,
+        lastWaterAt: lastWaterAt.present ? lastWaterAt.value : this.lastWaterAt,
+        wiltedAt: wiltedAt.present ? wiltedAt.value : this.wiltedAt,
+        deadAt: deadAt.present ? deadAt.value : this.deadAt,
+        mood: mood ?? this.mood,
+      );
+  Plant copyWithCompanion(PlantsCompanion data) {
+    return Plant(
+      id: data.id.present ? data.id.value : this.id,
+      speciesId: data.speciesId.present ? data.speciesId.value : this.speciesId,
+      potIndex: data.potIndex.present ? data.potIndex.value : this.potIndex,
+      stage: data.stage.present ? data.stage.value : this.stage,
+      stageStartedAt: data.stageStartedAt.present
+          ? data.stageStartedAt.value
+          : this.stageStartedAt,
+      growthProgress: data.growthProgress.present
+          ? data.growthProgress.value
+          : this.growthProgress,
+      growthFactor: data.growthFactor.present
+          ? data.growthFactor.value
+          : this.growthFactor,
+      waterUsed: data.waterUsed.present ? data.waterUsed.value : this.waterUsed,
+      fertilizerUsed: data.fertilizerUsed.present
+          ? data.fertilizerUsed.value
+          : this.fertilizerUsed,
+      status: data.status.present ? data.status.value : this.status,
+      plantedAt: data.plantedAt.present ? data.plantedAt.value : this.plantedAt,
+      lastWaterAt:
+          data.lastWaterAt.present ? data.lastWaterAt.value : this.lastWaterAt,
+      wiltedAt: data.wiltedAt.present ? data.wiltedAt.value : this.wiltedAt,
+      deadAt: data.deadAt.present ? data.deadAt.value : this.deadAt,
+      mood: data.mood.present ? data.mood.value : this.mood,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Plant(')
+          ..write('id: $id, ')
+          ..write('speciesId: $speciesId, ')
+          ..write('potIndex: $potIndex, ')
+          ..write('stage: $stage, ')
+          ..write('stageStartedAt: $stageStartedAt, ')
+          ..write('growthProgress: $growthProgress, ')
+          ..write('growthFactor: $growthFactor, ')
+          ..write('waterUsed: $waterUsed, ')
+          ..write('fertilizerUsed: $fertilizerUsed, ')
+          ..write('status: $status, ')
+          ..write('plantedAt: $plantedAt, ')
+          ..write('lastWaterAt: $lastWaterAt, ')
+          ..write('wiltedAt: $wiltedAt, ')
+          ..write('deadAt: $deadAt, ')
+          ..write('mood: $mood')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      speciesId,
+      potIndex,
+      stage,
+      stageStartedAt,
+      growthProgress,
+      growthFactor,
+      waterUsed,
+      fertilizerUsed,
+      status,
+      plantedAt,
+      lastWaterAt,
+      wiltedAt,
+      deadAt,
+      mood);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Plant &&
+          other.id == this.id &&
+          other.speciesId == this.speciesId &&
+          other.potIndex == this.potIndex &&
+          other.stage == this.stage &&
+          other.stageStartedAt == this.stageStartedAt &&
+          other.growthProgress == this.growthProgress &&
+          other.growthFactor == this.growthFactor &&
+          other.waterUsed == this.waterUsed &&
+          other.fertilizerUsed == this.fertilizerUsed &&
+          other.status == this.status &&
+          other.plantedAt == this.plantedAt &&
+          other.lastWaterAt == this.lastWaterAt &&
+          other.wiltedAt == this.wiltedAt &&
+          other.deadAt == this.deadAt &&
+          other.mood == this.mood);
+}
+
+class PlantsCompanion extends UpdateCompanion<Plant> {
+  final Value<String> id;
+  final Value<String> speciesId;
+  final Value<int> potIndex;
+  final Value<int> stage;
+  final Value<DateTime> stageStartedAt;
+  final Value<double> growthProgress;
+  final Value<double> growthFactor;
+  final Value<bool> waterUsed;
+  final Value<bool> fertilizerUsed;
+  final Value<int> status;
+  final Value<DateTime> plantedAt;
+  final Value<DateTime?> lastWaterAt;
+  final Value<DateTime?> wiltedAt;
+  final Value<DateTime?> deadAt;
+  final Value<int> mood;
+  final Value<int> rowid;
+  const PlantsCompanion({
+    this.id = const Value.absent(),
+    this.speciesId = const Value.absent(),
+    this.potIndex = const Value.absent(),
+    this.stage = const Value.absent(),
+    this.stageStartedAt = const Value.absent(),
+    this.growthProgress = const Value.absent(),
+    this.growthFactor = const Value.absent(),
+    this.waterUsed = const Value.absent(),
+    this.fertilizerUsed = const Value.absent(),
+    this.status = const Value.absent(),
+    this.plantedAt = const Value.absent(),
+    this.lastWaterAt = const Value.absent(),
+    this.wiltedAt = const Value.absent(),
+    this.deadAt = const Value.absent(),
+    this.mood = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PlantsCompanion.insert({
+    required String id,
+    required String speciesId,
+    required int potIndex,
+    required int stage,
+    required DateTime stageStartedAt,
+    this.growthProgress = const Value.absent(),
+    this.growthFactor = const Value.absent(),
+    this.waterUsed = const Value.absent(),
+    this.fertilizerUsed = const Value.absent(),
+    required int status,
+    required DateTime plantedAt,
+    this.lastWaterAt = const Value.absent(),
+    this.wiltedAt = const Value.absent(),
+    this.deadAt = const Value.absent(),
+    this.mood = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        speciesId = Value(speciesId),
+        potIndex = Value(potIndex),
+        stage = Value(stage),
+        stageStartedAt = Value(stageStartedAt),
+        status = Value(status),
+        plantedAt = Value(plantedAt);
+  static Insertable<Plant> custom({
+    Expression<String>? id,
+    Expression<String>? speciesId,
+    Expression<int>? potIndex,
+    Expression<int>? stage,
+    Expression<DateTime>? stageStartedAt,
+    Expression<double>? growthProgress,
+    Expression<double>? growthFactor,
+    Expression<bool>? waterUsed,
+    Expression<bool>? fertilizerUsed,
+    Expression<int>? status,
+    Expression<DateTime>? plantedAt,
+    Expression<DateTime>? lastWaterAt,
+    Expression<DateTime>? wiltedAt,
+    Expression<DateTime>? deadAt,
+    Expression<int>? mood,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (speciesId != null) 'species_id': speciesId,
+      if (potIndex != null) 'pot_index': potIndex,
+      if (stage != null) 'stage': stage,
+      if (stageStartedAt != null) 'stage_started_at': stageStartedAt,
+      if (growthProgress != null) 'growth_progress': growthProgress,
+      if (growthFactor != null) 'growth_factor': growthFactor,
+      if (waterUsed != null) 'water_used': waterUsed,
+      if (fertilizerUsed != null) 'fertilizer_used': fertilizerUsed,
+      if (status != null) 'status': status,
+      if (plantedAt != null) 'planted_at': plantedAt,
+      if (lastWaterAt != null) 'last_water_at': lastWaterAt,
+      if (wiltedAt != null) 'wilted_at': wiltedAt,
+      if (deadAt != null) 'dead_at': deadAt,
+      if (mood != null) 'mood': mood,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PlantsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? speciesId,
+      Value<int>? potIndex,
+      Value<int>? stage,
+      Value<DateTime>? stageStartedAt,
+      Value<double>? growthProgress,
+      Value<double>? growthFactor,
+      Value<bool>? waterUsed,
+      Value<bool>? fertilizerUsed,
+      Value<int>? status,
+      Value<DateTime>? plantedAt,
+      Value<DateTime?>? lastWaterAt,
+      Value<DateTime?>? wiltedAt,
+      Value<DateTime?>? deadAt,
+      Value<int>? mood,
+      Value<int>? rowid}) {
+    return PlantsCompanion(
+      id: id ?? this.id,
+      speciesId: speciesId ?? this.speciesId,
+      potIndex: potIndex ?? this.potIndex,
+      stage: stage ?? this.stage,
+      stageStartedAt: stageStartedAt ?? this.stageStartedAt,
+      growthProgress: growthProgress ?? this.growthProgress,
+      growthFactor: growthFactor ?? this.growthFactor,
+      waterUsed: waterUsed ?? this.waterUsed,
+      fertilizerUsed: fertilizerUsed ?? this.fertilizerUsed,
+      status: status ?? this.status,
+      plantedAt: plantedAt ?? this.plantedAt,
+      lastWaterAt: lastWaterAt ?? this.lastWaterAt,
+      wiltedAt: wiltedAt ?? this.wiltedAt,
+      deadAt: deadAt ?? this.deadAt,
+      mood: mood ?? this.mood,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (speciesId.present) {
+      map['species_id'] = Variable<String>(speciesId.value);
+    }
+    if (potIndex.present) {
+      map['pot_index'] = Variable<int>(potIndex.value);
+    }
+    if (stage.present) {
+      map['stage'] = Variable<int>(stage.value);
+    }
+    if (stageStartedAt.present) {
+      map['stage_started_at'] = Variable<DateTime>(stageStartedAt.value);
+    }
+    if (growthProgress.present) {
+      map['growth_progress'] = Variable<double>(growthProgress.value);
+    }
+    if (growthFactor.present) {
+      map['growth_factor'] = Variable<double>(growthFactor.value);
+    }
+    if (waterUsed.present) {
+      map['water_used'] = Variable<bool>(waterUsed.value);
+    }
+    if (fertilizerUsed.present) {
+      map['fertilizer_used'] = Variable<bool>(fertilizerUsed.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<int>(status.value);
+    }
+    if (plantedAt.present) {
+      map['planted_at'] = Variable<DateTime>(plantedAt.value);
+    }
+    if (lastWaterAt.present) {
+      map['last_water_at'] = Variable<DateTime>(lastWaterAt.value);
+    }
+    if (wiltedAt.present) {
+      map['wilted_at'] = Variable<DateTime>(wiltedAt.value);
+    }
+    if (deadAt.present) {
+      map['dead_at'] = Variable<DateTime>(deadAt.value);
+    }
+    if (mood.present) {
+      map['mood'] = Variable<int>(mood.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlantsCompanion(')
+          ..write('id: $id, ')
+          ..write('speciesId: $speciesId, ')
+          ..write('potIndex: $potIndex, ')
+          ..write('stage: $stage, ')
+          ..write('stageStartedAt: $stageStartedAt, ')
+          ..write('growthProgress: $growthProgress, ')
+          ..write('growthFactor: $growthFactor, ')
+          ..write('waterUsed: $waterUsed, ')
+          ..write('fertilizerUsed: $fertilizerUsed, ')
+          ..write('status: $status, ')
+          ..write('plantedAt: $plantedAt, ')
+          ..write('lastWaterAt: $lastWaterAt, ')
+          ..write('wiltedAt: $wiltedAt, ')
+          ..write('deadAt: $deadAt, ')
+          ..write('mood: $mood, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -3102,6 +3869,12 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
   late final GeneratedColumn<int> subject = GeneratedColumn<int>(
       'subject', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _customSubjectMeta =
+      const VerificationMeta('customSubject');
+  @override
+  late final GeneratedColumn<String> customSubject = GeneratedColumn<String>(
+      'custom_subject', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _requiresFocusMeta =
       const VerificationMeta('requiresFocus');
   @override
@@ -3118,7 +3891,7 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       'min_focus_min', aliasedName, false,
       type: DriftSqlType.int,
       requiredDuringInsert: false,
-      defaultValue: const Constant(15));
+      defaultValue: const Constant(kValidFocusMinutes));
   static const VerificationMeta _sunlightRewardMeta =
       const VerificationMeta('sunlightReward');
   @override
@@ -3147,6 +3920,7 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         id,
         name,
         subject,
+        customSubject,
         requiresFocus,
         minFocusMin,
         sunlightReward,
@@ -3179,6 +3953,12 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
           subject.isAcceptableOrUnknown(data['subject']!, _subjectMeta));
     } else if (isInserting) {
       context.missing(_subjectMeta);
+    }
+    if (data.containsKey('custom_subject')) {
+      context.handle(
+          _customSubjectMeta,
+          customSubject.isAcceptableOrUnknown(
+              data['custom_subject']!, _customSubjectMeta));
     }
     if (data.containsKey('requires_focus')) {
       context.handle(
@@ -3227,6 +4007,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       subject: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}subject'])!,
+      customSubject: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}custom_subject']),
       requiresFocus: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}requires_focus'])!,
       minFocusMin: attachedDatabase.typeMapping
@@ -3250,6 +4032,7 @@ class Task extends DataClass implements Insertable<Task> {
   final String id;
   final String name;
   final int subject;
+  final String? customSubject;
   final bool requiresFocus;
   final int minFocusMin;
   final int sunlightReward;
@@ -3259,6 +4042,7 @@ class Task extends DataClass implements Insertable<Task> {
       {required this.id,
       required this.name,
       required this.subject,
+      this.customSubject,
       required this.requiresFocus,
       required this.minFocusMin,
       required this.sunlightReward,
@@ -3270,6 +4054,9 @@ class Task extends DataClass implements Insertable<Task> {
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['subject'] = Variable<int>(subject);
+    if (!nullToAbsent || customSubject != null) {
+      map['custom_subject'] = Variable<String>(customSubject);
+    }
     map['requires_focus'] = Variable<bool>(requiresFocus);
     map['min_focus_min'] = Variable<int>(minFocusMin);
     map['sunlight_reward'] = Variable<int>(sunlightReward);
@@ -3285,6 +4072,9 @@ class Task extends DataClass implements Insertable<Task> {
       id: Value(id),
       name: Value(name),
       subject: Value(subject),
+      customSubject: customSubject == null && nullToAbsent
+          ? const Value.absent()
+          : Value(customSubject),
       requiresFocus: Value(requiresFocus),
       minFocusMin: Value(minFocusMin),
       sunlightReward: Value(sunlightReward),
@@ -3302,6 +4092,7 @@ class Task extends DataClass implements Insertable<Task> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       subject: serializer.fromJson<int>(json['subject']),
+      customSubject: serializer.fromJson<String?>(json['customSubject']),
       requiresFocus: serializer.fromJson<bool>(json['requiresFocus']),
       minFocusMin: serializer.fromJson<int>(json['minFocusMin']),
       sunlightReward: serializer.fromJson<int>(json['sunlightReward']),
@@ -3316,6 +4107,7 @@ class Task extends DataClass implements Insertable<Task> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'subject': serializer.toJson<int>(subject),
+      'customSubject': serializer.toJson<String?>(customSubject),
       'requiresFocus': serializer.toJson<bool>(requiresFocus),
       'minFocusMin': serializer.toJson<int>(minFocusMin),
       'sunlightReward': serializer.toJson<int>(sunlightReward),
@@ -3328,6 +4120,7 @@ class Task extends DataClass implements Insertable<Task> {
           {String? id,
           String? name,
           int? subject,
+          Value<String?> customSubject = const Value.absent(),
           bool? requiresFocus,
           int? minFocusMin,
           int? sunlightReward,
@@ -3337,6 +4130,8 @@ class Task extends DataClass implements Insertable<Task> {
         id: id ?? this.id,
         name: name ?? this.name,
         subject: subject ?? this.subject,
+        customSubject:
+            customSubject.present ? customSubject.value : this.customSubject,
         requiresFocus: requiresFocus ?? this.requiresFocus,
         minFocusMin: minFocusMin ?? this.minFocusMin,
         sunlightReward: sunlightReward ?? this.sunlightReward,
@@ -3348,6 +4143,9 @@ class Task extends DataClass implements Insertable<Task> {
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       subject: data.subject.present ? data.subject.value : this.subject,
+      customSubject: data.customSubject.present
+          ? data.customSubject.value
+          : this.customSubject,
       requiresFocus: data.requiresFocus.present
           ? data.requiresFocus.value
           : this.requiresFocus,
@@ -3368,6 +4166,7 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('subject: $subject, ')
+          ..write('customSubject: $customSubject, ')
           ..write('requiresFocus: $requiresFocus, ')
           ..write('minFocusMin: $minFocusMin, ')
           ..write('sunlightReward: $sunlightReward, ')
@@ -3378,8 +4177,8 @@ class Task extends DataClass implements Insertable<Task> {
   }
 
   @override
-  int get hashCode => Object.hash(id, name, subject, requiresFocus, minFocusMin,
-      sunlightReward, repeatRule, isCustom);
+  int get hashCode => Object.hash(id, name, subject, customSubject,
+      requiresFocus, minFocusMin, sunlightReward, repeatRule, isCustom);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3387,6 +4186,7 @@ class Task extends DataClass implements Insertable<Task> {
           other.id == this.id &&
           other.name == this.name &&
           other.subject == this.subject &&
+          other.customSubject == this.customSubject &&
           other.requiresFocus == this.requiresFocus &&
           other.minFocusMin == this.minFocusMin &&
           other.sunlightReward == this.sunlightReward &&
@@ -3398,6 +4198,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<String> id;
   final Value<String> name;
   final Value<int> subject;
+  final Value<String?> customSubject;
   final Value<bool> requiresFocus;
   final Value<int> minFocusMin;
   final Value<int> sunlightReward;
@@ -3408,6 +4209,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.subject = const Value.absent(),
+    this.customSubject = const Value.absent(),
     this.requiresFocus = const Value.absent(),
     this.minFocusMin = const Value.absent(),
     this.sunlightReward = const Value.absent(),
@@ -3419,6 +4221,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     required String id,
     required String name,
     required int subject,
+    this.customSubject = const Value.absent(),
     required bool requiresFocus,
     this.minFocusMin = const Value.absent(),
     this.sunlightReward = const Value.absent(),
@@ -3434,6 +4237,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<int>? subject,
+    Expression<String>? customSubject,
     Expression<bool>? requiresFocus,
     Expression<int>? minFocusMin,
     Expression<int>? sunlightReward,
@@ -3445,6 +4249,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (subject != null) 'subject': subject,
+      if (customSubject != null) 'custom_subject': customSubject,
       if (requiresFocus != null) 'requires_focus': requiresFocus,
       if (minFocusMin != null) 'min_focus_min': minFocusMin,
       if (sunlightReward != null) 'sunlight_reward': sunlightReward,
@@ -3458,6 +4263,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       {Value<String>? id,
       Value<String>? name,
       Value<int>? subject,
+      Value<String?>? customSubject,
       Value<bool>? requiresFocus,
       Value<int>? minFocusMin,
       Value<int>? sunlightReward,
@@ -3468,6 +4274,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       id: id ?? this.id,
       name: name ?? this.name,
       subject: subject ?? this.subject,
+      customSubject: customSubject ?? this.customSubject,
       requiresFocus: requiresFocus ?? this.requiresFocus,
       minFocusMin: minFocusMin ?? this.minFocusMin,
       sunlightReward: sunlightReward ?? this.sunlightReward,
@@ -3488,6 +4295,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     }
     if (subject.present) {
       map['subject'] = Variable<int>(subject.value);
+    }
+    if (customSubject.present) {
+      map['custom_subject'] = Variable<String>(customSubject.value);
     }
     if (requiresFocus.present) {
       map['requires_focus'] = Variable<bool>(requiresFocus.value);
@@ -3516,6 +4326,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('subject: $subject, ')
+          ..write('customSubject: $customSubject, ')
           ..write('requiresFocus: $requiresFocus, ')
           ..write('minFocusMin: $minFocusMin, ')
           ..write('sunlightReward: $sunlightReward, ')
@@ -3568,9 +4379,55 @@ class $CheckInsTable extends CheckIns with TableInfo<$CheckInsTable, CheckIn> {
       requiredDuringInsert: true,
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("is_perfect_day" IN (0, 1))'));
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, taskId, date, completedAt, sessionId, isPerfectDay];
+  late final GeneratedColumn<int> status = GeneratedColumn<int>(
+      'status', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _sunlightGrossMeta =
+      const VerificationMeta('sunlightGross');
+  @override
+  late final GeneratedColumn<double> sunlightGross = GeneratedColumn<double>(
+      'sunlight_gross', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _sunlightGrantedMeta =
+      const VerificationMeta('sunlightGranted');
+  @override
+  late final GeneratedColumn<double> sunlightGranted = GeneratedColumn<double>(
+      'sunlight_granted', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _resolvedAtMeta =
+      const VerificationMeta('resolvedAt');
+  @override
+  late final GeneratedColumn<DateTime> resolvedAt = GeneratedColumn<DateTime>(
+      'resolved_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _parentNoteMeta =
+      const VerificationMeta('parentNote');
+  @override
+  late final GeneratedColumn<String> parentNote = GeneratedColumn<String>(
+      'parent_note', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        taskId,
+        date,
+        completedAt,
+        sessionId,
+        isPerfectDay,
+        status,
+        sunlightGross,
+        sunlightGranted,
+        resolvedAt,
+        parentNote
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -3618,6 +4475,34 @@ class $CheckInsTable extends CheckIns with TableInfo<$CheckInsTable, CheckIn> {
     } else if (isInserting) {
       context.missing(_isPerfectDayMeta);
     }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('sunlight_gross')) {
+      context.handle(
+          _sunlightGrossMeta,
+          sunlightGross.isAcceptableOrUnknown(
+              data['sunlight_gross']!, _sunlightGrossMeta));
+    }
+    if (data.containsKey('sunlight_granted')) {
+      context.handle(
+          _sunlightGrantedMeta,
+          sunlightGranted.isAcceptableOrUnknown(
+              data['sunlight_granted']!, _sunlightGrantedMeta));
+    }
+    if (data.containsKey('resolved_at')) {
+      context.handle(
+          _resolvedAtMeta,
+          resolvedAt.isAcceptableOrUnknown(
+              data['resolved_at']!, _resolvedAtMeta));
+    }
+    if (data.containsKey('parent_note')) {
+      context.handle(
+          _parentNoteMeta,
+          parentNote.isAcceptableOrUnknown(
+              data['parent_note']!, _parentNoteMeta));
+    }
     return context;
   }
 
@@ -3639,6 +4524,16 @@ class $CheckInsTable extends CheckIns with TableInfo<$CheckInsTable, CheckIn> {
           .read(DriftSqlType.string, data['${effectivePrefix}session_id']),
       isPerfectDay: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}is_perfect_day'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}status'])!,
+      sunlightGross: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}sunlight_gross'])!,
+      sunlightGranted: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}sunlight_granted'])!,
+      resolvedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}resolved_at']),
+      parentNote: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}parent_note']),
     );
   }
 
@@ -3655,13 +4550,23 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
   final DateTime completedAt;
   final String? sessionId;
   final bool isPerfectDay;
+  final int status;
+  final double sunlightGross;
+  final double sunlightGranted;
+  final DateTime? resolvedAt;
+  final String? parentNote;
   const CheckIn(
       {required this.id,
       required this.taskId,
       required this.date,
       required this.completedAt,
       this.sessionId,
-      required this.isPerfectDay});
+      required this.isPerfectDay,
+      required this.status,
+      required this.sunlightGross,
+      required this.sunlightGranted,
+      this.resolvedAt,
+      this.parentNote});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3673,6 +4578,15 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       map['session_id'] = Variable<String>(sessionId);
     }
     map['is_perfect_day'] = Variable<bool>(isPerfectDay);
+    map['status'] = Variable<int>(status);
+    map['sunlight_gross'] = Variable<double>(sunlightGross);
+    map['sunlight_granted'] = Variable<double>(sunlightGranted);
+    if (!nullToAbsent || resolvedAt != null) {
+      map['resolved_at'] = Variable<DateTime>(resolvedAt);
+    }
+    if (!nullToAbsent || parentNote != null) {
+      map['parent_note'] = Variable<String>(parentNote);
+    }
     return map;
   }
 
@@ -3686,6 +4600,15 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           ? const Value.absent()
           : Value(sessionId),
       isPerfectDay: Value(isPerfectDay),
+      status: Value(status),
+      sunlightGross: Value(sunlightGross),
+      sunlightGranted: Value(sunlightGranted),
+      resolvedAt: resolvedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resolvedAt),
+      parentNote: parentNote == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentNote),
     );
   }
 
@@ -3699,6 +4622,11 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       completedAt: serializer.fromJson<DateTime>(json['completedAt']),
       sessionId: serializer.fromJson<String?>(json['sessionId']),
       isPerfectDay: serializer.fromJson<bool>(json['isPerfectDay']),
+      status: serializer.fromJson<int>(json['status']),
+      sunlightGross: serializer.fromJson<double>(json['sunlightGross']),
+      sunlightGranted: serializer.fromJson<double>(json['sunlightGranted']),
+      resolvedAt: serializer.fromJson<DateTime?>(json['resolvedAt']),
+      parentNote: serializer.fromJson<String?>(json['parentNote']),
     );
   }
   @override
@@ -3711,6 +4639,11 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       'completedAt': serializer.toJson<DateTime>(completedAt),
       'sessionId': serializer.toJson<String?>(sessionId),
       'isPerfectDay': serializer.toJson<bool>(isPerfectDay),
+      'status': serializer.toJson<int>(status),
+      'sunlightGross': serializer.toJson<double>(sunlightGross),
+      'sunlightGranted': serializer.toJson<double>(sunlightGranted),
+      'resolvedAt': serializer.toJson<DateTime?>(resolvedAt),
+      'parentNote': serializer.toJson<String?>(parentNote),
     };
   }
 
@@ -3720,7 +4653,12 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           DateTime? date,
           DateTime? completedAt,
           Value<String?> sessionId = const Value.absent(),
-          bool? isPerfectDay}) =>
+          bool? isPerfectDay,
+          int? status,
+          double? sunlightGross,
+          double? sunlightGranted,
+          Value<DateTime?> resolvedAt = const Value.absent(),
+          Value<String?> parentNote = const Value.absent()}) =>
       CheckIn(
         id: id ?? this.id,
         taskId: taskId ?? this.taskId,
@@ -3728,6 +4666,11 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
         completedAt: completedAt ?? this.completedAt,
         sessionId: sessionId.present ? sessionId.value : this.sessionId,
         isPerfectDay: isPerfectDay ?? this.isPerfectDay,
+        status: status ?? this.status,
+        sunlightGross: sunlightGross ?? this.sunlightGross,
+        sunlightGranted: sunlightGranted ?? this.sunlightGranted,
+        resolvedAt: resolvedAt.present ? resolvedAt.value : this.resolvedAt,
+        parentNote: parentNote.present ? parentNote.value : this.parentNote,
       );
   CheckIn copyWithCompanion(CheckInsCompanion data) {
     return CheckIn(
@@ -3740,6 +4683,17 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       isPerfectDay: data.isPerfectDay.present
           ? data.isPerfectDay.value
           : this.isPerfectDay,
+      status: data.status.present ? data.status.value : this.status,
+      sunlightGross: data.sunlightGross.present
+          ? data.sunlightGross.value
+          : this.sunlightGross,
+      sunlightGranted: data.sunlightGranted.present
+          ? data.sunlightGranted.value
+          : this.sunlightGranted,
+      resolvedAt:
+          data.resolvedAt.present ? data.resolvedAt.value : this.resolvedAt,
+      parentNote:
+          data.parentNote.present ? data.parentNote.value : this.parentNote,
     );
   }
 
@@ -3751,14 +4705,29 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           ..write('date: $date, ')
           ..write('completedAt: $completedAt, ')
           ..write('sessionId: $sessionId, ')
-          ..write('isPerfectDay: $isPerfectDay')
+          ..write('isPerfectDay: $isPerfectDay, ')
+          ..write('status: $status, ')
+          ..write('sunlightGross: $sunlightGross, ')
+          ..write('sunlightGranted: $sunlightGranted, ')
+          ..write('resolvedAt: $resolvedAt, ')
+          ..write('parentNote: $parentNote')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, taskId, date, completedAt, sessionId, isPerfectDay);
+  int get hashCode => Object.hash(
+      id,
+      taskId,
+      date,
+      completedAt,
+      sessionId,
+      isPerfectDay,
+      status,
+      sunlightGross,
+      sunlightGranted,
+      resolvedAt,
+      parentNote);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3768,7 +4737,12 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           other.date == this.date &&
           other.completedAt == this.completedAt &&
           other.sessionId == this.sessionId &&
-          other.isPerfectDay == this.isPerfectDay);
+          other.isPerfectDay == this.isPerfectDay &&
+          other.status == this.status &&
+          other.sunlightGross == this.sunlightGross &&
+          other.sunlightGranted == this.sunlightGranted &&
+          other.resolvedAt == this.resolvedAt &&
+          other.parentNote == this.parentNote);
 }
 
 class CheckInsCompanion extends UpdateCompanion<CheckIn> {
@@ -3778,6 +4752,11 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
   final Value<DateTime> completedAt;
   final Value<String?> sessionId;
   final Value<bool> isPerfectDay;
+  final Value<int> status;
+  final Value<double> sunlightGross;
+  final Value<double> sunlightGranted;
+  final Value<DateTime?> resolvedAt;
+  final Value<String?> parentNote;
   final Value<int> rowid;
   const CheckInsCompanion({
     this.id = const Value.absent(),
@@ -3786,6 +4765,11 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     this.completedAt = const Value.absent(),
     this.sessionId = const Value.absent(),
     this.isPerfectDay = const Value.absent(),
+    this.status = const Value.absent(),
+    this.sunlightGross = const Value.absent(),
+    this.sunlightGranted = const Value.absent(),
+    this.resolvedAt = const Value.absent(),
+    this.parentNote = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CheckInsCompanion.insert({
@@ -3795,6 +4779,11 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     required DateTime completedAt,
     this.sessionId = const Value.absent(),
     required bool isPerfectDay,
+    this.status = const Value.absent(),
+    this.sunlightGross = const Value.absent(),
+    this.sunlightGranted = const Value.absent(),
+    this.resolvedAt = const Value.absent(),
+    this.parentNote = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         taskId = Value(taskId),
@@ -3808,6 +4797,11 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     Expression<DateTime>? completedAt,
     Expression<String>? sessionId,
     Expression<bool>? isPerfectDay,
+    Expression<int>? status,
+    Expression<double>? sunlightGross,
+    Expression<double>? sunlightGranted,
+    Expression<DateTime>? resolvedAt,
+    Expression<String>? parentNote,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3817,6 +4811,11 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
       if (completedAt != null) 'completed_at': completedAt,
       if (sessionId != null) 'session_id': sessionId,
       if (isPerfectDay != null) 'is_perfect_day': isPerfectDay,
+      if (status != null) 'status': status,
+      if (sunlightGross != null) 'sunlight_gross': sunlightGross,
+      if (sunlightGranted != null) 'sunlight_granted': sunlightGranted,
+      if (resolvedAt != null) 'resolved_at': resolvedAt,
+      if (parentNote != null) 'parent_note': parentNote,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3828,6 +4827,11 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
       Value<DateTime>? completedAt,
       Value<String?>? sessionId,
       Value<bool>? isPerfectDay,
+      Value<int>? status,
+      Value<double>? sunlightGross,
+      Value<double>? sunlightGranted,
+      Value<DateTime?>? resolvedAt,
+      Value<String?>? parentNote,
       Value<int>? rowid}) {
     return CheckInsCompanion(
       id: id ?? this.id,
@@ -3836,6 +4840,11 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
       completedAt: completedAt ?? this.completedAt,
       sessionId: sessionId ?? this.sessionId,
       isPerfectDay: isPerfectDay ?? this.isPerfectDay,
+      status: status ?? this.status,
+      sunlightGross: sunlightGross ?? this.sunlightGross,
+      sunlightGranted: sunlightGranted ?? this.sunlightGranted,
+      resolvedAt: resolvedAt ?? this.resolvedAt,
+      parentNote: parentNote ?? this.parentNote,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3861,6 +4870,21 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     if (isPerfectDay.present) {
       map['is_perfect_day'] = Variable<bool>(isPerfectDay.value);
     }
+    if (status.present) {
+      map['status'] = Variable<int>(status.value);
+    }
+    if (sunlightGross.present) {
+      map['sunlight_gross'] = Variable<double>(sunlightGross.value);
+    }
+    if (sunlightGranted.present) {
+      map['sunlight_granted'] = Variable<double>(sunlightGranted.value);
+    }
+    if (resolvedAt.present) {
+      map['resolved_at'] = Variable<DateTime>(resolvedAt.value);
+    }
+    if (parentNote.present) {
+      map['parent_note'] = Variable<String>(parentNote.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3876,6 +4900,11 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
           ..write('completedAt: $completedAt, ')
           ..write('sessionId: $sessionId, ')
           ..write('isPerfectDay: $isPerfectDay, ')
+          ..write('status: $status, ')
+          ..write('sunlightGross: $sunlightGross, ')
+          ..write('sunlightGranted: $sunlightGranted, ')
+          ..write('resolvedAt: $resolvedAt, ')
+          ..write('parentNote: $parentNote, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4423,6 +5452,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $SettingsTable settings = $SettingsTable(this);
+  late final $PlantsTable plants = $PlantsTable(this);
   late final $FocusSessionsTable focusSessions = $FocusSessionsTable(this);
   late final $SunlightLedgersTable sunlightLedgers =
       $SunlightLedgersTable(this);
@@ -4437,6 +5467,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $CooldownCountersTable(this);
   late final $TrackingEventsTable trackingEvents = $TrackingEventsTable(this);
   late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
+  late final PlantDao plantDao = PlantDao(this as AppDatabase);
+  late final TaskDao taskDao = TaskDao(this as AppDatabase);
   late final SunlightLedgerDao sunlightLedgerDao =
       SunlightLedgerDao(this as AppDatabase);
   late final RewardTemplateDao rewardTemplateDao =
@@ -4455,6 +5487,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
         settings,
+        plants,
         focusSessions,
         sunlightLedgers,
         rewardTemplates,
@@ -4488,6 +5521,7 @@ typedef $$SettingsTableCreateCompanionBuilder = SettingsCompanion Function({
   Value<double> currencyRate,
   Value<bool> themeDark,
   Value<bool> autonomousMode,
+  Value<int> gardenPotCapacity,
 });
 typedef $$SettingsTableUpdateCompanionBuilder = SettingsCompanion Function({
   Value<int> id,
@@ -4510,6 +5544,7 @@ typedef $$SettingsTableUpdateCompanionBuilder = SettingsCompanion Function({
   Value<double> currencyRate,
   Value<bool> themeDark,
   Value<bool> autonomousMode,
+  Value<int> gardenPotCapacity,
 });
 
 class $$SettingsTableFilterComposer
@@ -4588,6 +5623,10 @@ class $$SettingsTableFilterComposer
 
   ColumnFilters<bool> get autonomousMode => $composableBuilder(
       column: $table.autonomousMode,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get gardenPotCapacity => $composableBuilder(
+      column: $table.gardenPotCapacity,
       builder: (column) => ColumnFilters(column));
 }
 
@@ -4671,6 +5710,10 @@ class $$SettingsTableOrderingComposer
   ColumnOrderings<bool> get autonomousMode => $composableBuilder(
       column: $table.autonomousMode,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get gardenPotCapacity => $composableBuilder(
+      column: $table.gardenPotCapacity,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$SettingsTableAnnotationComposer
@@ -4741,6 +5784,9 @@ class $$SettingsTableAnnotationComposer
 
   GeneratedColumn<bool> get autonomousMode => $composableBuilder(
       column: $table.autonomousMode, builder: (column) => column);
+
+  GeneratedColumn<int> get gardenPotCapacity => $composableBuilder(
+      column: $table.gardenPotCapacity, builder: (column) => column);
 }
 
 class $$SettingsTableTableManager extends RootTableManager<
@@ -4786,6 +5832,7 @@ class $$SettingsTableTableManager extends RootTableManager<
             Value<double> currencyRate = const Value.absent(),
             Value<bool> themeDark = const Value.absent(),
             Value<bool> autonomousMode = const Value.absent(),
+            Value<int> gardenPotCapacity = const Value.absent(),
           }) =>
               SettingsCompanion(
             id: id,
@@ -4808,6 +5855,7 @@ class $$SettingsTableTableManager extends RootTableManager<
             currencyRate: currencyRate,
             themeDark: themeDark,
             autonomousMode: autonomousMode,
+            gardenPotCapacity: gardenPotCapacity,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -4830,6 +5878,7 @@ class $$SettingsTableTableManager extends RootTableManager<
             Value<double> currencyRate = const Value.absent(),
             Value<bool> themeDark = const Value.absent(),
             Value<bool> autonomousMode = const Value.absent(),
+            Value<int> gardenPotCapacity = const Value.absent(),
           }) =>
               SettingsCompanion.insert(
             id: id,
@@ -4852,6 +5901,7 @@ class $$SettingsTableTableManager extends RootTableManager<
             currencyRate: currencyRate,
             themeDark: themeDark,
             autonomousMode: autonomousMode,
+            gardenPotCapacity: gardenPotCapacity,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -4871,6 +5921,328 @@ typedef $$SettingsTableProcessedTableManager = ProcessedTableManager<
     $$SettingsTableUpdateCompanionBuilder,
     (Setting, BaseReferences<_$AppDatabase, $SettingsTable, Setting>),
     Setting,
+    PrefetchHooks Function()>;
+typedef $$PlantsTableCreateCompanionBuilder = PlantsCompanion Function({
+  required String id,
+  required String speciesId,
+  required int potIndex,
+  required int stage,
+  required DateTime stageStartedAt,
+  Value<double> growthProgress,
+  Value<double> growthFactor,
+  Value<bool> waterUsed,
+  Value<bool> fertilizerUsed,
+  required int status,
+  required DateTime plantedAt,
+  Value<DateTime?> lastWaterAt,
+  Value<DateTime?> wiltedAt,
+  Value<DateTime?> deadAt,
+  Value<int> mood,
+  Value<int> rowid,
+});
+typedef $$PlantsTableUpdateCompanionBuilder = PlantsCompanion Function({
+  Value<String> id,
+  Value<String> speciesId,
+  Value<int> potIndex,
+  Value<int> stage,
+  Value<DateTime> stageStartedAt,
+  Value<double> growthProgress,
+  Value<double> growthFactor,
+  Value<bool> waterUsed,
+  Value<bool> fertilizerUsed,
+  Value<int> status,
+  Value<DateTime> plantedAt,
+  Value<DateTime?> lastWaterAt,
+  Value<DateTime?> wiltedAt,
+  Value<DateTime?> deadAt,
+  Value<int> mood,
+  Value<int> rowid,
+});
+
+class $$PlantsTableFilterComposer
+    extends Composer<_$AppDatabase, $PlantsTable> {
+  $$PlantsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get speciesId => $composableBuilder(
+      column: $table.speciesId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get potIndex => $composableBuilder(
+      column: $table.potIndex, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get stage => $composableBuilder(
+      column: $table.stage, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get stageStartedAt => $composableBuilder(
+      column: $table.stageStartedAt,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get growthProgress => $composableBuilder(
+      column: $table.growthProgress,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get growthFactor => $composableBuilder(
+      column: $table.growthFactor, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get waterUsed => $composableBuilder(
+      column: $table.waterUsed, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get fertilizerUsed => $composableBuilder(
+      column: $table.fertilizerUsed,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get plantedAt => $composableBuilder(
+      column: $table.plantedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get lastWaterAt => $composableBuilder(
+      column: $table.lastWaterAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get wiltedAt => $composableBuilder(
+      column: $table.wiltedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get deadAt => $composableBuilder(
+      column: $table.deadAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get mood => $composableBuilder(
+      column: $table.mood, builder: (column) => ColumnFilters(column));
+}
+
+class $$PlantsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PlantsTable> {
+  $$PlantsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get speciesId => $composableBuilder(
+      column: $table.speciesId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get potIndex => $composableBuilder(
+      column: $table.potIndex, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get stage => $composableBuilder(
+      column: $table.stage, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get stageStartedAt => $composableBuilder(
+      column: $table.stageStartedAt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get growthProgress => $composableBuilder(
+      column: $table.growthProgress,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get growthFactor => $composableBuilder(
+      column: $table.growthFactor,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get waterUsed => $composableBuilder(
+      column: $table.waterUsed, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get fertilizerUsed => $composableBuilder(
+      column: $table.fertilizerUsed,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get plantedAt => $composableBuilder(
+      column: $table.plantedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get lastWaterAt => $composableBuilder(
+      column: $table.lastWaterAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get wiltedAt => $composableBuilder(
+      column: $table.wiltedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get deadAt => $composableBuilder(
+      column: $table.deadAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get mood => $composableBuilder(
+      column: $table.mood, builder: (column) => ColumnOrderings(column));
+}
+
+class $$PlantsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PlantsTable> {
+  $$PlantsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get speciesId =>
+      $composableBuilder(column: $table.speciesId, builder: (column) => column);
+
+  GeneratedColumn<int> get potIndex =>
+      $composableBuilder(column: $table.potIndex, builder: (column) => column);
+
+  GeneratedColumn<int> get stage =>
+      $composableBuilder(column: $table.stage, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get stageStartedAt => $composableBuilder(
+      column: $table.stageStartedAt, builder: (column) => column);
+
+  GeneratedColumn<double> get growthProgress => $composableBuilder(
+      column: $table.growthProgress, builder: (column) => column);
+
+  GeneratedColumn<double> get growthFactor => $composableBuilder(
+      column: $table.growthFactor, builder: (column) => column);
+
+  GeneratedColumn<bool> get waterUsed =>
+      $composableBuilder(column: $table.waterUsed, builder: (column) => column);
+
+  GeneratedColumn<bool> get fertilizerUsed => $composableBuilder(
+      column: $table.fertilizerUsed, builder: (column) => column);
+
+  GeneratedColumn<int> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get plantedAt =>
+      $composableBuilder(column: $table.plantedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastWaterAt => $composableBuilder(
+      column: $table.lastWaterAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get wiltedAt =>
+      $composableBuilder(column: $table.wiltedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deadAt =>
+      $composableBuilder(column: $table.deadAt, builder: (column) => column);
+
+  GeneratedColumn<int> get mood =>
+      $composableBuilder(column: $table.mood, builder: (column) => column);
+}
+
+class $$PlantsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $PlantsTable,
+    Plant,
+    $$PlantsTableFilterComposer,
+    $$PlantsTableOrderingComposer,
+    $$PlantsTableAnnotationComposer,
+    $$PlantsTableCreateCompanionBuilder,
+    $$PlantsTableUpdateCompanionBuilder,
+    (Plant, BaseReferences<_$AppDatabase, $PlantsTable, Plant>),
+    Plant,
+    PrefetchHooks Function()> {
+  $$PlantsTableTableManager(_$AppDatabase db, $PlantsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PlantsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PlantsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PlantsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> speciesId = const Value.absent(),
+            Value<int> potIndex = const Value.absent(),
+            Value<int> stage = const Value.absent(),
+            Value<DateTime> stageStartedAt = const Value.absent(),
+            Value<double> growthProgress = const Value.absent(),
+            Value<double> growthFactor = const Value.absent(),
+            Value<bool> waterUsed = const Value.absent(),
+            Value<bool> fertilizerUsed = const Value.absent(),
+            Value<int> status = const Value.absent(),
+            Value<DateTime> plantedAt = const Value.absent(),
+            Value<DateTime?> lastWaterAt = const Value.absent(),
+            Value<DateTime?> wiltedAt = const Value.absent(),
+            Value<DateTime?> deadAt = const Value.absent(),
+            Value<int> mood = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              PlantsCompanion(
+            id: id,
+            speciesId: speciesId,
+            potIndex: potIndex,
+            stage: stage,
+            stageStartedAt: stageStartedAt,
+            growthProgress: growthProgress,
+            growthFactor: growthFactor,
+            waterUsed: waterUsed,
+            fertilizerUsed: fertilizerUsed,
+            status: status,
+            plantedAt: plantedAt,
+            lastWaterAt: lastWaterAt,
+            wiltedAt: wiltedAt,
+            deadAt: deadAt,
+            mood: mood,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String speciesId,
+            required int potIndex,
+            required int stage,
+            required DateTime stageStartedAt,
+            Value<double> growthProgress = const Value.absent(),
+            Value<double> growthFactor = const Value.absent(),
+            Value<bool> waterUsed = const Value.absent(),
+            Value<bool> fertilizerUsed = const Value.absent(),
+            required int status,
+            required DateTime plantedAt,
+            Value<DateTime?> lastWaterAt = const Value.absent(),
+            Value<DateTime?> wiltedAt = const Value.absent(),
+            Value<DateTime?> deadAt = const Value.absent(),
+            Value<int> mood = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              PlantsCompanion.insert(
+            id: id,
+            speciesId: speciesId,
+            potIndex: potIndex,
+            stage: stage,
+            stageStartedAt: stageStartedAt,
+            growthProgress: growthProgress,
+            growthFactor: growthFactor,
+            waterUsed: waterUsed,
+            fertilizerUsed: fertilizerUsed,
+            status: status,
+            plantedAt: plantedAt,
+            lastWaterAt: lastWaterAt,
+            wiltedAt: wiltedAt,
+            deadAt: deadAt,
+            mood: mood,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$PlantsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $PlantsTable,
+    Plant,
+    $$PlantsTableFilterComposer,
+    $$PlantsTableOrderingComposer,
+    $$PlantsTableAnnotationComposer,
+    $$PlantsTableCreateCompanionBuilder,
+    $$PlantsTableUpdateCompanionBuilder,
+    (Plant, BaseReferences<_$AppDatabase, $PlantsTable, Plant>),
+    Plant,
     PrefetchHooks Function()>;
 typedef $$FocusSessionsTableCreateCompanionBuilder = FocusSessionsCompanion
     Function({
@@ -5964,6 +7336,7 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   required String id,
   required String name,
   required int subject,
+  Value<String?> customSubject,
   required bool requiresFocus,
   Value<int> minFocusMin,
   Value<int> sunlightReward,
@@ -5975,6 +7348,7 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<String> id,
   Value<String> name,
   Value<int> subject,
+  Value<String?> customSubject,
   Value<bool> requiresFocus,
   Value<int> minFocusMin,
   Value<int> sunlightReward,
@@ -5999,6 +7373,9 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<int> get subject => $composableBuilder(
       column: $table.subject, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get customSubject => $composableBuilder(
+      column: $table.customSubject, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get requiresFocus => $composableBuilder(
       column: $table.requiresFocus, builder: (column) => ColumnFilters(column));
@@ -6035,6 +7412,10 @@ class $$TasksTableOrderingComposer
   ColumnOrderings<int> get subject => $composableBuilder(
       column: $table.subject, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get customSubject => $composableBuilder(
+      column: $table.customSubject,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<bool> get requiresFocus => $composableBuilder(
       column: $table.requiresFocus,
       builder: (column) => ColumnOrderings(column));
@@ -6070,6 +7451,9 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumn<int> get subject =>
       $composableBuilder(column: $table.subject, builder: (column) => column);
+
+  GeneratedColumn<String> get customSubject => $composableBuilder(
+      column: $table.customSubject, builder: (column) => column);
 
   GeneratedColumn<bool> get requiresFocus => $composableBuilder(
       column: $table.requiresFocus, builder: (column) => column);
@@ -6113,6 +7497,7 @@ class $$TasksTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<int> subject = const Value.absent(),
+            Value<String?> customSubject = const Value.absent(),
             Value<bool> requiresFocus = const Value.absent(),
             Value<int> minFocusMin = const Value.absent(),
             Value<int> sunlightReward = const Value.absent(),
@@ -6124,6 +7509,7 @@ class $$TasksTableTableManager extends RootTableManager<
             id: id,
             name: name,
             subject: subject,
+            customSubject: customSubject,
             requiresFocus: requiresFocus,
             minFocusMin: minFocusMin,
             sunlightReward: sunlightReward,
@@ -6135,6 +7521,7 @@ class $$TasksTableTableManager extends RootTableManager<
             required String id,
             required String name,
             required int subject,
+            Value<String?> customSubject = const Value.absent(),
             required bool requiresFocus,
             Value<int> minFocusMin = const Value.absent(),
             Value<int> sunlightReward = const Value.absent(),
@@ -6146,6 +7533,7 @@ class $$TasksTableTableManager extends RootTableManager<
             id: id,
             name: name,
             subject: subject,
+            customSubject: customSubject,
             requiresFocus: requiresFocus,
             minFocusMin: minFocusMin,
             sunlightReward: sunlightReward,
@@ -6179,6 +7567,11 @@ typedef $$CheckInsTableCreateCompanionBuilder = CheckInsCompanion Function({
   required DateTime completedAt,
   Value<String?> sessionId,
   required bool isPerfectDay,
+  Value<int> status,
+  Value<double> sunlightGross,
+  Value<double> sunlightGranted,
+  Value<DateTime?> resolvedAt,
+  Value<String?> parentNote,
   Value<int> rowid,
 });
 typedef $$CheckInsTableUpdateCompanionBuilder = CheckInsCompanion Function({
@@ -6188,6 +7581,11 @@ typedef $$CheckInsTableUpdateCompanionBuilder = CheckInsCompanion Function({
   Value<DateTime> completedAt,
   Value<String?> sessionId,
   Value<bool> isPerfectDay,
+  Value<int> status,
+  Value<double> sunlightGross,
+  Value<double> sunlightGranted,
+  Value<DateTime?> resolvedAt,
+  Value<String?> parentNote,
   Value<int> rowid,
 });
 
@@ -6217,6 +7615,22 @@ class $$CheckInsTableFilterComposer
 
   ColumnFilters<bool> get isPerfectDay => $composableBuilder(
       column: $table.isPerfectDay, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get sunlightGross => $composableBuilder(
+      column: $table.sunlightGross, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get sunlightGranted => $composableBuilder(
+      column: $table.sunlightGranted,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get resolvedAt => $composableBuilder(
+      column: $table.resolvedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get parentNote => $composableBuilder(
+      column: $table.parentNote, builder: (column) => ColumnFilters(column));
 }
 
 class $$CheckInsTableOrderingComposer
@@ -6246,6 +7660,23 @@ class $$CheckInsTableOrderingComposer
   ColumnOrderings<bool> get isPerfectDay => $composableBuilder(
       column: $table.isPerfectDay,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get sunlightGross => $composableBuilder(
+      column: $table.sunlightGross,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get sunlightGranted => $composableBuilder(
+      column: $table.sunlightGranted,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get resolvedAt => $composableBuilder(
+      column: $table.resolvedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get parentNote => $composableBuilder(
+      column: $table.parentNote, builder: (column) => ColumnOrderings(column));
 }
 
 class $$CheckInsTableAnnotationComposer
@@ -6274,6 +7705,21 @@ class $$CheckInsTableAnnotationComposer
 
   GeneratedColumn<bool> get isPerfectDay => $composableBuilder(
       column: $table.isPerfectDay, builder: (column) => column);
+
+  GeneratedColumn<int> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<double> get sunlightGross => $composableBuilder(
+      column: $table.sunlightGross, builder: (column) => column);
+
+  GeneratedColumn<double> get sunlightGranted => $composableBuilder(
+      column: $table.sunlightGranted, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get resolvedAt => $composableBuilder(
+      column: $table.resolvedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get parentNote => $composableBuilder(
+      column: $table.parentNote, builder: (column) => column);
 }
 
 class $$CheckInsTableTableManager extends RootTableManager<
@@ -6305,6 +7751,11 @@ class $$CheckInsTableTableManager extends RootTableManager<
             Value<DateTime> completedAt = const Value.absent(),
             Value<String?> sessionId = const Value.absent(),
             Value<bool> isPerfectDay = const Value.absent(),
+            Value<int> status = const Value.absent(),
+            Value<double> sunlightGross = const Value.absent(),
+            Value<double> sunlightGranted = const Value.absent(),
+            Value<DateTime?> resolvedAt = const Value.absent(),
+            Value<String?> parentNote = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               CheckInsCompanion(
@@ -6314,6 +7765,11 @@ class $$CheckInsTableTableManager extends RootTableManager<
             completedAt: completedAt,
             sessionId: sessionId,
             isPerfectDay: isPerfectDay,
+            status: status,
+            sunlightGross: sunlightGross,
+            sunlightGranted: sunlightGranted,
+            resolvedAt: resolvedAt,
+            parentNote: parentNote,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -6323,6 +7779,11 @@ class $$CheckInsTableTableManager extends RootTableManager<
             required DateTime completedAt,
             Value<String?> sessionId = const Value.absent(),
             required bool isPerfectDay,
+            Value<int> status = const Value.absent(),
+            Value<double> sunlightGross = const Value.absent(),
+            Value<double> sunlightGranted = const Value.absent(),
+            Value<DateTime?> resolvedAt = const Value.absent(),
+            Value<String?> parentNote = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               CheckInsCompanion.insert(
@@ -6332,6 +7793,11 @@ class $$CheckInsTableTableManager extends RootTableManager<
             completedAt: completedAt,
             sessionId: sessionId,
             isPerfectDay: isPerfectDay,
+            status: status,
+            sunlightGross: sunlightGross,
+            sunlightGranted: sunlightGranted,
+            resolvedAt: resolvedAt,
+            parentNote: parentNote,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -6677,6 +8143,8 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
+  $$PlantsTableTableManager get plants =>
+      $$PlantsTableTableManager(_db, _db.plants);
   $$FocusSessionsTableTableManager get focusSessions =>
       $$FocusSessionsTableTableManager(_db, _db.focusSessions);
   $$SunlightLedgersTableTableManager get sunlightLedgers =>

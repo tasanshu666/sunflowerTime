@@ -10,7 +10,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 class Settings extends Table {
   IntColumn get id => integer()();
   IntColumn get ageTier => integer()(); // 0=low,1=mid,2=high（D2 三档；迁移时旧 1 重编号为 2）
-  IntColumn get nightBoundaryHour => integer().withDefault(const Constant(21))();
+  IntColumn get nightBoundaryHour => integer().withDefault(const Constant(kNightBoundaryDefaultHour))();
   IntColumn get nightBoundaryMinute => integer().withDefault(const Constant(0))();
   IntColumn get dailyFocusCap => integer()();
   IntColumn get dailyAppCapMinutes => integer()();
@@ -22,12 +22,36 @@ class Settings extends Table {
   BoolColumn get soundOn => boolean().withDefault(const Constant(true))();
   BoolColumn get bgmOn => boolean().withDefault(const Constant(false))();
   BoolColumn get detectionOn => boolean().withDefault(const Constant(true))();
-  IntColumn get autoConfirmSingleHigh => integer().withDefault(const Constant(130))();
-  IntColumn get autoConfirmSingleLow => integer().withDefault(const Constant(50))();
-  RealColumn get autoConfirmMonthlyPct => real().withDefault(const Constant(0.25))();
-  RealColumn get currencyRate => real().withDefault(const Constant(0.25))();
-  BoolColumn get themeDark => boolean().withDefault(const Constant(true))();
+  IntColumn get autoConfirmSingleHigh => integer().withDefault(const Constant(kAutoApproveMaxCostHigh))();
+  IntColumn get autoConfirmSingleLow => integer().withDefault(const Constant(kAutoApproveMaxCostLow))();
+  RealColumn get autoConfirmMonthlyPct => real().withDefault(const Constant(kAutoApprovePoolRatio))();
+  RealColumn get currencyRate => real().withDefault(const Constant(kAutoApprovePoolRatio))();
+  BoolColumn get themeDark => boolean().withDefault(const Constant(false))();
   BoolColumn get autonomousMode => boolean().withDefault(const Constant(false))();
+  IntColumn get gardenPotCapacity =>
+      integer().withDefault(const Constant(kGardenPotCapacityDefault))(); // 花园花盆容量（M3 §3.1）
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 植物（§3.1 plant，M3 schemaVersion 4 新增）。
+class Plants extends Table {
+  TextColumn get id => text()();
+  TextColumn get speciesId => text()();
+  IntColumn get potIndex => integer()();
+  IntColumn get stage => integer()(); // PlantStage index
+  DateTimeColumn get stageStartedAt => dateTime()();
+  RealColumn get growthProgress => real().withDefault(const Constant(0.0))(); // 0..1
+  RealColumn get growthFactor => real().withDefault(const Constant(1.0))(); // 1.0 / 1.3
+  BoolColumn get waterUsed => boolean().withDefault(const Constant(false))();
+  BoolColumn get fertilizerUsed => boolean().withDefault(const Constant(false))();
+  IntColumn get status => integer()(); // PlantStatus index
+  DateTimeColumn get plantedAt => dateTime()();
+  DateTimeColumn get lastWaterAt => dateTime().nullable()();
+  DateTimeColumn get wiltedAt => dateTime().nullable()();
+  DateTimeColumn get deadAt => dateTime().nullable()();
+  IntColumn get mood => integer().withDefault(const Constant(0))(); // PlantMood index
 
   @override
   Set<Column> get primaryKey => {id};
@@ -115,8 +139,10 @@ class Tasks extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   IntColumn get subject => integer()(); // TaskSubject index
+  TextColumn get customSubject =>
+      text().nullable()(); // 自定义科目名（subject==custom 时生效，M3 修订）
   BoolColumn get requiresFocus => boolean()();
-  IntColumn get minFocusMin => integer().withDefault(const Constant(15))();
+  IntColumn get minFocusMin => integer().withDefault(const Constant(kValidFocusMinutes))(); // 任务最少专注分钟默认，对齐 WFD 门槛（§8.3）
   IntColumn get sunlightReward => integer().withDefault(const Constant(12))();
   TextColumn get repeatRule => text().nullable()();
   BoolColumn get isCustom => boolean()();
@@ -125,7 +151,7 @@ class Tasks extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// 打卡（§3.1 check_in）。
+/// 打卡（§3.1 check_in）。M4（v6）新增 5 列，承载家长核销流水。
 class CheckIns extends Table {
   TextColumn get id => text()();
   TextColumn get taskId => text()();
@@ -133,6 +159,14 @@ class CheckIns extends Table {
   DateTimeColumn get completedAt => dateTime()();
   TextColumn get sessionId => text().nullable()();
   BoolColumn get isPerfectDay => boolean()();
+  IntColumn get status =>
+      integer().withDefault(const Constant(0))(); // CheckInStatus index（0=verified）
+  RealColumn get sunlightGross =>
+      real().withDefault(const Constant(0.0))(); // 应发（含完美日系数）
+  RealColumn get sunlightGranted =>
+      real().withDefault(const Constant(0.0))(); // 实际入账；pending 时为 0
+  DateTimeColumn get resolvedAt => dateTime().nullable()(); // 家长处理时间
+  TextColumn get parentNote => text().nullable()(); // 驳回理由
 
   @override
   Set<Column> get primaryKey => {id};

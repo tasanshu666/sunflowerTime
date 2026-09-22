@@ -28,14 +28,19 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/entities/tracking_event.dart';
 import 'package:sunflower_time/domain/services/focus_engine.dart';
 import 'package:sunflower_time/domain/services/presence_detector.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
+import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/platform/dnd_controller.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
+import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/feedback_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
 
@@ -45,10 +50,16 @@ class FocusPage extends ConsumerStatefulWidget {
   /// 专注期是否启用系统勿扰（DND）屏蔽通知；入口页可选，默认开（F01）。
   final bool dnd;
 
+  /// 从「成长」联动项进入时携带的成长项 id（M4）；自由专注为 null。
+  ///
+  /// 非空时，本次专注结束后按会话自动结算该成长项（见 [_FocusPageState._handleOutcome]）。
+  final String? taskId;
+
   const FocusPage({
     super.key,
     this.plannedMinutes = kFocusDurationDefaultMinutes,
     this.dnd = true,
+    this.taskId,
   });
 
   @override
@@ -291,9 +302,72 @@ class _FocusPageState extends ConsumerState<FocusPage>
               end: DateTime.now(),
               plannedMin: widget.plannedMinutes,
             );
+
+    // M4：联动成长项自动结算（仅从「成长」进入的专注带 taskId）。
+    //
+    // 纪律：此处任何失败 / 取不到会话 **都不影响「专注本身已成功」**（专注阳光已由上面的
+    // settle 入账），只影响该成长项，故一律降级为非阻塞提示，**绝不回滚、绝不报错页**。
+    TaskCheckInOutcome? taskOutcome;
+    String? taskName;
+    bool taskSettleSkipped = false;
+    final String? taskId = widget.taskId;
+    if (taskId != null) {
+      try {
+        final List<Task> tasks = await ref.read(taskRepositoryProvider).tasks();
+        Task? task;
+        for (final Task x in tasks) {
+          if (x.id == taskId) {
+            task = x;
+            break;
+          }
+        }
+        if (task != null) {
+          taskName = task.name;
+          // 取**真实落库**的会话对象（settle 内部已 saveSession），按 sessionId 精确匹配，
+          // 绝不自造假会话（后端结算会校验 sessionId）。
+          final List<FocusSession> todaySessions = await ref
+              .read(focusRepositoryProvider)
+              .sessionsOfDay(dayKey(DateTime.now()));
+          FocusSession? session;
+          for (final FocusSession s in todaySessions) {
+            if (s.id == settlement.sessionId) {
+              session = s;
+              break;
+            }
+          }
+          if (session == null) {
+            taskSettleSkipped = true; // 兜底：正常不应发生
+          } else {
+            taskOutcome = await ref
+                .read(taskCheckInServiceProvider)
+                .settleFocusLinked(
+                  task: task,
+                  session: session,
+                  now: DateTime.now(),
+                );
+            // 达标入账后自增经济修订号 → 孩子端「成长 / 今日」下次进入即自动打勾。
+            if (taskOutcome.status == CheckInStatus.verified) {
+              ref.read(economyRevisionProvider.notifier).state++;
+            }
+          }
+        }
+      } catch (_) {
+        // 成长项结算异常不影响专注成功：仅标记跳过（见上方纪律）。
+        taskSettleSkipped = true;
+      }
+    }
+
     if (!mounted) return;
     // go 是替换路由栈（B20）；结算页经 go 进入，退出用 go('/')。
-    context.go('/settle', extra: settlement);
+    context.go(
+      '/settle',
+      extra: SettleArgs(
+        settlement: settlement,
+        taskOutcome: taskOutcome,
+        taskName: taskName,
+        taskSettleSkipped: taskSettleSkipped,
+      ),
+    );
   }
 
   Future<void> _restoreSystemChrome() async {

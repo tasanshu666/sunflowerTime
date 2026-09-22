@@ -8,6 +8,7 @@ import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/utils/math_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
+import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
@@ -34,6 +35,35 @@ class _FakeLedger implements SunlightRepository {
 
   @override
   Future<double> verifiedRedeemTotal() async => 0.0;
+
+  @override
+  Future<double> netByRefTypeOnDay(String refType, String dayKey) async => 0.0;
+
+  @override
+  Future<double> netByRefTypeInMonth(String refType, String monthKey) async =>
+      0.0;
+
+  @override
+  Future<int> countByRefTypeAndRefIdOnDay(
+          String refType, String refId, String dayKey) async =>
+      0;
+
+  @override
+  Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async =>
+      null;
+
+  @override
+  Future<double> earnGrossOnDay(String dayKey) async => entries
+      .where((e) => e.dayKey == dayKey && e.type == SunlightType.earn)
+      .fold<double>(0.0, (s, e) => s + e.gross);
+
+  @override
+  Future<double> earnNetOnDay(String dayKey) async => entries
+      .where((e) => e.dayKey == dayKey && e.type == SunlightType.earn)
+      .fold<double>(0.0, (s, e) => s + e.net);
+
+  @override
+  Future<List<SunlightEntry>> all() async => List<SunlightEntry>.from(entries);
 }
 
 class _FakeFocus implements FocusRepository {
@@ -47,6 +77,10 @@ class _FakeFocus implements FocusRepository {
 
   @override
   Future<int> countValidFocusDaysLastWeek(DateTime now) async => 0;
+
+  @override
+  Future<FocusStats> totalStats() async =>
+      const FocusStats(totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
 }
 
 void main() {

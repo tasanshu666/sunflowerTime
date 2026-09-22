@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 
 class LockPage extends ConsumerWidget {
@@ -20,7 +20,7 @@ class LockPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 夜间边界唯一值来自 settings（§6.1）；未就绪时回退默认 21:00。
     final int boundary =
-        ref.watch(settingsProvider).value?.nightBoundaryHour ?? kNightBoundaryHour;
+        ref.watch(settingsProvider).value?.nightBoundaryHour ?? kNightBoundaryDefaultHour;
 
     return PopScope(
       canPop: false,

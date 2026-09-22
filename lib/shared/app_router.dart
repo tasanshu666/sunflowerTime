@@ -9,8 +9,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
-import 'package:sunflower_time/domain/services/sunlight_service.dart';
-import 'package:sunflower_time/presentation/child/pages/child_home_page.dart';
+import 'package:sunflower_time/presentation/child/pages/child_shell_page.dart';
+import 'package:sunflower_time/presentation/child/pages/child_sunlight_history_page.dart';
 import 'package:sunflower_time/presentation/child/pages/entry_page.dart';
 import 'package:sunflower_time/presentation/child/pages/lock_page.dart';
 import 'package:sunflower_time/presentation/child/pages/rest_page.dart';
@@ -18,8 +18,12 @@ import 'package:sunflower_time/presentation/child/pages/focus_page.dart';
 import 'package:sunflower_time/presentation/child/pages/s1_demo_page.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
 import 'package:sunflower_time/presentation/child/pages/store_page.dart';
+import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_home_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_login_page.dart';
+import 'package:sunflower_time/presentation/parent/pages/parent_report_page.dart';
+import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page.dart';
+import 'package:sunflower_time/presentation/parent/pages/parent_delete_page.dart';
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -28,7 +32,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/',
-        builder: (context, state) => const ChildHomePage(),
+        builder: (context, state) => const ChildShellPage(),
       ),
       GoRoute(
         path: '/entry',
@@ -51,14 +55,20 @@ final routerProvider = Provider<GoRouter>((ref) {
               kFocusDurationDefaultMinutes;
           // dnd 默认开：仅当显式传 '0' 才关闭（F01）。
           final dnd = state.uri.queryParameters['dnd'] != '0';
-          return FocusPage(plannedMinutes: minutes, dnd: dnd);
+          // task 可空：从「成长」联动项进入时携带成长项 id（M4 达标后自动结算）。
+          final taskId = state.uri.queryParameters['task'];
+          return FocusPage(
+            plannedMinutes: minutes,
+            dnd: dnd,
+            taskId: taskId,
+          );
         },
       ),
       GoRoute(
         path: '/settle',
         // 结算参数经 go extra 传入（当前会话内即时导航；不做深链持久化）。
         builder: (context, state) =>
-            SettlePage(settlement: state.extra as FocusSettlement?),
+            SettlePage(args: state.extra as SettleArgs?),
       ),
       GoRoute(
         path: '/s1-demo',
@@ -79,6 +89,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/store',
         builder: (context, state) => const StorePage(),
+      ),
+      GoRoute(
+        path: '/child/sunlight-history',
+        builder: (context, state) => const ChildSunlightHistoryPage(),
+      ),
+      GoRoute(
+        path: '/garden',
+        builder: (context, state) => const GardenPage(),
+      ),
+      GoRoute(
+        path: '/parent/report',
+        builder: (context, state) => const ParentReportPage(),
+      ),
+      GoRoute(
+        path: '/parent/tasks',
+        builder: (context, state) => const ParentTaskConfigPage(),
+      ),
+      GoRoute(
+        path: '/parent/delete',
+        builder: (context, state) => const ParentDeletePage(),
       ),
     ],
     // 首启同意流守卫：未同意 → /consent；已同意访问 /consent → /

@@ -1,31 +1,44 @@
-/// 孩子端首页（M0 占位，竖屏）。M1 将替换为「今日状态卡 + 底部导航」（§5）。
+/// 孩子端 5 tab 外壳（M3 导航重构 / §5 信息架构）。
 ///
-/// M2 追加：进入孩子端时检查「家长已核销」通知 —— 家长核销后孩子端需有弹窗提醒
-/// （家长-孩子同步）。已读申请 id 记在 shared_preferences，避免重复弹窗。
-library child_home_page;
+/// 底部 [NavigationBar] + [IndexedStack] 承载：今日 / 任务 / 花园 / 商店 / 我的。
+/// 用 [IndexedStack]（而非重建）保留各 tab 状态，切走再切回不丢滚动/输入。
+///
+/// 承重逻辑（自原 `child_home_page.dart` 整段迁移，逻辑一字不改）：
+///  · 「家长已核销」弹窗提醒（M2）；
+///  · 「家长拒绝」对称通知（B4）；
+///  · 监听 [economyRevisionProvider]，家长端处理完返回孩子端即重新检查（B5）。
+/// 已读申请 id 记在 shared_preferences，避免重复弹窗。
+library child_shell_page;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
-import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
-import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
-import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
+import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
+import 'package:sunflower_time/presentation/child/pages/child_task_page.dart';
+import 'package:sunflower_time/presentation/child/pages/child_profile_page.dart';
+import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
+import 'package:sunflower_time/presentation/child/pages/store_page.dart';
 
-class ChildHomePage extends ConsumerStatefulWidget {
-  const ChildHomePage({super.key});
+/// 孩子端外壳：底部导航 + 5 个 tab。
+class ChildShellPage extends ConsumerStatefulWidget {
+  const ChildShellPage({super.key});
 
   @override
-  ConsumerState<ChildHomePage> createState() => _ChildHomePageState();
+  ConsumerState<ChildShellPage> createState() => _ChildShellPageState();
 }
 
-class _ChildHomePageState extends ConsumerState<ChildHomePage> {
+class _ChildShellPageState extends ConsumerState<ChildShellPage> {
+  int _index = 0;
+
+  /// 5 个 tab 的标题（AppBar 随当前 tab 变化）。
+  static const List<String> _titles = <String>['今日', '成长', '花园', '商店', '我的'];
+
   @override
   void initState() {
     super.initState();
@@ -169,34 +182,9 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
     await _checkRejectedNotices();
   }
 
-  /// DEBUG ONLY — 测试用临时入口，提交前删除。
-  /// 追加一条 +1000 阳光账本（net 为正、balanceAfter 累加），便于真机验收兑换链路。
-  Future<void> _grantDebugSunlight() async {
-    final double balance = await ref.read(sunlightRepositoryProvider).balance();
-    final DateTime now = DateTime.now();
-    await ref.read(sunlightRepositoryProvider).append(SunlightEntry(
-      id: const Uuid().v4(),
-      ts: now,
-      type: SunlightType.earn,
-      gross: 1000,
-      net: 1000,
-      balanceAfter: balance + 1000,
-      refType: 'debug_grant',
-      refId: null,
-      dayKey: dayKey(now),
-    ));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('DEBUG：已加 1000 阳光，去阳光商店看看'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    // B5：核销同步弹窗时机修复 —— 家长核销会自增经济修订号，孩子端首页（若仍挂载）
+    // B5：核销同步弹窗时机修复 —— 家长核销会自增经济修订号，孩子端外壳（若仍挂载）
     // 监听修订号变化即重新检查「家长已核销」通知，避免仅 initState 触发一次、
     // 页面未重建则不弹的隐患。已读集合在仓库层去重，不会重复弹窗。
     ref.listen(economyRevisionProvider, (_, __) {
@@ -204,43 +192,56 @@ class _ChildHomePageState extends ConsumerState<ChildHomePage> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text('向日葵专注')),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Text('孩子端首页', style: TextStyle(fontSize: 22)),
-            const SizedBox(height: 8),
-            const Text('M0 骨架占位 · M1 接入今日状态卡与底部导航'),
-            const SizedBox(height: 28),
-            ElevatedButton(
-              onPressed: () => context.go('/entry'),
-              child: const Text('开始专注'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => context.go('/s1-demo'),
-              child: const Text('四档反馈预览（S1）'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => context.go('/parent'),
-              child: const Text('家长天地 →'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => context.push('/store'),
-              child: const Text('阳光商店'),
-            ),
-            const SizedBox(height: 12),
-            // DEBUG ONLY — 测试用，提交前删除
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.orange),
-              onPressed: _grantDebugSunlight,
-              child: const Text('DEBUG 加1000阳光'),
-            ),
-          ],
-        ),
+      appBar: AppBar(
+        title: Text(_titles[_index]),
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.family_restroom),
+            tooltip: '家长天地',
+            onPressed: () => context.go('/parent'),
+          ),
+        ],
+      ),
+      body: IndexedStack(
+        index: _index,
+        children: const <Widget>[
+          ChildTodayPage(),
+          ChildTaskPage(),
+          GardenPage(embedded: true),
+          StorePage(embedded: true),
+          ChildProfilePage(),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: (int i) => setState(() => _index = i),
+        destinations: const <NavigationDestination>[
+          NavigationDestination(
+            icon: Icon(Icons.today_outlined),
+            selectedIcon: Icon(Icons.today),
+            label: '今日',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.checklist_outlined),
+            selectedIcon: Icon(Icons.checklist),
+            label: '成长',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.yard_outlined),
+            selectedIcon: Icon(Icons.yard),
+            label: '花园',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.storefront_outlined),
+            selectedIcon: Icon(Icons.storefront),
+            label: '商店',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: '我的',
+          ),
+        ],
       ),
     );
   }

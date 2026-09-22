@@ -15,7 +15,6 @@
 /// 但生产定价链路（store_page / RedemptionOrchestrationService）**不得再调用**。
 library age_tier_params;
 
-import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 

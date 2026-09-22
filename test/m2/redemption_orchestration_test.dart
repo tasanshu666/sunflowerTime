@@ -103,10 +103,33 @@ class FakeSunlightRepository implements SunlightRepository {
 
   @override
   Future<double> balance() async => balance_;
+
+  @override
+  Future<List<SunlightEntry>> all() async => List<SunlightEntry>.from(entries);
   @override
   Future<double> dayNet(String dayKey) async => 0;
   @override
   Future<double> verifiedRedeemTotal() async => 0;
+  @override
+  Future<double> netByRefTypeOnDay(String refType, String dayKey) async => 0;
+  @override
+  Future<double> netByRefTypeInMonth(String refType, String monthKey) async =>
+      0;
+
+  @override
+  Future<int> countByRefTypeAndRefIdOnDay(
+          String refType, String refId, String dayKey) async =>
+      0;
+
+  @override
+  Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async =>
+      null;
+
+  @override
+  Future<double> earnGrossOnDay(String dayKey) async => 0;
+
+  @override
+  Future<double> earnNetOnDay(String dayKey) async => 0;
 }
 
 class FakeTrackingRepository implements TrackingRepository {

@@ -10,7 +10,7 @@ sequenceDiagram
     participant RO as RedemptionOrchestrationService
     participant AC as AccountService(桩)
     participant RR as RewardRepository
-    participant MP as MonthlyPoolService
+    participant MP as WeeklyPoolService
     participant RS as RedemptionService(纯S2)
     participant LD as SunlightRepository
     participant TR as TrackingRepository
@@ -26,7 +26,7 @@ sequenceDiagram
         Note over SP: 不生成申请、不埋 reward_* 事件
     else 冷却通过
         RO->>MP: ensureAndReset(now)
-        MP-->>RO: MonthlyPool(monthKey, budget, used, autoReleased)
+        MP-->>RO: WeeklyPool(weekKey, budget, used, autoReleased)
         RO->>RO: cost = applyAgeTierK(baseCost, K(tier)).round()
         RO->>RO: balance = await LD.balance()
         alt balance < cost
@@ -58,7 +58,7 @@ sequenceDiagram
     autonumber
     participant App as App 启动 / 定时任务
     participant RO as RedemptionOrchestrationService
-    participant MP as MonthlyPoolService
+    participant MP as WeeklyPoolService
     participant RR as RewardRepository
     participant LD as SunlightRepository
     participant TR as TrackingRepository
@@ -67,10 +67,10 @@ sequenceDiagram
     MP->>MP: 计算 lastMonthKey → currentMonthKey 跨度
     alt 发生跨月
         MP->>MP: 建新 MonthlyPool(budget=默认/家长设定)
-        MP->>TR: track(monthly_pool_reset)
+        MP->>TR: track(weekly_pool_reset)
     end
     MP-->>RO: 当前 MonthlyPool
-    App->>RO: releaseQueue(monthKey, now)
+    App->>RO: releaseQueue(weekKey, now)
     RO->>RR: queuedOfMonth(lastMonthKey) 按 requested_at 升序
     RR-->>RO: List~RedemptionRequest~
     loop 每条 queued 请求（升序）
@@ -95,7 +95,7 @@ sequenceDiagram
     participant RO as RedemptionOrchestrationService
     participant RR as RewardRepository
     participant LD as SunlightRepository
-    participant MP as MonthlyPoolService
+    participant MP as WeeklyPoolService
     participant TR as TrackingRepository
 
     Note over P,PH: 第1步：进入 /parent/home 「今日」看到核销卡<br/>第2步：现实兑现后点「已兑现」

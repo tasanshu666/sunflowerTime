@@ -106,7 +106,10 @@ final _balanceProvider = FutureProvider<double>((ref) {
 final _submittingProvider = StateProvider<String?>((ref) => null);
 
 class StorePage extends ConsumerStatefulWidget {
-  const StorePage({super.key});
+  const StorePage({super.key, this.embedded = false});
+
+  /// 是否以内嵌 tab 形态渲染（无独立 Scaffold/AppBar；余额改为 body 顶部内联 chip）。
+  final bool embedded;
 
   @override
   ConsumerState<StorePage> createState() => _StorePageState();
@@ -124,6 +127,33 @@ class _StorePageState extends ConsumerState<StorePage> {
       orElse: () => 0,
     );
 
+    final Widget body = loadAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (Object e, _) => Center(child: Text('加载失败：$e')),
+      data: (load) => _buildBody(load),
+    );
+
+    // 内嵌（商店 tab）时无 AppBar：把余额展示以内联 chip 形式移到 body 顶部，
+    // 避免「余额看不见」（玄参大人反馈过一次）。
+    if (widget.embedded) {
+      return SafeArea(
+        child: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: _BalanceChip(
+                  child: _balanceInline(balanceAsync, pendingTotal),
+                ),
+              ),
+            ),
+            Expanded(child: body),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('阳光商店'),
@@ -135,55 +165,56 @@ class _StorePageState extends ConsumerState<StorePage> {
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Center(
-              child: balanceAsync.when(
-                data: (double b) {
-                  // 金色 = 可用余额（账本余额 − 已兑换未扣的阳光）。
-                  // 注意：pending / queued 按 §7.4 不变式 **不扣账本/不扣池**，
-                  // 此处仅在展示口径上做减法，绝不真去扣账本或扣池（否则违反项目不变式）。
-                  final int available = (b - pendingTotal).round();
-                  final int golden = available < 0 ? 0 : available;
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: <Widget>[
-                      Text(
-                        '☀ $golden',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.brown.shade700,
-                        ),
-                      ),
-                      if (pendingTotal > 0) ...<Widget>[
-                        const SizedBox(width: 6),
-                        Text(
-                          '待核销 $pendingTotal',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ],
-                  );
-                },
-                loading: () => const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                error: (_, __) => const SizedBox.shrink(),
-              ),
+              child: _balanceInline(balanceAsync, pendingTotal),
             ),
           ),
         ],
       ),
-      body: loadAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (Object e, _) => Center(child: Text('加载失败：$e')),
-        data: (load) => _buildBody(load),
+      body: body,
+    );
+  }
+
+  /// 余额展示（金色可用余额 + 灰色待核销）。AppBar（独立页）与内嵌 chip 复用。
+  Widget _balanceInline(AsyncValue<double> balanceAsync, int pendingTotal) {
+    return balanceAsync.when(
+      data: (double b) {
+        // 金色 = 可用余额（账本余额 − 已兑换未扣的阳光）。
+        // 注意：pending / queued 按 §7.4 不变式 **不扣账本/不扣池**，
+        // 此处仅在展示口径上做减法，绝不真去扣账本或扣池（否则违反项目不变式）。
+        final int available = (b - pendingTotal).round();
+        final int golden = available < 0 ? 0 : available;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: <Widget>[
+            Text(
+              '☀ $golden',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.brown.shade700,
+              ),
+            ),
+            if (pendingTotal > 0) ...<Widget>[
+              const SizedBox(width: 6),
+              Text(
+                '待核销 $pendingTotal',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+      loading: () => const SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(strokeWidth: 2),
       ),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 
@@ -381,6 +412,22 @@ class _StorePageState extends ConsumerState<StorePage> {
       builder: (_) => const _VerifiedCelebration(),
     );
   }
+}
+
+/// 内嵌模式下的余额 chip（无 AppBar 时展示余额，避免「余额看不见」）。
+class _BalanceChip extends StatelessWidget {
+  final Widget child;
+  const _BalanceChip({required this.child});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF6DC),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: child,
+      );
 }
 
 /// 庆祝弹窗装饰星星的位置与文案描述（供 [_VerifiedCelebration] 错峰淡入使用）。

@@ -261,7 +261,7 @@ class RedemptionOrchestrationService {
         'within_48h': within48,
         'amount': req.cost,
         'tier': tier.name,
-        'is_small': req.cost <= 50,
+        'is_small': req.cost <= kAutoApproveMaxCostLow,
       },
     ));
   }

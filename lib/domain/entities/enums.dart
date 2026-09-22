@@ -34,9 +34,21 @@ enum FocusStatus {
 
 /// 阳光账本类型（§3.2 append-only）。
 enum SunlightType {
-  earn, // 产出（专注/任务/完美日）
+  earn, // 产出（专注/任务/完美日/家长赠予/植物死亡退款）
   redeem, // 兑换扣减（verified）
   queueRelease, // 排队次月放行扣减
+  plant, // 植物种植/养护/扩容/救回扣减（M3，与经济账本同源可追溯）
+}
+
+/// 成长项打卡的核销状态（M4，家长监管）。
+///
+/// 顺序**刻意**把 `verified` 放在 0：老库（v5）升级到 v6 时，`check_ins.status`
+/// 列默认值 0 会把历史打卡视为「已核销」——历史行为确实是「打卡即入账」。
+/// 若把 `pending` 放 0，升级后会突然冒出一堆历史遗留的「待核销」，把家长淹掉。
+enum CheckInStatus {
+  verified, // 已核销：联动项自动结算 / 家长核销通过 → 已入账
+  pending, // 待核销：非联动项手动打卡 → 尚未入账，等家长确认
+  rejected, // 已驳回：家长驳回 → 不入账
 }
 
 /// 植物阶段（3 段，§4.6）。
@@ -46,19 +58,31 @@ enum PlantStage {
   adult, // 成株
 }
 
-/// 植物状态（§4.6 H2 软绑定：绝不因专注差而死）。
+/// 植物状态（生命周期态，§4.6 H2 软绑定：绝不因专注差而死）。
 enum PlantStatus {
   growing, // 成长中
-  bloomed, // 已开花
-  dormant, // 休眠（非死亡）
+  bloomed, // 已开花（成株终点，仍可被浇水 / 枯萎）
+  wilting, // 枯萎中（7 天未浇水触发，20 阳光可救回）
+  dead, // 已死亡（返还 30% 成本，花盆释放，deadAt 仅供统计）
+}
+
+/// 植物心情（由 lastWaterAt + 当日 WFD 推导，亦可存字段，§4.6）。
+enum PlantMood {
+  happy, // 今日有有效专注
+  calm, // 平静
+  thirsty, // 口渴 / 未浇水
 }
 
 /// 科目（§4.4 / 完美日判定）。
+///
+/// `custom` 为 M3 修订新增：选中后由家长自由输入科目名，名字存
+/// `Tasks.customSubject`（不新增枚举以外的落库口径，index 仍为整型）。
 enum TaskSubject {
   chinese, // 语文
   math, // 数学
   english, // 英语
   general, // 通用（非学科打卡）
+  custom, // 自定义（科目名见 Task.customSubject）
 }
 
 /// 稀有度（§8.2 植物/奖励定价）。

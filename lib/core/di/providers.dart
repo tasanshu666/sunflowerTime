@@ -7,12 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sunflower_time/data/local/database/app_database.dart';
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
-import 'package:sunflower_time/data/local/repositories/local_stub_repositories.dart';
 import 'package:sunflower_time/data/local/repositories/weekly_pool_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/reward_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/settings_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/sunlight_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/tracking_local_repository.dart';
+import 'package:sunflower_time/data/local/repositories/plant_local_repository.dart';
+import 'package:sunflower_time/data/local/repositories/task_local_repository.dart';
 import 'package:sunflower_time/data/local/secure_store.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
@@ -24,10 +25,14 @@ import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
+import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
 import 'package:sunflower_time/domain/services/weekly_pool_service.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
+import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/domain/services/focus_report_service.dart';
+import 'package:sunflower_time/domain/services/data_management_service.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 
@@ -58,10 +63,10 @@ final focusRepositoryProvider = Provider<FocusRepository>(
   (ref) => FocusLocalRepository(ref.watch(appDatabaseProvider)),
 );
 final taskRepositoryProvider = Provider<TaskRepository>(
-  (ref) => TaskLocalRepositoryStub(),
+  (ref) => TaskLocalRepository(ref.watch(appDatabaseProvider)),
 );
 final plantRepositoryProvider = Provider<PlantRepository>(
-  (ref) => PlantLocalRepositoryStub(),
+  (ref) => PlantLocalRepository(ref.watch(appDatabaseProvider)),
 );
 final rewardRepositoryProvider = Provider<RewardRepository>(
   (ref) => RewardLocalRepository(ref.watch(appDatabaseProvider)),
@@ -141,3 +146,41 @@ final redemptionOrchestrationServiceProvider =
           account: ref.watch(accountServiceProvider),
           settings: ref.watch(settingsRepositoryProvider),
         ));
+
+/// 植物养成服务（M3 T02）：种植 / 浇水 / 施肥 / 救回 / 扩容 / 计时成长。
+///
+/// 与经济账本同源（[SunlightRepository.append]），植物消耗 / 退款可追溯对账。
+final plantGrowthServiceProvider = Provider<PlantGrowthService>(
+  (ref) => PlantGrowthService(
+    plants: ref.watch(plantRepositoryProvider),
+    focus: ref.watch(focusRepositoryProvider),
+    ledger: ref.watch(sunlightRepositoryProvider),
+    settings: ref.watch(settingsRepositoryProvider),
+  ),
+);
+
+/// 专注报告服务（M3 T04）：周/日专注分布、有效专注日、稳定性趋势（本地聚合）。
+final focusReportServiceProvider = Provider<FocusReportService>(
+  (ref) => FocusReportService(focus: ref.watch(focusRepositoryProvider)),
+);
+
+/// 本地数据清除服务（M3 T03，§10.4 C5 合规删除入口）。
+///
+/// 一键删除全部本地数据：Drift 全表 + 系统安全区 PIN + SharedPreferences。
+final dataManagementServiceProvider = Provider<DataManagementService>(
+  (ref) => DataManagementService(
+    db: ref.watch(appDatabaseProvider),
+    secure: ref.watch(secureStoreProvider),
+    prefs: ref.watch(sharedPreferencesProvider),
+  ),
+);
+
+/// 任务打卡服务（M4，§4.4 / §4.5）：打卡即刻发阳光，按当日累计过软顶只补差额。
+final taskCheckInServiceProvider = Provider<TaskCheckInService>(
+  (ref) => TaskCheckInService(
+    tasks: ref.watch(taskRepositoryProvider),
+    ledger: ref.watch(sunlightRepositoryProvider),
+    focus: ref.watch(focusRepositoryProvider),
+    settings: ref.watch(settingsRepositoryProvider),
+  ),
+);

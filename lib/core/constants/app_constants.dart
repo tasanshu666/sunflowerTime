@@ -6,8 +6,6 @@
 library app_constants;
 
 // ── 专注节奏（PRD §4.1.5 / §4.1.6 / §6.2）────────────────────────────
-/// 最短有效专注时长：< 5 分钟不计产出（§6.2）。
-const int kMinFocusMinutes = 5;
 
 /// 离席恢复线性回满时长（秒）：在场恢复 10 秒回满（§4.1.5）。
 const int kResumeSeconds = 10;
@@ -17,10 +15,6 @@ const int kL2ThresholdSeconds = 90;
 const int kL3ThresholdSeconds = 180;
 
 // ── 每日 / 应用上限（PRD §6.1 不变式 / §6.3）────────────────────────
-/// 每日专注上限（分钟）：高年段 60 / 低年段 90（§6.1）。
-const int kDailyFocusCapHigh = 60;
-const int kDailyFocusCapLow = 90;
-
 /// 每日 App 使用时长上限（分钟）：30（§6.1）。
 const int kDailyAppCapMinutes = 30;
 
@@ -39,8 +33,7 @@ const double kPerfectDayCoefficient = 1.5;
 // 此处不再另设裸值，杜绝双源（T-A 常量单点清理）。
 
 // ── 夜间边界（PRD §6.1，Settings.nightBoundary 为唯一值）────────────
-/// 夜间边界默认：21:00（§6.1 不变式；实际以 Settings 单例为准）。
-const int kNightBoundaryHour = 21;
+/// 夜间边界分钟（小时真源见 prd_params.kNightBoundaryDefaultHour，§6.1 不变式）。
 const int kNightBoundaryMinute = 0;
 
 // ── 打盹屏方向策略（PRD §4.1.6 退出路径）──────────────────────────

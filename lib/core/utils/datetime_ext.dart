@@ -5,6 +5,7 @@ library datetime_ext;
 import 'package:intl/intl.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart';
 
 /// 周键：所在周的周一，形如 `2026-09-07`（yyyy-MM-dd），用于周池。
 String weekKey(DateTime t) => DateFormat('yyyy-MM-dd').format(_mondayOf(t));
@@ -21,10 +22,13 @@ DateTime _mondayOf(DateTime t) {
 /// 日键：形如 `2026-09-15`，用于 `focus_session.day_key` / `sunlight_ledger.day_key`。
 String dayKey(DateTime t) => DateFormat('yyyy-MM-dd').format(t);
 
+/// 月键：形如 `2026-09`（yyyy-MM），用于月度聚合 / 赠予月上限（§4.5 / M3 U5）。
+String monthKey(DateTime t) => DateFormat('yyyy-MM').format(t);
+
 /// 是否处于夜间（读 Settings.nightBoundary 唯一值；此处以默认边界做纯函数判断）。
 bool isNight(
   DateTime t, {
-  int boundaryHour = kNightBoundaryHour,
+  int boundaryHour = kNightBoundaryDefaultHour,
   int boundaryMinute = kNightBoundaryMinute,
 }) {
   final boundary = boundaryHour * 60 + boundaryMinute;

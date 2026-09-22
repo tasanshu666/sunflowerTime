@@ -14,6 +14,7 @@ import 'package:sunflower_time/bootstrap.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/data/local/repositories/reward_seed.dart';
+import 'package:sunflower_time/data/local/task_seed.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +33,15 @@ Future<void> main() async {
     ensureRewardSeed(container.read(rewardRepositoryProvider)).catchError(
       (Object e, StackTrace st) {
         debugPrint('[seed] 奖励模板播种失败：$e\n$st');
+      },
+    ),
+  );
+
+  // M3（T05）：首次启动播种任务模板（若无模板则写入 3 条内置，幂等）。
+  unawaited(
+    ensureTaskSeed(container.read(taskRepositoryProvider)).catchError(
+      (Object e, StackTrace st) {
+        debugPrint('[seed] 任务模板播种失败：$e\n$st');
       },
     ),
   );

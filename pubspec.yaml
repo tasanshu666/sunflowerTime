@@ -52,6 +52,10 @@ flutter:
   assets:
     - assets/audio/sfx/
     - assets/audio/bgm/
+    # 植物美术资源（2026-09-22 渲染抽象）：按「{speciesId}_{stage}_{status}.png」
+    # 命名丢进本目录即自动生效，缺失时回退内置自绘。命名规范见
+    # lib/presentation/child/widgets/plant_artwork.dart 顶部文档注释。
+    - assets/plants/
 
 # ── 原生资产（native assets / hooks）配置 ────────────────────────────
 # sqlite3 包默认会从 GitHub Releases 下载预编译库（libsqlite3.arm.android.so 等）。

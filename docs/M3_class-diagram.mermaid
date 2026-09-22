@@ -1,0 +1,188 @@
+classDiagram
+    direction TB
+
+    class PlantStage {
+        <<enumeration>>
+        seed
+        sprout
+        adult
+    }
+    class PlantStatus {
+        <<enumeration>>
+        growing
+        bloomed
+        wilting
+        dead
+    }
+    class PlantMood {
+        <<enumeration>>
+        happy
+        calm
+        thirsty
+    }
+    class Rarity {
+        <<enumeration>>
+        common
+        rare
+        legendary
+    }
+
+    class Plant {
+        +String id
+        +String speciesId
+        +int potIndex
+        +PlantStage stage
+        +DateTime stageStartedAt
+        +double growthProgress
+        +double growthFactor
+        +bool waterUsed
+        +bool fertilizerUsed
+        +PlantStatus status
+        +DateTime? wiltedAt
+        +DateTime? deadAt
+        +DateTime plantedAt
+        +DateTime? lastWaterAt
+        +PlantMood mood
+    }
+
+    class PlantSpecies {
+        +String id
+        +String name
+        +Rarity rarity
+        +int baseCostHigh
+        +int baseCostLow
+        +double growthHoursPerStage
+        +bool subscriptionOnly
+    }
+
+    class AppSettings {
+        +AgeTier ageTier
+        +int nightBoundaryHour
+        +int nightBoundaryMinute
+        +int dailyFocusCap
+        +int dailyAppCapMinutes
+        +int restAfterSessions
+        +int restMinutes
+        +int taskSunlight
+        +int poolBudget
+        +bool quietMode
+        +bool soundOn
+        +bool bgmOn
+        +bool detectionOn
+        +bool themeDark
+        +bool autonomousMode
+        +int gardenPotCapacity
+        +copyWith(...) AppSettings
+    }
+
+    class PlantGrowthService {
+        -PlantRepository _plants
+        -FocusRepository _focus
+        -SunlightRepository _ledger
+        -SettingsRepository _settings
+        +plant(speciesId, potIndex, now) Future~Plant~
+        +tickAll(now) Future~List~Plant~~
+        +water(plantId, now) Future~void~
+        +fertilize(plantId, now) Future~void~
+        +revive(plantId, now) Future~void~
+        +expandPot(now) Future~void~
+        -_hasValidFocusDay(day) bool
+    }
+
+    class FocusReportService {
+        -FocusRepository _focus
+        -SunlightRepository _ledger
+        +weeklyReport(now) FocusReport
+        +monthlyReport(now) FocusReport
+    }
+
+    class DataManagementService {
+        -AppDatabase _db
+        -SettingsStore _prefs
+        -SecureStore _secure
+        +clearAll() Future~void~
+    }
+
+    class PlantRepository {
+        <<interface>>
+        +plants() Future~List~Plant~~
+        +plant(id) Future~Plant?~
+        +savePlant(Plant) Future~void~
+        +deletePlant(id) Future~void~
+        +species() Future~List~PlantSpecies~~
+    }
+    class PlantLocalRepository {
+        <<implements PlantRepository>>
+    }
+    class TaskRepository {
+        <<interface>>
+        +tasks() Future~List~Task~~
+        +saveTask(Task) Future~void~
+        +checkIn(CheckIn) Future~void~
+        +checkInsOfDay(dayKey) Future~List~CheckIn~~
+    }
+    class TaskLocalRepository {
+        <<implements TaskRepository>>
+    }
+    class SunlightRepository {
+        <<interface>>
+        +append(SunlightEntry) Future~double~
+        +balance() Future~double~
+        +dayNet(dayKey) Future~double~
+    }
+    class FocusRepository {
+        <<interface>>
+        +saveSession(FocusSession) Future~void~
+        +sessionsOfDay(dayKey) Future~List~FocusSession~~
+        +countValidFocusDaysLastWeek(now) Future~int~
+    }
+    class SettingsRepository {
+        <<interface>>
+        +getSettings() Future~AppSettings~
+        +saveSettings(AppSettings) Future~void~
+    }
+
+    class ParentHomePage {
+        +TabBar: 今日/奖励/夸夸台/设置
+    }
+    class ParentSettingsPage {
+        +防沉迷/年龄档/环境/检测/音效/家长锁/PIN重设/阳光赠予 + 入口(报告/任务/删除)
+    }
+    class ParentDeletePage {
+        +一键删除全部本地数据(先导后清)
+    }
+    class ParentReportPage {
+        +周/月 WFD/时段分布/稳定度/阳光汇总
+    }
+    class ParentTaskConfigPage {
+        +任务增删改/重复规则/关联专注
+    }
+    class GardenPage {
+        +植物列表卡/种植/浇水/救回/扩容
+    }
+
+    Plant --> PlantStage
+    Plant --> PlantStatus
+    Plant --> PlantMood
+    Plant --> PlantSpecies : speciesId
+    PlantSpecies --> Rarity
+    AppSettings --> AgeTier
+
+    PlantGrowthService --> PlantRepository
+    PlantGrowthService --> FocusRepository
+    PlantGrowthService --> SunlightRepository
+    PlantGrowthService --> SettingsRepository
+    FocusReportService --> FocusRepository
+    FocusReportService --> SunlightRepository
+    DataManagementService --> AppDatabase
+
+    PlantLocalRepository ..|> PlantRepository
+    TaskLocalRepository ..|> TaskRepository
+
+    ParentHomePage ..> ParentSettingsPage
+    ParentSettingsPage ..> ParentDeletePage
+    ParentSettingsPage ..> ParentReportPage
+    ParentSettingsPage ..> ParentTaskConfigPage
+    GardenPage ..> PlantGrowthService : plant/water/revive/expand
+    ParentReportPage ..> FocusReportService
+    ParentDeletePage ..> DataManagementService

@@ -8,6 +8,8 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
+
 class SettingsLocalRepository implements SettingsRepository {
   final AppDatabase _db;
 
@@ -20,12 +22,12 @@ class SettingsLocalRepository implements SettingsRepository {
       // 首启用默认：高年段示例（实际应由首启引导选择，M1 落地）。
       return const AppSettings(
         ageTier: AgeTier.high,
-        dailyFocusCap: 60,
+        dailyFocusCap: kDailyFocusCapHigh,
         dailyAppCapMinutes: 30,
         restAfterSessions: 2,
         restMinutes: 10,
         taskSunlight: 12,
-        poolBudget: 400,
+        poolBudget: kPoolBudgetDefaultHigh,
       );
     }
     return AppSettings(
@@ -38,6 +40,7 @@ class SettingsLocalRepository implements SettingsRepository {
       restMinutes: row.restMinutes,
       taskSunlight: row.taskSunlight,
       poolBudget: row.monthlyPoolBudget,
+      gardenPotCapacity: row.gardenPotCapacity,
       quietMode: row.quietMode,
       soundOn: row.soundOn,
       bgmOn: row.bgmOn,
@@ -65,6 +68,7 @@ class SettingsLocalRepository implements SettingsRepository {
         restMinutes: Value(s.restMinutes),
         taskSunlight: Value(s.taskSunlight),
         monthlyPoolBudget: Value(s.poolBudget),
+        gardenPotCapacity: Value(s.gardenPotCapacity),
         quietMode: Value(s.quietMode),
         soundOn: Value(s.soundOn),
         bgmOn: Value(s.bgmOn),

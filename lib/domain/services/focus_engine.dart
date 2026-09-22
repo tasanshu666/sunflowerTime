@@ -15,6 +15,7 @@ library focus_engine;
 import 'dart:async';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 
 /// 四档反馈档位（PRD §4.1.3 一~四档 与 §4.1.4 L0–L3 为同一套，工程统一命名 lvl1..lvl4）。

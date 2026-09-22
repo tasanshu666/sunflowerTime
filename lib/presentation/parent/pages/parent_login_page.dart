@@ -92,41 +92,58 @@ class _ParentLoginPageState extends ConsumerState<ParentLoginPage> {
   @override
   Widget build(BuildContext context) {
     final hasPin = ref.watch(pinSetupProvider).value ?? false;
-    return Scaffold(
-      appBar: AppBar(title: const Text('家长天地')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              hasPin ? '请输入家长 PIN' : '首次进入，请设置家长 PIN',
-              style: const TextStyle(fontSize: 20),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _pinController,
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: 6,
-              decoration: InputDecoration(
-                labelText: 'PIN',
-                errorText: _error,
-                border: const OutlineInputBorder(),
+    // 返回栈纪律（B19/B38 同类缺陷）：进入本页用的是 `go`（替换路由栈），栈内没有
+    // 上级页面 —— 未输入 PIN 直接按系统返回键会**直接退出 App**。此处显式拦下并回孩子端，
+    // 与 AppBar 的返回箭头行为一致。
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? _) {
+        if (didPop) return;
+        context.go('/');
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('家长天地'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: '返回孩子端',
+            onPressed: () => context.go('/'),
+          ),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                hasPin ? '请输入家长 PIN' : '首次进入，请设置家长 PIN',
+                style: const TextStyle(fontSize: 20),
               ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _busy ? null : _submit,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(hasPin ? '进入' : '设置并进入'),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _pinController,
+                keyboardType: TextInputType.number,
+                obscureText: true,
+                maxLength: 6,
+                decoration: InputDecoration(
+                  labelText: 'PIN',
+                  errorText: _error,
+                  border: const OutlineInputBorder(),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _busy ? null : _submit,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(hasPin ? '进入' : '设置并进入'),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

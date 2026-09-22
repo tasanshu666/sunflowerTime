@@ -30,6 +30,13 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
   Future<void> append(SunlightLedgersCompanion row) =>
       into(sunlightLedgers).insert(row);
 
+  /// 全部账本记录（阳光来源记录页用，按时间倒序）。
+  Future<List<SunlightLedger>> allDesc() async {
+    final List<SunlightLedger> rows = await select(sunlightLedgers).get();
+    rows.sort((SunlightLedger a, SunlightLedger b) => b.ts.compareTo(a.ts));
+    return rows;
+  }
+
   /// 当前余额（sum(net)）。
   Future<double> balance() async {
     final Expression<double> sum = sunlightLedgers.net.sum();
@@ -39,9 +46,39 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
   }
 
   /// 某日净产出（软顶校验用，§3.2）。
+  ///
+  /// 注意：本方法按**全部类型**（earn / redeem / plant / queueRelease）求和，
+  /// 用于「当天净余额」口径；**不可**用于任务打卡的软顶差额核算（会污染核算，
+  /// 打卡核算请用 [sumEarnGrossOnDay] / [sumEarnNetOnDay]）。
   Future<double> dayNet(String dayKey) async {
     final Expression<double> sum = sunlightLedgers.net.sum();
     final row = await (selectOnly(sunlightLedgers)
+          ..where(sunlightLedgers.dayKey.equals(dayKey))
+          ..addColumns([sum]))
+        .getSingle();
+    return row.read(sum) ?? 0.0;
+  }
+
+  /// 某日 **earn 类型** 的 gross（毛产出）合计（任务打卡软顶核算用，§4.5）。
+  ///
+  /// 只统计 `type == earn`，避免 redeem / plant / queueRelease 污染软顶核算。
+  Future<double> sumEarnGrossOnDay(String dayKey) async {
+    final Expression<double> sum = sunlightLedgers.gross.sum();
+    final row = await (selectOnly(sunlightLedgers)
+          ..where(sunlightLedgers.type.equals(SunlightType.earn.index))
+          ..where(sunlightLedgers.dayKey.equals(dayKey))
+          ..addColumns([sum]))
+        .getSingle();
+    return row.read(sum) ?? 0.0;
+  }
+
+  /// 某日 **earn 类型** 的 net（实际发放）合计（任务打卡软顶核算用，§4.5）。
+  ///
+  /// 只统计 `type == earn`，即「当日已发阳光」的软顶基数。
+  Future<double> sumEarnNetOnDay(String dayKey) async {
+    final Expression<double> sum = sunlightLedgers.net.sum();
+    final row = await (selectOnly(sunlightLedgers)
+          ..where(sunlightLedgers.type.equals(SunlightType.earn.index))
           ..where(sunlightLedgers.dayKey.equals(dayKey))
           ..addColumns([sum]))
         .getSingle();
@@ -57,6 +94,189 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
         .getSingle();
     final value = row.read(sum);
     return (value ?? 0.0).abs();
+  }
+
+  /// 指定 refType 在某日的净阳光合计（家长赠予上限核算用，§4.5）。
+  Future<double> sumNetByRefTypeDay(String refType, String dayKey) async {
+    final Expression<double> sum = sunlightLedgers.net.sum();
+    final row = await (selectOnly(sunlightLedgers)
+          ..where(sunlightLedgers.refType.equals(refType))
+          ..where(sunlightLedgers.dayKey.equals(dayKey))
+          ..addColumns([sum]))
+        .getSingle();
+    return row.read(sum) ?? 0.0;
+  }
+
+  /// 指定 refType + refId 在某日的**记账条数**（植物每日养护次数上限核算，M3 修订）。
+  ///
+  /// 养护次数以账本为唯一事实源：每次浇水 / 施肥都写一条 `refType='plant_water' /
+  /// 'plant_fertilize'`、`refId=<植物 id>` 的记录，故「今日已用几次」= 当日条数。
+  /// 好处是不给 Plants 表加计数列（免二次 schema 迁移），且天然可对账。
+  Future<int> countByRefTypeAndRefIdOnDay(
+    String refType,
+    String refId,
+    String dayKey,
+  ) async {
+    final Expression<int> countExp = sunlightLedgers.id.count();
+    final row = await (selectOnly(sunlightLedgers)
+          ..where(sunlightLedgers.refType.equals(refType))
+          ..where(sunlightLedgers.refId.equals(refId))
+          ..where(sunlightLedgers.dayKey.equals(dayKey))
+          ..addColumns([countExp]))
+        .getSingle();
+    return row.read(countExp) ?? 0;
+  }
+
+  /// 指定 refType + refId 的**最近一次记账时间**（浇水最小间隔核算，M3 修订）。
+  ///
+  /// 用账本时间而非 `Plants.lastWaterAt`：后者在施肥 / 救回时也会被刷新，
+  /// 会让「浇完水 → 施肥 → 立刻又能浇水」绕过 30 分钟间隔。
+  Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async {
+    final Expression<DateTime> maxExp = sunlightLedgers.ts.max();
+    final row = await (selectOnly(sunlightLedgers)
+          ..where(sunlightLedgers.refType.equals(refType))
+          ..where(sunlightLedgers.refId.equals(refId))
+          ..addColumns([maxExp]))
+        .getSingle();
+    return row.read(maxExp);
+  }
+
+  /// 指定 refType 在某月的净阳光合计（按 dayKey 前缀匹配 monthKey）。
+  Future<double> sumNetByRefTypeMonth(String refType, String monthKey) async {
+    final Expression<double> sum = sunlightLedgers.net.sum();
+    final row = await (selectOnly(sunlightLedgers)
+          ..where(sunlightLedgers.refType.equals(refType))
+          ..where(sunlightLedgers.dayKey.like('$monthKey%'))
+          ..addColumns([sum]))
+        .getSingle();
+    return row.read(sum) ?? 0.0;
+  }
+}
+
+/// 植物 DAO（§3.1 plant，M3 新增）。
+@DriftAccessor(tables: [Plants])
+class PlantDao extends DatabaseAccessor<AppDatabase> with _$PlantDaoMixin {
+  PlantDao(super.db);
+
+  /// 全部植物。
+  Future<List<Plant>> all() => select(plants).get();
+
+  /// 按主键（id）读取单株，不存在返回 null。
+  Future<Plant?> byId(String id) =>
+      (select(plants)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  /// 插入或更新（按主键冲突合并）。
+  Future<void> upsert(PlantsCompanion row) =>
+      into(plants).insertOnConflictUpdate(row);
+
+  /// 硬删除单株（按主键 id）。
+  Future<int> deleteById(String id) =>
+      (delete(plants)..where((t) => t.id.equals(id))).go();
+
+  /// 清空全部植物（数据管理 / 删除全部本地数据用）。
+  Future<int> deleteAll() => delete(plants).go();
+}
+
+/// 任务 / 打卡 DAO（§3.1 task / check_in，M3 真实化）。
+@DriftAccessor(tables: [Tasks, CheckIns])
+class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
+  TaskDao(super.db);
+
+  /// 全部任务模板。
+  Future<List<Task>> allTasks() => select(tasks).get();
+
+  /// 插入或更新任务（按主键冲突合并）。
+  Future<void> upsertTask(TasksCompanion row) =>
+      into(tasks).insertOnConflictUpdate(row);
+
+  /// 硬删除任务（按主键 id）。
+  Future<int> deleteTaskById(String id) =>
+      (delete(tasks)..where((t) => t.id.equals(id))).go();
+
+  /// 插入一条打卡记录。
+  Future<void> insertCheckIn(CheckInsCompanion row) =>
+      into(checkIns).insert(row);
+
+  /// 某日打卡记录（date 落在 [dayStart, dayStart+1d) 区间）。
+  Future<List<CheckIn>> checkInsOfDay(String dayKey) {
+    final DateTime dayStart = _parseDay(dayKey);
+    final DateTime dayEnd = dayStart.add(const Duration(days: 1));
+    return (select(checkIns)
+          ..where((t) =>
+              t.date.isBiggerOrEqualValue(dayStart) &
+              t.date.isSmallerThanValue(dayEnd)))
+        .get();
+  }
+
+  /// 清空全部任务与打卡（数据管理用）。
+  Future<int> deleteAllTasks() => delete(tasks).go();
+  Future<int> deleteAllCheckIns() => delete(checkIns).go();
+
+  /// 全部打卡记录条数（跨任务、跨日期累计；M4 打卡领域层聚合用）。
+  Future<int> countCheckIns() async {
+    final Expression<int> countExp = checkIns.id.count();
+    final row =
+        await (selectOnly(checkIns)..addColumns([countExp])).getSingle();
+    return row.read(countExp) ?? 0;
+  }
+
+  /// 按主键读取单条打卡；不存在返回 null（家长端核销用，M4）。
+  Future<CheckIn?> checkInById(String id) =>
+      (select(checkIns)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  /// 指定核销状态的打卡，按 completedAt 升序（家长端待核销列表用，M4）。
+  Future<List<CheckIn>> checkInsByStatus(int status) =>
+      (select(checkIns)
+            ..where((t) => t.status.equals(status))
+            ..orderBy([(t) => OrderingTerm(expression: t.completedAt)]))
+          .get();
+
+  /// 更新打卡记录（按主键冲突合并；家长核销 / 驳回写回用，M4）。
+  Future<void> updateCheckIn(CheckInsCompanion row) =>
+      into(checkIns).insertOnConflictUpdate(row);
+
+  /// 指定核销状态的打卡条数（M4 统计口径：只数已核销）。
+  ///
+  /// 状态以 int 传参（数据层不依赖领域枚举，避免跨层依赖）。
+  Future<int> countCheckInsByStatus(int status) async {
+    final Expression<int> countExp = checkIns.id.count();
+    final row = await (selectOnly(checkIns)
+          ..addColumns([countExp])
+          ..where(checkIns.status.equals(status)))
+        .getSingle();
+    return row.read(countExp) ?? 0;
+  }
+
+  /// 「仅当仍为 [fromStatus]」时写回核销结果（CAS）；返回受影响行数（0 = 已被处理过）。
+  ///
+  /// 并发双核销防护：家长连点两次时，第二次 `where` 命中 0 行 → 返回 0，
+  /// 调用方据此放弃入账（否则余额翻倍）。状态以 int 传参（数据层不依赖领域枚举）。
+  Future<int> resolveCheckInIfStatus({
+    required String id,
+    required int fromStatus,
+    required int toStatus,
+    required double sunlightGranted,
+    required DateTime resolvedAt,
+    String? parentNote,
+  }) {
+    return (update(checkIns)
+          ..where((t) => t.id.equals(id) & t.status.equals(fromStatus)))
+        .write(CheckInsCompanion(
+          status: Value(toStatus),
+          sunlightGranted: Value(sunlightGranted),
+          resolvedAt: Value(resolvedAt),
+          parentNote: Value(parentNote),
+        ));
+  }
+
+  /// 解析日键 `yyyy-MM-dd` 为当日 0 点。
+  DateTime _parseDay(String key) {
+    final List<String> parts = key.split('-');
+    return DateTime(
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+      int.parse(parts[2]),
+    );
   }
 }
 

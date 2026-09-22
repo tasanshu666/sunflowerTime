@@ -28,6 +28,33 @@ class SunlightLedgerDaoManager {
           _db.attachedDatabase, _db.sunlightLedgers);
 }
 
+mixin _$PlantDaoMixin on DatabaseAccessor<AppDatabase> {
+  $PlantsTable get plants => attachedDatabase.plants;
+  PlantDaoManager get managers => PlantDaoManager(this);
+}
+
+class PlantDaoManager {
+  final _$PlantDaoMixin _db;
+  PlantDaoManager(this._db);
+  $$PlantsTableTableManager get plants =>
+      $$PlantsTableTableManager(_db.attachedDatabase, _db.plants);
+}
+
+mixin _$TaskDaoMixin on DatabaseAccessor<AppDatabase> {
+  $TasksTable get tasks => attachedDatabase.tasks;
+  $CheckInsTable get checkIns => attachedDatabase.checkIns;
+  TaskDaoManager get managers => TaskDaoManager(this);
+}
+
+class TaskDaoManager {
+  final _$TaskDaoMixin _db;
+  TaskDaoManager(this._db);
+  $$TasksTableTableManager get tasks =>
+      $$TasksTableTableManager(_db.attachedDatabase, _db.tasks);
+  $$CheckInsTableTableManager get checkIns =>
+      $$CheckInsTableTableManager(_db.attachedDatabase, _db.checkIns);
+}
+
 mixin _$RewardTemplateDaoMixin on DatabaseAccessor<AppDatabase> {
   $RewardTemplatesTable get rewardTemplates => attachedDatabase.rewardTemplates;
   RewardTemplateDaoManager get managers => RewardTemplateDaoManager(this);

@@ -12,6 +12,7 @@ library pool_indicator;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -70,12 +71,18 @@ class _WeeklyPoolCardState extends ConsumerState<WeeklyPoolCard> {
 
   Future<void> _saveBudget() async {
     final int? parsed = int.tryParse(_budgetCtrl.text.trim());
-    // 校验：必须是整数且落在 50–1200（WeeklyPool 文档区间）。
-    if (parsed == null || parsed < 50 || parsed > 1200) {
+    // 校验：必须是整数且落在可调区间（玄参 2026-09-22 拍板收到 50–500）。
+    // 区间来源 [kWeeklyPoolBudgetMin] / [kWeeklyPoolBudgetMax]（单点常量），
+    // 不再在 UI 里写裸字面量——此前 50/1200 只存在于本文件，常量体系里没有出处。
+    if (parsed == null ||
+        parsed < kWeeklyPoolBudgetMin ||
+        parsed > kWeeklyPoolBudgetMax) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('请输入 50–1200 之间的整数预算值'),
+            content: Text(
+              '请输入 $kWeeklyPoolBudgetMin–$kWeeklyPoolBudgetMax 之间的整数预算值',
+            ),
           ),
         );
       }

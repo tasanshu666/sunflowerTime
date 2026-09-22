@@ -19,7 +19,7 @@ enum RewardCategory {
 
 /// 兑换申请状态机（S2）：pending / queued / verified / rejected。
 enum RequestStatus {
-  pending, // 待核销：需家长显式处理（分母计入核销履约率）
+  pending, // 待核销：需家长显式处理（家长确认后才入账）
   queued, // 排队中：超池，下月 1 日按申请先后自动放行
   verified, // 已核销：家长显式核销 或 免确认自动放行
   rejected, // 已拒绝：家长显式拒绝，不核销、阳光原路返回（不扣账本）
@@ -110,5 +110,5 @@ enum CooldownRule {
 /// 埋点类型（§6 / §8.3 纪念册 + 指标）。
 enum TrackingType {
   milestone, // 毕业纪念册事件
-  metric, // WFD / 履约率 / 留存指标
+  metric, // WFD / 留存等累计指标
 }

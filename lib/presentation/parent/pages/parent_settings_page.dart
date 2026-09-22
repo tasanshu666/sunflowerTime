@@ -214,7 +214,11 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
         _IntTile(
           title: '每日专注上限（分钟）',
           value: s.dailyFocusCap,
-          options: const <int>[60, 75, 90],
+          options: const <int>[
+            kDailyFocusCapLow,
+            kDailyFocusCapMid,
+            kDailyFocusCapHigh,
+          ],
           onChanged: (v) => _update(s.copyWith(dailyFocusCap: v)),
         ),
         _IntTile(

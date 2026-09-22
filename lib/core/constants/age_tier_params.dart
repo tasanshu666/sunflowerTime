@@ -7,8 +7,10 @@
 /// 决策锁定（§0 D2 / U1）：
 ///  · 分龄 K = [低 1.0 / 中 1.2 / 高 1.5]
 ///  · 分档 = 6–8 / 9–10 / 11–12 岁
-///  · U1：中档(9–10 岁) 的 C5 阈值/天花板/周阳光池默认/每日上限 **全部沿用低档值**
-///    （50 / 40 / 160 / 90），仅 K=1.2 区分；不发明新数字（符合单点纪律）。
+///  · U1：中档(9–10 岁) 的 C5 阈值/天花板/周阳光池默认 **沿用低档值**（50 / 40 / 160），
+///    仅 K=1.2 区分；不发明新数字（符合单点纪律）。
+///  · ⚠️ **例外**：每日专注上限不适用 U1 —— 玄参 2026-09-22 拍板三档各自成阶梯
+///    （低 60 / 中 90 / 高 120），不再沿用低档值。
 ///
 /// 2026-09-21 决策：K **不再参与定价**。家长端直接设定价格、孩子端直接显示家长设定的价格，
 /// 显示价 = 扣费价 = baseCost。`k` 字段与 [ageTierK] 保留为档位参数单点（供分档展示等用途），
@@ -25,8 +27,8 @@ class AgeTierParams {
   final double k; // 分龄系数 K（仅作用消耗侧）
   final int autoApproveMaxCost; // C5① 单笔候选阈值
   final int autoApproveCapCeiling; // C5② 固定天花板（低 40 / 高 100）
-  final int poolBudgetDefault; // 周阳光池默认（低 160 / 高 400）
-  final int dailyFocusCap; // 每日专注上限（低 90 / 高 60）
+  final int poolBudgetDefault; // 周阳光池默认（低/中 160 / 高 400）
+  final int dailyFocusCap; // 每日专注上限（低 60 / 中 90 / 高 120，2026-09-22 拍板）
 
   const AgeTierParams({
     required this.ageMin,
@@ -48,17 +50,18 @@ const Map<AgeTier, AgeTierParams> kAgeTierParams = {
     autoApproveMaxCost: kAutoApproveMaxCostLow, // 50
     autoApproveCapCeiling: kAutoApproveCapCeilingLow, // 40
     poolBudgetDefault: kPoolBudgetDefaultLow, // 160
-    dailyFocusCap: kDailyFocusCapLow, // 90
+    dailyFocusCap: kDailyFocusCapLow, // 60（2026-09-22：低年段降为 60）
   ),
   AgeTier.mid: AgeTierParams(
     ageMin: 9,
     ageMax: 10,
     k: 1.2,
-    // U1：中档全部沿用低档取值（不发明新数字），仅 K 区分。
+    // U1：中档的 C5 阈值/天花板/周池默认沿用低档取值（不发明新数字），仅 K 区分。
+    // 每日专注上限为例外，见文件头注释。
     autoApproveMaxCost: kAutoApproveMaxCostLow, // 50
     autoApproveCapCeiling: kAutoApproveCapCeilingLow, // 40
     poolBudgetDefault: kPoolBudgetDefaultLow, // 160
-    dailyFocusCap: kDailyFocusCapLow, // 90
+    dailyFocusCap: kDailyFocusCapMid, // 90（三档阶梯的中间档）
   ),
   AgeTier.high: AgeTierParams(
     ageMin: 11,
@@ -67,7 +70,7 @@ const Map<AgeTier, AgeTierParams> kAgeTierParams = {
     autoApproveMaxCost: kAutoApproveMaxCostHigh, // 130
     autoApproveCapCeiling: kAutoApproveCapCeilingHigh, // 100
     poolBudgetDefault: kPoolBudgetDefaultHigh, // 400
-    dailyFocusCap: kDailyFocusCapHigh, // 60
+    dailyFocusCap: kDailyFocusCapHigh, // 120（2026-09-22：高年段升为 120）
   ),
 };
 

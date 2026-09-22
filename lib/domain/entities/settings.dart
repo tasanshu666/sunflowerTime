@@ -6,12 +6,12 @@ class AppSettings {
   final AgeTier ageTier;
   final int nightBoundaryHour; // 夜间边界（唯一值 §6.1）
   final int nightBoundaryMinute;
-  final int dailyFocusCap; // 60(高)/90(低)
+  final int dailyFocusCap; // 每日专注上限（低 60 / 中 90 / 高 120，2026-09-22 拍板）
   final int dailyAppCapMinutes; // 30
   final int restAfterSessions; // 2
   final int restMinutes; // 10
   final int taskSunlight; // 12
-  final int poolBudget; // 周阳光池预算（家长可设定，建议值 400，区间 50–1200）
+  final int poolBudget; // 周阳光池预算（家长可设定，默认低/中 160、高 400，可调区间 50–500）
   final bool quietMode;
   final bool soundOn;
   final bool bgmOn;

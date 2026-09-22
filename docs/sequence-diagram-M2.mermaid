@@ -111,7 +111,6 @@ sequenceDiagram
     RO->>MP: applyRedemption(pool, cost, auto=false) → used+=cost
     RO->>TR: track(reward_verified(within_48h = now-requestedAt ≤ 48h, amount, tier, is_small))
     RO-->>VC: 成功（卡消失 + 正向反馈）
-    Note over RO,TR: 对账口径（C4 主口径 48h）：<br/>履约率 = 48h 内显式处理 ÷ 进入待处理队列<br/>分母排除免确认自动通过（D1/C5 自动放行不计分母）
 
 %% ④ M1 focus/settle 链路插入埋点（9 事件中的 4 个）
 sequenceDiagram

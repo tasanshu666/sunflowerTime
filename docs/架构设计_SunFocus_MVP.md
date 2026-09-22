@@ -120,10 +120,10 @@ flowchart TB
 | **plant_species** | id / name / rarity(enum) / base_cost_high / base_cost_low / growth_hours_per_stage | MVP 3 种（§8.2 推迟）；定价读 §4.6 |
 | **reward_template** | id / name / category(enum 自服务/家长经手) / base_cost_high / base_cost_low / freq_limit(周/月+次数) / cooldown_rule / enabled | 读 §4.8 定价表 |
 | **redemption_request** | id / template_id / requested_at / cost(int,含K) / status(enum) / auto_approved(bool) / queue_position(int?) / verified_at / parent_note | idx(status), idx(requested_at)；核销队列=status∈(pending,queued) |
-| **monthly_pool** | month_key / budget(int 400/160,100–1200) / used(int) / auto_released(int) / reset_at | 每月 1 日 0 点重置（§4.8） |
+| **monthly_pool** | month_key / budget(int 400/160，可调 **50–500**) / used(int) / auto_released(int) / reset_at | 落地按**周**重置（每周一 0 点）；2026-09-22 可调区间由 100–1200 收敛为 50–500（§4.8） |
 | **cooldown_counter** | template_id / period_key(周/月) / used_count | 频次上限主阀门（§4.8 E6） |
-| **settings** | age_tier / night_boundary(TimeOfDay,**唯一值 §6.1**) / daily_focus_cap(60/90) / daily_app_cap(30) / rest_after(2) / rest_min(10) / task_sunlight(12) / monthly_pool_budget / parent_pin_hash / quiet_mode / sound_on / bgm_on / detection_on / auto_confirm_single(130/50) / auto_confirm_month_pct(25) / currency_rate(0.25) / theme / autonomous_mode | 单例行 |
-| **tracking_event** | id / type(enum 纪念册/指标) / ts / payload(JSON) | 毕业纪念册埋点 + WFD/履约率/留存指标（§8.3 / §8.4） |
+| **settings** | age_tier / night_boundary(TimeOfDay,**唯一值 §6.1**) / daily_focus_cap(60/90/120，2026-09-22 三档阶梯) / daily_app_cap(30) / rest_after(2) / rest_min(10) / task_sunlight(12) / monthly_pool_budget / parent_pin_hash / quiet_mode / sound_on / bgm_on / detection_on / auto_confirm_single(130/50) / auto_confirm_month_pct(25) / currency_rate(0.25) / theme / autonomous_mode | 单例行 |
+| **tracking_event** | id / type(enum 纪念册/指标) / ts / payload(JSON) | 毕业纪念册埋点 + WFD/留存指标（§8.3 / §8.4） |
 
 ### 3.2 阳光流水如何记账（保证三套规则可追溯、可对账）
 
@@ -283,7 +283,7 @@ lib/
 │       ├── redemption_service.dart    # 兑换/免确认双条件/月池/排队
 │       ├── cooldown_service.dart      # 冷却期状态化/强制替代/双拒绝熔断
 │       ├── anti_addiction_service.dart# 防沉迷（读夜间边界单一值）
-│       ├── metrics_service.dart       # WFD/履约率/队列充足性/留存
+│       ├── metrics_service.dart       # WFD/队列充足性/留存
 │       ├── praise_service.dart        # 夸夸台转述表扬
 │       ├── sunlight_score_service.dart# ★V2 阳光分数化换算接口（桩）
 │       └── account_service.dart       # ★账号/家庭组占位桩（Plan B 抛 Unsupported）

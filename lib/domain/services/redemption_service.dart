@@ -26,7 +26,7 @@ class RedemptionDecision {
 ///
 /// 状态机：
 ///  满足双条件        → verified（autoApproved = true）
-///  不满足 且 池未满  → pending（待家长显式核销，分母计入核销履约率）
+///  不满足 且 池未满  → pending（待家长显式核销）
 ///  不满足 且 池已满  → queued（下月 1 日按申请先后自动放行，不拒绝、不失效）
 class RedemptionService {
   RedemptionService._();

@@ -50,6 +50,16 @@ const int kPoolBudgetDefaultHigh = 400;
 /// 周阳光池默认预算 · 低年级（PRD §4.8 E9：160 阳光/周）
 const int kPoolBudgetDefaultLow = 160;
 
+/// 周阳光池**可调下限**（玄参 2026-09-22 拍板：家长可自由调节，区间 50–500）。
+///
+/// 用于取代此前只写在 UI 里的裸字面量 50（`pool_indicator.dart`）。
+const int kWeeklyPoolBudgetMin = 50;
+
+/// 周阳光池**可调上限**（玄参 2026-09-22 拍板：原 1200 太大，收敛到 500）。
+///
+/// 注意与 [kMonthlyPoolMax]（月池遗留 1200）**不是同一回事**，勿混用。
+const int kWeeklyPoolBudgetMax = 500;
+
 /// 月度池可调下限（PRD §4.8 E9：100–1,200）
 const int kMonthlyPoolMin = 100;
 
@@ -92,11 +102,17 @@ const List<List<int>> kNightBoundaryOptions = <List<int>>[
   <int>[22, 0],
 ];
 
-/// 每日专注上限（分钟）：高年段（PRD §6.1 不变式）。
-const int kDailyFocusCapHigh = 60;
+/// 每日专注上限（分钟）：低年段（6–8 岁）。
+///
+/// 玄参 2026-09-22 拍板把三档改为「年龄越大、上限越高」：低 60 / 中 90 / 高 120。
+/// （原实现是低=中=90、高=60，即高年段反而更少；PRD §6.1 的旧值 60/90 已据此作废。）
+const int kDailyFocusCapLow = 60;
 
-/// 每日专注上限（分钟）：低/中年段（PRD §6.1 不变式）。
-const int kDailyFocusCapLow = 90;
+/// 每日专注上限（分钟）：中年段（9–10 岁）。
+const int kDailyFocusCapMid = 90;
+
+/// 每日专注上限（分钟）：高年段（11–12 岁）。
+const int kDailyFocusCapHigh = 120;
 
 // ───────────────────────────────────────────────────────────────────────────
 // M2 经济与商店核销 · 基础层常量（T-A，§0 D5 / C1 / D4）

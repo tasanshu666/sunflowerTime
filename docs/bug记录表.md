@@ -291,3 +291,231 @@
 - **测试 Fake 同步**：`redemption_orchestration_test` Fake 与 `store_page_test` 两个 Fake 均补齐 `decrementCooldown` 实现（map 计数 `clamp(0,...)`），否则编译不过。
 - **收尾校验**：`flutter analyze` **0 error / 0 warning**（33 info，均为既有 lint hint）；`flutter test` **171/171 全绿**（170 基线 + 1 新 g4）；`flutter build apk --debug` 成功；`adb install -r` 推小米 14 Pro（`f05bbc46`）成功（待真机复测）。
 - **已提交**：commit `645c89b` 已推 `origin/m2/economy`（不合 main）。
+
+---
+
+# M3 孩子端 / 家长端导航改版（2026-09-22，小米 14 Pro，分支 `m2/economy`）
+
+> 玄参大人真机反馈原文：
+> 「关于家长页面的 tab 栏，我得说它在顶部，并不是在底部。确实变成了 5 个。任务栏挪在了外面，正确」
+> 「家长页改为了 tab 栏了，孩子页是不是也得改为 tab 栏了，而且首页的四档反馈预览也该删除了」
+> 「孩子端的导航应该是**今日、任务、花园、商店、我的**」
+>
+> 本轮为**需求类**（非缺陷）。孩子端 tab 栏不是新增需求、是**补做**：`docs/架构设计_SunFocus_MVP.md:305` 原设计即 `home_page.dart # 今日状态卡+底部导航`。
+
+| ID | 模块 | 现象 / 需求 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F07 | M3/家长端导航 | 家长端 5 个 tab 在 **AppBar 顶部** `TabBar`，玄参预期在**屏幕底部** | 原实现用 `AppBar.bottom: TabBar` + `TabBarView` | 改屏幕底部 `NavigationBar`（5 tab：**今日 / 奖励 / 成长 / 夸夸台 / 设置**）+ `IndexedStack`（切 tab 保活，替代 `TabBarView`）。死守 B19/B20 三项不得回退：`PopScope(canPop:false)` 拦返回键 + AppBar 返回箭头 + `parentThemeFor` 深色皮肤 | ✅ 已修复（待真机） |
+| F08 | M3/孩子端导航 | 孩子端仍是 M0 占位首页（竖排按钮：开始专注 / 家长天地 / 阳光商店 / 我的花园 / DEBUG 加阳光），商店与花园靠 `push` 进入，**无 tab 栏** | 孩子端底部导航在设计里有、工程里没做 | 新建 `child_shell_page.dart`（底部 `NavigationBar` + `IndexedStack`，5 tab：**今日 / 成长 / 花园 / 商店 / 我的**，AppBar 标题随 tab 变、actions 保留「家长天地」）+ `child_today_page.dart` / `child_task_page.dart` / `child_profile_page.dart`；`garden_page` 与 `store_page` 加 `embedded` 复用（商店余额从 `AppBar.actions` 抽为内联 `_BalanceChip`，避免「看不到余额」复现）；`app_router.dart` 的 `/` 改指 `ChildShellPage`；旧 `child_home_page.dart`（含首页「四档反馈预览 / S1」入口）**整文件删除**，`/s1-demo` 路由与 `S1DemoPage` 保留；B4/B5 通知逻辑（`_checkVerifiedNotices` / `_checkRejectedNotices` / `_checkAllNotices` + `economyRevisionProvider` 监听）整段迁入壳页 | ✅ 已修复（待真机） |
+| F09 | M3/术语统一 | 「任务」听起来像要干活（玄参） | 用户可见文案与产品术语不一致 | 用户可见「任务」→「成长」，两端一致：底部 tab、家长端配置页（成长配置 / 新增·编辑成长项 / 成长项名称）、孩子端进度（今日成长 x/y）、分区（每日成长 / 每周成长，`weeklyCount==0` 时整段不渲染）、打卡按钮（我做到了 / 已做到）、空态（今天没有成长项，去玩吧 🌻）、成功提示（太棒了！+X 阳光）、领域层异常文案。**刻意不改**：`Task` 实体 / `TaskCheckInService` / `checkIn()` / 文件名 / 路由 `/parent/tasks`（大范围重命名风险高收益低，已在领域层文件头加「术语约定」注释说明）；**刻意不改**：账本字段 `refType='task_checkin'`（是**数据标识不是文案**，改了会对不上历史账本） | ✅ 已修复（待真机） |
+
+## M3 导航改版轮 · 校验
+
+- **新增回归测试**：`test/nav/nav_structure_test.dart` **6 条 widget 测试**（断言两端底部导航项数与文案顺序、初始选中项、`IndexedStack` 存在、`TabBar` 不存在、「四档反馈预览」文字不出现、家长端 `PopScope.canPop==false` + 返回箭头 + `parentThemeFor` 主题；并用注入数据证明「家长核销 / 拒绝」弹窗真的弹出）。
+- **收尾校验（本阶段）**：`flutter analyze` **0 error / 0 warning**（55 条 info 级既有 lint）；`flutter test --no-pub` **207 passed 全绿**（M2 第 4 轮 171 之后、M3 导航改版阶段的数字）。
+- **口径裁定（本轮新增，玄参拍板）**：完美日只统计 `isDaily`（`repeatRule` 为 null/'daily'）的成长项。「每周」项仍每天列出、仍可打卡，但**不计入完美日**——`repeatRule` 只有 null/'daily'/'weekly' 三值且**无星期信息**（实体注释自写「（占位）」），玄参裁定不改数据模型，避免一个没做的周任务把完美日永远卡死。`TodayTaskBoard.total/doneCount/allDone` 语义 = **「今日必做成长项的进度」，不是列表可见行数**（已写入类注释）；新增 `weeklyCount` 供 UI 分区。
+- **已提交**：随 commit **`34e1541`**（`m2/economy`）；同日 `--no-ff` 合回 `main` → 合并提交 **`421df23`**。装包设备小米 14 Pro **`f05bbc46`**。
+
+---
+
+# M3 真机验收·4 类孩子端反馈修复轮（2026-09-22，小米 14 Pro，分支 `m2/economy`）
+
+> 玄参大人真机实测导航改版 APK 后的 4 类反馈（完美日加成去留 / 两端口径不一致 / 联动项奖励家长还能改 / 植物培养没有过程感），经 AskUserQuestion 由玄参逐条拍板。
+
+| ID | 模块 | 现象 / 需求 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F10 | M3/奖励口径 | 完美日 ×1.5 让同一个成长项的奖励是**不确定值**，家长算不清 | 原设计把「完美日系数」叠加在成长项奖励上 | **玄参拍板移除**：完美日仅留徽章语义，不再叠加系数；`task_checkin_service._rewardFor` 移除系数并删 `app_constants` 残留导入 | ✅ 已修复（待真机） |
+| F11 | M3/两端口径 | 「阅读 20 分钟」在**孩子端预览显示 12**、结算页 / 家长卡显示的是别的数字 | `_rewardFor` 在**孩子端预览取基础值**、**结算页与家长卡取含 ×1.5 的 `sunlightGross`**，两条口径并存 | ×1.5 移除后三端统一取 `Task.effectiveSunlightReward`（单点收口，禁止各处复写） | ✅ 已修复（待真机） |
+| F12 | M3/联动项定价 | 家长可任意调高联动成长项的奖励 → 存在刷分空间 | 联动项奖励读家长设值 `sunlightReward` | **玄参拍板**：联动项（`requiresFocus == true`）奖励**固定 = 最少专注分钟 × 40%**（`kTaskRewardRatio = 0.4`），**家长不再可调**；公式单点收口在 `Task.rewardCapFor(int)` / `Task.rewardCap` / `Task.effectiveSunlightReward`（编辑器与领域结算共用同一口径）。非联动项保持家长原值（`kTaskRewardDefault=8` / `Min=5` / `Max=15`）。影响面：种子联动项「完成学校作业」「练习数学口算」（均 15 分钟 / 设 12）生效值 **12 → 6**（15×0.4）；「阅读 20 分钟」非联动 → 仍 12。编辑器联动项锁死文案「奖励固定=专注N分钟×40%=X☀」，奖励滑杆 min/max 随分钟动态变化、下调时自动夹回（`min == max` 时 `divisions` 必须传 `null`，否则断言崩）。历史超标数据：编辑器打开即显示夹回后的合法值，但**数据库原值不动** | ✅ 已修复（待真机） |
+| F13 | M3/植物培养 | 植物培养没有过程感（玄参当日进一步升级为 V2，见 F23–F25） | 原成长参数下浇水 / 施肥增量过大、自动成长偏快 | 本轮先改为**固定增量**：浇水 **+12%**（`kPlantWaterProgressGain=0.12`）、施肥 **+25%**（`kPlantFertilizeProgressGain=0.25`），按钮明示；自动成长乘 `kPlantAutoGrowthScale=0.2` 缓速；卡面显示「距下一阶段还需约 N 次」。**同日被植物成长 V2（F23–F25）覆盖**：+12% / +25% → **+1% / +5%**，`kPlantAutoGrowthScale` 0.2 → **1.0** | ✅ 已修复（待真机，同日已被 V2 覆盖） |
+
+## M3 4 类反馈轮 · 校验
+
+- **测试同步（本轮必然连带）**：`adversarial_v1_v10_test.dart` V7c/V7d 的 ×1.5 断言改固定值（9 → 6）；`task_checkin_test.dart` / `adversarial_task_checkin_test.dart` 旧的 `min(设值, 封顶)` 口径改「固定 = 分钟 × 40%」（如 reward12 @45min → **18**），软顶 / 余额数字同步改；抽象 `SunlightRepository.all()` 拖出 8 个测试 fake 缺实现 → 全部补齐；`daos.dart` 的 `allDesc()` 原用未引入的 `Ordering` 类 → 改 `select().get()` 后 Dart 端 `sort` 降序（ts 为 unix 秒 INTEGER，比较无碍）。
+- **收尾校验（本阶段）**：`flutter analyze` **0 error**（58 条 info/warning 为既有 lint，含 2 处 `app_constants` unused_import，未删以免误伤其他常量）；`flutter test` **279 passed 全绿**（含 m4 服务 84 条 + 全仓）；`flutter build apk --debug` **✓ Built**（compileSdk 强制 35）。
+- **装包**：本轮 `adb -s f05bbc46 install -r` **失败**（`adb devices` 为空，手机未连；重启 daemon 仍无设备）。APK 就绪于 `build/app/outputs/flutter-apk/app-debug.apk`，后续补装（见「花园扩容『暗扣 400』修复轮」的装包记录）。
+- **已提交**：随 commit **`34e1541`**。
+
+---
+
+# M4 经济漏洞修复轮（2026-09-22，玄参报漏洞 + 代码审计，分支 `m2/economy`）
+
+> 玄参大人原话：「成长这个地方的任务，比如数学专注 10 分钟，是不是需要和专注联动？……如果不联动，孩子完成任务，点击我做到了，阳光直接核销，**没有家长监管，是不是孩子容易不做这个事情，也会刷分**？」
+>
+> 核实属实：玄参报的 4 处 + 代码审计挖出的 4 处 = **7 + 1 个漏洞**（第 7 条为主理人复核时的补发现）。全部修在 `lib/domain` + `lib/data` 内。
+>
+> 前置事实：本轮之前 `SunlightService.computeRawS/settle` 的 `taskCount` / `perfectDayCoefficient` 参数，**唯一调用点 `focus_page.dart` 从未传值** → 原设计意图（PRD §4.5 `S = 专注分钟×1 + 任务数×12×完美日系数`）自 M2 起一直断着。
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F14 | M4/家长核销 | **[P0]** 家长连点两次「确认发放」→ 阳光**双倍入账** | `verifyCheckIn` 是「读记录 → 改状态 → 写账本」的**读-改-写非原子**序列，第二次读到的是尚未更新的旧状态 | DAO 层 **CAS**：新增 `TaskDao.resolveCheckInIfStatus`（`update ... where id=? and status=?`，**以受影响行数判成败**；状态用 `int` 传，避免数据层 import 领域枚举）；抢占失败即抛异常、放弃入账。`_appendLedger` 再加一层 `countByRefTypeAndRefIdOnDay('task_checkin', checkInId, day)` 兜底去重 | ✅ 已修复（待真机） |
+| F15 | M4/联动校验 | **[P1]** 一次专注会话解锁**多个**联动成长项（一鱼三吃） | 校验只看「当日**存在**一次 `actualFocusMin >= minFocusMin` 的专注」，**不区分归属**、也不检查该专注是否已被别的成长项用掉 | 会话复用守卫：当日已存在 `sessionId == session.id && status == verified` 的打卡 → 抛「这次专注已经结算过成长项啦」 | ✅ 已修复（待真机） |
+| F16 | M4/跨天 | **[P1]** 用**昨天的**专注结算今天的成长项 | `settleFocusLinked` 未校验专注会话的日期归属 | 跨天守卫：`dayKey(session.start) != dayKey(now)` → 抛异常 | ✅ 已修复（待真机） |
+| F17 | M4/完成度口径 | **[P2]** `rejected` 被当成「已做到」，还能凑完美日 | 取当日打卡时未剔除 `rejected` 行 | 统一优先级函数 `_activeCheckIn`（同一 task 当日多行取「最新一条非 rejected」）+ `_allDailySubmitted` 剔除 rejected | ✅ 已修复（待真机） |
+| F18 | M4/重做 | **[P2]** 被驳回后当日卡死，无法重做 | `checkIn` 对当日已有任意打卡行一律拦截 | `checkIn` 只拦 `pending` / `verified`，`rejected` 放行（**新增一行**，保留审计痕迹） | ✅ 已修复（待真机） |
+| F19 | M4/统计口径 | **[P2]** `totalCheckInCount` 把 pending / rejected 也算进去 → 孩子端「我的」页累计打卡**虚高** | 计数未按状态过滤 | 改 `countCheckInsByStatus(CheckInStatus.verified.index)` | ✅ 已修复（待真机） |
+| F20 | M4/并发 | **[P0·补发现]** 两条不同 pending 记录并发核销 / 孩子连点两次「我做到了」→ 顶穿当日软顶、出双份阳光（家长看到两条同名待确认，核销出双份） | F14 的 CAS 只保证**同一条记录**不被重复核销，管不住**两条不同记录互相插队**：`_softCapGrant` 是「读当日累计 → 算差额 → 写账本」的非原子序列，两条各自读到同一份 `grantedSoFar`、各自补满差额；孩子连点两次则各插一行 pending | 服务层**串行闸门** `_serialized`（`Completer` 链），包住 `checkIn` / `settleFocusLinked` / `verifyCheckIn` / `rejectCheckIn` **四个写入口**；只读的 `board()` / `pendingCheckIns()` **不加闸门**（否则写操作会拖住界面）；被串行化的方法内部**不得**再调用另一个公共写入口，只能调私有实现或仓储（防死锁）。**两道锁分工**：闸门管「并发插队」，CAS 管「状态已被别处改过」，两层都要有、不能互相替代 | ✅ 已修复（待真机） |
+
+## M4 经济漏洞轮 · 规则变更（玄参拍板，已落地）
+
+- **联动项**（`requiresFocus == true`，UI 改述为「专注联动（自动结算）」）：孩子从该成长项点「开始专注」→ 专注达标 → **自动结算**（`verified` + 直接入账）。孩子**没有**可点的打卡按钮。
+- **非联动项**：孩子点「我做到了」→ **当期不发阳光**，落 `CheckInStatus.pending` → **家长核销后才入账**，可驳回并写理由。
+- **归属机制**：从成长项进入专注（`/focus?...&task=<id>`），因此**不需要给 `FocusSession` 加科目列**（绕开了「无科目字段」的数据模型限制）。
+- **`pending` 不占当日软顶额度**：只有真正入账才计入当日 `earn` 合计。
+- **完美日按「已提交」判定**（联动 = 自动结算；非联动 = 已打卡，**不等家长核销**），保持即时情绪反馈；完美日本身不发钱。
+- `settleFocusLinked()` 专注**未达标** → 返回 `status == rejected` 且 `checkInId == ''`，**不抛异常、不写记录、不写账本**（让表现层能区分「正常没达标」与「真出错」）。
+- **家长核销 / 驳回入口放在家长端「今日」tab**（核销有时效性）；待确认列表为空时整卡不渲染。
+- 新增独立能力接口 `CheckInAdminRepository`（`checkInById` / `checkInsByStatus` / `updateCheckIn`），**没有往 `TaskRepository` 加方法** → `TaskRepository` 方法集未变，`test/nav` 里手写 Fake 不受影响，省掉一轮连锁返工。
+
+## M4 经济漏洞轮 · 数据变更（schemaVersion 5 → 6）
+
+- `check_ins` 表补 **5 列**：`status` / `sunlightGross` / `sunlightGranted` / `resolvedAt` / `parentNote`，走既有 `_ensureColumn` 幂等补列；`CheckIn` 实体同步加这 5 个字段。
+- **枚举顺序刻意把 `verified` 放在 index 0**（`lib/domain/entities/enums.dart:48`）：老库补列默认值 0 → 历史打卡仍视为「已核销」（v5 及以前本就是「打卡即入账」，历史行为必须保持）。若把 `pending` 放 0，升级后会突然冒出一堆历史遗留待办，把家长淹掉。
+- **本轮未加数据库列以外的结构变更**；`schemaVersion` 由 5 升到 **6**（后续植物成长 V2 再升到 7）。
+- **连带**：`test/m3/migration_v4_to_v5_test.dart` 硬编码 `schemaVersion == 5` 的护栏断言被合法的 5→6 升级打破，已一并改为 6（升级的必然连带）。
+
+## M4 经济漏洞轮 · 校验
+
+- **新增回归测试**：`test/m4/task_checkin_test.dart` **42/42 通过**（含新增的「两条不同记录并发核销」「连点两次打卡」「闸门不吞异常」）；QA 独立对抗 `test/m4/adversarial_task_checkin_test.dart` **25 用例**；`test/m4/migration_v5_to_v6_test.dart`（v5→v6 迁移护栏）。
+- **收尾校验（本阶段）**：`flutter analyze` **0 error / 0 warning**（全仓仅 55 条既有 info）；`flutter test --no-pub` **279 passed 全绿**。
+- **主理人复核**：已亲自核对 4 个写入口的**公共签名一字未变**（表现层不受影响）、闸门实现无死锁风险。
+- **QA 诚实自我更正**：早前报的「settle 路径并发竞态」是打在**修复前**的旧服务上，40 次并发 **0/40** 未复现 → 降级为契约回归，**当前无残留经济竞态**。
+- **[P3-C] 口径裁定**：成长项被删除后，其孤儿 pending **仍可核销** → **保持现状**，非缺陷。家长端 `parent_today_page.dart` 已有 `p.task?.name ?? '（已删除的成长项）'` 兜底文案、按钮照常可点，让家长能把历史遗留清掉。
+- **已提交**：随 commit **`34e1541`**。
+
+---
+
+# 花园扩容「暗扣 400」修复轮（2026-09-22，小米 14 Pro，分支 `m2/economy`）
+
+> 玄参大人原话：「点击扩容的时候，它会扣400阳光，但是并没有显示……需要有弹出一个卡片，告诉我需要扣除多少阳光，确定之后才扣除，取消就不扣除」
+> 「在我的里面是1000多阳光，在我的花园里面的阳光却是900多阳光，这两个数量就对不上」
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F21 | 花园/扩容 | 点「扩容 +1」**直接扣 400 阳光**（低年级档 160），无确认、按钮上没价格 | `garden_page.dart` 点「扩容 +1」直接 `_run(() => expandPot(...))`，按钮文案写死「扩容 +1」（无价格），中间**零确认** → 点了才扣 | 新增 `_expandCost` getter（`_tier == AgeTier.low ? kPlantPotExpandCostLow(160) : kPlantPotExpandCostHigh(400)`，无裸字面量）+ `_confirmAndExpand()`：`AlertDialog`「要给花园腾一个花盆吗？」正文三行 = 当前阳光 X ☀ / 本次扩容将扣除 Y ☀ / 花园容量 N → N+1 盆；「取消」`pop(false)` → `if (ok != true) return;` **一分不扣**，「确定，扣除」`pop(true)` → 才 `expandPot`；余额不足先 SnackBar「阳光不足，还差 Z ☀」并 return。`_CapacityBanner` 重写为**三态互斥**：已达上限 →「已达上限」；阳光不足 → 灰字「阳光不足（还差 Z ☀）」且**不给可点按钮**；可扩容 →「扩容 +1 · Y☀」（原 `onExpand==null` 一律显示「已达上限」会误导，已消除）；`busy` 时禁用 | ✅ 已修复（待真机） |
+| F22 | 孩子端/我的页 | 「我的」页 1000 多、花园页 900 多，**两端对不上** | `child_profile_page.dart` 的 `_balance` **只在 `initState` 的 `_reload()` 读一次**，而它是底部导航 `IndexedStack` 的**保活页**，切 tab 不重建 → 花园消费后切回仍显示旧值。**账本本身是准的**：`PlantGrowthService.expandPot` 确实走 `_appendSpend(..., refType:'plant_expand')` 写 `net = -cost` —— **不是少扣了款，只是页面没重读，禁止去领域层「补扣」** | `build()` 内加 `ref.listen(economyRevisionProvider, (_, __) { if (mounted) _reload(silent: true); })`；`_reload` 加 `{bool silent = false}`（沿用花园同款静默刷新，避免切回时闪全屏 loading） | ✅ 已修复（待真机） |
+
+⚠️ **与 F05 同一类坑（交叉引用）**：主理人最初建议把 `ref.listen` 写在 `initState`，**Riverpod 不允许**——有 `debugDoingBuild` 断言（`ref.listen can only be used within the build method`）。实测写在 `initState` 会让 `test/nav/nav_structure_test.dart` **4 条全红**（`ChildProfilePage` 是 `ChildShellPage` 的 `IndexedStack` 子页，`initState` 立即执行即触发）。改放 `build()` 内、`_loading` 早退之前（与 `child_shell_page` / `child_today_page` 现有一致）→ nav 恢复 6/6、全量 279 绿。
+**纪律**：`ref.listen` 只能写在 `build()` 内；`initState` 场景必须用 `ref.listenManual`（见 F05）。
+
+## 花园扩容轮 · 校验
+
+- **收尾校验（本阶段）**：`flutter analyze` **0 error**（3 条 warning 在 QA 早前新增的 test 文件 unused_import / unused_element_parameter，非本轮改动文件，未动 `test/**`）；`flutter test` **279 passed 全绿**；`test/nav/nav_structure_test.dart` 单独 **6/6**。
+- **装包（20:49，玄参重连手机）**：小米 14 Pro `f05bbc46` / shennong / 23116PN5BC 重新连上；`adb -s f05bbc46 install -r build/app/outputs/flutter-apk/app-debug.apk` → **Success**（覆盖装，保留数据）；`am start -n com.example.sunflower_time/.MainActivity` → 进程 **PID 6709 存活**，无崩溃。
+- **已提交**：随 commit **`34e1541`**。
+
+---
+
+# 植物成长 V2 重规划轮（2026-09-22，玄参真机反馈 + 拍板，分支 `m2/economy`）
+
+> 玄参大人原话：「点击浇水，本阶段成长直接到了21%，并不是浇水的12%。点击施肥，成长阶段直接从21%涨到了70%，并不是施肥的25%」
+> 「现在植物的培养还是太简单了……一个植物需要1个月的成长期，精品植物需要2个月的成长期……浇水成长1%，施肥成长5%。植物的成长还需要重新规划」
+> 「结算页面，我看到了现在今日累计，显示的是-173，消耗的阳光就不用在这里显示了吧，只需要显示获得的阳光」
+>
+> 玄参 AskUserQuestion 三选拍板：① 成长期口径 =「**不养护 30 天，养护可加速**」；② 养护强度 =「**浇水 1%×3 次/天 + 施肥 5%×1 次/天**」（每天最多 +8%）；③ 老植物 =「**全部重置清零**」。
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F23 | 植物/成长 | 浇水标 +12%，实际本阶段成长**跳到 21%**（真机） | **根因① `_advanceGrowth` 非幂等**：`stageStartedAt` 只在**跨阶段**时更新 → 每次 `tickAll`（每次页面刷新）都把「stageStartedAt → now」整段**重新累加**到已有进度 | 改为按段推进 + 推进 cursor，重复 tick 不再重算已走过的段 | ✅ 已修复（待真机） |
+| F24 | 植物/成长 | 「培养太简单，没有陪伴成长的乐趣」——几小时就开花 | ⭐**根因②（真凶）微秒除数少除 1000 倍**：`inMicroseconds / 3600000.0`，而 1 小时 = 3.6e9 微秒，正确除数应为 **`3600000000.0`** → 成长速度整体**快 1000 倍**。表面只表现为「长得快」，极难定位 | `plant_growth_service.dart:295` 改 `/ 3600000000.0`；`kPlantGrowthHoursPerStageDefault` 24 → **240**（普通，每阶段 10 天）；新增 `kPlantGrowthHoursPerStagePremium` = **480**（精品，每阶段 20 天）；`kPlantAutoGrowthScale` 0.2 → **1.0** | ✅ 已修复（待真机） |
+| F25 | 植物/成长 | 施肥从 21% 涨到 70%；且「正好 30 天」实际要 **31 天** | **根因③ 浮点卡阶段**：24/240 累加 10 次 = `0.9999999999999999 < 1.0`，严格 `>= 1.0` 判定把「正好 30 天」推成 31 天 | 新增 `kGrowthEpsilon = 1e-9`，阶段判定改 `progress >= 1.0 - kGrowthEpsilon`；浇水 +12% → **+1%**（`kPlantWaterProgressGain = 0.01`）、施肥 +25% → **+5%**（`kPlantFertilizeProgressGain = 0.05`） | ✅ 已修复（待真机） |
+| F26 | 结算页 | 「今日累计」显示 **-173** | `settle_page` 用 `dayNet()`（**含支出**）→ 把浇水 / 施肥 / 种植的支出也算进了「今日累计」 | 改用 `SunlightRepository.earnNetOnDay()`（**只统计 `type == earn` 的 net**）并钳 **≥ 0** | ✅ 已修复（待真机） |
+
+## 植物成长 V2 轮 · 数值变更表（`lib/core/constants/prd_params.dart`）
+
+| 参数 | 改前 | 改后 |
+|---|---|---|
+| `kPlantGrowthHoursPerStageDefault` | 24 | **240**（普通，每阶段 10 天） |
+| `kPlantGrowthHoursPerStagePremium` | —（本轮新增） | **480**（精品，每阶段 20 天） |
+| `kPlantWaterProgressGain` | 0.12 | **0.01** |
+| `kPlantFertilizeProgressGain` | 0.25 | **0.05** |
+| `kPlantAutoGrowthScale` | 0.2 | **1.0** |
+| `kGrowthEpsilon` | —（本轮新增） | **1e-9** |
+
+## 植物成长 V2 轮 · 数据迁移（schemaVersion 6 → 7）
+
+```sql
+UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒> WHERE status = 0;
+```
+
+- **只清 `growing`（status = 0）**；`bloomed` / `wilting` / `dead` **不动**——清掉已开花的植物等于抹掉成就感，非玄参本意。
+- ⚠️ **时间必须写秒**（`DateTime.now().millisecondsSinceEpoch ~/ 1000`）：本仓未开 `storeDateTimesAsText`，drift 把 `DateTime` 落库为 **unix 秒 INTEGER**，SQL 里写毫秒会算出 1970 年。
+- 旧进度是按 24h/阶段、且**非幂等**累加出来的，**无法与新口径对齐**（真机上已表现为进度虚高），故玄参选「全部重置清零」而非平滑衔接。
+
+## 植物成长 V2 轮 · 校验
+
+- **实测结果（工程师实测，非估算）**：普通 不养护 → **30 天**（正好命中）；普通 每天满养护 → **17 天**（理论 16.67 进位，比预期 18 少 1 天，见 F33）；精品 不养护 → **60 天**；幂等性——同一时刻连 tick 4 次增量 **0.0**，浇水后 1 分钟再 tick 增量 **6.944e-5**（= 1min/240h，修前是 **0.06944**）。
+- **新增回归测试**：`test/m3/plant_growth_v2_test.dart` **9 条**；`test/m3/migration_v6_to_v7_test.dart` **7 条**（全部**读回断言**，含跨版本 v5→v7 / v3→v7、幂等重开不被二次清零、三种非 growing 状态原样保留）。
+- **连带改动（必然连带）**：`test/m3/migration_v4_to_v5_test.dart:209` 与 `test/m4/migration_v5_to_v6_test.dart:247` 硬编码 `expect(schemaVersion, 6)` → 改 **7**（与上次 5→6 同样的跟进）；`plant_card`「还需约 N 次浇水」→ **「每天按时养护，还需约 N 天长成」**（选时间口径，保留延迟满足激励）；`garden_page` 说明卡同步新数值 + 每日次数上限。
+- **收尾校验（本阶段）**：`flutter analyze` **0 error**；`flutter test` **295/295 全绿**（279 基线 + 新增 16）。
+- **已提交**：随 commit **`34e1541`**。
+
+---
+
+# 植物模块接口化（2026-09-22，需求类 · 非缺陷，分支 `m2/economy`）
+
+> 玄参大人原话：「植物这个地方，你要做一些个接口，因为现在还只是个卡片形式。我以后还要做美术，替换为美术资源，把它做进去」
+> 「植物长成到成长阶段之后，它会有一些其他的属性，比如说偶尔可能会往外生产阳光，需要用户去收集。或者说还有其他的比较有意思的方案会接入」
+>
+> 玄参 AskUserQuestion 拍板：① 本轮范围 = **渲染抽象 + 能力接口骨架**（不做产阳光的具体规则）；② 美术资源接入 = **按命名规范自动匹配**（美术只需丢图，代码零改动）；③ 占位方案 = **自绘简笔植物**。
+>
+> ⚠️ 本条**不是修 bug**，是**为将来换美术 / 加玩法预留的扩展点**。
+
+| ID | 模块 | 现象 / 需求 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F27 | 植物/扩展点 | 植物外观硬编码为 Material 图标（`CircleAvatar + _stageIcon`），换美术必须改代码；未来「植物产阳光、用户去收集」一类玩法无处挂载 | 渲染与能力都写死在 `plant_card.dart`，没有抽象层 | ①**渲染抽象**：新建 `lib/presentation/child/widgets/plant_artwork.dart`。**三级回退命名规范**（美术按此丢图，代码零改动）：`assets/plants/{speciesId}_{stage}_{status}.png` → `{speciesId}_{stage}.png` → `{speciesId}.png` → 内置自绘 `PlantPlaceholderArt`（例：`species_sunflower_adult_bloomed.png`）。`_PlantArtAssets` 懒加载 `AssetManifest.json`（进程内解析一次）+ 按「物种_阶段_状态」缓存；`PlantArtwork` 用 `FutureBuilder`，命中走 `Image.asset`，未命中 / 解码失败一律回退占位（坏图不至于整页崩）；`PlantPlaceholderArt` Canvas 自绘，按 speciesId 区分形态、stage 区分高矮、status 调色。`plant_card.dart` 改用 `PlantArtwork(plant, species, size:44, tint:_statusColor)`，删 `_stageIcon`。②**能力接口骨架**（领域层，纯 Dart、不 import flutter）：`lib/domain/entities/plant_perk.dart`（`PlantPerkKind { sunlightDrop, custom }` / `PlantPerkState { locked, idle, ready }` / `abstract class PlantPerk`（`isUnlocked` 有默认实现，`evaluate` 由子类实现，**只描述状态、不含任何数值规则**）/ `PlantDrop` 掉落物模型——**不落库、不含规则**）+ `lib/domain/services/plant_perk_registry.dart`（`instance` 单例 + `register` / `unregisterById` / `all` / `unlockedFor` / `readyFor` / `hasAnyReady` / `resetForTest`）。**注册表默认为空** → 当前 UI 不出现任何新玩法（这是本轮预期，也是测试断言）；`plant_card` 挂接线点 `_perkEntries()`，空列表时**零视觉变化**。`pubspec.yaml` 新增 `- assets/plants/`（目录含 `.gitkeep`，空目录不建会导致构建报找不到目录） | ✅ 已实现（待真机） |
+
+## 植物模块接口化 · 架构纪律（本次沉淀）
+
+- 给未来美术 / 玩法留接口时，先抽**「渲染」**和**「能力」**两个方向：渲染靠「命名规范 + 自动回退」（美术零代码介入），能力靠「抽象接口 + 空注册表」（玩法零 UI 改动）。共同点是**调用方代码一行不改**。
+- **领域层必须 flutter-free**，否则纯 dart 单测跑不起来（本轮领域层 + 测试全部无 Flutter 依赖，29 条跑在 `package:test`）。
+- **单例注册表必须提供 `resetForTest()`**，否则跨测试串味。
+- **校验参数用 `StateError` 不用 `assert`**：release 构建会剥离 assert，校验等于没有。
+
+## 植物模块接口化 · 校验
+
+- **新增测试**：`test/m3/plant_perk_skeleton_test.dart` **29 条**（纯 `package:test`）：默认空注册、重复 / 空 id 抛 `StateError`、默认解锁门槛四种组合、子类覆盖生效、ready 才命中、`PlantDrop` 收集 / 过期边界、`resetForTest`。
+- **收尾校验（本阶段 = 当日最终基线）**：`flutter analyze` **0 error**；`flutter test --no-pub` **324 passed 全绿**（295 基线 + 新增 29）；`flutter build apk --debug` **✓ Built** `build/app/outputs/flutter-apk/app-debug.apk`。
+- **装包（22:50，玄参重连手机）**：`adb devices` 恢复 `f05bbc46` / shennong / 23116PN5BC（**注意：手机断开后即使重插，有时 adb 仍列空，需 `adb kill-server` + `start-server` 才扫到**）；`adb -s f05bbc46 install -r` → **Success**（覆盖装，保留数据）；`am start -n com.example.sunflower_time/.MainActivity` → 进程 **PID 29113 存活**，无崩溃。
+- **已提交**：commit **`34e1541`**（`m2/economy`）；同日 `--no-ff` 合回 `main` → 合并提交 **`421df23`**，`origin/HEAD` 指向 `421df23`。
+
+---
+
+# 环境类问题（iOS 模拟器构建，2026-09-22，分支 `m2/economy`）
+
+> 玄参想在 Mac 上用 iOS 模拟器做功能 / 页面自测。授权范围：**只在 `m2/economy` 分支加 `ios/` 工程 + 本地 pod 顶替**，只做 iOS 模拟器，不做 macOS 桌面版。
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F28 | 环境/iOS 构建 | `flutter build ios --simulator` 在 `debug_unpack_ios` 的 `thinFramework` 阶段失败 | `~/development/flutter/packages/flutter_tools/lib/src/build_system/targets/darwin.dart` 调用 `lipo <path> -verify_arch arm64 x86_64`（**双架构**），而本机 **Xcode 27 的新 lipo 的 `-verify_arch` 只接受单架构** → 报 `requires exactly one input file`（即便 `lipo -info` 显示 x86_64 / arm64 都在） | 把该校验改为**逐架构循环**单条 `lipo <path> -verify_arch <arch>`（顺带覆盖 macOS 同名函数），并删 `flutter_tools.snapshot` / `stamp` 强制重建。备份：`/tmp/darwin.dart.bak_20260922` | ✅ 已确认正确 |
+| F29 | 环境/iOS 构建 | 部署目标 13.0（Runner）/ 12.0 / 9.0（Pods）报 Target Integrity 失败 | 本机 Xcode / iOS 26 SDK 要求模拟器 `IPHONEOS_DEPLOYMENT_TARGET ∈ [15.0, 27.0]` | `ios/Runner.xcodeproj/project.pbxproj` 三处 13.0 → **15.0**；`ios/Podfile` 启用 `platform :ios, '15.0'` 并在 `post_install` 遍历所有 pod target 强制 `config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'`。**副作用**：iOS < 15 的旧设备跑不了（模拟器 iOS 26 无影响） | ✅ 已确认正确 |
+| F30 | 环境/iOS 依赖 | `pod install` 必败 | `sqlcipher_flutter_libs` 依赖 CocoaPods 上的 `SQLCipher ~> 4.5.4`，其源码指向 `github.com/sqlcipher/sqlcipher.git`，**本机屏蔽 github** | 新建本地空壳 pod `ios/local_pods/SQLCipher/`（podspec 版本 4.5.7 + 空 `Classes/Empty.m`），在 `ios/Podfile` 用 `pod 'SQLCipher', :path => 'local_pods/SQLCipher'` 顶替；`pod install` 成功（10 pods）。安全性：pubspec 里 sqlite3 native assets 配 `source: system`（iOS 用系统 libsqlite3），且 `sqlcipher_flutter_libs` 的 iOS 原生类是空实现 → **顶替零行为影响**；差异是 **iOS 库不加密**（与既定行为一致） | ✅ 已确认正确 |
+| F31 | 环境/包名 | Android `applicationId` = `com.example.sunflower_time`（下划线）与 iOS `PRODUCT_BUNDLE_IDENTIFIER` = `com.example.sunflowerTime`（camelCase）**不一致** | `flutter create` 按项目名 `sunflower_time` 默认生成，**非本轮引入** | 未改（改包名属独立决策）。当前纪律：**所有 `adb` 命令必须用 `com.example.sunflower_time`**（launch / pidof / install -r 均以此为准），iOS 模拟器用 `com.example.sunflowerTime` | ⚠️ 待玄参拍板 |
+
+## 环境轮 · 校验
+
+- **`flutter create` 副作用已修**：`.metadata` 被改写为只剩 `platform: ios` → 已恢复 `platform: android` + `platform: ios` 两条；`pubspec.lock` 被重写（丢了 1090 行 dev 依赖）→ `git checkout -- pubspec.lock` 还原；模板 `test/widget_test.dart`（引用不存在的 `MyApp`）已删，避免污染测试套件。
+- **构建结果**：`flutter build ios --simulator --debug` ✅ → `✓ Built build/ios/iphonesimulator/Runner.app`（Xcode 编译 14.2s；清快照后首次重建 flutter_tools + 代理 502 重试共约 27 分钟，依赖命中缓存后过关）；`lipo -info` → `x86_64 arm64`（fat，符合 iOS 26 模拟器要求）。
+- **启动验证**：`xcrun simctl install` + `launch`（PID 19008）→ 无崩溃诊断报告 → App 在 **iPhone 17 模拟器（iOS 26.5，UDID `DAA7C94F-F995-47CB-A010-2920AC1480F8`，已 Booted）** 正常启动。
+- **已知限制（不是缺陷）**：模拟器无 `CMMotionManager` 硬件，`native_device_orientation` 返回 `orientation_not_available` → 「物理竖屏 → 退出确认弹窗」这一个交互在模拟器上**静默不 arm**；其余功能 / 页面照常可测，方向相关仍需小米 14 Pro 真机补测。
+- **已提交**：`ios/` 工程随 commit **`34e1541`** 入库；`ios/Pods`（828K）与含本机绝对路径的 `Generated.xcconfig` / `flutter_export_environment.sh` / `ephemeral/` / `xcuserdata/` 已加进 `.gitignore`（新增 7 条规则，`git add -A` 时命中忽略）。
+
+---
+
+# 遗留待玄参拍板 / 已知技术债（2026-09-22 盘点）
+
+> 按玄参大人要求**不掩盖**，此处如实登记本轮**已发现但未修 / 未定夺**的事项。
+
+| ID | 模块 | 现象 | 根因 / 影响 | 处置 | 状态 |
+|---|---|---|---|---|---|
+| F32 | M2/日上限 | **[P0] PRD §4.5「日上限 79」实际未按「日」封顶**：一天多场专注可远超 79 | `lib/domain/services/sunlight_service.dart` 的 `settle()` 里 `net = computeEffective(rawS)`，而 `rawS` 是**本次会话自己的**原始产出 → 软顶是**按会话逐次套**的，不是按当日累计；`todayCumulativeNet()` 只用于展示，没有参与约束。连带影响：成长项打卡按「当日累计差额」发阳光，若某日专注侧已超发（net > 79），打卡会 `grant == 0`，看起来像「打卡不发阳光」 | **未修**（属承重墙，改动会动到既有 M2 结算逻辑与测试），仅记录 | ⚠️ 待玄参拍板 |
+| F33 | M4/植物养成 | 满养护实测 **17 天**，与理论 **18 天**差 1 天 | 种下当天即可养护 → 少 1 天（理论 16.67 进位）。要严格 18 天，需把每天养护从 8% 降到约 6.7%（浇水 0.5%/次 或施肥 4%），会**破坏已拍板的 +1% / +5% 整数口径** | 主理人建议**接受 17 天**（差 1 天无感知） | ⚠️ 待玄参拍板 |
+| F34 | 孩子端/我的 | `child_profile_page.dart` 底部 `DEBUG 加1000阳光` 按钮仍在（源码自标「提交前删除」） | 玄参真机验收兑换链路要用，故暂留 | **提审前必须清理** | 🔧 待清理 |
+| F35 | 全仓/文案 | 注释里的「任务」字样约 **26 处**未统一为「成长」 | 均在 `///` / `//` 注释中（**非用户可见**），其中若干处直接指代 tab 名（如 `child_shell_page.dart:3`），对新维护者有误导性 | 工程师按纪律未改（不在本轮范围）并已逐条列出 | 🔧 待清理 |
+| F36 | M3/完美日口径 | 完美日按「**已提交**」判定（联动 = 自动结算；非联动 = 已打卡），而非「家长已核销」 | 玄参拍板：保持**即时情绪反馈**（不等家长核销）；完美日本身不发钱，故无经济风险 | **不改**（已拍板） | ✅ 已确认正确 |
+
+## 遗留项 · 校验
+
+- **本轮最终基线（commit `34e1541`）**：`flutter analyze` **0 error**；`flutter test` **324 passed 全绿**；`flutter build apk --debug` 成功；小米 14 Pro **`f05bbc46`** 覆盖装成功、进程存活无崩溃。
+- **真机复测状态**：上列 F07–F27 中标注「待真机」的条目，截至 2026-09-22 22:50 装包后**结论待玄参回**；本文档在收到回执后再行订正状态列。
+- **提交纪律**：先 `flutter analyze` 0 error + `flutter test` 324 绿，再经玄参明确允许（22:54 授权）才 commit / push / merge。

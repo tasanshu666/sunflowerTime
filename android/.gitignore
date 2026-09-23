@@ -7,8 +7,11 @@ gradle-wrapper.jar
 GeneratedPluginRegistrant.java
 .cxx/
 
-# Remember to never publicly share your keystore.
-# See https://flutter.dev/to/reference-keystore
+# 密码文件：**绝不入库**（发布密钥的密码只存在这里 + 用户的离线备份）
 key.properties
+
+# 密钥库文件默认忽略；但本项目**有意**入库一份发布密钥库作为备份（方案 A）：
+# 私有仓库 + 密码不入库 → 泄了打不开、丢了能拿回。详见 docs/签名密钥与发布.md
 **/*.keystore
 **/*.jks
+!/app/upload-keystore.jks

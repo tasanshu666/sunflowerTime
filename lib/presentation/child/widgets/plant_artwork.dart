@@ -92,17 +92,28 @@ class PlantArtwork extends StatelessWidget {
   /// 状态色（用于占位底色；与卡片状态色保持一致）。
   final Color? tint;
 
+  /// **随本阶段进度放大的幅度**（0 = 不放大）。
+  ///
+  /// 草地上用来让「浇一次水」看得见变化；实现方式是**从略小开始长到满格**
+  /// （而非放大到超出画框），因此永远不会被圆形裁掉顶部花瓣：
+  /// 进度 0 → 内边距最大，进度 1 → 内边距 0。
+  final double growthScale;
+
   const PlantArtwork({
     super.key,
     required this.plant,
     required this.species,
     this.size = 44,
     this.tint,
+    this.growthScale = 0.0,
   });
 
   @override
   Widget build(BuildContext context) {
     final Color bg = tint ?? Colors.teal.shade600;
+    final double progress = plant.growthProgress.clamp(0.0, 1.0);
+    // 进度越低，四周留白越多 → 视觉上「慢慢长大」。
+    final double pad = size * growthScale * (1.0 - progress) / 2;
     return FutureBuilder<String?>(
       future: _PlantArtAssets.resolve(plant: plant, species: species),
       builder: (BuildContext context, AsyncSnapshot<String?> snap) {
@@ -115,23 +126,26 @@ class PlantArtwork extends StatelessWidget {
             shape: BoxShape.circle,
           ),
           clipBehavior: Clip.antiAlias,
-          child: path == null
-              ? PlantPlaceholderArt(
-                  plant: plant,
-                  species: species,
-                  size: size,
-                )
-              : Image.asset(
-                  path,
-                  fit: BoxFit.contain,
-                  // 资源存在但解码失败时（坏图）不至于整页崩掉。
-                  errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
-                      PlantPlaceholderArt(
+          child: Padding(
+            padding: EdgeInsets.all(pad),
+            child: path == null
+                ? PlantPlaceholderArt(
                     plant: plant,
                     species: species,
                     size: size,
+                  )
+                : Image.asset(
+                    path,
+                    fit: BoxFit.contain,
+                    // 资源存在但解码失败时（坏图）不至于整页崩掉。
+                    errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+                        PlantPlaceholderArt(
+                      plant: plant,
+                      species: species,
+                      size: size,
+                    ),
                   ),
-                ),
+          ),
         );
       },
     );

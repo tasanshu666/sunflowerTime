@@ -1,15 +1,31 @@
-/// 孩子端花园页（M3 T02 / M3 修订）：植物列表 + 种植 / 浇水 / 施肥 / 救回 / 扩容。
+/// 孩子端花园页（M3 T02 / M3 修订 / 2026-09-23 显示改造）。
+///
+/// ## 显示形态（2026-09-23 玄参大人要求改造）
+/// 改造前是「纵向卡片列表」——一张卡一株植物，玄参原话「**这个花园现在都是卡片形式，
+/// 它根本就不像个花园**」。改造后：
+///
+/// ```
+///   ┌─ 阳光余额条 ─────────────────┐
+///   ├─ 草地（渐变 + 草叶纹理）──────┤
+///   │   🌻      🌵      ✚          │   ← 3 列花盆网格；空格可种植，
+///   │  ╰─盆─╯  ╰─盆─╯  ╰─盆─╯      │     末尾格是「加盆」入口
+///   │  ▓▓░░░   ▓░░░░               │   ← 盆下细进度条 + 短标签
+///   └──────────────────────────────┘
+///        花园容量 4 / 12 盆 · 养护节奏说明（小字）
+/// ```
+///
+/// **点花盆里的植物**才弹出养护面板（[showPlantCareSheet]），按钮不再摊在草地上；
+/// 空盆点击进入种植选择。花盆与植物外观都在 `garden_pot.dart` / `plant_artwork.dart`，
+/// 本页只负责数据、布局与动作编排。
 ///
 /// 进页即跑一次 [PlantGrowthService.tickAll] 推进成长与枯萎计时；任意养护操作后
 /// 重新 tick 并刷新。扣减经同账本，余额变化后自增 [economyRevisionProvider] 使孩子端
 /// 阳光商店同步。
 ///
-/// M3 修订（玄参大人真机反馈）：
-///  · 页首常驻**阳光余额**——原先页面没有任何余额展示，扣了阳光也看不出来，
-///    看起来像「浇水/施肥不消耗阳光」；
-///  · 每株按 [PlantCareQuota] 渲染剩余次数（浇水 5 阳光/次、每日 3 次、间隔 30 分钟；
-///    施肥 10 阳光/次、每日 1 次）；
-///  · 动作期间置 [_busy] 闸门，避免连点绕过「不能连续浇水」。
+/// 沿用 M3 修订的既有纪律：
+///  · 页首常驻**阳光余额**（原先没有余额展示，扣了阳光看不出来，像「养护不消耗」）；
+///  · 动作期间置 [_busy] 闸门，避免连点绕过「不能连续浇水」；
+///  · 「加盆」三态互斥（已达上限 / 阳光不足不可点 / 可扩容带价），点击先确认卡。
 library garden_page;
 
 import 'package:flutter/material.dart';
@@ -22,7 +38,8 @@ import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
-import 'package:sunflower_time/presentation/child/widgets/plant_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart';
+import 'package:sunflower_time/presentation/child/widgets/plant_care_sheet.dart';
 
 /// 孩子端花园：植物养成主界面。
 ///
@@ -41,7 +58,6 @@ class GardenPage extends ConsumerStatefulWidget {
 class _GardenPageState extends ConsumerState<GardenPage> {
   List<Plant> _plants = <Plant>[];
   List<PlantSpecies> _species = <PlantSpecies>[];
-  Map<String, PlantCareQuota> _quotas = <String, PlantCareQuota>{};
   AgeTier _tier = AgeTier.low;
   int _capacity = kGardenPotCapacityDefault;
   double _balance = 0;
@@ -75,7 +91,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       _tier = settings.ageTier;
       _capacity = settings.gardenPotCapacity;
       _species = await ref.read(plantRepositoryProvider).species();
-      _quotas = await svc.careQuotas(_plants, now);
+      // 注意：养护额度不在这里取——草地不展示次数，额度由弹出的养护面板自行读取
+      // （见 PlantCareSheet），少一次查询，也避免两处口径漂移。
       _balance = await ref.read(sunlightRepositoryProvider).balance();
       _error = null;
     } catch (e) {
@@ -111,6 +128,15 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     }
   }
 
+  /// 点花盆里的植物 → 弹养护面板；面板关闭后**静默刷新草地**（进度条/形态可能变了）。
+  ///
+  /// 面板自己负责读数据与动作（见 [PlantCareSheet]），本页只做「打开 + 关闭后刷新」。
+  Future<void> _openCareSheet(String plantId) async {
+    await showPlantCareSheet(context, plantId);
+    if (!mounted) return;
+    await _reload(silent: true);
+  }
+
   /// 扩容确认：先弹卡写明「当前阳光 / 将扣除多少 / 容量 N → N+1」，
   /// **只有点「确定，扣除」才真正调 `expandPot`**；点「取消」什么都不做、一分不扣。
   ///
@@ -118,7 +144,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   Future<void> _confirmAndExpand() async {
     if (_capacity >= kGardenPotCapacityMax || _busy) return;
     final int cost = _expandCost;
-    // 兜底：横幅已把不足态渲染为禁用提示，此处再拦一次，避免任何路径下扣了才报错。
+    // 兜底：格子已把不足态渲染为不可点，此处再拦一次，避免任何路径下扣了才报错。
     if (_balance < cost) {
       _snack('阳光不足，还差 ${(cost - _balance).ceil()} ☀');
       return;
@@ -152,6 +178,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   void _openPlantSheet(int potIndex) {
     showModalBottomSheet<void>(
       context: context,
+      showDragHandle: true,
       builder: (BuildContext ctx) => ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
@@ -193,51 +220,58 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   String _rarityLabel(Rarity r) =>
       r == Rarity.legendary ? '优良' : r == Rarity.rare ? '稀有' : '普通';
 
-  @override
-  Widget build(BuildContext context) {
-    final List<Widget> tiles = <Widget>[];
+  /// 按 potIndex 找到占用该花盆的植物（无则 null）。
+  Plant? _occupantOf(int potIndex) {
+    for (final Plant p in _plants) {
+      if (p.potIndex == potIndex) return p;
+    }
+    return null;
+  }
+
+  PlantSpecies _speciesOf(Plant plant) {
+    for (final PlantSpecies s in _species) {
+      if (s.id == plant.speciesId) return s;
+    }
+    // 种子数据变更/物种缺失时的兜底：不显示空白格。
+    return PlantSpecies(
+      id: plant.speciesId,
+      name: '未知植物',
+      rarity: Rarity.common,
+      baseCostHigh: 0,
+      baseCostLow: 0,
+      growthHoursPerStage: kPlantGrowthHoursPerStageDefault,
+    );
+  }
+
+  /// 草地上的格子：0..capacity-1 是花盆（空/有植物），末尾追加「加盆」格（未达上限时）。
+  List<Widget> _buildCells() {
+    final List<Widget> cells = <Widget>[];
     for (int i = 0; i < _capacity; i++) {
-      final Plant? occupant = _plants.cast<Plant?>().firstWhere(
-            (Plant? p) => p != null && p.potIndex == i,
-            orElse: () => null,
-          );
+      final Plant? occupant = _occupantOf(i);
       if (occupant == null) {
-        tiles.add(_EmptyPotCard(
-          potIndex: i,
-          onPlant: () => _openPlantSheet(i),
-        ));
+        cells.add(EmptyPot(potIndex: i, onTap: () => _openPlantSheet(i)));
       } else {
-        final PlantSpecies sp = _species.cast<PlantSpecies?>().firstWhere(
-              (PlantSpecies? s) => s?.id == occupant.speciesId,
-              orElse: () => null,
-            ) ??
-            PlantSpecies(
-              id: occupant.speciesId,
-              name: '未知植物',
-              rarity: Rarity.common,
-              baseCostHigh: 0,
-              baseCostLow: 0,
-              growthHoursPerStage: kPlantGrowthHoursPerStageDefault,
-            );
-        tiles.add(PlantCard(
+        cells.add(GardenPot(
           plant: occupant,
-          species: sp,
-          quota: _quotas[occupant.id],
-          onWater: () => _run(() => ref
-              .read(plantGrowthServiceProvider)
-              .water(occupant.id, DateTime.now())),
-          onFertilize: () => _run(() => ref
-              .read(plantGrowthServiceProvider)
-              .fertilize(occupant.id, DateTime.now())),
-          onRevive: () => _run(() => ref
-              .read(plantGrowthServiceProvider)
-              .revive(occupant.id, DateTime.now())),
-          onClear: () => _run(() async {
-            await ref.read(plantRepositoryProvider).deletePlant(occupant.id);
-          }),
+          species: _speciesOf(occupant),
+          onTap: () => _openCareSheet(occupant.id),
         ));
       }
     }
+    if (_capacity < kGardenPotCapacityMax) {
+      cells.add(ExpandPotSlot(
+        cost: _expandCost,
+        shortfall: (_expandCost - _balance).ceil(),
+        busy: _busy,
+        onTap: _confirmAndExpand,
+      ));
+    }
+    return cells;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool atMax = _capacity >= kGardenPotCapacityMax;
 
     final Widget content = _loading
         ? const Center(child: CircularProgressIndicator())
@@ -248,44 +282,37 @@ class _GardenPageState extends ConsumerState<GardenPage> {
                 children: <Widget>[
                   // 阳光余额横幅：养护扣费的可见性来源，内嵌下同样保留。
                   _SunlightBanner(balance: _balance),
-                  const SizedBox(height: 8),
-                  // 培养节奏说明（V2 数值，用户 2026-09-22：每次推进多少 + 每天能做几次）。
-                  // 全部取自 prd_params 常量，数值随底层常量自动跟随，无裸字面量。
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.teal.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        const Icon(Icons.info_outline, size: 18, color: Colors.teal),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '浇水 +${(kPlantWaterProgressGain * 100).round()}%'
-                            '（每天最多 $kPlantWaterMaxPerDay 次）、'
-                            '施肥 +${(kPlantFertilizeProgressGain * 100).round()}%'
-                            '（每天 $kPlantFertilizeMaxPerDay 次）推进成长；'
-                            '植物也会随时间慢慢生长，坚持养护才能开花 🌻',
-                            style: const TextStyle(fontSize: 12, color: Colors.teal),
-                          ),
+                  const SizedBox(height: 10),
+                  // 草地 + 3 列花盆网格（花盆与植物外观见 garden_pot.dart）。
+                  _GrassArea(
+                    child: GardenGrid(cells: _buildCells()),
+                  ),
+                  const SizedBox(height: 10),
+                  // 容量一行 + 养护节奏一行（都是小字，把草地留给植物）。
+                  Row(
+                    children: <Widget>[
+                      const Icon(Icons.yard, size: 16, color: Colors.green),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '花园容量：$_capacity / $kGardenPotCapacityMax 盆'
+                          '${atMax ? ' · 已达上限' : ''}',
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.black54),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  _CapacityBanner(
-                    capacity: _capacity,
-                    cost: _expandCost,
-                    balance: _balance,
-                    atMax: _capacity >= kGardenPotCapacityMax,
-                    busy: _busy,
-                    // 点击先弹确认卡（含价格与容量变化），确认后才真正扣费。
-                    onExpand: _confirmAndExpand,
+                  const SizedBox(height: 4),
+                  // 培养节奏说明（数值全部取自 prd_params，随常量自动跟随，无裸字面量）。
+                  Text(
+                    '浇水 +${(kPlantWaterProgressGain * 100).round()}%'
+                    '（每天最多 $kPlantWaterMaxPerDay 次）· '
+                    '施肥 +${(kPlantFertilizeProgressGain * 100).round()}%'
+                    '（每天 $kPlantFertilizeMaxPerDay 次）· '
+                    '植物也会随时间自然生长',
+                    style: const TextStyle(fontSize: 11, color: Colors.black45),
                   ),
-                  const SizedBox(height: 8),
-                  ...tiles,
                 ],
               );
 
@@ -342,91 +369,56 @@ class _SunlightBanner extends StatelessWidget {
       );
 }
 
-/// 空花盆卡片（点击进入种植选择）。
-class _EmptyPotCard extends StatelessWidget {
-  final int potIndex;
-  final VoidCallback onPlant;
-
-  const _EmptyPotCard({required this.potIndex, required this.onPlant});
+/// 草地容器：绿色渐变 + 草叶纹理（自绘），花盆网格摆在里面。
+///
+/// 纯装饰，不参与任何业务；换背景美术时只改这里（或换成 Image.asset 背景图）。
+class _GrassArea extends StatelessWidget {
+  final Widget child;
+  const _GrassArea({required this.child});
 
   @override
-  Widget build(BuildContext context) => Card(
-        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        child: InkWell(
-          onTap: onPlant,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: <Widget>[
-                const Icon(Icons.add_circle_outline, size: 28, color: Colors.grey),
-                const SizedBox(width: 12),
-                Text('花盆 #$potIndex · 点击种植',
-                    style: const TextStyle(color: Colors.grey)),
-              ],
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[Color(0xFFBFE6A8), Color(0xFF8FCF74)],
+            ),
+          ),
+          child: CustomPaint(
+            painter: _GrassPainter(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
+              child: child,
             ),
           ),
         ),
       );
 }
 
-/// 容量横幅 + 扩容入口。
-///
-/// 三态互斥（同一时刻只渲染其一，不会同时出现可点按钮与不可点提示）：
-///  · 已达上限 → 灰字「已达上限」；
-///  · 阳光不足 → 灰字「阳光不足（还差 N ☀）」，**不给可点按钮**——
-///    避免孩子点了才发现扣不了（原先 `onExpand == null` 一律显示「已达上限」，会误导）；
-///  · 可扩容 → 按钮带价格「扩容 +1 · N☀」，点击先走确认卡。
-class _CapacityBanner extends StatelessWidget {
-  final int capacity;
-  final int cost;
-  final double balance;
-  final bool atMax;
-  final bool busy;
-  final VoidCallback? onExpand;
-
-  const _CapacityBanner({
-    required this.capacity,
-    required this.cost,
-    required this.balance,
-    required this.atMax,
-    required this.busy,
-    this.onExpand,
-  });
+/// 草叶纹理：交错的短线，纯装饰。
+class _GrassPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = const Color(0x333F7D2E)
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    const double stepY = 24;
+    const double stepX = 26;
+    int row = 0;
+    for (double y = 14; y < size.height; y += stepY) {
+      // 隔行错开半个步长，避免出现整齐的竖条纹。
+      for (double x = row.isEven ? 8 : 21; x < size.width; x += stepX) {
+        canvas.drawLine(Offset(x, y), Offset(x + 2.5, y - 6), paint);
+      }
+      row++;
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
-    final bool affordable = balance >= cost;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.green.shade50,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: <Widget>[
-          const Icon(Icons.yard, color: Colors.green),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '花园容量：$capacity / $kGardenPotCapacityMax 盆',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-          if (atMax)
-            const Text('已达上限', style: TextStyle(color: Colors.grey))
-          else if (!affordable)
-            Text(
-              '阳光不足（还差 ${(cost - balance).ceil()} ☀）',
-              style: const TextStyle(color: Colors.grey),
-            )
-          else
-            FilledButton.icon(
-              onPressed: busy ? null : onExpand,
-              icon: const Icon(Icons.add),
-              label: Text('扩容 +1 · $cost☀'),
-            ),
-        ],
-      ),
-    );
-  }
+  bool shouldRepaint(covariant _GrassPainter oldDelegate) => false;
 }

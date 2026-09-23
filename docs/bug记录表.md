@@ -215,12 +215,12 @@
 
 | ID | 模块 | 现象 | 根因 | 修复 | 状态 |
 |---|---|---|---|---|---|
-| B33 | M2/家长端奖励页 | 家长端「奖励」Tab 键盘弹出后 `BOTTOM OVERFLOWED 47px` | `parent_reward_page` 根布局用 `Column`+`Expanded`，键盘弹出后可用高度被压缩、子内容溢出 | 根 `Column`→`ListView`；内层模板列表 `shrinkWrap:true` + `NeverScrollableScrollPhysics()` | ✅ 已修复（待真机） |
-| B34 | M2/家长端 | 「每周阳光池预算」设定卡 与「周阳光池」展示卡 分立两张 | 设计把"预算设定"与"池展示"拆成两张独立卡 | 删独立预算卡，重写 `pool_indicator.dart` → `WeeklyPoolCard` 合并卡（预算输入+保存按钮+进度条+「已用 X / 池 Y」+「当前档免确认上限 N」）；`parent_reward_page` 改为 `const WeeklyPoolCard()` | ✅ 已修复（待真机） |
-| B35 | M2/周阳光池 | 预算设 600 保存成功，但展示卡仍显示 400 不刷新 | ①`WeeklyPoolService.pool()` 对已存在行直接返回旧快照 budget；②`FutureBuilder` 的 `initState` future 永不重载 | ①新增 `updateBudget(now, budget)`：仅替换当周池 budget，保留 `used/autoReleased/resetAt`；不存在则新建；②保存后 `setState(() => _future = _load())` + 自增 `economyRevisionProvider` | ✅ 已修复（待真机） |
-| B36 | M2/定价 | 家长设价 20，孩子端显示/扣 30 | 消耗侧价 = `baseCost × 分龄系数 K`（高年级 K=1.5）→ 20×1.5=30 | **2026-09-21 玄参大人拍板取消分龄系数 K**：`_priceFor` 与 `store_page` 均直接用 `baseCost`；删 `math_ext.applyAgeTierK`；`k`/`ageTierK()` 保留但生产定价链路不得调用（见 C10） | ✅ 已修复（待真机） |
-| B37 | M2/展示口径 | 孩子端兑换后右上角金色阳光不变（应 = 余额 − 兑换值，如 600−50=550） | `store_page` 读账本余额，pending/queued 按 §7.4 不变式**不扣账本** → 仅展示口径未做减法 | 金色改为 `balance - pendingTotal`（pending+queued 均计入，≥0 截断）；并补「待核销 N」灰色小字 | ✅ 已修复（待真机） |
-| B38 | M2/导航 | 孩子端经 `go` 进入的栈底页无系统返回键 | 同 M0 B19/B20：`go` 替换路由栈 → 栈底页 `PopScope` 未拦截 Android 返回键 | 孩子端相关栈底页补 `PopScope(canPop:false)` + 显式返回入口 | ✅ 已修复（待真机） |
+| B33 | M2/家长端奖励页 | 家长端「奖励」Tab 键盘弹出后 `BOTTOM OVERFLOWED 47px` | `parent_reward_page` 根布局用 `Column`+`Expanded`，键盘弹出后可用高度被压缩、子内容溢出 | 根 `Column`→`ListView`；内层模板列表 `shrinkWrap:true` + `NeverScrollableScrollPhysics()` | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| B34 | M2/家长端 | 「每周阳光池预算」设定卡 与「周阳光池」展示卡 分立两张 | 设计把"预算设定"与"池展示"拆成两张独立卡 | 删独立预算卡，重写 `pool_indicator.dart` → `WeeklyPoolCard` 合并卡（预算输入+保存按钮+进度条+「已用 X / 池 Y」+「当前档免确认上限 N」）；`parent_reward_page` 改为 `const WeeklyPoolCard()` | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| B35 | M2/周阳光池 | 预算设 600 保存成功，但展示卡仍显示 400 不刷新 | ①`WeeklyPoolService.pool()` 对已存在行直接返回旧快照 budget；②`FutureBuilder` 的 `initState` future 永不重载 | ①新增 `updateBudget(now, budget)`：仅替换当周池 budget，保留 `used/autoReleased/resetAt`；不存在则新建；②保存后 `setState(() => _future = _load())` + 自增 `economyRevisionProvider` | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| B36 | M2/定价 | 家长设价 20，孩子端显示/扣 30 | 消耗侧价 = `baseCost × 分龄系数 K`（高年级 K=1.5）→ 20×1.5=30 | **2026-09-21 玄参大人拍板取消分龄系数 K**：`_priceFor` 与 `store_page` 均直接用 `baseCost`；删 `math_ext.applyAgeTierK`；`k`/`ageTierK()` 保留但生产定价链路不得调用（见 C10） | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| B37 | M2/展示口径 | 孩子端兑换后右上角金色阳光不变（应 = 余额 − 兑换值，如 600−50=550） | `store_page` 读账本余额，pending/queued 按 §7.4 不变式**不扣账本** → 仅展示口径未做减法 | 金色改为 `balance - pendingTotal`（pending+queued 均计入，≥0 截断）；并补「待核销 N」灰色小字 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| B38 | M2/导航 | 孩子端经 `go` 进入的栈底页无系统返回键 | 同 M0 B19/B20：`go` 替换路由栈 → 栈底页 `PopScope` 未拦截 Android 返回键 | 孩子端相关栈底页补 `PopScope(canPop:false)` + 显式返回入口 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 
 ## 次批（F02 新功能）
 
@@ -264,8 +264,8 @@
 
 | ID | 模块 | 现象 | 根因 | 修复 | 状态 |
 |---|---|---|---|---|---|
-| F03（根因） | M2/冷却计数 | 兑换落单后 `cooldownCount` 恒为 0，导致卡片剩余次数永远 = 限领值、且 `_onCooldown` 闸门失效 | `RewardLocalRepository.createRequest` 只 `insert` 兑换申请，**从不调用** `CooldownCounterDao.bump()`（全仓无任何调用点）；而测试 mock 的 `createRequest` 会自行 +1，掩盖了生产缺失 | `RewardLocalRepository.createRequest` 落单后调用 `cooldownCounterDao.bump(templateId, CooldownPeriod.weekly)`（与 `redemption_orchestration_test` 的 Fake 行为对齐）；`createRequest` 仅被 `submit()` 调用，无其它路径污染 | ✅ 已修复（待真机） |
-| F04（动态） | M2/家长端奖励页 | 家长端核销 1 次后，模板卡应显示「可兑换次数为 2」而非静态 3 | 第 2 轮家长端用 `weeklyRedeemLabel(limit, 0)`（静态）；未取本周已领次数，也未随核销刷新 | `parent_reward_page._load` 逐模板取 `cooldownCount(weekly)` 存 `_weeklyUsed`；展示改 `weeklyRedeemLabel(limit, _weeklyUsed[t.id] ?? 0)`；`initState` 监听 `economyRevisionProvider` → 孩子兑换 / 家长核销后自动重算 | ✅ 已修复（待真机） |
+| F03（根因） | M2/冷却计数 | 兑换落单后 `cooldownCount` 恒为 0，导致卡片剩余次数永远 = 限领值、且 `_onCooldown` 闸门失效 | `RewardLocalRepository.createRequest` 只 `insert` 兑换申请，**从不调用** `CooldownCounterDao.bump()`（全仓无任何调用点）；而测试 mock 的 `createRequest` 会自行 +1，掩盖了生产缺失 | `RewardLocalRepository.createRequest` 落单后调用 `cooldownCounterDao.bump(templateId, CooldownPeriod.weekly)`（与 `redemption_orchestration_test` 的 Fake 行为对齐）；`createRequest` 仅被 `submit()` 调用，无其它路径污染 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F04（动态） | M2/家长端奖励页 | 家长端核销 1 次后，模板卡应显示「可兑换次数为 2」而非静态 3 | 第 2 轮家长端用 `weeklyRedeemLabel(limit, 0)`（静态）；未取本周已领次数，也未随核销刷新 | `parent_reward_page._load` 逐模板取 `cooldownCount(weekly)` 存 `_weeklyUsed`；展示改 `weeklyRedeemLabel(limit, _weeklyUsed[t.id] ?? 0)`；`initState` 监听 `economyRevisionProvider` → 孩子兑换 / 家长核销后自动重算 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 
 ## M2 第 3 轮 · 校验
 
@@ -281,9 +281,9 @@
 
 | ID | 模块 | 现象 / 需求 | 根因 | 修复 | 状态 |
 |---|---|---|---|---|---|
-| F05 | M2/家长端奖励页 | 家长端奖励页面打开即报错（崩溃，附截图） | 第 3 轮在 `parent_reward_page` 的 `initState` 中调用 `ref.listen(...)`，违反 riverpod 2.6.1 铁律（`ref.listen` 仅允许在 `build()` 内调用，否则运行时断言崩溃） | 改用 `ref.listenManual(economyRevisionProvider, (_, __) { if (mounted) _load(); })`（返回 `ProviderSubscription`，专用于 `State.initState` 场景） | ✅ 已修复（待真机） |
+| F05 | M2/家长端奖励页 | 家长端奖励页面打开即报错（崩溃，附截图） | 第 3 轮在 `parent_reward_page` 的 `initState` 中调用 `ref.listen(...)`，违反 riverpod 2.6.1 铁律（`ref.listen` 仅允许在 `build()` 内调用，否则运行时断言崩溃） | 改用 `ref.listenManual(economyRevisionProvider, (_, __) { if (mounted) _load(); })`（返回 `ProviderSubscription`，专用于 `State.initState` 场景） | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 | — | M2/核销同步 | 家长端确认核销 → 孩子端商城核减为 1（吃冰棍限领 3、核销 1） | 无（第 3 轮已修，本次真机确认正确） | 不改 | ✅ 已确认正确 |
-| F06 | M2/拒绝回流 | 家长端点「拒绝」后，孩子端阳光原路返回（正确），但可兑换次数仍减了 1（错误） | 落单时 `createRequest` 已 `bump` 本周冷却计数（D4）；但 `reject()` 只把状态置 `rejected`，**未回退该计数** → 剩余次数被无端占掉一次，孩子后续可兑换次数凭空少 1 | `RewardRepository` 新增 `decrementCooldown(templateId, window)`；`CooldownCounterDao.decrement` 用 `UPDATE ... SET used_count = MAX(0, used_count-1)`（下限 0）；`RewardLocalRepository` 实现；`RedemptionOrchestrationService.reject()` 在定位请求后调用 `decrementCooldown(req.templateId, CooldownPeriod.weekly)`，使「被拒不占次数」 | ✅ 已修复（待真机） |
+| F06 | M2/拒绝回流 | 家长端点「拒绝」后，孩子端阳光原路返回（正确），但可兑换次数仍减了 1（错误） | 落单时 `createRequest` 已 `bump` 本周冷却计数（D4）；但 `reject()` 只把状态置 `rejected`，**未回退该计数** → 剩余次数被无端占掉一次，孩子后续可兑换次数凭空少 1 | `RewardRepository` 新增 `decrementCooldown(templateId, window)`；`CooldownCounterDao.decrement` 用 `UPDATE ... SET used_count = MAX(0, used_count-1)`（下限 0）；`RewardLocalRepository` 实现；`RedemptionOrchestrationService.reject()` 在定位请求后调用 `decrementCooldown(req.templateId, CooldownPeriod.weekly)`，使「被拒不占次数」 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 
 ## M2 第 4 轮 · 校验
 
@@ -305,9 +305,9 @@
 
 | ID | 模块 | 现象 / 需求 | 根因 | 修复 | 状态 |
 |---|---|---|---|---|---|
-| F07 | M3/家长端导航 | 家长端 5 个 tab 在 **AppBar 顶部** `TabBar`，玄参预期在**屏幕底部** | 原实现用 `AppBar.bottom: TabBar` + `TabBarView` | 改屏幕底部 `NavigationBar`（5 tab：**今日 / 奖励 / 成长 / 夸夸台 / 设置**）+ `IndexedStack`（切 tab 保活，替代 `TabBarView`）。死守 B19/B20 三项不得回退：`PopScope(canPop:false)` 拦返回键 + AppBar 返回箭头 + `parentThemeFor` 深色皮肤 | ✅ 已修复（待真机） |
-| F08 | M3/孩子端导航 | 孩子端仍是 M0 占位首页（竖排按钮：开始专注 / 家长天地 / 阳光商店 / 我的花园 / DEBUG 加阳光），商店与花园靠 `push` 进入，**无 tab 栏** | 孩子端底部导航在设计里有、工程里没做 | 新建 `child_shell_page.dart`（底部 `NavigationBar` + `IndexedStack`，5 tab：**今日 / 成长 / 花园 / 商店 / 我的**，AppBar 标题随 tab 变、actions 保留「家长天地」）+ `child_today_page.dart` / `child_task_page.dart` / `child_profile_page.dart`；`garden_page` 与 `store_page` 加 `embedded` 复用（商店余额从 `AppBar.actions` 抽为内联 `_BalanceChip`，避免「看不到余额」复现）；`app_router.dart` 的 `/` 改指 `ChildShellPage`；旧 `child_home_page.dart`（含首页「四档反馈预览 / S1」入口）**整文件删除**，`/s1-demo` 路由与 `S1DemoPage` 保留；B4/B5 通知逻辑（`_checkVerifiedNotices` / `_checkRejectedNotices` / `_checkAllNotices` + `economyRevisionProvider` 监听）整段迁入壳页 | ✅ 已修复（待真机） |
-| F09 | M3/术语统一 | 「任务」听起来像要干活（玄参） | 用户可见文案与产品术语不一致 | 用户可见「任务」→「成长」，两端一致：底部 tab、家长端配置页（成长配置 / 新增·编辑成长项 / 成长项名称）、孩子端进度（今日成长 x/y）、分区（每日成长 / 每周成长，`weeklyCount==0` 时整段不渲染）、打卡按钮（我做到了 / 已做到）、空态（今天没有成长项，去玩吧 🌻）、成功提示（太棒了！+X 阳光）、领域层异常文案。**刻意不改**：`Task` 实体 / `TaskCheckInService` / `checkIn()` / 文件名 / 路由 `/parent/tasks`（大范围重命名风险高收益低，已在领域层文件头加「术语约定」注释说明）；**刻意不改**：账本字段 `refType='task_checkin'`（是**数据标识不是文案**，改了会对不上历史账本） | ✅ 已修复（待真机） |
+| F07 | M3/家长端导航 | 家长端 5 个 tab 在 **AppBar 顶部** `TabBar`，玄参预期在**屏幕底部** | 原实现用 `AppBar.bottom: TabBar` + `TabBarView` | 改屏幕底部 `NavigationBar`（5 tab：**今日 / 奖励 / 成长 / 夸夸台 / 设置**）+ `IndexedStack`（切 tab 保活，替代 `TabBarView`）。死守 B19/B20 三项不得回退：`PopScope(canPop:false)` 拦返回键 + AppBar 返回箭头 + `parentThemeFor` 深色皮肤 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F08 | M3/孩子端导航 | 孩子端仍是 M0 占位首页（竖排按钮：开始专注 / 家长天地 / 阳光商店 / 我的花园 / DEBUG 加阳光），商店与花园靠 `push` 进入，**无 tab 栏** | 孩子端底部导航在设计里有、工程里没做 | 新建 `child_shell_page.dart`（底部 `NavigationBar` + `IndexedStack`，5 tab：**今日 / 成长 / 花园 / 商店 / 我的**，AppBar 标题随 tab 变、actions 保留「家长天地」）+ `child_today_page.dart` / `child_task_page.dart` / `child_profile_page.dart`；`garden_page` 与 `store_page` 加 `embedded` 复用（商店余额从 `AppBar.actions` 抽为内联 `_BalanceChip`，避免「看不到余额」复现）；`app_router.dart` 的 `/` 改指 `ChildShellPage`；旧 `child_home_page.dart`（含首页「四档反馈预览 / S1」入口）**整文件删除**，`/s1-demo` 路由与 `S1DemoPage` 保留；B4/B5 通知逻辑（`_checkVerifiedNotices` / `_checkRejectedNotices` / `_checkAllNotices` + `economyRevisionProvider` 监听）整段迁入壳页 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F09 | M3/术语统一 | 「任务」听起来像要干活（玄参） | 用户可见文案与产品术语不一致 | 用户可见「任务」→「成长」，两端一致：底部 tab、家长端配置页（成长配置 / 新增·编辑成长项 / 成长项名称）、孩子端进度（今日成长 x/y）、分区（每日成长 / 每周成长，`weeklyCount==0` 时整段不渲染）、打卡按钮（我做到了 / 已做到）、空态（今天没有成长项，去玩吧 🌻）、成功提示（太棒了！+X 阳光）、领域层异常文案。**刻意不改**：`Task` 实体 / `TaskCheckInService` / `checkIn()` / 文件名 / 路由 `/parent/tasks`（大范围重命名风险高收益低，已在领域层文件头加「术语约定」注释说明）；**刻意不改**：账本字段 `refType='task_checkin'`（是**数据标识不是文案**，改了会对不上历史账本） | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 
 ## M3 导航改版轮 · 校验
 
@@ -324,9 +324,9 @@
 
 | ID | 模块 | 现象 / 需求 | 根因 | 修复 | 状态 |
 |---|---|---|---|---|---|
-| F10 | M3/奖励口径 | 完美日 ×1.5 让同一个成长项的奖励是**不确定值**，家长算不清 | 原设计把「完美日系数」叠加在成长项奖励上 | **玄参拍板移除**：完美日仅留徽章语义，不再叠加系数；`task_checkin_service._rewardFor` 移除系数并删 `app_constants` 残留导入 | ✅ 已修复（待真机） |
-| F11 | M3/两端口径 | 「阅读 20 分钟」在**孩子端预览显示 12**、结算页 / 家长卡显示的是别的数字 | `_rewardFor` 在**孩子端预览取基础值**、**结算页与家长卡取含 ×1.5 的 `sunlightGross`**，两条口径并存 | ×1.5 移除后三端统一取 `Task.effectiveSunlightReward`（单点收口，禁止各处复写） | ✅ 已修复（待真机） |
-| F12 | M3/联动项定价 | 家长可任意调高联动成长项的奖励 → 存在刷分空间 | 联动项奖励读家长设值 `sunlightReward` | **玄参拍板**：联动项（`requiresFocus == true`）奖励**固定 = 最少专注分钟 × 40%**（`kTaskRewardRatio = 0.4`），**家长不再可调**；公式单点收口在 `Task.rewardCapFor(int)` / `Task.rewardCap` / `Task.effectiveSunlightReward`（编辑器与领域结算共用同一口径）。非联动项保持家长原值（`kTaskRewardDefault=8` / `Min=5` / `Max=15`）。影响面：种子联动项「完成学校作业」「练习数学口算」（均 15 分钟 / 设 12）生效值 **12 → 6**（15×0.4）；「阅读 20 分钟」非联动 → 仍 12。编辑器联动项锁死文案「奖励固定=专注N分钟×40%=X☀」，奖励滑杆 min/max 随分钟动态变化、下调时自动夹回（`min == max` 时 `divisions` 必须传 `null`，否则断言崩）。历史超标数据：编辑器打开即显示夹回后的合法值，但**数据库原值不动** | ✅ 已修复（待真机） |
+| F10 | M3/奖励口径 | 完美日 ×1.5 让同一个成长项的奖励是**不确定值**，家长算不清 | 原设计把「完美日系数」叠加在成长项奖励上 | **玄参拍板移除**：完美日仅留徽章语义，不再叠加系数；`task_checkin_service._rewardFor` 移除系数并删 `app_constants` 残留导入 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F11 | M3/两端口径 | 「阅读 20 分钟」在**孩子端预览显示 12**、结算页 / 家长卡显示的是别的数字 | `_rewardFor` 在**孩子端预览取基础值**、**结算页与家长卡取含 ×1.5 的 `sunlightGross`**，两条口径并存 | ×1.5 移除后三端统一取 `Task.effectiveSunlightReward`（单点收口，禁止各处复写） | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F12 | M3/联动项定价 | 家长可任意调高联动成长项的奖励 → 存在刷分空间 | 联动项奖励读家长设值 `sunlightReward` | **玄参拍板**：联动项（`requiresFocus == true`）奖励**固定 = 最少专注分钟 × 40%**（`kTaskRewardRatio = 0.4`），**家长不再可调**；公式单点收口在 `Task.rewardCapFor(int)` / `Task.rewardCap` / `Task.effectiveSunlightReward`（编辑器与领域结算共用同一口径）。非联动项保持家长原值（`kTaskRewardDefault=8` / `Min=5` / `Max=15`）。影响面：种子联动项「完成学校作业」「练习数学口算」（均 15 分钟 / 设 12）生效值 **12 → 6**（15×0.4）；「阅读 20 分钟」非联动 → 仍 12。编辑器联动项锁死文案「奖励固定=专注N分钟×40%=X☀」，奖励滑杆 min/max 随分钟动态变化、下调时自动夹回（`min == max` 时 `divisions` 必须传 `null`，否则断言崩）。历史超标数据：编辑器打开即显示夹回后的合法值，但**数据库原值不动** | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 | F13 | M3/植物培养 | 植物培养没有过程感（玄参当日进一步升级为 V2，见 F23–F25） | 原成长参数下浇水 / 施肥增量过大、自动成长偏快 | 本轮先改为**固定增量**：浇水 **+12%**（`kPlantWaterProgressGain=0.12`）、施肥 **+25%**（`kPlantFertilizeProgressGain=0.25`），按钮明示；自动成长乘 `kPlantAutoGrowthScale=0.2` 缓速；卡面显示「距下一阶段还需约 N 次」。**同日被植物成长 V2（F23–F25）覆盖**：+12% / +25% → **+1% / +5%**，`kPlantAutoGrowthScale` 0.2 → **1.0** | ✅ 已修复（待真机，同日已被 V2 覆盖） |
 
 ## M3 4 类反馈轮 · 校验
@@ -348,13 +348,13 @@
 
 | ID | 模块 | 现象 | 根因 | 修复 | 状态 |
 |---|---|---|---|---|---|
-| F14 | M4/家长核销 | **[P0]** 家长连点两次「确认发放」→ 阳光**双倍入账** | `verifyCheckIn` 是「读记录 → 改状态 → 写账本」的**读-改-写非原子**序列，第二次读到的是尚未更新的旧状态 | DAO 层 **CAS**：新增 `TaskDao.resolveCheckInIfStatus`（`update ... where id=? and status=?`，**以受影响行数判成败**；状态用 `int` 传，避免数据层 import 领域枚举）；抢占失败即抛异常、放弃入账。`_appendLedger` 再加一层 `countByRefTypeAndRefIdOnDay('task_checkin', checkInId, day)` 兜底去重 | ✅ 已修复（待真机） |
-| F15 | M4/联动校验 | **[P1]** 一次专注会话解锁**多个**联动成长项（一鱼三吃） | 校验只看「当日**存在**一次 `actualFocusMin >= minFocusMin` 的专注」，**不区分归属**、也不检查该专注是否已被别的成长项用掉 | 会话复用守卫：当日已存在 `sessionId == session.id && status == verified` 的打卡 → 抛「这次专注已经结算过成长项啦」 | ✅ 已修复（待真机） |
-| F16 | M4/跨天 | **[P1]** 用**昨天的**专注结算今天的成长项 | `settleFocusLinked` 未校验专注会话的日期归属 | 跨天守卫：`dayKey(session.start) != dayKey(now)` → 抛异常 | ✅ 已修复（待真机） |
-| F17 | M4/完成度口径 | **[P2]** `rejected` 被当成「已做到」，还能凑完美日 | 取当日打卡时未剔除 `rejected` 行 | 统一优先级函数 `_activeCheckIn`（同一 task 当日多行取「最新一条非 rejected」）+ `_allDailySubmitted` 剔除 rejected | ✅ 已修复（待真机） |
-| F18 | M4/重做 | **[P2]** 被驳回后当日卡死，无法重做 | `checkIn` 对当日已有任意打卡行一律拦截 | `checkIn` 只拦 `pending` / `verified`，`rejected` 放行（**新增一行**，保留审计痕迹） | ✅ 已修复（待真机） |
-| F19 | M4/统计口径 | **[P2]** `totalCheckInCount` 把 pending / rejected 也算进去 → 孩子端「我的」页累计打卡**虚高** | 计数未按状态过滤 | 改 `countCheckInsByStatus(CheckInStatus.verified.index)` | ✅ 已修复（待真机） |
-| F20 | M4/并发 | **[P0·补发现]** 两条不同 pending 记录并发核销 / 孩子连点两次「我做到了」→ 顶穿当日软顶、出双份阳光（家长看到两条同名待确认，核销出双份） | F14 的 CAS 只保证**同一条记录**不被重复核销，管不住**两条不同记录互相插队**：`_softCapGrant` 是「读当日累计 → 算差额 → 写账本」的非原子序列，两条各自读到同一份 `grantedSoFar`、各自补满差额；孩子连点两次则各插一行 pending | 服务层**串行闸门** `_serialized`（`Completer` 链），包住 `checkIn` / `settleFocusLinked` / `verifyCheckIn` / `rejectCheckIn` **四个写入口**；只读的 `board()` / `pendingCheckIns()` **不加闸门**（否则写操作会拖住界面）；被串行化的方法内部**不得**再调用另一个公共写入口，只能调私有实现或仓储（防死锁）。**两道锁分工**：闸门管「并发插队」，CAS 管「状态已被别处改过」，两层都要有、不能互相替代 | ✅ 已修复（待真机） |
+| F14 | M4/家长核销 | **[P0]** 家长连点两次「确认发放」→ 阳光**双倍入账** | `verifyCheckIn` 是「读记录 → 改状态 → 写账本」的**读-改-写非原子**序列，第二次读到的是尚未更新的旧状态 | DAO 层 **CAS**：新增 `TaskDao.resolveCheckInIfStatus`（`update ... where id=? and status=?`，**以受影响行数判成败**；状态用 `int` 传，避免数据层 import 领域枚举）；抢占失败即抛异常、放弃入账。`_appendLedger` 再加一层 `countByRefTypeAndRefIdOnDay('task_checkin', checkInId, day)` 兜底去重 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F15 | M4/联动校验 | **[P1]** 一次专注会话解锁**多个**联动成长项（一鱼三吃） | 校验只看「当日**存在**一次 `actualFocusMin >= minFocusMin` 的专注」，**不区分归属**、也不检查该专注是否已被别的成长项用掉 | 会话复用守卫：当日已存在 `sessionId == session.id && status == verified` 的打卡 → 抛「这次专注已经结算过成长项啦」 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F16 | M4/跨天 | **[P1]** 用**昨天的**专注结算今天的成长项 | `settleFocusLinked` 未校验专注会话的日期归属 | 跨天守卫：`dayKey(session.start) != dayKey(now)` → 抛异常 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F17 | M4/完成度口径 | **[P2]** `rejected` 被当成「已做到」，还能凑完美日 | 取当日打卡时未剔除 `rejected` 行 | 统一优先级函数 `_activeCheckIn`（同一 task 当日多行取「最新一条非 rejected」）+ `_allDailySubmitted` 剔除 rejected | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F18 | M4/重做 | **[P2]** 被驳回后当日卡死，无法重做 | `checkIn` 对当日已有任意打卡行一律拦截 | `checkIn` 只拦 `pending` / `verified`，`rejected` 放行（**新增一行**，保留审计痕迹） | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F19 | M4/统计口径 | **[P2]** `totalCheckInCount` 把 pending / rejected 也算进去 → 孩子端「我的」页累计打卡**虚高** | 计数未按状态过滤 | 改 `countCheckInsByStatus(CheckInStatus.verified.index)` | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F20 | M4/并发 | **[P0·补发现]** 两条不同 pending 记录并发核销 / 孩子连点两次「我做到了」→ 顶穿当日软顶、出双份阳光（家长看到两条同名待确认，核销出双份） | F14 的 CAS 只保证**同一条记录**不被重复核销，管不住**两条不同记录互相插队**：`_softCapGrant` 是「读当日累计 → 算差额 → 写账本」的非原子序列，两条各自读到同一份 `grantedSoFar`、各自补满差额；孩子连点两次则各插一行 pending | 服务层**串行闸门** `_serialized`（`Completer` 链），包住 `checkIn` / `settleFocusLinked` / `verifyCheckIn` / `rejectCheckIn` **四个写入口**；只读的 `board()` / `pendingCheckIns()` **不加闸门**（否则写操作会拖住界面）；被串行化的方法内部**不得**再调用另一个公共写入口，只能调私有实现或仓储（防死锁）。**两道锁分工**：闸门管「并发插队」，CAS 管「状态已被别处改过」，两层都要有、不能互相替代 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 
 ## M4 经济漏洞轮 · 规则变更（玄参拍板，已落地）
 
@@ -392,8 +392,8 @@
 
 | ID | 模块 | 现象 | 根因 | 修复 | 状态 |
 |---|---|---|---|---|---|
-| F21 | 花园/扩容 | 点「扩容 +1」**直接扣 400 阳光**（低年级档 160），无确认、按钮上没价格 | `garden_page.dart` 点「扩容 +1」直接 `_run(() => expandPot(...))`，按钮文案写死「扩容 +1」（无价格），中间**零确认** → 点了才扣 | 新增 `_expandCost` getter（`_tier == AgeTier.low ? kPlantPotExpandCostLow(160) : kPlantPotExpandCostHigh(400)`，无裸字面量）+ `_confirmAndExpand()`：`AlertDialog`「要给花园腾一个花盆吗？」正文三行 = 当前阳光 X ☀ / 本次扩容将扣除 Y ☀ / 花园容量 N → N+1 盆；「取消」`pop(false)` → `if (ok != true) return;` **一分不扣**，「确定，扣除」`pop(true)` → 才 `expandPot`；余额不足先 SnackBar「阳光不足，还差 Z ☀」并 return。`_CapacityBanner` 重写为**三态互斥**：已达上限 →「已达上限」；阳光不足 → 灰字「阳光不足（还差 Z ☀）」且**不给可点按钮**；可扩容 →「扩容 +1 · Y☀」（原 `onExpand==null` 一律显示「已达上限」会误导，已消除）；`busy` 时禁用 | ✅ 已修复（待真机） |
-| F22 | 孩子端/我的页 | 「我的」页 1000 多、花园页 900 多，**两端对不上** | `child_profile_page.dart` 的 `_balance` **只在 `initState` 的 `_reload()` 读一次**，而它是底部导航 `IndexedStack` 的**保活页**，切 tab 不重建 → 花园消费后切回仍显示旧值。**账本本身是准的**：`PlantGrowthService.expandPot` 确实走 `_appendSpend(..., refType:'plant_expand')` 写 `net = -cost` —— **不是少扣了款，只是页面没重读，禁止去领域层「补扣」** | `build()` 内加 `ref.listen(economyRevisionProvider, (_, __) { if (mounted) _reload(silent: true); })`；`_reload` 加 `{bool silent = false}`（沿用花园同款静默刷新，避免切回时闪全屏 loading） | ✅ 已修复（待真机） |
+| F21 | 花园/扩容 | 点「扩容 +1」**直接扣 400 阳光**（低年级档 160），无确认、按钮上没价格 | `garden_page.dart` 点「扩容 +1」直接 `_run(() => expandPot(...))`，按钮文案写死「扩容 +1」（无价格），中间**零确认** → 点了才扣 | 新增 `_expandCost` getter（`_tier == AgeTier.low ? kPlantPotExpandCostLow(160) : kPlantPotExpandCostHigh(400)`，无裸字面量）+ `_confirmAndExpand()`：`AlertDialog`「要给花园腾一个花盆吗？」正文三行 = 当前阳光 X ☀ / 本次扩容将扣除 Y ☀ / 花园容量 N → N+1 盆；「取消」`pop(false)` → `if (ok != true) return;` **一分不扣**，「确定，扣除」`pop(true)` → 才 `expandPot`；余额不足先 SnackBar「阳光不足，还差 Z ☀」并 return。`_CapacityBanner` 重写为**三态互斥**：已达上限 →「已达上限」；阳光不足 → 灰字「阳光不足（还差 Z ☀）」且**不给可点按钮**；可扩容 →「扩容 +1 · Y☀」（原 `onExpand==null` 一律显示「已达上限」会误导，已消除）；`busy` 时禁用 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F22 | 孩子端/我的页 | 「我的」页 1000 多、花园页 900 多，**两端对不上** | `child_profile_page.dart` 的 `_balance` **只在 `initState` 的 `_reload()` 读一次**，而它是底部导航 `IndexedStack` 的**保活页**，切 tab 不重建 → 花园消费后切回仍显示旧值。**账本本身是准的**：`PlantGrowthService.expandPot` 确实走 `_appendSpend(..., refType:'plant_expand')` 写 `net = -cost` —— **不是少扣了款，只是页面没重读，禁止去领域层「补扣」** | `build()` 内加 `ref.listen(economyRevisionProvider, (_, __) { if (mounted) _reload(silent: true); })`；`_reload` 加 `{bool silent = false}`（沿用花园同款静默刷新，避免切回时闪全屏 loading） | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 
 ⚠️ **与 F05 同一类坑（交叉引用）**：主理人最初建议把 `ref.listen` 写在 `initState`，**Riverpod 不允许**——有 `debugDoingBuild` 断言（`ref.listen can only be used within the build method`）。实测写在 `initState` 会让 `test/nav/nav_structure_test.dart` **4 条全红**（`ChildProfilePage` 是 `ChildShellPage` 的 `IndexedStack` 子页，`initState` 立即执行即触发）。改放 `build()` 内、`_loading` 早退之前（与 `child_shell_page` / `child_today_page` 现有一致）→ nav 恢复 6/6、全量 279 绿。
 **纪律**：`ref.listen` 只能写在 `build()` 内；`initState` 场景必须用 `ref.listenManual`（见 F05）。
@@ -416,10 +416,10 @@
 
 | ID | 模块 | 现象 | 根因 | 修复 | 状态 |
 |---|---|---|---|---|---|
-| F23 | 植物/成长 | 浇水标 +12%，实际本阶段成长**跳到 21%**（真机） | **根因① `_advanceGrowth` 非幂等**：`stageStartedAt` 只在**跨阶段**时更新 → 每次 `tickAll`（每次页面刷新）都把「stageStartedAt → now」整段**重新累加**到已有进度 | 改为按段推进 + 推进 cursor，重复 tick 不再重算已走过的段 | ✅ 已修复（待真机） |
-| F24 | 植物/成长 | 「培养太简单，没有陪伴成长的乐趣」——几小时就开花 | ⭐**根因②（真凶）微秒除数少除 1000 倍**：`inMicroseconds / 3600000.0`，而 1 小时 = 3.6e9 微秒，正确除数应为 **`3600000000.0`** → 成长速度整体**快 1000 倍**。表面只表现为「长得快」，极难定位 | `plant_growth_service.dart:295` 改 `/ 3600000000.0`；`kPlantGrowthHoursPerStageDefault` 24 → **240**（普通，每阶段 10 天）；新增 `kPlantGrowthHoursPerStagePremium` = **480**（精品，每阶段 20 天）；`kPlantAutoGrowthScale` 0.2 → **1.0** | ✅ 已修复（待真机） |
-| F25 | 植物/成长 | 施肥从 21% 涨到 70%；且「正好 30 天」实际要 **31 天** | **根因③ 浮点卡阶段**：24/240 累加 10 次 = `0.9999999999999999 < 1.0`，严格 `>= 1.0` 判定把「正好 30 天」推成 31 天 | 新增 `kGrowthEpsilon = 1e-9`，阶段判定改 `progress >= 1.0 - kGrowthEpsilon`；浇水 +12% → **+1%**（`kPlantWaterProgressGain = 0.01`）、施肥 +25% → **+5%**（`kPlantFertilizeProgressGain = 0.05`） | ✅ 已修复（待真机） |
-| F26 | 结算页 | 「今日累计」显示 **-173** | `settle_page` 用 `dayNet()`（**含支出**）→ 把浇水 / 施肥 / 种植的支出也算进了「今日累计」 | 改用 `SunlightRepository.earnNetOnDay()`（**只统计 `type == earn` 的 net**）并钳 **≥ 0** | ✅ 已修复（待真机） |
+| F23 | 植物/成长 | 浇水标 +12%，实际本阶段成长**跳到 21%**（真机） | **根因① `_advanceGrowth` 非幂等**：`stageStartedAt` 只在**跨阶段**时更新 → 每次 `tickAll`（每次页面刷新）都把「stageStartedAt → now」整段**重新累加**到已有进度 | 改为按段推进 + 推进 cursor，重复 tick 不再重算已走过的段 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F24 | 植物/成长 | 「培养太简单，没有陪伴成长的乐趣」——几小时就开花 | ⭐**根因②（真凶）微秒除数少除 1000 倍**：`inMicroseconds / 3600000.0`，而 1 小时 = 3.6e9 微秒，正确除数应为 **`3600000000.0`** → 成长速度整体**快 1000 倍**。表面只表现为「长得快」，极难定位 | `plant_growth_service.dart:295` 改 `/ 3600000000.0`；`kPlantGrowthHoursPerStageDefault` 24 → **240**（普通，每阶段 10 天）；新增 `kPlantGrowthHoursPerStagePremium` = **480**（精品，每阶段 20 天）；`kPlantAutoGrowthScale` 0.2 → **1.0** | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F25 | 植物/成长 | 施肥从 21% 涨到 70%；且「正好 30 天」实际要 **31 天** | **根因③ 浮点卡阶段**：24/240 累加 10 次 = `0.9999999999999999 < 1.0`，严格 `>= 1.0` 判定把「正好 30 天」推成 31 天 | 新增 `kGrowthEpsilon = 1e-9`，阶段判定改 `progress >= 1.0 - kGrowthEpsilon`；浇水 +12% → **+1%**（`kPlantWaterProgressGain = 0.01`）、施肥 +25% → **+5%**（`kPlantFertilizeProgressGain = 0.05`） | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F26 | 结算页 | 「今日累计」显示 **-173** | `settle_page` 用 `dayNet()`（**含支出**）→ 把浇水 / 施肥 / 种植的支出也算进了「今日累计」 | 改用 `SunlightRepository.earnNetOnDay()`（**只统计 `type == earn` 的 net**）并钳 **≥ 0** | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 
 ## 植物成长 V2 轮 · 数值变更表（`lib/core/constants/prd_params.dart`）
 
@@ -508,14 +508,14 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 
 | ID | 模块 | 现象 | 根因 / 影响 | 处置 | 状态 |
 |---|---|---|---|---|---|
-| F32 | M2/日上限 | **[P0] PRD §4.5「日上限 79」实际未按「日」封顶**：一天多场专注可远超 79 | `lib/domain/services/sunlight_service.dart` 的 `settle()` 里 `net = computeEffective(rawS)`，而 `rawS` 是**本次会话自己的**原始产出 → 软顶是**按会话逐次套**的，不是按当日累计；`todayCumulativeNet()` 只用于展示，没有参与约束。连带影响：成长项打卡按「当日累计差额」发阳光，若某日专注侧已超发（net > 79），打卡会 `grant == 0`，看起来像「打卡不发阳光」 | **玄参 2026-09-23 拍板修法（见 `口径裁定表_v1.md` C11）**：① 取消分段打薄（`computeSoftCap` + 6 个 `kSoftCap*` 常量全删），专注 **1 分钟 = 1 阳光**、年段日上限 **60/90/120** 硬封顶；② 成长奖励改**独立额度 79**，`_dailyRewardGrant` **只读 `task_checkin` 自身账目**（不再读当日全部 earn）→ 两条额度线解耦，连带影响同步消除；③ **三道拦**：选时长页灰超额度档位 → 开始前截断 → **结算硬截断**（`settle` 新增 `required int dailyFocusCap` + `effectiveFocusSunlight`）。详见下文「G02」 | ✅ 已修复（待真机） |
+| F32 | M2/日上限 | **[P0] PRD §4.5「日上限 79」实际未按「日」封顶**：一天多场专注可远超 79 | `lib/domain/services/sunlight_service.dart` 的 `settle()` 里 `net = computeEffective(rawS)`，而 `rawS` 是**本次会话自己的**原始产出 → 软顶是**按会话逐次套**的，不是按当日累计；`todayCumulativeNet()` 只用于展示，没有参与约束。连带影响：成长项打卡按「当日累计差额」发阳光，若某日专注侧已超发（net > 79），打卡会 `grant == 0`，看起来像「打卡不发阳光」 | **玄参 2026-09-23 拍板修法（见 `口径裁定表_v1.md` C11）**：① 取消分段打薄（`computeSoftCap` + 6 个 `kSoftCap*` 常量全删），专注 **1 分钟 = 1 阳光**、年段日上限 **60/90/120** 硬封顶；② 成长奖励改**独立额度 79**，`_dailyRewardGrant` **只读 `task_checkin` 自身账目**（不再读当日全部 earn）→ 两条额度线解耦，连带影响同步消除；③ **三道拦**：选时长页灰超额度档位 → 开始前截断 → **结算硬截断**（`settle` 新增 `required int dailyFocusCap` + `effectiveFocusSunlight`）。详见下文「G02」 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 | F33 | M4/植物养成 | 满养护实测 **17 天**，与理论 **18 天**差 1 天 | 种下当天即可养护 → 少 1 天（理论 16.67 进位）。要严格 18 天，需把每天养护从 8% 降到约 6.7%（浇水 0.5%/次 或施肥 4%），会**破坏已拍板的 +1% / +5% 整数口径** | 玄参 2026-09-22 23:49 **拍板：就 17 天，不细调**（差 1 天无感知，凑 18 天要破坏 +1% / +5% 整数口径，不值得） | ✅ 已拍板（不改） |
 | F34 | 孩子端/我的 | `child_profile_page.dart` 底部 `DEBUG 加1000阳光` 按钮仍在（源码自标「提交前删除」） | 玄参真机验收兑换链路要用，故暂留 | **提审前必须清理** | 🔧 待清理 |
 | F35 | 全仓/文案 | 注释里的「任务」字样约 **26 处**未统一为「成长」 | 均在 `///` / `//` 注释中（**非用户可见**），其中若干处直接指代 tab 名（如 `child_shell_page.dart:3`），对新维护者有误导性 | 工程师按纪律未改（不在本轮范围）并已逐条列出 | 🔧 待清理 |
 | F36 | M3/完美日口径 | 完美日按「**已提交**」判定（联动 = 自动结算；非联动 = 已打卡），而非「家长已核销」 | 玄参拍板：保持**即时情绪反馈**（不等家长核销）；完美日本身不发钱，故无经济风险 | **不改**（已拍板） | ✅ 已确认正确 |
 | F37 | M2/指标 | **「核销履约率」指标（含 G2 ≥70% 硬门槛）取消** | 玄参：「简单一点，不要什么核销履约率」。该指标① 口径虚设（分母要排除免确认自动通过，但当前兑换一律走待核销、无样本可排除）；② **从未实现**（全库仅 3 处注释提及，`parent_report_page` 无任何计算代码，`autoApproved` 列无人读取）；③ 还要拆小额/大额分层判读，对单机 MVP 属过度设计 | **已删除**：`redemption_service.dart:29`、`enums.dart:22/113` 三处注释中的「履约率」字样已清理。⚠️ 历史文档（`软件设计文档_M2.md`、`MVP执行规划_v2.md`、`验证计划_SunFocus_G0G2.md`、`架构设计_SunFocus_MVP.md`、`软件设计文档_spikes.md`、`sequence-diagram-M2.mermaid`）中仍留有表述，**是否一并清理待玄参发话** | ✅ 已执行（历史文档待定） |
-| F38 | M2/周池 | 周池预算区间 **50–1200 只在 UI 校验**（`pool_indicator.dart` 硬编码），常量里没有周池 min/max；1200 过大 | `prd_params.dart` 的 `kMonthlyPoolMin=100 / kMonthlyPoolMax=1200` 是**月池遗留**（名字带 Monthly），与周池无关；`weekly_pool_service.dart` 领域层**零校验** | **玄参 2026-09-23 拍板改掉**：新增 `kWeeklyPoolBudgetMin=50` / `kWeeklyPoolBudgetMax=500`（`prd_params.dart`），`pool_indicator.dart` 校验与提示文案改为引用常量（不再有裸字面量）。区间 50–1200 → **50–500** | ✅ 已修复（待真机） |
-| F39 | 家长端/设置 | 每日专注上限下拉 `options: [60, 75, 90]`（`parent_settings_page.dart`）中的 **75 是孤儿**，且三档默认值不合理（低=中=90、高=60，高年段反而更少） | `prd_params.dart` 旧值只有 `kDailyFocusCapLow=90`（低/中都用它）/ `kDailyFocusCapHigh=60`；75 只存在于 UI 字面量 | **玄参 2026-09-23 拍板改掉**：改为**年龄越大上限越高**的阶梯 —— 低 60 / 中 90 / 高 120。新增 `kDailyFocusCapMid=90`，`kDailyFocusCapLow` 90→60、`kDailyFocusCapHigh` 60→120；`age_tier_params.dart` 三档同步；下拉改为引用三个常量（75 消失，不再有裸字面量）。新增 `test/m2/age_tier_params_test.dart` 7 条断言锁死阶梯与区间 | ✅ 已修复（待真机） |
+| F38 | M2/周池 | 周池预算区间 **50–1200 只在 UI 校验**（`pool_indicator.dart` 硬编码），常量里没有周池 min/max；1200 过大 | `prd_params.dart` 的 `kMonthlyPoolMin=100 / kMonthlyPoolMax=1200` 是**月池遗留**（名字带 Monthly），与周池无关；`weekly_pool_service.dart` 领域层**零校验** | **玄参 2026-09-23 拍板改掉**：新增 `kWeeklyPoolBudgetMin=50` / `kWeeklyPoolBudgetMax=500`（`prd_params.dart`），`pool_indicator.dart` 校验与提示文案改为引用常量（不再有裸字面量）。区间 50–1200 → **50–500** | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F39 | 家长端/设置 | 每日专注上限下拉 `options: [60, 75, 90]`（`parent_settings_page.dart`）中的 **75 是孤儿**，且三档默认值不合理（低=中=90、高=60，高年段反而更少） | `prd_params.dart` 旧值只有 `kDailyFocusCapLow=90`（低/中都用它）/ `kDailyFocusCapHigh=60`；75 只存在于 UI 字面量 | **玄参 2026-09-23 拍板改掉**：改为**年龄越大上限越高**的阶梯 —— 低 60 / 中 90 / 高 120。新增 `kDailyFocusCapMid=90`，`kDailyFocusCapLow` 90→60、`kDailyFocusCapHigh` 60→120；`age_tier_params.dart` 三档同步；下拉改为引用三个常量（75 消失，不再有裸字面量）。新增 `test/m2/age_tier_params_test.dart` 7 条断言锁死阶梯与区间 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 
 ## 遗留项 · 校验
 
@@ -533,7 +533,7 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 | ID | 模块 | 现象 | 根因 | 修复 | 状态 |
 |---|---|---|---|---|---|
 | G01 | 孩子端/花园 | 花园是「卡片列表 + 容量横幅」，一屏看得全但**没有花园感**；点植物只能在一排按钮里挑动作 | 原 `garden_page.dart` 用卡片列表渲染，缺乏空间感；容量入口是独立横幅，与花盆不在一处 | 重写为**草地 + 3 列花盆网格**：新建 `garden_pot.dart`（`GardenGrid` / `GardenPot` / `EmptyPot` / `ExpandPotSlot` / `_PotPainter` 自绘陶盆）；点植物弹**底部养护面板**（新建 `plant_care_sheet.dart`，复用 `PlantCard` 的展示与按钮，**不复制第二套按钮逻辑**）；空盆即种植入口；加盆收进网格**末尾一格**（三态：带价可点 / 差多少不可点 / busy 不可点）；植物按进度**略微变大**（`plant_artwork.dart` 新增 `growthScale`，靠内边距收缩实现，**不会顶破圆形裁切**）。新增 `test/m3/garden_pot_layout_test.dart` **11 条**布局断言（320/360/390 三档屏宽不抛 overflow；同行 x 递增且同高、第 4 格换行；标签不越界；盆沿压在盆口上） | ✅ 已修复（真机复测通过，commit `c0f8298`） |
-| G02 | M2/日上限 + M4/打卡额度 | **[P0]** 日上限只在「点开始专注」时检查一次，**不检查这一场会不会超** → 孩子可选自定义 180 分钟，一场拿下 180 分钟、到账 79 阳光，**一次超掉低年段 60 上限的 32%**。**另一处 [P1]** 当天专注或家长赠予拿满额度 → 成长打卡奖励归 0（打卡「发不出来」） | ① `settle()` 里 `net = computeSoftCap(rawS)`，`rawS` 是**本次会话自己**的原始产出 → 按会话逐次套，非当日累计；`dailyFocusRemaining()` 早已写好却**全仓零调用**（当初就打算这么接，没接上）。② `_dailyRewardGrant` 读的是**当日全部 `earn`**（`earnGrossOnDay` / `earnNetOnDay`），专注 / 赠予一拿满就把成长奖励额度吃干净。③ 分段软顶「第一段即 60 分钟全额」，与「封顶跟随年段」在数学上**不能共存** —— 高年段 120 分钟永远只能拿 79，是摸不到的天花板 | **取消分段软顶**：删 `computeSoftCap()` 与 6 个常量（`kSoftCapDailyMax` / `kSoftCapSeg1..3` / `kSoftCapSeg2Rate` / `kSoftCapSeg3Rate`），改 **1 分钟 = 1 阳光 + 年段硬封顶**。**两条独立额度线**：专注（跟随年段 60/90/120，按 `refType='focus_session'` 聚合）/ 成长奖励（新增 `kTaskCheckinDailyCap = 79`，按 `refType='task_checkin'` 聚合），互不挤占。**额度三道拦**：选时长页灰超额度档位 + 提示「今天还可以专注 N 分钟」→ 开始前按剩余额度截断 → **结算时硬截断**（新增 `effectiveFocusSunlight`，唯一可靠兜底）。**接口与改名**：`settle` 新增 `required int dailyFocusCap`；`sunlight_service` 新增 `focusEarnedToday` / `focusRemainingToday`（额度口径单点收口）；`cappedBySoftCap → cappedByDailyCap`；`_softCapGrant → _dailyRewardGrant`；`FocusSettlement.capped` 改为直接比较 `net < rawS`（不再靠「是否超第一段」推断） | ✅ 已修复（代码 + **348 条测试全绿**；**未出包、待真机复测**） |
+| G02 | M2/日上限 + M4/打卡额度 | **[P0]** 日上限只在「点开始专注」时检查一次，**不检查这一场会不会超** → 孩子可选自定义 180 分钟，一场拿下 180 分钟、到账 79 阳光，**一次超掉低年段 60 上限的 32%**。**另一处 [P1]** 当天专注或家长赠予拿满额度 → 成长打卡奖励归 0（打卡「发不出来」） | ① `settle()` 里 `net = computeSoftCap(rawS)`，`rawS` 是**本次会话自己**的原始产出 → 按会话逐次套，非当日累计；`dailyFocusRemaining()` 早已写好却**全仓零调用**（当初就打算这么接，没接上）。② `_dailyRewardGrant` 读的是**当日全部 `earn`**（`earnGrossOnDay` / `earnNetOnDay`），专注 / 赠予一拿满就把成长奖励额度吃干净。③ 分段软顶「第一段即 60 分钟全额」，与「封顶跟随年段」在数学上**不能共存** —— 高年段 120 分钟永远只能拿 79，是摸不到的天花板 | **取消分段软顶**：删 `computeSoftCap()` 与 6 个常量（`kSoftCapDailyMax` / `kSoftCapSeg1..3` / `kSoftCapSeg2Rate` / `kSoftCapSeg3Rate`），改 **1 分钟 = 1 阳光 + 年段硬封顶**。**两条独立额度线**：专注（跟随年段 60/90/120，按 `refType='focus_session'` 聚合）/ 成长奖励（新增 `kTaskCheckinDailyCap = 79`，按 `refType='task_checkin'` 聚合），互不挤占。**额度三道拦**：选时长页灰超额度档位 + 提示「今天还可以专注 N 分钟」→ 开始前按剩余额度截断 → **结算时硬截断**（新增 `effectiveFocusSunlight`，唯一可靠兜底）。**接口与改名**：`settle` 新增 `required int dailyFocusCap`；`sunlight_service` 新增 `focusEarnedToday` / `focusRemainingToday`（额度口径单点收口）；`cappedBySoftCap → cappedByDailyCap`；`_softCapGrant → _dailyRewardGrant`；`FocusSettlement.capped` 改为直接比较 `net < rawS`（不再靠「是否超第一段」推断） | ✅ 已修复（代码 + **348 条测试全绿**；**2026-09-23 21:41 已装机，三点均真机验证通过**） |
 
 ## 花园/日上限轮 · 校验
 
@@ -545,3 +545,37 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 - **装包**：花园轮 `adb -s f05bbc46 install -r` → **Success**；`monkey` 启动后进程存活（PID 3924），logcat 无 `FATAL` / `E/flutter`。**日上限轮按玄参指示暂不出包**（先提交推送，装包另择时间）→ 上表 G02 状态为「待真机复测」。
 - **文档同步（本轮一并做）**：`口径裁定表_v1.md` 新增 **C11**；同步 `产品开发文档_M2M3M4.md`（§1.3 / §3.5 / §3.6 / §6）、`软件设计文档_M1.md`（§7 / §8）、`软件设计文档_M2.md`（结算时序图）、`软件设计文档_M3M4.md`（§3.2 / §3.3 / §9 / §10）、`软件设计文档_M0.md`、`软件设计文档_spikes.md`、`架构设计_SunFocus_MVP.md`（§3.2 / §4.3 / §5 目录 / §6 任务表）、`验证计划_SunFocus_G0G2.md`（§4.3 DoD / 埋点字段名 `softcap_hit → capped`）。**PRD v2.0 正文按玄参自维护处理，保留为历史版本，不在回写范围。**
 - **已知技术债留存**：`child_profile_page.dart` 的 `DEBUG 加1000阳光` 按钮（F34）**提审前必须删**。
+
+---
+
+# 植物状态规则 + 花园美术接入 + 花园页 v2/v3 轮（2026-09-23 下午–晚）
+
+> 玄参当天多轮真机截图反馈驱动的连续改造。**本节所有条目已装机验证**（`adb -s f05bbc46 install -r` → Success，21:41）。
+> 口径落在 `口径裁定表_v1.md` **C12**（植物枯萎 / 恢复 / 花谢循环）与 **C13**（花园表现层与美术规格）。
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| G03 | M3/植物养成 | 枯萎 7 天太久；付费救回（20/8 阳光）与「靠养护把花救活」的自然直觉不符 | 原为 PRD §4.6 设计 | **玄参拍板**（宪法 **C12**）：枯萎 **7 → 3 天**；**取消付费救回**（删 `revive()` + `kPlantReviveCostLow/High`）→ 改**养护恢复**（未满 3 天浇水 1 次；满 3 天需浇水 3 次 + 施肥 1 次）。恢复次数**以账本为唯一事实源**（新增 `countByRefTypeAndRefIdSince`，**不给 Plants 加计数列**）。枯萎期间放开养护（actionable = `growing \|\| wilting`）。⚠️ 踩坑：恢复需清空 `wiltedAt`，而 `Plant.copyWith` 的 `?? this.x` **清不掉可空字段** → 改用 `Plant(...)` 构造器显式重建 | ✅ 已修复（真机已验） |
+| G04 | M3/植物养成 | 成株盛开后**永久停留**，不符合自然规律 | 原设计把「开花」当终点，无任何回退 | **玄参拍板**：**花谢循环** —— 盛开保持 `kBloomDurationDays = 3` 天 → 花谢（`status → growing`、进度回落 `kBloomWiltProgressFloor = 0.5`，**体型保持成株不缩回幼苗**）→ 由时间/养护重新养满后**自动再盛开**。新增 `Plant.bloomedAt`（**v8 迁移**，`_ensureColumn` 幂等）；老库升级来的已开花植物首次 tick 补计时起点，**不立即花谢** | ✅ 已修复（真机已验） |
+| G05 | M3/花园美术 | 「花盆怎么调都太小」；一格画**两个盆**、边缘错位不干净 | **两层根因**（都不是「调比例参数」能解决的）：① 原图为 2048×2048 画布但**内容只占 35%×30%**，`BoxFit.contain` 按整张画布缩放 → 花盆只显示约 **29px**；② **植物图自带花盆**，而 `GardenPot` 又叠了一层 `pot.png` | ① 美术侧新增 `tools/normalize_plant_art.py`（幂等；glob 扫 `assets/plants/*.png` + `assets/pots/*.png`，新增图自动纳入）→ 全部重排为统一画布 **1200×2000**（盆宽 800、盆底贴底、盆心 x=600），原图备份 `assets/_originals/`（**不在 pubspec 声明内，不入包**）；② **玄参拍板「代码不要自动叠花盆，只要植物自带的花盆」** → `GardenPot` 只渲染一张植物图；③ `growthScale` 0.18 → **0**（所有盆必须等大，进度反馈交给盆下细进度条） | ✅ 已修复（真机已验） |
+| G06 | M3/花园页 | 「我的阳光」通栏大卡**挡住草地**；空花盆「这么大点儿下面还有一条横线，看不出种没种」 | 通栏卡横在草地上方；空盆与有植物的盆**两套尺寸不一致** | 「我的阳光」→ **顶部栏左上角胶囊**（新建 `sunlight_pill.dart` + `sunlightBalanceProvider`，**仅花园 tab 显示**；加载/出错显示 `— ☀`，**绝不显示 0**）；空花盆只显示陶盆（去掉「+ 点击种植」） | ✅ 已修复（真机已验） |
+| G07 | M3/花园页 | 第三排花盆**挡住背景植物**；加号格**飘在花盆上方**；「还差 400 阳光」**看不清**；底部半透明白块难看 | ① 网格按容量自然填行、不设可视上限；② 加号按**整张画布**正中（50%）居中，而 `pot.png` 的盆心在 **82.95%** → 必然高出一截；③ 11px 彩字**直接压在草地上**（不可点态尤其几乎看不清）；④ 通栏白块占草地 | ① 网格**锁 2 行**（超出部分**区域内纵向滚动**，滚动条**仅在溢出时**可见），滚动区底界按背景图映射到**菜地上沿之上**，永不遮挡背景植物；② 加号圆心对齐**盆心**（360 屏实测误差 **0.0px**）；③ 三类格子文案统一**半透明白胶囊底** `0xE6FFFFFF` + 加深字色（枯萎态对比度 **3.50 → 5.18**，五态全部 ≥4.5:1）；④ 白块**整块删除**，容量/养护信息收进**木牌弹窗**（背景图左下角木牌做成可点击 + 呼吸高亮 → 「花园说明」） | ✅ 已修复（真机已验） |
+| G08 | 测试质量 | 花园 v3 有 **2 个用例形同虚设**（改坏生产代码仍全绿）；1 处文字对比度不达标 | ① 该组测试**自建 `SingleChildScrollView` 复刻了布局**，根本没渲染真实 `GardenPage`（且 `gridWidth` 用 `360-44`，生产是 `360-24`）；② 木牌用例只断言「≥44px 且在容器内」→ **右移 248 源像素**仍全绿；③ 加号断言**引用被测常量本身**（自指 = 永不红） | QA 严过关用**变异测试**（故意改坏实现看测试会不会红）戳穿 → ① 「锁 2 行」抽成公共纯函数 `gardenGridVisibleHeight()` + 补**真实 `GardenPage` 渲染用例**（假仓储 + `ProviderScope` overrides）；② 木牌坐标改为**从源图像素独立推导 + 硬钉实测值**；③ 加号期望值改为**从 `pot.png` bbox 独立推导**；④ 加严变异又挖出 `firstRowTop` 窄覆盖洞 → 补**矮屏 360×380 真实页用例**；⑤ 枯萎态 `orange.shade900` → `deepOrange.shade900` | ✅ 已修复（真机已验） |
+
+## 花园 v2/v3 轮 · 校验
+
+- **`flutter analyze`** → **0 error**；3 条 warning 全在**既有**测试文件（`test/m4`、`test/qa` 的 `unused_import`），非本轮引入。
+- **`flutter test --no-pub`**（摘四个代理变量）→ **412 条全绿**。计数演进：360 → 370（花谢循环）→ 385（植物状态规则）→ 387（花园根因修复）→ 404（花园 v3）→ **412**（v3 缺陷修复 + 矮屏用例）。
+- **变异测试（本轮最有价值的方法论，已写进 `软件设计文档_M3M4.md` §8.4）**：
+  - M1 `kPotBodyCenterYFraction` 0.8295 → 0.5 → **变红** ✓
+  - M2 木牌归一化矩形右移 +0.05 → **3 个用例变红** ✓
+  - M3 `visibleRows` 2 → 3 → **3 个用例变红**（含真实 `GardenPage`）✓
+  - M4（加严）改 `gardenGridVisibleHeight` **内部逻辑**（两行高度算错 / 去掉 `min` 约束）→ 变红 ✓
+  - M5（加严）`firstRowTop` 传 `0` → **修前全绿（残洞）** → 补矮屏用例后**变红**（偏差恰 +12px）✓
+  - 所有变异均 `shasum -c` **byte-identical 还原**，工作区无残留。
+- **滚动条机制逐帧实测**（QA 用真实 `GardenPage`）：首帧 `maxScrollExtent` 即 >0 → **第 2 帧滚动条出现** → 60 帧内**只翻转 1 次**（无自激排帧）→ 容量 12 降回 4 时**正确消失**。
+- **像素级验证（AI 不截图，靠度量）**：11 张图画布统一 1200×2000、内容底边全 = 2000、口沿宽 795~803、盆心 599~601；木牌归一化矩形反推源像素 = **x 47.95~285.03 / y 1655.04~1825.02**（与标定吻合），并**裁图目视确认是木牌**；`assets/_originals` **未入包**（解包 APK 抽图 md5 与磁盘一致）。
+- **装包**：`flutter build apk --debug` → ✓ Built；`adb -s f05bbc46 install -r` → **Success**（21:41）；`dumpsys` 确认 `com.sunflowertime.app` / `versionName 0.1.0`。
+- **文档同步（本轮一并做）**：`口径裁定表_v1.md` 新增 **C12 / C13**；`项目进度跟踪表.md` 重写；`美术资源清单_花园植物.md` 升 **v2**；`产品开发文档_M2M3M4.md`；`软件设计文档_M3M4.md`；`交接总结_下一阶段.md`。
+
+- **⚠️ 本轮修正了一个旧结论**：v1 美术清单称「`seed_dead` **三物种全不可达**」。枯萎改 3 天后重新推导：**普通植物（240h/阶段）仍不可达**（死亡与阶段推进同日，tick 内先推进、后判死）；但**精品仙人掌（480h/阶段）现在可达** —— 第 3 天枯萎（进度 15%）、第 10 天死亡时进度仅 50%，**仍在 seed 阶段**。故仙人掌需**多出 1 张 `species_cactus_seed_dead.png`**；可达槽位总数 **27 → 28**（详见 `docs/美术资源清单_花园植物.md` §3.2）。

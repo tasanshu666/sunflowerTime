@@ -156,7 +156,6 @@ class PlantArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color bg = tint ?? Colors.teal.shade600;
     final double progress = plant.growthProgress.clamp(0.0, 1.0);
     // 进度越低，四周留白越多 → 视觉上「慢慢长大」。
     final double pad = size * growthScale * (1.0 - progress) / 2;
@@ -164,34 +163,25 @@ class PlantArtwork extends StatelessWidget {
       future: _PlantArtAssets.resolve(plant: plant, species: species),
       builder: (BuildContext context, AsyncSnapshot<String?> snap) {
         final String? path = snap.data;
-        return Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: bg.withOpacity(0.15),
-            shape: BoxShape.circle,
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
-            padding: EdgeInsets.all(pad),
-            child: path == null
-                ? PlantPlaceholderArt(
+        return Padding(
+          padding: EdgeInsets.all(pad),
+          child: path == null
+              ? PlantPlaceholderArt(
+                  plant: plant,
+                  species: species,
+                  size: size,
+                )
+              : Image.asset(
+                  path,
+                  fit: BoxFit.contain,
+                  // 资源存在但解码失败时（坏图）不至于整页崩掉。
+                  errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+                      PlantPlaceholderArt(
                     plant: plant,
                     species: species,
                     size: size,
-                  )
-                : Image.asset(
-                    path,
-                    fit: BoxFit.contain,
-                    // 资源存在但解码失败时（坏图）不至于整页崩掉。
-                    errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
-                        PlantPlaceholderArt(
-                      plant: plant,
-                      species: species,
-                      size: size,
-                    ),
                   ),
-          ),
+                ),
         );
       },
     );

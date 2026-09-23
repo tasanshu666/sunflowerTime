@@ -129,6 +129,14 @@ class _MemLedgerRepo implements SunlightRepository {
           .length;
 
   @override
+  Future<int> countByRefTypeAndRefIdSince(
+    String refType,
+    String refId,
+    DateTime since,
+  ) async =>
+      0;
+
+  @override
   Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async {
     DateTime? last;
     for (final SunlightEntry e in entries) {
@@ -203,6 +211,26 @@ Plant _seedPlant(DateTime now) => Plant(
       lastWaterAt: null,
       wiltedAt: null,
       deadAt: null,
+      mood: PlantMood.calm,
+    );
+
+/// 成株盛开植物（用于花谢循环测试）。`bloomedAt = null` 模拟老库升级来的已开花植物。
+Plant _adultBloomed(DateTime now, {DateTime? bloomedAt}) => Plant(
+      id: _kPlantId,
+      speciesId: 'sp_test',
+      potIndex: 0,
+      stage: PlantStage.adult,
+      stageStartedAt: now,
+      growthProgress: 1.0,
+      growthFactor: 1.0,
+      waterUsed: false,
+      fertilizerUsed: false,
+      status: PlantStatus.bloomed,
+      plantedAt: now,
+      lastWaterAt: null,
+      wiltedAt: null,
+      deadAt: null,
+      bloomedAt: bloomedAt,
       mood: PlantMood.calm,
     );
 
@@ -376,6 +404,82 @@ void main() {
       print('[V2 养护] 浇水+reload 后进度 = $after（浇水后 $before）');
       // 只允许 1 分钟的真实时间增量（1/60/240），绝不允许把整天叠加进来。
       expect(after - before, closeTo(1.0 / 60.0 / 240.0, 1e-9));
+    });
+  });
+
+  group('花谢循环（玄参大人 2026-09-23 拍板：盛开不能一直保持）', () {
+    test('盛开保持 kBloomDurationDays 天后花谢：status→growing、进度回落 floor', () async {
+      final ctx = _make();
+      final DateTime t0 = DateTime(2026, 9, 1);
+      await ctx.plants.savePlant(_adultBloomed(t0, bloomedAt: t0));
+
+      // 花期内（0 .. kBloomDurationDays-1 天）保持盛开。
+      for (int d = 0; d < kBloomDurationDays; d++) {
+        await ctx.svc.tickAll(t0.add(Duration(days: d)));
+        final Plant cur = (await ctx.plants.plant(_kPlantId))!;
+        expect(cur.status, PlantStatus.bloomed, reason: '第 $d 天仍在花期');
+      }
+
+      // 跨过花期一天 → 花谢。
+      await ctx.svc.tickAll(t0.add(Duration(days: kBloomDurationDays)));
+      final Plant cur = (await ctx.plants.plant(_kPlantId))!;
+      expect(cur.status, PlantStatus.growing);
+      expect(cur.growthProgress, closeTo(kBloomWiltProgressFloor, 1e-9));
+    });
+
+    test('花谢后不会立即再盛开（进度需由时间/养护重新养满）', () async {
+      final ctx = _make();
+      final DateTime t0 = DateTime(2026, 9, 1);
+      await ctx.plants.savePlant(_adultBloomed(t0, bloomedAt: t0));
+
+      await ctx.svc.tickAll(t0.add(Duration(days: kBloomDurationDays)));
+      expect((await ctx.plants.plant(_kPlantId))!.status, PlantStatus.growing);
+
+      // 花谢后仅过 1 天（自动成长 +10%/天）→ 进度 0.5→0.6，仍 growing。
+      await ctx.svc.tickAll(t0.add(Duration(days: kBloomDurationDays + 1)));
+      final Plant cur = (await ctx.plants.plant(_kPlantId))!;
+      expect(cur.status, PlantStatus.growing);
+      expect(cur.growthProgress,
+          closeTo(kBloomWiltProgressFloor + 0.10, 1e-9));
+    });
+
+    test('花谢后经时间重新养满 → 再度盛开（循环成立）', () async {
+      final ctx = _make();
+      final DateTime t0 = DateTime(2026, 9, 1);
+      await ctx.plants.savePlant(_adultBloomed(t0, bloomedAt: t0));
+
+      // 让花期结束 → 花谢。
+      await ctx.svc.tickAll(t0.add(Duration(days: kBloomDurationDays)));
+      expect((await ctx.plants.plant(_kPlantId))!.status, PlantStatus.growing);
+
+      // 之后纯自动成长（不养护）每天 +10%，直到再次盛开。
+      DateTime now = t0.add(Duration(days: kBloomDurationDays + 1));
+      int rebloomDay = -1;
+      for (int i = 0; i < 60; i++) {
+        await ctx.svc.tickAll(now);
+        final Plant cur = (await ctx.plants.plant(_kPlantId))!;
+        if (cur.status == PlantStatus.bloomed) {
+          rebloomDay = i;
+          expect(cur.bloomedAt, isNotNull, reason: '再盛开应记录新花期起点');
+          break;
+        }
+        now = now.add(const Duration(days: 1));
+      }
+      // 普通植物 (1-0.5)/0.10 = 5 天养满 → 约第 5 天再盛开。
+      expect(rebloomDay, greaterThanOrEqualTo(0),
+          reason: '花谢后应能再次盛开，实测 rebloomDay=$rebloomDay');
+      expect(rebloomDay, inInclusiveRange(4, 6));
+    });
+
+    test('老库升级来的已开花植物（bloomedAt=null）首次 tick 不花谢、补计时起点', () async {
+      final ctx = _make();
+      final DateTime t0 = DateTime(2026, 9, 1);
+      await ctx.plants.savePlant(_adultBloomed(t0)); // bloomedAt 为 null
+
+      await ctx.svc.tickAll(t0);
+      final Plant cur = (await ctx.plants.plant(_kPlantId))!;
+      expect(cur.status, PlantStatus.bloomed, reason: '仍是盛开，不应立即花谢');
+      expect(cur.bloomedAt, t0, reason: '应以本次 tick 为计时起点补上');
     });
   });
 }

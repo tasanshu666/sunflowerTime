@@ -127,6 +127,26 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
     return row.read(countExp) ?? 0;
   }
 
+  /// 指定 refType + refId 自 [since]（含）以来的**记账条数**（枯萎后养护恢复次数核算，2026-09-23）。
+  ///
+  /// 与 [countByRefTypeAndRefIdOnDay] 同源：每次浇水 / 施肥都写一条 `refType='plant_water' /
+  /// 'plant_fertilize'`、`refId=<植物 id>` 的记录。恢复判定「wilting 后累计浇几次 / 施几次」
+  /// 用本方法（以 `wiltedAt` 为 [since]），天然可对账、不引入新计数列。
+  Future<int> countByRefTypeAndRefIdSince(
+    String refType,
+    String refId,
+    DateTime since,
+  ) async {
+    final Expression<int> countExp = sunlightLedgers.id.count();
+    final row = await (selectOnly(sunlightLedgers)
+          ..where(sunlightLedgers.refType.equals(refType))
+          ..where(sunlightLedgers.refId.equals(refId))
+          ..where(sunlightLedgers.ts.isBiggerOrEqualValue(since))
+          ..addColumns([countExp]))
+        .getSingle();
+    return row.read(countExp) ?? 0;
+  }
+
   /// 指定 refType + refId 的**最近一次记账时间**（浇水最小间隔核算，M3 修订）。
   ///
   /// 用账本时间而非 `Plants.lastWaterAt`：后者在施肥 / 救回时也会被刷新，

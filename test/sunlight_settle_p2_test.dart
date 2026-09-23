@@ -64,6 +64,14 @@ class _FakeLedger implements SunlightRepository {
           .length;
 
   @override
+  Future<int> countByRefTypeAndRefIdSince(
+    String refType,
+    String refId,
+    DateTime since,
+  ) async =>
+      0;
+
+  @override
   Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async =>
       null;
 

@@ -208,7 +208,7 @@ void main() {
       //（见 test/m4/migration_v5_to_v6_test.dart）；植物成长 V2（v7，玄参大人
       // 2026-09-22）给成长中植物做重置清零后上移到 7
       //（见 test/m3/migration_v6_to_v7_test.dart），本护栏随之跟进。
-      expect(database.schemaVersion, 7);
+      expect(database.schemaVersion, 8);
     });
 
     test('v4 老库迁移后 tasks 含 custom_subject，历史行取 NULL 且数据不丢', () async {

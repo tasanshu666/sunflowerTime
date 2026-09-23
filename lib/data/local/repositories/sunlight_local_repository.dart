@@ -84,6 +84,14 @@ class SunlightLocalRepository implements SunlightRepository {
       _db.sunlightLedgerDao.countByRefTypeAndRefIdOnDay(refType, refId, dayKey);
 
   @override
+  Future<int> countByRefTypeAndRefIdSince(
+    String refType,
+    String refId,
+    DateTime since,
+  ) =>
+      _db.sunlightLedgerDao.countByRefTypeAndRefIdSince(refType, refId, since);
+
+  @override
   Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) =>
       _db.sunlightLedgerDao.lastTsByRefTypeAndRefId(refType, refId);
 }

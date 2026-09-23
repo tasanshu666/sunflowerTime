@@ -135,6 +135,15 @@ final weeklyPoolServiceProvider = Provider<WeeklyPoolService>((ref) =>
 /// （待核销总额不变、卡片仍停在「待家长核销」禁用态），即真机 BUG「拒绝后不同步」。
 final economyRevisionProvider = StateProvider<int>((ref) => 0);
 
+/// 阳光余额（随 [economyRevisionProvider] 自动重算；花园页左上角胶囊展示用）。
+///
+/// 余额任何变化（养护扣费、家长赠予、兑换核销）都会自增经济修订号，本 Provider 随之
+/// 重算，胶囊即时刷新，无需页面各自拉取。autoDispose：无胶囊展示时自动释放。
+final sunlightBalanceProvider = FutureProvider.autoDispose<double>((ref) async {
+  ref.watch(economyRevisionProvider);
+  return ref.read(sunlightRepositoryProvider).balance();
+});
+
 /// 兑换编排服务（§3.2 / §4.1–4.3）：submit / verify / releaseQueue / pendingList。
 final redemptionOrchestrationServiceProvider =
     Provider<RedemptionOrchestrationService>((ref) =>

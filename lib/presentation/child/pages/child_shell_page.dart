@@ -24,6 +24,7 @@ import 'package:sunflower_time/presentation/child/pages/child_task_page.dart';
 import 'package:sunflower_time/presentation/child/pages/child_profile_page.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/pages/store_page.dart';
+import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 
 /// 孩子端外壳：底部导航 + 5 个 tab。
 class ChildShellPage extends ConsumerStatefulWidget {
@@ -38,6 +39,21 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage> {
 
   /// 5 个 tab 的标题（AppBar 随当前 tab 变化）。
   static const List<String> _titles = <String>['今日', '成长', '花园', '商店', '我的'];
+
+  /// 5 个 tab 的内容页（IndexedStack 保活，切 tab 不重建）。
+  ///
+  /// ⚠️ 隐藏 tab 会在 [build] 里被包一层 `TickerMode(enabled: false)` 停掉动画：
+  ///  · 省电：后台 tab 无意义的动画不再逐帧重绘；
+  ///  · 关键：花园页左下角木牌有**无限循环的呼吸高亮**，若后台 tab 仍跑动画，
+  ///    `ChildShellPage` 的 widget 测试里 `pumpAndSettle()` 会**永不返回**（超时失败）。
+  /// 切回某 tab 时 `TickerMode` 自动恢复，动画继续。
+  static const List<Widget> _tabs = <Widget>[
+    ChildTodayPage(),
+    ChildTaskPage(),
+    GardenPage(embedded: true),
+    StorePage(embedded: true),
+    ChildProfilePage(),
+  ];
 
   @override
   void initState() {
@@ -194,6 +210,15 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_titles[_index]),
+        // 仅「花园」tab（index 2）在左上角展示阳光余额胶囊；其余 tab 外观完全不变
+        // （不给它们留空 leading）。胶囊数据来自 sunlightBalanceProvider。
+        leadingWidth: _index == 2 ? 96.0 : null,
+        leading: _index == 2
+            ? const Padding(
+                padding: EdgeInsets.only(left: 12),
+                child: Center(child: SunlightPill()),
+              )
+            : null,
         actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.family_restroom),
@@ -204,12 +229,10 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage> {
       ),
       body: IndexedStack(
         index: _index,
-        children: const <Widget>[
-          ChildTodayPage(),
-          ChildTaskPage(),
-          GardenPage(embedded: true),
-          StorePage(embedded: true),
-          ChildProfilePage(),
+        children: <Widget>[
+          // 隐藏 tab 停掉动画（见 [_tabs] 注释）：当前 tab 正常动画，后台 tab 静音。
+          for (int i = 0; i < _tabs.length; i++)
+            TickerMode(enabled: i == _index, child: _tabs[i]),
         ],
       ),
       bottomNavigationBar: NavigationBar(

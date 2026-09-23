@@ -11,6 +11,11 @@
 ///  3. 每格内容都在格子范围内（底部标签不越界）；
 ///  4. 「加盆」格的三态文案正确（够钱带价 / 不够钱写还差多少）。
 ///
+/// ## 二次改造（2026-09-23）后的新口径
+/// 美术图统一为 1200×2000 画布且**植物图自带花盆** → 代码只渲染一张图、不再叠花盆。
+/// 布局度量据此改为：空盆与有植物盆的**图片框尺寸一致、底部对齐、不被改小**；
+/// 有植物格内**只有一个 Image**（不再叠第二个盆）。
+///
 /// 纯 widget 测试，不依赖数据库与 Riverpod（花盆组件本身无业务依赖）。
 library garden_pot_layout_test;
 
@@ -116,8 +121,86 @@ void main() {
         expect(find.byType(GardenPot), findsNWidgets(2));
         expect(find.byType(EmptyPot), findsOneWidget);
         expect(find.byType(ExpandPotSlot), findsOneWidget);
+        // 加盆格**只显示加号**：格内不得再出现第二个花盆（Image）。
+        expect(
+          find.descendant(
+            of: find.byType(ExpandPotSlot),
+            matching: find.byType(Image),
+          ),
+          findsNothing,
+        );
       });
     }
+  });
+
+  group('花盆网格 · 空盆与有植物盆等大 + 底部对齐（本次改造的主要目标）', () {
+    testWidgets('空盆与有植物盆的图片框尺寸一致、底部对齐、且足够大',
+        (WidgetTester tester) async {
+      _setScreen(tester, 360, 780);
+      await tester.pumpWidget(_harness(
+        screenWidth: 360,
+        cells: <Widget>[
+          GardenPot(plant: _plant(potIndex: 0), species: _sunflower, onTap: () {}),
+          EmptyPot(potIndex: 1, onTap: () {}),
+        ],
+      ));
+      // 植物美术图经 FutureBuilder 解析资产清单后才出现（需等一帧以后）。
+      await tester.pumpAndSettle();
+
+      // growthScale=0 → 盆不随进度缩放，图片框内不再内缩：
+      // 有植物格内唯一的 Image 外框即「图片框」，可与空盆的 pot.png 图片框**直接对量**。
+      final Finder filledImg = find.descendant(
+        of: find.byType(GardenPot),
+        matching: find.byType(Image),
+      );
+      final Finder emptyImg = find.descendant(
+        of: find.byType(EmptyPot),
+        matching: find.byType(Image),
+      );
+      expect(filledImg, findsOneWidget);
+      expect(emptyImg, findsOneWidget);
+
+      // 以格子外框为基准（而非写死数值），避免十字间距微调就误红。
+      final Rect cell = tester.getRect(find.byType(GardenPot));
+      final Rect filled = tester.getRect(filledImg);
+      final Rect empty = tester.getRect(emptyImg);
+
+      // ① 图片框尺寸完全一致（三类格子可用宽相同 + 同一组 _artWidthRatio/_artAspectRatio）。
+      expect(empty.width, closeTo(filled.width, 0.01));
+      expect(empty.height, closeTo(filled.height, 0.01));
+      // ② 底部对齐：同一行 → 同顶同高 → 两图片框底边相同，且都在格内。
+      expect(empty.bottom, closeTo(filled.bottom, 0.5));
+      expect(filled.bottom, lessThanOrEqualTo(cell.bottom + 0.5));
+      expect(empty.bottom, lessThanOrEqualTo(cell.bottom + 0.5));
+      // ③ 盆真的够大：图片框宽 ≥ 格宽 × 0.8（锁住「不许再被改小」）。
+      expect(filled.width, greaterThanOrEqualTo(cell.width * 0.8));
+      expect(empty.width, greaterThanOrEqualTo(cell.width * 0.8));
+      // ④ 图片框宽 = 格内宽 × 0.86（格内宽 = 格宽 - 2 × 横向内边距 2）。
+      expect(filled.width, closeTo((cell.width - 4) * 0.86, 0.5));
+      // ⑤ 画布宽高比锁死 1200:2000 = 5/3（美术图统一画布）。
+      expect(filled.height / filled.width, closeTo(5 / 3, 0.002));
+    });
+
+    testWidgets('有植物格内只有 1 个 Image（不再叠第二个花盆）',
+        (WidgetTester tester) async {
+      _setScreen(tester, 360, 780);
+      await tester.pumpWidget(_harness(
+        screenWidth: 360,
+        cells: <Widget>[
+          GardenPot(plant: _plant(potIndex: 0), species: _sunflower, onTap: () {}),
+        ],
+      ));
+      await tester.pumpAndSettle();
+
+      // 一格一图：植物图自带花盆，代码不再叠 pot.png。
+      expect(
+        find.descendant(
+          of: find.byType(GardenPot),
+          matching: find.byType(Image),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 
   group('花盆网格 · 真实坐标', () {
@@ -201,7 +284,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('植物盆沿压在花盆口之上（不是浮在空中）', (WidgetTester tester) async {
+    testWidgets('进度条位于格内下半部（在花盆图下方）', (WidgetTester tester) async {
       _setScreen(tester, 360, 780);
       await tester.pumpWidget(_harness(
         screenWidth: 360,
@@ -216,7 +299,7 @@ void main() {
       await tester.pump();
 
       final Rect cell = tester.getRect(find.byType(GardenPot));
-      // 进度条位于格内下半部（盆下方），保证「盆 + 条」的层级不颠倒
+      // 进度条位于格内下半部（盆图下方），保证「盆 + 条」的层级不颠倒
       final Rect bar = tester.getRect(find.byType(LinearProgressIndicator));
       expect(bar.top, greaterThan(cell.top + cell.height * 0.5));
       expect(bar.bottom, lessThanOrEqualTo(cell.bottom + 0.5));

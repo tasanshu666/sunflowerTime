@@ -30,3 +30,7 @@ build/
 *.swp
 .fleet/
 .vscode/
+
+# 美术归一化前的原图备份（由 tools/normalize_plant_art.py 生成，可再生的中间产物，不入库）
+# ⚠️ 该目录也不在 pubspec.yaml 的 assets 声明内 → 不会被 Flutter 打进 APK
+assets/_originals/

@@ -1,17 +1,20 @@
-/// 孩子端花园页（M3 T02 / M3 修订 / 2026-09-23 显示改造）。
+/// 孩子端花园页（M3 T02 / M3 修订 / 2026-09-24 花园页 v3 改造）。
 ///
-/// ## 显示形态（2026-09-23 玄参大人要求改造）
-/// 改造前是「纵向卡片列表」——一张卡一株植物，玄参原话「**这个花园现在都是卡片形式，
-/// 它根本就不像个花园**」。改造后：
+/// ## 显示形态（2026-09-24 v3 改造）
+/// 背景为整页草地（`assets/garden/background.png`，`BoxFit.cover`）。v3 相比上一版：
+///  · 花盆网格**锁死 2 行高度**，12 盆以内不再往下撑；超出部分在网格区域内**纵向滚动**，
+///    右侧滚动条**仅在内容溢出时**出现。滚动区底界落在背景菜地上沿之上，
+///    滚动时花盆永不遮挡固定背景植物；
+///  · 底部「容量 / 养护节奏」半透明白块**整块删除**，这些信息收进左下角**木牌**弹窗；
+///  · 左下角木牌**可点击**、带轻微呼吸高亮，点开「花园说明」。
 ///
 /// ```
-///   ┌─ 阳光余额条 ─────────────────┐
-///   ├─ 草地（渐变 + 草叶纹理）──────┤
-///   │   🌻      🌵      ✚          │   ← 3 列花盆网格；空格可种植，
-///   │  ╰─盆─╯  ╰─盆─╯  ╰─盆─╯      │     末尾格是「加盆」入口
-///   │  ▓▓░░░   ▓░░░░               │   ← 盆下细进度条 + 短标签
-///   └──────────────────────────────┘
-///        花园容量 4 / 12 盆 · 养护节奏说明（小字）
+///   ┌── 整页草地背景（background.png 铺满 body）──────────────────────┐
+///   │ [独立路由] 左上角阳光胶囊（内嵌 tab 由 shell AppBar 提供）        │
+///   │   🌻    🌵    ✚   │ ← 3 列花盆网格（最多显示 2 行）             │
+///   │  ▓▓░░  ▓░░       │   超出 → 区域内纵向滚动 + 右侧滚动条          │
+///   │ [木牌●]           │ ← 左下角木牌（可点 → 花园说明弹窗）           │
+///   └────────────────────────────────────────────────────────────────┘
 /// ```
 ///
 /// **点花盆里的植物**才弹出养护面板（[showPlantCareSheet]），按钮不再摊在草地上；
@@ -38,8 +41,12 @@ import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/presentation/child/widgets/garden_background_layout.dart';
+import 'package:sunflower_time/presentation/child/widgets/garden_help_sheet.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart';
+import 'package:sunflower_time/presentation/child/widgets/garden_sign_hotspot.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_care_sheet.dart';
+import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 
 /// 孩子端花园：植物养成主界面。
 ///
@@ -65,10 +72,22 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   bool _busy = false;
   String? _error;
 
+  /// 网格区域滚动控制器（v3：网格锁 2 行高度，溢出时区域内滚动）。
+  final ScrollController _gridScroll = ScrollController();
+
+  /// 网格内容是否溢出可视区（决定是否显示滚动条）。
+  bool _gridScrollable = false;
+
   @override
   void initState() {
     super.initState();
     _reload();
+  }
+
+  @override
+  void dispose() {
+    _gridScroll.dispose();
+    super.dispose();
   }
 
   int _price(PlantSpecies sp) =>
@@ -99,6 +118,17 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       _error = e.toString();
     }
     if (mounted) setState(() => _loading = false);
+    // 网格建好后，下一帧按实际滚动指标刷新滚动条可见性（仅溢出时显示）。
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncScrollable());
+  }
+
+  /// 依据当前滚动指标刷新 [_gridScrollable]（仅内容溢出时显示滚动条）。
+  void _syncScrollable() {
+    if (!mounted || !_gridScroll.hasClients) return;
+    final bool scrollable = _gridScroll.position.maxScrollExtent > 0;
+    if (scrollable != _gridScrollable) {
+      setState(() => _gridScrollable = scrollable);
+    }
   }
 
   /// 执行养护动作：包裹异常 → SnackBar → 刷新 + 同步孩子端经济。
@@ -135,6 +165,20 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     await showPlantCareSheet(context, plantId);
     if (!mounted) return;
     await _reload(silent: true);
+  }
+
+  /// 打开「花园说明」弹窗（容量 / 种植 / 养护 / 生长 / 枯萎开花 / 扩容）。
+  ///
+  /// 全部数字取自 prd_params 常量或当前 state（见 [GardenHelpSheet]），无裸字面量。
+  Future<void> _showGardenHelp() {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext ctx) => GardenHelpSheet(
+        capacity: _capacity,
+        expandCost: _expandCost,
+      ),
+    );
   }
 
   /// 扩容确认：先弹卡写明「当前阳光 / 将扣除多少 / 容量 N → N+1」，
@@ -269,56 +313,141 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     return cells;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final bool atMax = _capacity >= kGardenPotCapacityMax;
+  /// 正常态花盆区：**锁 2 行高度 + 溢出时区域内纵向滚动**。
+  ///
+  /// 可视高度的**唯一真源**是纯函数 [gardenGridVisibleHeight]（页面不再自己内联算行高/行数，
+  /// 「改行数 → 测试必红」）。网格区顶部取自 `LayoutBuilder` 的剩余高度，底界取自背景图映射
+  /// [gardenPotAreaBottom]，保证滚动时花盆永不压到背景植物。
+  Widget _buildGardenBody(Size size) {
+    final double potAreaBottom = gardenPotAreaBottom(size);
+    const double pagePadH = 12;
+    const double gridSpacing = 6;
+    final double gridInnerWidth = size.width - pagePadH * 2;
 
-    final Widget content = _loading
-        ? const Center(child: CircularProgressIndicator())
-        : _error != null
-            ? Center(child: Text('加载失败：$_error'))
-            : ListView(
-                padding: const EdgeInsets.all(12),
-                children: <Widget>[
-                  // 阳光余额横幅：养护扣费的可见性来源，内嵌下同样保留。
-                  _SunlightBanner(balance: _balance),
-                  const SizedBox(height: 10),
-                  // 草地 + 3 列花盆网格（花盆与植物外观见 garden_pot.dart）。
-                  _GrassArea(
-                    child: GardenGrid(cells: _buildCells()),
-                  ),
-                  const SizedBox(height: 10),
-                  // 容量一行 + 养护节奏一行（都是小字，把草地留给植物）。
-                  Row(
-                    children: <Widget>[
-                      const Icon(Icons.yard, size: 16, color: Colors.green),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          '花园容量：$_capacity / $kGardenPotCapacityMax 盆'
-                          '${atMax ? ' · 已达上限' : ''}',
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.black54),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        // 把整块可摆区高度锁在背景「菜地上沿」之内（[gardenPotAreaBottom]）。
+        height: potAreaBottom,
+        child: Padding(
+          // 底部 padding 交给纯函数的 bottomInset（12px 呼吸间距，不再为已删白块留位）。
+          padding: const EdgeInsets.fromLTRB(pagePadH, 12, pagePadH, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              // 独立路由 /garden 没有 shell 的 AppBar 胶囊，故在内容区左上角补一个；
+              // 内嵌（花园 tab）时由 shell AppBar 提供，避免重复。
+              if (!widget.embedded) ...<Widget>[
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: SunlightPill(),
+                ),
+                const SizedBox(height: 10),
+              ],
+              // Flexible（loose）：网格区占据「网格顶部 → 底界」的剩余高度；用 LayoutBuilder
+              // 量出该剩余高度 → 还原网格区顶部 y → 交给纯函数算「锁 2 行 + 不越菜地上沿」。
+              Flexible(
+                child: LayoutBuilder(
+                  builder: (BuildContext context, BoxConstraints c) {
+                    final double firstRowTop = potAreaBottom - c.maxHeight;
+                    final double viewport = gardenGridVisibleHeight(
+                      box: size,
+                      gridInnerWidth: gridInnerWidth,
+                      firstRowTop: firstRowTop,
+                      cellAspectRatio: GardenGrid.cellAspectRatio,
+                      spacing: gridSpacing,
+                      bottomInset: 12,
+                    );
+                    // 网格**本帧**就布局完成 → 帧末按真实滚动指标刷新滚动条可见性。
+                    // ⚠️ 不能只在 `_reload` 的帧末检查：那时网格还没建好，永远读不到溢出；
+                    // 也不能只靠 `ScrollMetricsNotification`：首次布局的指标通知不保证派发。
+                    // `_syncScrollable` 内部按「maxScrollExtent > 0」判定且仅在变化时 setState，
+                    // 收敛后不再触发帧，不会空转。
+                    WidgetsBinding.instance
+                        .addPostFrameCallback((_) => _syncScrollable());
+                    return Align(
+                      alignment: Alignment.topCenter,
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: viewport,
+                        child: Scrollbar(
+                          controller: _gridScroll,
+                          thumbVisibility: _gridScrollable,
+                          radius: const Radius.circular(6),
+                          child: SingleChildScrollView(
+                            controller: _gridScroll,
+                            physics: const ClampingScrollPhysics(),
+                            child: GardenGrid(cells: _buildCells()),
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  // 培养节奏说明（数值全部取自 prd_params，随常量自动跟随，无裸字面量）。
-                  Text(
-                    '浇水 +${(kPlantWaterProgressGain * 100).round()}%'
-                    '（每天最多 $kPlantWaterMaxPerDay 次）· '
-                    '施肥 +${(kPlantFertilizeProgressGain * 100).round()}%'
-                    '（每天 $kPlantFertilizeMaxPerDay 次）· '
-                    '植物也会随时间自然生长',
-                    style: const TextStyle(fontSize: 11, color: Colors.black45),
-                  ),
-                ],
-              );
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 整页草地背景：铺满页面 body（内嵌 tab 用 SafeArea、独立路由用 Scaffold body），
+    // 图片缺失/失败回退到绿色渐变。阳光胶囊与木牌热区都叠在图片之上。
+    final Widget background = Positioned.fill(
+      child: Image.asset(
+        'assets/garden/background.png',
+        fit: BoxFit.cover,
+        errorBuilder: (
+          BuildContext context,
+          Object error,
+          StackTrace? stackTrace,
+        ) =>
+            Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[Color(0xFFBFE6A8), Color(0xFF8FCF74)],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // LayoutBuilder 拿到 body 可用尺寸：用于把木牌热区与花盆区底界都映射到背景图上。
+    final Widget page = LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final Size size = constraints.biggest;
+        final Widget content;
+        if (_loading) {
+          content = const Center(child: CircularProgressIndicator());
+        } else if (_error != null) {
+          content = Center(child: Text('加载失败：$_error'));
+        } else {
+          content = _buildGardenBody(size);
+        }
+
+        // 整页叠放：背景铺满 → 内容区（锁 2 行 + 区域内滚动）→ 左下角木牌热区。
+        // 木牌在左下、花盆区在中上部，互不重叠，故不会挡住花盆点击。
+        return Stack(
+          children: <Widget>[
+            background,
+            Positioned.fill(child: content),
+            Positioned.fromRect(
+              rect: gardenSignScreenRect(size),
+              child: GardenSignHotspot(onTap: _showGardenHelp),
+            ),
+          ],
+        );
+      },
+    );
 
     // 内嵌（花园 tab）时不叠加第二层 Scaffold/AppBar，直接返回内容。
     if (widget.embedded) {
-      return SafeArea(child: content);
+      return SafeArea(child: page);
     }
 
     return Scaffold(
@@ -332,93 +461,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
           ),
         ],
       ),
-      body: content,
+      body: page,
     );
   }
-}
-
-/// 阳光余额横幅（养护消耗的可见性来源）。
-class _SunlightBanner extends StatelessWidget {
-  final double balance;
-  const _SunlightBanner({required this.balance});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF6DC),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: <Widget>[
-            const Icon(Icons.wb_sunny, color: Color(0xFFE8A600)),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text('我的阳光',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            Text(
-              '${balance.toInt()} ☀',
-              style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFD98F00)),
-            ),
-          ],
-        ),
-      );
-}
-
-/// 草地容器：绿色渐变 + 草叶纹理（自绘），花盆网格摆在里面。
-///
-/// 纯装饰，不参与任何业务；换背景美术时只改这里（或换成 Image.asset 背景图）。
-class _GrassArea extends StatelessWidget {
-  final Widget child;
-  const _GrassArea({required this.child});
-
-  @override
-  Widget build(BuildContext context) => ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: <Color>[Color(0xFFBFE6A8), Color(0xFF8FCF74)],
-            ),
-          ),
-          child: CustomPaint(
-            painter: _GrassPainter(),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
-              child: child,
-            ),
-          ),
-        ),
-      );
-}
-
-/// 草叶纹理：交错的短线，纯装饰。
-class _GrassPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = const Color(0x333F7D2E)
-      ..strokeWidth = 1.6
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-    const double stepY = 24;
-    const double stepX = 26;
-    int row = 0;
-    for (double y = 14; y < size.height; y += stepY) {
-      // 隔行错开半个步长，避免出现整齐的竖条纹。
-      for (double x = row.isEven ? 8 : 21; x < size.width; x += stepX) {
-        canvas.drawLine(Offset(x, y), Offset(x + 2.5, y - 6), paint);
-      }
-      row++;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _GrassPainter oldDelegate) => false;
 }

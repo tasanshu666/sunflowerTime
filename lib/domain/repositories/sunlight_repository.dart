@@ -39,6 +39,13 @@ abstract class SunlightRepository {
     String dayKey,
   );
 
+  /// 指定 refType + refId 自 [since]（含）以来的记账条数（枯萎后养护恢复次数核算，2026-09-23）。
+  Future<int> countByRefTypeAndRefIdSince(
+    String refType,
+    String refId,
+    DateTime since,
+  );
+
   /// 指定 refType + refId 的最近一次记账时间（浇水最小间隔，M3 修订）。
   Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId);
 }

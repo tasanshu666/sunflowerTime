@@ -189,6 +189,14 @@ class _MemSunlightRepo implements SunlightRepository {
           .length;
 
   @override
+  Future<int> countByRefTypeAndRefIdSince(
+    String refType,
+    String refId,
+    DateTime since,
+  ) async =>
+      0;
+
+  @override
   Future<DateTime?> lastTsByRefTypeAndRefId(String r, String i) async => null;
 
   /// 当日 `refType='task_checkin'` 账本条数。

@@ -1102,6 +1102,12 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
   late final GeneratedColumn<DateTime> deadAt = GeneratedColumn<DateTime>(
       'dead_at', aliasedName, true,
       type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _bloomedAtMeta =
+      const VerificationMeta('bloomedAt');
+  @override
+  late final GeneratedColumn<DateTime> bloomedAt = GeneratedColumn<DateTime>(
+      'bloomed_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
   static const VerificationMeta _moodMeta = const VerificationMeta('mood');
   @override
   late final GeneratedColumn<int> mood = GeneratedColumn<int>(
@@ -1125,6 +1131,7 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
         lastWaterAt,
         wiltedAt,
         deadAt,
+        bloomedAt,
         mood
       ];
   @override
@@ -1216,6 +1223,10 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
       context.handle(_deadAtMeta,
           deadAt.isAcceptableOrUnknown(data['dead_at']!, _deadAtMeta));
     }
+    if (data.containsKey('bloomed_at')) {
+      context.handle(_bloomedAtMeta,
+          bloomedAt.isAcceptableOrUnknown(data['bloomed_at']!, _bloomedAtMeta));
+    }
     if (data.containsKey('mood')) {
       context.handle(
           _moodMeta, mood.isAcceptableOrUnknown(data['mood']!, _moodMeta));
@@ -1257,6 +1268,8 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
           .read(DriftSqlType.dateTime, data['${effectivePrefix}wilted_at']),
       deadAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}dead_at']),
+      bloomedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}bloomed_at']),
       mood: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}mood'])!,
     );
@@ -1283,6 +1296,7 @@ class Plant extends DataClass implements Insertable<Plant> {
   final DateTime? lastWaterAt;
   final DateTime? wiltedAt;
   final DateTime? deadAt;
+  final DateTime? bloomedAt;
   final int mood;
   const Plant(
       {required this.id,
@@ -1299,6 +1313,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       this.lastWaterAt,
       this.wiltedAt,
       this.deadAt,
+      this.bloomedAt,
       required this.mood});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1322,6 +1337,9 @@ class Plant extends DataClass implements Insertable<Plant> {
     }
     if (!nullToAbsent || deadAt != null) {
       map['dead_at'] = Variable<DateTime>(deadAt);
+    }
+    if (!nullToAbsent || bloomedAt != null) {
+      map['bloomed_at'] = Variable<DateTime>(bloomedAt);
     }
     map['mood'] = Variable<int>(mood);
     return map;
@@ -1348,6 +1366,9 @@ class Plant extends DataClass implements Insertable<Plant> {
           : Value(wiltedAt),
       deadAt:
           deadAt == null && nullToAbsent ? const Value.absent() : Value(deadAt),
+      bloomedAt: bloomedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bloomedAt),
       mood: Value(mood),
     );
   }
@@ -1370,6 +1391,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       lastWaterAt: serializer.fromJson<DateTime?>(json['lastWaterAt']),
       wiltedAt: serializer.fromJson<DateTime?>(json['wiltedAt']),
       deadAt: serializer.fromJson<DateTime?>(json['deadAt']),
+      bloomedAt: serializer.fromJson<DateTime?>(json['bloomedAt']),
       mood: serializer.fromJson<int>(json['mood']),
     );
   }
@@ -1391,6 +1413,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       'lastWaterAt': serializer.toJson<DateTime?>(lastWaterAt),
       'wiltedAt': serializer.toJson<DateTime?>(wiltedAt),
       'deadAt': serializer.toJson<DateTime?>(deadAt),
+      'bloomedAt': serializer.toJson<DateTime?>(bloomedAt),
       'mood': serializer.toJson<int>(mood),
     };
   }
@@ -1410,6 +1433,7 @@ class Plant extends DataClass implements Insertable<Plant> {
           Value<DateTime?> lastWaterAt = const Value.absent(),
           Value<DateTime?> wiltedAt = const Value.absent(),
           Value<DateTime?> deadAt = const Value.absent(),
+          Value<DateTime?> bloomedAt = const Value.absent(),
           int? mood}) =>
       Plant(
         id: id ?? this.id,
@@ -1426,6 +1450,7 @@ class Plant extends DataClass implements Insertable<Plant> {
         lastWaterAt: lastWaterAt.present ? lastWaterAt.value : this.lastWaterAt,
         wiltedAt: wiltedAt.present ? wiltedAt.value : this.wiltedAt,
         deadAt: deadAt.present ? deadAt.value : this.deadAt,
+        bloomedAt: bloomedAt.present ? bloomedAt.value : this.bloomedAt,
         mood: mood ?? this.mood,
       );
   Plant copyWithCompanion(PlantsCompanion data) {
@@ -1453,6 +1478,7 @@ class Plant extends DataClass implements Insertable<Plant> {
           data.lastWaterAt.present ? data.lastWaterAt.value : this.lastWaterAt,
       wiltedAt: data.wiltedAt.present ? data.wiltedAt.value : this.wiltedAt,
       deadAt: data.deadAt.present ? data.deadAt.value : this.deadAt,
+      bloomedAt: data.bloomedAt.present ? data.bloomedAt.value : this.bloomedAt,
       mood: data.mood.present ? data.mood.value : this.mood,
     );
   }
@@ -1474,6 +1500,7 @@ class Plant extends DataClass implements Insertable<Plant> {
           ..write('lastWaterAt: $lastWaterAt, ')
           ..write('wiltedAt: $wiltedAt, ')
           ..write('deadAt: $deadAt, ')
+          ..write('bloomedAt: $bloomedAt, ')
           ..write('mood: $mood')
           ..write(')'))
         .toString();
@@ -1495,6 +1522,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       lastWaterAt,
       wiltedAt,
       deadAt,
+      bloomedAt,
       mood);
   @override
   bool operator ==(Object other) =>
@@ -1514,6 +1542,7 @@ class Plant extends DataClass implements Insertable<Plant> {
           other.lastWaterAt == this.lastWaterAt &&
           other.wiltedAt == this.wiltedAt &&
           other.deadAt == this.deadAt &&
+          other.bloomedAt == this.bloomedAt &&
           other.mood == this.mood);
 }
 
@@ -1532,6 +1561,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
   final Value<DateTime?> lastWaterAt;
   final Value<DateTime?> wiltedAt;
   final Value<DateTime?> deadAt;
+  final Value<DateTime?> bloomedAt;
   final Value<int> mood;
   final Value<int> rowid;
   const PlantsCompanion({
@@ -1549,6 +1579,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     this.lastWaterAt = const Value.absent(),
     this.wiltedAt = const Value.absent(),
     this.deadAt = const Value.absent(),
+    this.bloomedAt = const Value.absent(),
     this.mood = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -1567,6 +1598,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     this.lastWaterAt = const Value.absent(),
     this.wiltedAt = const Value.absent(),
     this.deadAt = const Value.absent(),
+    this.bloomedAt = const Value.absent(),
     this.mood = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
@@ -1591,6 +1623,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     Expression<DateTime>? lastWaterAt,
     Expression<DateTime>? wiltedAt,
     Expression<DateTime>? deadAt,
+    Expression<DateTime>? bloomedAt,
     Expression<int>? mood,
     Expression<int>? rowid,
   }) {
@@ -1609,6 +1642,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       if (lastWaterAt != null) 'last_water_at': lastWaterAt,
       if (wiltedAt != null) 'wilted_at': wiltedAt,
       if (deadAt != null) 'dead_at': deadAt,
+      if (bloomedAt != null) 'bloomed_at': bloomedAt,
       if (mood != null) 'mood': mood,
       if (rowid != null) 'rowid': rowid,
     });
@@ -1629,6 +1663,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       Value<DateTime?>? lastWaterAt,
       Value<DateTime?>? wiltedAt,
       Value<DateTime?>? deadAt,
+      Value<DateTime?>? bloomedAt,
       Value<int>? mood,
       Value<int>? rowid}) {
     return PlantsCompanion(
@@ -1646,6 +1681,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       lastWaterAt: lastWaterAt ?? this.lastWaterAt,
       wiltedAt: wiltedAt ?? this.wiltedAt,
       deadAt: deadAt ?? this.deadAt,
+      bloomedAt: bloomedAt ?? this.bloomedAt,
       mood: mood ?? this.mood,
       rowid: rowid ?? this.rowid,
     );
@@ -1696,6 +1732,9 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     if (deadAt.present) {
       map['dead_at'] = Variable<DateTime>(deadAt.value);
     }
+    if (bloomedAt.present) {
+      map['bloomed_at'] = Variable<DateTime>(bloomedAt.value);
+    }
     if (mood.present) {
       map['mood'] = Variable<int>(mood.value);
     }
@@ -1722,6 +1761,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
           ..write('lastWaterAt: $lastWaterAt, ')
           ..write('wiltedAt: $wiltedAt, ')
           ..write('deadAt: $deadAt, ')
+          ..write('bloomedAt: $bloomedAt, ')
           ..write('mood: $mood, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -5937,6 +5977,7 @@ typedef $$PlantsTableCreateCompanionBuilder = PlantsCompanion Function({
   Value<DateTime?> lastWaterAt,
   Value<DateTime?> wiltedAt,
   Value<DateTime?> deadAt,
+  Value<DateTime?> bloomedAt,
   Value<int> mood,
   Value<int> rowid,
 });
@@ -5955,6 +5996,7 @@ typedef $$PlantsTableUpdateCompanionBuilder = PlantsCompanion Function({
   Value<DateTime?> lastWaterAt,
   Value<DateTime?> wiltedAt,
   Value<DateTime?> deadAt,
+  Value<DateTime?> bloomedAt,
   Value<int> mood,
   Value<int> rowid,
 });
@@ -6012,6 +6054,9 @@ class $$PlantsTableFilterComposer
 
   ColumnFilters<DateTime> get deadAt => $composableBuilder(
       column: $table.deadAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get bloomedAt => $composableBuilder(
+      column: $table.bloomedAt, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get mood => $composableBuilder(
       column: $table.mood, builder: (column) => ColumnFilters(column));
@@ -6072,6 +6117,9 @@ class $$PlantsTableOrderingComposer
   ColumnOrderings<DateTime> get deadAt => $composableBuilder(
       column: $table.deadAt, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<DateTime> get bloomedAt => $composableBuilder(
+      column: $table.bloomedAt, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get mood => $composableBuilder(
       column: $table.mood, builder: (column) => ColumnOrderings(column));
 }
@@ -6127,6 +6175,9 @@ class $$PlantsTableAnnotationComposer
   GeneratedColumn<DateTime> get deadAt =>
       $composableBuilder(column: $table.deadAt, builder: (column) => column);
 
+  GeneratedColumn<DateTime> get bloomedAt =>
+      $composableBuilder(column: $table.bloomedAt, builder: (column) => column);
+
   GeneratedColumn<int> get mood =>
       $composableBuilder(column: $table.mood, builder: (column) => column);
 }
@@ -6168,6 +6219,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             Value<DateTime?> lastWaterAt = const Value.absent(),
             Value<DateTime?> wiltedAt = const Value.absent(),
             Value<DateTime?> deadAt = const Value.absent(),
+            Value<DateTime?> bloomedAt = const Value.absent(),
             Value<int> mood = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -6186,6 +6238,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             lastWaterAt: lastWaterAt,
             wiltedAt: wiltedAt,
             deadAt: deadAt,
+            bloomedAt: bloomedAt,
             mood: mood,
             rowid: rowid,
           ),
@@ -6204,6 +6257,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             Value<DateTime?> lastWaterAt = const Value.absent(),
             Value<DateTime?> wiltedAt = const Value.absent(),
             Value<DateTime?> deadAt = const Value.absent(),
+            Value<DateTime?> bloomedAt = const Value.absent(),
             Value<int> mood = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -6222,6 +6276,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             lastWaterAt: lastWaterAt,
             wiltedAt: wiltedAt,
             deadAt: deadAt,
+            bloomedAt: bloomedAt,
             mood: mood,
             rowid: rowid,
           ),

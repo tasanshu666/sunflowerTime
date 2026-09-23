@@ -151,20 +151,28 @@ const int kPlantFertilizeMaxPerDay = 1;
 /// 两次浇水的最小间隔（分钟）：不能连续浇水（M3 修订）。
 const int kPlantWaterIntervalMinutes = 30;
 
-/// 枯萎救回消耗 · 高年段（PRD §4.6）。
-const int kPlantReviveCostHigh = 20;
-
-/// 枯萎救回消耗 · 低年段（PRD §4.6）。
-const int kPlantReviveCostLow = 8;
-
 /// 花盆扩容消耗 · 高年段（PRD §4.6，解锁 +1 盆）。
 const int kPlantPotExpandCostHigh = 400;
 
 /// 花盆扩容消耗 · 低年段（PRD §4.6）。
 const int kPlantPotExpandCostLow = 160;
 
-/// 未浇水触发枯萎的天数（PRD §4.6 H2：7 天未浇水 → wilting）。
-const int kPlantWiltDays = 7;
+/// 救回按钮已取消（2026-09-23 玄参大人拍板）：枯萎后只能靠养护动作恢复，
+/// 不再有付费救回。故 `kPlantReviveCostLow` / `kPlantReviveCostHigh` 已删除。
+
+/// 未浇水触发枯萎的天数（PRD §4.6 H2：3 天未浇水 → wilting；
+/// 玄参大人 2026-09-23 由 7 天收紧为 3 天）。
+const int kPlantWiltDays = 3;
+
+/// 枯萎恢复判定阈值（天）：wilting 持续超过此天数视为「重度枯萎」，需「3 浇 + 1 施」才能恢复；
+/// 未满则浇水 1 次即可恢复（玄参大人 2026-09-23 拍板，替代原付费救回）。
+const int kPlantWiltRecoverHardDays = 3;
+
+/// 重度枯萎恢复所需浇水次数（自 wiltedAt 起在账本累计的 `plant_water` 条数）。
+const int kPlantWiltRecoverHardWater = 3;
+
+/// 重度枯萎恢复所需施肥次数（自 wiltedAt 起在账本累计的 `plant_fertilize` 条数）。
+const int kPlantWiltRecoverHardFertilize = 1;
 
 /// 枯萎后触发死亡的天数（PRD §4.6 H2：wilting 再 7 天 → dead）。
 const int kPlantDeathDays = 7;
@@ -211,6 +219,20 @@ const double kPlantAutoGrowthScale = 1.0;
 /// `>= 1.0` 会把「正好 10 天一阶段 / 30 天长成」推成 11 天 / 31 天。故用 1e-9
 /// 容差判定，跨阶段时把残留的 -1e-16 归零。
 const double kGrowthEpsilon = 1e-9;
+
+/// 花期时长（天）：成株盛开后保持「盛开」状态的天数（玄参大人 2026-09-23 拍板循环玩法）。
+///
+/// 自然逻辑：盛开不能一直保持，花期结束后花朵凋谢、退回成株(growing)，
+/// 由时间（自动成长）或养护（浇水/施肥）把进度重新养满后再度盛开。
+/// 调小→花谢更快、循环更频；调大→花保持更久。
+const int kBloomDurationDays = 3;
+
+/// 花谢后进度回落下限（0..1）：花朵凋谢时 growthProgress 回退到的位置（玄参大人 2026-09-23 拍板）。
+///
+/// 不为 0 的原因：adult 阶段进度由自动成长每日回填（普通植物约 10%/天、精品约 5%/天），
+/// 回落到该下限后需重新养满至 1.0 才能再盛开，从而制造一个可见的「休整期」
+/// （普通植物约 (1-下限)/0.10 天，精品约 (1-下限)/0.05 天）。0.5 → 普通约 5 天 / 精品约 10 天。
+const double kBloomWiltProgressFloor = 0.5;
 
 // ───────────────────────────────────────────────────────────────────────────
 // M3 任务模板配置常量（T05，§4.4 / §8.2）。禁止裸字面量。

@@ -51,6 +51,7 @@ class Plants extends Table {
   DateTimeColumn get lastWaterAt => dateTime().nullable()();
   DateTimeColumn get wiltedAt => dateTime().nullable()();
   DateTimeColumn get deadAt => dateTime().nullable()();
+  DateTimeColumn get bloomedAt => dateTime().nullable()(); // 进入「盛开」的计时起点（花谢循环；v8 新增）
   IntColumn get mood => integer().withDefault(const Constant(0))(); // PlantMood index
 
   @override

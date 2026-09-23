@@ -6,9 +6,11 @@
 /// 关键纪律：
 ///  · 经济衔接：所有扣减经 `append(net<0, refType)`，退款经 `append(net>0, refType='plant_death_refund')`；
 ///    扣前用 `balance()` 校验（§3.2 账本铁律）。refType 区分 plant_plant/plant_water/
-///    plant_fertilize/plant_revive/plant_expand/plant_death_refund。
+///    plant_fertilize/plant_expand/plant_death_refund。
 ///  · 软绑定底线（§4.6 H2）：成长系数 ×1.3（当日有效专注）/ ×1.0（无专注也长），**绝不因专注差而死亡**；
-///    死亡只由「7+7 天未养护」触发，且仅返还 30% 种植成本到账本。
+///    死亡只由「3+7 天未养护」触发（3 天未浇水→wilting，wilting 再 7 天→dead），且仅返还 30% 种植成本到账本。
+///  · 枯萎恢复（2026-09-23 替代原付费救回）：wilting 仅靠养护动作恢复——未满 3 天浇水 1 次即可；
+///    已满 3 天需「浇水 3 次 + 施肥 1 次」（以账本为事实源计数，见 [_maybeRecover]）。
 library plant_growth_service;
 
 import 'package:uuid/uuid.dart';
@@ -40,7 +42,8 @@ class PlantOperationException implements Exception {
 ///
 /// 事实源为阳光账本（每次养护写一条 `refType='plant_water'/'plant_fertilize'`、
 /// `refId=<植物 id>` 的记录），故「今日已用几次」与「上次浇水何时」都从账本读，
-/// 不用 Plants 表加计数列，天然可对账、也不会被其它动作（施肥 / 救回）污染。
+/// 不用 Plants 表加计数列，天然可对账、也不会被施肥动作污染（浇水最小间隔改用账本时间戳，
+/// 避免施肥刷新 lastWaterAt 后绕过 30 分钟间隔）。
 class PlantCareQuota {
   /// 今日已浇水次数。
   final int waterUsedToday;
@@ -243,6 +246,7 @@ class PlantGrowthService {
         continue;
       }
       Plant np = _advanceGrowth(p, sp, now, wfdDays);
+      np = _applyBloomCycle(np, now);
       np = _applyWiltAndDeath(np, now);
       np = _deriveMood(np, now, todayWfd);
 
@@ -283,6 +287,7 @@ class PlantGrowthService {
     bool fertilizerUsed = p.fertilizerUsed;
     double lastFactor = p.growthFactor;
     DateTime stageStartedAt = p.stageStartedAt;
+    DateTime? bloomedAt = p.bloomedAt;
 
     DateTime cursor = stageStartedAt;
     while (cursor.isBefore(now)) {
@@ -333,6 +338,7 @@ class PlantGrowthService {
         progress = 1.0; // 同上：容差内视为长满，避免「差 1e-16 开不了花」
         if (status == PlantStatus.growing) {
           status = PlantStatus.bloomed; // 成株终点（仍可被浇水 / 枯萎）
+          bloomedAt = now; // 进入花期，记录起点（花谢循环计时基准）
         }
       }
     }
@@ -343,7 +349,8 @@ class PlantGrowthService {
         waterUsed == p.waterUsed &&
         fertilizerUsed == p.fertilizerUsed &&
         lastFactor == p.growthFactor &&
-        stageStartedAt == p.stageStartedAt) {
+        stageStartedAt == p.stageStartedAt &&
+        bloomedAt == p.bloomedAt) {
       return p; // 无变化
     }
     return p.copyWith(
@@ -354,6 +361,7 @@ class PlantGrowthService {
       fertilizerUsed: fertilizerUsed,
       status: status,
       stageStartedAt: stageStartedAt,
+      bloomedAt: bloomedAt,
     );
   }
 
@@ -387,6 +395,36 @@ class PlantGrowthService {
     return p.copyWith(status: status, wiltedAt: wiltedAt, deadAt: deadAt);
   }
 
+  /// 花谢循环状态机（sync，玄参大人 2026-09-23 拍板循环玩法）。
+  ///
+  /// 自然逻辑：盛开不能一直保持。花期 [kBloomDurationDays] 天后花朵凋谢 →
+  /// 退回成株(growing)，进度回落到 [kBloomWiltProgressFloor]，由时间（自动成长）
+  /// 或养护（浇水/施肥）把进度重新养满后再度盛开。体型保持成株，不缩回幼苗。
+  ///
+  /// `bloomedAt == null` 的情况（老库升级来的已开花植物）：以本次 tick 为计时起点补上，
+  /// 不立即花谢、也不丢失已有盛开状态；后续 tick 才正常倒计时。
+  Plant _applyBloomCycle(Plant p, DateTime now) {
+    if (p.status != PlantStatus.bloomed) return p;
+
+    final DateTime? bloomedAt = p.bloomedAt;
+    if (bloomedAt == null) {
+      // 老库升级来的已开花植物：补上计时起点，本 tick 不花谢。
+      return p.copyWith(bloomedAt: now);
+    }
+    if (now.difference(bloomedAt) < Duration(days: kBloomDurationDays)) {
+      return p; // 花期内，保持盛开
+    }
+
+    // 花期结束 → 花谢：退到成株(growing)，进度回落。
+    // 注：此处不显式清空 bloomedAt——[Plant.copyWith] 的 `bloomedAt ?? this.bloomedAt`
+    // 会把显式 null 回退成旧值，且花谢后 status 已非 bloomed，bloomedAt 不再被读取；
+    // 下次再盛开时 [_advanceGrowth] 会用 now 重新写入正确的花期起点。
+    return p.copyWith(
+      status: PlantStatus.growing,
+      growthProgress: kBloomWiltProgressFloor,
+    );
+  }
+
   /// 推导心情（sync）：wilting→thirsty；今日有有效专注→happy；超 1 天未浇水→thirsty；否则 calm。
   Plant _deriveMood(Plant p, DateTime now, bool todayWfd) {
     PlantMood mood;
@@ -408,9 +446,9 @@ class PlantGrowthService {
 
   /// 读取单株养护额度（M3 修订口径）。
   ///
-  /// 规则：① 仅成长中可养护；② 浇水每天 ≤ [kPlantWaterMaxPerDay] 次、
-  /// 施肥每天 ≤ [kPlantFertilizeMaxPerDay] 次；③ 两次浇水间隔 ≥
-  /// [kPlantWaterIntervalMinutes] 分钟（「不能连续浇水」）。
+  /// 规则：① 成长中 / 枯萎态可养护（dead 态不可养护）；② 浇水每天 ≤
+  /// [kPlantWaterMaxPerDay] 次、施肥每天 ≤ [kPlantFertilizeMaxPerDay] 次；③ 两次浇水间隔 ≥
+  /// [kPlantWaterIntervalMinutes] 分钟（「不能连续浇水」）。wilting 态浇水 / 施肥用于养护恢复。
   Future<PlantCareQuota> careQuota(Plant p, DateTime now) async {
     final String today = dayKey(now);
     final int waterUsed = await _ledger.countByRefTypeAndRefIdOnDay(
@@ -427,16 +465,17 @@ class PlantGrowthService {
         await _ledger.lastTsByRefTypeAndRefId('plant_water', p.id);
     final int minutesUntilNextWater = _minutesUntilNextWater(lastWater, now);
 
-    final bool growing = p.status == PlantStatus.growing;
-    final String? waterBlock = !growing
-        ? '仅成长中植物可浇水'
+    final bool actionable =
+        p.status == PlantStatus.growing || p.status == PlantStatus.wilting;
+    final String? waterBlock = !actionable
+        ? '仅成长中/枯萎植物可养护'
         : waterUsed >= kPlantWaterMaxPerDay
             ? '今日浇水已达 $kPlantWaterMaxPerDay 次上限'
             : minutesUntilNextWater > 0
                 ? '浇水间隔需 $kPlantWaterIntervalMinutes 分钟，还需 $minutesUntilNextWater 分钟'
                 : null;
-    final String? fertilizeBlock = !growing
-        ? '仅成长中植物可施肥'
+    final String? fertilizeBlock = !actionable
+        ? '仅成长中/枯萎植物可养护'
         : fertilizeUsed >= kPlantFertilizeMaxPerDay
             ? '今日施肥已达 $kPlantFertilizeMaxPerDay 次上限'
             : null;
@@ -473,7 +512,9 @@ class PlantGrowthService {
   }
 
   /// 浇水：校验额度（每日次数 + 30 分钟间隔）→ 扣 [kPlantWaterCost] 阳光
-  /// (refType='plant_water') → 剩余时间 ×0.7 → lastWaterAt=now（重置枯萎计时）。
+  /// (refType='plant_water') → 进度 +[kPlantWaterProgressGain] → lastWaterAt=now（重置枯萎计时）。
+  ///
+  /// 若动作前植物处于 wilting，浇完后用 [_maybeRecover] 评估是否靠养护恢复（2026-09-23 替代付费救回）。
   Future<void> water(String plantId, DateTime now) async {
     final Plant? p = await _plants.plant(plantId);
     if (p == null) throw const PlantOperationException('植物不存在');
@@ -491,15 +532,22 @@ class PlantGrowthService {
     );
     // 固定增量（当前阶段 0..1），非「剩余比例」，避免种子阶段一步涨太多（用户 2026-09-21）。
     final double progress = p.growthProgress + kPlantWaterProgressGain;
-    await _plants.savePlant(p.copyWith(
+    final Plant after = p.copyWith(
       growthProgress: progress > 1.0 ? 1.0 : progress,
       waterUsed: true,
       lastWaterAt: now,
-    ));
+    );
+    // wilting 态浇水后评估恢复；非 wilting 直接落库（等同原逻辑）。
+    final Plant recovered =
+        p.status == PlantStatus.wilting ? await _maybeRecover(after, now) : after;
+    await _plants.savePlant(recovered);
   }
 
   /// 施肥：校验额度（每日 1 次）→ 扣 [kPlantFertilizeCost] 阳光
-  /// (refType='plant_fertilize') → 剩余时间 ×0.4（进度推进 60%）。
+  /// (refType='plant_fertilize') → 进度 +[kPlantFertilizeProgressGain]。
+  ///
+  /// 注意：施肥同样刷新 lastWaterAt=now（与浇水一致）。若动作前植物处于 wilting，
+  /// 施完后用 [_maybeRecover] 评估是否靠养护恢复（2026-09-23 替代付费救回）。
   Future<void> fertilize(String plantId, DateTime now) async {
     final Plant? p = await _plants.plant(plantId);
     if (p == null) throw const PlantOperationException('植物不存在');
@@ -517,11 +565,15 @@ class PlantGrowthService {
     );
     // 固定增量（当前阶段 0..1），同浇水口径（用户 2026-09-21）。
     final double progress = p.growthProgress + kPlantFertilizeProgressGain;
-    await _plants.savePlant(p.copyWith(
+    final Plant after = p.copyWith(
       growthProgress: progress > 1.0 ? 1.0 : progress,
       fertilizerUsed: true,
       lastWaterAt: now,
-    ));
+    );
+    // wilting 态施肥后评估恢复；非 wilting 直接落库（等同原逻辑）。
+    final Plant recovered =
+        p.status == PlantStatus.wilting ? await _maybeRecover(after, now) : after;
+    await _plants.savePlant(recovered);
   }
 
   /// 余额闸门：不足则抛 [PlantOperationException]（扣减前校验，§3.2 账本铁律）。
@@ -532,36 +584,50 @@ class PlantGrowthService {
     }
   }
 
-  /// 枯萎救回：status==wilting → 扣救回价(refType='plant_revive') → growing，
-  /// wiltedAt=null，lastWaterAt=now。
-  Future<void> revive(String plantId, DateTime now) async {
-    final Plant? p = await _plants.plant(plantId);
-    if (p == null) throw const PlantOperationException('植物不存在');
-    if (p.status != PlantStatus.wilting) {
-      throw const PlantOperationException('仅枯萎植物可救回');
-    }
-    final AppSettings settings = await _settings.getSettings();
-    final int cost = _price(
-      kPlantReviveCostLow,
-      kPlantReviveCostHigh,
-      settings.ageTier,
+  /// 枯萎后靠养护恢复（2026-09-23 替代原付费救回）。
+  ///
+  /// 判定以账本为事实源：自 [Plant.wiltedAt] 起累计 `plant_water` / `plant_fertilize` 条数。
+  ///  · wiltedAt 距今 < [kPlantWiltRecoverHardDays] 天：浇水 1 次即可恢复；
+  ///  · 已满阈值：需浇水 [kPlantWiltRecoverHardWater] 次 + 施肥 [kPlantWiltRecoverHardFertilize] 次。
+  /// 不满足则返回原 [p]（调用方照常保存，不额外落库）。
+  Future<Plant> _maybeRecover(Plant p, DateTime now) async {
+    if (p.status != PlantStatus.wilting || p.wiltedAt == null) return p;
+    final bool hard =
+        now.difference(p.wiltedAt!) >= Duration(days: kPlantWiltRecoverHardDays);
+    final int w = await _ledger.countByRefTypeAndRefIdSince(
+      'plant_water',
+      p.id,
+      p.wiltedAt!,
     );
-    final double balance = await _ledger.balance();
-    if (balance < cost) {
-      throw PlantOperationException('阳光不足，还差 ${(cost - balance).ceil()} 阳光');
-    }
-    await _appendSpend(
-      amount: cost.toDouble(),
-      type: SunlightType.plant,
-      refType: 'plant_revive',
-      now: now,
-      refId: plantId,
+    final int f = await _ledger.countByRefTypeAndRefIdSince(
+      'plant_fertilize',
+      p.id,
+      p.wiltedAt!,
     );
-    await _plants.savePlant(p.copyWith(
+    final bool ok = hard
+        ? (w >= kPlantWiltRecoverHardWater && f >= kPlantWiltRecoverHardFertilize)
+        : (w >= 1);
+    if (!ok) return p;
+    // 注意：[Plant.copyWith] 对 nullable 字段用 `?? this.xxx`，显式 null 不会清空；
+    // 恢复需显式清空 [Plant.wiltedAt]，故用构造器重建（2026-09-23）。
+    return Plant(
+      id: p.id,
+      speciesId: p.speciesId,
+      potIndex: p.potIndex,
+      stage: p.stage,
+      stageStartedAt: p.stageStartedAt,
+      growthProgress: p.growthProgress,
+      growthFactor: p.growthFactor,
+      waterUsed: p.waterUsed,
+      fertilizerUsed: p.fertilizerUsed,
       status: PlantStatus.growing,
-      wiltedAt: null,
+      plantedAt: p.plantedAt,
       lastWaterAt: now,
-    ));
+      wiltedAt: null,
+      deadAt: p.deadAt,
+      bloomedAt: p.bloomedAt,
+      mood: p.mood,
+    );
   }
 
   /// 花盆扩容：capacity<max → 扣扩容价(refType='plant_expand') → gardenPotCapacity+1。

@@ -86,6 +86,19 @@ class _MemoryLedger implements SunlightRepository {
           .length;
 
   @override
+  Future<int> countByRefTypeAndRefIdSince(
+    String refType,
+    String refId,
+    DateTime since,
+  ) async =>
+      entries
+          .where((SunlightEntry e) =>
+              e.refType == refType &&
+              e.refId == refId &&
+              !e.ts.isBefore(since))
+          .length;
+
+  @override
   Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async {
     final List<SunlightEntry> hits = entries
         .where((SunlightEntry e) => e.refType == refType && e.refId == refId)
@@ -328,7 +341,7 @@ void main() {
     expect(q0.fertilizeRemaining, 0);
   });
 
-  test('非成长中植物不可养护（枯萎 / 已开花走救回分支）', () async {
+  test('枯萎植物也可养护（取消付费救回，恢复靠浇水/施肥）', () async {
     final ctx = _make();
     final String id = await _seedSunflower(ctx.svc, day1);
     final Plant p = (await ctx.plants.plant(id))!;
@@ -336,8 +349,46 @@ void main() {
 
     final Plant wilting = (await ctx.plants.plant(id))!;
     final PlantCareQuota q = await ctx.svc.careQuota(wilting, day1);
-    expect(q.canWater, isFalse);
-    expect(q.canFertilize, isFalse);
-    expect(q.waterBlockReason, contains('成长中'));
+    // wilting 已放开为可养护（每日次数 / 30 分钟间隔限制仍生效，dead 仍不可养护）。
+    expect(q.canWater, isTrue);
+    expect(q.canFertilize, isTrue);
+    expect(q.waterBlockReason, isNull);
+  });
+
+  group('枯萎靠养护恢复（取消付费救回，2026-09-23）', () {
+    test('wilting 未满 3 天：浇水 1 次即恢复 growing', () async {
+      final ctx = _make();
+      final String id = await _seedSunflower(ctx.svc, day1);
+      // 制造一株 wilting，wiltedAt 在 2 天前（未满 kPlantWiltRecoverHardDays 阈值）。
+      await ctx.plants.savePlant((await ctx.plants.plant(id))!
+          .copyWith(
+            status: PlantStatus.wilting,
+            wiltedAt: day1.subtract(const Duration(days: 2)),
+          ));
+      await ctx.svc.water(id, day1);
+      final Plant after = (await ctx.plants.plant(id))!;
+      expect(after.status, PlantStatus.growing);
+      expect(after.wiltedAt, isNull);
+    });
+
+    test('wilting 已满 3 天：需 3 浇 + 1 施才恢复；差一次仍保持 wilting', () async {
+      final ctx = _make();
+      final String id = await _seedSunflower(ctx.svc, day1);
+      await ctx.plants.savePlant((await ctx.plants.plant(id))!
+          .copyWith(
+            status: PlantStatus.wilting,
+            wiltedAt: day1.subtract(const Duration(days: 5)),
+          ));
+      // 2 浇 + 1 施：尚未满足（需 3 浇）。
+      await ctx.svc.water(id, day1);
+      await ctx.svc.water(id, day1.add(const Duration(minutes: 31)));
+      await ctx.svc.fertilize(id, day1.add(const Duration(minutes: 62)));
+      expect((await ctx.plants.plant(id))!.status, PlantStatus.wilting);
+      // 第 3 次浇水 → 满足 → 恢复。
+      await ctx.svc.water(id, day1.add(const Duration(minutes: 93)));
+      final Plant after = (await ctx.plants.plant(id))!;
+      expect(after.status, PlantStatus.growing);
+      expect(after.wiltedAt, isNull);
+    });
   });
 }

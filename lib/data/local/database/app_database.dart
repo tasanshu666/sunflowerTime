@@ -50,7 +50,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -123,6 +123,11 @@ class AppDatabase extends _$AppDatabase {
               'WHERE status = ${PlantStatus.growing.index};',
             );
           }
+
+          // ⑧ v8（M3 修订，玄参大人 2026-09-23 拍板「花谢循环」玩法）：plants 新增
+          //    bloomed_at 列（进入盛开的计时起点，可空）。老库 ALTER TABLE ADD COLUMN
+          //    补列，历史行取 NULL（表示「尚未记录花期起点」，首次 tick 自动补计时）。
+          await _ensureColumn(m, plants, plants.bloomedAt);
         },
       );
 

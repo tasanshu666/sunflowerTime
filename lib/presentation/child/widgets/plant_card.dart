@@ -1,6 +1,6 @@
 /// 植物卡片（孩子端花园，M3 T02 / M3 修订）。
 ///
-/// 展示单株植物：外观 / 当前阶段进度条 / 心情 / 养护动作（浇水 / 施肥 / 救回 / 清理枯萎）。
+/// 展示单株植物：外观 / 当前阶段进度条 / 心情 / 养护动作（浇水 / 施肥 / 铲除清理枯萎植物）。
 /// 动作可用性由 [PlantCareQuota]（账本口径：今日次数 + 30 分钟浇水间隔）决定，与
 /// [PlantGrowthService] 完全一致——按钮禁用时把原因直接写在卡面上，避免「点了没反应」。
 ///
@@ -37,7 +37,6 @@ class PlantCard extends StatelessWidget {
 
   final VoidCallback? onWater;
   final VoidCallback? onFertilize;
-  final VoidCallback? onRevive;
   final VoidCallback? onClear;
 
   const PlantCard({
@@ -47,7 +46,6 @@ class PlantCard extends StatelessWidget {
     this.quota,
     this.onWater,
     this.onFertilize,
-    this.onRevive,
     this.onClear,
   });
 
@@ -223,18 +221,9 @@ class PlantCard extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: onClear,
                   icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  label: const Text('清理枯萎植物 · 释放花盆'),
+                  label: const Text('铲除回收'),
                   style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red),
-                ),
-              )
-            else if (isWilting)
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: onRevive,
-                  icon: const Icon(Icons.healing),
-                  label: const Text('救回（消耗阳光）'),
                 ),
               )
             else ...<Widget>[
@@ -273,6 +262,16 @@ class PlantCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   hint,
+                  style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                ),
+              ],
+              if (isWilting && plant.wiltedAt != null) ...<Widget>[
+                const SizedBox(height: 4),
+                Text(
+                  DateTime.now().difference(plant.wiltedAt!) <
+                          Duration(days: kPlantWiltRecoverHardDays)
+                      ? '浇水 1 次即可救回'
+                      : '需浇水 $kPlantWiltRecoverHardWater 次 + 施肥 $kPlantWiltRecoverHardFertilize 次才能救回',
                   style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
                 ),
               ],

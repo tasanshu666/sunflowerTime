@@ -16,6 +16,7 @@ class Plant {
   final DateTime? lastWaterAt; // 上次浇水时间（枯萎计时基准）
   final DateTime? wiltedAt; // 枯萎计时起点
   final DateTime? deadAt; // 死亡计时（仅供统计）
+  final DateTime? bloomedAt; // 进入「盛开」状态的时刻（花谢循环计时起点；null = 未开花 / 已花谢 / 老库升级来的已开花植物待补计时）
   final PlantMood mood;
 
   const Plant({
@@ -33,6 +34,7 @@ class Plant {
     this.lastWaterAt,
     this.wiltedAt,
     this.deadAt,
+    this.bloomedAt,
     this.mood = PlantMood.calm,
   });
 
@@ -52,6 +54,7 @@ class Plant {
     DateTime? lastWaterAt,
     DateTime? wiltedAt,
     DateTime? deadAt,
+    DateTime? bloomedAt,
     PlantMood? mood,
   }) {
     return Plant(
@@ -69,6 +72,7 @@ class Plant {
       lastWaterAt: lastWaterAt ?? this.lastWaterAt,
       wiltedAt: wiltedAt ?? this.wiltedAt,
       deadAt: deadAt ?? this.deadAt,
+      bloomedAt: bloomedAt ?? this.bloomedAt,
       mood: mood ?? this.mood,
     );
   }

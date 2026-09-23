@@ -55,6 +55,7 @@ Plant _toPlant(db.Plant r) => Plant(
       lastWaterAt: r.lastWaterAt,
       wiltedAt: r.wiltedAt,
       deadAt: r.deadAt,
+      bloomedAt: r.bloomedAt,
       mood: PlantMood.values[r.mood],
     );
 
@@ -74,5 +75,6 @@ db.PlantsCompanion _toCompanion(Plant p) => db.PlantsCompanion(
       lastWaterAt: Value(p.lastWaterAt),
       wiltedAt: Value(p.wiltedAt),
       deadAt: Value(p.deadAt),
+      bloomedAt: Value(p.bloomedAt),
       mood: Value(p.mood.index),
     );

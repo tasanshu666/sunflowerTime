@@ -20,11 +20,15 @@
 /// 例：`assets/plants/species_sunflower_adult_bloomed.png`
 /// 只要文件名对上就会自动生效，新增植物/阶段都不需要改本文件。
 ///
-/// 资源是否存在的判定走 `AssetManifest.json`（编译期生成），结果按
-/// 「物种_阶段_状态」缓存，整个进程只解析一次清单。
+/// 资源是否存在的判定走 [AssetManifest.loadFromAssetBundle]（读的是编译期生成的
+/// `AssetManifest.bin`），结果按「物种_阶段_状态」缓存，整个进程只解析一次清单。
+///
+/// ⚠️ **不要用 `rootBundle.loadString('AssetManifest.json')`**：Flutter 3.7 起打包只产
+/// `AssetManifest.bin`，`.json` 已不再生成 —— 2026-09-23 在 Flutter 3.44.7 实测：装到手机的
+/// APK 里只有 `assets/flutter_assets/AssetManifest.bin`，flutter_tools 源码里也搜不到任何
+/// `.json` 生成逻辑。读 `.json` 会抛异常 → 静默回退到自绘占位，表现为「美术图放进去了界面
+/// 却没变化」，而且**不崩、不报错**，排查方向会完全跑偏（会误以为图错了/命名错了）。
 library plant_artwork;
-
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,19 +37,69 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 
-/// 资源清单缓存（懒加载，进程内只解析一次 AssetManifest.json）。
+/// 美术资源命名契约（**公开、纯函数、可单测**）。
+///
+/// 这是美术与代码之间**唯一的接口**：美术按 [forPlant] 生成的路径命名丢图，
+/// 代码按同一份规则查找。此处是契约的唯一真源，改这里即改契约。
+///
+/// 为什么单独提成公开类：它此前埋在私有类里、没有任何测试保护，于是「读不到清单 →
+/// 静默回退占位」这个缺陷能一直潜伏到美术真正出图才可能被发现。
+class PlantArtCandidates {
+  /// 纯静态命名空间，禁止实例化。
+  PlantArtCandidates._();
+
+  /// 候选路径（顺序即回退优先级）：
+  /// `{物种}_{阶段}_{状态}` → `{物种}_{阶段}` → `{物种}`，全不中则走自绘占位。
+  static List<String> forPlant({
+    required String speciesId,
+    required String stage,
+    required String status,
+  }) =>
+      <String>[
+        'assets/plants/${speciesId}_${stage}_$status.png',
+        'assets/plants/${speciesId}_$stage.png',
+        'assets/plants/$speciesId.png',
+      ];
+
+  /// 在 [assets]（资产清单里的全部资源路径）中按优先级找命中项；无命中返回 null。
+  static String? resolve(
+    Set<String> assets, {
+    required String speciesId,
+    required String stage,
+    required String status,
+  }) {
+    for (final String path in forPlant(
+      speciesId: speciesId,
+      stage: stage,
+      status: status,
+    )) {
+      if (assets.contains(path)) return path;
+    }
+    return null;
+  }
+}
+
+/// 资源清单缓存（懒加载，进程内只解析一次）。
 class _PlantArtAssets {
-  static Map<String, Object?>? _manifest;
+  /// 资产清单里的全部资源路径（懒加载，进程内只解析一次）。
+  static Set<String>? _allAssets;
 
   /// 已解析结果缓存：key = 「物种_阶段_状态」→ 命中的资源路径（null = 无资源，走占位）。
   static final Map<String, String?> _resolved = <String, String?>{};
 
-  static Future<Map<String, Object?>> _loadManifest() async {
-    final Map<String, Object?>? cached = _manifest;
+  static Future<Set<String>> _loadManifest() async {
+    final Set<String>? cached = _allAssets;
     if (cached != null) return cached;
-    final String raw = await rootBundle.loadString('AssetManifest.json');
-    final Object? decoded = json.decode(raw);
-    return _manifest = (decoded as Map<Object?, Object?>).cast<String, Object?>();
+    try {
+      final AssetManifest manifest =
+          await AssetManifest.loadFromAssetBundle(rootBundle);
+      return _allAssets = manifest.listAssets().toSet();
+    } catch (error) {
+      // 清单读不到时不能崩，但**绝不能静默** —— 否则「美术资源不生效」会被
+      // 误判成「图错了 / 命名错了」，白白浪费美术工时。
+      debugPrint('[PlantArtwork] 资产清单读取失败，本次会话内美术资源不生效：$error');
+      return _allAssets = const <String>{};
+    }
   }
 
   /// 按三级回退规则解析资源路径；无资源返回 null（调用方改用自绘占位）。
@@ -60,21 +114,13 @@ class _PlantArtAssets {
     final String? cached = _resolved[key];
     if (cached != null || _resolved.containsKey(key)) return cached;
 
-    final Map<String, Object?> manifest = await _loadManifest();
-    const String dir = 'assets/plants';
-    final List<String> candidates = <String>[
-      '$dir/${species.id}_${stage}_$status.png',
-      '$dir/${species.id}_$stage.png',
-      '$dir/${species.id}.png',
-    ];
-    String? hit;
-    for (final String path in candidates) {
-      if (manifest.containsKey(path)) {
-        hit = path;
-        break;
-      }
-    }
-    return _resolved[key] = hit;
+    final Set<String> assets = await _loadManifest();
+    return _resolved[key] = PlantArtCandidates.resolve(
+      assets,
+      speciesId: species.id,
+      stage: stage,
+      status: status,
+    );
   }
 }
 

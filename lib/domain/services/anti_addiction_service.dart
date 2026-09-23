@@ -30,10 +30,15 @@ class AntiAddictionService {
       isNight(now, boundaryHour: s.nightBoundaryHour, boundaryMinute: s.nightBoundaryMinute);
 
   /// 今日剩余可专注分钟（封底 0）。
+  ///
+  /// **单点真源**：调用方传入的 [todayFocusMin] 必须是**今日已入账的专注阳光**
+  /// （`SunlightService.focusEarnedToday`，分钟与阳光 1:1），而不是自行把当日会话
+  /// 的 `actualFocusMin` 加起来 —— 后者在「本场被额度截断」时会比真实额度消耗多，
+  /// 导致拦截口径与扣减口径不一致（2026-09-23 统一到账本）。
   double dailyFocusRemaining(AppSettings s, double todayFocusMin) =>
       max(0.0, s.dailyFocusCap - todayFocusMin);
 
-  /// 是否到了需要休息的节奏：每完成 [AppSettings.restAfterSessions] 场后需要休息
+  /// 是否到了需要休息的节奏：每完成 [AppSettings.restSessions] 场后需要休息
   /// （即 2/4/6… 场后触发，1/3/5… 场不触发）。
   bool restRequired(AppSettings s, int todayValidSessions) =>
       todayValidSessions > 0 && todayValidSessions % s.restAfterSessions == 0;
@@ -41,6 +46,11 @@ class AntiAddictionService {
   /// 综合评估本次「开始专注」的拦截决策。
   ///
   /// 优先级（高 → 低）：夜间锁定 > 每日上限 > 休息要求 > 允许。
+  ///
+  /// ⚠️ 本方法只判「**现在能不能开始**」，**不保证本场不会超出剩余额度**。
+  /// 「这一场选了多久、会不会超」由调用方（选时长页）用 [dailyFocusRemaining]
+  /// 收口档位，并由 `SunlightService.settle` 在结算时硬截断（2026-09-23 P0 修复：
+  /// 此前仅在此处拦「已达上限」，孩子选一场 180 分钟即可一次冲过上限）。
   AntiAddictionDecision evaluate({
     required AppSettings s,
     required DateTime now,

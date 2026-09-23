@@ -6,9 +6,10 @@
 ///  - **非联动项**（requiresFocus == false）手动打卡 → 落 **pending**（待家长核销），
 ///    当期**不发阳光**；家长 [TaskCheckInService.verifyCheckIn] 通过后才入账，
 ///    [TaskCheckInService.rejectCheckIn] 驳回则不入账；
-///  - **pending 不占用当日软顶额度**：只有真正入账（verify / 自动结算）才计入当日
-///    `earn` 合计；
-///  - 入账按**当日累计**过软顶只补差额，软顶公式复用 [computeSoftCap]；
+///  - **pending 不占当日额度**：只有真正入账（verify / 自动结算）才计入当日已发合计；
+///  - 入账按**成长奖励自身当日累计净额**封顶：`grant = max(0, min(reward,
+///    kTaskCheckinDailyCap - 当日已发打卡阳光))`（2026-09-23 起取消分段软顶，
+///    且**只读 `task_checkin` 自己的账目** —— 专注与家长赠予不占这个额度）；
 ///  - 奖励固定为 [Task.effectiveSunlightReward]（联动项 = 专注分钟 × 40%，不再叠加完美日系数）。
 ///
 /// 纯 Dart：所有仓储以内存 Fake 实现，不依赖 Drift / Flutter，故用
@@ -22,7 +23,6 @@ import 'package:test/test.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart' as db;
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
-import 'package:sunflower_time/core/utils/math_ext.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -129,8 +129,18 @@ class _MemoryTaskRepo implements TaskRepository, CheckInAdminRepository {
 class _MemorySunlightRepo implements SunlightRepository {
   final List<SunlightEntry> entries = <SunlightEntry>[];
 
-  /// 预置一条当日的 earn 记录（构造「当日已发阳光」的软顶前置态）。
-  void seedEarn(String key, double gross, double net, DateTime ts) {
+  /// 预置一条当日的 earn 记录（构造「当日已发阳光」的前置态）。
+  ///
+  /// [refType] 默认 `focus_session`（多数用例构造的是专注产出）；要构造
+  /// 「当日已发**成长奖励**」的额度前置态请传 `task_checkin` —— 2026-09-23 起
+  /// 成长奖励的每日上限**只按自己的账目**核算，专注/家长赠予都挤不动它。
+  void seedEarn(
+    String key,
+    double gross,
+    double net,
+    DateTime ts, {
+    String refType = 'focus_session',
+  }) {
     entries.add(SunlightEntry(
       id: 'seed-${entries.length}',
       ts: ts,
@@ -138,11 +148,15 @@ class _MemorySunlightRepo implements SunlightRepository {
       gross: gross,
       net: net,
       balanceAfter: net,
-      refType: 'focus_session',
+      refType: refType,
       refId: 'seed',
       dayKey: key,
     ));
   }
+
+  /// 预置「当日已发成长奖励」净额（成长奖励日上限核算的前置态）。
+  void seedCheckInNet(String key, double net, DateTime ts) =>
+      seedEarn(key, net, net, ts, refType: 'task_checkin');
 
   @override
   Future<double> append(SunlightEntry entry) async {
@@ -178,7 +192,9 @@ class _MemorySunlightRepo implements SunlightRepository {
   Future<double> verifiedRedeemTotal() async => 0;
 
   @override
-  Future<double> netByRefTypeOnDay(String refType, String key) async => 0;
+  Future<double> netByRefTypeOnDay(String refType, String key) async => entries
+      .where((SunlightEntry e) => e.refType == refType && e.dayKey == key)
+      .fold<double>(0.0, (double a, SunlightEntry e) => a + e.net);
 
   @override
   Future<double> netByRefTypeInMonth(String refType, String key) async => 0;
@@ -325,7 +341,7 @@ void main() {
       expect(out.status, CheckInStatus.pending);
       expect(out.reward, 12);
       expect(out.granted, 0);
-      expect(out.cappedBySoftCap, isFalse);
+      expect(out.cappedByDailyCap, isFalse);
       expect(out.perfectDayBonus, isFalse);
       expect(out.checkInId, isNotEmpty);
 
@@ -601,32 +617,46 @@ void main() {
       expect(await ctx.ledger.earnGrossOnDay(dayKey(day)), 24);
     });
 
-    test('当日已发 55：核销 12 只补差额 8.5，cappedBySoftCap=true', () async {
+    test('当日已发成长奖励 55：再核销 12 全额发放（55+12=67 < 79）', () async {
       final ctx = _make();
-      ctx.ledger.seedEarn(dayKey(day), 55, 55, day);
+      ctx.ledger.seedCheckInNet(dayKey(day), 55, day);
       final Task t = _task(id: 't1');
       await ctx.svc.checkIn(task: t, now: day);
       final String id = ctx.tasks.checkIns.single.id;
 
       final TaskCheckInOutcome out = await ctx.svc.verifyCheckIn(id, day);
 
-      // 软顶公式现算：computeSoftCap(55+12=67) = 60 + (67-60)*0.5 = 63.5
-      expect(computeSoftCap(67), closeTo(63.5, 1e-9));
+      // 2026-09-23 口径：成长奖励日上限 79，额度内 1:1 全额发放，不再按分段打薄。
       expect(out.reward, 12);
-      expect(out.granted, closeTo(8.5, 1e-9));
-      expect(out.cappedBySoftCap, isTrue);
+      expect(out.granted, closeTo(12, 1e-9));
+      expect(out.cappedByDailyCap, isFalse);
 
       expect(ctx.ledger.entries, hasLength(2));
       final SunlightEntry e = ctx.ledger.entries.last;
       expect(e.gross, 12);
-      expect(e.net, closeTo(8.5, 1e-9));
-      expect(await ctx.ledger.balance(), closeTo(63.5, 1e-9));
+      expect(e.net, closeTo(12, 1e-9));
+      expect(await ctx.ledger.balance(), closeTo(67, 1e-9));
     });
 
-    test('当日已触顶（79）：核销 granted=0、capped=true，账本仍新增 gross=12/net=0', () async {
+    test('当日已发成长奖励 75：核销 12 只补 4（撞 79 上限，capped=true）', () async {
       final ctx = _make();
-      // 一条已过软顶的当日 earn（gross=110 → 有效 79）。
-      ctx.ledger.seedEarn(dayKey(day), 110, 79, day);
+      ctx.ledger.seedCheckInNet(dayKey(day), 75, day);
+      final Task t = _task(id: 't1');
+      await ctx.svc.checkIn(task: t, now: day);
+      final String id = ctx.tasks.checkIns.single.id;
+
+      final TaskCheckInOutcome out = await ctx.svc.verifyCheckIn(id, day);
+
+      expect(out.reward, 12);
+      expect(out.granted, closeTo(4, 1e-9));
+      expect(out.cappedByDailyCap, isTrue);
+      expect(await ctx.ledger.balance(), closeTo(79, 1e-9));
+    });
+
+    test('当日成长奖励已触顶（79）：核销 granted=0、capped=true，账本仍新增 gross=12/net=0',
+        () async {
+      final ctx = _make();
+      ctx.ledger.seedCheckInNet(dayKey(day), kTaskCheckinDailyCap, day);
       final Task t = _task(id: 't1');
       await ctx.svc.checkIn(task: t, now: day);
       final String id = ctx.tasks.checkIns.single.id;
@@ -635,15 +665,36 @@ void main() {
 
       expect(out.reward, 12);
       expect(out.granted, 0);
-      expect(out.cappedBySoftCap, isTrue);
+      expect(out.cappedByDailyCap, isTrue);
 
-      // 账本仍新增一条（可追溯「核销过但被软顶」）。
+      // 账本仍新增一条（可追溯「核销过但被上限拦住」）。
       expect(ctx.ledger.entries, hasLength(2));
       final SunlightEntry e = ctx.ledger.entries.last;
       expect(e.type, SunlightType.earn);
       expect(e.gross, 12);
       expect(e.net, 0);
       expect(await ctx.ledger.balance(), closeTo(79.0, 1e-9));
+    });
+
+    // 回归（2026-09-23 解耦）：这正是本次修掉的 bug ——
+    // 旧口径下「当日 earn 合计」把专注与家长赠予也算进去，专注打满 79 或家长
+    // 送一笔，就会把孩子当天所有成长打卡奖励挤成 0（家长核销了也一分不得）。
+    test('回归：专注拿满 + 家长赠予都不挤占成长奖励额度', () async {
+      final ctx = _make();
+      ctx.ledger.seedEarn(dayKey(day), 120, 120, day); // 专注拿满（高年段）
+      ctx.ledger.seedEarn(dayKey(day), 100, 100, day,
+          refType: 'parent_gift'); // 家长赠予
+      final Task t = _task(id: 't1');
+      await ctx.svc.checkIn(task: t, now: day);
+      final String id = ctx.tasks.checkIns.single.id;
+
+      final TaskCheckInOutcome out = await ctx.svc.verifyCheckIn(id, day);
+
+      expect(out.reward, 12);
+      expect(out.granted, closeTo(12, 1e-9),
+          reason: '成长奖励不占专注额度，专注/赠予再高也不能把它挤成 0');
+      expect(out.cappedByDailyCap, isFalse);
+      expect(await ctx.ledger.balance(), closeTo(232, 1e-9));
     });
   });
 
@@ -1103,11 +1154,11 @@ void main() {
     });
   });
 
-  group('修复 8（P0 补充）：写路径串行化闸门（软顶并发绕过 / 连点双打卡）', () {
-    test('两条不同记录并发核销：当日 earn net 不突破 computeSoftCap(earn gross)', () async {
+  group('修复 8（P0 补充）：写路径串行化闸门（额度并发绕过 / 连点双打卡）', () {
+    test('两条不同记录并发核销：当日成长奖励净额不突破 kTaskCheckinDailyCap', () async {
       final ctx = _make();
-      // 预置「已发」：gross=78、net=computeSoftCap(78)=69，使其落入递减区间。
-      ctx.ledger.seedEarn(dayKey(day), 78, computeSoftCap(78), day);
+      // 预置「已发成长奖励」70：只剩 9 额度，两条各 12 的核销必然互相抢额度。
+      ctx.ledger.seedCheckInNet(dayKey(day), 70, day);
       final Task t1 = _task(id: 't1');
       final Task t2 = _task(id: 't2');
       ctx.tasks.store.addAll(<Task>[t1, t2]);
@@ -1123,12 +1174,16 @@ void main() {
       ]);
       expect(outs, hasLength(2)); // 两条不同记录都应成功（CAS 不冲突）
 
-      final double gross = await ctx.ledger.earnGrossOnDay(dayKey(day));
-      final double net = await ctx.ledger.earnNetOnDay(dayKey(day));
-      // 关键不变式：并发核销绝不能把当日净发放顶穿软顶曲线。
-      expect(net, lessThanOrEqualTo(computeSoftCap(gross) + 1e-9));
-      // 串行化后恰好落在软顶上界（78 + 12 + 12 = 102 → 77.4）。
-      expect(net, closeTo(computeSoftCap(gross), 1e-9));
+      final double net = await ctx.ledger
+          .netByRefTypeOnDay(TaskCheckInService.checkInRefType, dayKey(day));
+      // 关键不变式：并发核销绝不能把当日成长奖励总额顶穿上限。
+      expect(net, lessThanOrEqualTo(kTaskCheckinDailyCap + 1e-9),
+          reason: '上限被突破：net=$net > cap=$kTaskCheckinDailyCap');
+      // 串行化后恰好落满 79（第二条只补 9，余下 3 不发）。
+      expect(net, closeTo(kTaskCheckinDailyCap, 1e-9));
+      final double grantedSum =
+          outs.fold(0.0, (double a, TaskCheckInOutcome o) => a + o.granted);
+      expect(grantedSum, closeTo(kTaskCheckinDailyCap - 70, 1e-9));
     });
 
     test('连点两次「我做到了」：仅 1 条 pending，另一次抛 TaskCheckInException', () async {

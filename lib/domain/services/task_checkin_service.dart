@@ -6,15 +6,23 @@
 ///  - **非联动项**（requiresFocus == false）：孩子手动 [checkIn] → 落 **pending**
 ///    （待家长核销），**当期不发阳光**；家长 [verifyCheckIn] 通过后才入账，
 ///    [rejectCheckIn] 驳回则不入账。
-///  - **按当日累计过软顶，只补差额**：入账时
-///    `grant = max(0, computeSoftCap(当日 earn gross + reward) - 当日 earn net)`，
-///    软顶公式**直接复用** [computeSoftCap]，不在此重复实现分段公式。
-///  - **pending 不占用软顶额度**：只有真正入账（verify / 自动结算）才计入当日 `earn` 合计；
+///  - **按自身当日累计净额封顶**：入账时
+///    `grant = max(0, min(reward, kTaskCheckinDailyCap - 当日已发打卡阳光))`
+///    （[kTaskCheckinDailyCap] = 79，唯一定义在 prd_params）。
+///  - ⚠️ **成长奖励不占专注额度**（玄参 2026-09-23 拍板）：核算只读
+///    `refType='task_checkin'` 自己的当日净额，**不再**读当日全部 `earn` 的
+///    gross/net。旧口径下专注拿满（或家长赠予）会把当日 earn 合计顶到旧的
+///    「分段软顶」硬顶 79，导致孩子当天所有成长打卡奖励被挤成 0 —— 与
+///    「成长奖励不算在内」正好相反（该术语已作废，此处仅用于说明历史行为）。
+///  - ⚠️ 同时**取消了「分段打薄」**：专注侧改为 1 分钟 = 1 阳光 + 年段日上限硬截断
+///    （见 `SunlightService`）。故本文件不再复用任何分段公式，[kTaskCheckinDailyCap]
+///    就是成长奖励唯一的日上限。
+///  - **pending 不占额度**：只有真正入账（verify / 自动结算）才计入当日已发合计；
 ///    否则家长迟迟不核销会把当日额度白占掉。
 ///  - **写路径串行化**：所有会写库 / 写账本的入口（[checkIn] / [settleFocusLinked] /
 ///    [verifyCheckIn] / [rejectCheckIn]）在本服务内经异步互斥闸门排队执行，保证彼此
-///    不交错——软顶差额是「读当日累计 → 算差额 → 写账本」的非原子序列，CAS 只保证
-///    **同一条记录**不被重复核销，管不住**两条不同记录**互相插队绕过软顶；孩子连点
+///    不交错——额度差额是「读当日累计 → 算差额 → 写账本」的非原子序列，CAS 只保证
+///    **同一条记录**不被重复核销，管不住**两条不同记录**互相插队绕过上限；孩子连点
 ///    两次打卡也会各插一行 pending。只读入口（[board] / [pendingCheckIns]）不加闸门。
 ///  - **完美日（徽章）**：当日存在 ≥ 一次 `actualFocusMin >= kValidFocusMinutes(15)` 的专注
 ///    即命中；但**不再**乘到阳光上（[kPerfectDayCoefficient] 已从奖励公式移除，见
@@ -39,7 +47,6 @@ import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
-import 'package:sunflower_time/core/utils/math_ext.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -128,14 +135,14 @@ class TaskCheckInOutcome {
   /// 生成的打卡记录 id（未达标的联动结算为空串，见 [settleFocusLinked]）。
   final String checkInId;
 
-  /// 本次任务应发阳光（基础奖励，未过软顶；完美日系数已不再叠加）。
+  /// 本次任务应发阳光（基础奖励，未过上限；完美日系数已不再叠加）。
   final double reward;
 
   /// 本次实际入账阳光；**pending 时为 0**。
   final double granted;
 
-  /// 是否被软顶削减（实际到手 < 应得奖励）。
-  final bool cappedBySoftCap;
+  /// 是否被上限削减（实际到手 < 应得奖励）。
+  final bool cappedByDailyCap;
 
   /// 本次是否命中完美日（仅徽章含义，不影响阳光数额）。
   final bool perfectDayBonus;
@@ -151,7 +158,7 @@ class TaskCheckInOutcome {
     required this.checkInId,
     required this.reward,
     required this.granted,
-    required this.cappedBySoftCap,
+    required this.cappedByDailyCap,
     required this.perfectDayBonus,
     required this.allTasksDone,
     required this.status,
@@ -189,10 +196,15 @@ class TaskCheckInService {
   final SettingsRepository _settings;
   final Uuid _uuid;
 
+  /// 成长项打卡的账本标识（**数据标识**，非文案：改动会对不上历史账本，一律不动）。
+  ///
+  /// 单点收口：涨额核算、记账、防重校验都引用本常量，避免三处各写一份字面量。
+  static const String checkInRefType = 'task_checkin';
+
   /// 串行化闸门：所有写路径（打卡 / 专注结算 / 核销 / 驳回）在此排队执行。
   ///
-  /// 必要性：软顶差额是「读当日累计 → 算差额 → 写账本」的非原子序列；CAS 只保证
-  /// **同一条记录**不被重复核销，管不住**两条不同记录**互相插队把软顶绕过
+  /// 必要性：上限差额是「读当日累计 → 算差额 → 写账本」的非原子序列；CAS 只保证
+  /// **同一条记录**不被重复核销，管不住**两条不同记录**互相插队把上限绕过
   /// （两个打卡并发核销，各自都读到同一份 grantedSoFar，各自补满差额）。
   /// 同理，孩子连点两次「我做到了」会各插一行 pending，导致家长看到两条同名待确认、
   /// 核销出双份阳光。单设备单 isolate，进程内排队即可根治。
@@ -317,7 +329,7 @@ class TaskCheckInService {
       checkInId: checkInId,
       reward: reward,
       granted: 0.0,
-      cappedBySoftCap: false, // pending 阶段尚未核销，未计算软顶
+      cappedByDailyCap: false, // pending 阶段尚未核销，未计算上限
       perfectDayBonus: perfectDayBonus,
       allTasksDone: allTasksDone,
       status: CheckInStatus.pending,
@@ -330,7 +342,7 @@ class TaskCheckInService {
   /// - 今日该成长项已有打卡 → **幂等**：直接返回既有结果，不重复计账；
   /// - `session.actualFocusMin < task.minFocusMin` → **不达标**：不写任何记录，
   ///   返回 `status == rejected` 的结果（让表现层区分「没达标（正常）」与「真出错（抛异常）」）；
-  /// - 达标 → 写 `verified` 打卡（`sessionId = session.id`）并按当日软顶差额入账。
+  /// - 达标 → 写 `verified` 打卡（`sessionId = session.id`）并按当日上限差额入账。
   ///
   /// 经串行化闸门执行，与核销路径互不交错。
   Future<TaskCheckInOutcome> settleFocusLinked({
@@ -370,7 +382,7 @@ class TaskCheckInService {
         checkInId: existing.id,
         reward: existing.sunlightGross,
         granted: existing.sunlightGranted,
-        cappedBySoftCap: existing.status == CheckInStatus.verified &&
+        cappedByDailyCap: existing.status == CheckInStatus.verified &&
             existing.sunlightGranted + 1e-9 < existing.sunlightGross,
         perfectDayBonus: _isPerfectDayToday(sessions),
         allTasksDone: existing.isPerfectDay,
@@ -384,7 +396,7 @@ class TaskCheckInService {
         checkInId: '',
         reward: 0,
         granted: 0,
-        cappedBySoftCap: false,
+        cappedByDailyCap: false,
         perfectDayBonus: false,
         allTasksDone: false,
         status: CheckInStatus.rejected,
@@ -404,8 +416,8 @@ class TaskCheckInService {
     final bool perfectDayBonus = _isPerfectDayToday(sessions);
     final bool allTasksDone = await _allDailySubmitted(todayCheckIns, task.id);
     final String checkInId = _uuid.v4();
-    final ({double grant, bool capped}) softCap =
-        await _softCapGrant(day, reward);
+    final ({double grant, bool capped}) rewardCap =
+        await _dailyRewardGrant(day, reward);
 
     // 先落打卡记录（重复口径的事实源），再落账本。
     await _tasks.checkIn(CheckIn(
@@ -417,15 +429,15 @@ class TaskCheckInService {
       isPerfectDay: allTasksDone,
       status: CheckInStatus.verified,
       sunlightGross: reward,
-      sunlightGranted: softCap.grant,
+      sunlightGranted: rewardCap.grant,
     ));
-    await _appendLedger(checkInId, day, now, reward, softCap.grant);
+    await _appendLedger(checkInId, day, now, reward, rewardCap.grant);
 
     return TaskCheckInOutcome(
       checkInId: checkInId,
       reward: reward,
-      granted: softCap.grant,
-      cappedBySoftCap: softCap.capped,
+      granted: rewardCap.grant,
+      cappedByDailyCap: rewardCap.capped,
       perfectDayBonus: perfectDayBonus,
       allTasksDone: allTasksDone,
       status: CheckInStatus.verified,
@@ -450,10 +462,10 @@ class TaskCheckInService {
   /// 家长端：核销通过（冻结契约）。
   ///
   /// **只对 `pending` 生效**（对 verified / rejected 抛错，防止重复入账——这是钱）。
-  /// 通过后：按**打卡原始日**的软顶差额入账、填 `sunlightGranted`、status 置 verified。
+  /// 通过后：按**打卡原始日**的上限差额入账、填 `sunlightGranted`、status 置 verified。
   ///
   /// 经串行化闸门执行：两条不同记录并发核销时，第二次会读到第一次已入账后的当日累计，
-  /// 从而只补真实差额，不会各自补满把软顶顶穿。
+  /// 从而只补真实差额，不会各自补满把上限顶穿。
   Future<TaskCheckInOutcome> verifyCheckIn(String checkInId, DateTime now) =>
       _serialized(() => _verifyCheckIn(checkInId, now));
 
@@ -467,11 +479,11 @@ class TaskCheckInService {
       throw const TaskCheckInException('这条记录已经处理过啦，不能重复核销');
     }
 
-    // 软顶按「打卡原始日」核算：pending 期间未入账，故不被当日 earn 合计占用。
+    // 上限按「打卡原始日」核算：pending 期间未入账，故不被当日 earn 合计占用。
     final String day = dayKey(c.date);
     final double reward = c.sunlightGross;
-    final ({double grant, bool capped}) softCap =
-        await _softCapGrant(day, reward);
+    final ({double grant, bool capped}) rewardCap =
+        await _dailyRewardGrant(day, reward);
 
     // CAS 抢状态（修复 2，P0）：仅当记录仍是 pending 时写回；抢占成功才可入账。
     // 抢占失败 = 已被并发处理（家长连点两次），必须放弃入账，否则余额翻倍。
@@ -479,19 +491,19 @@ class TaskCheckInService {
       id: checkInId,
       from: CheckInStatus.pending,
       to: CheckInStatus.verified,
-      sunlightGranted: softCap.grant,
+      sunlightGranted: rewardCap.grant,
       resolvedAt: now,
     );
     if (!won) {
       throw const TaskCheckInException('这条记录刚刚已经被处理过了');
     }
-    await _appendLedger(checkInId, day, now, reward, softCap.grant);
+    await _appendLedger(checkInId, day, now, reward, rewardCap.grant);
 
     return TaskCheckInOutcome(
       checkInId: checkInId,
       reward: reward,
-      granted: softCap.grant,
-      cappedBySoftCap: softCap.capped,
+      granted: rewardCap.grant,
+      cappedByDailyCap: rewardCap.capped,
       perfectDayBonus: _isPerfectDayToday(await _focus.sessionsOfDay(day)),
       allTasksDone: c.isPerfectDay,
       status: CheckInStatus.verified,
@@ -607,21 +619,26 @@ class TaskCheckInService {
     return best;
   }
 
-  /// 当日软顶差额：`grant = max(0, computeSoftCap(当日 earn gross + reward) - 当日 earn net)`。
-  Future<({double grant, bool capped})> _softCapGrant(
+  /// 当日成长奖励额度差额（2026-09-23 口径）：
+  /// `grant = max(0, min(reward, kTaskCheckinDailyCap - 当日已发打卡阳光))`。
+  ///
+  /// **只看打卡自己的账目**（[checkInRefType]）。此前读的是当日**全部 earn** 的
+  /// gross/net，导致专注拿满当天（或家长赠予当天）孩子所有成长打卡奖励被挤成 0 ——
+  /// 与「成长奖励不占专注额度」正好相反（玄参 2026-09-23 拍板解耦）。
+  Future<({double grant, bool capped})> _dailyRewardGrant(
     String day,
     double reward,
   ) async {
-    final double todayGross = await _ledger.earnGrossOnDay(day);
-    final double grantedSoFar = await _ledger.earnNetOnDay(day);
-    final double cappedNet = computeSoftCap(todayGross + reward);
-    final double diff = cappedNet - grantedSoFar;
-    final double grant = diff > 0 ? diff : 0.0;
-    final bool capped = diff < reward - 1e-9;
-    return (grant: grant, capped: capped);
+    if (reward <= 0) return (grant: 0.0, capped: false);
+    final double grantedSoFar =
+        await _ledger.netByRefTypeOnDay(checkInRefType, day);
+    final double remaining = kTaskCheckinDailyCap - grantedSoFar;
+    final double grant =
+        remaining <= 0 ? 0.0 : (reward < remaining ? reward : remaining);
+    return (grant: grant, capped: grant < reward - 1e-9);
   }
 
-  /// 写一条阳光账本（`refType='task_checkin'`，`refId=checkInId`）。
+  /// 写一条阳光账本（`refType = [checkInRefType]`，`refId=checkInId`）。
   Future<void> _appendLedger(
     String refId,
     String day,
@@ -630,7 +647,8 @@ class TaskCheckInService {
     double net,
   ) async {
     // 二次防重入账：同一 checkInId 当日已记账 → 直接跳过（CAS 已拦一层，此处兜底）。
-    if (await _ledger.countByRefTypeAndRefIdOnDay('task_checkin', refId, day) >
+    if (await _ledger
+            .countByRefTypeAndRefIdOnDay(checkInRefType, refId, day) >
         0) {
       return;
     }
@@ -642,7 +660,7 @@ class TaskCheckInService {
       gross: gross,
       net: net,
       balanceAfter: balanceBefore + net,
-      refType: 'task_checkin',
+      refType: checkInRefType,
       refId: refId,
       dayKey: day,
     ));

@@ -508,7 +508,7 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 
 | ID | 模块 | 现象 | 根因 / 影响 | 处置 | 状态 |
 |---|---|---|---|---|---|
-| F32 | M2/日上限 | **[P0] PRD §4.5「日上限 79」实际未按「日」封顶**：一天多场专注可远超 79 | `lib/domain/services/sunlight_service.dart` 的 `settle()` 里 `net = computeEffective(rawS)`，而 `rawS` 是**本次会话自己的**原始产出 → 软顶是**按会话逐次套**的，不是按当日累计；`todayCumulativeNet()` 只用于展示，没有参与约束。连带影响：成长项打卡按「当日累计差额」发阳光，若某日专注侧已超发（net > 79），打卡会 `grant == 0`，看起来像「打卡不发阳光」 | **未修**（属承重墙，改动会动到既有 M2 结算逻辑与测试），仅记录 | ⚠️ 待玄参拍板 |
+| F32 | M2/日上限 | **[P0] PRD §4.5「日上限 79」实际未按「日」封顶**：一天多场专注可远超 79 | `lib/domain/services/sunlight_service.dart` 的 `settle()` 里 `net = computeEffective(rawS)`，而 `rawS` 是**本次会话自己的**原始产出 → 软顶是**按会话逐次套**的，不是按当日累计；`todayCumulativeNet()` 只用于展示，没有参与约束。连带影响：成长项打卡按「当日累计差额」发阳光，若某日专注侧已超发（net > 79），打卡会 `grant == 0`，看起来像「打卡不发阳光」 | **玄参 2026-09-23 拍板修法（见 `口径裁定表_v1.md` C11）**：① 取消分段打薄（`computeSoftCap` + 6 个 `kSoftCap*` 常量全删），专注 **1 分钟 = 1 阳光**、年段日上限 **60/90/120** 硬封顶；② 成长奖励改**独立额度 79**，`_dailyRewardGrant` **只读 `task_checkin` 自身账目**（不再读当日全部 earn）→ 两条额度线解耦，连带影响同步消除；③ **三道拦**：选时长页灰超额度档位 → 开始前截断 → **结算硬截断**（`settle` 新增 `required int dailyFocusCap` + `effectiveFocusSunlight`）。详见下文「G02」 | ✅ 已修复（待真机） |
 | F33 | M4/植物养成 | 满养护实测 **17 天**，与理论 **18 天**差 1 天 | 种下当天即可养护 → 少 1 天（理论 16.67 进位）。要严格 18 天，需把每天养护从 8% 降到约 6.7%（浇水 0.5%/次 或施肥 4%），会**破坏已拍板的 +1% / +5% 整数口径** | 玄参 2026-09-22 23:49 **拍板：就 17 天，不细调**（差 1 天无感知，凑 18 天要破坏 +1% / +5% 整数口径，不值得） | ✅ 已拍板（不改） |
 | F34 | 孩子端/我的 | `child_profile_page.dart` 底部 `DEBUG 加1000阳光` 按钮仍在（源码自标「提交前删除」） | 玄参真机验收兑换链路要用，故暂留 | **提审前必须清理** | 🔧 待清理 |
 | F35 | 全仓/文案 | 注释里的「任务」字样约 **26 处**未统一为「成长」 | 均在 `///` / `//` 注释中（**非用户可见**），其中若干处直接指代 tab 名（如 `child_shell_page.dart:3`），对新维护者有误导性 | 工程师按纪律未改（不在本轮范围）并已逐条列出 | 🔧 待清理 |
@@ -522,3 +522,26 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 - **本轮最终基线（commit `34e1541`）**：`flutter analyze` **0 error**；`flutter test` **324 passed 全绿**；`flutter build apk --debug` 成功；小米 14 Pro **`f05bbc46`** 覆盖装成功、进程存活无崩溃。
 - **真机复测状态**：上列 F07–F27 中标注「待真机」的条目，截至 2026-09-22 22:50 装包后**结论待玄参回**；本文档在收到回执后再行订正状态列。
 - **提交纪律**：先 `flutter analyze` 0 error + `flutter test` 324 绿，再经玄参明确允许（22:54 授权）才 commit / push / merge。
+
+---
+
+# 花园改造轮 + 日上限口径重构轮（2026-09-23）
+
+> 玄参口径原话：「每日上限**仅作用于专注时长**，防刷阳光，成长奖励不算在内；低 60 / 中 90 / 高 120 分别对应 1–2 / 3–4 / 5–6 年级；其他年级无限制。」
+> 该口径的**技术裁定**落在 `口径裁定表_v1.md` **C11**（项目宪法，优先级最高）；PRD §4.5 的旧软顶公式被本条覆盖。
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| G01 | 孩子端/花园 | 花园是「卡片列表 + 容量横幅」，一屏看得全但**没有花园感**；点植物只能在一排按钮里挑动作 | 原 `garden_page.dart` 用卡片列表渲染，缺乏空间感；容量入口是独立横幅，与花盆不在一处 | 重写为**草地 + 3 列花盆网格**：新建 `garden_pot.dart`（`GardenGrid` / `GardenPot` / `EmptyPot` / `ExpandPotSlot` / `_PotPainter` 自绘陶盆）；点植物弹**底部养护面板**（新建 `plant_care_sheet.dart`，复用 `PlantCard` 的展示与按钮，**不复制第二套按钮逻辑**）；空盆即种植入口；加盆收进网格**末尾一格**（三态：带价可点 / 差多少不可点 / busy 不可点）；植物按进度**略微变大**（`plant_artwork.dart` 新增 `growthScale`，靠内边距收缩实现，**不会顶破圆形裁切**）。新增 `test/m3/garden_pot_layout_test.dart` **11 条**布局断言（320/360/390 三档屏宽不抛 overflow；同行 x 递增且同高、第 4 格换行；标签不越界；盆沿压在盆口上） | ✅ 已修复（真机复测通过，commit `c0f8298`） |
+| G02 | M2/日上限 + M4/打卡额度 | **[P0]** 日上限只在「点开始专注」时检查一次，**不检查这一场会不会超** → 孩子可选自定义 180 分钟，一场拿下 180 分钟、到账 79 阳光，**一次超掉低年段 60 上限的 32%**。**另一处 [P1]** 当天专注或家长赠予拿满额度 → 成长打卡奖励归 0（打卡「发不出来」） | ① `settle()` 里 `net = computeSoftCap(rawS)`，`rawS` 是**本次会话自己**的原始产出 → 按会话逐次套，非当日累计；`dailyFocusRemaining()` 早已写好却**全仓零调用**（当初就打算这么接，没接上）。② `_dailyRewardGrant` 读的是**当日全部 `earn`**（`earnGrossOnDay` / `earnNetOnDay`），专注 / 赠予一拿满就把成长奖励额度吃干净。③ 分段软顶「第一段即 60 分钟全额」，与「封顶跟随年段」在数学上**不能共存** —— 高年段 120 分钟永远只能拿 79，是摸不到的天花板 | **取消分段软顶**：删 `computeSoftCap()` 与 6 个常量（`kSoftCapDailyMax` / `kSoftCapSeg1..3` / `kSoftCapSeg2Rate` / `kSoftCapSeg3Rate`），改 **1 分钟 = 1 阳光 + 年段硬封顶**。**两条独立额度线**：专注（跟随年段 60/90/120，按 `refType='focus_session'` 聚合）/ 成长奖励（新增 `kTaskCheckinDailyCap = 79`，按 `refType='task_checkin'` 聚合），互不挤占。**额度三道拦**：选时长页灰超额度档位 + 提示「今天还可以专注 N 分钟」→ 开始前按剩余额度截断 → **结算时硬截断**（新增 `effectiveFocusSunlight`，唯一可靠兜底）。**接口与改名**：`settle` 新增 `required int dailyFocusCap`；`sunlight_service` 新增 `focusEarnedToday` / `focusRemainingToday`（额度口径单点收口）；`cappedBySoftCap → cappedByDailyCap`；`_softCapGrant → _dailyRewardGrant`；`FocusSettlement.capped` 改为直接比较 `net < rawS`（不再靠「是否超第一段」推断） | ✅ 已修复（代码 + **348 条测试全绿**；**未出包、待真机复测**） |
+
+## 花园/日上限轮 · 校验
+
+- **`flutter analyze lib test`** → **0 error**。4 条 warning（`adversarial_task_checkin_test.dart` 与 `adversarial_v1_v10_test.dart` 的 `unused_import`、`unused_element_parameter`）已用 `git stash` 对比 HEAD 确认**改动前既有**，非本轮引入，按最小改动纪律**未清理**。
+- **`flutter test --no-pub`** → **348 条全绿**。计数演进：该轮起点 **331** → 花园 +11 = **342** → 日上限 +6 = **348**。
+  - 新增 O1–O6（`test/sunlight_settle_p2_test.dart`）：`effectiveFocusSunlight` 边界 / 单场截断 / 多场累计 / 成长奖励不占专注额度 / 任务奖励单独记账 / `rawS` 语义。
+  - 新增回归（`test/m4/task_checkin_test.dart`）：「**专注拿满 + 家长赠予 → 成长奖励仍发得出来**」。
+- **⚠️ 测试自身的缺陷（本轮一并修，这才是 bug 长期潜伏的真因）**：4 个测试文件里 `netByRefTypeOnDay` 的手写 fake **忽略 `refType` 参数、一律返回当日全部 earn 合计** → 「额度互相挤占」这类缺陷在测试里**永远是绿的**。已全部改为**真按 refType 过滤**（`test/sunlight_settle_p2_test.dart`、`test/m4/task_checkin_test.dart`、`test/m4/adversarial_task_checkin_test.dart`、`test/qa/adversarial_v1_v10_test.dart`）。**纪律：后续新增 fake 必须真过滤 refType。**
+- **装包**：花园轮 `adb -s f05bbc46 install -r` → **Success**；`monkey` 启动后进程存活（PID 3924），logcat 无 `FATAL` / `E/flutter`。**日上限轮按玄参指示暂不出包**（先提交推送，装包另择时间）→ 上表 G02 状态为「待真机复测」。
+- **文档同步（本轮一并做）**：`口径裁定表_v1.md` 新增 **C11**；同步 `产品开发文档_M2M3M4.md`（§1.3 / §3.5 / §3.6 / §6）、`软件设计文档_M1.md`（§7 / §8）、`软件设计文档_M2.md`（结算时序图）、`软件设计文档_M3M4.md`（§3.2 / §3.3 / §9 / §10）、`软件设计文档_M0.md`、`软件设计文档_spikes.md`、`架构设计_SunFocus_MVP.md`（§3.2 / §4.3 / §5 目录 / §6 任务表）、`验证计划_SunFocus_G0G2.md`（§4.3 DoD / 埋点字段名 `softcap_hit → capped`）。**PRD v2.0 正文按玄参自维护处理，保留为历史版本，不在回写范围。**
+- **已知技术债留存**：`child_profile_page.dart` 的 `DEBUG 加1000阳光` 按钮（F34）**提审前必须删**。

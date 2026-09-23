@@ -22,7 +22,7 @@
 
 ```
 lib/
-  core/constants/prd_params.dart          # C3 / C5 / 软顶 / 成长系数 / 夜间边界 全部常量单点
+  core/constants/prd_params.dart          # C3 / C5 / 每日额度 / 成长系数 / 夜间边界 全部常量单点
   domain/
     entities/
       enums.dart                         # AgeTier / RewardCategory / RequestStatus

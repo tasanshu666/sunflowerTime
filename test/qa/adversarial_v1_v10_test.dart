@@ -1,4 +1,4 @@
-/// QA 独立对抗性验证 V1–V10（用户拍板的 8 条经济规则 + 软顶缺口）。
+/// QA 独立对抗性验证 V1–V10（用户拍板的 8 条经济规则 + 成长奖励额度缺口）。
 ///
 /// 本文件是 **QA 视角的独立复现**，不依赖也不修改任何 lib/ 源码，不依赖 Drift /
 /// Flutter（纯 Dart 内存 Fake，`dart test` 亦可跑）。断言的是**修复后的正确行为**：
@@ -6,7 +6,7 @@
 ///
 /// 被测：lib/domain/services/task_checkin_service.dart
 ///       lib/domain/entities/task.dart（effectiveSunlightReward / rewardCapFor）
-///       lib/core/utils/math_ext.dart（computeSoftCap）
+///       lib/core/constants/prd_params.dart（kTaskCheckinDailyCap）
 ///       lib/domain/repositories/task_repository.dart（CheckInAdminRepository CAS）
 library adversarial_v1_v10_test;
 
@@ -15,7 +15,6 @@ import 'package:test/test.dart';
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
-import 'package:sunflower_time/core/utils/math_ext.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -117,7 +116,13 @@ class _MemTaskRepo implements TaskRepository, CheckInAdminRepository {
 class _MemSunlightRepo implements SunlightRepository {
   final List<SunlightEntry> entries = <SunlightEntry>[];
 
-  void seedEarn(String key, double gross, double net, DateTime ts) {
+  void seedEarn(
+    String key,
+    double gross,
+    double net,
+    DateTime ts, {
+    String refType = 'focus_session',
+  }) {
     entries.add(SunlightEntry(
       id: 'seed-${entries.length}',
       ts: ts,
@@ -125,11 +130,15 @@ class _MemSunlightRepo implements SunlightRepository {
       gross: gross,
       net: net,
       balanceAfter: net,
-      refType: 'focus_session',
+      refType: refType,
       refId: 'seed',
       dayKey: key,
     ));
   }
+
+  /// 预置「当日已发成长奖励」净额（成长奖励日上限核算的前置态，2026-09-23 口径）。
+  void seedCheckInNet(String key, double net, DateTime ts) =>
+      seedEarn(key, net, net, ts, refType: 'task_checkin');
 
   @override
   Future<double> append(SunlightEntry entry) async {
@@ -164,7 +173,9 @@ class _MemSunlightRepo implements SunlightRepository {
   @override
   Future<double> verifiedRedeemTotal() async => 0;
   @override
-  Future<double> netByRefTypeOnDay(String refType, String key) async => 0;
+  Future<double> netByRefTypeOnDay(String refType, String key) async => entries
+      .where((SunlightEntry e) => e.refType == refType && e.dayKey == key)
+      .fold<double>(0.0, (double a, SunlightEntry e) => a + e.net);
   @override
   Future<double> netByRefTypeInMonth(String refType, String key) async => 0;
 
@@ -338,15 +349,15 @@ void main() {
   });
 
   // ════════════════════════════════════════════════════════════════════════
-  group('V2 并发不同记录核销（软顶差额非原子 · 第 8 项闸门靶子）', () {
-    test('V2 软顶余量只够一份 → 并发核销两条不同 pending，当日 earn net ≤ computeSoftCap(gross)',
+  group('V2 并发不同记录核销（额度差额非原子 · 第 8 项闸门靶子）', () {
+    test('V2 额度余量只够一份 → 并发核销两条不同 pending，当日成长奖励净额 ≤ kTaskCheckinDailyCap',
         () async {
       final ctx = _make();
       final Task t1 = _task(id: 't1'); // reward 12
       final Task t2 = _task(id: 't2'); // reward 12
       ctx.tasks.store.addAll(<Task>[t1, t2]);
-      // 当日已发 55（net=gross=55）。
-      ctx.ledger.seedEarn(dayKey(day), 55, 55, day);
+      // 当日已发成长奖励 70 → 只剩 9 额度，只够一份「补差额」。
+      ctx.ledger.seedCheckInNet(dayKey(day), 70, day);
 
       await ctx.svc.checkIn(task: t1, now: day);
       await ctx.svc.checkIn(task: t2, now: day);
@@ -360,12 +371,13 @@ void main() {
       // 两条不同记录，均应成功（CAS 针对不同 id，各能抢占）。
       expect(r.where((String s) => s == 'ok').length, 2);
 
-      final double gross = await ctx.ledger.earnGrossOnDay(dayKey(day));
-      final double net = await ctx.ledger.earnNetOnDay(dayKey(day));
-      // 核心不变量：当日 earn net 合计不得超过 computeSoftCap(当日 earn gross 合计)。
-      // 未加串行闸门时：两条同时读 grantedSoFar=55 → 各补 8.5 → net=72 > softcap(79)=69.5。
-      expect(net, lessThanOrEqualTo(computeSoftCap(gross) + 1e-9),
-          reason: '软顶被突破：net=$net > softcap($gross)=${computeSoftCap(gross)}');
+      final double net = await ctx.ledger
+          .netByRefTypeOnDay(TaskCheckInService.checkInRefType, dayKey(day));
+      // 核心不变量：当日成长奖励净额合计不得超过 kTaskCheckinDailyCap。
+      // 未加串行闸门时：两条同时读 grantedSoFar=70 → 各补 9 → net=88 > 79。
+      // （2026-09-23 前这里断言的是「当日全部 earn 过分段软顶」，该口径已作废。）
+      expect(net, lessThanOrEqualTo(kTaskCheckinDailyCap + 1e-9),
+          reason: '成长奖励上限被突破：net=$net > cap=$kTaskCheckinDailyCap');
     });
   });
 

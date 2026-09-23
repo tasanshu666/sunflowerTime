@@ -13,7 +13,7 @@
 | 项 | 说明 |
 |---|---|
 | 本文件性质 | 规划文档，**不写代码**；产出由主理人汇编进最终开发计划 |
-| 数值口径 | 一律引用 PRD 参数，**不重新发明**（软顶、分龄 K、免确认双条件、月度池均直引 §4.5/§4.8） |
+| 数值口径 | 一律引用 PRD 参数，**不重新发明**（每日额度、分龄 K、免确认双条件、月度池均直引 §4.5/§4.8） |
 | 估算纪律 | 按**单人兼职 20h/周**估，含集成/调试/迭代缓冲，**不乐观** |
 | 样式 | 多表格、少散文；判断题给明确结论 + 理由 |
 
@@ -198,7 +198,7 @@
 | `focus_session_start` | 横屏放置进入专注 | ts, age_tier, duration_setting, device_model | WFD / 设备可得性 |
 | `focus_session_end` | 到时结算 / 竖屏退出 / 自然结束 | session_id, actual_focus_min, completion_rate, is_early_exit | WFD / 有效专注判定 |
 | `valid_focus_day` | 当日达成 ≥1 次有效专注（≥15min 且完成率≥90%） | date, age_tier | WFD（北极星） |
-| `sun_earned` | 阳光产出（专注/任务/完美日） | source, amount, softcap_hit(bool) | 经济 / 软顶撞顶 |
+| `sun_earned` | 阳光产出（专注/任务/完美日） | source, amount, capped(bool) | 经济 / 额度撞顶 |
 | `task_checkin` | 任务打卡 | task_id, subject, with_focus(bool) | 习惯 / 完美日 |
 | `reward_redeem_request` | 孩子发起兑换申请（待确认） | reward_id, cost_sun, category(自服务/家长经手), tier, is_auto_pass(bool) | 核销队列 |
 | `reward_verified` | 家长核销（显式处理） | verify_ts, within_48h(bool), amount, tier, is_small(≤50)/is_large(>50) | 家长核销处理 |
@@ -292,8 +292,8 @@
 
 ### 4.3 M2 经济与商店核销 DoD
 
-- [ ] 阳光经济：专注 1/min、任务 12/任务（5–40）、完美日 ×1.5 计入软顶
-- [ ] **软顶三段写死**：0–60 100% / 60–90 50% / 90–110 20% / >110 0%（日上限 79，§4.5）
+- [ ] 阳光经济：专注 1/min、任务 12/任务（5–40）、完美日 ×1.5 计入额度
+- [x] **每日额度写死**（2026-09-23 玄参裁定，见 `口径裁定表_v1.md` C11）：专注 **1 分钟 = 1 阳光**，年段日上限 **低 60 / 中 90 / 高 120**；成长奖励**独立**上限 **79**（`kTaskCheckinDailyCap`），两条线按 `refType` 隔离、互不挤占；额度**三道拦**（选时长页灰超额度档位 → 开始前截断 → **结算硬截断** `effectiveFocusSunlight`）。~~旧「软顶三段 0–60 / 60–90 / 90–110 / 硬顶 79」已废止~~
 - [ ] **分龄 K 写死**：K=1.0 高 / 0.4 低；产出侧不乘 K（§4.5 E3）
 - [ ] 商店页 + 奖励定价表（§4.8 全 11 项高/低 + 频次上限）
 - [ ] **兑换申请队列** + **家长核销**（PIN 进入后点「已兑现」，阳光扣除）

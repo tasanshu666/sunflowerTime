@@ -26,6 +26,7 @@ import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
@@ -90,6 +91,14 @@ class _FocusPageState extends ConsumerState<FocusPage>
   /// 当前分龄档（进入时从设置读取，供埋点 payload.tier，T-B）。
   AgeTier _tier = AgeTier.low;
 
+  /// 本次专注适用的**每日专注上限**（分钟）：进入时与 [_tier] 一起从设置读取，
+  /// 结算时传给 `SunlightService.settle` 做额度截断（2026-09-23 日上限口径）。
+  ///
+  /// 取 `settings.dailyFocusCap` 而**不是**按 [_tier] 查 `kAgeTierParams`：家长可在
+  /// 设置页单独覆盖上限（下拉 60/90/120），按年段查表会忽略这次覆盖。
+  /// 初值取最严档，仅在设置读取失败（本机 SQLite 几乎不可能）时才会实际生效。
+  int _dailyFocusCap = kDailyFocusCapLow;
+
   final DndController _dnd = DndController();
   bool _dndHintShown = false;
   bool _dndBanner = false; // 未获勿扰授权时顶部常驻提示条幅（B30）
@@ -152,6 +161,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
     final AppSettings s = await ref.read(settingsRepositoryProvider).getSettings();
     if (!mounted) return;
     _tier = s.ageTier; // T-B：记录档位供埋点
+    _dailyFocusCap = s.dailyFocusCap; // 日上限口径：结算按此截断
     final AudioService audio = ref.read(audioServiceProvider);
     audio.applySettings(soundOn: s.soundOn, bgmOn: s.bgmOn);
     if (s.bgmOn) unawaited(audio.startBgm());
@@ -301,6 +311,8 @@ class _FocusPageState extends ConsumerState<FocusPage>
               start: start,
               end: DateTime.now(),
               plannedMin: widget.plannedMinutes,
+              // 日上限口径（2026-09-23）：按年段每日专注上限硬截断本次产出。
+              dailyFocusCap: _dailyFocusCap,
             );
 
     // M4：联动成长项自动结算（仅从「成长」进入的专注带 taskId）。

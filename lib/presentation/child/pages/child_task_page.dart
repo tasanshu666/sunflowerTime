@@ -98,10 +98,12 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
     if (o.status == CheckInStatus.pending) {
       _snack('已经告诉爸爸妈妈啦，等他们确认就发阳光 🌻');
     } else if (o.granted <= 0) {
-      _snack('今日阳光已达上限 ${kSoftCapDailyMax.toInt()}，明天再来');
-    } else if (o.cappedBySoftCap) {
+      // 口径（2026-09-23）：这是**成长奖励**自己的日上限，与专注的每日专注上限
+      // （低 60 / 中 90 / 高 120 分钟）无关，故文案不再说「今日阳光已达上限」。
+      _snack('今天的成长奖励已经拿满 ${kTaskCheckinDailyCap.toInt()} 啦，明天再来');
+    } else if (o.cappedByDailyCap) {
       _snack('太棒了！+${_fmtSun(o.granted)} 阳光'
-          '（今日阳光已达上限，本次只到账 ${_fmtSun(o.granted)}）');
+          '（今日成长奖励已达上限，本次只到账 ${_fmtSun(o.granted)}）');
     } else {
       _snack('太棒了！+${_fmtSun(o.granted)} 阳光');
     }

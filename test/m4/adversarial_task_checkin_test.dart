@@ -128,7 +128,13 @@ class _MemTaskRepo implements TaskRepository, CheckInAdminRepository {
 class _MemSunlightRepo implements SunlightRepository {
   final List<SunlightEntry> entries = <SunlightEntry>[];
 
-  void seedEarn(String key, double gross, double net, DateTime ts) {
+  void seedEarn(
+    String key,
+    double gross,
+    double net,
+    DateTime ts, {
+    String refType = 'focus_session',
+  }) {
     entries.add(SunlightEntry(
       id: 'seed-${entries.length}',
       ts: ts,
@@ -136,11 +142,15 @@ class _MemSunlightRepo implements SunlightRepository {
       gross: gross,
       net: net,
       balanceAfter: net,
-      refType: 'focus_session',
+      refType: refType,
       refId: 'seed',
       dayKey: key,
     ));
   }
+
+  /// 预置「当日已发成长奖励」净额（成长奖励日上限核算的前置态，2026-09-23 口径）。
+  void seedCheckInNet(String key, double net, DateTime ts) =>
+      seedEarn(key, net, net, ts, refType: 'task_checkin');
 
   @override
   Future<double> append(SunlightEntry entry) async {
@@ -175,7 +185,9 @@ class _MemSunlightRepo implements SunlightRepository {
   @override
   Future<double> verifiedRedeemTotal() async => 0;
   @override
-  Future<double> netByRefTypeOnDay(String refType, String key) async => 0;
+  Future<double> netByRefTypeOnDay(String refType, String key) async => entries
+      .where((SunlightEntry e) => e.refType == refType && e.dayKey == key)
+      .fold<double>(0.0, (double a, SunlightEntry e) => a + e.net);
   @override
   Future<double> netByRefTypeInMonth(String refType, String key) async => 0;
 
@@ -434,16 +446,16 @@ void main() {
       expect(ctx.ledger.entries, hasLength(1));
     });
 
-    test('I9 软顶只补差额：当日已发 55 → 核销 12 只补 8.5', () async {
+    test('I9 成长奖励上限只补差额：当日已发 72 → 核销 12 只补 7（撞 79）', () async {
       final ctx = _make();
-      ctx.ledger.seedEarn(dayKey(day), 55, 55, day);
+      ctx.ledger.seedCheckInNet(dayKey(day), 72, day);
       final Task t = _task(id: 't1');
       await ctx.svc.checkIn(task: t, now: day);
       final TaskCheckInOutcome out =
           await ctx.svc.verifyCheckIn(ctx.tasks.checkIns.single.id, day);
 
-      expect(out.granted, closeTo(8.5, 1e-9));
-      expect(out.cappedBySoftCap, isTrue);
+      expect(out.granted, closeTo(7, 1e-9));
+      expect(out.cappedByDailyCap, isTrue);
     });
   });
 
@@ -685,21 +697,21 @@ void main() {
       expect(o.granted, 0); // pending
     });
 
-    test('对抗：软顶仍在封顶值之上再削（联动固定 6，当日已发 76 → 只补软顶差）',
+    test('对抗：成长奖励上限仍在削（联动固定 6，当日已发 76 → 只补 3）',
         () async {
       final ctx = _make();
       final Task f1 =
           _task(id: 'f1', requiresFocus: true, minFocus: 15, reward: 12);
-      // 当日已发 76（net=76, gross=76）。
-      ctx.ledger.seedEarn(dayKey(day), 76, 76, day);
+      // 当日已发成长奖励 76（只剩 3 额度）。
+      ctx.ledger.seedCheckInNet(dayKey(day), 76, day);
       final FocusSession s =
           ctx.focus.addSession(actualMin: 20, plannedMin: 20, start: day);
       final TaskCheckInOutcome o =
           await ctx.svc.settleFocusLinked(task: f1, session: s, now: day);
-      // computeSoftCap(76+6=82)=60+(82-60)*0.5=71 → grant=71-76 <0 → 0
+      // 2026-09-23 口径：grant = min(6, 79-76) = 3
       expect(o.reward, closeTo(6.0, 1e-9));
-      expect(o.granted, 0);
-      expect(o.cappedBySoftCap, isTrue);
+      expect(o.granted, closeTo(3.0, 1e-9));
+      expect(o.cappedByDailyCap, isTrue);
     });
   });
 

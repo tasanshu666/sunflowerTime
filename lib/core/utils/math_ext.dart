@@ -1,32 +1,35 @@
-/// 经济计算工具：软顶公式（§4.5）、分龄换算（K 仅作用于消耗侧）。
-/// 对应架构设计 §3.2（软顶可追溯）、§4.5（公式③）。
+/// 经济计算工具：专注阳光的有效值（§4.5）、分龄换算（K 仅作用于消耗侧）。
+/// 对应架构设计 §3.2（可追溯）、§4.5（公式③）。
 library math_ext;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 
-/// 软顶（每日产出上限）计算骨架。
+/// 专注阳光的有效值（2026-09-23 口径，取代原「分段软顶」）。
 ///
 /// 设计铁律（§3.2）：产出侧不乘 K；单一 append-only 账本 `sunlight_ledger`，
-/// 每条 earn 同时记 `gross=S` 与 `net=有效阳光`，`day_key` 可日聚合，审计可还原
-/// 「原始 S=162 → 实得 79」。
+/// 每条 earn 同时记 `gross=原始` 与 `net=有效`，`day_key` 可日聚合，审计可还原
+/// 「原始 162 → 实得 120（年段额度用完）」。
 ///
-/// 公式（§4.5 公式③，分段；数值全部引用 prd_params 常量，防孪生）：
-///   S ≤ kSoftCapSeg1          → 有效 = S
-///   kSoftCapSeg1<S≤kSoftCapSeg2 → 有效 = 60 + (S-60)*0.5
-///   kSoftCapSeg2<S≤kSoftCapSeg3 → 有效 = 75 + (S-90)*0.2
-///   S > kSoftCapSeg3          → 有效 = kSoftCapDailyMax（79）
-double computeSoftCap(double rawS) {
-  if (rawS <= kSoftCapSeg1) return rawS;
-  if (rawS <= kSoftCapSeg2) {
-    return kSoftCapSeg1 + (rawS - kSoftCapSeg1) * kSoftCapSeg2Rate;
-  }
-  // 第二段末累计值（60 + 30*0.5 = 75），由常量推导，不写死。
-  const double accumulatedToSeg2 =
-      kSoftCapSeg1 + (kSoftCapSeg2 - kSoftCapSeg1) * kSoftCapSeg2Rate;
-  if (rawS <= kSoftCapSeg3) {
-    return accumulatedToSeg2 + (rawS - kSoftCapSeg2) * kSoftCapSeg3Rate;
-  }
-  return kSoftCapDailyMax; // 软顶封顶
+/// 公式（玄参 2026-09-23 拍板）：
+///   专注 1 分钟 = 1 阳光（`kSunlightPerFocusMinute = 1.0`，见引擎），
+///   唯一约束是**今日剩余额度**（年段日上限 − 今日已入账专注阳光）：
+///     有效 = min(本场专注阳光, 今日剩余额度)
+///
+/// 为什么取消原分段打薄（0–60 全额 / 60–90 计 50% / 90–110 计 20% / 硬顶 79）：
+/// 分段的**第一段就是 60 分钟全额**，因此「封顶值跟随年段」与「分段打薄」在数学上
+/// 不能共存 —— 一旦把封顶降到年段值，超过年段值的部分必然是零收益，打薄没有中间
+/// 地带。而旧口径下高年段孩子专注满 120 分钟只能拿到 79 阳光，「120」是摸不到的
+/// 天花板；故按玄参裁定改为 1:1 + 年段硬封顶。
+///
+/// [remainingAllowance] 由调用方从**账本**（`refType='focus_session'` 的当日净额）
+/// 派生，保证「额度消耗」只有一个真源。成长奖励 / 家长赠予是独立 refType，
+/// 不占本额度。
+double effectiveFocusSunlight({
+  required double focusSunlight,
+  required double remainingAllowance,
+}) {
+  if (focusSunlight <= 0 || remainingAllowance <= 0) return 0;
+  return focusSunlight < remainingAllowance ? focusSunlight : remainingAllowance;
 }
 
 /// 免确认周自动放行上限（C5）：

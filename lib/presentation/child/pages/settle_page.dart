@@ -125,7 +125,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
           'gross': s.rawS,
           'net': s.net,
           'balance_after': s.balanceAfter,
-          'capped': s.rawS > kSoftCapSeg1,
+          'capped': s.capped,
         },
       ));
     } catch (_) {}
@@ -172,7 +172,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
     if (o == null) return const <Widget>[];
 
     if (o.status == CheckInStatus.verified) {
-      final String capped = o.cappedBySoftCap
+      final String capped = o.cappedByDailyCap
           ? '（今日阳光已达上限，本次只到账 ${_fmtSun(o.granted)} ☀）'
           : '';
       return <Widget>[

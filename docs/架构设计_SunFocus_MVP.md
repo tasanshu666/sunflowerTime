@@ -11,10 +11,10 @@
 
 | 纪律 | 落地方式 |
 |---|---|
-| 数值不孪生 | 所有可调数值集中在 `core/constants/prd_params.dart` 单点定义，**逐条注释对应 PRD 节号**（如 `nightBoundaryDefault → §6.1`、`softCapSegments → §4.5`）。页面/服务只引用常量，禁止字面量。 |
+| 数值不孪生 | 所有可调数值集中在 `core/constants/prd_params.dart` 单点定义，**逐条注释对应 PRD 节号**（如 `nightBoundaryDefault → §6.1`、`kDailyFocusCapHigh → §6.2`）。页面/服务只引用常量，禁止字面量。 |
 | 夜间边界唯一值 | `Settings.nightBoundary` 是唯一收口值，锁定页/防沉迷设置/可用时段全部读它（PRD §6.1 不变式）。 |
 | 产出侧不乘 K | `K` 仅作用于消耗侧定价（§4.5 公式③），阳光产出一律 1/min（§4.1.5）。 |
-| 可审核 | 阳光流水 append-only，软顶/月池/排队三套规则全部可追溯对账（见 §3）。 |
+| 可审核 | 阳光流水 append-only，每日额度/月池/排队三套规则全部可追溯对账（见 §3）。 |
 
 ---
 
@@ -129,10 +129,13 @@ flowchart TB
 
 设计铁律：**单一 append-only 账本 `sunlight_ledger` + 独立 `monthly_pool` 预算池**。
 
-- **软顶（每日产出上限）**：结算时由 `SunlightService.computeSoftCap(S)` 计算（公式读 §4.5）。账本每条 earn 同时记 `gross=S` 与 `net=有效阳光`，`day_key` 可日聚合，审计可还原"原始 S=162 → 实得 79"。
+- **每日额度（每日产出上限）**：2026-09-23 起（`口径裁定表_v1.md` C11）为**两条独立额度线** ——
+  · 专注：1 分钟 = 1 阳光，唯一约束是年段日上限（低 60 / 中 90 / 高 120），截断由 `effectiveFocusSunlight` 在**结算时**执行；
+  · 成长奖励：独立上限 `kTaskCheckinDailyCap = 79`，只按 `refType='task_checkin'` 聚合，与前一条互不挤占。
+  账本每条 earn 同时记 `gross=原始` 与 `net=有效`，`day_key` 可日聚合，审计可还原「原始 S=162 → 实得 120（年段额度用完）」。
 - **月度池（每月兑换预算）**：`monthly_pool.used` 仅记录**家长显式核销 + 免确认自动放行**的扣减；与账本相互独立但**必须一致**（账本 sunlight ≥ 0，池 used ≤ budget）。
 - **排队放行**：超池时 `redemption_request.status=queued`，**不立即扣账本也不扣池**；每月 1 日 0 点 `RedemptionService.releaseQueue()` 按 `requested_at` 升序释放，写入 ledger(`net=-cost`) + 新月份 `used+=cost`。
-- **对账 SQL 示例**（DAO 内）：`SELECT SUM(net) FROM sunlight_ledger WHERE day_key=?`（日软顶校验）；`SELECT SUM(net) FROM sunlight_ledger WHERE type='redeem' AND ref_id IN (SELECT id FROM redemption_request WHERE status='verified')`（核销总额对账）。
+- **对账 SQL 示例**（DAO 内）：`SELECT SUM(net) FROM sunlight_ledger WHERE day_key=? AND ref_type='focus_session'`（专注日额度校验）；`SELECT SUM(net) FROM sunlight_ledger WHERE type='redeem' AND ref_id IN (SELECT id FROM redemption_request WHERE status='verified')`（核销总额对账）。
 
 ---
 
@@ -172,7 +175,7 @@ sequenceDiagram
     FP->>FE: stop()
     FE->>FE: 实际专注 ≥5分钟?(§6.2)
     alt ≥5分钟
-        FE->>SL: computeSoftCap(rawS)
+        FE->>SL: effectiveFocusSunlight(rawS, 今日剩余额度)
         SL->>LED: appendEarn(gross=S, net=有效)
         FE->>FS: saveSession()
         FP->>FP: 结算动画(光回罐)
@@ -226,7 +229,7 @@ sequenceDiagram
     end
 ```
 
-### 4.3 ③ 软顶与月度池的联合计算
+### 4.3 ③ 每日额度与月度池的联合计算
 
 ```mermaid
 sequenceDiagram
@@ -240,8 +243,8 @@ sequenceDiagram
     FE->>SL: rawFocusMin=实际专注分钟
     TS->>SL: taskCount, perfectDayCoeff(×1.5)
     SL->>SL: S=专注分钟×1+任务数×12×完美日系数
-    SL->>SL: 有效=min(S,60)+max(0,min(S,90)-60)×0.5+max(0,min(S,110)-90)×0.2
-    SL->>LED: appendEarn(gross=S, net=有效)  %% 软顶可追溯
+    SL->>SL: 有效=min(S, 今日剩余额度)  %% 额度=年段日上限(60/90/120)−今日已入账专注阳光
+    SL->>LED: appendEarn(gross=S, net=有效)  %% 额度截断可追溯
     Note over MP: 月池仅在兑换时联动
     RS->>MP: 查询本月 used/budget
     MP-->>RS: 剩余=预算-used-自动放行累计
@@ -264,7 +267,7 @@ lib/
 │   ├── errors/failures.dart
 │   ├── utils/
 │   │   ├── datetime_ext.dart      # 月池重置(每月1日0点)/夜间边界判断
-│   │   └── math_ext.dart          # 软顶公式/分龄换算
+│   │   └── math_ext.dart          # 每日额度截断/分龄换算
 │   └── di/providers.dart          # 全局装配（含 Repository 注入点/未来换云实现）
 ├── domain/
 │   ├── entities/                  # 实体（见 §3.1）
@@ -279,7 +282,7 @@ lib/
 │   └── services/                  # 领域服务（用例）
 │       ├── focus_engine.dart          # 计时/在场/产出速率/最短5分钟/恢复10秒
 │       ├── presence_detector.dart     # 屏幕交互检测：灭屏/竖屏/无触摸→离席
-│       ├── sunlight_service.dart      # 软顶计算 + 记账
+│       ├── sunlight_service.dart      # 每日额度截断 + 记账
 │       ├── redemption_service.dart    # 兑换/免确认双条件/月池/排队
 │       ├── cooldown_service.dart      # 冷却期状态化/强制替代/双拒绝熔断
 │       ├── anti_addiction_service.dart# 防沉迷（读夜间边界单一值）
@@ -352,7 +355,7 @@ lib/
 | T07 | 在场检测（屏幕交互检测）+ 方向桥 | M1 | domain/services/presence_detector.dart / shared/orientation_bridge.dart | T01 | 10 | ∥T06 |
 | T08 | 四档反馈呈现 + 向日葵画布 | M1 | widgets/sunflower_canvas.dart / feedback_overlay.dart | T01 | 14 | ∥T06/T10 |
 | T09 | 打盹屏专注页 + 入口页 + 结算动画 | M1 | focus_page.dart / entry_page.dart / settle_page.dart | T06,T07,T08 | 16 | |
-| T10 | 阳光记账与软顶 SunlightService | M1 | domain/services/sunlight_service.dart / local_sunlight_repository.dart | T04 | 12 | ∥T06 |
+| T10 | 阳光记账与每日额度 SunlightService | M1 | domain/services/sunlight_service.dart / local_sunlight_repository.dart | T04 | 12 | ∥T06 |
 | T11 | 防沉迷服务 + 锁定页/休息页/假期 | M1 | anti_addiction_service.dart / lock_page.dart / rest_page.dart | T04,T05 | 10 | ∥T06 |
 | T12 | 奖励模板 + 月度池 + 设置项数据 | M2 | reward_template.dart / monthly_pool.dart / settings / reward_repo | T02,T03,T04 | 12 | ∥T14 |
 | T13 | 兑换服务（免确认双条件+月池+排队） | M2 | domain/services/redemption_service.dart | T12,T04 | 16 | |
@@ -381,7 +384,7 @@ lib/
 | 里程碑 | 范围（对应 PRD） | 任务 | 周数 | 累计工时 | 验证窗口 |
 |---|---|---|---|---|---|
 | **M0 骨架** | 工程脚手架/DB/Repository/参数单点 | T01–T05 | 2.5 周 | 50h | — |
-| **M1 专注闭环** | 打盹屏+计时+四档+结算+软顶+防沉迷骨架（可跑通做 G1 影子测试） | T06–T11 | 4 周 | 76h | **G1 形态**（W4–6，10 户 7 天影子测试，插在 M1 后） |
+| **M1 专注闭环** | 打盹屏+计时+四档+结算+每日额度+防沉迷骨架（可跑通做 G1 影子测试） | T06–T11 | 4 周 | 76h | **G1 形态**（W4–6，10 户 7 天影子测试，插在 M1 后） |
 | **M2 经济与商店核销**（承重墙） | 奖励/月池/免确认/排队/冷却/商店/家长核销/夸夸台 | T12–T18 | 4.5 周 | 86h | **G2 核心循环主门**（W11 起 10 周验证，与 M3/M4 并行） |
 | **M3 花园/任务/家长端补齐** | 任务打卡/植物/花园/家长设置/埋点/首页 | T19–T24 | 4 周 | 72h | （并行 G2 验证期） |
 | **M4 打磨与上架** | 合规 G0/性能/联调/上架 | T25–T28 | 3 周 | 52h | G0 门（W1–2 起跑，M4 收口） |

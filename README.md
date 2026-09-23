@@ -55,7 +55,7 @@ M2 完成 **且** 埋点最低事件集上线 **且** 完成 1 周埋点校准�
 | [docs/架构设计_SunFocus_MVP.md](docs/架构设计_SunFocus_MVP.md) | 系统架构、数据模型、28 项任务分解 |
 | [docs/验证计划_SunFocus_G0G2.md](docs/验证计划_SunFocus_G0G2.md) | G0 合规、G1 形态、G2 核心循环、M0–M4 验收标准 |
 | [docs/class-diagram.mermaid](docs/class-diagram.mermaid) | 类图 |
-| [docs/sequence-diagram.mermaid](docs/sequence-diagram.mermaid) | 时序图（专注闭环 / 兑换核销 / 软顶月池） |
+| [docs/sequence-diagram.mermaid](docs/sequence-diagram.mermaid) | 时序图（专注闭环 / 兑换核销 / 每日额度与月度池） |
 
 **参考**
 

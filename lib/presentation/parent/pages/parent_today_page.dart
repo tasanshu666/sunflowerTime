@@ -232,8 +232,8 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
           .read(taskCheckInServiceProvider)
           .verifyCheckIn(widget.item.checkIn.id, DateTime.now());
       if (!mounted) return;
-      final String capped = outcome.cappedBySoftCap
-          ? '（今日阳光已达上限，本次只到账 ${_fmtSun(outcome.granted)} ☀）'
+      final String capped = outcome.cappedByDailyCap
+          ? '（今日成长奖励已达上限，本次只到账 ${_fmtSun(outcome.granted)} ☀）'
           : '';
       _snack('已确认发放，+${_fmtSun(outcome.granted)} 阳光 🌻$capped');
       // 同步孩子端：自增经济修订号 → 今日卡 / 成长 / 商店 / 花园刷新。

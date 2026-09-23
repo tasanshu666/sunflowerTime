@@ -1,4 +1,4 @@
-package com.example.sunflower_time
+package com.sunflowertime.app
 
 import android.app.NotificationManager
 import android.content.Context

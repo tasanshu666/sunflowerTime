@@ -1,0 +1,61 @@
+%% 向日葵专注 SunFocus · P0 缺口补全 时序图（A 计时启停与拦截 / B 埋点）
+%% 作者：Bob（架构师）｜2026-09-23
+%% 注：本文件为功能范围时序图；项目级时序图仍为 docs/sequence-diagram.mermaid（未改动）
+
+sequenceDiagram
+    autonumber
+    participant U as 孩子
+    participant Shell as ChildShellPage
+    participant Ctrl as AppUsageController
+    participant Svc as AppUsageService(纯函数)
+    participant Prefs as SharedPreferences
+    participant Mem as MemoirService
+    participant Trk as TrackingRepository
+
+    Note over Shell,Ctrl: A · 外壳挂载（index=0 今日）→ 不计时，无定时器
+
+    U->>Shell: 点娱乐 tab（花园/商店/我的）
+    Shell->>Ctrl: 读 AppUsageState.reached
+    alt reached == true（今日逛App时间到顶）
+        Shell-->>U: 分因温和提示 + 引导去专注（不切换 tab）
+    else reached == false
+        Shell->>Ctrl: startCounting()
+        Ctrl->>Prefs: 读 (app_usage_date, app_usage_seconds)
+        Ctrl->>Ctrl: baseAt = now；起 Timer.periodic(5s)
+    end
+
+    loop 每 5s（仅娱乐 tab 且前台）
+        Ctrl->>Svc: advance(storedDate, seconds, baseAt, now)
+        Svc-->>Ctrl: AppUsageTick(date, seconds, baseAt=now)
+        Ctrl->>Prefs: saveAppUsage(date, seconds)
+        Ctrl-->>Shell: reached 可能翻 true（→ 下次点击即拦）
+    end
+
+    U->>Shell: 点今日/成长 或 切后台 或 进专注(go /entry)
+    Shell->>Ctrl: stopCounting()
+    Ctrl->>Svc: advance(..., now)   %% 收尾结算一次
+    Ctrl->>Prefs: 落盘
+    Ctrl->>Ctrl: 取消 Timer；baseAt=null
+
+    Note over Shell: 进程被杀 = 暂停（精度损失 ≤ 1 tick）；dispose 必取消 Timer（防 pending 断言）
+
+    %% ── B · 纪念册埋点 ──
+    Note over Mem,Trk: B1 · App 启动（main.dart, unawaited）
+    Shell->>Mem: ensureWeeklySnapshot(now)   %% 实为 main 启动序列
+    Mem->>Trk: eventsOfType(milestone)  ← 去重
+    alt 本周已有 garden_snapshot
+        Mem-->>Shell: 跳过
+    else 本周未写
+        Mem->>Trk: track(garden_snapshot, week_no, garden_state)
+    end
+
+    Note over Mem,Trk: B2 · 结算（settle_page.initState）
+    Mem->>Trk: eventsOfType(milestone)  ← 去重
+    alt 该 type 已写过
+        Mem-->>U: 跳过
+    else 新跨过
+        Mem->>Trk: track(milestone_event, type, ts)
+    end
+
+    Note over Mem,Trk: B3 · 夸夸台（parent_praise_page._add）
+    Mem->>Trk: track(praise_sent, content_hash, ts)

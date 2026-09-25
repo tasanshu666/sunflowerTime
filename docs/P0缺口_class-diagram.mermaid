@@ -1,0 +1,107 @@
+%% 向日葵专注 SunFocus · P0 缺口补全 类图（A 防沉迷 / B 纪念册埋点 / D 美术回退）
+%% 作者：Bob（架构师）｜2026-09-23｜仅本次新增/变更的类与既有类的关系
+%% 注：本文件为功能范围类图；项目级全景类图仍为 docs/class-diagram.mermaid（未改动）
+
+classDiagram
+    %% ── 既有（只标注本次相关）──
+    class AppSettings {
+        +int dailyAppCapMinutes
+        +int dailyFocusCap
+        +AgeTier ageTier
+        +copyWith()
+    }
+
+    class AntiAddictionService {
+        <<new method, enum unchanged>>
+        +bool isNightLocked(AppSettings, DateTime)
+        +double dailyFocusRemaining(AppSettings, double)
+        +bool restRequired(AppSettings, int)
+        +AntiAddictionDecision evaluate(...)
+        +bool isAppCapReached(AppSettings, int appUsageSeconds)  %% A 新增
+    }
+
+    class AntiAddictionDecision {
+        <<enum, unchanged>>
+        allowed
+        nightLocked
+        dailyCapReached
+        restRequired
+    }
+
+    %% ── A 新增 ──
+    class AppUsageTick {
+        +String date
+        +int seconds
+        +DateTime baseAt
+    }
+
+    class AppUsageService {
+        <<pure, flutter-free>>
+        +AppUsageTick advance(storedDate, storedSeconds, baseAt, now)$
+        +bool isCapReached(capMinutes, secondsToday)$
+    }
+
+    class AppUsageController {
+        <<Riverpod Notifier>>
+        -Timer ticker
+        -DateTime baseAt
+        +AppUsageState build()
+        +Future~void~ startCounting()
+        +Future~void~ stopCounting()
+        +bool isEntertainmentTab(int)
+    }
+
+    class AppUsageState {
+        +int secondsToday
+        +int capSeconds
+        +bool counting
+        +bool reached
+        +copyWith()
+    }
+
+    class SettingsStore {
+        <<prefs>>
+        +appUsageDate()
+        +appUsageSeconds()
+        +saveAppUsage(date, seconds)
+    }
+
+    %% ── B 新增 ──
+    class MemoirService {
+        <<domain, flutter-free>>
+        +ensureWeeklySnapshot(now)
+        +recordMilestone(type, now)
+        +recordPraiseSent(content, now)
+    }
+
+    class TrackingRepository {
+        <<interface, NOT changed>>
+        +track(TrackingEvent)
+        +eventsOfType(TrackingType)
+        +exportJsonl(from, to)
+    }
+
+    class PlantRepository {
+        <<interface, NOT changed>>
+        +plants()
+    }
+
+    %% ── D 变更 ──
+    class PlantArtCandidates {
+        <<public pure>>
+        +forPlant(speciesId, stage, status)$ "3→5 候选"
+        +resolve(assets, speciesId, stage, status)$
+    }
+
+    %% ── 关系 ──
+    AppUsageService ..> AppUsageTick : returns
+    AppUsageController --> AppUsageService : uses
+    AppUsageController --> AppUsageState : state
+    AppUsageController --> SettingsStore : read/write prefs
+    AppUsageController ..> AppSettings : reads dailyAppCapMinutes
+    AntiAddictionService ..> AppSettings : isAppCapReached(s)
+
+    MemoirService --> TrackingRepository : track / eventsOfType(dedup)
+    MemoirService --> PlantRepository : garden_state
+
+    AppUsageService ..> AntiAddictionService : 同口径(cap*60)

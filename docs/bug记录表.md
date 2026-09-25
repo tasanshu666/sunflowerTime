@@ -516,6 +516,7 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 | F37 | M2/指标 | **「核销履约率」指标（含 G2 ≥70% 硬门槛）取消** | 玄参：「简单一点，不要什么核销履约率」。该指标① 口径虚设（分母要排除免确认自动通过，但当前兑换一律走待核销、无样本可排除）；② **从未实现**（全库仅 3 处注释提及，`parent_report_page` 无任何计算代码，`autoApproved` 列无人读取）；③ 还要拆小额/大额分层判读，对单机 MVP 属过度设计 | **已删除**：`redemption_service.dart:29`、`enums.dart:22/113` 三处注释中的「履约率」字样已清理。⚠️ 历史文档（`软件设计文档_M2.md`、`MVP执行规划_v2.md`、`验证计划_SunFocus_G0G2.md`、`架构设计_SunFocus_MVP.md`、`软件设计文档_spikes.md`、`sequence-diagram-M2.mermaid`）中仍留有表述，**是否一并清理待玄参发话** | ✅ 已执行（历史文档待定） |
 | F38 | M2/周池 | 周池预算区间 **50–1200 只在 UI 校验**（`pool_indicator.dart` 硬编码），常量里没有周池 min/max；1200 过大 | `prd_params.dart` 的 `kMonthlyPoolMin=100 / kMonthlyPoolMax=1200` 是**月池遗留**（名字带 Monthly），与周池无关；`weekly_pool_service.dart` 领域层**零校验** | **玄参 2026-09-23 拍板改掉**：新增 `kWeeklyPoolBudgetMin=50` / `kWeeklyPoolBudgetMax=500`（`prd_params.dart`），`pool_indicator.dart` 校验与提示文案改为引用常量（不再有裸字面量）。区间 50–1200 → **50–500** | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
 | F39 | 家长端/设置 | 每日专注上限下拉 `options: [60, 75, 90]`（`parent_settings_page.dart`）中的 **75 是孤儿**，且三档默认值不合理（低=中=90、高=60，高年段反而更少） | `prd_params.dart` 旧值只有 `kDailyFocusCapLow=90`（低/中都用它）/ `kDailyFocusCapHigh=60`；75 只存在于 UI 字面量 | **玄参 2026-09-23 拍板改掉**：改为**年龄越大上限越高**的阶梯 —— 低 60 / 中 90 / 高 120。新增 `kDailyFocusCapMid=90`，`kDailyFocusCapLow` 90→60、`kDailyFocusCapHigh` 60→120；`age_tier_params.dart` 三档同步；下拉改为引用三个常量（75 消失，不再有裸字面量）。新增 `test/m2/age_tier_params_test.dart` 7 条断言锁死阶梯与区间 | ✅ 已修复（真机已验证，2026-09-23 21:41 装机） |
+| F40 | M4/植物养成 | 施肥 **+5%/次** 进度增长偏快（每天满养护 18%/天，长成只要 17 天） | 玄参大人 2026-09-25 拍板：「施肥增长 5% 的进度有点快」；每天满养护推进量 = 自动 10% +浇水 3×1% +施肥 5% = **18%**，节奏过快 | `kPlantFertilizeProgressGain` **0.05 → 0.03**（`prd_params.dart:203-206`，唯一真源，UI 文案从常量派生故自动同步）；每天满养护推进 **18% → 16%**；满养护长成 **17 天 → 约 19 天**（实测 19 天 = 理论 3.0 阶段 ÷ 16% = 18.75 进位，符合预期）；**不养护仍 30 天不变**（未动 `kPlantGrowthHoursPerStageDefault`）。测试 `test/m3/plant_growth_v2_test.dart` 常量钉死断言同步为 `0.03` / 每天养护上限 `0.06`、长成天数区间改为 `19..20` | ✅ 已修复（2026-09-25 玄参拍板） |
 
 ## 遗留项 · 校验
 
@@ -579,3 +580,74 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 - **文档同步（本轮一并做）**：`口径裁定表_v1.md` 新增 **C12 / C13**；`项目进度跟踪表.md` 重写；`美术资源清单_花园植物.md` 升 **v2**；`产品开发文档_M2M3M4.md`；`软件设计文档_M3M4.md`；`交接总结_下一阶段.md`。
 
 - **⚠️ 本轮修正了一个旧结论**：v1 美术清单称「`seed_dead` **三物种全不可达**」。枯萎改 3 天后重新推导：**普通植物（240h/阶段）仍不可达**（死亡与阶段推进同日，tick 内先推进、后判死）；但**精品仙人掌（480h/阶段）现在可达** —— 第 3 天枯萎（进度 15%）、第 10 天死亡时进度仅 50%，**仍在 seed 阶段**。故仙人掌需**多出 1 张 `species_cactus_seed_dead.png`**；可达槽位总数 **27 → 28**（详见 `docs/美术资源清单_花园植物.md` §3.2）。
+> ⚠️ **此「28」已被下一节 G12 的「种子通用」重算为 24**，以最新口径为准。
+
+---
+
+# P0 缺口补全 + 真机两个 Bug + 背景换图轮（2026-09-23 深夜）
+
+> 玄参 22:44 自行更换 `assets/garden/background.png`（**1056×2336**，原 1161×2560），
+> 22:5x 反馈花园两个真机 Bug（附图）。本轮同时收口 P0 三项缺口。
+> ⚠️ **本轮代码改动尚未装机复验**（最后一次装机是 21:41）。
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| G09 | M3/花园页 | **左上角阳光余额溢出**：余额到 4 位以上，AppBar 左上角出现**竖排数字** | `SunlightPill` 的 `Container` 直接包 `Row`，AppBar `leading` 宽度有限（原 `leadingWidth` 96，扣左边距实际 ≈84px），位数一多 `Row` 放不下 → RenderFlex overflow | ① 胶囊内容包 `FittedBox(fit: BoxFit.scaleDown)`（等比缩小，任意位数都不溢出）；② `leadingWidth` 96 → **112**（注释写明「容纳 ☀ + 6 位数余额」）；③ 新增 `test/m3/sunlight_pill_test.dart` 两条（**6 位余额** `123456` 在 112 窄约束下 `takeException()` 必须为 null；4 位以内布局不变） | ✅ 已修复（**待装机复验**） |
+| G10 | M3/花园页 | **点「+」加号无法添加花盆**（点了没反应，也没任何提示） | 花园页 v3 重写时**弄丢了 `economyRevisionProvider` 监听** → 别处（如扩容扣 400）改了余额后，`IndexedStack` 保活的花园页 `_balance` **仍是旧值** → `shortfall = _expandCost - _balance` 误算为正 → `affordable = false` → `InkWell.onTap` 传 **null**（连「阳光不足」提示都不弹，表现为纯「点不动」） | 在 `GardenPage.build()` 内补 `ref.listen(economyRevisionProvider, …)` → `_reload(silent: true)` 静默重载（**必须写在 `build()` 内**，`initState` 会触发 `debugDoingBuild` 断言崩溃；`silent` 避免闪全屏 loading）。**账本是准的，未改领域层** | ✅ 已修复（**待装机复验**） |
+| G11 | M4/孩子端外壳 | **定时器泄漏**（测试抓出，非玄参反馈）：离开外壳后 App 时长 ticker 仍在跑 | `ChildShellPage.dispose()` 里用 `ref.read(appUsageControllerProvider.notifier)` 停表 —— 但 Riverpod 的 `ConsumerStatefulElement.unmount()` **先把 ref 标为 disposed 再调 `state.dispose()`**，所以 `ref.read` 必抛 `Bad state: Cannot use "ref" after the widget was disposed.`；而外层 `catch (_) {}` **静默吞掉** → ticker 从未取消 | ① `initState` 抓 notifier 引用存字段 `_usageCtrl`（加注释说明为什么不能走 ref）；② `_stopAppUsageCounting()` 改用该引用；③ 新增 dispose 停表用例（`UncontrolledProviderScope` + 手动 `ProviderContainer`，**排除 `ref.onDispose` 兜底**，只剩 `dispose` 自身路径）→ 修复前红、修复后绿 | ✅ 已修复（测试已锁） |
+| G12 | M3/美术契约 | 出图账目与命名契约不匹配「种子通用」的新规划 | 玄参拍板「**种子通用**，幼苗/成株按物种各自出图」，原 3 级候选回退无通用层 | ① `plant_artwork.dart` 候选 **3 级 → 5 级**：`{id}_{stage}_{status}` → `{id}_{stage}` → `{id}` → `shared_{stage}_{status}` → `shared_{stage}`（**物种图恒优先于通用图**）；② 命名契约抽成公开纯类 `PlantArtCandidates`，**护栏测试与实现共用同一份**；③ 出图账目重算：总槽位 **28 → 24**（通用种子 2 + 向日葵 7 + 雏菊 7 + 仙人掌 8），**待出 18 → 17**；④ 美术清单 / 进度表数字全部对齐 | ✅ 已结案 |
+| G13 | M3/花园背景 | 玄参换新背景图后，木牌热区与背景尺寸常量仍是旧值 | 背景由 1161×2560 换为 **1056×2336**（构图完全不同） | `kGardenBackgroundSize` → `Size(1056, 2336)`；木牌归一化矩形重新标定为 `Rect.fromLTRB(0.082, 0.642, 0.258, 0.722)`（源像素 x≈86.6~272.4 / y≈1499.7~1686.6）；新增**背景图资产守卫测试**（直读 PNG IHDR 比对常量，改回旧值立刻变红）；木牌弹窗按玄参拍板改名「**玩法说明**」（原「花园说明」），文案扩为完整玩法说明 | ✅ 已修复（**待装机复验**） |
+
+## P0 缺口补全轮（同一批次）
+
+| ID | 项 | 内容 | 状态 |
+|---|---|---|---|
+| G14 | 调试代码清理 | 删 `child_profile_page.dart` 的 `DEBUG 加1000阳光` 段与「调试区」标题；删 `app_router.dart` `/s1-demo` 路由 + import；删 `s1_demo_page.dart`（grep 证实 `lib/` 内 0 引用，`SunflowerCanvas`/`FeedbackOverlay` 仍被 `focus_page`/`settle_page` 使用不受影响）。新增回归用例「孩子端『我的』页不得再出现 DEBUG 入口」 | ✅ 已结案 |
+| G15 | App 总时长防沉迷 | 新增 `lib/domain/services/app_usage_service.dart`（`AppUsageTick` + `advance` + `isCapReached` **唯一判定入口**）与 `lib/presentation/child/state/app_usage_controller.dart`（`Timer.periodic` 计时、切后台暂停、跨自然日清零）；`anti_addiction_service.isAppCapReached` 改为**一行委托**（**判定孪生已消除**）；外壳拦**花园/商店/我的**三个娱乐 tab，**今日/成长永远放行**（有变异测试锁住） | ✅ 已结案 |
+| G16 | 纪念册埋点 | 新增 `lib/domain/services/memoir_service.dart`（`ensureWeeklySnapshot` / `recordMilestone` / `recordPraiseSent`）+ 事件名常量。口径按玄参拍板：① 计时**只算**花园/商店/我的（不含今日/成长）；② `praise_sent` 以**「家长写就记」**为 emit 点；③ 里程碑 **4 类** | ✅ 已结案 |
+
+## 本轮校验
+
+- **`flutter analyze`** → **0 error**（3 warning 均为既有测试文件遗留，已 git 对比确认非本轮引入）。
+- **`flutter test --no-pub`** → **450 条全绿**。计数演进：412 → 435（QA 补强 +11 等）→ 447 → **450**（+阳光胶囊 2 条 +dispose 停表 1 条）。
+- **QA 变异测试（本轮 17 个变异点）**：**15 个有效打红、0 严重假绿**；其中「含今日(0)/成长(1)」两个变异**都打红** = 「专注入口不可被挡」已被测试锁住。
+- **G11 的用例有效性已实证**：修复前该用例红（报 `A Timer is still pending`）、修复后绿 —— **不是空转断言**。
+- ⚠️ **未装机**：本轮所有改动最后一次真机验证停留在 21:41，需玄参安排 `flutter build apk --debug` + `adb -s f05bbc46 install -r` 复验 G09 / G10 / G13。
+
+---
+
+# iOS 模拟器反馈轮（2026-09-24 深夜）
+
+> 玄参不在真机旁，改为 **iPhone 17 / iOS 27.0 模拟器**验收（逻辑 402×874 @3x）。
+> 玄参反馈两条：① 点「+」加盆**仍无响应**（G10 的修复没治到根）；② 点已种植物弹出
+> 的养护面板**溢出**（黄黑警示条贯穿全屏，附截图）。
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| G17 | M3/花园页 | 点「+」加盆**仍然没反应**（G10 修复了数据陈旧，但没治静默点击） | `ExpandPotSlot` 里 `onTap: (affordable && !busy) ? onTap : null` —— **阳光不足时点击被拦成 null**，而页面层 `_confirmAndExpand` 早已写好兜底提示（SnackBar「阳光不足，还差 N ☀」），永远调不到；且 `garden_pot_layout_test.dart` 还把「点了没反应」**锁成了预期行为**。模拟器是新数据（余额 0）→ 必然走这条路径 | `onTap: busy ? null : onTap` —— 阳光不足**仍回调**，分因提示由页面层兜底（文案升级为「阳光不足，还差 N ☀ —— 去专注赚阳光吧」）；busy 防连点保持拦截；测试断言同步改为「点击仍回调」 | ✅ 已修复（模拟器待玄参复验） |
+| G18 | M3/养护面板 | 点已种植物 → 养护面板**右侧黄黑溢出条贯穿全屏**（附截图） | `PlantArtwork` 命中美术资源时 `Image.asset` **无显式宽高** → 按**原图逻辑尺寸**布局（画布 1200×2000 @3x → 400×667pt）。草地格子外层有 tight `SizedBox` 兜住所以没事；`PlantCard(size: 44)` 头部 Row 是 **loose 约束** → 必炸。**探针实测：`A RenderFlex overflowed by 870 pixels on the right`，Row size `342×2000`（高度=画布原高）**。真机此前没炸只因美术图接入后没人点开过养护面板 | ① `PlantArtwork` 内 `Image.asset` 包 `SizedBox(width: size, height: size)`（tight 约束下被外层覆盖、草地行为不变；loose 约束下提供安全上限）；② 顺手修养护按钮 label 加 `maxLines: 1` + 「5 ☀」→「5☀」（iOS 字体略宽，emoji 单独换行掉底） | ✅ 已修复（探针复跑实证 0 overflow） |
+| G19 | M2/家长端 | 家长赠予 **30 阳光，孩子端「没收到」** | ⚠️ **不是同步 bug**：`kParentGiftDaily = 20`（PRD §4.5 当日赠予 ≤20）→ 赠 30 被 `dayTotal + amount > 20` 直接 return，旧实现只弹一条**一闪而过的 SnackBar** → 家长以为赠成功了，实际一分没入账（**静默失败**，与 G17 同款教训）。同步链路（append + `economyRevision++` + 孩子端 listen）本身完整 | 弹窗**先显示**今日/本月已赠与剩余额度；`StatefulBuilder` 实时校验 → 超额即红字「最多可赠 N ☀」+ **「赠予」按钮禁用**（点不下去）；额度耗尽直接分因 SnackBar 不弹窗；成功后提示含剩余额度；二次校验保留防绕过。⚠️ **日上限 20 是 PRD 口径，未擅改**（属产品决策，待玄参拍板） | ✅ 已修复（模拟器待复验） |
+| G20 | 调试设施 | 玄参要求把「DEBUG 加1000阳光」**加回来**（昨晚 P0 清理时删掉的） | 删除后调试不便（刷余额只能靠赠予，而赠予有日上限 20） | 加回至「我的」页底部，但**升级为受 `kDebugMode` 约束**（release 自动不渲染，不必再担心「提审前忘了删」）；且加完后**自增 `economyRevisionProvider`**（旧版只 `_reload()` 本页 → 花园胶囊/商店仍显示旧值）。测试：`child_shell_app_cap_test` 的「不得出现 DEBUG」改为**源码守卫**（正则断言 `if (kDebugMode) … DEBUG 加1000阳光`；widget 测试恒 debug 无法直接断言 release 行为）+ 新增「点按钮真的入账 1000」（spy 账本记录 append 金额） | ✅ 已完成（452 全绿） |
+
+## 本轮校验
+
+- **探针法（本轮最重要的调试手段）**：无模拟器点击能力（`simctl` 无 tap、osascript 无辅助功能权限）
+  → 写**临时探针入口** `lib/garden_probe_main.dart`（复用主 App DI 读模拟器里玄参种的真实植物，
+  启动后自动弹 `PlantCareSheet`），`flutter run` 的 stdout 直接吐出溢出报告（含 widget 链）。
+  **修复前：overflow 870px；修复后：0 异常 + 截图确认面板正常渲染。探针已删。**
+- **⚠️ widget 测试抓不到 G18**：`flutter test` 环境 `AssetManifest.loadFromAssetBundle` 读取失败 →
+  `PlantArtwork` 静默走自绘占位 → 「命中美术图才溢出」在测试里 `takeException()` 恒为 null（假绿）。
+  已新增 `test/m3/plant_care_sheet_iphone_test.dart`（iPhone 17 402×874 渲染真实 GardenPage + 弹面板）
+  作为占位路径回归；**真验证靠探针实跑**。
+- **`flutter analyze`** → **0 error**；**`flutter test --no-pub`** → **451 全绿**（450 → +1）。
+- 正式构建（main 入口）已装 iPhone 17 模拟器并启动，玄参可继续验收。
+
+### 深夜追加：G19 赠予静默失败 / G20 调试入口加回
+
+- **`flutter analyze`** → **0 error**；**`flutter test --no-pub`** → **452 全绿**（451 → +1 调试入口入账用例）。
+- G19 的关键结论：**「孩子端没收到」≠ 同步坏了**。排查时先确认**动作到底有没有成功入账**
+  （本例是日上限 20 直接 return，只留一条一闪而过的 SnackBar）。
+  → 通用纪律：**任何「被规则拒绝」的操作，都必须可见地拒绝**（禁用按钮 / 弹窗内实时报错），
+  不能只靠一次性 SnackBar。
+- G20 的关键决定：调试入口**不再靠人工记得删**，用 `kDebugMode` 让它 release 自动消失；
+  测试改用源码守卫锁住这条约束。

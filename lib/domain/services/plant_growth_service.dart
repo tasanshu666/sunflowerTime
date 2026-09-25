@@ -303,7 +303,9 @@ class PlantGrowthService {
       lastFactor = factor;
       // V2（玄参大人 2026-09-22）：growthHoursPerStage 已是「不养护也要 N 天长成」
       // 的**真实目标时长**，故 [kPlantAutoGrowthScale] = 1.0，自动成长按真实时间
-      // 推进、不再额外缓速；养护（浇水 +1% / 施肥 +5%）在其之上叠加。
+      // 推进、不再额外缓速；养护（浇水 +1% / 施肥 +3%）在其之上叠加。
+      // ⚠️ 施肥 2026-09-22 定为 +5%，2026-09-25 玄参拍板调为 **+3%**（原话「有点快」）；
+      // 这里不写死数字，实际取 [kPlantFertilizeProgressGain]，改常量即生效。
       progress += segHours * factor / sp.growthHoursPerStage * kPlantAutoGrowthScale;
       cursor = segEnd;
 

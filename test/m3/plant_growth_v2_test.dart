@@ -8,7 +8,7 @@
 ///       · 相邻两次 tick（间隔 24h）→ 两次增量必须**相等**（0.1），不是 0.1 / 0.2。
 ///  ② **数值口径**：
 ///       · 普通植物（240h/阶段）完全不养护 → 正好 30 天长成（bloomed）；
-///       · 每天满养护（3 次浇水 +3%、1 次施肥 +5%）→ 18 天长成；
+///       · 每天满养护（3 次浇水 +3%、1 次施肥 +3%）→ 约 19 天长成；
 ///       · 精品植物（480h/阶段）完全不养护 → 60 天长成。
 ///
 /// 纯 Dart：仓储以内存 Fake 实现，不依赖 Drift / Flutter。
@@ -344,11 +344,11 @@ void main() {
       expect(days, 30);
     });
 
-    test('普通植物 240h/阶段：每天满养护（3 浇 +1 肥）→ 约 18 天长成', () async {
+    test('普通植物 240h/阶段：每天满养护（3 浇 +1 肥）→ 约 19 天长成', () async {
       final int days = await _daysToBloom(fullCare: true);
-      // 理论值：3.0 阶段 ÷（自动 10% + 养护 8%）/天 = 16.67 天 → 实测进位 17 天。
-      print('[V2 数值] 每天满养护长成天数 = $days（理论 16.67 天）');
-      expect(days, inInclusiveRange(17, 18));
+      // 理论值：3.0 阶段 ÷（自动 10% + 养护 6%）/天 = 18.75 天 → 实测进位 19 天。
+      print('[V2 数值] 每天满养护长成天数 = $days（理论 18.75 天）');
+      expect(days, inInclusiveRange(19, 20));
     });
 
     test('精品植物 480h/阶段：完全不养护 → 60 天长成', () async {
@@ -360,22 +360,35 @@ void main() {
       expect(days, 60);
     });
 
+    // ⚠️ 为什么补这条：文档「精品植物满养护约 28 天」是 2026-09-25 施肥 5%→3% 后
+    // **按公式推算**出来的（3.0 ÷（自动 5% + 养护 6%）= 27.27 → 进位 28），
+    // 当时没有测试背书。推算值必须实测钉死，否则文档里的 28 天永远是「没人验过的数」。
+    test('精品植物 480h/阶段：每天满养护（3 浇 +1 肥）→ 约 28 天长成', () async {
+      final int days = await _daysToBloom(
+        fullCare: true,
+        hoursPerStage: kPlantGrowthHoursPerStagePremium,
+      );
+      // 理论值：3.0 阶段 ÷（自动 24h/480h = 5% + 养护 6%）/天 = 27.27 天 → 进位 28 天。
+      print('[V2 数值] 精品植物每天满养护长成天数 = $days（理论 27.27 天）');
+      expect(days, inInclusiveRange(27, 29));
+    });
+
     test('常量取值钉死（防回退）', () {
       expect(kPlantGrowthHoursPerStageDefault, 240.0);
       expect(kPlantGrowthHoursPerStagePremium, 480.0);
       expect(kPlantWaterProgressGain, 0.01);
-      expect(kPlantFertilizeProgressGain, 0.05);
+      expect(kPlantFertilizeProgressGain, 0.03);
       expect(kPlantAutoGrowthScale, 1.0);
-      // 每天养护上限 8%：3×1% + 1×5%
+      // 每天养护上限 6%：3×1% + 1×3%
       expect(
         kPlantWaterMaxPerDay * kPlantWaterProgressGain +
             kPlantFertilizeMaxPerDay * kPlantFertilizeProgressGain,
-        closeTo(0.08, 1e-9),
+        closeTo(0.06, 1e-9),
       );
     });
   });
 
-  group('养护增量口径：浇水 +1% / 施肥 +5%（不再跳 21%）', () {
+  group('养护增量口径：浇水 +1% / 施肥 +3%（不再跳 21%）', () {
     test('浇水一次 → 进度恰好 +1%（旧口径 +12% 会跳）', () async {
       final ctx = _make();
       final DateTime t0 = DateTime(2026, 9, 1, 0, 0);

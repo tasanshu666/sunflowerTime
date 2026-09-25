@@ -212,4 +212,45 @@ void main() {
       expect(repo.events.where((e) => e.type == TrackingType.metric).length, 9);
     });
   });
+
+  // ── P0 · B 新增 3 个纪念册事件（不改动上面既有 9 条断言）──────────────
+  group('P0 · B 新增 3 个埋点事件（纪念册）：name 与 payload 键集合', () {
+    test('事件名常量与《验证计划 §3.2》一致', () {
+      expect(TrackingEventNames.praiseSent, 'praise_sent');
+      expect(TrackingEventNames.gardenSnapshot, 'garden_snapshot');
+      expect(TrackingEventNames.milestoneEvent, 'milestone_event');
+    });
+
+    test('payload 键集合严格匹配；事件 type 一律 milestone', () {
+      final TrackingEvent praise = TrackingEvent(
+        id: 'm1',
+        name: TrackingEventNames.praiseSent,
+        type: TrackingType.milestone,
+        ts: now,
+        payload: {'content_hash': 'abc123', 'ts': now.toIso8601String()},
+      );
+      final TrackingEvent snapshot = TrackingEvent(
+        id: 'm2',
+        name: TrackingEventNames.gardenSnapshot,
+        type: TrackingType.milestone,
+        ts: now,
+        payload: {'week_no': '2026-09-14', 'garden_state': '[]'},
+      );
+      final TrackingEvent milestone = TrackingEvent(
+        id: 'm3',
+        name: TrackingEventNames.milestoneEvent,
+        type: TrackingType.milestone,
+        ts: now,
+        payload: {'type': 'first_bloom', 'ts': now.toIso8601String()},
+      );
+
+      expect(praise.payload.keys.toSet(), {'content_hash', 'ts'});
+      expect(snapshot.payload.keys.toSet(), {'week_no', 'garden_state'});
+      expect(milestone.payload.keys.toSet(), {'type', 'ts'});
+
+      expect(praise.type, TrackingType.milestone);
+      expect(snapshot.type, TrackingType.milestone);
+      expect(milestone.type, TrackingType.milestone);
+    });
+  });
 }

@@ -4,18 +4,26 @@
 /// 植物当前只是「卡片 + Material 图标」，美术资源到位后需要**不改动任何调用方代码**
 /// 就能替换成正式插画。本组件把「植物长什么样」从 [PlantCard] 里彻底抽离。
 ///
-/// ## 美术资源命名规范（三级回退，美术只需按规范丢图，代码零改动）
-/// 资源根目录 `assets/plants/`，按「物种_阶段_状态」命名，从最精确往回找：
+/// ## 美术资源命名规范（**五级**回退，美术只需按规范丢图，代码零改动）
+/// 资源根目录 `assets/plants/`，按「物种_阶段_状态」命名，从最精确往回找；
+/// **物种级（①–③）恒在通用级（④–⑤）之前**，故已交付的物种图始终优先命中、行为不变：
 /// ```
-/// ① assets/plants/{speciesId}_{stage}_{status}.png   最精确，用于特殊状态
-/// ② assets/plants/{speciesId}_{stage}.png            常用
-/// ③ assets/plants/{speciesId}.png                    该物种通用
-/// ④ 以上都没有 → 回退到内置自绘简笔（[PlantPlaceholderArt]）
+/// ① assets/plants/{speciesId}_{stage}_{status}.png   物种·最精确，用于特殊状态
+/// ② assets/plants/{speciesId}_{stage}.png            物种·该阶段
+/// ③ assets/plants/{speciesId}.png                    物种·通用
+/// ④ assets/plants/shared_{stage}_{status}.png        通用·该阶段·该状态（跨物种兜底）
+/// ⑤ assets/plants/shared_{stage}.png                 通用·该阶段（跨物种兜底）
+/// ⑥ 以上都没有 → 回退到内置自绘简笔（[PlantPlaceholderArt]）
 /// ```
 /// 其中：
 /// - `{speciesId}` = `PlantSpecies.id`，当前为 `species_sunflower` / `species_daisy` / `species_cactus`
 /// - `{stage}` = `seed` / `sprout` / `adult`
 /// - `{status}` = `growing` / `bloomed` / `wilting` / `dead`
+///
+/// 说明：④/⑤ 的「通用级」（`shared_*`）供**跨物种共用的阶段图**使用 —— 种子期各物种
+/// 形态相近，只需出 `shared_seed.png` / `shared_seed_wilting.png` 两张通用图即可覆盖
+/// 所有物种的种子期，省掉每个物种各自的种子图。物种级（①–③）一旦存在仍优先命中，
+/// 通用级仅在其缺失时兜底。
 ///
 /// 例：`assets/plants/species_sunflower_adult_bloomed.png`
 /// 只要文件名对上就会自动生效，新增植物/阶段都不需要改本文件。
@@ -48,8 +56,9 @@ class PlantArtCandidates {
   /// 纯静态命名空间，禁止实例化。
   PlantArtCandidates._();
 
-  /// 候选路径（顺序即回退优先级）：
-  /// `{物种}_{阶段}_{状态}` → `{物种}_{阶段}` → `{物种}`，全不中则走自绘占位。
+  /// 候选路径（顺序即回退优先级，共 5 条；**物种级恒在通用级之前**）：
+  /// `{物种}_{阶段}_{状态}` → `{物种}_{阶段}` → `{物种}`
+  /// → `shared_{阶段}_{状态}` → `shared_{阶段}`，全不中则走自绘占位。
   static List<String> forPlant({
     required String speciesId,
     required String stage,
@@ -59,6 +68,8 @@ class PlantArtCandidates {
         'assets/plants/${speciesId}_${stage}_$status.png',
         'assets/plants/${speciesId}_$stage.png',
         'assets/plants/$speciesId.png',
+        'assets/plants/shared_${stage}_$status.png',
+        'assets/plants/shared_$stage.png',
       ];
 
   /// 在 [assets]（资产清单里的全部资源路径）中按优先级找命中项；无命中返回 null。
@@ -171,15 +182,29 @@ class PlantArtwork extends StatelessWidget {
                   species: species,
                   size: size,
                 )
-              : Image.asset(
-                  path,
-                  fit: BoxFit.contain,
-                  // 资源存在但解码失败时（坏图）不至于整页崩掉。
-                  errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
-                      PlantPlaceholderArt(
-                    plant: plant,
-                    species: species,
-                    size: size,
+              : // ⚠️ 必须给图片**显式尺寸盒子**（2026-09-24 溢出事故）：
+                // Image.asset 不带 width/height 时按**原图逻辑尺寸**布局
+                // （美术画布 1200×2000 @3x → 400×667pt）。在 loose 约束环境
+                // （PlantCard 头部的 Row）里直接把面板撑爆 —— 模拟器实测
+                // 「A RenderFlex overflowed by 870 pixels on the right」，
+                // 黄黑警示条贯穿全屏。草地格子没炸只是因为外层恰好有 tight
+                // SizedBox 兜住；凡是 loose 约束的调用方（PlantCard）必炸。
+                // SizedBox(width: size, height: size) 在 tight 约束下会被
+                // 外层覆盖（草地行为不变），在 loose 约束下提供安全上限。
+                SizedBox(
+                  width: size,
+                  height: size,
+                  child: Image.asset(
+                    path,
+                    fit: BoxFit.contain,
+                    // 资源存在但解码失败时（坏图）不至于整页崩掉。
+                    errorBuilder:
+                        (BuildContext _, Object __, StackTrace? ___) =>
+                            PlantPlaceholderArt(
+                      plant: plant,
+                      species: species,
+                      size: size,
+                    ),
                   ),
                 ),
         );

@@ -8,7 +8,13 @@
 ///  · 「家长拒绝」对称通知（B4）；
 ///  · 监听 [economyRevisionProvider]，家长端处理完返回孩子端即重新检查（B5）。
 /// 已读申请 id 记在 shared_preferences，避免重复弹窗。
+///
+/// P0 · A（§6.1）：本页作为 **App 总时长防沉迷**的拦截落点 ——
+///  · 娱乐 tab（[kAppUsageCountingTabs]：花园/商店/我的）前台计时（含切后台暂停）；
+///  · 到顶后**只拦娱乐 tab**（温和提示 + 引导去「今日」），今日/成长与专注全链路永远可用。
 library child_shell_page;
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +30,7 @@ import 'package:sunflower_time/presentation/child/pages/child_task_page.dart';
 import 'package:sunflower_time/presentation/child/pages/child_profile_page.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/pages/store_page.dart';
+import 'package:sunflower_time/presentation/child/state/app_usage_controller.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 
 /// 孩子端外壳：底部导航 + 5 个 tab。
@@ -34,8 +41,20 @@ class ChildShellPage extends ConsumerStatefulWidget {
   ConsumerState<ChildShellPage> createState() => _ChildShellPageState();
 }
 
-class _ChildShellPageState extends ConsumerState<ChildShellPage> {
+class _ChildShellPageState extends ConsumerState<ChildShellPage>
+    with WidgetsBindingObserver {
   int _index = 0;
+
+  /// App 时长控制器引用（[initState] 期间抓取）。
+  ///
+  /// ⚠️ **为什么要在字段里留一份**：Riverpod 的 `ConsumerStatefulElement` 在
+  /// `unmount()` 时先把自己标为 disposed，**再**调 `state.dispose()` —— 也就是
+  /// 说 `dispose()` 里用 `ref` 读任何 provider 都会抛
+  /// `Bad state: Cannot use "ref" after the widget was disposed.`
+  /// （2026-09-23 实测：这一度被 `catch (_)` 静默吞掉 → ticker 从不取消
+  /// → **真机定时器泄漏**，进锁屏/entry 页后娱乐时长仍在偷偷累加）。
+  /// 因此停表**必须**走这份字段引用，不能走 `ref`。
+  AppUsageController? _usageCtrl;
 
   /// 5 个 tab 的标题（AppBar 随当前 tab 变化）。
   static const List<String> _titles = <String>['今日', '成长', '花园', '商店', '我的'];
@@ -58,8 +77,79 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage> {
   @override
   void initState() {
     super.initState();
+    // 监听 App 生命周期：切后台暂停计时、回前台（仍处娱乐 tab）恢复计时。
+    WidgetsBinding.instance.addObserver(this);
+    // 预热 App 时长控制器：触发一次异步 hydrate，使「是否到顶」在首次点击前就绪。
+    // 同时**抓住 notifier 引用**留给 dispose 停表（见 [_usageCtrl] 注释：dispose 里 ref 已不可用）。
+    _usageCtrl = ref.read(appUsageControllerProvider.notifier);
     // 首帧后再弹窗，避免在 build 期间触发路由/覆盖层变更。
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkAllNotices());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // 离开外壳务必停表（同步取消 ticker），否则定时器泄漏 → 测试 pending timer 断言红。
+    _stopAppUsageCounting();
+    super.dispose();
+  }
+
+  // ── P0 · A App 总时长：生命周期 + 拦截 ───────────────────────────────
+
+  /// App 切前后台：非前台一律暂停计时；回前台且仍处娱乐 tab 则恢复。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final AppUsageController ctrl = ref.read(appUsageControllerProvider.notifier);
+    if (state == AppLifecycleState.resumed) {
+      if (ctrl.isEntertainmentTab(_index)) unawaited(ctrl.startCounting());
+    } else {
+      unawaited(ctrl.stopCounting());
+    }
+  }
+
+  /// 安全停表（**不经过 [ref]** —— dispose 阶段 `ref` 已不可用，用它会抛 Bad state；
+  /// 这里改用 [initState] 抓到的 [_usageCtrl] 引用，保证 ticker 一定被同步取消）。
+  void _stopAppUsageCounting() {
+    try {
+      unawaited(_usageCtrl!.stopCounting());
+    } catch (_) {
+      // 忽略：容器已释放（此时 ticker 已由控制器的 ref.onDispose 取消）。
+    }
+  }
+
+  /// 点底部 tab：到顶则**只拦娱乐 tab**（不切换 + 温和提示），其余照常切换并启停计时。
+  void _onSelectTab(int i) {
+    final AppUsageState usage = ref.read(appUsageControllerProvider);
+    final AppUsageController ctrl = ref.read(appUsageControllerProvider.notifier);
+
+    if (ctrl.isEntertainmentTab(i) && usage.reached) {
+      _showAppCapDialog(usage.capMinutes); // 到顶：不切换索引，仅给引导。
+      return;
+    }
+
+    setState(() => _index = i);
+    if (ctrl.isEntertainmentTab(i)) {
+      unawaited(ctrl.startCounting());
+    } else {
+      unawaited(ctrl.stopCounting());
+    }
+  }
+
+  /// App 总时长到顶的**分因温和提示**（点明原因 + 给出口；专注入口永远可用）。
+  void _showAppCapDialog(int capMinutes) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('🌻 先歇一会儿吧'),
+        content: Text('今天逛 App 的时间用完啦（上限 $capMinutes 分钟），去「今日」开始专注吧 🌻'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('知道啦'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 进入孩子端即检查「家长已核销」通知：有未读则弹窗告知，并标记已读。
@@ -212,7 +302,8 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage> {
         title: Text(_titles[_index]),
         // 仅「花园」tab（index 2）在左上角展示阳光余额胶囊；其余 tab 外观完全不变
         // （不给它们留空 leading）。胶囊数据来自 sunlightBalanceProvider。
-        leadingWidth: _index == 2 ? 96.0 : null,
+        // 112：容纳「☀ + 6 位数余额」胶囊（配合胶囊内 FittedBox 兜底任意位数）。
+        leadingWidth: _index == 2 ? 112.0 : null,
         leading: _index == 2
             ? const Padding(
                 padding: EdgeInsets.only(left: 12),
@@ -237,7 +328,7 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (int i) => setState(() => _index = i),
+        onDestinationSelected: _onSelectTab,
         destinations: const <NavigationDestination>[
           NavigationDestination(
             icon: Icon(Icons.today_outlined),

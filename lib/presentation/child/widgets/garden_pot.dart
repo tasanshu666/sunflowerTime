@@ -377,10 +377,12 @@ class EmptyPot extends StatelessWidget {
 
 /// 扩容花盆位 —— 草地上的第 N+1 个格子，点击走「确认卡 → 扣费」。
 ///
-/// 三态互斥（沿用 M3 修订的三态口径，避免「看着能点却扣不了」）：
-///  · [affordable] = false → 灰字「还差 N ☀」，**不可点**；
-///  · [busy] = true → 不可点（养护动作进行中）；
-///  · 否则 → 可点，格子上写明价格。
+/// 可点性口径（**2026-09-24 修订**，玄参真机反馈「点了没反应」）：
+///  · [busy] = true → 不可点（防连点绕过扣费，保持拦截）；
+///  · **阳光不足 → 仍可点**：由页面层兜底弹分因提示（「阳光不足，还差 N ☀」）。
+///    旧口径「阳光不足 → `onTap: null`」被玄参判定为缺陷 —— 格子虽写了「还差 N☀」，
+///    但孩子点下去毫无反馈，等于静默失败（UX 纪律：不可点状态必须分因提示）；
+///  · 否则 → 可点，点击先弹确认卡。
 ///
 /// 只显示加号圆圈 + 价格 / 还差文案，**不叠花盆图**；占位高度与花盆图一致，
 /// 保证与两类花盆格同底、行内标签对齐。加号圆心**对齐花盆视觉中心**
@@ -405,7 +407,8 @@ class ExpandPotSlot extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool affordable = shortfall <= 0;
     return InkWell(
-      onTap: (affordable && !busy) ? onTap : null,
+      // ⚠️ 只有 busy 拦点击；阳光不足**不再拦**（分因提示由页面层兜底给）。
+      onTap: busy ? null : onTap,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
         padding: const EdgeInsets.symmetric(

@@ -18,6 +18,8 @@ import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/focus_stats.dart';
+import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/tracking_event.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
@@ -102,6 +104,8 @@ class _SettlePageState extends ConsumerState<SettlePage>
     if (settlement != null) {
       unawaited(_trackSunEarned(settlement));
       unawaited(_trackValidFocusDay(settlement));
+      // P0 · B：结算后判定「本轮新跨过的里程碑」（按 type 去重，一生只写一次）。
+      unawaited(_recordMilestones());
     }
   }
 
@@ -150,6 +154,37 @@ class _SettlePageState extends ConsumerState<SettlePage>
         },
       ));
     } catch (_) {}
+  }
+
+  /// P0 · B：按累计统计判定「本轮新跨过的里程碑」并落库（按 type 去重，幂等）。
+  ///
+  /// [MemoirService.recordMilestone] 内部按 type 去重（一生只写一次），故此处只需对
+  /// 「已达阈值的里程碑」各调一次即可；阈值全部引用 `prd_params.dart` 常量（无裸字面量）。
+  Future<void> _recordMilestones() async {
+    try {
+      final memoir = ref.read(memoirServiceProvider);
+      final DateTime now = DateTime.now();
+      final FocusStats stats =
+          await ref.read(focusRepositoryProvider).totalStats();
+      if (stats.totalValidDays >= kMilestoneFirstValidFocusDayDays) {
+        await memoir.recordMilestone(kMilestoneFirstValidFocusDayType, now);
+      }
+      if (stats.totalFocusMinutes >= kMilestoneFocusTotal600MinMinutes) {
+        await memoir.recordMilestone(kMilestoneFocusTotal600MinType, now);
+      }
+      if (stats.totalValidDays >= kMilestoneValidDays30Days) {
+        await memoir.recordMilestone(kMilestoneValidDays30Type, now);
+      }
+      final List<Plant> plants =
+          await ref.read(plantRepositoryProvider).plants();
+      final int bloomed =
+          plants.where((Plant p) => p.status == PlantStatus.bloomed).length;
+      if (bloomed >= kMilestoneFirstBloomCount) {
+        await memoir.recordMilestone(kMilestoneFirstBloomType, now);
+      }
+    } catch (_) {
+      // 埋点失败容忍：绝不影响结算页既有行为。
+    }
   }
 
   /// 联动成长项结算展示（**非阻塞**）：失败 / 跳过只温和提示，绝不改变

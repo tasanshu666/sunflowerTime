@@ -31,4 +31,21 @@ class SettingsStore {
   /// 覆写「家长拒绝」已读 id 列表。
   Future<void> setAcknowledgedRejectIds(List<String> ids) async =>
       _sp.setStringList(kPrefAckedRejectIds, ids);
+
+  // ── P0 · A App 总使用时长（§6.1）：日键 + 当日累计秒 ──────────────────
+
+  /// App 当日累计时长所属自然日 key（yyyy-MM-dd；无记录返回 null）。
+  Future<String?> appUsageDate() async => _sp.getString(kPrefAppUsageDate);
+
+  /// App 当日累计秒数（无记录默认 0）。
+  Future<int> appUsageSeconds() async => _sp.getInt(kPrefAppUsageSeconds) ?? 0;
+
+  /// 覆写 App 当日累计时长（日期 + 秒数）。
+  Future<void> saveAppUsage({
+    required String date,
+    required int seconds,
+  }) async {
+    await _sp.setString(kPrefAppUsageDate, date);
+    await _sp.setInt(kPrefAppUsageSeconds, seconds);
+  }
 }

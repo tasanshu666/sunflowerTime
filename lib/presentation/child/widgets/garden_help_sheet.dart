@@ -1,21 +1,30 @@
-/// 「花园说明」弹窗内容（2026-09-24 花园页 v3 改造）。
+/// 「花园玩法」弹窗内容（2026-09-24 花园页 v3 改造 / 2026-09-23 玩法说明扩充）。
 ///
 /// ## 为什么单独一个文件
-/// v3 删掉了贴底的半透明白块（容量 + 养护节奏），把这些信息收进左下角木牌的弹窗。
-/// 弹窗内容抽成**公开、无业务依赖**的 [GardenHelpSheet]（数据经构造参数传入），
-/// 便于纯 widget 测试直接渲染，无需拉起 Riverpod / 数据库。
+/// v3 删掉了贴底的半透明白块（容量 + 养护节奏），把这些信息连同**完整玩法**一起收进
+/// 左下角木牌的弹窗。弹窗内容抽成**公开、无业务依赖**的 [GardenHelpSheet]（数据经构造
+/// 参数传入），便于纯 widget 测试直接渲染，无需拉起 Riverpod / 数据库。
+///
+/// ## 覆盖的主题（玄参 2026-09-23 拍板，木牌 = 玩法说明书）
+///  1. 怎么挣阳光（专注 → 阳光入账 + 任务打卡奖励）；
+///  2. 阳光能干什么（花园种植物 / 浇水施肥 / 商店兑奖励）；
+///  3. 植物怎么长大（自动成长 + 浇水/施肥加成 + 满进度开花 + 花谢后再生）；
+///  4. 别让植物枯萎（几天不浇水会枯萎、再几天会枯死）；
+///  5. 任务打卡与家长核销（联动项自动结算 / 非联动项待家长确认）；
+///  另有花园容量与扩容价。
 ///
 /// ## 数字口径（硬要求）
-/// 弹窗里出现的**所有数字**都必须取自 [prd_params] 的常量或调用方传入的当前 state，
-/// **禁止任何裸字面量**（3 / 12 / 1% / 5% 都不许直接写）。`* 100` 与 `/ 24` 是「比例
-/// 转百分比」「小时转天」的**单位换算**，非产品参数，可保留。
+/// 弹窗里出现的**所有数字**都必须取自 [prd_params] / [app_constants] 的常量或调用方
+/// 传入的当前 state，**禁止任何裸字面量**（3 / 12 / 1% / 5% 都不许直接写）。`* 100` 是
+/// 「比例转百分比」的**单位换算**，非产品参数，可保留。
 library garden_help_sheet;
 
 import 'package:flutter/material.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 
-/// 「花园说明」弹窗（由木牌热区点击后用 `showModalBottomSheet` 弹出）。
+/// 「花园玩法」弹窗（由木牌热区点击后用 `showModalBottomSheet` 弹出）。
 class GardenHelpSheet extends StatelessWidget {
   const GardenHelpSheet({
     super.key,
@@ -31,6 +40,8 @@ class GardenHelpSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 每分钟专注入账的阳光数（kSunlightPerFocusMinute = 1.0 → 1）。
+    final int perMinute = kSunlightPerFocusMinute.toInt();
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -43,48 +54,52 @@ class GardenHelpSheet extends StatelessWidget {
                 Icon(Icons.menu_book, size: 22, color: Colors.green),
                 SizedBox(width: 8),
                 Text(
-                  '花园说明',
+                  '玩法说明',
                   style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
             const SizedBox(height: 14),
             _HelpRow(
+              icon: Icons.wb_sunny_outlined,
+              title: '怎么挣阳光',
+              detail: '白天专注就能挣阳光：每分钟 +$perMinute ☀；\n'
+                  '完成成长任务打卡，每项还 +$kTaskSunlightReward ☀。',
+            ),
+            _HelpRow(
+              icon: Icons.local_florist,
+              title: '阳光能干什么',
+              detail: '在花园种植物（点空花盆选一株，花 ☀ 种下）；\n'
+                  '给植物浇水 $kPlantWaterCost ☀/次、施肥 $kPlantFertilizeCost ☀/次；\n'
+                  '也可以去「商店」兑换喜欢的奖励。',
+            ),
+            _HelpRow(
+              icon: Icons.schedule,
+              title: '植物怎么长大',
+              detail: '不照顾也会随时间自己长大；浇水 +${(kPlantWaterProgressGain * 100).round()}%、'
+                  '施肥 +${(kPlantFertilizeProgressGain * 100).round()}% 长得更快\n'
+                  '（每天最多浇 $kPlantWaterMaxPerDay 次、施 $kPlantFertilizeMaxPerDay 次，'
+                  '两次浇水要隔 $kPlantWaterIntervalMinutes 分钟）；\n'
+                  '进度养满就开花，开满 $kBloomDurationDays 天后花谢，再养满又能再开 🌻',
+            ),
+            _HelpRow(
+              icon: Icons.local_fire_department,
+              title: '别让植物枯萎',
+              detail: '浇水或施肥能刷新计时；$kPlantWiltDays 天没浇水就会枯萎，\n'
+                  '枯萎后再拖 $kPlantDeathDays 天就会枯死。记得常来看看它 🌱',
+            ),
+            const _HelpRow(
+              icon: Icons.check_circle_outline,
+              title: '任务打卡与家长核销',
+              detail: '成长任务有两种：\n'
+                  '「开始专注」的任务，达标后自动结算阳光；\n'
+                  '「我做到了」的任务，先记成「等家长确认」，\n'
+                  '爸爸妈妈核销通过后，阳光才真正到账。',
+            ),
+            _HelpRow(
               icon: Icons.yard,
               title: '花园容量',
               detail: '$capacity / $kGardenPotCapacityMax 盆',
-            ),
-            const _HelpRow(
-              icon: Icons.local_florist,
-              title: '怎么种',
-              detail: '点一个空花盆 → 选一株植物 → 花阳光种下',
-            ),
-            _HelpRow(
-              icon: Icons.water_drop,
-              title: '怎么照顾',
-              detail: '浇水 +${(kPlantWaterProgressGain * 100).round()}%'
-                  '（每天最多 $kPlantWaterMaxPerDay 次，两次之间要隔 '
-                  '$kPlantWaterIntervalMinutes 分钟）\n'
-                  '施肥 +${(kPlantFertilizeProgressGain * 100).round()}%'
-                  '（每天 $kPlantFertilizeMaxPerDay 次）',
-            ),
-            const _HelpRow(
-              icon: Icons.schedule,
-              title: '自然生长',
-              // 不写死天数：普通植物 240h/阶段（约 10 天）、精品 480h/阶段（约 20 天）不同，
-              // 写单一数字会对另一类不成立（QA 缺陷 5）。
-              detail: '不照顾植物也会随时间自然生长，品种不同快慢也不同',
-            ),
-            const _HelpRow(
-              icon: Icons.local_fire_department,
-              title: '枯萎与开花',
-              // 语义依据 plant_growth_service._applyWiltAndDeath：枯萎由「距上次浇水
-              // kPlantWiltDays 天」触发（浇水 / 施肥都会刷新 lastWaterAt 计时）；
-              // wilting 再持续 kPlantDeathDays 天则枯死。花期时长见 kBloomDurationDays。
-              detail: '约 $kPlantWiltDays 天不给它浇水就会枯萎'
-                  '（浇水或施肥都能把计时重新算起）；'
-                  '成株开花后可保持 $kBloomDurationDays 天，'
-                  '之后进入休整，再养满就会重新开花',
             ),
             _HelpRow(
               icon: Icons.add_circle_outline,

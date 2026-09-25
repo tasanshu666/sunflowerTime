@@ -2,9 +2,14 @@
 ///
 /// 采用**累计制**成就（累计专注时长 / 次数 / 有效专注天数 / 任务打卡 / 开花植物 /
 /// 阳光余额），刻意**不做「连续 N 天」这类断档清零指标**（§4.4：连续断了归零本身是
-/// 挫败源）。底部调试区保留原孩子端首页的「DEBUG 加 1000 阳光」入口供真机验收。
+/// 挫败源）。
+///
+/// 底部有**调试区**（`DEBUG 加1000阳光`）—— 2026-09-24 按玄参要求**加回来**供调试用
+/// （此前 P0 清理时被删，玄参反馈「调试时需要」）。
+/// ⚠️ 该区受 `kDebugMode` 约束：**release 构建自动不渲染**，不必再担心「提审前忘了删」。
 library child_profile_page;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -42,6 +47,40 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
     // 有 `debugDoingBuild` 断言，**只能在 build 中调用**，不能放 initState。
   }
 
+  /// 调试入口：**加 1000 阳光**（玄参 2026-09-24 要求加回，用于调试验收）。
+  ///
+  /// 追加一条 +1000 的账本流水（`refType='debug_grant'`），随后自增经济修订号
+  /// 让全端（花园胶囊 / 商店 / 本页）立即重算 —— 早期版本只调 `_reload()`，
+  /// 其它页面仍显示旧值。
+  ///
+  /// ⚠️ 调用点受 `kDebugMode` 约束（见 [build]），release 构建不会出现此入口。
+  Future<void> _grantDebugSunlight() async {
+    final DateTime now = DateTime.now();
+    final double balance =
+        await ref.read(sunlightRepositoryProvider).balance();
+    await ref.read(sunlightRepositoryProvider).append(SunlightEntry(
+          id: const Uuid().v4(),
+          ts: now,
+          type: SunlightType.earn,
+          gross: 1000,
+          net: 1000,
+          balanceAfter: balance + 1000,
+          refType: 'debug_grant',
+          refId: null,
+          dayKey: dayKey(now),
+        ));
+    // 关键：自增修订号（而非只刷本页），否则花园胶囊 / 商店仍是旧值。
+    ref.read(economyRevisionProvider.notifier).state++;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('DEBUG：已加 1000 阳光'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    await _reload(silent: true);
+  }
+
   /// [silent] = true 时不整页转圈（经济修订号触发的后台刷新），
   /// 避免每次消费后切回本 tab 都闪一次全屏 loading。
   Future<void> _reload({bool silent = false}) async {
@@ -69,32 +108,6 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  /// DEBUG ONLY — 测试用临时入口，提交前删除。
-  /// 追加一条 +1000 阳光账本（net 为正、balanceAfter 累加），便于真机验收兑换链路。
-  Future<void> _grantDebugSunlight() async {
-    final double balance = await ref.read(sunlightRepositoryProvider).balance();
-    final DateTime now = DateTime.now();
-    await ref.read(sunlightRepositoryProvider).append(SunlightEntry(
-      id: const Uuid().v4(),
-      ts: now,
-      type: SunlightType.earn,
-      gross: 1000,
-      net: 1000,
-      balanceAfter: balance + 1000,
-      refType: 'debug_grant',
-      refId: null,
-      dayKey: dayKey(now),
-    ));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('DEBUG：已加 1000 阳光，去阳光商店看看'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-    await _reload();
   }
 
   @override
@@ -179,14 +192,19 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
           label: '累计开花植物',
           value: '$_bloomedPlants 株',
         ),
-        const SizedBox(height: 24),
-        const _SectionTitle('调试区'),
-        // DEBUG ONLY — 测试用，提交前删除
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.orange),
-          onPressed: _grantDebugSunlight,
-          child: const Text('DEBUG 加1000阳光'),
-        ),
+        // ── 调试区（玄参 2026-09-24 要求加回，供调试验收）────────────────────
+        // ⚠️ 受 kDebugMode 约束：**release 构建自动不渲染** —— 既满足调试需要，
+        // 又不必再担心「提审前忘了删」。测试用源码守卫锁住这条约束
+        // （test/m4/child_shell_app_cap_test.dart 的「C 清理回归」）。
+        if (kDebugMode) ...<Widget>[
+          const SizedBox(height: 24),
+          const _SectionTitle('调试区'),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.orange),
+            onPressed: _grantDebugSunlight,
+            child: const Text('DEBUG 加1000阳光'),
+          ),
+        ],
       ],
     );
   }

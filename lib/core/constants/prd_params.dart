@@ -201,16 +201,18 @@ const double kPlantGrowthHoursPerStagePremium = 480.0;
 const double kPlantWaterProgressGain = 0.01;
 
 /// 施肥固定进度增量（当前阶段 0..1，绝对比例）。
-/// 玄参大人 2026-09-22 改口径：每次 +5%，每天最多 [kPlantFertilizeMaxPerDay] 次 → 每天 +5%。
-const double kPlantFertilizeProgressGain = 0.05;
+///
+/// 玄参大人 2026-09-22 定为 +5%；**2026-09-25 调为 +3%** —— 原话「施肥增长 5% 的进度有点快」。
+/// 每天最多 [kPlantFertilizeMaxPerDay] 次 → 每天 +3%。
+const double kPlantFertilizeProgressGain = 0.03;
 
 /// 真实时间自动成长缩放系数（V2 起 = 1.0，不再额外缓速）。
 ///
 /// 旧值 0.2 是为了压住「24 小时/阶段」带来的秒开花；V2 里
 /// [kPlantGrowthHoursPerStageDefault] / [kPlantGrowthHoursPerStagePremium] 已经是
 /// 「不养护也要 N 天长成」的**真实目标时长**，故不再额外缩放。
-/// 每天最大推进 = 自动 24h/240h = 10% + 养护（3×1% + 5%）= 8% → 18%/阶段·天，
-/// 勤快养护可把 30 天缩短到约 17 天。
+/// 每天最大推进 = 自动 24h/240h = 10% + 养护（3×1% + 3%）= 6% → 16%/阶段·天，
+/// 勤快养护可把 30 天缩短到约 19 天（2026-09-25 施肥 5%→3% 后由 18%/17 天调整）。
 const double kPlantAutoGrowthScale = 1.0;
 
 /// 成长进度浮点容差（判定「本阶段长满 1.0」时允许的下限误差）。
@@ -252,3 +254,34 @@ const int kTaskRewardMax = 15;
 
 /// 联动成长项奖励阳光比例上限：奖励 ≤ 最少专注分钟 × 40%（用户 2026-09-21 拍板）。
 const double kTaskRewardRatio = 0.4;
+
+// ───────────────────────────────────────────────────────────────────────────
+// P0 · B 纪念册里程碑（§8.3 毕业纪念册）：类型标识 + 触发阈值单点收口。
+// 玄参 2026-09-23 拍板采用以下 4 类；类型标识即 `milestone_event` 的 payload['type']，
+// 阈值即「累计统计达到多少时视为新跨过该里程碑」。MemoirService 只引用本段常量，
+// 禁止在服务或页面里写裸字面量（阈值与标识均在此单点收口）。
+// ───────────────────────────────────────────────────────────────────────────
+
+/// 里程碑 1「首个有效专注日」：类型标识。
+const String kMilestoneFirstValidFocusDayType = 'first_valid_focus_day';
+
+/// 里程碑 1 阈值：累计有效专注日数 ≥ 本值即达成（首个有效专注日 = 1）。
+const int kMilestoneFirstValidFocusDayDays = 1;
+
+/// 里程碑 2「累计专注满 600 分钟」：类型标识。
+const String kMilestoneFocusTotal600MinType = 'focus_total_600min';
+
+/// 里程碑 2 阈值：累计专注分钟数 ≥ 本值即达成（600 分钟 = 10 小时）。
+const int kMilestoneFocusTotal600MinMinutes = 600;
+
+/// 里程碑 3「累计有效专注日满 30 天」：类型标识。
+const String kMilestoneValidDays30Type = 'valid_days_30';
+
+/// 里程碑 3 阈值：累计有效专注日数 ≥ 本值即达成（30 天）。
+const int kMilestoneValidDays30Days = 30;
+
+/// 里程碑 4「首株植物开花」：类型标识。
+const String kMilestoneFirstBloomType = 'first_bloom';
+
+/// 里程碑 4 阈值：累计开花植物数 ≥ 本值即达成（首株开花 = 1）。
+const int kMilestoneFirstBloomCount = 1;

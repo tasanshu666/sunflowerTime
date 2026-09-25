@@ -81,6 +81,13 @@ class _ParentPraisePageState extends ConsumerState<ParentPraisePage> {
       _controller.clear();
     });
     await _persist();
+    // P0 · B：夸夸语录「送达」埋点（当前以「家长新增语录成功」为送达代理）。
+    // 埋点失败绝不影响 UI（本地降级）。
+    try {
+      await ref.read(memoirServiceProvider).recordPraiseSent(text, DateTime.now());
+    } catch (_) {
+      // 埋点失败容忍。
+    }
   }
 
   /// 删除一条夸夸语录。

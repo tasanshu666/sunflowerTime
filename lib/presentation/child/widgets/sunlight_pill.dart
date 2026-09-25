@@ -34,20 +34,27 @@ class SunlightPill extends ConsumerWidget {
         color: const Color(0xFFFFF6DC),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const Icon(Icons.wb_sunny, size: 16, color: Color(0xFFE8A600)),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFD98F00),
+      // FittedBox(scaleDown)：AppBar leading 宽度有限（≈100px），余额位数一多
+      // （如 1000、123456）文字放不下就会溢出换行（2026-09-23 真机 Bug：竖排数字）。
+      // 整体等比缩小，任何位数都不溢出。
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.wb_sunny, size: 16, color: Color(0xFFE8A600)),
+            const SizedBox(width: 6),
+            Text(
+              text,
+              maxLines: 1,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFD98F00),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

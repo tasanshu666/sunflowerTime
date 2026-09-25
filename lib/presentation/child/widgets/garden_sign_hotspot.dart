@@ -1,7 +1,7 @@
 /// 花园左下角木牌的可点击热区 + 轻微呼吸高亮（2026-09-24 花园页 v3 改造）。
 ///
 /// ## 职责
-/// 背景图左下角有一块木牌，玄参大人要求它**可点击**并弹出「花园说明」（原来贴底的
+/// 背景图左下角有一块木牌，玄参大人要求它**可点击**并弹出「玩法说明」（原来贴底的
 /// 半透明白块文案收进该弹窗）。本组件只负责「热区 + 按下反馈 + 呼吸高亮」，弹窗内容
 /// 由调用方（`GardenPage._showGardenHelp` → `GardenHelpSheet`）给出。
 ///
@@ -21,7 +21,7 @@ import 'package:flutter/material.dart';
 class GardenSignHotspot extends StatefulWidget {
   const GardenSignHotspot({super.key, required this.onTap, this.animate = true});
 
-  /// 点击木牌的回调（花园页里打开「花园说明」弹窗）。
+  /// 点击木牌的回调（花园页里打开「玩法说明」弹窗）。
   final VoidCallback onTap;
 
   /// 是否执行呼吸动画。

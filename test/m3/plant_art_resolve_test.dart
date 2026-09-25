@@ -8,7 +8,7 @@
 ///
 /// 本文件锁三件事：
 /// ① **清单读取链路真的通**（`AssetManifest.loadFromAssetBundle` 可用、能枚举美术目录）
-/// ② **命名契约**（三级回退的候选路径与优先级）
+/// ② **命名契约**（五级回退的候选路径与优先级；物种级恒在通用级之前）
 /// ③ **枚举名即文件名**（`stage` / `status` 改名会立刻变红 —— 否则美术资源会静默失配）
 library;
 
@@ -29,8 +29,8 @@ const List<String> _speciesIds = <String>[
 ];
 
 void main() {
-  group('A 命名契约：候选路径与三级回退优先级', () {
-    test('A1 同一组合给出三条候选，顺序 = 回退优先级（最精确在前）', () {
+  group('A 命名契约：候选路径与五级回退优先级', () {
+    test('A1 同一组合给出五条候选，顺序 = 回退优先级（物种级在前、通用级在后）', () {
       expect(
         PlantArtCandidates.forPlant(
           speciesId: 'species_sunflower',
@@ -41,6 +41,8 @@ void main() {
           'assets/plants/species_sunflower_adult_bloomed.png',
           'assets/plants/species_sunflower_adult.png',
           'assets/plants/species_sunflower.png',
+          'assets/plants/shared_adult_bloomed.png',
+          'assets/plants/shared_adult.png',
         ],
       );
     });
@@ -102,14 +104,75 @@ void main() {
       );
     });
 
-    test('A6 相邻物种/状态不会串味（候选只含本物种三次，无跨物种兜底）', () {
+    test('A6 相邻物种/状态不会串味（前 3 条含本物种，后 2 条为通用 shared_）', () {
       final List<String> c = PlantArtCandidates.forPlant(
         speciesId: 'species_daisy',
         stage: 'seed',
         status: 'growing',
       );
-      expect(c.every((String p) => p.contains('species_daisy')), isTrue);
+      // 前 3 条 = 物种级：含本物种名，且不含任何跨物种名。
+      expect(
+        c.take(3).every((String p) => p.contains('species_daisy')),
+        isTrue,
+      );
       expect(c.any((String p) => p.contains('species_cactus')), isFalse);
+      // 后 2 条 = 通用级：`shared_` 前缀，且不含任何物种名。
+      expect(
+        c.skip(3).every(
+              (String p) =>
+                  p.contains('/shared_') && !p.contains('species_'),
+            ),
+        isTrue,
+      );
+    });
+
+    test('A7 物种图全缺 → 回退到「通用_阶段_状态」(shared_{stage}_{status})', () {
+      final Set<String> assets = <String>{
+        'assets/plants/shared_seed_growing.png',
+        'assets/plants/shared_seed.png',
+      };
+      expect(
+        PlantArtCandidates.resolve(
+          assets,
+          speciesId: 'species_daisy',
+          stage: 'seed',
+          status: 'growing',
+        ),
+        'assets/plants/shared_seed_growing.png',
+      );
+    });
+
+    test('A8 通用阶段状态图也缺 → 回退到「通用_阶段」(shared_{stage})', () {
+      final Set<String> assets = <String>{'assets/plants/shared_seed.png'};
+      expect(
+        PlantArtCandidates.resolve(
+          assets,
+          speciesId: 'species_cactus',
+          stage: 'seed',
+          status: 'wilting',
+        ),
+        'assets/plants/shared_seed.png',
+      );
+    });
+
+    test('A9 物种级与通用级同时存在 → 必须命中物种级（顺序护栏）', () {
+      final Set<String> assets = <String>{
+        // 通用级齐备。
+        'assets/plants/shared_sprout_growing.png',
+        'assets/plants/shared_sprout.png',
+        // 仅物种级「阶段图」存在（最精确图缺）。
+        'assets/plants/species_sunflower_sprout.png',
+      };
+      expect(
+        PlantArtCandidates.resolve(
+          assets,
+          speciesId: 'species_sunflower',
+          stage: 'sprout',
+          status: 'growing',
+        ),
+        'assets/plants/species_sunflower_sprout.png',
+        reason: '物种级必须优先于通用级，否则已交付的物种图会被通用图覆盖（行为回归）',
+      );
     });
   });
 
@@ -138,10 +201,12 @@ void main() {
               stage: stage.name,
               status: status.name,
             );
-            expect(c, hasLength(3));
+            expect(c, hasLength(5));
             expect(c[0], 'assets/plants/${id}_${stage.name}_${status.name}.png');
             expect(c[1], 'assets/plants/${id}_${stage.name}.png');
             expect(c[2], 'assets/plants/$id.png');
+            expect(c[3], 'assets/plants/shared_${stage.name}_${status.name}.png');
+            expect(c[4], 'assets/plants/shared_${stage.name}.png');
             expect(c.every((String p) => p.endsWith('.png')), isTrue);
             checked++;
           }

@@ -31,8 +31,12 @@ Future<void> showPlantCareSheet(BuildContext context, String plantId) {
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
+    // 暖奶油底（与花园草地的暖色调一致），替代通底白 —— 玄参 2026-09-25：
+    // 「不要通底，都是白底，要有一些分层」。卡片本体是白色圆角大卡（见 PlantCard），
+    // 与奶油底形成两层，进度/心情在卡内再做浅色分区。
+    backgroundColor: const Color(0xFFFBF4E4),
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
     builder: (BuildContext ctx) => PlantCareSheet(plantId: plantId),
   );

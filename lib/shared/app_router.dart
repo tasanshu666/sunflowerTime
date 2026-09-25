@@ -15,7 +15,6 @@ import 'package:sunflower_time/presentation/child/pages/entry_page.dart';
 import 'package:sunflower_time/presentation/child/pages/lock_page.dart';
 import 'package:sunflower_time/presentation/child/pages/rest_page.dart';
 import 'package:sunflower_time/presentation/child/pages/focus_page.dart';
-import 'package:sunflower_time/presentation/child/pages/s1_demo_page.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
 import 'package:sunflower_time/presentation/child/pages/store_page.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
@@ -69,10 +68,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         // 结算参数经 go extra 传入（当前会话内即时导航；不做深链持久化）。
         builder: (context, state) =>
             SettlePage(args: state.extra as SettleArgs?),
-      ),
-      GoRoute(
-        path: '/s1-demo',
-        builder: (context, state) => const S1DemoPage(),
       ),
       GoRoute(
         path: '/consent',

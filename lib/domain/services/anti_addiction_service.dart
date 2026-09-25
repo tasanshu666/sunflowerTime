@@ -11,6 +11,7 @@ import 'dart:math';
 
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/services/app_usage_service.dart';
 
 /// 防沉迷决策结果。
 enum AntiAddictionDecision {
@@ -43,6 +44,20 @@ class AntiAddictionService {
   bool restRequired(AppSettings s, int todayValidSessions) =>
       todayValidSessions > 0 && todayValidSessions % s.restAfterSessions == 0;
 
+  /// App 总使用时长是否达上限（仅用于娱乐页准入；**绝不**参与 evaluate 的专注准入）。
+  ///
+  /// 语义与 [evaluate] 相反：本方法**放行专注、拦娱乐页**，故刻意做成独立方法，
+  /// 不并入 [AntiAddictionDecision] 枚举 —— 若塞进同一枚举，极易被误接进
+  /// 「开始专注」链路（`entry_page` 的 evaluate switch）而把专注也挡掉。
+  ///
+  /// ⚠️ **本方法只是防沉迷语义门面，算法实现在 [AppUsageService.isCapReached]**（唯一判定
+  /// 入口）；此处**不得**再写第二份 `appUsageSeconds >= cap*60` 比较（防「判定孪生」）。
+  bool isAppCapReached(AppSettings s, int appUsageSeconds) =>
+      AppUsageService.isCapReached(
+        capMinutes: s.dailyAppCapMinutes,
+        secondsToday: appUsageSeconds,
+      );
+
   /// 综合评估本次「开始专注」的拦截决策。
   ///
   /// 优先级（高 → 低）：夜间锁定 > 每日上限 > 休息要求 > 允许。
@@ -51,6 +66,10 @@ class AntiAddictionService {
   /// 「这一场选了多久、会不会超」由调用方（选时长页）用 [dailyFocusRemaining]
   /// 收口档位，并由 `SunlightService.settle` 在结算时硬截断（2026-09-23 P0 修复：
   /// 此前仅在此处拦「已达上限」，孩子选一场 180 分钟即可一次冲过上限）。
+  ///
+  /// 注：[appUsageMinutes] 保留供调用方传入，但**本方法不消费它**。App 总使用时长的
+  /// 准入判定走**独立方法** [isAppCapReached]（仅拦娱乐页、放行专注）——二者语义
+  /// 相反（一个拦专注、一个放专注），刻意不并入本方法的决策枚举。
   AntiAddictionDecision evaluate({
     required AppSettings s,
     required DateTime now,
@@ -59,7 +78,6 @@ class AntiAddictionService {
     bool restSatisfied = false,
     double appUsageMinutes = 0.0,
   }) {
-    // TODO(M2/埋点): 接入 App 使用时长埋点后，appUsageMinutes >= s.dailyAppCapMinutes 时应返回 appCapReached
     if (isNightLocked(s, now)) return AntiAddictionDecision.nightLocked;
     if (todayFocusMin >= s.dailyFocusCap) return AntiAddictionDecision.dailyCapReached;
     if (restRequired(s, todayValidSessions) && !restSatisfied) {

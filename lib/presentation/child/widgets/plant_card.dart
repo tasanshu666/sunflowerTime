@@ -88,6 +88,29 @@ class PlantCard extends StatelessWidget {
     }
   }
 
+  /// 心情徽章配色（分层设计：不同心情不同色温，替代通底灰字）。
+  Color get _moodBg {
+    switch (plant.mood) {
+      case PlantMood.happy:
+        return const Color(0xFFE8F5E9); // 淡绿
+      case PlantMood.calm:
+        return const Color(0xFFEFEFEA); // 暖灰
+      case PlantMood.thirsty:
+        return const Color(0xFFFFF3D6); // 淡橙黄
+    }
+  }
+
+  Color get _moodFg {
+    switch (plant.mood) {
+      case PlantMood.happy:
+        return Colors.green.shade800;
+      case PlantMood.calm:
+        return Colors.blueGrey.shade700;
+      case PlantMood.thirsty:
+        return Colors.deepOrange.shade800;
+    }
+  }
+
   /// 距下一阶段还需约多少天（V2 数值，用户 2026-09-22）。
   ///
   /// 旧文案「还需约 N 次浇水」在新数值下会算出荒谬结果（浇水仅 +1%/次 → 100 次），
@@ -156,128 +179,253 @@ class PlantCard extends StatelessWidget {
     final String? hint = q?.waterBlockReason ?? q?.fertilizeBlockReason;
     final List<Widget> perkEntries = _perkEntries();
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                // 外观交给 PlantArtwork：美术资源到位后自动切换，此处无需改动。
-                PlantArtwork(
-                  plant: plant,
-                  species: species,
-                  size: 44,
-                  tint: _statusColor,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        species.name,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        _stageLabel,
-                        style: TextStyle(fontSize: 13, color: _statusColor),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              value: plant.growthProgress.clamp(0.0, 1.0),
-              minHeight: 8,
-              backgroundColor: Colors.black12,
-              color: _statusColor,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '本阶段成长 ${(plant.growthProgress * 100).toInt()}%',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              _nextStageHint,
-              style: const TextStyle(fontSize: 12, color: Colors.teal),
-            ),
-            const SizedBox(height: 8),
-            Text(_moodLabel, style: const TextStyle(fontSize: 13)),
-            if (perkEntries.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 8),
-              Wrap(children: perkEntries),
-            ],
-            const SizedBox(height: 10),
-            if (isDead)
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: onClear,
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  label: const Text('铲除回收'),
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red),
-                ),
-              )
-            else ...<Widget>[
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: canWater ? onWater : null,
-                      icon: const Icon(Icons.water_drop),
-                      label: Text(q == null
-                          ? '浇水'
-                          : '浇水 +${(kPlantWaterProgressGain * 100).round()}% · $kPlantWaterCost ☀'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: canFertilize ? onFertilize : null,
-                      icon: const Icon(Icons.eco),
-                      label: Text(q == null
-                          ? '施肥'
-                          : '施肥 +${(kPlantFertilizeProgressGain * 100).round()}% · $kPlantFertilizeCost ☀'),
-                    ),
-                  ),
-                ],
+    // ── 分层设计（玄参 2026-09-25：不要通底白，要有层次）──────────────────
+    // 白色圆角大卡为底 → 进度/心情各自成「浅色分区」→ 动作按钮双行式。
+    // 旧版是一条 Column 通到底 + 全灰小字，信息层级糊在一起。
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          // ── ① 头部：外观 + 名称 + 状态徽章（替代两行灰绿字）─────────────
+          Row(
+            children: <Widget>[
+              PlantArtwork(
+                plant: plant,
+                species: species,
+                size: 48,
+                tint: _statusColor,
               ),
-              if (q != null) ...<Widget>[
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      species.name,
+                      style: const TextStyle(
+                          fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _statusColor.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        _stageLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _statusColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // ── ② 成长分区：进度条 + 百分比 + 距离下一阶段（浅色圆角底）──────
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _statusColor.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: plant.growthProgress.clamp(0.0, 1.0),
+                          minHeight: 8,
+                          backgroundColor: Colors.white,
+                          color: _statusColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      '${(plant.growthProgress * 100).toInt()}%',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: _statusColor,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 6),
                 Text(
-                  '今日剩余：浇水 ${q.waterRemaining}/$kPlantWaterMaxPerDay 次'
-                  ' · 施肥 ${q.fertilizeRemaining}/$kPlantFertilizeMaxPerDay 次',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  _nextStageHint,
+                  style: TextStyle(
+                      fontSize: 12, color: Colors.teal.shade700),
                 ),
               ],
-              if (hint != null) ...<Widget>[
-                const SizedBox(height: 4),
-                Text(
-                  hint,
-                  style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // ── ③ 心情徽章（按心情着色的胶囊，替代通底一行字）───────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: _moodBg,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              _moodLabel,
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w500, color: _moodFg),
+            ),
+          ),
+          if (perkEntries.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 8),
+            Wrap(children: perkEntries),
+          ],
+          const SizedBox(height: 14),
+          // ── ④ 动作区 ───────────────────────────────────────────────────
+          if (isDead)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onClear,
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                label: const Text('铲除回收'),
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red),
+              ),
+            )
+          else ...<Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _actionButton(
+                    icon: Icons.water_drop,
+                    title: q == null
+                        ? '浇水'
+                        : '浇水 +${(kPlantWaterProgressGain * 100).round()}%',
+                    cost: kPlantWaterCost,
+                    enabled: canWater,
+                    onTap: onWater,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _actionButton(
+                    icon: Icons.eco,
+                    title: q == null
+                        ? '施肥'
+                        : '施肥 +${(kPlantFertilizeProgressGain * 100).round()}%',
+                    cost: kPlantFertilizeCost,
+                    enabled: canFertilize,
+                    onTap: onFertilize,
+                  ),
                 ),
               ],
-              if (isWilting && plant.wiltedAt != null) ...<Widget>[
-                const SizedBox(height: 4),
-                Text(
-                  DateTime.now().difference(plant.wiltedAt!) <
-                          Duration(days: kPlantWiltRecoverHardDays)
-                      ? '浇水 1 次即可救回'
-                      : '需浇水 $kPlantWiltRecoverHardWater 次 + 施肥 $kPlantWiltRecoverHardFertilize 次才能救回',
-                  style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
-                ),
-              ],
+            ),
+            if (q != null) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                '今日剩余：浇水 ${q.waterRemaining}/$kPlantWaterMaxPerDay 次'
+                ' · 施肥 ${q.fertilizeRemaining}/$kPlantFertilizeMaxPerDay 次',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+            if (hint != null) ...<Widget>[
+              const SizedBox(height: 4),
+              Text(
+                hint,
+                style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+              ),
+            ],
+            if (isWilting && plant.wiltedAt != null) ...<Widget>[
+              const SizedBox(height: 4),
+              Text(
+                DateTime.now().difference(plant.wiltedAt!) <
+                        Duration(days: kPlantWiltRecoverHardDays)
+                    ? '浇水 1 次即可救回'
+                    : '需浇水 $kPlantWiltRecoverHardWater 次 + 施肥 $kPlantWiltRecoverHardFertilize 次才能救回',
+                style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+              ),
             ],
           ],
+        ],
+      ),
+    );
+  }
+
+  /// 双行式动作按钮：上行「图标 + 动作 + 增幅」、下行「价格」。
+  ///
+  /// ⚠️ 为什么不用单行 `OutlinedButton.icon('浇水 +1% · 5 ☀')`：窄屏下单行放不下，
+  /// `maxLines:1 + ellipsis` 会把**价格**截掉（玄参 2026-09-25 截图「浇水 +1% · 5...」，
+  /// 价格恰恰是最不能丢的信息）。拆成两行后各自都有充足宽度，永不截断。
+  Widget _actionButton({
+    required IconData icon,
+    required String title,
+    required int cost,
+    required bool enabled,
+    required VoidCallback? onTap,
+  }) {
+    final Color mainColor =
+        enabled ? Colors.teal.shade800 : Colors.grey.shade500;
+    return OutlinedButton(
+      onPressed: enabled ? onTap : null,
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        side: BorderSide(
+          color: enabled ? Colors.teal.shade300 : Colors.grey.shade300,
         ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(icon, size: 18, color: mainColor),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w700, color: mainColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '$cost ☀',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.brown.shade400,
+            ),
+          ),
+        ],
       ),
     );
   }

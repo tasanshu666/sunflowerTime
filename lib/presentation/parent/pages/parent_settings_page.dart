@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
@@ -109,56 +110,111 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
     _snack('PIN 已重设');
   }
 
+  /// 家长赠予阳光。
+  ///
+  /// ⚠️ 2026-09-24 修订（玄参反馈「赠了 30 阳光孩子端没收到」）：
+  /// 根因是 **日上限 20**（PRD §4.5：当日赠予 ≤ 20），超额时旧实现只弹一条
+  /// 一闪而过的 SnackBar → 家长以为赠成功了、实际一分没入账（**静默失败**）。
+  /// 新口径沿用「分因提示 + 不可点即禁用」的既有纪律：
+  ///  · 弹窗**先显示**今日/本月已赠与剩余额度；
+  ///  · 输入超过剩余额度 → **实时报错 + 「赠予」按钮禁用**，根本点不下去；
+  ///  · 额度已耗尽 → 直接分因 SnackBar，不弹窗空跑。
   Future<void> _grantGift() async {
-    final TextEditingController amountCtrl =
-        TextEditingController(text: '10');
+    final DateTime now0 = DateTime.now();
+    final SunlightRepository ledger0 = ref.read(sunlightRepositoryProvider);
+    final double dayTotal0 =
+        await ledger0.netByRefTypeOnDay('parent_gift', dayKey(now0));
+    final double monthTotal0 =
+        await ledger0.netByRefTypeInMonth('parent_gift', monthKey(now0));
+    final double dayRemain =
+        (kParentGiftDaily - dayTotal0).clamp(0.0, kParentGiftDaily.toDouble());
+    final double monthRemain = (kParentGiftMonthly - monthTotal0)
+        .clamp(0.0, kParentGiftMonthly.toDouble());
+    final double maxGrant =
+        dayRemain < monthRemain ? dayRemain : monthRemain;
+
+    // 额度耗尽：分因提示，不弹窗空跑（点了才发现赠不了 = 静默失败）。
+    if (maxGrant <= 0) {
+      _snack(dayRemain <= 0
+          ? '今日赠予已达上限（$kParentGiftDaily ☀/天），明天再来'
+          : '本月赠予已达上限（$kParentGiftMonthly ☀/月）');
+      return;
+    }
+
+    final TextEditingController amountCtrl = TextEditingController(
+      text: maxGrant >= 10 ? '10' : maxGrant.toInt().toString(),
+    );
     final bool? ok = await showDialog<bool>(
       context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('赠予阳光'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Text('赠予将从账本 '+ 'parent_gift' + ' 计入日/月上限'
-                '（日 $kParentGiftDaily / 月 $kParentGiftMonthly）。'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: amountCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: '赠予数量'),
+      builder: (BuildContext ctx) => StatefulBuilder(
+        builder: (BuildContext ctx, void Function(void Function()) setState) {
+          final double? parsed = double.tryParse(amountCtrl.text.trim());
+          // 分因：空/非正数 vs 超额 —— 文案点明「最多可赠多少」，可执行。
+          final String? error = parsed == null || parsed <= 0
+              ? '请输入正数'
+              : parsed > maxGrant
+                  ? '最多可赠 ${maxGrant.toInt()} ☀（今日剩 ${dayRemain.toInt()} / 本月剩 ${monthRemain.toInt()}）'
+                  : null;
+          return AlertDialog(
+            title: const Text('赠予阳光'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('今日已赠 ${dayTotal0.toInt()} / $kParentGiftDaily ☀'
+                    '，还可赠 ${dayRemain.toInt()} ☀'),
+                const SizedBox(height: 4),
+                Text('本月已赠 ${monthTotal0.toInt()} / $kParentGiftMonthly ☀'
+                    '，还可赠 ${monthRemain.toInt()} ☀'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: '赠予数量'),
+                  onChanged: (_) => setState(() {}),
+                ),
+                if (error != null) ...<Widget>[
+                  const SizedBox(height: 6),
+                  Text(
+                    error,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('赠予'),
-          ),
-        ],
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: error == null
+                    ? () => Navigator.of(ctx).pop(true)
+                    : null, // 超额 → 禁用（点不下去，不会静默失败）
+                child: const Text('赠予'),
+              ),
+            ],
+          );
+        },
       ),
     );
     if (ok != true) return;
     final double? amount = double.tryParse(amountCtrl.text.trim());
-    if (amount == null || amount <= 0) {
-      _snack('请输入正数');
-      return;
-    }
+    if (amount == null || amount <= 0) return;
     final DateTime now = DateTime.now();
     final SunlightRepository ledger = ref.read(sunlightRepositoryProvider);
     final double dayTotal =
         await ledger.netByRefTypeOnDay('parent_gift', dayKey(now));
     final double monthTotal =
         await ledger.netByRefTypeInMonth('parent_gift', monthKey(now));
-    if (dayTotal + amount > kParentGiftDaily) {
-      _snack('今日赠予已达上限（剩 ${(kParentGiftDaily - dayTotal).toInt()}）');
-      return;
-    }
-    if (monthTotal + amount > kParentGiftMonthly) {
-      _snack('本月赠予已达上限（剩 ${(kParentGiftMonthly - monthTotal).toInt()}）');
+    // 二次校验（弹窗可能被绕过）：仍然拒绝超额，绝不静默入账。
+    if (dayTotal + amount > kParentGiftDaily ||
+        monthTotal + amount > kParentGiftMonthly) {
+      _snack('超出赠予上限，未赠予（今日剩 '
+          '${(kParentGiftDaily - dayTotal).toInt()} ☀）');
       return;
     }
     final double balance = await ledger.balance();
@@ -173,8 +229,10 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
       refId: null,
       dayKey: dayKey(now),
     ));
+    // 关键：自增经济修订号 → 孩子端（花园胶囊 / 商店 / 我的）立即重算。
     ref.read(economyRevisionProvider.notifier).state++;
-    _snack('已赠予 ${amount.toInt()} 阳光');
+    _snack('已赠予 ${amount.toInt()} ☀，孩子端已到账'
+        '（今日剩 ${(kParentGiftDaily - dayTotal - amount).toInt()} ☀）');
   }
 
   void _snack(String msg) {
@@ -224,7 +282,7 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
         _IntTile(
           title: '每日 App 使用时长（分钟）',
           value: s.dailyAppCapMinutes,
-          options: const <int>[20, 30, 45],
+          options: kDailyAppCapOptions,
           onChanged: (v) => _update(s.copyWith(dailyAppCapMinutes: v)),
         ),
         _IntTile(

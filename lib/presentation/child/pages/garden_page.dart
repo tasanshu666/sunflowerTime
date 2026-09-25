@@ -6,14 +6,14 @@
 ///    右侧滚动条**仅在内容溢出时**出现。滚动区底界落在背景菜地上沿之上，
 ///    滚动时花盆永不遮挡固定背景植物；
 ///  · 底部「容量 / 养护节奏」半透明白块**整块删除**，这些信息收进左下角**木牌**弹窗；
-///  · 左下角木牌**可点击**、带轻微呼吸高亮，点开「花园说明」。
+///  · 左下角木牌**可点击**、带轻微呼吸高亮，点开「玩法说明」。
 ///
 /// ```
 ///   ┌── 整页草地背景（background.png 铺满 body）──────────────────────┐
 ///   │ [独立路由] 左上角阳光胶囊（内嵌 tab 由 shell AppBar 提供）        │
 ///   │   🌻    🌵    ✚   │ ← 3 列花盆网格（最多显示 2 行）             │
 ///   │  ▓▓░░  ▓░░       │   超出 → 区域内纵向滚动 + 右侧滚动条          │
-///   │ [木牌●]           │ ← 左下角木牌（可点 → 花园说明弹窗）           │
+///   │ [木牌●]           │ ← 左下角木牌（可点 → 玩法说明弹窗）           │
 ///   └────────────────────────────────────────────────────────────────┘
 /// ```
 ///
@@ -28,7 +28,7 @@
 /// 沿用 M3 修订的既有纪律：
 ///  · 页首常驻**阳光余额**（原先没有余额展示，扣了阳光看不出来，像「养护不消耗」）；
 ///  · 动作期间置 [_busy] 闸门，避免连点绕过「不能连续浇水」；
-///  · 「加盆」三态互斥（已达上限 / 阳光不足不可点 / 可扩容带价），点击先确认卡。
+///  · 「加盆」格子**始终可点**（busy 除外）：阳光不足时点击弹分因提示，不静默。
 library garden_page;
 
 import 'package:flutter/material.dart';
@@ -167,7 +167,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     await _reload(silent: true);
   }
 
-  /// 打开「花园说明」弹窗（容量 / 种植 / 养护 / 生长 / 枯萎开花 / 扩容）。
+  /// 打开「玩法说明」弹窗（容量 / 种植 / 养护 / 生长 / 枯萎开花 / 扩容）。
   ///
   /// 全部数字取自 prd_params 常量或当前 state（见 [GardenHelpSheet]），无裸字面量。
   Future<void> _showGardenHelp() {
@@ -185,12 +185,16 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   /// **只有点「确定，扣除」才真正调 `expandPot`**；点「取消」什么都不做、一分不扣。
   ///
   /// 仍经 [_run] 执行（异常 SnackBar + 经济修订号自增 + 静默刷新）。
+  ///
+  /// ⚠️ 2026-09-24 起本方法还承担**阳光不足时的分因提示**：`ExpandPotSlot`
+  /// 在阳光不足时不再拦点击（旧口径 onTap: null → 孩子点了毫无反馈，被玄参
+  /// 判定为缺陷），落到这里的兜底提示成了唯一反馈路径，文案要可执行。
   Future<void> _confirmAndExpand() async {
     if (_capacity >= kGardenPotCapacityMax || _busy) return;
     final int cost = _expandCost;
-    // 兜底：格子已把不足态渲染为不可点，此处再拦一次，避免任何路径下扣了才报错。
+    // 阳光不足：不给确认卡，直接分因提示（此时格子虽可点，但绝不扣费）。
     if (_balance < cost) {
-      _snack('阳光不足，还差 ${(cost - _balance).ceil()} ☀');
+      _snack('阳光不足，还差 ${(cost - _balance).ceil()} ☀ —— 去专注赚阳光吧');
       return;
     }
     final bool? ok = await showDialog<bool>(
@@ -394,6 +398,15 @@ class _GardenPageState extends ConsumerState<GardenPage> {
 
   @override
   Widget build(BuildContext context) {
+    // ⚠️ IndexedStack 保活数据陈旧回归（2026-09-23 真机 Bug）：外壳切 tab 不重建本页，
+    // initState 只跑一次 → 别处（专注结算 / 商店核销 / 「我的」页操作）变更余额后，
+    // 本页缓存的 _balance 仍是旧值 → 加盆格误算「还差 N☀」被判不可点（点击无响应）。
+    // 修法：监听经济修订号，任何入账/扣账后静默重读（silent 避免闪全屏 loading）。
+    // ref.listen 只能写在 build() 内（写在 initState 会触发框架断言）。
+    ref.listen(economyRevisionProvider, (_, __) {
+      if (mounted) _reload(silent: true);
+    });
+
     // 整页草地背景：铺满页面 body（内嵌 tab 用 SafeArea、独立路由用 Scaffold body），
     // 图片缺失/失败回退到绿色渐变。阳光胶囊与木牌热区都叠在图片之上。
     final Widget background = Positioned.fill(

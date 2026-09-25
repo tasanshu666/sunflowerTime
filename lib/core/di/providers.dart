@@ -33,8 +33,10 @@ import 'package:sunflower_time/domain/services/redemption_orchestration_service.
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/domain/services/focus_report_service.dart';
 import 'package:sunflower_time/domain/services/data_management_service.dart';
+import 'package:sunflower_time/domain/services/memoir_service.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/presentation/child/state/app_usage_controller.dart';
 
 /// SharedPreferences 实例（main 初始化后 override 注入，见 main.dart）。
 final sharedPreferencesProvider = Provider<SharedPreferences>(
@@ -191,5 +193,19 @@ final taskCheckInServiceProvider = Provider<TaskCheckInService>(
     ledger: ref.watch(sunlightRepositoryProvider),
     focus: ref.watch(focusRepositoryProvider),
     settings: ref.watch(settingsRepositoryProvider),
+  ),
+);
+
+// ── P0 · A App 总时长防沉迷（§6.1）──────────────────────────────────
+
+/// App 总使用时长控制器（娱乐 tab 前台计时 + 到顶判定；见 [AppUsageController]）。
+final appUsageControllerProvider =
+    NotifierProvider<AppUsageController, AppUsageState>(AppUsageController.new);
+
+/// 纪念册服务（P0 · B）：花园周快照 / 里程碑 / 夸夸语录送达埋点（零接口变更）。
+final memoirServiceProvider = Provider<MemoirService>(
+  (ref) => MemoirService(
+    ref.watch(trackingRepositoryProvider),
+    ref.watch(plantRepositoryProvider),
   ),
 );

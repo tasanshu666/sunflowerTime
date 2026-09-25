@@ -7,7 +7,7 @@
 ///     **真实 `GardenPage`** 用例断言第 3 行在视口外、滚动条可见、`maxScrollExtent > 0`；
 ///  4. 加号圆**对齐花盆视觉中心**（圆心 y、外径均按 pot.png 像素 bbox 独立推导）；
 ///  5. 三类格子底部文案底边对齐 + 五态字色 WCAG 对比度 ≥ 4.5:1；
-///  6. 木牌热区可点 / 呼吸动画可关停 / 打开「花园说明」。
+///  6. 木牌热区可点 / 呼吸动画可关停 / 打开「玩法说明」。
 ///
 /// ## 防自指纪律（QA 复核重点）
 ///  · 木牌屏幕矩形、加号圆心/外径的**期望值一律独立推导**（源图像素 / bbox 像素），
@@ -117,10 +117,11 @@ double _contrastRatio(Color fg, Color bg) {
 /// **独立推导**木牌屏幕矩形：直接用背景源图像素区间 + cover 映射公式算，
 /// **不引用**被测常量 [kGardenSignNormalizedRect]（破自指 → 改常量必红）。
 ///
-/// 标定来源：`background.png` 左下角木牌，源图像素 x 48~285 / y 1655~1825，画布 1161×2560。
+/// 标定来源：`background.png`（玄参 2026-09-23 换图后重标）左下角木牌，
+/// 源图像素 x 86.6~272.4 / y 1499.7~1686.6，画布 1056×2336。
 Rect _expectedSignScreenRect(Size box) {
-  const double srcW = 1161, srcH = 2560;
-  const double x0 = 48, x1 = 285, y0 = 1655, y1 = 1825;
+  const double srcW = 1056, srcH = 2336;
+  const double x0 = 86.6, x1 = 272.4, y0 = 1499.7, y1 = 1686.6;
   final double scale = math.max(box.width / srcW, box.height / srcH);
   final double drawnW = srcW * scale, drawnH = srcH * scale;
   final double ox = (box.width - drawnW) / 2;
@@ -285,9 +286,9 @@ void main() {
   // ── 改动 1：背景映射纯函数 ────────────────────────────────────────────────
   group('gardenCoverRect · BoxFit.cover 映射（纯函数）', () {
     test('容器比图更「宽」（宽满、上下溢出、居中）', () {
-      const Size box = Size(1161, 2000); // 与图同宽但更矮 → 宽度铺满
+      const Size box = Size(1056, 2000); // 与图同宽但更矮 → 宽度铺满
       final Rect r = gardenCoverRect(box);
-      const double scale = 1161 / 1161; // = 1
+      const double scale = 1056 / 1056; // = 1
       expect(r.width, closeTo(kGardenBackgroundSize.width * scale, 0.001));
       expect(r.height, closeTo(kGardenBackgroundSize.height * scale, 0.001));
       expect(r.left, closeTo((box.width - r.width) / 2, 0.001));
@@ -297,9 +298,9 @@ void main() {
     });
 
     test('容器比图更「高」（高满、左右溢出、居中）', () {
-      const Size box = Size(600, 2560); // 与图同高但更窄 → 高度铺满
+      const Size box = Size(600, 2336); // 与图同高但更窄 → 高度铺满
       final Rect r = gardenCoverRect(box);
-      const double scale = 2560 / 2560; // = 1
+      const double scale = 2336 / 2336; // = 1
       expect(r.width, closeTo(kGardenBackgroundSize.width * scale, 0.001));
       expect(r.height, closeTo(kGardenBackgroundSize.height * scale, 0.001));
       expect(r.left, lessThan(0)); // 左右溢出
@@ -310,8 +311,8 @@ void main() {
     test('scale 取 max（不失真、覆盖容器）', () {
       const Size box = Size(720, 1280);
       final Rect r = gardenCoverRect(box);
-      const double scale = 720 / 1161; // 0.6202 > 1280/2560 = 0.5
-      expect(scale, greaterThan(1280 / 2560));
+      const double scale = 720 / 1056; // 0.6818 > 1280/2336 = 0.5479
+      expect(scale, greaterThan(1280 / 2336));
       expect(r.width, closeTo(kGardenBackgroundSize.width * scale, 0.001));
       expect(r.height, closeTo(kGardenBackgroundSize.height * scale, 0.001));
       expect(r.width, greaterThanOrEqualTo(box.width - 0.001));
@@ -391,17 +392,17 @@ void main() {
       expect(actual.bottom, closeTo(expected.bottom, 0.05));
     });
 
-    test('360×780：硬钉实测值（QA 对照 14.87 / 506.29 / 88.38 / 559.00）', () {
+    test('360×780：硬钉实测值（新图标定 29.52 / 503.08 / 92.88 / 566.79）', () {
       const Size box = Size(360, 780);
       final Rect r = gardenSignScreenRect(box);
-      expect(r.left, closeTo(14.88, 0.05));
-      expect(r.top, closeTo(506.28, 0.05));
-      expect(r.right, closeTo(88.37, 0.05));
-      expect(r.bottom, closeTo(559.00, 0.05));
-      expect(r.width, closeTo(73.49, 0.05));
-      expect(r.height, closeTo(52.71, 0.05));
+      expect(r.left, closeTo(29.52, 0.05));
+      expect(r.top, closeTo(503.08, 0.05));
+      expect(r.right, closeTo(92.88, 0.05));
+      expect(r.bottom, closeTo(566.79, 0.05));
+      expect(r.width, closeTo(63.36, 0.05));
+      expect(r.height, closeTo(63.71, 0.05));
       // cover 上下裁切证据（origin.dy 为负 → 木牌整体上移）。
-      expect(gardenCoverRect(box).top, closeTo(-6.8992, 0.01));
+      expect(gardenCoverRect(box).top, closeTo(-8.1818, 0.01));
     });
 
     test('400×880：硬钉实测值 + cover 裁切证据', () {
@@ -412,10 +413,10 @@ void main() {
       expect(r.top, closeTo(expected.top, 0.05));
       expect(r.right, closeTo(expected.right, 0.05));
       expect(r.bottom, closeTo(expected.bottom, 0.05));
-      // QA 对照：16.52 / 569.21 / 98.20 / 627.78，尺寸 81.68×58.56。
-      expect(r.width, closeTo(81.65, 0.2));
-      expect(r.height, closeTo(58.57, 0.2));
-      expect(gardenCoverRect(box).top, closeTo(-0.9991, 0.01));
+      // 新图标定：32.80 / 565.65 / 103.20 / 636.44，尺寸 70.40×70.79。
+      expect(r.width, closeTo(70.40, 0.2));
+      expect(r.height, closeTo(70.79, 0.2));
+      expect(gardenCoverRect(box).top, closeTo(-2.4242, 0.01));
     });
 
     test('多屏宽下宽高 ≥ 44 逻辑像素且基本落在容器内', () {
@@ -495,11 +496,11 @@ void main() {
     //
     // 背景：把 `garden_page._buildGardenBody` 里传给纯函数的 `firstRowTop`
     // （应为 `gardenPotAreaBottom(...) - c.maxHeight`）**改成 0** 时，原 360×780 用例
-    // 仍全绿 —— 因为 360×780 下 `rowsHeight(406) < available(524.76)`，两行高度本身就
+    // 仍全绿 —— 因为 360×780 下 `rowsHeight(406) < available(525.27)`，两行高度本身就
     // 小于可用高度，`firstRowTop` 被 `min(...)` 掩盖、传错也不影响结果。
     //
     // 只有**屏高更短**、使 `available < rowsHeight` 时该参数才真正起作用。
-    // 选 360×380：可用高度 ≈ 324.76 < 两行 406（差 81px，余量充足），
+    // 选 360×380：可用高度 ≈ 325.27 < 两行 406（差 81px，余量充足），
     // 而 firstRowTop 传错会带来 +12px 偏差 → 可被 settle 后的像素级断言捕获。
     testWidgets('矮屏 360×380（可摆区比两行更矮）：可视高被「底界−顶部−呼吸间距」钳制，钉住 firstRowTop',
         (WidgetTester tester) async {
@@ -538,7 +539,7 @@ void main() {
           tester.getRect(find.byType(SingleChildScrollView)).height;
 
       // 钉死：可视高 == 花盆区底界 − 顶部 − 呼吸间距。
-      // 若 firstRowTop 被错传为 0，此值会变为 expectedViewport + 12（≈336.76）→ 必红。
+      // 若 firstRowTop 被错传为 0，此值会变为 expectedViewport + 12（≈337.27）→ 必红。
       expect(viewportHeight, closeTo(expectedViewport, 0.05),
           reason: 'firstRowTop 传错会让可视高偏 +12px');
       expect(viewportHeight, isNot(closeTo(expectedViewport + pageTopPad, 1.0)));
@@ -775,9 +776,9 @@ void main() {
     });
   });
 
-  // ── 改动 4：花园说明弹窗 ──────────────────────────────────────────────────
-  group('花园说明弹窗', () {
-    testWidgets('从木牌热区点开，弹出「花园说明」并显示容量文案',
+  // ── 改动 4：玩法说明弹窗 ──────────────────────────────────────────────────
+  group('玩法说明弹窗', () {
+    testWidgets('从木牌热区点开，弹出「玩法说明」并显示容量文案',
         (WidgetTester tester) async {
       _setScreen(tester, 360, 780);
       await tester.pumpWidget(MaterialApp(
@@ -808,7 +809,7 @@ void main() {
       await tester.tap(find.byType(GardenSignHotspot));
       await tester.pumpAndSettle();
 
-      expect(find.text('花园说明'), findsOneWidget);
+      expect(find.text('玩法说明'), findsOneWidget);
       expect(find.text('4 / 12 盆'), findsOneWidget);
       // 缺陷 5：不得再出现对精品植物不成立的「每阶段约 10 天」。
       expect(find.textContaining('10 天'), findsNothing);

@@ -1,7 +1,8 @@
 /// 埋点事件名单点（§3.3 / §7.5 单点纪律）。
 ///
-/// 9 个事件的 name 字符串唯一真源；领域服务只引用本类的常量，禁止在业务代码里
-/// 写裸字符串。payload 字段名与《验证计划 §3.2》**一字不改**（见 tracking_test.dart）。
+/// 全部事件 name 字符串的唯一真源（**不写死数量**，避免增删事件后注释失真）；领域
+/// 服务只引用本类的常量，禁止在业务代码里写裸字符串。payload 字段名与
+/// 《验证计划 §3.2》**一字不改**（见 tracking_test.dart）。
 library tracking_event_names;
 
 class TrackingEventNames {
@@ -34,4 +35,13 @@ class TrackingEventNames {
 
   /// 家长日活（parent_login_page PIN 校验通过）。
   static const parentDau = 'parent_dau';
+
+  /// 夸夸语录送达（家长在夸夸台新增语录时，「新增」暂作「送达」代理）。
+  static const praiseSent = 'praise_sent';
+
+  /// 花园每周快照（启动惰性补写，每周一次、幂等）。
+  static const gardenSnapshot = 'garden_snapshot';
+
+  /// 里程碑事件（结算后按累计统计判「新跨过的里程碑」，按 type 去重）。
+  static const milestoneEvent = 'milestone_event';
 }

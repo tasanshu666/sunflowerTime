@@ -326,7 +326,8 @@ void main() {
       expect(tapped, isTrue);
     });
 
-    testWidgets('阳光不足 → 写还差多少、点了没反应', (WidgetTester tester) async {
+    testWidgets('阳光不足 → 写还差多少；**点击仍回调**（分因提示由页面层兜底，不静默）',
+        (WidgetTester tester) async {
       bool tapped = false;
       await tester.pumpWidget(_harness(
         screenWidth: 360,
@@ -341,8 +342,11 @@ void main() {
       ));
       await tester.pump();
       expect(find.text('还差 173☀'), findsOneWidget);
+      // ⚠️ 2026-09-24 修订（玄参真机反馈「点了没反应」）：阳光不足**不再拦点击**，
+      // 回调照常触发；「阳光不足，还差 N ☀」的分因提示由 GardenPage._confirmAndExpand
+      // 兜底弹出。旧口径 onTap: null 会让点击静默失败，等于 UI 层把失败藏起来。
       await tester.tap(find.byType(ExpandPotSlot));
-      expect(tapped, isFalse);
+      expect(tapped, isTrue);
     });
 
     testWidgets('busy 期间即使够钱也不可点（防连点绕过扣费）', (WidgetTester tester) async {

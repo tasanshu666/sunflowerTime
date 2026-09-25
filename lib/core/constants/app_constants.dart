@@ -99,3 +99,27 @@ const String kPrefAckedRejectIds = 'acked_reject_ids';
 /// 家长 PIN 是否已在安全区落库的标记键（flutter_secure_storage）。
 const String kSecurePinHash = 'parent_pin_hash';
 const String kSecurePinSalt = 'parent_pin_salt';
+
+// ── App 总时长防沉迷（P0 缺口 / §6.1；T01 单点收口）──────────────────
+
+/// App 使用时长计时器 tick 间隔（秒）：外壳前台每 5 秒结算一次。
+const int kAppUsageTickSeconds = 5;
+
+/// **「哪些底部 tab 计入 App 总使用时长」的唯一开关（改这一行即可调整口径）**。
+///
+/// 集合内 = 计入计时（娱乐页）：花园(2) / 商店(3) / 我的(4)；
+/// 不在集合内 = 不计入：今日(0) / 成长(1)（出发页与正向打卡，计入会与
+/// 「成长页保持可用 / 学习时间不限」冲突）。
+/// 玄参若要连「今日 / 成长」一起计，只改本行即可，无需动其它代码。
+const Set<int> kAppUsageCountingTabs = <int>{2, 3, 4};
+
+/// App 当日累计时长所属自然日的 SharedPreferences 键（yyyy-MM-dd）。
+const String kPrefAppUsageDate = 'app_usage_date';
+
+/// App 当日累计时长的 SharedPreferences 键（秒）。
+const String kPrefAppUsageSeconds = 'app_usage_seconds';
+
+/// 家长端「每日 App 使用时长」可选档位（分钟）。
+///
+/// 家长设置页下拉档位与本常量**唯一真源**（页面引用本常量，不再写裸字面量）。
+const List<int> kDailyAppCapOptions = <int>[20, 30, 45];

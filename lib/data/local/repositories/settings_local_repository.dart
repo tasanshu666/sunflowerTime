@@ -8,6 +8,7 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 
 class SettingsLocalRepository implements SettingsRepository {
@@ -23,7 +24,7 @@ class SettingsLocalRepository implements SettingsRepository {
       return const AppSettings(
         ageTier: AgeTier.high,
         dailyFocusCap: kDailyFocusCapHigh,
-        dailyAppCapMinutes: 30,
+        dailyAppCapMinutes: kDailyAppCapMinutes,
         restAfterSessions: 2,
         restMinutes: 10,
         taskSunlight: 12,

@@ -1,6 +1,6 @@
 /// 应用入口（§5 T01 工程脚手架）：初始化 SharedPreferences → bootstrap → ProviderScope(App)。
 ///
-/// 替换 spike 阶段的最小入口；S1/S3 的 demo 仍保留为路由入口（`/s1-demo`、`/focus`）。
+/// 替换 spike 阶段的最小入口；专注链路仍保留为路由入口（`/focus`）。
 library main;
 
 import 'dart:async';
@@ -55,6 +55,17 @@ Future<void> main() async {
         .then((_) {})
         .catchError((Object e, StackTrace st) {
       debugPrint('[releaseQueue] 跨周排队释放失败：$e\n$st');
+    }),
+  );
+
+  // P0 · B（纪念册）：启动惰性补写「本周花园快照」（每周一次、幂等；不补历史周）。
+  // 与种子 / releaseQueue 同款 unawaited 模式：不阻塞启动、不改时序。
+  unawaited(
+    container
+        .read(memoirServiceProvider)
+        .ensureWeeklySnapshot(DateTime.now())
+        .catchError((Object e, StackTrace st) {
+      debugPrint('[memoir] 花园周快照写入失败：$e\n$st');
     }),
   );
 

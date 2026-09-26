@@ -34,6 +34,7 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
   final TextEditingController _nameCtrl = TextEditingController();
   final TextEditingController _customSubjectCtrl = TextEditingController();
   TaskSubject _subject = TaskSubject.general;
+  TaskCategory _category = TaskCategory.other; // 成长项内容分类（学习/运动/生活/其他）
   bool _requiresFocus = true;
   int _minFocusMin = kTaskMinFocusDefault;
   int _reward = kTaskRewardDefault;
@@ -65,6 +66,7 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
       _minFocusMin = t.minFocusMin;
       _reward = t.sunlightReward;
       _repeat = _ruleFrom(t.repeatRule);
+      _category = t.category;
     }
     // 编辑历史超标老成长项时，打开即夹回合法区间并显示合规值。
     _reward = _clampReward(_reward);
@@ -118,6 +120,7 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
       id: widget.initial?.id ?? const Uuid().v4(),
       name: name,
       subject: _subject,
+      category: _category,
       // 仅自定义科目落库科目名；切回内置科目时显式清空，避免残留旧文本。
       customSubject:
           _subject == TaskSubject.custom ? customSubject : null,
@@ -180,6 +183,22 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
                 ),
               ),
             ],
+            const SizedBox(height: 8),
+            DropdownButtonFormField<TaskCategory>(
+              value: _category,
+              decoration: const InputDecoration(labelText: '分类'),
+              items: const <DropdownMenuItem<TaskCategory>>[
+                DropdownMenuItem(
+                    value: TaskCategory.learning, child: Text('学习')),
+                DropdownMenuItem(
+                    value: TaskCategory.sports, child: Text('运动')),
+                DropdownMenuItem(value: TaskCategory.life, child: Text('生活')),
+                DropdownMenuItem(
+                    value: TaskCategory.other, child: Text('其他')),
+              ],
+              onChanged: (TaskCategory? v) =>
+                  v == null ? null : setState(() => _category = v),
+            ),
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

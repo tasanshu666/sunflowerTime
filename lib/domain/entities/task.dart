@@ -10,6 +10,7 @@ class Task {
   final String name;
   final TaskSubject subject;
   final String? customSubject; // 自定义科目名（subject==custom 时生效）
+  final TaskCategory category; // 内容分类（学习/运动/生活/其他），默认 other = 历史/未分类安全默认
   final bool requiresFocus; // 是否需要 ≥15 分钟专注
   final int minFocusMin; // 默认 15
   final int sunlightReward; // 默认 12，区间 5–40
@@ -26,6 +27,7 @@ class Task {
     required this.sunlightReward,
     this.repeatRule,
     required this.isCustom,
+    this.category = TaskCategory.other,
   });
 
   /// 给定「最少专注分钟」，返回奖励阳光上限（分钟 × [kTaskRewardRatio]，至少 1）。
@@ -62,4 +64,10 @@ class Task {
         return name.isEmpty ? '自定义' : name;
     }
   }
+
+  /// 内容分类中文名（学习/运动/生活/其他），单点收口（UI 层不要再写 switch）。
+  String get categoryLabel => category.label;
+
+  /// 内容分类占位图标（emoji）。
+  String get categoryIcon => category.icon;
 }

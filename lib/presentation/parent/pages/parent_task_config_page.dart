@@ -8,8 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/presentation/parent/widgets/task_editor_dialog.dart';
+import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
 /// 任务配置页：家长管理学习任务模板。
 ///
@@ -118,35 +120,78 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (BuildContext ctx, int i) {
                     final Task t = _tasks[i];
-                    return Card(
-                      child: ListTile(
-                        leading: Icon(
-                          t.requiresFocus ? Icons.timer : Icons.check_circle_outline,
-                          color: t.requiresFocus ? Colors.teal : Colors.grey,
-                        ),
-                        title: Text(t.name),
-                        subtitle: Text(
-                          '科目：${t.subjectLabel}'
-                          ' · 奖励 ${t.effectiveSunlightReward} 阳光'
-                          ' · ${_repeatLabel(t.repeatRule)}'
-                          '${t.requiresFocus ? ' · 专注联动 ${t.minFocusMin} 分钟' : ''}',
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              tooltip: '编辑',
-                              onPressed: () => _openEditor(initial: t),
+                    final ({Color bg, Color fg}) cat = macaronColorById(t.id);
+                    return Container(
+                      decoration: creamCardDecoration(),
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: <Widget>[
+                          macaronIconBlock(
+                            emoji: t.category.icon,
+                            bg: cat.bg,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  t.name,
+                                  style: Theme.of(ctx)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: <Widget>[
+                                    pillLabel(
+                                      text: t.categoryLabel,
+                                      bg: cat.bg,
+                                      fg: cat.fg,
+                                    ),
+                                    pillLabel(
+                                      text: t.subjectLabel,
+                                      bg: Colors.grey.shade100,
+                                      fg: Colors.grey.shade700,
+                                    ),
+                                    pillLabel(
+                                      text: '${t.effectiveSunlightReward} 阳光',
+                                      bg: const Color(0xFFFFF1C2),
+                                      fg: const Color(0xFF8D6E00),
+                                    ),
+                                    if (t.requiresFocus)
+                                      pillLabel(
+                                        text: '专注 ${t.minFocusMin} 分',
+                                        bg: Colors.teal.shade50,
+                                        fg: Colors.teal.shade700,
+                                      ),
+                                  ],
+                                ),
+                              ],
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  color: Colors.red),
-                              tooltip: '删除',
-                              onPressed: () => _delete(t),
-                            ),
-                          ],
-                        ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              IconButton(
+                                icon: const Icon(Icons.edit,
+                                    color: Colors.blueGrey),
+                                tooltip: '编辑',
+                                onPressed: () => _openEditor(initial: t),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.red),
+                                tooltip: '删除',
+                                onPressed: () => _delete(t),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     );
                   },

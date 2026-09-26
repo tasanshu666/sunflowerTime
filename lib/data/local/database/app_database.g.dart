@@ -2715,9 +2715,25 @@ class $RewardTemplatesTable extends RewardTemplates
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("enabled" IN (0, 1))'),
       defaultValue: const Constant(true));
+  static const VerificationMeta _contentCategoryMeta =
+      const VerificationMeta('contentCategory');
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, name, category, baseCost, freqLimit, cooldownRule, enabled];
+  late final GeneratedColumn<int> contentCategory = GeneratedColumn<int>(
+      'content_category', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        name,
+        category,
+        baseCost,
+        freqLimit,
+        cooldownRule,
+        enabled,
+        contentCategory
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2763,6 +2779,12 @@ class $RewardTemplatesTable extends RewardTemplates
       context.handle(_enabledMeta,
           enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta));
     }
+    if (data.containsKey('content_category')) {
+      context.handle(
+          _contentCategoryMeta,
+          contentCategory.isAcceptableOrUnknown(
+              data['content_category']!, _contentCategoryMeta));
+    }
     return context;
   }
 
@@ -2786,6 +2808,8 @@ class $RewardTemplatesTable extends RewardTemplates
           .read(DriftSqlType.int, data['${effectivePrefix}cooldown_rule'])!,
       enabled: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}enabled'])!,
+      contentCategory: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}content_category'])!,
     );
   }
 
@@ -2803,6 +2827,7 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
   final int? freqLimit;
   final int cooldownRule;
   final bool enabled;
+  final int contentCategory;
   const RewardTemplate(
       {required this.id,
       required this.name,
@@ -2810,7 +2835,8 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
       required this.baseCost,
       this.freqLimit,
       required this.cooldownRule,
-      required this.enabled});
+      required this.enabled,
+      required this.contentCategory});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2823,6 +2849,7 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
     }
     map['cooldown_rule'] = Variable<int>(cooldownRule);
     map['enabled'] = Variable<bool>(enabled);
+    map['content_category'] = Variable<int>(contentCategory);
     return map;
   }
 
@@ -2837,6 +2864,7 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
           : Value(freqLimit),
       cooldownRule: Value(cooldownRule),
       enabled: Value(enabled),
+      contentCategory: Value(contentCategory),
     );
   }
 
@@ -2851,6 +2879,7 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
       freqLimit: serializer.fromJson<int?>(json['freqLimit']),
       cooldownRule: serializer.fromJson<int>(json['cooldownRule']),
       enabled: serializer.fromJson<bool>(json['enabled']),
+      contentCategory: serializer.fromJson<int>(json['contentCategory']),
     );
   }
   @override
@@ -2864,6 +2893,7 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
       'freqLimit': serializer.toJson<int?>(freqLimit),
       'cooldownRule': serializer.toJson<int>(cooldownRule),
       'enabled': serializer.toJson<bool>(enabled),
+      'contentCategory': serializer.toJson<int>(contentCategory),
     };
   }
 
@@ -2874,7 +2904,8 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
           int? baseCost,
           Value<int?> freqLimit = const Value.absent(),
           int? cooldownRule,
-          bool? enabled}) =>
+          bool? enabled,
+          int? contentCategory}) =>
       RewardTemplate(
         id: id ?? this.id,
         name: name ?? this.name,
@@ -2883,6 +2914,7 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
         freqLimit: freqLimit.present ? freqLimit.value : this.freqLimit,
         cooldownRule: cooldownRule ?? this.cooldownRule,
         enabled: enabled ?? this.enabled,
+        contentCategory: contentCategory ?? this.contentCategory,
       );
   RewardTemplate copyWithCompanion(RewardTemplatesCompanion data) {
     return RewardTemplate(
@@ -2895,6 +2927,9 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
           ? data.cooldownRule.value
           : this.cooldownRule,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      contentCategory: data.contentCategory.present
+          ? data.contentCategory.value
+          : this.contentCategory,
     );
   }
 
@@ -2907,14 +2942,15 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
           ..write('baseCost: $baseCost, ')
           ..write('freqLimit: $freqLimit, ')
           ..write('cooldownRule: $cooldownRule, ')
-          ..write('enabled: $enabled')
+          ..write('enabled: $enabled, ')
+          ..write('contentCategory: $contentCategory')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, name, category, baseCost, freqLimit, cooldownRule, enabled);
+  int get hashCode => Object.hash(id, name, category, baseCost, freqLimit,
+      cooldownRule, enabled, contentCategory);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2925,7 +2961,8 @@ class RewardTemplate extends DataClass implements Insertable<RewardTemplate> {
           other.baseCost == this.baseCost &&
           other.freqLimit == this.freqLimit &&
           other.cooldownRule == this.cooldownRule &&
-          other.enabled == this.enabled);
+          other.enabled == this.enabled &&
+          other.contentCategory == this.contentCategory);
 }
 
 class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
@@ -2936,6 +2973,7 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
   final Value<int?> freqLimit;
   final Value<int> cooldownRule;
   final Value<bool> enabled;
+  final Value<int> contentCategory;
   final Value<int> rowid;
   const RewardTemplatesCompanion({
     this.id = const Value.absent(),
@@ -2945,6 +2983,7 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
     this.freqLimit = const Value.absent(),
     this.cooldownRule = const Value.absent(),
     this.enabled = const Value.absent(),
+    this.contentCategory = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RewardTemplatesCompanion.insert({
@@ -2955,6 +2994,7 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
     this.freqLimit = const Value.absent(),
     this.cooldownRule = const Value.absent(),
     this.enabled = const Value.absent(),
+    this.contentCategory = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -2967,6 +3007,7 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
     Expression<int>? freqLimit,
     Expression<int>? cooldownRule,
     Expression<bool>? enabled,
+    Expression<int>? contentCategory,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2977,6 +3018,7 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
       if (freqLimit != null) 'freq_limit': freqLimit,
       if (cooldownRule != null) 'cooldown_rule': cooldownRule,
       if (enabled != null) 'enabled': enabled,
+      if (contentCategory != null) 'content_category': contentCategory,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2989,6 +3031,7 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
       Value<int?>? freqLimit,
       Value<int>? cooldownRule,
       Value<bool>? enabled,
+      Value<int>? contentCategory,
       Value<int>? rowid}) {
     return RewardTemplatesCompanion(
       id: id ?? this.id,
@@ -2998,6 +3041,7 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
       freqLimit: freqLimit ?? this.freqLimit,
       cooldownRule: cooldownRule ?? this.cooldownRule,
       enabled: enabled ?? this.enabled,
+      contentCategory: contentCategory ?? this.contentCategory,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3026,6 +3070,9 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
     }
+    if (contentCategory.present) {
+      map['content_category'] = Variable<int>(contentCategory.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3042,6 +3089,7 @@ class RewardTemplatesCompanion extends UpdateCompanion<RewardTemplate> {
           ..write('freqLimit: $freqLimit, ')
           ..write('cooldownRule: $cooldownRule, ')
           ..write('enabled: $enabled, ')
+          ..write('contentCategory: $contentCategory, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3955,6 +4003,14 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       requiredDuringInsert: true,
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("is_custom" IN (0, 1))'));
+  static const VerificationMeta _categoryMeta =
+      const VerificationMeta('category');
+  @override
+  late final GeneratedColumn<int> category = GeneratedColumn<int>(
+      'category', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -3965,7 +4021,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         minFocusMin,
         sunlightReward,
         repeatRule,
-        isCustom
+        isCustom,
+        category
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4032,6 +4089,10 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     } else if (isInserting) {
       context.missing(_isCustomMeta);
     }
+    if (data.containsKey('category')) {
+      context.handle(_categoryMeta,
+          category.isAcceptableOrUnknown(data['category']!, _categoryMeta));
+    }
     return context;
   }
 
@@ -4059,6 +4120,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
           .read(DriftSqlType.string, data['${effectivePrefix}repeat_rule']),
       isCustom: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}is_custom'])!,
+      category: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}category'])!,
     );
   }
 
@@ -4078,6 +4141,7 @@ class Task extends DataClass implements Insertable<Task> {
   final int sunlightReward;
   final String? repeatRule;
   final bool isCustom;
+  final int category;
   const Task(
       {required this.id,
       required this.name,
@@ -4087,7 +4151,8 @@ class Task extends DataClass implements Insertable<Task> {
       required this.minFocusMin,
       required this.sunlightReward,
       this.repeatRule,
-      required this.isCustom});
+      required this.isCustom,
+      required this.category});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -4104,6 +4169,7 @@ class Task extends DataClass implements Insertable<Task> {
       map['repeat_rule'] = Variable<String>(repeatRule);
     }
     map['is_custom'] = Variable<bool>(isCustom);
+    map['category'] = Variable<int>(category);
     return map;
   }
 
@@ -4122,6 +4188,7 @@ class Task extends DataClass implements Insertable<Task> {
           ? const Value.absent()
           : Value(repeatRule),
       isCustom: Value(isCustom),
+      category: Value(category),
     );
   }
 
@@ -4138,6 +4205,7 @@ class Task extends DataClass implements Insertable<Task> {
       sunlightReward: serializer.fromJson<int>(json['sunlightReward']),
       repeatRule: serializer.fromJson<String?>(json['repeatRule']),
       isCustom: serializer.fromJson<bool>(json['isCustom']),
+      category: serializer.fromJson<int>(json['category']),
     );
   }
   @override
@@ -4153,6 +4221,7 @@ class Task extends DataClass implements Insertable<Task> {
       'sunlightReward': serializer.toJson<int>(sunlightReward),
       'repeatRule': serializer.toJson<String?>(repeatRule),
       'isCustom': serializer.toJson<bool>(isCustom),
+      'category': serializer.toJson<int>(category),
     };
   }
 
@@ -4165,7 +4234,8 @@ class Task extends DataClass implements Insertable<Task> {
           int? minFocusMin,
           int? sunlightReward,
           Value<String?> repeatRule = const Value.absent(),
-          bool? isCustom}) =>
+          bool? isCustom,
+          int? category}) =>
       Task(
         id: id ?? this.id,
         name: name ?? this.name,
@@ -4177,6 +4247,7 @@ class Task extends DataClass implements Insertable<Task> {
         sunlightReward: sunlightReward ?? this.sunlightReward,
         repeatRule: repeatRule.present ? repeatRule.value : this.repeatRule,
         isCustom: isCustom ?? this.isCustom,
+        category: category ?? this.category,
       );
   Task copyWithCompanion(TasksCompanion data) {
     return Task(
@@ -4197,6 +4268,7 @@ class Task extends DataClass implements Insertable<Task> {
       repeatRule:
           data.repeatRule.present ? data.repeatRule.value : this.repeatRule,
       isCustom: data.isCustom.present ? data.isCustom.value : this.isCustom,
+      category: data.category.present ? data.category.value : this.category,
     );
   }
 
@@ -4211,14 +4283,24 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('minFocusMin: $minFocusMin, ')
           ..write('sunlightReward: $sunlightReward, ')
           ..write('repeatRule: $repeatRule, ')
-          ..write('isCustom: $isCustom')
+          ..write('isCustom: $isCustom, ')
+          ..write('category: $category')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, subject, customSubject,
-      requiresFocus, minFocusMin, sunlightReward, repeatRule, isCustom);
+  int get hashCode => Object.hash(
+      id,
+      name,
+      subject,
+      customSubject,
+      requiresFocus,
+      minFocusMin,
+      sunlightReward,
+      repeatRule,
+      isCustom,
+      category);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4231,7 +4313,8 @@ class Task extends DataClass implements Insertable<Task> {
           other.minFocusMin == this.minFocusMin &&
           other.sunlightReward == this.sunlightReward &&
           other.repeatRule == this.repeatRule &&
-          other.isCustom == this.isCustom);
+          other.isCustom == this.isCustom &&
+          other.category == this.category);
 }
 
 class TasksCompanion extends UpdateCompanion<Task> {
@@ -4244,6 +4327,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<int> sunlightReward;
   final Value<String?> repeatRule;
   final Value<bool> isCustom;
+  final Value<int> category;
   final Value<int> rowid;
   const TasksCompanion({
     this.id = const Value.absent(),
@@ -4255,6 +4339,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.sunlightReward = const Value.absent(),
     this.repeatRule = const Value.absent(),
     this.isCustom = const Value.absent(),
+    this.category = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TasksCompanion.insert({
@@ -4267,6 +4352,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.sunlightReward = const Value.absent(),
     this.repeatRule = const Value.absent(),
     required bool isCustom,
+    this.category = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -4283,6 +4369,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<int>? sunlightReward,
     Expression<String>? repeatRule,
     Expression<bool>? isCustom,
+    Expression<int>? category,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4295,6 +4382,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (sunlightReward != null) 'sunlight_reward': sunlightReward,
       if (repeatRule != null) 'repeat_rule': repeatRule,
       if (isCustom != null) 'is_custom': isCustom,
+      if (category != null) 'category': category,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4309,6 +4397,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       Value<int>? sunlightReward,
       Value<String?>? repeatRule,
       Value<bool>? isCustom,
+      Value<int>? category,
       Value<int>? rowid}) {
     return TasksCompanion(
       id: id ?? this.id,
@@ -4320,6 +4409,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       sunlightReward: sunlightReward ?? this.sunlightReward,
       repeatRule: repeatRule ?? this.repeatRule,
       isCustom: isCustom ?? this.isCustom,
+      category: category ?? this.category,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4354,6 +4444,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     if (isCustom.present) {
       map['is_custom'] = Variable<bool>(isCustom.value);
     }
+    if (category.present) {
+      map['category'] = Variable<int>(category.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4372,6 +4465,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('sunlightReward: $sunlightReward, ')
           ..write('repeatRule: $repeatRule, ')
           ..write('isCustom: $isCustom, ')
+          ..write('category: $category, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6765,6 +6859,7 @@ typedef $$RewardTemplatesTableCreateCompanionBuilder = RewardTemplatesCompanion
   Value<int?> freqLimit,
   Value<int> cooldownRule,
   Value<bool> enabled,
+  Value<int> contentCategory,
   Value<int> rowid,
 });
 typedef $$RewardTemplatesTableUpdateCompanionBuilder = RewardTemplatesCompanion
@@ -6776,6 +6871,7 @@ typedef $$RewardTemplatesTableUpdateCompanionBuilder = RewardTemplatesCompanion
   Value<int?> freqLimit,
   Value<int> cooldownRule,
   Value<bool> enabled,
+  Value<int> contentCategory,
   Value<int> rowid,
 });
 
@@ -6808,6 +6904,10 @@ class $$RewardTemplatesTableFilterComposer
 
   ColumnFilters<bool> get enabled => $composableBuilder(
       column: $table.enabled, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get contentCategory => $composableBuilder(
+      column: $table.contentCategory,
+      builder: (column) => ColumnFilters(column));
 }
 
 class $$RewardTemplatesTableOrderingComposer
@@ -6840,6 +6940,10 @@ class $$RewardTemplatesTableOrderingComposer
 
   ColumnOrderings<bool> get enabled => $composableBuilder(
       column: $table.enabled, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get contentCategory => $composableBuilder(
+      column: $table.contentCategory,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$RewardTemplatesTableAnnotationComposer
@@ -6871,6 +6975,9 @@ class $$RewardTemplatesTableAnnotationComposer
 
   GeneratedColumn<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<int> get contentCategory => $composableBuilder(
+      column: $table.contentCategory, builder: (column) => column);
 }
 
 class $$RewardTemplatesTableTableManager extends RootTableManager<
@@ -6907,6 +7014,7 @@ class $$RewardTemplatesTableTableManager extends RootTableManager<
             Value<int?> freqLimit = const Value.absent(),
             Value<int> cooldownRule = const Value.absent(),
             Value<bool> enabled = const Value.absent(),
+            Value<int> contentCategory = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               RewardTemplatesCompanion(
@@ -6917,6 +7025,7 @@ class $$RewardTemplatesTableTableManager extends RootTableManager<
             freqLimit: freqLimit,
             cooldownRule: cooldownRule,
             enabled: enabled,
+            contentCategory: contentCategory,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -6927,6 +7036,7 @@ class $$RewardTemplatesTableTableManager extends RootTableManager<
             Value<int?> freqLimit = const Value.absent(),
             Value<int> cooldownRule = const Value.absent(),
             Value<bool> enabled = const Value.absent(),
+            Value<int> contentCategory = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               RewardTemplatesCompanion.insert(
@@ -6937,6 +7047,7 @@ class $$RewardTemplatesTableTableManager extends RootTableManager<
             freqLimit: freqLimit,
             cooldownRule: cooldownRule,
             enabled: enabled,
+            contentCategory: contentCategory,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -7397,6 +7508,7 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   Value<int> sunlightReward,
   Value<String?> repeatRule,
   required bool isCustom,
+  Value<int> category,
   Value<int> rowid,
 });
 typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
@@ -7409,6 +7521,7 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<int> sunlightReward,
   Value<String?> repeatRule,
   Value<bool> isCustom,
+  Value<int> category,
   Value<int> rowid,
 });
 
@@ -7447,6 +7560,9 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<bool> get isCustom => $composableBuilder(
       column: $table.isCustom, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get category => $composableBuilder(
+      column: $table.category, builder: (column) => ColumnFilters(column));
 }
 
 class $$TasksTableOrderingComposer
@@ -7487,6 +7603,9 @@ class $$TasksTableOrderingComposer
 
   ColumnOrderings<bool> get isCustom => $composableBuilder(
       column: $table.isCustom, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get category => $composableBuilder(
+      column: $table.category, builder: (column) => ColumnOrderings(column));
 }
 
 class $$TasksTableAnnotationComposer
@@ -7524,6 +7643,9 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumn<bool> get isCustom =>
       $composableBuilder(column: $table.isCustom, builder: (column) => column);
+
+  GeneratedColumn<int> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
 }
 
 class $$TasksTableTableManager extends RootTableManager<
@@ -7558,6 +7680,7 @@ class $$TasksTableTableManager extends RootTableManager<
             Value<int> sunlightReward = const Value.absent(),
             Value<String?> repeatRule = const Value.absent(),
             Value<bool> isCustom = const Value.absent(),
+            Value<int> category = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TasksCompanion(
@@ -7570,6 +7693,7 @@ class $$TasksTableTableManager extends RootTableManager<
             sunlightReward: sunlightReward,
             repeatRule: repeatRule,
             isCustom: isCustom,
+            category: category,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -7582,6 +7706,7 @@ class $$TasksTableTableManager extends RootTableManager<
             Value<int> sunlightReward = const Value.absent(),
             Value<String?> repeatRule = const Value.absent(),
             required bool isCustom,
+            Value<int> category = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TasksCompanion.insert(
@@ -7594,6 +7719,7 @@ class $$TasksTableTableManager extends RootTableManager<
             sunlightReward: sunlightReward,
             repeatRule: repeatRule,
             isCustom: isCustom,
+            category: category,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

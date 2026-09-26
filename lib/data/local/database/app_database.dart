@@ -50,7 +50,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -74,6 +74,13 @@ class AppDatabase extends _$AppDatabase {
           // ⑤ M3 修订（v5）：tasks.custom_subject 列（自定义科目名）。
           //    可空 TEXT，老库经 ALTER TABLE ADD COLUMN 补列，历史行取 NULL。
           await _ensureColumn(m, tasks, tasks.customSubject);
+
+          // ⑨ M5（v9）：tasks.category 列（成长项内容分类）+ reward_templates.content_category 列
+          //    （奖励内容分类）。均为 IntColumn 带默认值 0（=other）的 ALTER TABLE ADD COLUMN，
+          //    历史行取默认值 0 → 读作「其他」，避免历史数据被误判成具体分类。
+          //    幂等：_ensureColumn 先查 PRAGMA table_info 再决定是否补列。
+          await _ensureColumn(m, tasks, tasks.category);
+          await _ensureColumn(m, rewardTemplates, rewardTemplates.contentCategory);
 
           // ⑥ M4（v6）：check_ins 新增 5 列（家长核销流水）。
           //    status 默认 0 = verified（见 CheckInStatus 注释）：v5 及以前的打卡

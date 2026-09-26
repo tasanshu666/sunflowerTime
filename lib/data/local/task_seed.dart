@@ -14,6 +14,7 @@ const List<Task> kSeedTasks = <Task>[
     id: 'seed_task_homework',
     name: '完成学校作业',
     subject: TaskSubject.general,
+    category: TaskCategory.learning, // 种子项默认归类「学习」（玄参大人可后续在编辑器改）
     requiresFocus: true,
     minFocusMin: 15,
     sunlightReward: 12,
@@ -24,6 +25,7 @@ const List<Task> kSeedTasks = <Task>[
     id: 'seed_task_read',
     name: '阅读 20 分钟',
     subject: TaskSubject.chinese,
+    category: TaskCategory.learning, // 阅读 → 学习
     requiresFocus: false,
     minFocusMin: 15,
     sunlightReward: 12,
@@ -34,6 +36,7 @@ const List<Task> kSeedTasks = <Task>[
     id: 'seed_task_math',
     name: '练习数学口算',
     subject: TaskSubject.math,
+    category: TaskCategory.learning, // 数学口算 → 学习
     requiresFocus: true,
     minFocusMin: 15,
     sunlightReward: 12,

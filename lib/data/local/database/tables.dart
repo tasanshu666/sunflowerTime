@@ -100,6 +100,8 @@ class RewardTemplates extends Table {
   IntColumn get cooldownRule =>
       integer().withDefault(const Constant(1))(); // 冷却规则（D3，默认 weekly；CooldownRule.weekly.index == 1）
   BoolColumn get enabled => boolean().withDefault(const Constant(true))();
+  IntColumn get contentCategory =>
+      integer().withDefault(const Constant(0))(); // RewardContentCategory index（0=other 历史行安全默认）
 
   @override
   Set<Column> get primaryKey => {id};
@@ -147,6 +149,8 @@ class Tasks extends Table {
   IntColumn get sunlightReward => integer().withDefault(const Constant(12))();
   TextColumn get repeatRule => text().nullable()();
   BoolColumn get isCustom => boolean()();
+  IntColumn get category =>
+      integer().withDefault(const Constant(0))(); // TaskCategory index（0=other 历史行安全默认）
 
   @override
   Set<Column> get primaryKey => {id};

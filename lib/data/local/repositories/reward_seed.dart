@@ -18,6 +18,7 @@ const List<RewardTemplate> kSeedRewardTemplates = [
     id: 'seed_snack',
     name: '小零食',
     category: RewardCategory.parentHandled,
+    contentCategory: RewardContentCategory.snacks, // 小零食 → 零食
     baseCost: 20,
     frequencyLimitPerWeek: 1,
     cooldownRule: CooldownRule.weekly,
@@ -26,6 +27,7 @@ const List<RewardTemplate> kSeedRewardTemplates = [
     id: 'seed_cartoon_tonight',
     name: '选今晚动画片',
     category: RewardCategory.parentHandled,
+    contentCategory: RewardContentCategory.entertainment, // 选今晚动画片 → 娱乐
     baseCost: 40,
     frequencyLimitPerWeek: 1,
     cooldownRule: CooldownRule.weekly,
@@ -34,6 +36,7 @@ const List<RewardTemplate> kSeedRewardTemplates = [
     id: 'seed_extra_10min',
     name: '多玩10分钟',
     category: RewardCategory.parentHandled,
+    contentCategory: RewardContentCategory.play, // 多玩10分钟 → 游玩
     baseCost: 60,
     frequencyLimitPerWeek: 1,
     cooldownRule: CooldownRule.weekly,
@@ -42,6 +45,7 @@ const List<RewardTemplate> kSeedRewardTemplates = [
     id: 'seed_weekend_outing',
     name: '周末出去玩',
     category: RewardCategory.parentHandled,
+    contentCategory: RewardContentCategory.play, // 周末出去玩 → 游玩
     baseCost: 120,
     frequencyLimitPerWeek: 1,
     cooldownRule: CooldownRule.weekly,
@@ -51,6 +55,7 @@ const List<RewardTemplate> kSeedRewardTemplates = [
     id: 'seed_extra_episode',
     name: '多看一集动画片',
     category: RewardCategory.selfService,
+    contentCategory: RewardContentCategory.entertainment, // 多看一集动画片 → 娱乐
     baseCost: 50,
     frequencyLimitPerWeek: 1,
     cooldownRule: CooldownRule.weekly,

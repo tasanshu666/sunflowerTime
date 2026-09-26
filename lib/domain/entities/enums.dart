@@ -112,3 +112,112 @@ enum TrackingType {
   milestone, // 毕业纪念册事件
   metric, // WFD / 留存等累计指标
 }
+
+/// 成长项内容分类（M5，家长可在编辑器里给孩子设分类；孩子端按分类分组展示）。
+///
+/// ⚠️ index **0 MUST be `other`**：老库（v8 及之前）根本没有该列，v8→v9 迁移时
+/// 给 `tasks.category` 列加了默认值 0，历史成长项会被读作 `other`，避免历史数据被
+/// 误判成某个具体分类（学习/运动/生活）。新增/编辑的成长项应显式设具体分类。
+enum TaskCategory {
+  other, // 0：历史行安全默认值
+  learning, // 学习
+  sports, // 运动
+  life, // 生活
+}
+
+/// [TaskCategory] 展示扩展（中文标签 + 占位图标，真实角色立绘后续由玄参大人提供）。
+extension TaskCategoryX on TaskCategory {
+  /// 中文分类名（学习/运动/生活/其他）。
+  String get label {
+    switch (this) {
+      case TaskCategory.other:
+        return '其他';
+      case TaskCategory.learning:
+        return '学习';
+      case TaskCategory.sports:
+        return '运动';
+      case TaskCategory.life:
+        return '生活';
+    }
+  }
+
+  /// 占位图标（emoji，待玄参大人提供真实角色立绘后替换）。
+  String get icon {
+    switch (this) {
+      case TaskCategory.other:
+        return '⭐';
+      case TaskCategory.learning:
+        return '📚';
+      case TaskCategory.sports:
+        return '🏃';
+      case TaskCategory.life:
+        return '🪥';
+    }
+  }
+}
+
+/// 奖励内容分类（M5）。
+///
+/// 与既有 [RewardCategory] **语义不同**：[RewardCategory] 表示「是否家长经手兑现」
+/// （自服务 / 家长经手），本枚举表示「奖励内容是什么」（零食 / 游玩 / 娱乐 / 其他），
+/// 供孩子端阳光商店按内容分组。两者各存各的 DB 列，互不复用。
+///
+/// ⚠️ index **0 MUST be `other`**：老库（v8 及之前）无该列，v8→v9 迁移给
+/// `reward_templates.content_category` 列加默认值 0，历史奖励读作 `other`。
+enum RewardContentCategory {
+  other, // 0：历史行安全默认值
+  snacks, // 零食
+  play, // 游玩
+  entertainment, // 娱乐
+}
+
+/// [RewardContentCategory] 展示扩展（中文标签 + 占位图标）。
+extension RewardContentCategoryX on RewardContentCategory {
+  /// 中文分类名（零食/游玩/娱乐/其他）。
+  String get label {
+    switch (this) {
+      case RewardContentCategory.other:
+        return '其他';
+      case RewardContentCategory.snacks:
+        return '零食';
+      case RewardContentCategory.play:
+        return '游玩';
+      case RewardContentCategory.entertainment:
+        return '娱乐';
+    }
+  }
+
+  /// 占位图标（emoji，待玄参大人提供真实角色立绘后替换）。
+  String get icon {
+    switch (this) {
+      case RewardContentCategory.other:
+        return '⭐';
+      case RewardContentCategory.snacks:
+        return '🍬';
+      case RewardContentCategory.play:
+        return '🎡';
+      case RewardContentCategory.entertainment:
+        return '🎮';
+    }
+  }
+}
+
+/// 孩子端成长页分组展示顺序（FIRST-LEVEL 分区头）：学习/运动/生活/其他（其他置后）。
+///
+/// 注意顺序与 [TaskCategory] 的 index 顺序不同（枚举 index 0 必须是 other 作安全默认），
+/// 这里按人类可读的展示顺序排列，避免孩子端把「其他」顶在最前。
+const List<TaskCategory> kTaskCategoryOrder = <TaskCategory>[
+  TaskCategory.learning,
+  TaskCategory.sports,
+  TaskCategory.life,
+  TaskCategory.other,
+];
+
+/// 孩子端商店页分组展示顺序（FIRST-LEVEL 分区头）：零食/游玩/娱乐/其他（其他置后）。
+const List<RewardContentCategory> kRewardContentCategoryOrder =
+    <RewardContentCategory>[
+  RewardContentCategory.snacks,
+  RewardContentCategory.play,
+  RewardContentCategory.entertainment,
+  RewardContentCategory.other,
+];

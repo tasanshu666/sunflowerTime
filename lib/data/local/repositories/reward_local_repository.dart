@@ -25,15 +25,16 @@ class RewardLocalRepository implements RewardRepository {
 
   @override
   Future<void> saveTemplate(RewardTemplate t) => _db.rewardTemplateDao.upsert(
-        db.RewardTemplatesCompanion(
-          id: Value(t.id),
-          name: Value(t.name),
-          category: Value(t.category.index),
-          baseCost: Value(t.baseCost),
-          freqLimit: Value(t.frequencyLimitPerWeek),
-          enabled: const Value(true),
-          cooldownRule: Value(t.cooldownRule.index),
-        ),
+      db.RewardTemplatesCompanion(
+        id: Value(t.id),
+        name: Value(t.name),
+        category: Value(t.category.index),
+        contentCategory: Value(t.contentCategory.index),
+        baseCost: Value(t.baseCost),
+        freqLimit: Value(t.frequencyLimitPerWeek),
+        enabled: const Value(true),
+        cooldownRule: Value(t.cooldownRule.index),
+      ),
       );
 
   @override
@@ -113,6 +114,7 @@ class RewardLocalRepository implements RewardRepository {
         id: r.id,
         name: r.name,
         category: RewardCategory.values[r.category],
+        contentCategory: RewardContentCategory.values[r.contentCategory],
         baseCost: r.baseCost,
         frequencyLimitPerWeek: r.freqLimit ?? kCooldownWeeklyDefault,
         cooldownRule: CooldownRule.values[r.cooldownRule],

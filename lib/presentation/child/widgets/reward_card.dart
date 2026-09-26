@@ -1,7 +1,7 @@
 /// 奖励卡（M2 T-E，§4.1 商店页可复用展示组件）。
 ///
 /// 纯展示组件：所有异步（冷却查询、submit）由 StorePage 预算好
-/// [onCooldown] / [submitting] 后传入，卡内不做任何异步。
+/// [submitting] / [onRedeem] 后传入，卡内不做任何异步。
 ///
 /// [weeklyLimit] 为该模板「每周可兑换次数」上限（来自 RewardTemplate.frequencyLimitPerWeek）；
 /// [weeklyUsed] 为本周已领次数（来自 cooldownCount）。卡片展示「剩余次数」= limit - used：
@@ -16,155 +16,126 @@ import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
+import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
 class RewardCard extends StatelessWidget {
   final RewardTemplate template;
   final int costForTier;
-  final bool onCooldown;
-  final bool hasActiveRequest; // 已有未核销申请（待家长核销）
-  final int pendingCount; // 该模板待核销笔数（>=2 时显示 +N）
-  final bool submitting;
-  final VoidCallback? onRedeem;
-  final bool hasQueuedRequest; // 已有排队中申请（次月释放）
-  final VoidCallback? onCancelQueue; // 孩子撤销排队
   final int weeklyLimit; // 该模板每周可兑换次数上限（frequencyLimitPerWeek；<=0 不限）
   final int weeklyUsed; // 本周已领次数（cooldownCount）；卡片展示 = limit - used 的剩余次数
+  final bool submitting;
+  final VoidCallback? onRedeem;
 
   const RewardCard({
     super.key,
     required this.template,
     required this.costForTier,
-    this.onCooldown = false,
-    this.hasActiveRequest = false,
-    this.pendingCount = 0,
-    this.submitting = false,
-    this.onRedeem,
-    this.hasQueuedRequest = false,
-    this.onCancelQueue,
     this.weeklyLimit = 0,
     this.weeklyUsed = 0,
+    this.submitting = false,
+    this.onRedeem,
   });
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final bool disabled = onCooldown || hasActiveRequest;
-
-    // 卡片内联提示：已有待核销申请时展示「待家长核销 / 代家长核销 +N」。
-    final String? inlineHint = hasActiveRequest
-        ? (pendingCount > 1 ? '代家长核销 +$pendingCount' : '待家长核销')
-        : (onCooldown ? '本周已领' : null);
 
     // 每周可兑换次数提示：按「剩余次数」（limit - used）动态渲染，领完则隐藏。
     final Widget? weeklyHint = _weeklyLimitHint(theme);
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    template.name,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
+    // 每行条目左侧彩色圆角图标块（马卡龙色底 + emoji 占位图标），按模板稳定轮换。
+    final Color iconBg = macaronColorById(template.id).bg;
+
+    // 暖色儿童风：纯白大圆角卡 + 极柔和阴影；左侧彩色图标块 + 胶囊价格标签。
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 18,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // 左侧彩色圆角图标块（马卡龙色底 + 深字色图标）。
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                const SizedBox(width: 8),
-                // 「需家长端核销」仅作提示文字：低调灰字 + 小 ⓘ 图标，明确不可点。
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Center(
+                  child: Text(template.contentCategory.icon,
+                      style: const TextStyle(fontSize: 32)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      template.category == RewardCategory.selfService
-                          ? '自服务'
-                          : '需家长端核销',
-                      style: theme.textTheme.labelSmall
-                          ?.copyWith(color: Colors.grey.shade600),
+                      template.name,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(width: 2),
-                    Tooltip(
-                      message: template.category == RewardCategory.selfService
-                          ? '孩子能自己完成（如多看一集），但为防滥用，兑换后仍要家长在「今日」里确认放行，确认后才扣阳光。'
-                          : '这类奖励需家长在现实里兑现（如买零食、安排出游）。孩子兑换后会进入你的「今日」Tab，由你点「确认兑换」核实后才会扣阳光。',
-                      child: Icon(Icons.info_outline,
-                          size: 14, color: Colors.grey.shade500),
-                    ),
+                    const SizedBox(height: 4),
                   ],
                 ),
-              ],
-            ),
-            if (inlineHint != null) ...<Widget>[
-              const SizedBox(height: 10),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // 底部行：价格胶囊 + 每周可兑换次数提示（收进行内，Flexible 包裹防溢出）+ 兑换按钮。
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              // 价格胶囊标签（暖黄底深字）。
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber.shade200),
+                  color: const Color(0xFFFFF1C2),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  inlineHint,
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: Colors.amber.shade800, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-            const SizedBox(height: 14),
-            // 每周可兑换次数提示（动态剩余：限领 - 本周已领）：N>=2「可兑换次数为 N」/ N==1「仅兑换一次」/ N<=0 隐藏。
-            if (weeklyHint != null) weeklyHint,
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: <Widget>[
-                Text(
                   '$costForTier 阳光',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: scheme.primary,
-                    fontWeight: FontWeight.w600,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF8D6E00),
                   ),
-                ),
-                // 明显的「兑换」按钮：主色填充、圆角、加宽，带 ⚡ 图标。
-                ElevatedButton.icon(
-                  onPressed: disabled || submitting ? null : onRedeem,
-                  icon: submitting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.bolt, size: 16),
-                  label: const Text('兑换'),
-                ),
-              ],
-            ),
-            if (onCancelQueue != null) ...<Widget>[
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: onCancelQueue,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.blue.shade700,
-                    side: BorderSide(color: Colors.blue.shade300),
-                    minimumSize: const Size(0, 42),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('撤销排队'),
                 ),
               ),
+              const SizedBox(width: 8),
+              // 每周可兑换次数提示（领完即 null → 隐藏）；Flexible 包裹避免窄屏溢出。
+              if (weeklyHint != null) Flexible(child: weeklyHint),
+              const Spacer(),
+              // 明显的「兑换」按钮：主色填充、圆角、加宽，带 ⚡ 图标。
+              // 保持 ElevatedButton + 文案「兑换」不变（既有测试按类型/文案断言可点性）。
+              ElevatedButton.icon(
+                onPressed: submitting ? null : onRedeem,
+                icon: submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.bolt, size: 16),
+                label: const Text('兑换'),
+              ),
             ],
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -177,20 +148,20 @@ class RewardCard extends StatelessWidget {
   Widget? _weeklyLimitHint(ThemeData theme) {
     final String? text = weeklyRedeemLabel(weeklyLimit, weeklyUsed);
     if (text == null) return null;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(Icons.repeat, size: 14, color: Colors.blueGrey.shade400),
-          const SizedBox(width: 4),
-          Text(
+    return Row(
+      children: <Widget>[
+        Icon(Icons.repeat, size: 14, color: Colors.blueGrey.shade400),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
             text,
             style: theme.textTheme.labelSmall
                 ?.copyWith(color: Colors.blueGrey.shade600),
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

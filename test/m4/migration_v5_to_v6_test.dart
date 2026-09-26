@@ -246,7 +246,7 @@ void main() {
       // 下面所有列断言都会红。
       // 注：植物成长 V2（v7，玄参大人 2026-09-22）把版本号从 6 上移到 7
       //（见 test/m3/migration_v6_to_v7_test.dart），本护栏随之跟进。
-      expect(database.schemaVersion, 8);
+      expect(database.schemaVersion, 9);
     });
 
     test('v5 老库迁移后 check_ins 含 5 新列；历史行 status=0(verified)、新列取默认', () async {

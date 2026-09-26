@@ -18,18 +18,7 @@ import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/weekly_pool.dart';
-
-/// 年龄档中文标签（单点展示用）。
-String tierLabel(AgeTier tier) {
-  switch (tier) {
-    case AgeTier.low:
-      return '低年级';
-    case AgeTier.mid:
-      return '中年级';
-    case AgeTier.high:
-      return '高年级';
-  }
-}
+import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
 /// 周阳光池合并卡：预算输入 + 进度 + 免确认上限（§5 T-F）。
 ///
@@ -157,63 +146,82 @@ class _WeeklyPoolCardState extends ConsumerState<WeeklyPoolCard> {
           _budgetCtrl.text = budget.toString();
         }
 
-        return Card(
+        return Container(
+          decoration: creamCardDecoration(),
           margin: const EdgeInsets.all(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  '每周阳光池（${pool.weekKey}）',
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: TextFormField(
-                        controller: _budgetCtrl,
-                        decoration: const InputDecoration(
-                          labelText: '阳光数（整数）',
-                          helperText:
-                              '建议值 400（即原月预算改为按周生效），区间 50–1200',
-                        ),
-                        keyboardType: TextInputType.number,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                '本周阳光预算',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              // 大号预算数字，一眼可见（家长最关心的「这周孩子能自己花多少」）。
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: <Widget>[
+                  Text(
+                    '$budget',
+                    style: const TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF8D6E00),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text('阳光',
+                      style: TextStyle(fontSize: 18, color: Colors.brown)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              LinearProgressIndicator(
+                value: ratio,
+                minHeight: 12,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '已用 $usedTotal / 共 $budget 阳光',
+                style: const TextStyle(fontSize: 15),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '孩子本周最多自己花 $budget 阳光；其中约 ${data.cap} 阳光能自动放行，'
+                '超出的兑换会等你点一下确认。',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextFormField(
+                      controller: _budgetCtrl,
+                      decoration: const InputDecoration(
+                        labelText: '调整预算（50–1200）',
                       ),
+                      keyboardType: TextInputType.number,
                     ),
-                    const SizedBox(width: 12),
-                    FilledButton(
-                      onPressed: _saving ? null : _saveBudget,
-                      child: _saving
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('保存'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                LinearProgressIndicator(
-                  value: ratio,
-                  minHeight: 12,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '已用 $usedTotal / 池 $budget 阳光',
-                  style: const TextStyle(fontSize: 15),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '当前档（${tierLabel(data.tier)}）免确认上限：${data.cap} 阳光',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton(
+                    onPressed: _saving ? null : _saveBudget,
+                    child: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('保存'),
+                  ),
+                ],
+              ),
+            ],
           ),
         );
       },

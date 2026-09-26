@@ -291,9 +291,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 初始：右上角「待核销 60」，卡片停在「待家长核销」禁用态（兑换不可点）。
+    // 初始：余额处展示「待核销 60」，卡片停在禁用态（兑换不可点）。
     expect(find.text('待核销 60'), findsOneWidget);
-    expect(find.text('待家长核销'), findsOneWidget);
     expect(
       tester
           .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '兑换'))
@@ -308,7 +307,6 @@ void main() {
 
     // 重算后：待核销归零（>0 才渲染），卡片恢复可兑换。
     expect(find.text('待核销 60'), findsNothing);
-    expect(find.text('待家长核销'), findsNothing);
     expect(
       tester
           .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '兑换'))

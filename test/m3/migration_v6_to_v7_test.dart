@@ -290,7 +290,7 @@ void main() {
     test('schemaVersion 必须为 7（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(_v6Ddl(), 6);
       // 护栏：版本号若停在 6，onUpgrade 不跑，下面所有清零断言都会红。
-      expect(database.schemaVersion, 8);
+      expect(database.schemaVersion, 9);
     });
 
     test('growing 植物：stage 回 seed、progress=0、stage_started_at≈迁移时刻，其余字段不丢',
@@ -396,7 +396,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 8);
+      expect(first.schemaVersion, 9);
       expect(
         (await first.plantDao.byId('p_growing'))!.growthProgress,
         0.0,
@@ -445,7 +445,7 @@ void main() {
   group('跨版本跳跃升级', () {
     test('v5 → v7：植物同样清零，且 check_ins 5 列补齐', () async {
       final db.AppDatabase database = await _openMigrated(_v5Ddl(), 5);
-      expect(database.schemaVersion, 8);
+      expect(database.schemaVersion, 9);
 
       // ① v6 的补列分支仍然执行（跨版本跳跃不能漏掉中间版本）。
       final Set<String> cols = await _columns(database, 'check_ins');
@@ -474,7 +474,7 @@ void main() {
       // 场景：玄参大人跳过了中间几版安装，库还停在 v3（无 plants 表），直接升到 v7。
       final db.AppDatabase database = await _openMigrated(_v3Ddl(), 3);
 
-      expect(database.schemaVersion, 8);
+      expect(database.schemaVersion, 9);
       expect(await _tableExists(database, 'plants'), isTrue);
       expect(await _columns(database, 'settings'),
           contains('garden_pot_capacity'));

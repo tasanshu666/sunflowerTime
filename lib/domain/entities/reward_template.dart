@@ -4,7 +4,8 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 class RewardTemplate {
   final String id;
   final String name;
-  final RewardCategory category;
+  final RewardCategory category; // 兑现方式分类（自服务 / 家长经手），与 contentCategory 语义不同
+  final RewardContentCategory contentCategory; // 内容分类（零食/游玩/娱乐/其他），默认 other = 历史/未分类安全默认
   final int baseCost; // 家长设定单价：显示价 = 扣费价（2026-09-21 决策，不再叠加分龄系数 K）
   final int frequencyLimitPerWeek;
   final CooldownRule cooldownRule; // 冷却规则（D3，默认每周限领）
@@ -13,10 +14,17 @@ class RewardTemplate {
     required this.id,
     required this.name,
     required this.category,
+    this.contentCategory = RewardContentCategory.other,
     required this.baseCost,
     required this.frequencyLimitPerWeek,
     this.cooldownRule = CooldownRule.weekly,
   });
+
+  /// 内容分类中文名（零食/游玩/娱乐/其他），单点收口（UI 层不要再写 switch）。
+  String get contentCategoryLabel => contentCategory.label;
+
+  /// 内容分类占位图标（emoji）。
+  String get contentCategoryIcon => contentCategory.icon;
 }
 
 /// 计算奖励卡「本周可兑换次数」展示文案（孩子端剩余次数 / 家长端配置次数共用）。

@@ -182,7 +182,7 @@ void main() {
         _schemaDdl(withLegacyPlants: true),
         7,
       );
-      expect(database.schemaVersion, 8);
+      expect(database.schemaVersion, 9);
     });
 
     test('plants 表迁移后出现 bloomed_at 列', () async {
@@ -267,7 +267,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 8);
+      expect(first.schemaVersion, 9);
       expect(await _columns(first, 'plants'), contains('bloomed_at'));
       await first.close();
 
@@ -291,7 +291,7 @@ void main() {
         _schemaDdl(withLegacyPlants: true),
         6,
       );
-      expect(database.schemaVersion, 8);
+      expect(database.schemaVersion, 9);
 
       // ① v7 的清零分支（from<7）执行：growing 植物被清零。
       final db.Plant growing = (await database.plantDao.byId('p_growing'))!;

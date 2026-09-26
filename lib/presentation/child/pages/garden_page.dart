@@ -46,6 +46,7 @@ import 'package:sunflower_time/presentation/child/widgets/garden_help_sheet.dart
 import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_sign_hotspot.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_care_sheet.dart';
+import 'package:sunflower_time/presentation/child/widgets/care_effect_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 
 /// 孩子端花园：植物养成主界面。
@@ -62,6 +63,23 @@ class GardenPage extends ConsumerStatefulWidget {
   ConsumerState<GardenPage> createState() => _GardenPageState();
 }
 
+/// 正在播放的养护动效描述：类型 + 在页面 Stack 本地坐标里的位置/尺寸 + 关联植物（用于弹跳副本）。
+class _CareEffectSpec {
+  final CareEffectType type;
+  final Offset offset;
+  final Size size;
+  final Plant? plant;
+  final PlantSpecies? species;
+
+  _CareEffectSpec({
+    required this.type,
+    required this.offset,
+    required this.size,
+    this.plant,
+    this.species,
+  });
+}
+
 class _GardenPageState extends ConsumerState<GardenPage> {
   List<Plant> _plants = <Plant>[];
   List<PlantSpecies> _species = <PlantSpecies>[];
@@ -71,6 +89,17 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   bool _loading = true;
   bool _busy = false;
   String? _error;
+
+  /// 各花盆格的全局 Key（稳定）：用于在养护成功后定位该花盆在屏幕上的坐标，
+  /// 把动效叠加层精确地摆到对应花盆之上。按 potIndex 懒创建、复用。
+  final Map<int, GlobalKey> _potKeys = <int, GlobalKey>{};
+
+  /// 页面根 Stack 的 Key：把花盆的全局坐标换算到本 Stack 的本地坐标系。
+  final GlobalKey _pageStackKey = GlobalKey();
+
+  /// 当前正在播放的一次性养护动效（null = 无）。动画结束由 [CareEffectOverlay.onComplete]
+  /// 置回 null 以移除叠加层。
+  _CareEffectSpec? _activeEffect;
 
   /// 网格区域滚动控制器（v3：网格锁 2 行高度，溢出时区域内滚动）。
   final ScrollController _gridScroll = ScrollController();
@@ -161,10 +190,42 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   /// 点花盆里的植物 → 弹养护面板；面板关闭后**静默刷新草地**（进度条/形态可能变了）。
   ///
   /// 面板自己负责读数据与动作（见 [PlantCareSheet]），本页只做「打开 + 关闭后刷新」。
-  Future<void> _openCareSheet(String plantId) async {
-    await showPlantCareSheet(context, plantId);
+  /// 面板返回最后一次成功的养护类型（浇水/施肥），据此在该花盆位置播放一次性动效。
+  Future<void> _openCareSheet(String plantId, int potIndex) async {
+    final CareEffectType? effect = await showPlantCareSheet(context, plantId);
     if (!mounted) return;
+    // 养护成功 → 在该花盆位置播放一次性动效（动效结束自动移除自身）。
+    if (effect != null) _playCareEffect(potIndex, effect);
     await _reload(silent: true);
+  }
+
+  /// 懒取某花盆格的稳定 GlobalKey（用于定位其屏幕坐标）。
+  GlobalKey _potKey(int potIndex) =>
+      _potKeys.putIfAbsent(potIndex, GlobalKey.new);
+
+  /// 在指定花盆位置叠加一次性养护动效。
+  ///
+  /// 通过计算该花盆格相对页面根 Stack 的本地坐标，用 [Positioned] 把 [CareEffectOverlay]
+  /// 精确摆到花盆上。若此时花盆未布局（context 为空，极端情况）则静默跳过，不抛错。
+  void _playCareEffect(int potIndex, CareEffectType type) {
+    final BuildContext? potCtx = _potKey(potIndex).currentContext;
+    final BuildContext? stackCtx = _pageStackKey.currentContext;
+    if (potCtx == null || stackCtx == null || !mounted) return;
+    final RenderBox? potBox = potCtx.findRenderObject() as RenderBox?;
+    final RenderBox? stackBox = stackCtx.findRenderObject() as RenderBox?;
+    if (potBox == null || stackBox == null) return;
+    final Offset local = stackBox.globalToLocal(potBox.localToGlobal(Offset.zero));
+    final Plant? plant = _occupantOf(potIndex);
+    final PlantSpecies? species =
+        plant == null ? null : _speciesOf(plant);
+    if (!mounted) return;
+    setState(() => _activeEffect = _CareEffectSpec(
+          type: type,
+          offset: local,
+          size: potBox.size,
+          plant: plant,
+          species: species,
+        ));
   }
 
   /// 打开「玩法说明」弹窗（容量 / 种植 / 养护 / 生长 / 枯萎开花 / 扩容）。
@@ -300,9 +361,10 @@ class _GardenPageState extends ConsumerState<GardenPage> {
         cells.add(EmptyPot(potIndex: i, onTap: () => _openPlantSheet(i)));
       } else {
         cells.add(GardenPot(
+          key: _potKey(i),
           plant: occupant,
           species: _speciesOf(occupant),
-          onTap: () => _openCareSheet(occupant.id),
+          onTap: () => _openCareSheet(occupant.id, i),
         ));
       }
     }
@@ -443,9 +505,11 @@ class _GardenPageState extends ConsumerState<GardenPage> {
           content = _buildGardenBody(size);
         }
 
-        // 整页叠放：背景铺满 → 内容区（锁 2 行 + 区域内滚动）→ 左下角木牌热区。
+        // 整页叠放：背景铺满 → 内容区（锁 2 行 + 区域内滚动）→ 左下角木牌热区
+        // → 养护成功的一次性动效叠加层（仅播放期间存在）。
         // 木牌在左下、花盆区在中上部，互不重叠，故不会挡住花盆点击。
         return Stack(
+          key: _pageStackKey,
           children: <Widget>[
             background,
             Positioned.fill(child: content),
@@ -453,6 +517,24 @@ class _GardenPageState extends ConsumerState<GardenPage> {
               rect: gardenSignScreenRect(size),
               child: GardenSignHotspot(onTap: _showGardenHelp),
             ),
+            // 养护成功动效：精确摆到对应花盆格之上，有限时长，结束自移除。
+            if (_activeEffect != null)
+              Positioned(
+                left: _activeEffect!.offset.dx,
+                top: _activeEffect!.offset.dy,
+                width: _activeEffect!.size.width,
+                height: _activeEffect!.size.height,
+                child: CareEffectOverlay(
+                  type: _activeEffect!.type,
+                  plant: _activeEffect!.plant,
+                  species: _activeEffect!.species,
+                  width: _activeEffect!.size.width,
+                  height: _activeEffect!.size.height,
+                  onComplete: () {
+                    if (mounted) setState(() => _activeEffect = null);
+                  },
+                ),
+              ),
           ],
         );
       },

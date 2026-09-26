@@ -17,6 +17,7 @@ import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/presentation/parent/widgets/pool_indicator.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
+import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
 /// 「奖励」页：每周阳光池指示（含预算设定）+ 可编辑模板列表。
 class ParentRewardPage extends ConsumerStatefulWidget {
@@ -178,38 +179,95 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
               // 核销 1 次即从 N 变为 N-1，与孩子端口径一致，避免时间长忘了设了几条。
               final String? freqLabel =
                   weeklyRedeemLabel(t.frequencyLimitPerWeek, _weeklyUsed[t.id] ?? 0);
-              return ListTile(
-                leading: const Icon(Icons.card_giftcard),
-                title: Text(t.name),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              return Container(
+                decoration: creamCardDecoration(),
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
-                    Text(categoryLabel(t.category)),
-                    if (freqLabel != null)
-                      Text(
-                        freqLabel,
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(color: Colors.blueGrey.shade600),
+                    macaronIconBlock(
+                      emoji: t.contentCategory.icon,
+                      bg: macaronColorById(t.id).bg,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            t.name,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: <Widget>[
+                              pillLabel(
+                                text: t.contentCategoryLabel,
+                                bg: macaronColorById(t.id).bg,
+                                fg: macaronColorById(t.id).fg,
+                              ),
+                              pillLabel(
+                                text: categoryLabel(t.category),
+                                bg: Colors.grey.shade100,
+                                fg: Colors.grey.shade700,
+                              ),
+                              if (freqLabel != null)
+                                pillLabel(
+                                  text: freqLabel,
+                                  bg: Colors.blue.shade50,
+                                  fg: Colors.blue.shade700,
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF1C2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${t.baseCost} 阳光',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF8D6E00),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined,
+                                  color: Colors.blueGrey),
+                              tooltip: '编辑',
+                              onPressed: () => _editTemplate(t),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  color: Colors.red),
+                              tooltip: '删除',
+                              onPressed: () => _deleteTemplate(t),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      '${t.baseCost} 阳光',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      tooltip: '删除',
-                      onPressed: () => _deleteTemplate(t),
-                    ),
-                  ],
-                ),
-                onTap: () => _editTemplate(t),
               );
             },
           ),
@@ -233,6 +291,7 @@ class _RewardEditorDialog extends StatefulWidget {
 class _RewardEditorDialogState extends State<_RewardEditorDialog> {
   late final TextEditingController _nameCtrl;
   late RewardCategory _category;
+  late RewardContentCategory _contentCategory; // 奖励内容分类（零食/游玩/娱乐/其他）
   late int _baseCost;
   late int _freq;
   late CooldownRule _cooldown;
@@ -244,6 +303,7 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
     final RewardTemplate? t = widget.initial;
     _nameCtrl = TextEditingController(text: t?.name ?? '');
     _category = t?.category ?? RewardCategory.parentHandled;
+    _contentCategory = t?.contentCategory ?? RewardContentCategory.other;
     _baseCost = t?.baseCost ?? 20;
     _freq = t?.frequencyLimitPerWeek ?? 1;
     _cooldown = t?.cooldownRule ?? CooldownRule.weekly;
@@ -287,6 +347,24 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
                 ],
                 onChanged: (RewardCategory? v) =>
                     setState(() => _category = v!),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<RewardContentCategory>(
+                initialValue: _contentCategory,
+                decoration: const InputDecoration(labelText: '内容分类'),
+                items: const <DropdownMenuItem<RewardContentCategory>>[
+                  DropdownMenuItem(
+                      value: RewardContentCategory.snacks, child: Text('零食')),
+                  DropdownMenuItem(
+                      value: RewardContentCategory.play, child: Text('游玩')),
+                  DropdownMenuItem(
+                      value: RewardContentCategory.entertainment,
+                      child: Text('娱乐')),
+                  DropdownMenuItem(
+                      value: RewardContentCategory.other, child: Text('其他')),
+                ],
+                onChanged: (RewardContentCategory? v) =>
+                    setState(() => _contentCategory = v!),
               ),
               const SizedBox(height: 8),
               TextFormField(
@@ -344,6 +422,7 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
                 id: widget.initial?.id ?? const Uuid().v4(),
                 name: _nameCtrl.text.trim(),
                 category: _category,
+                contentCategory: _contentCategory,
                 baseCost: _baseCost,
                 frequencyLimitPerWeek: _freq,
                 cooldownRule: _cooldown,

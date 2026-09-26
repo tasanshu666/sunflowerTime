@@ -16,6 +16,7 @@ library child_shell_page;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -122,9 +123,14 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     final AppUsageState usage = ref.read(appUsageControllerProvider);
     final AppUsageController ctrl = ref.read(appUsageControllerProvider.notifier);
 
-    if (ctrl.isEntertainmentTab(i) && usage.reached) {
-      _showAppCapDialog(usage.capMinutes); // 到顶：不切换索引，仅给引导。
-      return;
+    // 调试期临时绕过 30 分钟时长限制：仅 [kDebugMode] 且显式传入
+    // `--dart-define=DISABLE_APP_CAP=true` 时生效；release 构建不带该 define，
+    // 防沉迷逻辑照常拦截。测试（`flutter test`）亦不带该 define → 既有拦截测试不受影响。
+    if (!kDebugMode || !const bool.fromEnvironment('DISABLE_APP_CAP', defaultValue: false)) {
+      if (ctrl.isEntertainmentTab(i) && usage.reached) {
+        _showAppCapDialog(usage.capMinutes); // 到顶：不切换索引，仅给引导。
+        return;
+      }
     }
 
     setState(() => _index = i);

@@ -21,13 +21,17 @@ import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 
+import 'care_effect_overlay.dart';
 import 'plant_card.dart';
 
 /// 以底部面板形式打开某株植物的养护面板。
 ///
 /// 返回的 Future 在面板关闭后完成 —— 调用方（花园页）据此刷新草地上的进度条。
-Future<void> showPlantCareSheet(BuildContext context, String plantId) {
-  return showModalBottomSheet<void>(
+/// 若期间发生过成功的养护动作（浇水 / 施肥），返回值携带最后一次的 [CareEffectType]，
+/// 供花园页在该花盆位置播放一次性动效（见 [CareEffectOverlay]）。
+Future<CareEffectType?> showPlantCareSheet(BuildContext context, String plantId) {
+  CareEffectType? lastEffect;
+  return showModalBottomSheet<CareEffectType?>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -38,14 +42,24 @@ Future<void> showPlantCareSheet(BuildContext context, String plantId) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (BuildContext ctx) => PlantCareSheet(plantId: plantId),
-  );
+    builder: (BuildContext ctx) => PlantCareSheet(
+      plantId: plantId,
+      onCareSuccess: (CareEffectType e) => lastEffect = e,
+    ),
+  ).then((_) => lastEffect);
 }
 
 class PlantCareSheet extends ConsumerStatefulWidget {
   final String plantId;
 
-  const PlantCareSheet({super.key, required this.plantId});
+  /// 养护动作成功后的回调（浇水/施肥），供花园页触发一次性动效。清理枯萎不触发。
+  final ValueChanged<CareEffectType>? onCareSuccess;
+
+  const PlantCareSheet({
+    super.key,
+    required this.plantId,
+    this.onCareSuccess,
+  });
 
   @override
   ConsumerState<PlantCareSheet> createState() => _PlantCareSheetState();
@@ -109,9 +123,12 @@ class _PlantCareSheetState extends ConsumerState<PlantCareSheet> {
   /// 执行养护动作：串行闸门 → 扣费 → 自增经济修订号 → 重新读取本株数据。
   ///
   /// [closeAfter] 用于「清理枯萎植物」：删完这株就没什么可看的了，直接关面板。
+  /// [effect] 非 null 表示这是一次成功的养护（浇水/施肥），成功后会通过
+  /// [PlantCareSheet.onCareSuccess] 上报，供花园页播放一次性动效；清理枯萎不传。
   Future<void> _run(
     Future<void> Function() action, {
     bool closeAfter = false,
+    CareEffectType? effect,
   }) async {
     if (_busy) return;
     setState(() => _busy = true);
@@ -119,6 +136,8 @@ class _PlantCareSheetState extends ConsumerState<PlantCareSheet> {
       await action();
       // 通知孩子端其它页面（商店/我的）重算余额与次数。
       ref.read(economyRevisionProvider.notifier).state++;
+      // 成功的养护动作：上报类型，花园页据此在该花盆位置播放动效。
+      if (effect != null) widget.onCareSuccess?.call(effect);
       if (closeAfter) {
         if (mounted) Navigator.of(context).pop();
         return;
@@ -163,12 +182,16 @@ class _PlantCareSheetState extends ConsumerState<PlantCareSheet> {
           plant: plant,
           species: species,
           quota: _quota,
-          onWater: () => _run(() => ref
-              .read(plantGrowthServiceProvider)
-              .water(plant.id, DateTime.now())),
-          onFertilize: () => _run(() => ref
-              .read(plantGrowthServiceProvider)
-              .fertilize(plant.id, DateTime.now())),
+          onWater: () => _run(
+            () => ref.read(plantGrowthServiceProvider).water(plant.id, DateTime.now()),
+            effect: CareEffectType.water,
+          ),
+          onFertilize: () => _run(
+            () => ref
+                .read(plantGrowthServiceProvider)
+                .fertilize(plant.id, DateTime.now()),
+            effect: CareEffectType.fertilize,
+          ),
           onClear: () => _run(
             () => ref.read(plantRepositoryProvider).deletePlant(plant.id),
             closeAfter: true,

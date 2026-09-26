@@ -134,29 +134,35 @@ class _StorePageState extends ConsumerState<StorePage> {
     );
 
     // 内嵌（商店 tab）时无 AppBar：把余额展示以内联 chip 形式移到 body 顶部，
-    // 避免「余额看不见」（玄参大人反馈过一次）。
+    // 避免「余额看不见」（玄参大人反馈过一次）。背景改暖奶油底（与养护面板一致）。
     if (widget.embedded) {
-      return SafeArea(
-        child: Column(
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: _BalanceChip(
-                  child: _balanceInline(balanceAsync, pendingTotal),
+      return ColoredBox(
+        color: const Color(0xFFFBF4E4),
+        child: SafeArea(
+          child: Column(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: _BalanceChip(
+                    child: _balanceInline(balanceAsync, pendingTotal),
+                  ),
                 ),
               ),
-            ),
-            Expanded(child: body),
-          ],
+              Expanded(child: body),
+            ],
+          ),
         ),
       );
     }
 
     return Scaffold(
+      // 暖奶油底（与养护面板 / 商店 tab 一致，形成分层暖色风格）。
+      backgroundColor: const Color(0xFFFBF4E4),
       appBar: AppBar(
         title: const Text('阳光商店'),
+        // AppBar 沿用主题色，内容区奶油底；标题/返回键文案不变。
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -242,35 +248,55 @@ class _StorePageState extends ConsumerState<StorePage> {
       );
     }
 
+    // 按内容分类（零食/游玩/娱乐/其他）做 FIRST-LEVEL 分区；空分类整体不渲染。
     final List<Widget> children = <Widget>[];
-    for (final RewardTemplate tpl in load.templates) {
-      final int cost = tpl.baseCost;
-      final bool onCd = load.onCooldown[tpl.id] ?? false;
-      final bool active = load.hasActive[tpl.id] ?? false;
-      final bool queued = load.hasQueued[tpl.id] ?? false;
-      final bool submitting = submittingId == tpl.id;
-      children.add(RewardCard(
-        template: tpl,
-        costForTier: cost,
-        onCooldown: onCd,
-        hasActiveRequest: active,
-        pendingCount: load.pendingCount[tpl.id] ?? 0,
-        weeklyLimit: tpl.frequencyLimitPerWeek,
-        weeklyUsed: load.weeklyUsed[tpl.id] ?? 0,
-        submitting: submitting,
-        hasQueuedRequest: queued,
-        onCancelQueue: queued
-            ? () => _onCancelQueue(tpl, load.queuedId[tpl.id])
-            : null,
-        onRedeem: (onCd || active || queued || submitting)
-            ? null
-            : () => _onRedeem(tpl, cost, load.tier),
-      ));
-      children.add(const SizedBox(height: 12));
+    for (final RewardContentCategory cat in kRewardContentCategoryOrder) {
+      final List<RewardTemplate> group = load.templates
+          .where((RewardTemplate t) => t.contentCategory == cat)
+          .toList(growable: false);
+      if (group.isEmpty) continue;
+      children.add(_categoryHeader(cat.label, cat.icon));
+      for (final RewardTemplate tpl in group) {
+        final int cost = tpl.baseCost;
+        final bool onCd = load.onCooldown[tpl.id] ?? false;
+        final bool active = load.hasActive[tpl.id] ?? false;
+        final bool queued = load.hasQueued[tpl.id] ?? false;
+        final bool submitting = submittingId == tpl.id;
+        children.add(RewardCard(
+          template: tpl,
+          costForTier: cost,
+          weeklyLimit: tpl.frequencyLimitPerWeek,
+          weeklyUsed: load.weeklyUsed[tpl.id] ?? 0,
+          submitting: submitting,
+          onRedeem: (onCd || active || queued || submitting)
+              ? null
+              : () => _onRedeem(tpl, cost, load.tier),
+        ));
+        children.add(const SizedBox(height: 12));
+      }
     }
 
     return ListView(padding: const EdgeInsets.all(16), children: children);
   }
+
+  /// 商店分区标题（左侧占位图标 emoji + 内容分类名）。
+  Widget _categoryHeader(String title, String icon) => Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 8),
+        child: Row(
+          children: <Widget>[
+            Text(icon, style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: 6),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Colors.blueGrey,
+              ),
+            ),
+          ],
+        ),
+      );
 
   /// 发起一笔兑换：先弹窗二次确认（防误点）→ 写 submitting 态 → submit → 反馈 → 刷新。
   Future<void> _onRedeem(RewardTemplate tpl, int cost, AgeTier tier) async {

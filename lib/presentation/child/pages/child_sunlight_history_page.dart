@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
+import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
 /// refType → 中文来源文案（单点收口，避免 UI 层散落字面量）。
 const Map<String, String> _refLabels = <String, String>{
@@ -145,8 +146,9 @@ class _EntryTile extends StatelessWidget {
     final String time =
         DateFormat('MM-dd HH:mm').format(entry.ts);
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.symmetric(vertical: 5),
+      decoration: creamCardDecoration(),
       child: ListTile(
         leading: Icon(
           earned ? Icons.add_circle_outline : Icons.remove_circle_outline,

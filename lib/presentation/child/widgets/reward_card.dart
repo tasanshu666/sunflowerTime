@@ -6,8 +6,7 @@
 /// [weeklyLimit] 为该模板「每周可兑换次数」上限（来自 RewardTemplate.frequencyLimitPerWeek）；
 /// [weeklyUsed] 为本周已领次数（来自 cooldownCount）。卡片展示「剩余次数」= limit - used：
 ///   · limit<=0              → 「不限次数」；
-///   · remaining>=2          → 「可兑换次数为 N」；
-///   · remaining==1          → 「仅可兑换 1 次」；
+///   · remaining>=1          → 「周限 N 次」（N = 剩余可兑换次数）；
 ///   · remaining==0（领完）  → 隐藏（由卡片禁用态 / 「本周已领」承载）。
 /// 注意：冷却放行逻辑在 StorePage / RedemptionOrchestrationService 侧，本卡只负责展示文案。
 library reward_card;
@@ -41,12 +40,12 @@ class RewardCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
 
     // 每周可兑换次数提示：按「剩余次数」（limit - used）动态渲染，领完则隐藏。
-    final Widget? weeklyHint = _weeklyLimitHint(theme);
+    final Widget? weeklyHint = _weeklyLimitHint();
 
     // 每行条目左侧彩色圆角图标块（马卡龙色底 + emoji 占位图标），按模板稳定轮换。
     final Color iconBg = macaronColorById(template.id).bg;
 
-    // 暖色儿童风：纯白大圆角卡 + 极柔和阴影；左侧彩色图标块 + 胶囊价格标签。
+    // 暖色儿童风：纯白大圆角卡 + 极柔和阴影；左图标 + 中段文案 + 右价格/兑换。
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -60,44 +59,42 @@ class RewardCard extends StatelessWidget {
         ],
       ),
       padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              // 左侧彩色圆角图标块（马卡龙色底 + 深字色图标）。
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Center(
-                  child: Text(template.contentCategory.icon,
-                      style: const TextStyle(fontSize: 32)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      template.name,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                ),
-              ),
-            ],
+          // 左侧彩色圆角图标块（马卡龙色底 + emoji 占位图标），与成长卡 56 对齐。
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Center(
+              child: Text(template.contentCategory.icon,
+                  style: const TextStyle(fontSize: 32)),
+            ),
           ),
-          const SizedBox(height: 12),
-          // 底部行：价格胶囊 + 每周可兑换次数提示（收进行内，Flexible 包裹防溢出）+ 兑换按钮。
-          Row(
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  template.name,
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                // 限次提示（领完即 null → 隐藏）；纯文字小字，无图标。
+                if (weeklyHint != null) weeklyHint,
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          // 右侧：价格胶囊 + 兑换按钮（垂直堆叠，mainAxisSize.min 不撑高卡片）。
+          Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               // 价格胶囊标签（暖黄底深字）。
@@ -116,10 +113,7 @@ class RewardCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              // 每周可兑换次数提示（领完即 null → 隐藏）；Flexible 包裹避免窄屏溢出。
-              if (weeklyHint != null) Flexible(child: weeklyHint),
-              const Spacer(),
+              const SizedBox(height: 8),
               // 明显的「兑换」按钮：主色填充、圆角、加宽，带 ⚡ 图标。
               // 保持 ElevatedButton + 文案「兑换」不变（既有测试按类型/文案断言可点性）。
               ElevatedButton.icon(
@@ -142,26 +136,14 @@ class RewardCard extends StatelessWidget {
 
   /// 每周可兑换次数提示文案部件（按「剩余次数」动态渲染）。
   ///
-  /// 口径（与用户原话一致）：limit<=0「不限次数」；remaining>=2「可兑换次数为 N」；
-  /// remaining==1「仅可兑换 1 次」；remaining==0（领完）→ 返回 null 隐藏，
-  /// 由卡片禁用态 / 「本周已领」承载，避免重复。
-  Widget? _weeklyLimitHint(ThemeData theme) {
+  /// 口径（玄参已确认）：limit<=0「不限次数」；remaining>=1「周限 N 次」；
+  /// remaining==0（领完）→ 返回 null 隐藏，由卡片禁用态 / 「本周已领」承载。
+  Widget? _weeklyLimitHint() {
     final String? text = weeklyRedeemLabel(weeklyLimit, weeklyUsed);
     if (text == null) return null;
-    return Row(
-      children: <Widget>[
-        Icon(Icons.repeat, size: 14, color: Colors.blueGrey.shade400),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Text(
-            text,
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: Colors.blueGrey.shade600),
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
+    return Text(
+      text,
+      style: const TextStyle(fontSize: 13, color: Colors.blueGrey),
     );
   }
 }

@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
 /// 夸夸语录本地持久化 key（SharedPreferences）。
 const String kPraiseNotesKey = 'praise_notes_v1';
@@ -158,7 +159,8 @@ class _ParentPraisePageState extends ConsumerState<ParentPraisePage> {
                         child: const Icon(Icons.delete, color: Colors.white),
                       ),
                       onDismissed: (_) => _removeAt(i),
-                      child: Card(
+                      child: Container(
+                        decoration: creamCardDecoration(),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Row(

@@ -24,6 +24,7 @@ import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
+import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
 /// 「今日」页：待确认的成长项 + 待核销奖励。
 class ParentTodayPage extends ConsumerStatefulWidget {
@@ -170,14 +171,13 @@ class _PendingCheckInsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      margin: EdgeInsets.zero,
+    return Container(
+      decoration: creamCardDecoration(),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
             Row(
               children: <Widget>[
                 const Icon(Icons.hourglass_top, color: Colors.orange),

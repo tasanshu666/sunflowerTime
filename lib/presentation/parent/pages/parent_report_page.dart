@@ -20,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/services/focus_report_service.dart';
+import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/shared/theme.dart';
 
 /// 报告页配色（随主题亮度切换，深浅两套都保持可读对比度）。
@@ -333,15 +334,16 @@ class _WeekChartCard extends StatelessWidget {
     final bool allEmpty = peak <= 0;
     const List<String> weekdayLabels = <String>['一', '二', '三', '四', '五', '六', '日'];
 
-    return Card(
+    return Container(
+      decoration: creamCardDecoration(),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                _LegendDot(color: p.valid),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              _LegendDot(color: p.valid),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text('有效专注日（≥15 分钟且完成率 ≥90%）',
@@ -504,17 +506,18 @@ class _StabilityCard extends StatelessWidget {
     final int delta = thisWeek - lastWeek;
     final Color tone = _assessmentColor;
 
-    return Card(
+    return Container(
+      decoration: creamCardDecoration(),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                for (int i = 0; i < trend.length; i++)
-                  Expanded(
-                    child: _WeekBar(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              for (int i = 0; i < trend.length; i++)
+                Expanded(
+                  child: _WeekBar(
                       days: trend[i],
                       isCurrent: i == trend.length - 1,
                       maxHeight: _barMaxHeight,

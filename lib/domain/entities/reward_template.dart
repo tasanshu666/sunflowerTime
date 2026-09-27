@@ -33,15 +33,13 @@ class RewardTemplate {
 /// （孩子端传 [cooldownCount]，家长端传 0 即配置值本身）。
 /// 返回 null 表示无需展示（已领完，由卡片禁用态 / 「本周已领」承载）。
 ///
-/// 口径（与用户原话一致）：
+/// 口径（玄参已确认）：
 ///   · limit<=0          → 「不限次数」；
-///   · remaining>=2      → 「可兑换次数为 N」；
-///   · remaining==1      → 「仅可兑换 1 次」；
-///   · remaining==0      → null（隐藏，避免与「本周已领」重复）。
+///   · remaining>=1      → 「周限 N 次」（N = 剩余可兑换次数）；
+///   · remaining==0      → null（隐藏，由卡片禁用态 / 「本周已领」承载）。
 String? weeklyRedeemLabel(int limit, int used) {
   if (limit <= 0) return '不限次数';
   final int remaining = (limit - used).clamp(0, limit);
   if (remaining <= 0) return null;
-  if (remaining == 1) return '仅可兑换 1 次';
-  return '可兑换次数为$remaining';
+  return '周限 $remaining 次';
 }

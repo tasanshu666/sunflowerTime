@@ -14,6 +14,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 
@@ -149,7 +150,8 @@ class _StatCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => Container(
+        decoration: creamCardDecoration(),
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Row(

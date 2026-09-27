@@ -16,6 +16,7 @@ library verification_card;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:intl/intl.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
@@ -222,14 +223,13 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
     final String requestedText =
         DateFormat('yyyy-MM-dd HH:mm').format(req.requestedAt);
 
-    return Card(
-      elevation: 2,
-      margin: EdgeInsets.zero,
+    return Container(
+      decoration: creamCardDecoration(),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
             Row(
               children: <Widget>[
                 Expanded(

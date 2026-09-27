@@ -17,6 +17,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
@@ -129,7 +130,8 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        Card(
+        Container(
+          decoration: creamCardDecoration(),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
             child: Column(
@@ -239,7 +241,8 @@ class _AchievementTile extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => Container(
+        decoration: creamCardDecoration(),
         child: ListTile(
           leading: Icon(icon, color: Colors.teal),
           title: Text(label),

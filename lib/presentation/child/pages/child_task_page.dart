@@ -1,8 +1,8 @@
 /// 孩子端「成长」tab（M4 / §4.4 今日成长卡 + 打卡 / 专注联动）。
 ///
 /// 渲染规则（M4 冻结口径，按 [Task.requiresFocus] 单点互斥，**同一行绝不并存
-/// 「开始专注」与「我做到了」两个动作**）：
-///  - **联动项**（requiresFocus == true）：只给「开始专注 · 需 N 分钟」——从本项进入专注、
+/// 「去专注」与「我做到了」两个动作**）：
+///  - **联动项**（requiresFocus == true）：只给「去专注」两行方盒（N 分钟）——从本项进入专注、
 ///    达标后由专注页 [TaskCheckInService.settleFocusLinked] **自动结算**，孩子**没有**可点的
 ///    打卡按钮（无从刷分）；已完成 → 「已完成 ✓」只读。
 ///  - **非联动项**（requiresFocus == false）：只给「我做到了」——调用 [TaskCheckInService.checkIn]
@@ -179,7 +179,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
 
   /// 非联动项手动打卡：调服务 → 反馈 → 自增经济修订号令今日卡/商店/花园同步。
   ///
-  /// 联动项不会走到这里（其按钮是「开始专注」，走专注页自动结算）。
+  /// 联动项不会走到这里（其按钮是「去专注」，走专注页自动结算）。
   Future<void> _checkIn(Task task) async {
     if (_busyTaskId != null) return; // 串行闸门，避免连点重复打卡
     setState(() => _busyTaskId = task.id);
@@ -417,11 +417,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
         ),
       );
 
-  /// 单条成长项：白卡 + 左侧彩色圆角图标块（马卡龙色底 + 状态图标）+ 胶囊状态。
-  ///
-  /// 两段式布局（修复窄屏挤压）：
-  ///  · 上段 = 图标块 + 标题/信息（信息独占整行宽，不再被右侧胶囊挤成逐字换行）；
-  ///  · 下段 = 操作胶囊通栏铺满整行，与卡片等宽、内容居中。
+  /// 单条成长项（单行布局）：左图标块 + 中段标题/信息 + 右操作方盒；紧凑不挤压。
   Widget _taskTile(TaskCheckInItem item, int index) {
     final bool busy = _busyTaskId == item.task.id;
     final IconData statusIcon = _statusIcon(item);
@@ -441,65 +437,58 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
         ],
       ),
       padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          // 上段：图标块 + 标题/信息（信息独占整行宽 → 单行放下，标题不再逐字断行）。
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              // 左侧彩色圆角图标块（马卡龙色底 + 状态图标），尺寸原样 42x42。
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: blockBg,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(statusIcon, color: blockFg, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // 左侧彩色圆角图标块（马卡龙色底 + 状态图标），与商店卡 56 对齐。
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: blockBg,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(statusIcon, color: blockFg, size: 28),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: <Widget>[
-                        _dailyBadge(item.isDaily),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(item.task.name,
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.w600)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      item.task.requiresFocus
-                          ? '${item.task.subjectLabel} · 需专注 ${item.task.minFocusMin} 分钟 · +${item.task.effectiveSunlightReward} ☀'
-                          : '${item.task.subjectLabel} · +${item.task.effectiveSunlightReward} ☀',
-                      style: const TextStyle(fontSize: 13, color: Colors.grey),
+                    _dailyBadge(item.isDaily),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(item.task.name,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                // 信息行：联动项「需专注」、统一展示 +N 阳光；分钟数已移入右侧「去专注」方盒。
+                Text(
+                  item.task.requiresFocus
+                      ? '${item.task.subjectLabel} · 需专注 · +${item.task.effectiveSunlightReward} ☀'
+                      : '${item.task.subjectLabel} · +${item.task.effectiveSunlightReward} ☀',
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          // 下段：操作胶囊通栏（铺满整行，内容居中），与卡片等宽、不挤压上段文字。
-          _buildAction(item, busy, fullWidth: true),
+          const SizedBox(width: 10),
+          // 右侧操作方盒（紧凑，不再通栏）。
+          _buildAction(item, busy),
         ],
       ),
     );
   }
 
   /// 行内操作区（M4 冻结口径）：按 [Task.requiresFocus] 单点互斥，
-  /// **同一行绝不并存放「开始专注」与「我做到了」**。统一改为胶囊状态块。
-  ///
-  /// [fullWidth] = true 时胶囊通栏铺满整行（卡片「下段」用）；默认紧凑胶囊。
-  Widget _buildAction(TaskCheckInItem item, bool busy, {bool fullWidth = false}) {
+  /// **同一行绝不并存放「去专注」与「我做到了」**。右侧紧凑方盒。
+  Widget _buildAction(TaskCheckInItem item, bool busy) {
     // ① 待家长确认：常态仅出现在非联动项；联动项若出现即契约外异常，显式渲染不静默。
     if (item.pendingVerification) {
       return _statusCapsule(
@@ -507,7 +496,6 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
         icon: Icons.hourglass_top,
         bg: _kWaitBg,
         fg: _kWaitFg,
-        fullWidth: fullWidth,
       );
     }
 
@@ -518,30 +506,19 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
         icon: Icons.check,
         bg: _kDoneBg,
         fg: _kDoneFg,
-        fullWidth: fullWidth,
       );
     }
 
-    // ③ 未提交 → 联动项只给「开始专注」（达标自动结算，孩子无可点打卡按钮）；
+    // ③ 未提交 → 联动项只给「去专注」两行方盒（达标自动结算，孩子无可点打卡按钮）；
     //    非联动项只给「我做到了」（落待家长确认，家长核销后才发阳光）。
     if (item.task.requiresFocus) {
-      return _statusCapsule(
-        text: '开始专注 · 需 ${item.task.minFocusMin} 分钟',
-        icon: Icons.timer_outlined,
-        bg: _kTodoBg,
-        fg: _kTodoFg,
-        fullWidth: fullWidth,
-        onTap: () => context.go(
-          '/focus?minutes=${item.task.minFocusMin}&dnd=1&task=${item.task.id}',
-        ),
-      );
+      return _focusBox(item.task);
     }
     return _statusCapsule(
       text: '我做到了',
       icon: Icons.check_circle,
       bg: _kTodoBg,
       fg: _kTodoFg,
-      fullWidth: fullWidth,
       // 提交中：用转圈占位、不可点（防连点重复打卡）。
       leading: busy
           ? const SizedBox(
@@ -551,6 +528,45 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
             )
           : null,
       onTap: busy ? null : () => _checkIn(item.task),
+    );
+  }
+
+  /// 联动项「去专注」两行方盒：上行「去专注」主文案 + 下行「N分钟」小字。
+  ///
+  /// 点击进入专注页（达标后由专注页 [TaskCheckInService.settleFocusLinked] 自动结算），
+  /// onTap 口径与原「开始专注」一致：`/focus?minutes=...&dnd=1&task=...`。
+  Widget _focusBox(Task task) {
+    return InkWell(
+      onTap: () => context.go(
+        '/focus?minutes=${task.minFocusMin}&dnd=1&task=${task.id}',
+      ),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: _kTodoBg,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            Text(
+              '去专注',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: _kTodoFg,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${task.minFocusMin}分钟',
+              style: const TextStyle(fontSize: 11, color: _kTodoFg),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

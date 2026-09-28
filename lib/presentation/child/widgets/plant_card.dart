@@ -142,6 +142,34 @@ class PlantCard extends StatelessWidget {
     return '每天按时养护，还需约 $days 天长成';
   }
 
+  /// 花期剩余文案（**仅「盛开」时**返回非 null；其余状态返回 null，不显示）。
+  ///
+  /// 花期时长分档：普通 [kBloomDurationDays]（3 天）/ 精品 [kBloomDurationDaysPremium]（4.5 天），
+  /// 档位按 [PlantSpecies.isPremium] 判定 —— 与领域层 `PlantGrowthService._bloomDuration`
+  /// **同口径**（单点常量，改常量文案自动跟随）。
+  /// 剩余 = 花期时长 − (now − [Plant.bloomedAt])；`bloomedAt` 缺失（老库升级来的已开花植物
+  /// 尚未补计时）时返回 null，绝不编造数字。
+  String? get _bloomRemainingHint {
+    if (plant.status != PlantStatus.bloomed || plant.bloomedAt == null) {
+      return null;
+    }
+    final double days = species.isPremium
+        ? kBloomDurationDaysPremium
+        : kBloomDurationDays.toDouble();
+    final Duration total =
+        Duration(milliseconds: (days * Duration.millisecondsPerDay).round());
+    final Duration left = total - DateTime.now().difference(plant.bloomedAt!);
+    final double daysLeft =
+        (left.inMinutes / Duration.minutesPerDay).clamp(0, 999).toDouble();
+    return '花期剩余 ${_fmtDays(daysLeft)} 天';
+  }
+
+  /// 天数格式：整数不带小数（3.0 → '3'），非整数保留一位（4.5 → '4.5'）。
+  String _fmtDays(double d) {
+    final String s = d.toStringAsFixed(1);
+    return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
+  }
+
   /// 当前「有事可做」的能力入口（未来玩法的统一挂点）。
   ///
   /// 注册表默认为空 → 返回空列表 → 卡片不新增任何视觉元素。
@@ -281,6 +309,16 @@ class PlantCard extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 12, color: Colors.teal.shade700),
                 ),
+                if (_bloomRemainingHint != null) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    _bloomRemainingHint!,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.green.shade700),
+                  ),
+                ],
               ],
             ),
           ),

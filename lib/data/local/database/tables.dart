@@ -52,10 +52,68 @@ class Plants extends Table {
   DateTimeColumn get wiltedAt => dateTime().nullable()();
   DateTimeColumn get deadAt => dateTime().nullable()();
   DateTimeColumn get bloomedAt => dateTime().nullable()(); // 进入「盛开」的计时起点（花谢循环；v8 新增）
+  IntColumn get bloomCount =>
+      integer().withDefault(const Constant(0))(); // 累计盛开次数（成株后循环玩法；v10 新增）
   IntColumn get mood => integer().withDefault(const Constant(0))(); // PlantMood index
 
   @override
   Set<Column> get primaryKey => {id};
+}
+
+/// 精品碎片账户余额（成株后循环玩法 Batch 1，v10 新增）。
+///
+/// 单例行（镜像 [Settings] 模式，id 固定 = 1）：精品碎片为玩家级货币，
+/// 仅由开花奖励掉落（瞬间 / 花开 48h 后），集齐阈值（8）片可在花园页**手动选择**
+/// 解锁 1 个精品物种（变更 B：不再自动解锁）。
+@DataClassName('PremiumFragmentRow')
+class PremiumFragments extends Table {
+  IntColumn get id => integer()(); // 单例行主键，固定 = 1
+  IntColumn get balance =>
+      integer().withDefault(const Constant(0))(); // 当前持有碎片数
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 第二段（花开后掉落）待收集奖励队列（成株后循环玩法 Batch 1，v10 新增；
+/// v12 增 3 列「掉落即定奖」内容）。
+///
+/// 开花瞬间写入一条，`due_at = bloomed_at + 48h`；到期后由小朋友在花园页花盆旁
+/// **手动点击收集**（变更 A）；若花谢 / 枯萎前未收集则 `tickAll` 自动兜底发放。
+/// 领取后置 claimed = 1（每株仅发一次）。
+///
+/// v12（玄参 2026-09-27「掉落即定奖」）：新增 `reward_sunlight / reward_fragments /
+/// reward_species_id` 三列，登记时当场 roll 并落库，结算时照单发放；UI 依据三列渲染头顶图标。
+/// 历史行三列为零值哨兵 `0/0/null`（= 未预先定奖），结算时退回现场 roll 并回写。
+@DataClassName('PendingBloomRewardRow')
+class PendingBloomRewards extends Table {
+  TextColumn get id => text()(); // 主键（uuid）
+  TextColumn get plantId => text()(); // 所属植物 id
+  DateTimeColumn get dueAt => dateTime()(); // 应发放（可收集）时刻
+  TextColumn get rewardKind => text()(); // 档位标识：'normal' / 'premium'
+  BoolColumn get claimed => boolean().withDefault(const Constant(false))();
+
+  // ── v12 新增：掉落即定奖的奖励内容（零值哨兵 0/0/null = 未预先定奖）──────────
+  IntColumn get rewardSunlight =>
+      integer().withDefault(const Constant(0))(); // 预先定好的入账阳光
+  IntColumn get rewardFragments =>
+      integer().withDefault(const Constant(0))(); // 预先定好的植物碎片片数
+  TextColumn get rewardSpeciesId =>
+      text().nullable()(); // 预先定好的掉落种子物种 id（null = 无）
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 已解锁物种记账（成株后循环玩法 Batch 1，v10 新增；图鉴 Batch 2 读它）。
+///
+/// 物种种子 / 碎片解锁均写入本表；`species_id` 复用植物物种种子（`plant_seed.dart`）的 id。
+@DataClassName('UnlockedSpeciesRow')
+class UnlockedSpecies extends Table {
+  TextColumn get speciesId => text()();
+
+  @override
+  Set<Column> get primaryKey => {speciesId};
 }
 
 /// 专注会话（§3.1 focus_session）。

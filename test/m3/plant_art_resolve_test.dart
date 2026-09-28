@@ -24,8 +24,8 @@ import 'package:sunflower_time/presentation/child/widgets/plant_artwork.dart';
 /// 与 `plant_seed.dart` 对齐的三个物种 id（美术命名的最外层变量）。
 const List<String> _speciesIds = <String>[
   'species_sunflower',
-  'species_daisy',
-  'species_cactus',
+  'species_tomato',
+  'species_star_flower',
 ];
 
 void main() {
@@ -66,29 +66,29 @@ void main() {
 
     test('A3 缺精确图 → 回退到「物种_阶段」', () {
       final Set<String> assets = <String>{
-        'assets/plants/species_daisy_sprout.png',
+        'assets/plants/species_tomato_sprout.png',
       };
       expect(
         PlantArtCandidates.resolve(
           assets,
-          speciesId: 'species_daisy',
+          speciesId: 'species_tomato',
           stage: 'sprout',
           status: 'wilting',
         ),
-        'assets/plants/species_daisy_sprout.png',
+        'assets/plants/species_tomato_sprout.png',
       );
     });
 
     test('A4 只有物种总图 → 回退到「物种」', () {
-      final Set<String> assets = <String>{'assets/plants/species_cactus.png'};
+      final Set<String> assets = <String>{'assets/plants/species_star_flower.png'};
       expect(
         PlantArtCandidates.resolve(
           assets,
-          speciesId: 'species_cactus',
+          speciesId: 'species_star_flower',
           stage: 'adult',
           status: 'dead',
         ),
-        'assets/plants/species_cactus.png',
+        'assets/plants/species_star_flower.png',
       );
     });
 
@@ -106,16 +106,16 @@ void main() {
 
     test('A6 相邻物种/状态不会串味（前 3 条含本物种，后 2 条为通用 shared_）', () {
       final List<String> c = PlantArtCandidates.forPlant(
-        speciesId: 'species_daisy',
+        speciesId: 'species_tomato',
         stage: 'seed',
         status: 'growing',
       );
       // 前 3 条 = 物种级：含本物种名，且不含任何跨物种名。
       expect(
-        c.take(3).every((String p) => p.contains('species_daisy')),
+        c.take(3).every((String p) => p.contains('species_tomato')),
         isTrue,
       );
-      expect(c.any((String p) => p.contains('species_cactus')), isFalse);
+      expect(c.any((String p) => p.contains('species_star_flower')), isFalse);
       // 后 2 条 = 通用级：`shared_` 前缀，且不含任何物种名。
       expect(
         c.skip(3).every(
@@ -134,7 +134,7 @@ void main() {
       expect(
         PlantArtCandidates.resolve(
           assets,
-          speciesId: 'species_daisy',
+          speciesId: 'species_tomato',
           stage: 'seed',
           status: 'growing',
         ),
@@ -147,7 +147,7 @@ void main() {
       expect(
         PlantArtCandidates.resolve(
           assets,
-          speciesId: 'species_cactus',
+          speciesId: 'species_star_flower',
           stage: 'seed',
           status: 'wilting',
         ),

@@ -24,6 +24,9 @@ part 'app_database.g.dart';
   tables: [
     Settings,
     Plants,
+    PremiumFragments,
+    PendingBloomRewards,
+    UnlockedSpecies,
     FocusSessions,
     SunlightLedgers,
     RewardTemplates,
@@ -37,6 +40,7 @@ part 'app_database.g.dart';
   daos: [
     SettingsDao,
     PlantDao,
+    BloomRewardDao,
     TaskDao,
     SunlightLedgerDao,
     RewardTemplateDao,
@@ -50,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -137,6 +141,49 @@ class AppDatabase extends _$AppDatabase {
           //    bloomed_at 列（进入盛开的计时起点，可空）。老库 ALTER TABLE ADD COLUMN
           //    补列，历史行取 NULL（表示「尚未记录花期起点」，首次 tick 自动补计时）。
           await _ensureColumn(m, plants, plants.bloomedAt);
+
+          // ⑩ v10（成株后循环玩法 Batch 1）：plants 新增 bloom_count 列（累计盛开次数，
+          //    INT NOT NULL DEFAULT 0）+ 3 张新表（premium_fragments 精品碎片余额、
+          //    pending_bloom_rewards 第二段待收集奖励、unlocked_species 已解锁物种）。
+          //    · 新表由顶部 createAll()（CREATE TABLE IF NOT EXISTS）自动建出；
+          //    · bloom_count 用 _ensureColumn 幂等补列，历史行取默认 0
+          //      （= 从未开过花 → 复开花节奏判据安全默认为「首花」）。
+          await _ensureColumn(m, plants, plants.bloomCount);
+
+          //    回填：已盛开过的存量植物（有花期起点 bloomed_at）至少算「开过 1 次花」，
+          //    否则升级后被当成首花、复开花速率退回首花速率（普通重满约 5 天而非 ~14 天）。
+          //    幂等：① 该 UPDATE 只在 from<10 的 onUpgrade 中执行（版本号到 10 后不再跑）；
+          //    ② 条件带 `bloom_count = 0`，且为**赋值**而非自增，重复执行也不会叠加。
+          //    ⚠️ 本仓未开 `storeDateTimesAsText`，DateTime 落库为 unix 秒 INTEGER；
+          //       此处按 `bloomed_at IS NOT NULL` 判「曾盛开」，与列的实际存储无关。
+          await customStatement(
+            'UPDATE plants SET bloom_count = 1 '
+            'WHERE bloomed_at IS NOT NULL AND bloom_count = 0;',
+          );
+
+          // ⑪ v11（物种表改版，玄参 2026-09-27 拍板）：移除 `species_daisy`（小雏菊）/
+          //    `species_cactus`（仙人掌）两个旧物种，其**存量植株直接删除**（不做迁移映射）。
+          //    幂等：① 只在 from<11 时执行（版本号到 11 后不再跑）；② 条件为按 species_id 删除，
+          //    重复执行时第二次已无匹配行 → 无副作用、不误删其它物种。
+          //    ⚠️ 这是**版本变更**（schemaVersion 10 → 11），必须配迁移测试（见
+          //       `test/m3/migration_v10_to_v11_test.dart`）。
+          if (from < 11) {
+            await customStatement(
+              "DELETE FROM plants WHERE species_id IN "
+              "('species_daisy','species_cactus')",
+            );
+          }
+
+          // ⑫ v12（奖励物图标化 + 掉落即定奖，玄参 2026-09-27 拍板）：pending_bloom_rewards 新增
+          //    3 列——`reward_sunlight` / `reward_fragments` / `reward_species_id`，用于在「登记
+          //    pending」时就把奖励内容 roll 好落库（结算照单发放），UI 据此渲染头顶奖励图标。
+          //    · 用 _ensureColumn 幂等补列，历史行取默认零值哨兵 `0/0/null`（= 未预先定奖）；
+          //      结算时命中哨兵者退回「现场 roll」路径并回写本行，保证老 pending 奖励不丢。
+          //    · 均为带默认值的 ALTER TABLE ADD COLUMN（nullable 的 reward_species_id 默认 NULL）。
+          //    ⚠️ 版本变更（11 → 12），必须配迁移测试（见 `test/m3/migration_v11_to_v12_test.dart`）。
+          await _ensureColumn(m, pendingBloomRewards, pendingBloomRewards.rewardSunlight);
+          await _ensureColumn(m, pendingBloomRewards, pendingBloomRewards.rewardFragments);
+          await _ensureColumn(m, pendingBloomRewards, pendingBloomRewards.rewardSpeciesId);
         },
       );
 
@@ -147,6 +194,9 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteEverything() => transaction(() async {
         await delete(settings).go();
         await delete(plants).go();
+        await delete(premiumFragments).go();
+        await delete(pendingBloomRewards).go();
+        await delete(unlockedSpecies).go();
         await delete(focusSessions).go();
         await delete(sunlightLedgers).go();
         await delete(rewardTemplates).go();

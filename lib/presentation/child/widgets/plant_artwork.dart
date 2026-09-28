@@ -16,7 +16,7 @@
 /// ⑥ 以上都没有 → 回退到内置自绘简笔（[PlantPlaceholderArt]）
 /// ```
 /// 其中：
-/// - `{speciesId}` = `PlantSpecies.id`，当前为 `species_sunflower` / `species_daisy` / `species_cactus`
+/// - `{speciesId}` = `PlantSpecies.id`（现为 `species_sunflower` 等 8 种，见 `plant_seed.dart`）
 /// - `{stage}` = `seed` / `sprout` / `adult`
 /// - `{status}` = `growing` / `bloomed` / `wilting` / `dead`
 ///
@@ -215,8 +215,9 @@ class PlantArtwork extends StatelessWidget {
 
 /// 内置自绘简笔植物（美术资源缺失时的占位）。
 ///
-/// 刻意画得可辨识：按物种区分形态（向日葵 / 小雏菊 / 仙人掌），
-/// 按阶段区分高矮（种子 / 幼苗 / 成株），按状态调色（枯萎转褐、死亡转灰）。
+/// 刻意画得可辨识：按阶段区分高矮（种子 / 幼苗 / 成株），按状态调色（枯萎转褐、死亡转灰）。
+/// 物种级形态：美术资源缺失时统一走此简笔（新物种不逐一自绘，形态差异由美术图承接）；
+/// 原有「仙人掌 / 小雏菊」专属分支已随物种移除（2026-09-27 物种表改版）一并删除。
 class PlantPlaceholderArt extends StatelessWidget {
   final Plant plant;
   final PlantSpecies species;
@@ -329,7 +330,6 @@ class _PlantPlaceholderPainter extends CustomPainter {
     double height, {
     required bool big,
   }) {
-    if (_isCactus) return; // 仙人掌无叶片，用刺代替（见 _drawFlower）
     final Paint paint = Paint()
       ..color = _stem.withOpacity(0.85)
       ..style = PaintingStyle.fill;
@@ -354,20 +354,13 @@ class _PlantPlaceholderPainter extends CustomPainter {
     );
   }
 
-  bool get _isCactus => speciesId == 'species_cactus';
-  bool get _isDaisy => speciesId == 'species_daisy';
-
   void _drawFlower(Canvas canvas, double w, double centerY) {
-    if (_isCactus) {
-      _drawCactusBody(canvas, w, centerY);
-      return;
-    }
     final bool dead = _isDead || _isWilting;
     final Color petal = dead ? Colors.grey.shade500 : const Color(0xFFF6C445);
     final Color core = dead ? Colors.grey.shade700 : const Color(0xFF6D4C41);
     final double cx = w * 0.5;
     final double cy = centerY + w * 0.02;
-    final double r = _isDaisy ? w * 0.13 : w * 0.17;
+    final double r = w * 0.17;
 
     // 花瓣（8 片，绕中心）
     final Paint petalPaint = Paint()
@@ -386,50 +379,6 @@ class _PlantPlaceholderPainter extends CustomPainter {
     }
     // 花心
     canvas.drawCircle(Offset(cx, cy), r * 0.62, Paint()..color = core);
-  }
-
-  void _drawCactusBody(Canvas canvas, double w, double centerY) {
-    // 仙人掌：柱体 + 两侧小臂 + 顶部小花（死亡/枯萎转灰褐）
-    final bool dead = _isDead || _isWilting;
-    final Color body = dead ? Colors.grey.shade500 : Colors.green.shade600;
-    final Paint paint = Paint()
-      ..color = body
-      ..style = PaintingStyle.fill;
-    final double cx = w * 0.5;
-    final double topY = centerY;
-    final double bottomY = w * 0.80;
-
-    // 主干
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(cx - w * 0.09, topY, w * 0.18, bottomY - topY),
-        Radius.circular(w * 0.09),
-      ),
-      paint,
-    );
-    // 左右小臂
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(cx - w * 0.20, topY + w * 0.16, w * 0.09, w * 0.20),
-        Radius.circular(w * 0.045),
-      ),
-      paint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(cx + w * 0.11, topY + w * 0.24, w * 0.09, w * 0.20),
-        Radius.circular(w * 0.045),
-      ),
-      paint,
-    );
-    // 顶部小花
-    if (!dead) {
-      canvas.drawCircle(
-        Offset(cx, topY - w * 0.02),
-        w * 0.055,
-        Paint()..color = const Color(0xFFEC7BA0),
-      );
-    }
   }
 
   // 轻量三角函数（避免引入 dart:math 仅为两次调用）。

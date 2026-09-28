@@ -177,8 +177,12 @@ const int kPlantWiltRecoverHardFertilize = 1;
 /// 枯萎后触发死亡的天数（PRD §4.6 H2：wilting 再 7 天 → dead）。
 const int kPlantDeathDays = 7;
 
-/// 死亡返还比例（仅与养护挂钩，绝不因专注表现杀死；PRD §4.6）。
-const double kPlantDeathRefundRate = 0.30;
+/// 死亡返还比例 —— **已废止**（玄参 2026-09-27 拍板「死亡全损」）。
+///
+/// 植株死亡**不退还任何资源**（阳光不退、碎片不退），故 `kPlantDeathRefundRate` 已删除。
+/// 历史账本中 `plant_death_refund` 行只读、不再产生新行（见 `child_sunlight_history_page`）。
+/// 取而代之的「首购优惠」不在此处：某物种（阳光价 > 0，如月光兰）**首次**获取按阳光价、
+/// 之后一律按档位碎片价，判据为阳光账本 `plant_plant` + `refId=物种 id`（见领域层 `plantCost`）。
 
 /// 花园初始花盆容量（PRD §4.6 / §3.1 settings.garden_pot_capacity 默认）。
 const int kGardenPotCapacityDefault = 4;
@@ -235,6 +239,163 @@ const int kBloomDurationDays = 3;
 /// 回落到该下限后需重新养满至 1.0 才能再盛开，从而制造一个可见的「休整期」
 /// （普通植物约 (1-下限)/0.10 天，精品约 (1-下限)/0.05 天）。0.5 → 普通约 5 天 / 精品约 10 天。
 const double kBloomWiltProgressFloor = 0.5;
+
+// ───────────────────────────────────────────────────────────────────────────
+// 成株后循环玩法 Batch 1（玄参大人拍板）：复开花节奏 + 花期双阶段奖励 + 精品碎片。
+//
+// 单点收口（宪法总纪律 #2）：下列增量 / 概率 / 区间 / 阈值全部集中于此，
+// 任何服务或页面不得出现第二个相同含义的字面量。普通/精品双档差异化：
+//   · 档位判定依据 [PlantSpecies.isPremium]（精品 = rare + legendary，见 `plant_species.dart`）；
+//   · 复开花节奏：普通 7/14 天，精品 ×1.5（≈10.4/21 天）；
+//   · 花期：普通 [kBloomDurationDays]（3 天），精品 [kBloomDurationDaysPremium]（4.5 天）。
+//
+// 校验口径（花谢回落下限 [kBloomWiltProgressFloor] = 0.5）：
+//   普通 不养护 = 0.5 / 0.036 ≈ 14 天；满养护 = 0.5 / (0.036 + 3×0.008 + 0.012) ≈ 7 天。
+//   精品 不养护 = 0.5 / (0.036 ÷ 1.5) ≈ 21 天；满养护 = 0.5 / (0.048 ÷ 1.5) ≈ 10.4 天。
+// ───────────────────────────────────────────────────────────────────────────
+
+/// 复开花期间**自动回填**速率（普通植物，进度/天）。独立于首长成的
+/// [kPlantGrowthHoursPerStageDefault] 推导值（10%/天），使复开花节奏与物种解耦。
+const double kRebloomAutoProgressPerDay = 0.036;
+
+/// 复开花期间**每次浇水**进度增量（普通植物）。日 3 次 → 0.024/天。
+const double kRebloomWaterProgressGain = 0.008;
+
+/// 复开花期间**每次施肥**进度增量（普通植物）。日 1 次 → 0.012/天。
+const double kRebloomFertilizeProgressGain = 0.012;
+
+/// 精品植物复开花周期倍率：上述所有复开花增量 **÷ 本值**（节奏 ×1.5）。
+/// 自动 0.036÷1.5 = 0.024/天；养护合计 (0.024+0.012)÷1.5 = 0.024/天。
+const double kRebloomPremiumCycleMultiplier = 1.5;
+
+/// 花期时长（天）· 精品植物。普通植物沿用 [kBloomDurationDays]（3 天）。
+const double kBloomDurationDaysPremium = 4.5;
+
+/// 开花瞬间**保底**基础阳光（100% 必给）· 普通植物。
+const int kBloomInstantSunlight = 6;
+
+/// 开花瞬间**保底**基础阳光（100% 必给）· 精品植物。
+const int kBloomInstantSunlightPremium = 10;
+
+/// 开花瞬间惊喜 · 精品碎片概率 · 普通植物（掉 1 片）。
+const double kBloomInstantFragmentRate = 0.15;
+
+/// 开花瞬间惊喜 · 精品碎片概率 · 精品植物（60% 掉 2 片 / 40% 掉 1 片）。
+/// 玄参 2026-09-25 修订（变更 C）：精品档概率两阶段对齐，碎片 20%。
+const double kBloomInstantFragmentRatePremium = 0.20;
+
+/// 开花瞬间惊喜 · 精品碎片「掉 2 片」的条件概率 · 精品植物（否则掉 1 片）。
+const double kBloomInstantFragmentDoubleRatePremium = 0.60;
+
+/// 开花瞬间惊喜 · 本档物种种子概率 · 普通植物（掉普通物种种子）。
+const double kBloomInstantSeedRate = 0.05;
+
+/// 开花瞬间惊喜 · 本档物种种子概率 · 精品植物（掉精品物种种子）。
+/// 玄参 2026-09-25 修订（变更 C）：精品档概率两阶段对齐，种子 10%。
+const double kBloomInstantSeedRatePremium = 0.10;
+
+/// 开花瞬间惊喜 · 大额阳光概率 · 普通植物。
+const double kBloomInstantBonusRate = 0.20;
+
+/// 开花瞬间惊喜 · 大额阳光概率 · 精品植物。
+const double kBloomInstantBonusRatePremium = 0.25;
+
+/// 大额阳光区间 · 普通植物（含端点）。
+const int kBloomBonusSunlightMin = 10;
+const int kBloomBonusSunlightMax = 20;
+
+/// 大额阳光区间 · 精品植物（含端点）。
+const int kBloomBonusSunlightMinPremium = 15;
+const int kBloomBonusSunlightMaxPremium = 25;
+
+/// 第二段奖励（花开后掉落待收集）的延迟（小时）。
+///
+/// 玄参 2026-09-25 修订（变更 A）：由 24h 改为 **48h**；第二段奖励不再是 tick 自动发放，
+/// 而是到期后在花盆旁掉落气泡，由小朋友**手动点击收集**（见 `PlantGrowthService.collectBloomReward`）。
+const int kBloomRewardDelayHours = 48;
+
+/// 第二段奖励 · 精品碎片概率 · 普通植物（掉 1 片）。
+///
+/// 玄参 2026-09-26 拍板（普通档两阶段统一）：第二段碎片率由 0.10 提到 **0.15**，
+/// 与开花瞬间档一致（瞬间/第二段两阶段统一为「碎片 15% / 普通种子 5% / 大额 20% / 兜底 60%」）。
+const double kBloomSecondPhaseFragmentRate = 0.15;
+
+/// 第二段奖励 · 精品碎片概率 · 精品植物（50% 掉 2 片 / 50% 掉 1 片）。
+/// 玄参 2026-09-25 修订（变更 C）：精品档概率两阶段对齐，碎片 20%（数值不变，仅口径对齐）。
+const double kBloomSecondPhaseFragmentRatePremium = 0.20;
+
+/// 第二段奖励 · 精品碎片「掉 2 片」的条件概率 · 精品植物（否则掉 1 片）。
+const double kBloomSecondPhaseFragmentDoubleRatePremium = 0.50;
+
+/// 第二段奖励 · 本档物种种子概率 · 普通植物。
+const double kBloomSecondPhaseSeedRate = 0.05;
+
+/// 第二段奖励 · 本档物种种子概率 · 精品植物。
+/// 玄参 2026-09-25 修订（变更 C）：精品档概率两阶段对齐，种子 10%（原 12%）。
+const double kBloomSecondPhaseSeedRatePremium = 0.10;
+
+/// 第二段奖励 · 大额阳光概率 · 普通植物。
+const double kBloomSecondPhaseBonusRate = 0.20;
+
+/// 第二段奖励 · 大额阳光概率 · 精品植物。
+const double kBloomSecondPhaseBonusRatePremium = 0.25;
+
+/// 第二段奖励 · 基础阳光区间 · 普通植物（含端点）。
+const int kBloomSecondPhaseBaseSunlightMin = 3;
+const int kBloomSecondPhaseBaseSunlightMax = 6;
+
+/// 第二段奖励 · 基础阳光区间 · 精品植物（含端点）。
+const int kBloomSecondPhaseBaseSunlightMinPremium = 6;
+const int kBloomSecondPhaseBaseSunlightMaxPremium = 10;
+
+/// 初始免费物种 id（向日葵）：阳光价 / 碎片价均为 0，任何孩子首颗可白嫖。
+///
+/// 玄参 2026-09-27 物种表改版：定价派生里它是「免费」的唯一特例（普通档其余物种按
+/// [kSpeciesFragmentCostCommon] 收碎片），故单点收口于此常量，供 `plant_seed.dart`
+/// 与领域层 `PlantGrowthService.plantCost`、花园页前置校验共用，杜绝裸字面量。
+const String kStarterSpeciesId = 'species_sunflower';
+
+/// 物种种植价 · 碎片 · **普通档**（番茄 / 草莓）。
+///
+/// 玄参 2026-09-27 物种表改版：按物种计价，普通档物种在物种列表**直接兑换并种下**
+/// 需消耗 6 片精品碎片（取代原「满 8 片手动解锁精品物种」旧体系）。
+const int kSpeciesFragmentCostCommon = 6;
+
+/// 物种种植价 · 碎片 · **精英档**（星辰花 / 虹影蕨 / 珊瑚岭兰 / 翡翠绣球）。
+///
+/// 玄参 2026-09-27 物种表改版：精英档（= `rare`，见 `PlantSpecies.isPremium`）物种
+/// 兑换需消耗 10 片精品碎片。碎片价按档位派生，**不新增字段**。
+const int kSpeciesFragmentCostPremium = 10;
+
+/// 物种种植价 · 阳光 · **月光兰**（唯一按阳光计价的物种）。
+///
+/// 玄参 2026-09-27 物种表改版：月光兰阳光价 400（低 / 高年段同值）；其余物种阳光价 0
+/// （碎片物种不额外扣阳光；向日葵为初始免费物种）。类型为 `int`——直接作为
+/// `PlantSpecies.baseCostHigh/Low`（`int`）写入种子表，且阳光扣减金额由此派生。
+const int kSpeciesMoonOrchidSunlightCost = 400;
+
+/// 账本 refType · 开花瞬间奖励（保底 + 惊喜 roll）。
+const String kBloomRewardRefType = 'bloom_reward';
+
+/// 账本 refType · 第二段（花开后掉落）奖励。
+///
+/// ⚠️ 常量名已随 Batch1 修订统一为 `SecondPhase`；但**字符串值 `'bloom_reward_24h'` 冻结不改**——
+/// 它已写入历史账本，改名会破坏对既有记录的按 refType 对账（此值仅作写入标记，当前无运行时查询依赖）。
+const String kBloomSecondPhaseRefType = 'bloom_reward_24h';
+
+/// 待发奖励的**阶段**标识（落 `pending_bloom_rewards.reward_kind`）· **开花瞬间**。
+///
+/// 玄参 2026-09-26 变更 B：开花瞬间奖励不再即时入账，改为写入一条 `due = bloomedAt`
+/// 的待收集记录（即刻可收集气泡），点击后才入账；花谢前未点则兜底自动到账。
+/// 第二段（花开 48h 后掉落）阶段沿用 [kBloomRewardKindNormal] / [kBloomRewardKindPremium]
+/// （该两值同时兼作第二段的档位标识，与历史行一致）。
+const String kBloomRewardPhaseInstant = 'instant';
+
+/// 第二段待发奖励的档位标识（落 `pending_bloom_rewards.reward_kind`）· 普通。
+const String kBloomRewardKindNormal = 'normal';
+
+/// 第二段待发奖励的档位标识 · 精品。
+const String kBloomRewardKindPremium = 'premium';
 
 // ───────────────────────────────────────────────────────────────────────────
 // M3 任务模板配置常量（T05，§4.4 / §8.2）。禁止裸字面量。

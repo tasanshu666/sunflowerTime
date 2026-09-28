@@ -1108,6 +1108,14 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
   late final GeneratedColumn<DateTime> bloomedAt = GeneratedColumn<DateTime>(
       'bloomed_at', aliasedName, true,
       type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _bloomCountMeta =
+      const VerificationMeta('bloomCount');
+  @override
+  late final GeneratedColumn<int> bloomCount = GeneratedColumn<int>(
+      'bloom_count', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
   static const VerificationMeta _moodMeta = const VerificationMeta('mood');
   @override
   late final GeneratedColumn<int> mood = GeneratedColumn<int>(
@@ -1132,6 +1140,7 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
         wiltedAt,
         deadAt,
         bloomedAt,
+        bloomCount,
         mood
       ];
   @override
@@ -1227,6 +1236,12 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
       context.handle(_bloomedAtMeta,
           bloomedAt.isAcceptableOrUnknown(data['bloomed_at']!, _bloomedAtMeta));
     }
+    if (data.containsKey('bloom_count')) {
+      context.handle(
+          _bloomCountMeta,
+          bloomCount.isAcceptableOrUnknown(
+              data['bloom_count']!, _bloomCountMeta));
+    }
     if (data.containsKey('mood')) {
       context.handle(
           _moodMeta, mood.isAcceptableOrUnknown(data['mood']!, _moodMeta));
@@ -1270,6 +1285,8 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
           .read(DriftSqlType.dateTime, data['${effectivePrefix}dead_at']),
       bloomedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}bloomed_at']),
+      bloomCount: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}bloom_count'])!,
       mood: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}mood'])!,
     );
@@ -1297,6 +1314,7 @@ class Plant extends DataClass implements Insertable<Plant> {
   final DateTime? wiltedAt;
   final DateTime? deadAt;
   final DateTime? bloomedAt;
+  final int bloomCount;
   final int mood;
   const Plant(
       {required this.id,
@@ -1314,6 +1332,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       this.wiltedAt,
       this.deadAt,
       this.bloomedAt,
+      required this.bloomCount,
       required this.mood});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1341,6 +1360,7 @@ class Plant extends DataClass implements Insertable<Plant> {
     if (!nullToAbsent || bloomedAt != null) {
       map['bloomed_at'] = Variable<DateTime>(bloomedAt);
     }
+    map['bloom_count'] = Variable<int>(bloomCount);
     map['mood'] = Variable<int>(mood);
     return map;
   }
@@ -1369,6 +1389,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       bloomedAt: bloomedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(bloomedAt),
+      bloomCount: Value(bloomCount),
       mood: Value(mood),
     );
   }
@@ -1392,6 +1413,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       wiltedAt: serializer.fromJson<DateTime?>(json['wiltedAt']),
       deadAt: serializer.fromJson<DateTime?>(json['deadAt']),
       bloomedAt: serializer.fromJson<DateTime?>(json['bloomedAt']),
+      bloomCount: serializer.fromJson<int>(json['bloomCount']),
       mood: serializer.fromJson<int>(json['mood']),
     );
   }
@@ -1414,6 +1436,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       'wiltedAt': serializer.toJson<DateTime?>(wiltedAt),
       'deadAt': serializer.toJson<DateTime?>(deadAt),
       'bloomedAt': serializer.toJson<DateTime?>(bloomedAt),
+      'bloomCount': serializer.toJson<int>(bloomCount),
       'mood': serializer.toJson<int>(mood),
     };
   }
@@ -1434,6 +1457,7 @@ class Plant extends DataClass implements Insertable<Plant> {
           Value<DateTime?> wiltedAt = const Value.absent(),
           Value<DateTime?> deadAt = const Value.absent(),
           Value<DateTime?> bloomedAt = const Value.absent(),
+          int? bloomCount,
           int? mood}) =>
       Plant(
         id: id ?? this.id,
@@ -1451,6 +1475,7 @@ class Plant extends DataClass implements Insertable<Plant> {
         wiltedAt: wiltedAt.present ? wiltedAt.value : this.wiltedAt,
         deadAt: deadAt.present ? deadAt.value : this.deadAt,
         bloomedAt: bloomedAt.present ? bloomedAt.value : this.bloomedAt,
+        bloomCount: bloomCount ?? this.bloomCount,
         mood: mood ?? this.mood,
       );
   Plant copyWithCompanion(PlantsCompanion data) {
@@ -1479,6 +1504,8 @@ class Plant extends DataClass implements Insertable<Plant> {
       wiltedAt: data.wiltedAt.present ? data.wiltedAt.value : this.wiltedAt,
       deadAt: data.deadAt.present ? data.deadAt.value : this.deadAt,
       bloomedAt: data.bloomedAt.present ? data.bloomedAt.value : this.bloomedAt,
+      bloomCount:
+          data.bloomCount.present ? data.bloomCount.value : this.bloomCount,
       mood: data.mood.present ? data.mood.value : this.mood,
     );
   }
@@ -1501,6 +1528,7 @@ class Plant extends DataClass implements Insertable<Plant> {
           ..write('wiltedAt: $wiltedAt, ')
           ..write('deadAt: $deadAt, ')
           ..write('bloomedAt: $bloomedAt, ')
+          ..write('bloomCount: $bloomCount, ')
           ..write('mood: $mood')
           ..write(')'))
         .toString();
@@ -1523,6 +1551,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       wiltedAt,
       deadAt,
       bloomedAt,
+      bloomCount,
       mood);
   @override
   bool operator ==(Object other) =>
@@ -1543,6 +1572,7 @@ class Plant extends DataClass implements Insertable<Plant> {
           other.wiltedAt == this.wiltedAt &&
           other.deadAt == this.deadAt &&
           other.bloomedAt == this.bloomedAt &&
+          other.bloomCount == this.bloomCount &&
           other.mood == this.mood);
 }
 
@@ -1562,6 +1592,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
   final Value<DateTime?> wiltedAt;
   final Value<DateTime?> deadAt;
   final Value<DateTime?> bloomedAt;
+  final Value<int> bloomCount;
   final Value<int> mood;
   final Value<int> rowid;
   const PlantsCompanion({
@@ -1580,6 +1611,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     this.wiltedAt = const Value.absent(),
     this.deadAt = const Value.absent(),
     this.bloomedAt = const Value.absent(),
+    this.bloomCount = const Value.absent(),
     this.mood = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -1599,6 +1631,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     this.wiltedAt = const Value.absent(),
     this.deadAt = const Value.absent(),
     this.bloomedAt = const Value.absent(),
+    this.bloomCount = const Value.absent(),
     this.mood = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
@@ -1624,6 +1657,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     Expression<DateTime>? wiltedAt,
     Expression<DateTime>? deadAt,
     Expression<DateTime>? bloomedAt,
+    Expression<int>? bloomCount,
     Expression<int>? mood,
     Expression<int>? rowid,
   }) {
@@ -1643,6 +1677,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       if (wiltedAt != null) 'wilted_at': wiltedAt,
       if (deadAt != null) 'dead_at': deadAt,
       if (bloomedAt != null) 'bloomed_at': bloomedAt,
+      if (bloomCount != null) 'bloom_count': bloomCount,
       if (mood != null) 'mood': mood,
       if (rowid != null) 'rowid': rowid,
     });
@@ -1664,6 +1699,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       Value<DateTime?>? wiltedAt,
       Value<DateTime?>? deadAt,
       Value<DateTime?>? bloomedAt,
+      Value<int>? bloomCount,
       Value<int>? mood,
       Value<int>? rowid}) {
     return PlantsCompanion(
@@ -1682,6 +1718,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       wiltedAt: wiltedAt ?? this.wiltedAt,
       deadAt: deadAt ?? this.deadAt,
       bloomedAt: bloomedAt ?? this.bloomedAt,
+      bloomCount: bloomCount ?? this.bloomCount,
       mood: mood ?? this.mood,
       rowid: rowid ?? this.rowid,
     );
@@ -1735,6 +1772,9 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     if (bloomedAt.present) {
       map['bloomed_at'] = Variable<DateTime>(bloomedAt.value);
     }
+    if (bloomCount.present) {
+      map['bloom_count'] = Variable<int>(bloomCount.value);
+    }
     if (mood.present) {
       map['mood'] = Variable<int>(mood.value);
     }
@@ -1762,7 +1802,791 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
           ..write('wiltedAt: $wiltedAt, ')
           ..write('deadAt: $deadAt, ')
           ..write('bloomedAt: $bloomedAt, ')
+          ..write('bloomCount: $bloomCount, ')
           ..write('mood: $mood, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PremiumFragmentsTable extends PremiumFragments
+    with TableInfo<$PremiumFragmentsTable, PremiumFragmentRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PremiumFragmentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _balanceMeta =
+      const VerificationMeta('balance');
+  @override
+  late final GeneratedColumn<int> balance = GeneratedColumn<int>(
+      'balance', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  @override
+  List<GeneratedColumn> get $columns => [id, balance];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'premium_fragments';
+  @override
+  VerificationContext validateIntegrity(Insertable<PremiumFragmentRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('balance')) {
+      context.handle(_balanceMeta,
+          balance.isAcceptableOrUnknown(data['balance']!, _balanceMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PremiumFragmentRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PremiumFragmentRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      balance: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}balance'])!,
+    );
+  }
+
+  @override
+  $PremiumFragmentsTable createAlias(String alias) {
+    return $PremiumFragmentsTable(attachedDatabase, alias);
+  }
+}
+
+class PremiumFragmentRow extends DataClass
+    implements Insertable<PremiumFragmentRow> {
+  final int id;
+  final int balance;
+  const PremiumFragmentRow({required this.id, required this.balance});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['balance'] = Variable<int>(balance);
+    return map;
+  }
+
+  PremiumFragmentsCompanion toCompanion(bool nullToAbsent) {
+    return PremiumFragmentsCompanion(
+      id: Value(id),
+      balance: Value(balance),
+    );
+  }
+
+  factory PremiumFragmentRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PremiumFragmentRow(
+      id: serializer.fromJson<int>(json['id']),
+      balance: serializer.fromJson<int>(json['balance']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'balance': serializer.toJson<int>(balance),
+    };
+  }
+
+  PremiumFragmentRow copyWith({int? id, int? balance}) => PremiumFragmentRow(
+        id: id ?? this.id,
+        balance: balance ?? this.balance,
+      );
+  PremiumFragmentRow copyWithCompanion(PremiumFragmentsCompanion data) {
+    return PremiumFragmentRow(
+      id: data.id.present ? data.id.value : this.id,
+      balance: data.balance.present ? data.balance.value : this.balance,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PremiumFragmentRow(')
+          ..write('id: $id, ')
+          ..write('balance: $balance')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, balance);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PremiumFragmentRow &&
+          other.id == this.id &&
+          other.balance == this.balance);
+}
+
+class PremiumFragmentsCompanion extends UpdateCompanion<PremiumFragmentRow> {
+  final Value<int> id;
+  final Value<int> balance;
+  const PremiumFragmentsCompanion({
+    this.id = const Value.absent(),
+    this.balance = const Value.absent(),
+  });
+  PremiumFragmentsCompanion.insert({
+    this.id = const Value.absent(),
+    this.balance = const Value.absent(),
+  });
+  static Insertable<PremiumFragmentRow> custom({
+    Expression<int>? id,
+    Expression<int>? balance,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (balance != null) 'balance': balance,
+    });
+  }
+
+  PremiumFragmentsCompanion copyWith({Value<int>? id, Value<int>? balance}) {
+    return PremiumFragmentsCompanion(
+      id: id ?? this.id,
+      balance: balance ?? this.balance,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (balance.present) {
+      map['balance'] = Variable<int>(balance.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PremiumFragmentsCompanion(')
+          ..write('id: $id, ')
+          ..write('balance: $balance')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PendingBloomRewardsTable extends PendingBloomRewards
+    with TableInfo<$PendingBloomRewardsTable, PendingBloomRewardRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PendingBloomRewardsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _plantIdMeta =
+      const VerificationMeta('plantId');
+  @override
+  late final GeneratedColumn<String> plantId = GeneratedColumn<String>(
+      'plant_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _dueAtMeta = const VerificationMeta('dueAt');
+  @override
+  late final GeneratedColumn<DateTime> dueAt = GeneratedColumn<DateTime>(
+      'due_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _rewardKindMeta =
+      const VerificationMeta('rewardKind');
+  @override
+  late final GeneratedColumn<String> rewardKind = GeneratedColumn<String>(
+      'reward_kind', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _claimedMeta =
+      const VerificationMeta('claimed');
+  @override
+  late final GeneratedColumn<bool> claimed = GeneratedColumn<bool>(
+      'claimed', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("claimed" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _rewardSunlightMeta =
+      const VerificationMeta('rewardSunlight');
+  @override
+  late final GeneratedColumn<int> rewardSunlight = GeneratedColumn<int>(
+      'reward_sunlight', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _rewardFragmentsMeta =
+      const VerificationMeta('rewardFragments');
+  @override
+  late final GeneratedColumn<int> rewardFragments = GeneratedColumn<int>(
+      'reward_fragments', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _rewardSpeciesIdMeta =
+      const VerificationMeta('rewardSpeciesId');
+  @override
+  late final GeneratedColumn<String> rewardSpeciesId = GeneratedColumn<String>(
+      'reward_species_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        plantId,
+        dueAt,
+        rewardKind,
+        claimed,
+        rewardSunlight,
+        rewardFragments,
+        rewardSpeciesId
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pending_bloom_rewards';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<PendingBloomRewardRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('plant_id')) {
+      context.handle(_plantIdMeta,
+          plantId.isAcceptableOrUnknown(data['plant_id']!, _plantIdMeta));
+    } else if (isInserting) {
+      context.missing(_plantIdMeta);
+    }
+    if (data.containsKey('due_at')) {
+      context.handle(
+          _dueAtMeta, dueAt.isAcceptableOrUnknown(data['due_at']!, _dueAtMeta));
+    } else if (isInserting) {
+      context.missing(_dueAtMeta);
+    }
+    if (data.containsKey('reward_kind')) {
+      context.handle(
+          _rewardKindMeta,
+          rewardKind.isAcceptableOrUnknown(
+              data['reward_kind']!, _rewardKindMeta));
+    } else if (isInserting) {
+      context.missing(_rewardKindMeta);
+    }
+    if (data.containsKey('claimed')) {
+      context.handle(_claimedMeta,
+          claimed.isAcceptableOrUnknown(data['claimed']!, _claimedMeta));
+    }
+    if (data.containsKey('reward_sunlight')) {
+      context.handle(
+          _rewardSunlightMeta,
+          rewardSunlight.isAcceptableOrUnknown(
+              data['reward_sunlight']!, _rewardSunlightMeta));
+    }
+    if (data.containsKey('reward_fragments')) {
+      context.handle(
+          _rewardFragmentsMeta,
+          rewardFragments.isAcceptableOrUnknown(
+              data['reward_fragments']!, _rewardFragmentsMeta));
+    }
+    if (data.containsKey('reward_species_id')) {
+      context.handle(
+          _rewardSpeciesIdMeta,
+          rewardSpeciesId.isAcceptableOrUnknown(
+              data['reward_species_id']!, _rewardSpeciesIdMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PendingBloomRewardRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PendingBloomRewardRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      plantId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}plant_id'])!,
+      dueAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}due_at'])!,
+      rewardKind: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}reward_kind'])!,
+      claimed: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}claimed'])!,
+      rewardSunlight: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}reward_sunlight'])!,
+      rewardFragments: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}reward_fragments'])!,
+      rewardSpeciesId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}reward_species_id']),
+    );
+  }
+
+  @override
+  $PendingBloomRewardsTable createAlias(String alias) {
+    return $PendingBloomRewardsTable(attachedDatabase, alias);
+  }
+}
+
+class PendingBloomRewardRow extends DataClass
+    implements Insertable<PendingBloomRewardRow> {
+  final String id;
+  final String plantId;
+  final DateTime dueAt;
+  final String rewardKind;
+  final bool claimed;
+  final int rewardSunlight;
+  final int rewardFragments;
+  final String? rewardSpeciesId;
+  const PendingBloomRewardRow(
+      {required this.id,
+      required this.plantId,
+      required this.dueAt,
+      required this.rewardKind,
+      required this.claimed,
+      required this.rewardSunlight,
+      required this.rewardFragments,
+      this.rewardSpeciesId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['plant_id'] = Variable<String>(plantId);
+    map['due_at'] = Variable<DateTime>(dueAt);
+    map['reward_kind'] = Variable<String>(rewardKind);
+    map['claimed'] = Variable<bool>(claimed);
+    map['reward_sunlight'] = Variable<int>(rewardSunlight);
+    map['reward_fragments'] = Variable<int>(rewardFragments);
+    if (!nullToAbsent || rewardSpeciesId != null) {
+      map['reward_species_id'] = Variable<String>(rewardSpeciesId);
+    }
+    return map;
+  }
+
+  PendingBloomRewardsCompanion toCompanion(bool nullToAbsent) {
+    return PendingBloomRewardsCompanion(
+      id: Value(id),
+      plantId: Value(plantId),
+      dueAt: Value(dueAt),
+      rewardKind: Value(rewardKind),
+      claimed: Value(claimed),
+      rewardSunlight: Value(rewardSunlight),
+      rewardFragments: Value(rewardFragments),
+      rewardSpeciesId: rewardSpeciesId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rewardSpeciesId),
+    );
+  }
+
+  factory PendingBloomRewardRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PendingBloomRewardRow(
+      id: serializer.fromJson<String>(json['id']),
+      plantId: serializer.fromJson<String>(json['plantId']),
+      dueAt: serializer.fromJson<DateTime>(json['dueAt']),
+      rewardKind: serializer.fromJson<String>(json['rewardKind']),
+      claimed: serializer.fromJson<bool>(json['claimed']),
+      rewardSunlight: serializer.fromJson<int>(json['rewardSunlight']),
+      rewardFragments: serializer.fromJson<int>(json['rewardFragments']),
+      rewardSpeciesId: serializer.fromJson<String?>(json['rewardSpeciesId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'plantId': serializer.toJson<String>(plantId),
+      'dueAt': serializer.toJson<DateTime>(dueAt),
+      'rewardKind': serializer.toJson<String>(rewardKind),
+      'claimed': serializer.toJson<bool>(claimed),
+      'rewardSunlight': serializer.toJson<int>(rewardSunlight),
+      'rewardFragments': serializer.toJson<int>(rewardFragments),
+      'rewardSpeciesId': serializer.toJson<String?>(rewardSpeciesId),
+    };
+  }
+
+  PendingBloomRewardRow copyWith(
+          {String? id,
+          String? plantId,
+          DateTime? dueAt,
+          String? rewardKind,
+          bool? claimed,
+          int? rewardSunlight,
+          int? rewardFragments,
+          Value<String?> rewardSpeciesId = const Value.absent()}) =>
+      PendingBloomRewardRow(
+        id: id ?? this.id,
+        plantId: plantId ?? this.plantId,
+        dueAt: dueAt ?? this.dueAt,
+        rewardKind: rewardKind ?? this.rewardKind,
+        claimed: claimed ?? this.claimed,
+        rewardSunlight: rewardSunlight ?? this.rewardSunlight,
+        rewardFragments: rewardFragments ?? this.rewardFragments,
+        rewardSpeciesId: rewardSpeciesId.present
+            ? rewardSpeciesId.value
+            : this.rewardSpeciesId,
+      );
+  PendingBloomRewardRow copyWithCompanion(PendingBloomRewardsCompanion data) {
+    return PendingBloomRewardRow(
+      id: data.id.present ? data.id.value : this.id,
+      plantId: data.plantId.present ? data.plantId.value : this.plantId,
+      dueAt: data.dueAt.present ? data.dueAt.value : this.dueAt,
+      rewardKind:
+          data.rewardKind.present ? data.rewardKind.value : this.rewardKind,
+      claimed: data.claimed.present ? data.claimed.value : this.claimed,
+      rewardSunlight: data.rewardSunlight.present
+          ? data.rewardSunlight.value
+          : this.rewardSunlight,
+      rewardFragments: data.rewardFragments.present
+          ? data.rewardFragments.value
+          : this.rewardFragments,
+      rewardSpeciesId: data.rewardSpeciesId.present
+          ? data.rewardSpeciesId.value
+          : this.rewardSpeciesId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PendingBloomRewardRow(')
+          ..write('id: $id, ')
+          ..write('plantId: $plantId, ')
+          ..write('dueAt: $dueAt, ')
+          ..write('rewardKind: $rewardKind, ')
+          ..write('claimed: $claimed, ')
+          ..write('rewardSunlight: $rewardSunlight, ')
+          ..write('rewardFragments: $rewardFragments, ')
+          ..write('rewardSpeciesId: $rewardSpeciesId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, plantId, dueAt, rewardKind, claimed,
+      rewardSunlight, rewardFragments, rewardSpeciesId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PendingBloomRewardRow &&
+          other.id == this.id &&
+          other.plantId == this.plantId &&
+          other.dueAt == this.dueAt &&
+          other.rewardKind == this.rewardKind &&
+          other.claimed == this.claimed &&
+          other.rewardSunlight == this.rewardSunlight &&
+          other.rewardFragments == this.rewardFragments &&
+          other.rewardSpeciesId == this.rewardSpeciesId);
+}
+
+class PendingBloomRewardsCompanion
+    extends UpdateCompanion<PendingBloomRewardRow> {
+  final Value<String> id;
+  final Value<String> plantId;
+  final Value<DateTime> dueAt;
+  final Value<String> rewardKind;
+  final Value<bool> claimed;
+  final Value<int> rewardSunlight;
+  final Value<int> rewardFragments;
+  final Value<String?> rewardSpeciesId;
+  final Value<int> rowid;
+  const PendingBloomRewardsCompanion({
+    this.id = const Value.absent(),
+    this.plantId = const Value.absent(),
+    this.dueAt = const Value.absent(),
+    this.rewardKind = const Value.absent(),
+    this.claimed = const Value.absent(),
+    this.rewardSunlight = const Value.absent(),
+    this.rewardFragments = const Value.absent(),
+    this.rewardSpeciesId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PendingBloomRewardsCompanion.insert({
+    required String id,
+    required String plantId,
+    required DateTime dueAt,
+    required String rewardKind,
+    this.claimed = const Value.absent(),
+    this.rewardSunlight = const Value.absent(),
+    this.rewardFragments = const Value.absent(),
+    this.rewardSpeciesId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        plantId = Value(plantId),
+        dueAt = Value(dueAt),
+        rewardKind = Value(rewardKind);
+  static Insertable<PendingBloomRewardRow> custom({
+    Expression<String>? id,
+    Expression<String>? plantId,
+    Expression<DateTime>? dueAt,
+    Expression<String>? rewardKind,
+    Expression<bool>? claimed,
+    Expression<int>? rewardSunlight,
+    Expression<int>? rewardFragments,
+    Expression<String>? rewardSpeciesId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (plantId != null) 'plant_id': plantId,
+      if (dueAt != null) 'due_at': dueAt,
+      if (rewardKind != null) 'reward_kind': rewardKind,
+      if (claimed != null) 'claimed': claimed,
+      if (rewardSunlight != null) 'reward_sunlight': rewardSunlight,
+      if (rewardFragments != null) 'reward_fragments': rewardFragments,
+      if (rewardSpeciesId != null) 'reward_species_id': rewardSpeciesId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PendingBloomRewardsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? plantId,
+      Value<DateTime>? dueAt,
+      Value<String>? rewardKind,
+      Value<bool>? claimed,
+      Value<int>? rewardSunlight,
+      Value<int>? rewardFragments,
+      Value<String?>? rewardSpeciesId,
+      Value<int>? rowid}) {
+    return PendingBloomRewardsCompanion(
+      id: id ?? this.id,
+      plantId: plantId ?? this.plantId,
+      dueAt: dueAt ?? this.dueAt,
+      rewardKind: rewardKind ?? this.rewardKind,
+      claimed: claimed ?? this.claimed,
+      rewardSunlight: rewardSunlight ?? this.rewardSunlight,
+      rewardFragments: rewardFragments ?? this.rewardFragments,
+      rewardSpeciesId: rewardSpeciesId ?? this.rewardSpeciesId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (plantId.present) {
+      map['plant_id'] = Variable<String>(plantId.value);
+    }
+    if (dueAt.present) {
+      map['due_at'] = Variable<DateTime>(dueAt.value);
+    }
+    if (rewardKind.present) {
+      map['reward_kind'] = Variable<String>(rewardKind.value);
+    }
+    if (claimed.present) {
+      map['claimed'] = Variable<bool>(claimed.value);
+    }
+    if (rewardSunlight.present) {
+      map['reward_sunlight'] = Variable<int>(rewardSunlight.value);
+    }
+    if (rewardFragments.present) {
+      map['reward_fragments'] = Variable<int>(rewardFragments.value);
+    }
+    if (rewardSpeciesId.present) {
+      map['reward_species_id'] = Variable<String>(rewardSpeciesId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PendingBloomRewardsCompanion(')
+          ..write('id: $id, ')
+          ..write('plantId: $plantId, ')
+          ..write('dueAt: $dueAt, ')
+          ..write('rewardKind: $rewardKind, ')
+          ..write('claimed: $claimed, ')
+          ..write('rewardSunlight: $rewardSunlight, ')
+          ..write('rewardFragments: $rewardFragments, ')
+          ..write('rewardSpeciesId: $rewardSpeciesId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $UnlockedSpeciesTable extends UnlockedSpecies
+    with TableInfo<$UnlockedSpeciesTable, UnlockedSpeciesRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UnlockedSpeciesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _speciesIdMeta =
+      const VerificationMeta('speciesId');
+  @override
+  late final GeneratedColumn<String> speciesId = GeneratedColumn<String>(
+      'species_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [speciesId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'unlocked_species';
+  @override
+  VerificationContext validateIntegrity(Insertable<UnlockedSpeciesRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('species_id')) {
+      context.handle(_speciesIdMeta,
+          speciesId.isAcceptableOrUnknown(data['species_id']!, _speciesIdMeta));
+    } else if (isInserting) {
+      context.missing(_speciesIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {speciesId};
+  @override
+  UnlockedSpeciesRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UnlockedSpeciesRow(
+      speciesId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}species_id'])!,
+    );
+  }
+
+  @override
+  $UnlockedSpeciesTable createAlias(String alias) {
+    return $UnlockedSpeciesTable(attachedDatabase, alias);
+  }
+}
+
+class UnlockedSpeciesRow extends DataClass
+    implements Insertable<UnlockedSpeciesRow> {
+  final String speciesId;
+  const UnlockedSpeciesRow({required this.speciesId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['species_id'] = Variable<String>(speciesId);
+    return map;
+  }
+
+  UnlockedSpeciesCompanion toCompanion(bool nullToAbsent) {
+    return UnlockedSpeciesCompanion(
+      speciesId: Value(speciesId),
+    );
+  }
+
+  factory UnlockedSpeciesRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UnlockedSpeciesRow(
+      speciesId: serializer.fromJson<String>(json['speciesId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'speciesId': serializer.toJson<String>(speciesId),
+    };
+  }
+
+  UnlockedSpeciesRow copyWith({String? speciesId}) => UnlockedSpeciesRow(
+        speciesId: speciesId ?? this.speciesId,
+      );
+  UnlockedSpeciesRow copyWithCompanion(UnlockedSpeciesCompanion data) {
+    return UnlockedSpeciesRow(
+      speciesId: data.speciesId.present ? data.speciesId.value : this.speciesId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UnlockedSpeciesRow(')
+          ..write('speciesId: $speciesId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => speciesId.hashCode;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UnlockedSpeciesRow && other.speciesId == this.speciesId);
+}
+
+class UnlockedSpeciesCompanion extends UpdateCompanion<UnlockedSpeciesRow> {
+  final Value<String> speciesId;
+  final Value<int> rowid;
+  const UnlockedSpeciesCompanion({
+    this.speciesId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  UnlockedSpeciesCompanion.insert({
+    required String speciesId,
+    this.rowid = const Value.absent(),
+  }) : speciesId = Value(speciesId);
+  static Insertable<UnlockedSpeciesRow> custom({
+    Expression<String>? speciesId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (speciesId != null) 'species_id': speciesId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  UnlockedSpeciesCompanion copyWith(
+      {Value<String>? speciesId, Value<int>? rowid}) {
+    return UnlockedSpeciesCompanion(
+      speciesId: speciesId ?? this.speciesId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (speciesId.present) {
+      map['species_id'] = Variable<String>(speciesId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UnlockedSpeciesCompanion(')
+          ..write('speciesId: $speciesId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5587,6 +6411,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $SettingsTable settings = $SettingsTable(this);
   late final $PlantsTable plants = $PlantsTable(this);
+  late final $PremiumFragmentsTable premiumFragments =
+      $PremiumFragmentsTable(this);
+  late final $PendingBloomRewardsTable pendingBloomRewards =
+      $PendingBloomRewardsTable(this);
+  late final $UnlockedSpeciesTable unlockedSpecies =
+      $UnlockedSpeciesTable(this);
   late final $FocusSessionsTable focusSessions = $FocusSessionsTable(this);
   late final $SunlightLedgersTable sunlightLedgers =
       $SunlightLedgersTable(this);
@@ -5602,6 +6432,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TrackingEventsTable trackingEvents = $TrackingEventsTable(this);
   late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
   late final PlantDao plantDao = PlantDao(this as AppDatabase);
+  late final BloomRewardDao bloomRewardDao =
+      BloomRewardDao(this as AppDatabase);
   late final TaskDao taskDao = TaskDao(this as AppDatabase);
   late final SunlightLedgerDao sunlightLedgerDao =
       SunlightLedgerDao(this as AppDatabase);
@@ -5622,6 +6454,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
         settings,
         plants,
+        premiumFragments,
+        pendingBloomRewards,
+        unlockedSpecies,
         focusSessions,
         sunlightLedgers,
         rewardTemplates,
@@ -6072,6 +6907,7 @@ typedef $$PlantsTableCreateCompanionBuilder = PlantsCompanion Function({
   Value<DateTime?> wiltedAt,
   Value<DateTime?> deadAt,
   Value<DateTime?> bloomedAt,
+  Value<int> bloomCount,
   Value<int> mood,
   Value<int> rowid,
 });
@@ -6091,6 +6927,7 @@ typedef $$PlantsTableUpdateCompanionBuilder = PlantsCompanion Function({
   Value<DateTime?> wiltedAt,
   Value<DateTime?> deadAt,
   Value<DateTime?> bloomedAt,
+  Value<int> bloomCount,
   Value<int> mood,
   Value<int> rowid,
 });
@@ -6151,6 +6988,9 @@ class $$PlantsTableFilterComposer
 
   ColumnFilters<DateTime> get bloomedAt => $composableBuilder(
       column: $table.bloomedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get bloomCount => $composableBuilder(
+      column: $table.bloomCount, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get mood => $composableBuilder(
       column: $table.mood, builder: (column) => ColumnFilters(column));
@@ -6214,6 +7054,9 @@ class $$PlantsTableOrderingComposer
   ColumnOrderings<DateTime> get bloomedAt => $composableBuilder(
       column: $table.bloomedAt, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<int> get bloomCount => $composableBuilder(
+      column: $table.bloomCount, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get mood => $composableBuilder(
       column: $table.mood, builder: (column) => ColumnOrderings(column));
 }
@@ -6272,6 +7115,9 @@ class $$PlantsTableAnnotationComposer
   GeneratedColumn<DateTime> get bloomedAt =>
       $composableBuilder(column: $table.bloomedAt, builder: (column) => column);
 
+  GeneratedColumn<int> get bloomCount => $composableBuilder(
+      column: $table.bloomCount, builder: (column) => column);
+
   GeneratedColumn<int> get mood =>
       $composableBuilder(column: $table.mood, builder: (column) => column);
 }
@@ -6314,6 +7160,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             Value<DateTime?> wiltedAt = const Value.absent(),
             Value<DateTime?> deadAt = const Value.absent(),
             Value<DateTime?> bloomedAt = const Value.absent(),
+            Value<int> bloomCount = const Value.absent(),
             Value<int> mood = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -6333,6 +7180,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             wiltedAt: wiltedAt,
             deadAt: deadAt,
             bloomedAt: bloomedAt,
+            bloomCount: bloomCount,
             mood: mood,
             rowid: rowid,
           ),
@@ -6352,6 +7200,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             Value<DateTime?> wiltedAt = const Value.absent(),
             Value<DateTime?> deadAt = const Value.absent(),
             Value<DateTime?> bloomedAt = const Value.absent(),
+            Value<int> bloomCount = const Value.absent(),
             Value<int> mood = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -6371,6 +7220,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             wiltedAt: wiltedAt,
             deadAt: deadAt,
             bloomedAt: bloomedAt,
+            bloomCount: bloomCount,
             mood: mood,
             rowid: rowid,
           ),
@@ -6392,6 +7242,472 @@ typedef $$PlantsTableProcessedTableManager = ProcessedTableManager<
     $$PlantsTableUpdateCompanionBuilder,
     (Plant, BaseReferences<_$AppDatabase, $PlantsTable, Plant>),
     Plant,
+    PrefetchHooks Function()>;
+typedef $$PremiumFragmentsTableCreateCompanionBuilder
+    = PremiumFragmentsCompanion Function({
+  Value<int> id,
+  Value<int> balance,
+});
+typedef $$PremiumFragmentsTableUpdateCompanionBuilder
+    = PremiumFragmentsCompanion Function({
+  Value<int> id,
+  Value<int> balance,
+});
+
+class $$PremiumFragmentsTableFilterComposer
+    extends Composer<_$AppDatabase, $PremiumFragmentsTable> {
+  $$PremiumFragmentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get balance => $composableBuilder(
+      column: $table.balance, builder: (column) => ColumnFilters(column));
+}
+
+class $$PremiumFragmentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PremiumFragmentsTable> {
+  $$PremiumFragmentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get balance => $composableBuilder(
+      column: $table.balance, builder: (column) => ColumnOrderings(column));
+}
+
+class $$PremiumFragmentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PremiumFragmentsTable> {
+  $$PremiumFragmentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get balance =>
+      $composableBuilder(column: $table.balance, builder: (column) => column);
+}
+
+class $$PremiumFragmentsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $PremiumFragmentsTable,
+    PremiumFragmentRow,
+    $$PremiumFragmentsTableFilterComposer,
+    $$PremiumFragmentsTableOrderingComposer,
+    $$PremiumFragmentsTableAnnotationComposer,
+    $$PremiumFragmentsTableCreateCompanionBuilder,
+    $$PremiumFragmentsTableUpdateCompanionBuilder,
+    (
+      PremiumFragmentRow,
+      BaseReferences<_$AppDatabase, $PremiumFragmentsTable, PremiumFragmentRow>
+    ),
+    PremiumFragmentRow,
+    PrefetchHooks Function()> {
+  $$PremiumFragmentsTableTableManager(
+      _$AppDatabase db, $PremiumFragmentsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PremiumFragmentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PremiumFragmentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PremiumFragmentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int> balance = const Value.absent(),
+          }) =>
+              PremiumFragmentsCompanion(
+            id: id,
+            balance: balance,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int> balance = const Value.absent(),
+          }) =>
+              PremiumFragmentsCompanion.insert(
+            id: id,
+            balance: balance,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$PremiumFragmentsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $PremiumFragmentsTable,
+    PremiumFragmentRow,
+    $$PremiumFragmentsTableFilterComposer,
+    $$PremiumFragmentsTableOrderingComposer,
+    $$PremiumFragmentsTableAnnotationComposer,
+    $$PremiumFragmentsTableCreateCompanionBuilder,
+    $$PremiumFragmentsTableUpdateCompanionBuilder,
+    (
+      PremiumFragmentRow,
+      BaseReferences<_$AppDatabase, $PremiumFragmentsTable, PremiumFragmentRow>
+    ),
+    PremiumFragmentRow,
+    PrefetchHooks Function()>;
+typedef $$PendingBloomRewardsTableCreateCompanionBuilder
+    = PendingBloomRewardsCompanion Function({
+  required String id,
+  required String plantId,
+  required DateTime dueAt,
+  required String rewardKind,
+  Value<bool> claimed,
+  Value<int> rewardSunlight,
+  Value<int> rewardFragments,
+  Value<String?> rewardSpeciesId,
+  Value<int> rowid,
+});
+typedef $$PendingBloomRewardsTableUpdateCompanionBuilder
+    = PendingBloomRewardsCompanion Function({
+  Value<String> id,
+  Value<String> plantId,
+  Value<DateTime> dueAt,
+  Value<String> rewardKind,
+  Value<bool> claimed,
+  Value<int> rewardSunlight,
+  Value<int> rewardFragments,
+  Value<String?> rewardSpeciesId,
+  Value<int> rowid,
+});
+
+class $$PendingBloomRewardsTableFilterComposer
+    extends Composer<_$AppDatabase, $PendingBloomRewardsTable> {
+  $$PendingBloomRewardsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get plantId => $composableBuilder(
+      column: $table.plantId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get dueAt => $composableBuilder(
+      column: $table.dueAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get rewardKind => $composableBuilder(
+      column: $table.rewardKind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get claimed => $composableBuilder(
+      column: $table.claimed, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get rewardSunlight => $composableBuilder(
+      column: $table.rewardSunlight,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get rewardFragments => $composableBuilder(
+      column: $table.rewardFragments,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get rewardSpeciesId => $composableBuilder(
+      column: $table.rewardSpeciesId,
+      builder: (column) => ColumnFilters(column));
+}
+
+class $$PendingBloomRewardsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PendingBloomRewardsTable> {
+  $$PendingBloomRewardsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get plantId => $composableBuilder(
+      column: $table.plantId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get dueAt => $composableBuilder(
+      column: $table.dueAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get rewardKind => $composableBuilder(
+      column: $table.rewardKind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get claimed => $composableBuilder(
+      column: $table.claimed, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get rewardSunlight => $composableBuilder(
+      column: $table.rewardSunlight,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get rewardFragments => $composableBuilder(
+      column: $table.rewardFragments,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get rewardSpeciesId => $composableBuilder(
+      column: $table.rewardSpeciesId,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$PendingBloomRewardsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PendingBloomRewardsTable> {
+  $$PendingBloomRewardsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get plantId =>
+      $composableBuilder(column: $table.plantId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get dueAt =>
+      $composableBuilder(column: $table.dueAt, builder: (column) => column);
+
+  GeneratedColumn<String> get rewardKind => $composableBuilder(
+      column: $table.rewardKind, builder: (column) => column);
+
+  GeneratedColumn<bool> get claimed =>
+      $composableBuilder(column: $table.claimed, builder: (column) => column);
+
+  GeneratedColumn<int> get rewardSunlight => $composableBuilder(
+      column: $table.rewardSunlight, builder: (column) => column);
+
+  GeneratedColumn<int> get rewardFragments => $composableBuilder(
+      column: $table.rewardFragments, builder: (column) => column);
+
+  GeneratedColumn<String> get rewardSpeciesId => $composableBuilder(
+      column: $table.rewardSpeciesId, builder: (column) => column);
+}
+
+class $$PendingBloomRewardsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $PendingBloomRewardsTable,
+    PendingBloomRewardRow,
+    $$PendingBloomRewardsTableFilterComposer,
+    $$PendingBloomRewardsTableOrderingComposer,
+    $$PendingBloomRewardsTableAnnotationComposer,
+    $$PendingBloomRewardsTableCreateCompanionBuilder,
+    $$PendingBloomRewardsTableUpdateCompanionBuilder,
+    (
+      PendingBloomRewardRow,
+      BaseReferences<_$AppDatabase, $PendingBloomRewardsTable,
+          PendingBloomRewardRow>
+    ),
+    PendingBloomRewardRow,
+    PrefetchHooks Function()> {
+  $$PendingBloomRewardsTableTableManager(
+      _$AppDatabase db, $PendingBloomRewardsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PendingBloomRewardsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PendingBloomRewardsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PendingBloomRewardsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> plantId = const Value.absent(),
+            Value<DateTime> dueAt = const Value.absent(),
+            Value<String> rewardKind = const Value.absent(),
+            Value<bool> claimed = const Value.absent(),
+            Value<int> rewardSunlight = const Value.absent(),
+            Value<int> rewardFragments = const Value.absent(),
+            Value<String?> rewardSpeciesId = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              PendingBloomRewardsCompanion(
+            id: id,
+            plantId: plantId,
+            dueAt: dueAt,
+            rewardKind: rewardKind,
+            claimed: claimed,
+            rewardSunlight: rewardSunlight,
+            rewardFragments: rewardFragments,
+            rewardSpeciesId: rewardSpeciesId,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String plantId,
+            required DateTime dueAt,
+            required String rewardKind,
+            Value<bool> claimed = const Value.absent(),
+            Value<int> rewardSunlight = const Value.absent(),
+            Value<int> rewardFragments = const Value.absent(),
+            Value<String?> rewardSpeciesId = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              PendingBloomRewardsCompanion.insert(
+            id: id,
+            plantId: plantId,
+            dueAt: dueAt,
+            rewardKind: rewardKind,
+            claimed: claimed,
+            rewardSunlight: rewardSunlight,
+            rewardFragments: rewardFragments,
+            rewardSpeciesId: rewardSpeciesId,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$PendingBloomRewardsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $PendingBloomRewardsTable,
+    PendingBloomRewardRow,
+    $$PendingBloomRewardsTableFilterComposer,
+    $$PendingBloomRewardsTableOrderingComposer,
+    $$PendingBloomRewardsTableAnnotationComposer,
+    $$PendingBloomRewardsTableCreateCompanionBuilder,
+    $$PendingBloomRewardsTableUpdateCompanionBuilder,
+    (
+      PendingBloomRewardRow,
+      BaseReferences<_$AppDatabase, $PendingBloomRewardsTable,
+          PendingBloomRewardRow>
+    ),
+    PendingBloomRewardRow,
+    PrefetchHooks Function()>;
+typedef $$UnlockedSpeciesTableCreateCompanionBuilder = UnlockedSpeciesCompanion
+    Function({
+  required String speciesId,
+  Value<int> rowid,
+});
+typedef $$UnlockedSpeciesTableUpdateCompanionBuilder = UnlockedSpeciesCompanion
+    Function({
+  Value<String> speciesId,
+  Value<int> rowid,
+});
+
+class $$UnlockedSpeciesTableFilterComposer
+    extends Composer<_$AppDatabase, $UnlockedSpeciesTable> {
+  $$UnlockedSpeciesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get speciesId => $composableBuilder(
+      column: $table.speciesId, builder: (column) => ColumnFilters(column));
+}
+
+class $$UnlockedSpeciesTableOrderingComposer
+    extends Composer<_$AppDatabase, $UnlockedSpeciesTable> {
+  $$UnlockedSpeciesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get speciesId => $composableBuilder(
+      column: $table.speciesId, builder: (column) => ColumnOrderings(column));
+}
+
+class $$UnlockedSpeciesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $UnlockedSpeciesTable> {
+  $$UnlockedSpeciesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get speciesId =>
+      $composableBuilder(column: $table.speciesId, builder: (column) => column);
+}
+
+class $$UnlockedSpeciesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $UnlockedSpeciesTable,
+    UnlockedSpeciesRow,
+    $$UnlockedSpeciesTableFilterComposer,
+    $$UnlockedSpeciesTableOrderingComposer,
+    $$UnlockedSpeciesTableAnnotationComposer,
+    $$UnlockedSpeciesTableCreateCompanionBuilder,
+    $$UnlockedSpeciesTableUpdateCompanionBuilder,
+    (
+      UnlockedSpeciesRow,
+      BaseReferences<_$AppDatabase, $UnlockedSpeciesTable, UnlockedSpeciesRow>
+    ),
+    UnlockedSpeciesRow,
+    PrefetchHooks Function()> {
+  $$UnlockedSpeciesTableTableManager(
+      _$AppDatabase db, $UnlockedSpeciesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UnlockedSpeciesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UnlockedSpeciesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UnlockedSpeciesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> speciesId = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              UnlockedSpeciesCompanion(
+            speciesId: speciesId,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String speciesId,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              UnlockedSpeciesCompanion.insert(
+            speciesId: speciesId,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$UnlockedSpeciesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $UnlockedSpeciesTable,
+    UnlockedSpeciesRow,
+    $$UnlockedSpeciesTableFilterComposer,
+    $$UnlockedSpeciesTableOrderingComposer,
+    $$UnlockedSpeciesTableAnnotationComposer,
+    $$UnlockedSpeciesTableCreateCompanionBuilder,
+    $$UnlockedSpeciesTableUpdateCompanionBuilder,
+    (
+      UnlockedSpeciesRow,
+      BaseReferences<_$AppDatabase, $UnlockedSpeciesTable, UnlockedSpeciesRow>
+    ),
+    UnlockedSpeciesRow,
     PrefetchHooks Function()>;
 typedef $$FocusSessionsTableCreateCompanionBuilder = FocusSessionsCompanion
     Function({
@@ -8326,6 +9642,12 @@ class $AppDatabaseManager {
       $$SettingsTableTableManager(_db, _db.settings);
   $$PlantsTableTableManager get plants =>
       $$PlantsTableTableManager(_db, _db.plants);
+  $$PremiumFragmentsTableTableManager get premiumFragments =>
+      $$PremiumFragmentsTableTableManager(_db, _db.premiumFragments);
+  $$PendingBloomRewardsTableTableManager get pendingBloomRewards =>
+      $$PendingBloomRewardsTableTableManager(_db, _db.pendingBloomRewards);
+  $$UnlockedSpeciesTableTableManager get unlockedSpecies =>
+      $$UnlockedSpeciesTableTableManager(_db, _db.unlockedSpecies);
   $$FocusSessionsTableTableManager get focusSessions =>
       $$FocusSessionsTableTableManager(_db, _db.focusSessions);
   $$SunlightLedgersTableTableManager get sunlightLedgers =>

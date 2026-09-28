@@ -651,3 +651,17 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
   不能只靠一次性 SnackBar。
 - G20 的关键决定：调试入口**不再靠人工记得删**，用 `kDebugMode` 让它 release 自动消失；
   测试改用源码守卫锁住这条约束。
+
+---
+
+# 成株后循环玩法 Batch 1 轮（2026-09-27，分支 `main`，未提交）
+
+> 落地「成株后循环玩法 Batch 1」：复开花双档节奏（普通 7/14、精品 ×1.5）+ 花期双阶段奖励（48h 气泡手动收集）+ 物种表改版（8 物种 / 稀有度两档 / 死亡全损 / 月光兰首购）+ 奖励物图标化 & 掉落即定奖（C16）。口径见宪法 **C15 / C16** 与 `docs/成株后玩法_Batch1_PRD.md`。
+> 本轮修掉的两个缺陷：
+
+| ID | 模块 | 现象 / 报错 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| B-NEW-1 | M3/花园页 | 点击「48h 奖励气泡」**崩溃**：`SqliteException(1555): UNIQUE constraint failed: pending_bloom_rewards.id` | DAO 对 `PendingBloomRewards` 用**裸 `insert`**，而内存 Fake 实现走 **upsert** 语义 → 真机重复写入同一 pending（同 id）时主键冲突崩溃；**两侧语义不一致**（测试环境的 Fake 掩盖了真机 SQLite 行为） | DAO 改为 **`insertOnConflictUpdate`**（与 Fake 的 upsert 语义对齐）；补回归用例覆盖「同 id 重复写入」 | ✅ 已修复（待真机/QA 复验） |
+| DEF-1 | M3/植物成长 | **盛开次数被静默清零**：`bloom_count` 意外归零，复开花档位 / 节奏判定随之不稳 | `_maybeRecover`（枯萎恢复路径）重建 `Plant` 时**漏传 `bloomCount`** → 恢复后 `bloomCount` 回到默认 0（重建时漏参比 `copyWith` 清空更隐蔽） | `_maybeRecover` 重建 `Plant` 时**显式带上 `bloomCount`**；新增回归测试断言「枯萎 → 恢复后 `bloomCount` 不变」 | ✅ 已修复（+ 回归测试） |
+
+**本轮口径关联**：死亡全损（废止 `kPlantDeathRefundRate`）/ 月光兰首购 400 阳光・其后碎片 / 满 8 片手动解锁废止（改花园页按物种直接兑换）——详见 `口径裁定表_v1.md` **C15**；**奖励物图标化 + 掉落即定奖**（`pending_bloom_rewards` +3 列 `reward_sunlight`/`reward_fragments`/`reward_species_id`、schemaVersion **11→12**、花谢自动到账提示、碎片对外改名「植物碎片」）——详见 **C16**。

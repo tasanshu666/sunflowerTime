@@ -19,4 +19,11 @@ class PlantSpecies {
     required this.growthHoursPerStage,
     this.subscriptionOnly = false,
   });
+
+  /// 是否「精品」档（成株后循环玩法 Batch 1 的普通/精品双档差异化判据）。
+  ///
+  /// 口径（玄参 2026-09-26 拍板）：精品档 = **`rare` + `legendary`**（即除 `common` 外均为精品）。
+  /// 精品档复开花节奏 ×[kRebloomPremiumCycleMultiplier]、花期 [kBloomDurationDaysPremium]、
+  /// 开花奖励概率更高（见 `plant_growth_service.dart`）。
+  bool get isPremium => rarity == Rarity.rare || rarity == Rarity.legendary;
 }

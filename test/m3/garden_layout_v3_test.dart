@@ -26,6 +26,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -224,6 +225,8 @@ Widget _realGarden({required int capacity}) => ProviderScope(
         sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
         focusRepositoryProvider.overrideWithValue(_FakeFocusRepository()),
         plantRepositoryProvider.overrideWithValue(_FakePlantRepository()),
+        bloomRewardRepositoryProvider
+            .overrideWithValue(InMemoryBloomRewardRepository()),
       ],
       child: const MaterialApp(home: Scaffold(body: GardenPage(embedded: true))),
     );

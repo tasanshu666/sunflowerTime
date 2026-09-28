@@ -12,7 +12,8 @@
 /// 关键教训（同 v4→v5）：光升 `schemaVersion` 不够、光加 `_ensureColumn` 也不够，
 /// 两者缺一不可；`flutter analyze` 与常规单测都抓不到（5 和 6 都是合法 Dart），
 /// 只能靠「拿老库真跑一次迁移」来验。故本测试钉死三件事：
-///  ① `AppDatabase.schemaVersion` 为最新（v6 时为 6；v7 植物成长 V2 起为 7）；
+///  ① `AppDatabase.schemaVersion` 为最新（v6 时为 6；v7 植物成长 V2 起为 7；
+///     v12 奖励物图标化 / 掉落即定奖 起为 12）；
 ///  ② v5 老库升级后 5 列存在、历史行 status==0(verified)、数据不丢、可写读新列；
 ///  ③ **跨版本跳跃**（v3 直跳 v6）也补得齐（plants 表 + garden_pot_capacity +
 ///     custom_subject + check_ins 5 列）。
@@ -240,13 +241,14 @@ List<String> _v3Ddl() => _schemaDdl(
 
 void main() {
   group('迁移 v5->v6：check_ins 补 5 列（家长核销流水）', () {
-    test('schemaVersion 必须为最新 7（版本号与建表改动不许脱节）', () async {
+    test('schemaVersion 必须为最新 12（版本号与建表改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(_v5Ddl(), 5);
       // 这一条是本次改动的直接护栏：版本号若停在 5，onUpgrade 不跑，
       // 下面所有列断言都会红。
       // 注：植物成长 V2（v7，玄参大人 2026-09-22）把版本号从 6 上移到 7
-      //（见 test/m3/migration_v6_to_v7_test.dart），本护栏随之跟进。
-      expect(database.schemaVersion, 9);
+      //（见 test/m3/migration_v6_to_v7_test.dart）；物种表改版 v11、奖励物图标化
+      // + 掉落即定奖 v12 继续上移，本护栏随之跟进。
+      expect(database.schemaVersion, 12);
     });
 
     test('v5 老库迁移后 check_ins 含 5 新列；历史行 status=0(verified)、新列取默认', () async {

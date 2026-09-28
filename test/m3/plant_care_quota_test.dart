@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/data/local/plant_seed.dart';
+import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -189,6 +190,7 @@ class _MemorySettingsRepo implements SettingsRepository {
     focus: _NoFocusRepo(),
     ledger: ledger,
     settings: _MemorySettingsRepo(),
+    bloomRewards: InMemoryBloomRewardRepository(),
   );
   return (svc: svc, ledger: ledger, plants: plants);
 }

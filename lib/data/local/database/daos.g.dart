@@ -40,6 +40,29 @@ class PlantDaoManager {
       $$PlantsTableTableManager(_db.attachedDatabase, _db.plants);
 }
 
+mixin _$BloomRewardDaoMixin on DatabaseAccessor<AppDatabase> {
+  $PremiumFragmentsTable get premiumFragments =>
+      attachedDatabase.premiumFragments;
+  $PendingBloomRewardsTable get pendingBloomRewards =>
+      attachedDatabase.pendingBloomRewards;
+  $UnlockedSpeciesTable get unlockedSpecies => attachedDatabase.unlockedSpecies;
+  BloomRewardDaoManager get managers => BloomRewardDaoManager(this);
+}
+
+class BloomRewardDaoManager {
+  final _$BloomRewardDaoMixin _db;
+  BloomRewardDaoManager(this._db);
+  $$PremiumFragmentsTableTableManager get premiumFragments =>
+      $$PremiumFragmentsTableTableManager(
+          _db.attachedDatabase, _db.premiumFragments);
+  $$PendingBloomRewardsTableTableManager get pendingBloomRewards =>
+      $$PendingBloomRewardsTableTableManager(
+          _db.attachedDatabase, _db.pendingBloomRewards);
+  $$UnlockedSpeciesTableTableManager get unlockedSpecies =>
+      $$UnlockedSpeciesTableTableManager(
+          _db.attachedDatabase, _db.unlockedSpecies);
+}
+
 mixin _$TaskDaoMixin on DatabaseAccessor<AppDatabase> {
   $TasksTable get tasks => attachedDatabase.tasks;
   $CheckInsTable get checkIns => attachedDatabase.checkIns;

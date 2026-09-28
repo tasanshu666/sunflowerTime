@@ -17,6 +17,7 @@ library plant_growth_v2_test;
 import 'package:test/test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -191,6 +192,7 @@ const String _kPlantId = 'p1';
     focus: _MemFocusRepo(),
     ledger: _MemLedgerRepo(),
     settings: _MemSettingsRepo(),
+    bloomRewards: InMemoryBloomRewardRepository(),
   );
   return (svc: svc, plants: plants);
 }

@@ -1,5 +1,6 @@
 %% ⚠️ 历史设计快照（M3 设计期）：图中 revive(...) / 救回 已废止（见口径裁定表 C12），
-%%    现为「养护恢复」（未满 3 天浇水 1 次 / 满 3 天浇水 3 次 + 施肥 1 次）；枯萎阈值现为 3 天。勿照此实现。
+%%    现为「养护恢复」（未满 3 天浇水 1 次 / 满 3 天浇水 3 次 + 施肥 1 次）；枯萎阈值现为 3 天。
+%%    另：图中「死亡返还（plant_death_refund）」亦已废止 —— 现为**死亡全损、不退还任何资源**（见 C15）。勿照此实现。
 sequenceDiagram
     autonumber
     participant U as 孩子/家长
@@ -40,7 +41,7 @@ sequenceDiagram
             PG->>PG: status=wilting, wiltedAt=now
         else wilting 且 now - wiltedAt > kPlantWiltDays(7)
             PG->>PG: status=dead
-            PG->>LD: append(net=+0.3*cost, refType='plant_death_refund')
+            PG->>PG: 死亡全损，不退还任何资源（见宪法 C15，2026-09-27 起）
             PG->>PR: deletePlant / 释放 pot
         end
         PG->>PR: savePlant(updated)

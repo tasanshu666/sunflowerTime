@@ -37,23 +37,21 @@ class SunlightPill extends ConsumerWidget {
       // FittedBox(scaleDown)：AppBar leading 宽度有限（≈100px），余额位数一多
       // （如 1000、123456）文字放不下就会溢出换行（2026-09-23 真机 Bug：竖排数字）。
       // 整体等比缩小，任何位数都不溢出。
+      //
+      // ⚠️ 2026-09-26 修复「两个太阳图标」：文案里的 `☀` 已是本 App 全域的阳光单位
+      // （settle / store / 我的 等处一律 `N ☀`），此前胶囊**又**叠了一个
+      // `Icons.wb_sunny` 图标 → 视觉上「一个胶囊两个太阳」。按产品要求去掉重复**图标**、
+      // 保留既有文案与数值展示（`N ☀` / 兜底 `— ☀`），故此处不再渲染 `Icon`。
       child: FittedBox(
         fit: BoxFit.scaleDown,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Icon(Icons.wb_sunny, size: 16, color: Color(0xFFE8A600)),
-            const SizedBox(width: 6),
-            Text(
-              text,
-              maxLines: 1,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFD98F00),
-              ),
-            ),
-          ],
+        child: Text(
+          text,
+          maxLines: 1,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFD98F00),
+          ),
         ),
       ),
     );

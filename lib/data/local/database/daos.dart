@@ -197,6 +197,99 @@ class PlantDao extends DatabaseAccessor<AppDatabase> with _$PlantDaoMixin {
   Future<int> deleteAll() => delete(plants).go();
 }
 
+/// 成株后循环玩法 Batch 1 DAO（§3.1）：精品碎片余额 / 第二段待收集奖励 / 已解锁物种。
+@DriftAccessor(tables: [PremiumFragments, PendingBloomRewards, UnlockedSpecies])
+class BloomRewardDao extends DatabaseAccessor<AppDatabase>
+    with _$BloomRewardDaoMixin {
+  BloomRewardDao(super.db);
+
+  /// 精品碎片余额（单例行，无记录视为 0）。
+  Future<int> fragmentBalance() async {
+    final PremiumFragmentRow? row =
+        await (select(premiumFragments)..where((t) => t.id.equals(1)))
+            .getSingleOrNull();
+    return row?.balance ?? 0;
+  }
+
+  /// 覆盖式写入精品碎片余额（单例行 upsert，id 固定 = 1）。
+  Future<void> setFragmentBalance(int balance) =>
+      into(premiumFragments).insertOnConflictUpdate(
+        PremiumFragmentsCompanion(
+          id: const Value(1),
+          balance: Value(balance),
+        ),
+      );
+
+  /// 已解锁物种 id 列表（语义：持有的免费种植券）。
+  Future<List<String>> unlockedSpeciesIds() async {
+    final List<UnlockedSpeciesRow> rows = await select(unlockedSpecies).get();
+    return rows.map((UnlockedSpeciesRow r) => r.speciesId).toList();
+  }
+
+  /// 写入一张免费种植券（幂等，按 speciesId 主键冲突合并）。
+  Future<void> unlockSpecies(String speciesId) =>
+      into(unlockedSpecies).insertOnConflictUpdate(
+        UnlockedSpeciesCompanion(speciesId: Value(speciesId)),
+      );
+
+  /// 消耗一张免费种植券（删除该 speciesId 行）。
+  ///
+  /// 删除 0 行不报错（幂等）：调用方可能对「无券」的物种重复调用，视为无副作用。
+  Future<void> consumeUnlock(String speciesId) =>
+      (delete(unlockedSpecies)..where((t) => t.speciesId.equals(speciesId)))
+          .go();
+
+  /// 写入一条待收集奖励（花开瞬间 / 花开 48h 后掉落）。
+  ///
+  /// ⚠️ 用 `insertOnConflictUpdate`（**幂等 upsert**，按主键 id 冲突合并），与内存实现
+  /// `InMemoryBloomRewardRepository.insertPendingBloomReward` 的语义**保持一致**。
+  /// 历史缺陷（2026-09-26）：此处曾是裸 `insert`，而内存实现是 upsert —— 二者语义不一致，
+  /// 导致「对同一条记录按 id 覆盖写」（如调试面板改 `due_at`、或将来重写同 id 记录）在真实
+  /// SQLite 上抛 `UNIQUE constraint failed: pending_bloom_rewards.id`（SQLITE_CONSTRAINT 1555）。
+  /// 改用 upsert 后，同 id 覆盖写安全幂等，测试 Fake 与真实库行为对齐。
+  Future<void> insertPending(PendingBloomRewardsCompanion row) =>
+      into(pendingBloomRewards).insertOnConflictUpdate(row);
+
+  /// 已到期且未发放的待发奖励。
+  Future<List<PendingBloomRewardRow>> pendingDue(DateTime now) =>
+      (select(pendingBloomRewards)
+            ..where((t) =>
+                t.claimed.equals(false) & t.dueAt.isSmallerOrEqualValue(now)))
+          .get();
+
+  /// 按主键读取单条待发奖励（**不限 claimed / 到期**；对账 / 迁移断言用）。
+  Future<PendingBloomRewardRow> byId(String id) =>
+      (select(pendingBloomRewards)..where((t) => t.id.equals(id))).getSingle();
+
+  /// 标记某条待发奖励为已发放（幂等：已发放再写无副作用）。
+  Future<void> markClaimed(String id) =>
+      (update(pendingBloomRewards)..where((t) => t.id.equals(id)))
+          .write(const PendingBloomRewardsCompanion(claimed: Value(true)));
+
+  /// 回写某条待发奖励的「奖励内容」（v12 掉落即定奖）。
+  ///
+  /// 用途：历史行（三列零值哨兵 `0/0/null` = 未预先定奖）在**首次结算**时退回「现场 roll」，
+  /// 把 roll 结果顺手回填本行（不改 claimed——由 [markClaimed] 负责）。
+  Future<void> updatePendingContent({
+    required String id,
+    required int rewardSunlight,
+    required int rewardFragments,
+    String? rewardSpeciesId,
+  }) =>
+      (update(pendingBloomRewards)..where((t) => t.id.equals(id))).write(
+        PendingBloomRewardsCompanion(
+          rewardSunlight: Value(rewardSunlight),
+          rewardFragments: Value(rewardFragments),
+          rewardSpeciesId: Value(rewardSpeciesId),
+        ),
+      );
+
+  /// 清空本 DAO 三张表（数据管理 / 删除全部本地数据用）。
+  Future<void> deleteAllFragments() => delete(premiumFragments).go();
+  Future<void> deleteAllPending() => delete(pendingBloomRewards).go();
+  Future<void> deleteAllUnlocked() => delete(unlockedSpecies).go();
+}
+
 /// 任务 / 打卡 DAO（§3.1 task / check_in，M3 真实化）。
 @DriftAccessor(tables: [Tasks, CheckIns])
 class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {

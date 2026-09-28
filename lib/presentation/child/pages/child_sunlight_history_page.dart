@@ -14,6 +14,9 @@ import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
 /// refType → 中文来源文案（单点收口，避免 UI 层散落字面量）。
+///
+/// 注：`bloom_reward` / `bloom_reward_24h` 为成株后循环玩法 Batch 1 的开花奖励
+/// refType（后者字符串值仍是历史遗留的 `'..._24h'`，见 `prd_params.dart` 中的冻结说明）。
 const Map<String, String> _refLabels = <String, String>{
   'focus': '专注产出',
   'task_checkin': '成长项奖励',
@@ -23,6 +26,8 @@ const Map<String, String> _refLabels = <String, String>{
   'plant_revive': '救回植物',
   'plant_expand': '花园扩容',
   'plant_death_refund': '植物死亡返还',
+  'bloom_reward': '开花奖励',
+  'bloom_reward_24h': '花开回访奖励',
   'redeem': '兑换奖励',
   'queueRelease': '阳光池释放',
   'parent_gift': '家长赠予',

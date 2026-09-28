@@ -3,9 +3,10 @@
 /// ## 行为
 ///  · 纯代码粒子（[CustomPaint] / [Stack]），总时长 ≤ [kCareEffectDurationMs] 毫秒，**有限**，
 ///    可被 `pumpAndSettle()` 正常结束（测试硬要求），绝不引入无限循环动画；
-///  · **浇水**：数颗水滴从植物上方落下 → 到盆口处消失（带小水花），植物轻微左右摇摆；
-///  · **施肥**：金色 / 暖黄闪光粒子在盆上方闪烁上浮（类阳光闪烁），植物轻微弹跳；
-///  · **共同反馈**：植物图小幅 elasticOut 缩放弹跳（幅度小，别夸张）。
+///  · **浇水**：数颗水滴从植物上方落下 → 到盆口处消失（带小水花）；
+///  · **施肥**：金色 / 暖黄闪光粒子在盆上方闪烁上浮（类阳光闪烁）；
+///  · **花盆 / 植物本体完全静止**：不施加任何弹跳 / 缩放 / 位移 / 摇摆 transform，
+///    玄参大人要求花盆不能动，动效只保留水滴 / 闪光粒子 + 植物静态展示。
 ///  · 所有动效参数收敛到文件顶部命名常量，**禁止散在 build 里**。
 ///
 /// ## 序列帧预留接口（2026-09：先代码后序列帧）
@@ -49,9 +50,6 @@ const double kWaterDropStagger = 0.10;
 /// 浇水：单颗水滴下落所占总进度跨度。
 const double kWaterDropSpan = 0.55;
 
-/// 浇水 + 共同：植物左右摇摆幅度（弧度，约 3.4°，别夸张）。
-const double kPlantSwayAngle = 0.06;
-
 /// 施肥：闪光粒子数。
 const int kFertilizeSparkCount = 7;
 
@@ -66,12 +64,6 @@ const double kFertilizeSparkStagger = 0.08;
 
 /// 施肥：单颗闪烁所占总进度跨度。
 const double kFertilizeSparkSpan = 0.5;
-
-/// 共同：弹性缩放幅度（±6%，别夸张）。
-const double kPlantBounceScale = 0.06;
-
-/// 施肥：植物轻微弹跳的位移上限（逻辑像素）。
-const double kPlantBounceTranslate = 6.0;
 
 /// 植物图占格宽比例（与花园格一致，保证叠加层与原植物对齐）。
 const double kPlantArtWidthRatio = 0.86;
@@ -109,7 +101,7 @@ class CareEffectOverlay extends StatefulWidget {
   /// 动效类型（浇水 / 施肥）。
   final CareEffectType type;
 
-  /// 被养护的植物（用于叠加一层「会弹跳的植物图副本」，让植物本身看起来在动）。
+  /// 被养护的植物（用于叠加一层**静态**植物图副本，与底层花盆对齐展示）。
   /// 为 null 时仅播放粒子，不绘制植物副本（测试可空构造）。
   final Plant? plant;
 
@@ -188,7 +180,7 @@ class _CareEffectOverlayState extends State<CareEffectOverlay>
                 if (widget.frames != null && widget.frames!.isNotEmpty)
                   _frameLayer(w, h) // 序列帧路径（预留）
                 else ...<Widget>[
-                  _plantLayer(w, h), // 植物弹跳副本（在粒子下方）
+                  _plantLayer(w, h), // 植物静态副本（在粒子下方）
                   _particleLayer(w, h), // 代码粒子
                 ],
               ],
@@ -226,10 +218,11 @@ class _CareEffectOverlayState extends State<CareEffectOverlay>
     );
   }
 
-  /// 植物图层：在格顶居中绘制植物图副本（与底层同图），施加 elasticOut 缩放 + 摇摆 / 弹跳。
+  /// 植物图层：在格顶居中绘制植物图副本（与底层同图），**完全静止、无任何 transform**。
   ///
-  /// 与底层原植物像素对齐，静止时完全覆盖、看不出重影；动画期间副本轻微形变，
-  /// 视觉上即「植物在弹跳 / 摇摆」。无 [plant] 时不绘制（仅粒子）。
+  /// 玄参大人要求花盆 / 植物不能动，故本层只做静态展示，不施加弹跳 / 缩放 /
+  /// 位移 / 摇摆；动效表现全部由 [_particleLayer] 的水滴 / 闪光粒子承担。
+  /// 无 [plant] 时不绘制（仅粒子）。
   Widget _plantLayer(double w, double h) {
     if (widget.plant == null || widget.species == null) {
       return const SizedBox.shrink();
@@ -237,43 +230,16 @@ class _CareEffectOverlayState extends State<CareEffectOverlay>
     final double artW = w * kPlantArtWidthRatio;
     // 高度不超过「格高 - 底部标签区（约 40）」，避免溢出格框。
     final double artH = (artW * kPlantArtAspect).clamp(0, h - 40);
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (BuildContext context, Widget? _) {
-        final double t = _ctrl.value;
-        // 共同：从略小弹性回弹到 1.0（elasticOut）。
-        final double scale = Tween<double>(begin: 1 - kPlantBounceScale, end: 1.0)
-            .evaluate(CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut));
-        double angle = 0;
-        double ty = 0;
-        if (widget.type == CareEffectType.water) {
-          // 浇水：左右摇摆，随时间衰减。
-          angle = math.sin(t * 3 * math.pi) * kPlantSwayAngle * (1 - t);
-        } else {
-          // 施肥：轻微向上弹跳，随时间衰减。
-          ty = -math.sin(t * math.pi) * kPlantBounceTranslate * (1 - t);
-        }
-        return Positioned(
-          top: 0,
-          left: (w - artW) / 2,
-          width: artW,
-          height: artH,
-          child: Transform.translate(
-            offset: Offset(0, ty),
-            child: Transform.rotate(
-              angle: angle,
-              child: Transform.scale(
-                scale: scale,
-                child: PlantArtwork(
-                  plant: widget.plant!,
-                  species: widget.species!,
-                  size: artW,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    return Positioned(
+      top: 0,
+      left: (w - artW) / 2,
+      width: artW,
+      height: artH,
+      child: PlantArtwork(
+        plant: widget.plant!,
+        species: widget.species!,
+        size: artW,
+      ),
     );
   }
 

@@ -10,7 +10,7 @@
 ///   C. 重度门槛（关键）：wilting 且 wiltedAt≥3 天，必须「3 浇 + 1 施」缺任一都不恢复。
 ///   D. dead 不可养护：careQuota 对 dead 返回阻塞原因、canWater/canFertilize=false。
 ///   E. wilting 可养护：careQuota 对 wilting（未触每日上限/间隔）canWater/canFertilize=true。
-///   F. 死亡触发：wilting 且 wiltedAt≥7 天 → tickAll → dead；账本应有 plant_death_refund（30% 成本）。
+///   F. 死亡触发：wilting 且 wiltedAt≥7 天 → tickAll → dead（**死亡全损**：无 plant_death_refund 行、余额不变）。
 ///   G. grep revive/onRevive/kPlantReviveCost（见测试报告；本文件不引用）。
 library plant_wilt_recover_boundary_test;
 
@@ -18,6 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/data/local/plant_seed.dart';
+import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -195,6 +196,7 @@ class _MemorySettingsRepo implements SettingsRepository {
     focus: _NoFocusRepo(),
     ledger: ledger,
     settings: _MemorySettingsRepo(),
+    bloomRewards: InMemoryBloomRewardRepository(),
   );
   return (svc: svc, ledger: ledger, plants: plants);
 }
@@ -207,8 +209,8 @@ Future<String> _seed(PlantGrowthService svc, String speciesId, DateTime now) asy
 
 /// 构造一株 wilting 植物（供 careQuota / 恢复相关断言）。
 ///
-/// 默认物种为向日葵（成本 0），死亡返还场景需显式传 [speciesId] 为小雏菊
-/// （低年段成本 72）以产生可见的 30% 返还额。
+/// 默认物种为向日葵；死亡场景可显式传 [speciesId] 为月光兰（唯一阳光价 > 0 的物种），
+/// 用于验证「死亡全损」（旧口径下此处会有可见退款额，现应无任何退款行）。
 Plant _wiltingPlant(
   String id,
   DateTime now, {
@@ -490,56 +492,47 @@ void main() {
     });
   });
 
-  group('F. 死亡触发：wilting 且 wiltedAt≥kPlantDeathDays → tickAll → dead + 30% 返还', () {
-    test('wiltedAt = now-7天 → tickAll 后 status==dead，且账本有 plant_death_refund（30% 成本）',
+  group('F. 死亡触发：wilting 且 wiltedAt≥kPlantDeathDays → tickAll → dead（全损、无退款行）', () {
+    test('wiltedAt = now-7天 → tickAll 后 status==dead，且账本无 plant_death_refund、余额不变',
         () async {
       final ctx = _make();
-      // 用小雏菊（低年段成本 72）以产生可见返还额。
-      final String id = await _seed(ctx.svc, 'species_daisy', t0);
+      // 用月光兰（唯一阳光价 > 0 的物种，旧口径下会产生可见退款额）验证「死亡全损」。
+      final String id = await _seed(ctx.svc, 'species_moon_orchid', t0);
       await ctx.plants.savePlant(_wiltingPlant(
         id,
         t0,
-        speciesId: 'species_daisy',
+        speciesId: 'species_moon_orchid',
         wiltedAt: t0.subtract(Duration(days: kPlantDeathDays)),
       ));
 
+      final double balanceBefore = await ctx.ledger.balance();
       await ctx.svc.tickAll(t0);
       final Plant after = (await ctx.plants.plant(id))!;
-      expect(after.status, PlantStatus.dead,
-          reason: '枯萎满 7 天应死亡');
+      expect(after.status, PlantStatus.dead, reason: '枯萎满 7 天应死亡');
       expect(after.deadAt, isNotNull);
 
-      // 死亡返还 = 种植成本 × 30%（低年段 daisy 成本 = baseCostLow）。
-      final PlantSpecies sp = kSeedPlantSpecies.firstWhere(
-        (PlantSpecies s) => s.id == 'species_daisy',
-      );
-      final int cost = sp.baseCostLow; // ageTier=low
-      final int expectedRefund = (cost * kPlantDeathRefundRate).round();
-      final List<SunlightEntry> refunds =
-          ctx.ledger.entriesOf('plant_death_refund');
-      expect(refunds, hasLength(1),
-          reason: '死亡应恰好写一笔 plant_death_refund');
-      expect(refunds.first.net, expectedRefund.toDouble(),
-          reason: '返还额应为成本的 30%');
-      expect(refunds.first.refId, id);
+      // 死亡全损（玄参 2026-09-27）：不写任何 plant_death_refund 行、余额不退。
+      expect(ctx.ledger.entriesOf('plant_death_refund'), isEmpty,
+          reason: '死亡全损 → 不得产生退款行');
+      expect(await ctx.ledger.balance(), balanceBefore,
+          reason: '死亡全损 → 阳光余额不变');
     });
 
-    test('死亡返还幂等：二次 tickAll 不再产生第二笔 plant_death_refund', () async {
+    test('死亡全损幂等：多次 tickAll 都不产生退款行', () async {
       final ctx = _make();
-      final String id = await _seed(ctx.svc, 'species_daisy', t0);
+      final String id = await _seed(ctx.svc, 'species_moon_orchid', t0);
       await ctx.plants.savePlant(_wiltingPlant(
         id,
         t0,
-        speciesId: 'species_daisy',
+        speciesId: 'species_moon_orchid',
         wiltedAt: t0.subtract(Duration(days: kPlantDeathDays)),
       ));
 
       await ctx.svc.tickAll(t0);
       await ctx.svc.tickAll(t0.add(const Duration(hours: 1)));
-      final List<SunlightEntry> refunds =
-          ctx.ledger.entriesOf('plant_death_refund');
-      expect(refunds, hasLength(1),
-          reason: '已死亡植物重复 tick 不应重复返还');
+      await ctx.svc.tickAll(t0.add(const Duration(days: 3)));
+      expect(ctx.ledger.entriesOf('plant_death_refund'), isEmpty,
+          reason: '死亡全损 → 重复 tick 亦不得产生退款行');
       expect((await ctx.plants.plant(id))!.status, PlantStatus.dead);
     });
   });

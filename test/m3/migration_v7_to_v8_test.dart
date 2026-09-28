@@ -5,7 +5,7 @@
 /// 时刻 → 在 [Plant] 实体与 `plants` 表新增可空 `bloomed_at` 列（unix 秒 INTEGER）。
 ///
 /// 本测试钉死四件事（**必须把历史行读回来断言**，不能只断言「没抛异常」）：
-///  ① `AppDatabase.schemaVersion == 8`；
+///  ① `AppDatabase.schemaVersion == 12`；
 ///  ② v7 → v8 后 `plants` 表存在 `bloomed_at` 列（PRAGMA table_info 验证）；
 ///  ③ 历史植物（growing / bloomed / wilting / dead）的**其它字段原样保留**，`bloomed_at` 取 NULL
 ///     （老库无此列，ALERT TABLE ADD COLUMN 后历史行默认 NULL，首次 tick 自动补计时）；
@@ -127,14 +127,14 @@ List<String> _schemaDdl({required bool withLegacyPlants}) {
       'INSERT INTO plants (id, species_id, pot_index, stage, stage_started_at, '
           'growth_progress, growth_factor, water_used, fertilizer_used, status, '
           'planted_at, last_water_at, wilted_at, dead_at, mood) '
-          'VALUES (\'p_bloomed\', \'species_daisy\', 1, '
+          'VALUES (\'p_bloomed\', \'species_tomato\', 1, '
           '${PlantStage.adult.index}, ${_secs(_legacyBloomedStarted)}, 1.0, 1.0, '
           '1, 1, ${PlantStatus.bloomed.index}, ${_secs(_legacyPlanted)}, '
           '${_secs(_legacyPlanted)}, NULL, NULL, 0);',
       'INSERT INTO plants (id, species_id, pot_index, stage, stage_started_at, '
           'growth_progress, growth_factor, water_used, fertilizer_used, status, '
           'planted_at, last_water_at, wilted_at, dead_at, mood) '
-          'VALUES (\'p_wilting\', \'species_cactus\', 2, '
+          'VALUES (\'p_wilting\', \'species_star_flower\', 2, '
           '${PlantStage.sprout.index}, ${_secs(_legacyWiltingStarted)}, 0.35, '
           '1.0, 0, 0, ${PlantStatus.wilting.index}, ${_secs(_legacyPlanted)}, '
           '${_secs(_legacyPlanted)}, ${_secs(_legacyWiltingStarted)}, NULL, 2);',
@@ -177,12 +177,12 @@ Future<db.AppDatabase> _openMigrated(
 
 void main() {
   group('迁移 v7->v8：plants 新增 bloomed_at 列（花谢循环计时）', () {
-    test('schemaVersion 必须为 8（版本号与迁移改动不许脱节）', () async {
+    test('schemaVersion 必须为最新 12（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(
         _schemaDdl(withLegacyPlants: true),
         7,
       );
-      expect(database.schemaVersion, 9);
+      expect(database.schemaVersion, 12);
     });
 
     test('plants 表迁移后出现 bloomed_at 列', () async {
@@ -204,7 +204,7 @@ void main() {
       expect(bloomed.status, PlantStatus.bloomed.index);
       expect(bloomed.stage, PlantStage.adult.index);
       expect(bloomed.growthProgress, 1.0);
-      expect(bloomed.speciesId, 'species_daisy');
+      expect(bloomed.speciesId, 'species_tomato');
       expect(bloomed.bloomedAt, isNull,
           reason: '老库无 bloomed_at 列，历史行应取 NULL');
 
@@ -267,7 +267,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 9);
+      expect(first.schemaVersion, 12);
       expect(await _columns(first, 'plants'), contains('bloomed_at'));
       await first.close();
 
@@ -291,7 +291,7 @@ void main() {
         _schemaDdl(withLegacyPlants: true),
         6,
       );
-      expect(database.schemaVersion, 9);
+      expect(database.schemaVersion, 12);
 
       // ① v7 的清零分支（from<7）执行：growing 植物被清零。
       final db.Plant growing = (await database.plantDao.byId('p_growing'))!;

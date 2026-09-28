@@ -138,7 +138,10 @@ class _PlantCareSheetState extends ConsumerState<PlantCareSheet> {
       ref.read(economyRevisionProvider.notifier).state++;
       // 成功的养护动作：上报类型，花园页据此在该花盆位置播放动效。
       if (effect != null) widget.onCareSuccess?.call(effect);
-      if (closeAfter) {
+      // 养护成功 → 关掉面板，让花园露出，动效叠加层在其上播放。
+      // 覆盖「浇水 / 施肥」（effect != null）与「清理枯萎」（closeAfter）两路：
+      // pop 时机在「上报成功」之后，不破坏任何业务逻辑（扣费 / 账本 / 额度判定已在上行完成）。
+      if (closeAfter || effect != null) {
         if (mounted) Navigator.of(context).pop();
         return;
       }

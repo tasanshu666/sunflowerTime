@@ -2,6 +2,7 @@
 /// G2+ 切换云同步时仅需在此替换实现，领域层零改动。
 library providers;
 
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,6 +18,7 @@ import 'package:sunflower_time/data/local/repositories/task_local_repository.dar
 import 'package:sunflower_time/data/local/secure_store.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
+import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/weekly_pool_repository.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
@@ -67,8 +69,16 @@ final focusRepositoryProvider = Provider<FocusRepository>(
 final taskRepositoryProvider = Provider<TaskRepository>(
   (ref) => TaskLocalRepository(ref.watch(appDatabaseProvider)),
 );
-final plantRepositoryProvider = Provider<PlantRepository>(
+/// 本地植物仓储单例（同时实现 [PlantRepository] 与 [BloomRewardRepository]，
+/// 共用同一 [AppDatabase]）；两个接口各暴露一个 Provider 供不同消费方注入。
+final plantLocalRepositoryProvider = Provider<PlantLocalRepository>(
   (ref) => PlantLocalRepository(ref.watch(appDatabaseProvider)),
+);
+final plantRepositoryProvider = Provider<PlantRepository>(
+  (ref) => ref.watch(plantLocalRepositoryProvider),
+);
+final bloomRewardRepositoryProvider = Provider<BloomRewardRepository>(
+  (ref) => ref.watch(plantLocalRepositoryProvider),
 );
 final rewardRepositoryProvider = Provider<RewardRepository>(
   (ref) => RewardLocalRepository(ref.watch(appDatabaseProvider)),
@@ -161,12 +171,19 @@ final redemptionOrchestrationServiceProvider =
 /// 植物养成服务（M3 T02）：种植 / 浇水 / 施肥 / 救回 / 扩容 / 计时成长。
 ///
 /// 与经济账本同源（[SunlightRepository.append]），植物消耗 / 退款可追溯对账。
+///
+/// 成株后循环玩法 Batch 1：额外注入 [BloomRewardRepository]（开花奖励 × 碎片解锁 ×
+/// 第二段待收集队列）；`onEconomyChanged` 在发放开花 / 第二段奖励后自增 `economyRevisionProvider`
+/// 刷新孩子端经济展示（域层不直接依赖 Riverpod）。
 final plantGrowthServiceProvider = Provider<PlantGrowthService>(
   (ref) => PlantGrowthService(
     plants: ref.watch(plantRepositoryProvider),
     focus: ref.watch(focusRepositoryProvider),
     ledger: ref.watch(sunlightRepositoryProvider),
     settings: ref.watch(settingsRepositoryProvider),
+    bloomRewards: ref.watch(bloomRewardRepositoryProvider),
+    onEconomyChanged: () =>
+        ref.read(economyRevisionProvider.notifier).state++,
   ),
 );
 
@@ -209,3 +226,19 @@ final memoirServiceProvider = Provider<MemoirService>(
     ref.watch(plantRepositoryProvider),
   ),
 );
+
+/// 奖励物美术资源清单（玄参 2026-09-27「奖励物图标化」）。
+///
+/// 用 `AssetManifest.loadFromAssetBundle` + `listAssets()` 判定资源是否存在
+/// （**不要用 `AssetManifest.json`**——Flutter 3.7+ 不再生成该文件）。返回的字符串集合
+/// 供 [`resolveRewardAsset`] 判断「`assets/rewards/*.png` 是否可用」；不可用时 UI 一律
+/// 回退内置 `Icons`（阳光 / 碎片 / 种子 / 礼包）。加载失败（如测试无资源）返回空集，不抛。
+final rewardAssetsProvider = FutureProvider<Set<String>>((ref) async {
+  try {
+    final AssetManifest manifest =
+        await AssetManifest.loadFromAssetBundle(rootBundle);
+    return manifest.listAssets().toSet();
+  } catch (_) {
+    return <String>{};
+  }
+});

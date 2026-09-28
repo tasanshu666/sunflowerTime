@@ -17,6 +17,7 @@ class Plant {
   final DateTime? wiltedAt; // 枯萎计时起点
   final DateTime? deadAt; // 死亡计时（仅供统计）
   final DateTime? bloomedAt; // 进入「盛开」状态的时刻（花谢循环计时起点；null = 未开花 / 已花谢 / 老库升级来的已开花植物待补计时）
+  final int bloomCount; // 累计盛开次数（成株后循环玩法 Batch 1：0 = 未开过花，≥1 = 复开花阶段）
   final PlantMood mood;
 
   const Plant({
@@ -35,6 +36,7 @@ class Plant {
     this.wiltedAt,
     this.deadAt,
     this.bloomedAt,
+    this.bloomCount = 0,
     this.mood = PlantMood.calm,
   });
 
@@ -55,6 +57,7 @@ class Plant {
     DateTime? wiltedAt,
     DateTime? deadAt,
     DateTime? bloomedAt,
+    int? bloomCount,
     PlantMood? mood,
   }) {
     return Plant(
@@ -73,6 +76,7 @@ class Plant {
       wiltedAt: wiltedAt ?? this.wiltedAt,
       deadAt: deadAt ?? this.deadAt,
       bloomedAt: bloomedAt ?? this.bloomedAt,
+      bloomCount: bloomCount ?? this.bloomCount,
       mood: mood ?? this.mood,
     );
   }

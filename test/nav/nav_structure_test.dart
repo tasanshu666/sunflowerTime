@@ -19,6 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -236,6 +237,8 @@ List<Override> _overrides({
       focusRepositoryProvider.overrideWithValue(_FakeFocusRepository()),
       taskRepositoryProvider.overrideWithValue(_FakeTaskRepository()),
       plantRepositoryProvider.overrideWithValue(_FakePlantRepository()),
+      bloomRewardRepositoryProvider
+          .overrideWithValue(InMemoryBloomRewardRepository()),
       rewardRepositoryProvider
           .overrideWithValue(reward ?? _FakeRewardRepository()),
       trackingRepositoryProvider.overrideWithValue(_FakeTrackingRepository()),

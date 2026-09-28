@@ -60,6 +60,9 @@ flutter:
     - assets/pots/
     # 花园背景图（2026-09-23）：background.png，缺失时回退绿色渐变+草叶纹理自绘。
     - assets/garden/
+    # 奖励物美术资源（2026-09-27 奖励物图标化）：sunlight/fragment/seed[_物种id].png，
+    # 命名见 `assets/rewards/README.txt`；缺失时头顶奖励图标回退内置 Icons。
+    - assets/rewards/
 
 # ── 原生资产（native assets / hooks）配置 ────────────────────────────
 # sqlite3 包默认会从 GitHub Releases 下载预编译库（libsqlite3.arm.android.so 等）。

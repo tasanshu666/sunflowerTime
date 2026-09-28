@@ -9,7 +9,7 @@
 ///
 /// 本测试钉死四件事（**必须把历史行读回来断言**，不能只断言「没抛异常」——本项目
 /// 吃过亏：以前只看迁移跑过，导致 DateTime 类型不一致长期没暴露）：
-///  ① `AppDatabase.schemaVersion == 7`；
+///  ① `AppDatabase.schemaVersion == 12`；
 ///  ② v6 → v7 后 growing 植物 `stage = seed`、`growth_progress = 0.0`、
 ///     `stage_started_at` ≈ 迁移时刻，其余字段（species_id / pot_index / planted_at）不丢；
 ///  ③ bloomed / wilting / dead 植物**字段原样不受影响**；
@@ -195,7 +195,7 @@ List<String> _schemaDdl({
       'INSERT INTO plants (id, species_id, pot_index, stage, stage_started_at, '
           'growth_progress, growth_factor, water_used, fertilizer_used, status, '
           'planted_at, last_water_at, wilted_at, dead_at, mood) '
-          'VALUES (\'p_bloomed\', \'species_daisy\', 1, '
+          'VALUES (\'p_bloomed\', \'species_tomato\', 1, '
           '${PlantStage.adult.index}, ${_secs(_legacyBloomedStarted)}, 1.0, 1.0, '
           '1, 1, ${PlantStatus.bloomed.index}, ${_secs(_legacyPlanted)}, '
           '${_secs(_legacyPlanted)}, NULL, NULL, 0);',
@@ -203,7 +203,7 @@ List<String> _schemaDdl({
       'INSERT INTO plants (id, species_id, pot_index, stage, stage_started_at, '
           'growth_progress, growth_factor, water_used, fertilizer_used, status, '
           'planted_at, last_water_at, wilted_at, dead_at, mood) '
-          'VALUES (\'p_wilting\', \'species_cactus\', 2, '
+          'VALUES (\'p_wilting\', \'species_star_flower\', 2, '
           '${PlantStage.sprout.index}, ${_secs(_legacyWiltingStarted)}, 0.35, '
           '1.0, 0, 0, ${PlantStatus.wilting.index}, ${_secs(_legacyPlanted)}, '
           '${_secs(_legacyPlanted)}, ${_secs(_legacyWiltingStarted)}, NULL, 2);',
@@ -287,10 +287,10 @@ List<String> _v3Ddl() => _schemaDdl(
 
 void main() {
   group('迁移 v6->v7：植物成长 V2，成长中植物重置清零', () {
-    test('schemaVersion 必须为 7（版本号与迁移改动不许脱节）', () async {
+    test('schemaVersion 必须为最新 12（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(_v6Ddl(), 6);
       // 护栏：版本号若停在 6，onUpgrade 不跑，下面所有清零断言都会红。
-      expect(database.schemaVersion, 9);
+      expect(database.schemaVersion, 12);
     });
 
     test('growing 植物：stage 回 seed、progress=0、stage_started_at≈迁移时刻，其余字段不丢',
@@ -333,7 +333,7 @@ void main() {
       expect(bloomed.stage, PlantStage.adult.index);
       expect(bloomed.growthProgress, 1.0);
       expect(bloomed.stageStartedAt, _legacyBloomedStarted);
-      expect(bloomed.speciesId, 'species_daisy');
+      expect(bloomed.speciesId, 'species_tomato');
       expect(bloomed.potIndex, 1);
 
       final db.Plant wilting = (await database.plantDao.byId('p_wilting'))!;
@@ -341,7 +341,7 @@ void main() {
       expect(wilting.stage, PlantStage.sprout.index);
       expect(wilting.growthProgress, 0.35);
       expect(wilting.stageStartedAt, _legacyWiltingStarted);
-      expect(wilting.speciesId, 'species_cactus');
+      expect(wilting.speciesId, 'species_star_flower');
 
       final db.Plant dead = (await database.plantDao.byId('p_dead'))!;
       expect(dead.status, PlantStatus.dead.index);
@@ -357,7 +357,7 @@ void main() {
       await database.plantDao.upsert(
         db.PlantsCompanion(
           id: const Value('p_new'),
-          speciesId: const Value('species_cactus'),
+          speciesId: const Value('species_star_flower'),
           potIndex: const Value(7),
           stage: Value(PlantStage.sprout.index),
           stageStartedAt: Value(DateTime(2026, 9, 22, 10, 0)),
@@ -368,7 +368,7 @@ void main() {
       );
 
       final db.Plant p = (await database.plantDao.byId('p_new'))!;
-      expect(p.speciesId, 'species_cactus');
+      expect(p.speciesId, 'species_star_flower');
       expect(p.stage, PlantStage.sprout.index);
       expect(p.growthProgress, closeTo(0.42, 1e-9));
       expect(p.stageStartedAt, DateTime(2026, 9, 22, 10, 0));
@@ -396,7 +396,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 9);
+      expect(first.schemaVersion, 12);
       expect(
         (await first.plantDao.byId('p_growing'))!.growthProgress,
         0.0,
@@ -445,7 +445,7 @@ void main() {
   group('跨版本跳跃升级', () {
     test('v5 → v7：植物同样清零，且 check_ins 5 列补齐', () async {
       final db.AppDatabase database = await _openMigrated(_v5Ddl(), 5);
-      expect(database.schemaVersion, 9);
+      expect(database.schemaVersion, 12);
 
       // ① v6 的补列分支仍然执行（跨版本跳跃不能漏掉中间版本）。
       final Set<String> cols = await _columns(database, 'check_ins');
@@ -474,7 +474,7 @@ void main() {
       // 场景：玄参大人跳过了中间几版安装，库还停在 v3（无 plants 表），直接升到 v7。
       final db.AppDatabase database = await _openMigrated(_v3Ddl(), 3);
 
-      expect(database.schemaVersion, 9);
+      expect(database.schemaVersion, 12);
       expect(await _tableExists(database, 'plants'), isTrue);
       expect(await _columns(database, 'settings'),
           contains('garden_pot_capacity'));

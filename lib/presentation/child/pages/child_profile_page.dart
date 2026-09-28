@@ -173,26 +173,32 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
           icon: Icons.schedule,
           label: '累计专注时长',
           value: '${_totalFocusMinutes.round()} 分钟',
+          accent: const Color(0xFF4C8DF6),
         ),
         _AchievementTile(
           icon: Icons.timer,
           label: '累计专注次数',
           value: '$_totalSessions 次',
+          accent: const Color(0xFFF2994A),
         ),
         _AchievementTile(
           icon: Icons.event_available,
           label: '累计有效专注天数',
           value: '$_totalValidDays 天',
+          accent: const Color(0xFF3BB273),
         ),
         _AchievementTile(
           icon: Icons.checklist,
           label: '累计成长打卡',
           value: '$_totalCheckIns 次',
+          accent: const Color(0xFF8E7CF0),
         ),
         _AchievementTile(
           icon: Icons.local_florist,
           label: '累计开花植物',
           value: '$_bloomedPlants 株',
+          accent: const Color(0xFFE8628C),
+          isLast: true,
         ),
         // ── 调试区（玄参 2026-09-24 要求加回，供调试验收）────────────────────
         // ⚠️ 受 kDebugMode 约束：**release 构建自动不渲染** —— 既满足调试需要，
@@ -229,26 +235,64 @@ class _SectionTitle extends StatelessWidget {
 }
 
 /// 单条成就行。
+///
+/// [accent] 为该卡的专属强调色：用于左侧圆角图标块底色，并派生出卡片本身的
+/// **极浅色调**底色（兼容深色主题，不写死白底）。每张卡传入不同暖色以区分内容。
 class _AchievementTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final Color accent;
+
+  /// 是否为列表中的**最后一张**卡：最后一张不再留底部间距。
+  /// 这样既保证「卡与卡之间有间距」，又避免在末尾多出一段空白把页面撑高
+  /// （页面总高度需落在测试视口 800×600 内，否则底部调试按钮会被顶出可点区域）。
+  final bool isLast;
 
   const _AchievementTile({
     required this.icon,
     required this.label,
     required this.value,
+    required this.accent,
+    this.isLast = false,
   });
 
   @override
-  Widget build(BuildContext context) => Container(
-        decoration: creamCardDecoration(),
-        child: ListTile(
-          leading: Icon(icon, color: Colors.teal),
-          title: Text(label),
-          trailing: Text(value,
-              style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w600)),
+  Widget build(BuildContext context) {
+    // 卡片底色 = accent 的极浅色调（10% 透明度）叠加到当前主题 surface 之上，
+    // 既与 creamCardDecoration 的「浅底大圆角 + 柔阴影」观感一致，又能随深色主题自适应。
+    final Color tintedSurface = Color.alphaBlend(
+      accent.withValues(alpha: 0.10),
+      Theme.of(context).colorScheme.surface,
+    );
+    return Container(
+      // 非末卡留 12 的纵向间距，使相邻成就卡清晰分开（末卡不留，避免多余空白）。
+      margin: isLast ? EdgeInsets.zero : const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: tintedSurface,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 18,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: accent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: Colors.white, size: 22),
         ),
-      );
+        title: Text(label),
+        trailing: Text(value,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
 }

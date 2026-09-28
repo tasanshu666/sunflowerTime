@@ -361,18 +361,19 @@ const String kStarterSpeciesId = 'species_sunflower';
 /// 需消耗 6 片精品碎片（取代原「满 8 片手动解锁精品物种」旧体系）。
 const int kSpeciesFragmentCostCommon = 6;
 
-/// 物种种植价 · 碎片 · **精英档**（星辰花 / 虹影蕨 / 珊瑚岭兰 / 翡翠绣球）。
+/// 物种种植价 · 阳光 · **普通档**（番茄 / 草莓）。
 ///
-/// 玄参 2026-09-27 物种表改版：精英档（= `rare`，见 `PlantSpecies.isPremium`）物种
-/// 兑换需消耗 10 片精品碎片。碎片价按档位派生，**不新增字段**。
-const int kSpeciesFragmentCostPremium = 10;
+/// 玄参 2026-09-28 计价模型拍板：普通档物种**二选一** —— **400 阳光** 或
+/// **6 碎片**（[kSpeciesFragmentCostCommon]）兑换种下。此常量对应「用阳光兑换」分支；
+/// 精英档（[kSpeciesFragmentCostPremium]）仅碎片、起始物种（[kStarterSpeciesId]）免费。
+const int kSpeciesSunlightCostCommon = 400;
 
-/// 物种种植价 · 阳光 · **月光兰**（唯一按阳光计价的物种）。
+/// 物种种植价 · 碎片 · **精英档**（星辰花 / 虹影蕨 / 珊瑚岭兰 / 翡翠绣球 / 月光兰）。
 ///
-/// 玄参 2026-09-27 物种表改版：月光兰阳光价 400（低 / 高年段同值）；其余物种阳光价 0
-/// （碎片物种不额外扣阳光；向日葵为初始免费物种）。类型为 `int`——直接作为
-/// `PlantSpecies.baseCostHigh/Low`（`int`）写入种子表，且阳光扣减金额由此派生。
-const int kSpeciesMoonOrchidSunlightCost = 400;
+/// 玄参 2026-09-27 物种表改版 + 2026-09-28 计价模型：精英档（= `rare`，见
+/// `PlantSpecies.isPremium`）物种兑换**仅碎片**，需消耗 10 片精品碎片。
+/// 月光兰（精英）不再走阳光价（旧的 [kSpeciesMoonOrchidSunlightCost] 已废弃）。
+const int kSpeciesFragmentCostPremium = 10;
 
 /// 账本 refType · 开花瞬间奖励（保底 + 惊喜 roll）。
 const String kBloomRewardRefType = 'bloom_reward';

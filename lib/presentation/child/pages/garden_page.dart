@@ -160,6 +160,9 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       // 收下：…」提示——玄参要求花谢自动到账**也要提示**）。
       final List<BloomRewardOutcome> autoSettled = <BloomRewardOutcome>[];
       _plants = await svc.tickAll(now, autoSettled: autoSettled);
+      // 任务 A（玄参 2026-09-28）：刷新时把「v12 之前登记的零值哨兵旧 pending 行」
+      // 按当前档位回写为明细，使旧数据头顶图标直接显示阳光/碎片/种子（不再礼物盒）。
+      await svc.materializeLegacyBloomRewards(now);
       final AppSettings settings =
           await ref.read(settingsRepositoryProvider).getSettings();
       _tier = settings.ageTier;
@@ -290,9 +293,9 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     return speciesId;
   }
 
-  /// 打开「精品碎片」信息页（玄参 2026-09-27 物种表改版）。
+  /// 打开「精品碎片」信息页（玄参 2026-09-28 计价模型）。
   ///
-  /// **只读**：展示当前碎片余额 + 「各需碎片物种及其所需片数」，引导孩子去空花盆兑换种下。
+  /// **只读**：展示当前碎片余额 + 「各物种可用支付方式」，引导孩子去空花盆兑换种下。
   /// 旧「满 8 片手动解锁精品物种」体系已废弃（`unlockPremiumSpecies` 删除），本页**不含任何
   /// 解锁按钮**。打开时重新读取余额 / 物种（避免用缓存读到过期数据）。
   Future<void> _openFragmentSheet() async {
@@ -300,13 +303,12 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     final int balance = await svc.premiumFragmentBalance();
     final List<PlantSpecies> species =
         await ref.read(plantRepositoryProvider).species();
-    // 需碎片兑换的物种（名称 + 所需片数），顺序 = 物种表顺序。
-    final List<({String name, int cost})> needs = <({String name, int cost})>[];
+    // 各物种可用支付方式（名称 + 选项），顺序 = 物种表顺序。
+    final List<({String name, List<PlantPaymentOption> options})> needs =
+        <({String name, List<PlantPaymentOption> options})>[];
     for (final PlantSpecies sp in species) {
-      final PlantCost cost = await svc.plantCost(sp, _tier);
-      if (cost.kind == PlantCostKind.fragments) {
-        needs.add((name: sp.name, cost: cost.amount));
-      }
+      final List<PlantPaymentOption> opts = await svc.plantPaymentOptions(sp);
+      needs.add((name: sp.name, options: opts));
     }
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -417,19 +419,22 @@ class _GardenPageState extends ConsumerState<GardenPage> {
         ref.read(plantGrowthServiceProvider).expandPot(DateTime.now()));
   }
 
-  /// 打开「选择要种的植物」弹窗（玄参 2026-09-27 物种表改版：按物种计价、直接兑换种下）。
+  /// 打开「选择要种的植物」弹窗（玄参 2026-09-28 计价模型：每个物种展示可用支付方式按钮）。
   ///
-  /// 列表顺序 = 物种表顺序（向日葵第一、月光兰第二…）。每项按状态渲染**可用性 + 价格文案**
-  /// （见 [_plantOption]）：已有存活植株 → 置灰「成长中」；免费券 → 「种子兑换 · 免费」；
-  /// 月光兰首购 → 「N 阳光」（之后按档位碎片价）；碎片物种 → 「N 碎片」；余额不足一律置灰并写明原因。
+  /// 列表顺序 = 物种表顺序（向日葵第一、月光兰第二…）。每项展示：
+  ///  · 向日葵 → 一个「免费」按钮（直接种）；
+  ///  · 普通 → 两个按钮「400 阳光」「6 植物碎片」，各自按余额 enabled/disabled；
+  ///  · 精英 → 一个「10 植物碎片」按钮（不足禁用）；
+  ///  · 每物种同时仅一株仍按 `hasAlive` 判「成长中」禁用。
+  /// 点击某支付方式按钮 → 关闭弹窗后 `plant(..., payWith: kind)`。
   ///
-  /// ⚠️ [PlantGrowthService.plantCost] 依赖账本（首购优惠判定）→ 展示项**先异步预取**再弹窗。
+  /// 计价口径与领域层 [PlantGrowthService.plantPaymentOptions] **一致**（单点真源）。
   Future<void> _openPlantSheet(int potIndex) async {
     final PlantGrowthService svc = ref.read(plantGrowthServiceProvider);
-    final List<({PlantSpecies sp, _PlantOption opt})> options =
-        <({PlantSpecies sp, _PlantOption opt})>[];
+    final List<({PlantSpecies sp, List<_PlantPaymentButton> buttons})> rows =
+        <({PlantSpecies sp, List<_PlantPaymentButton> buttons})>[];
     for (final PlantSpecies sp in _species) {
-      options.add((sp: sp, opt: await _plantOption(sp, svc)));
+      rows.add((sp: sp, buttons: await _plantPaymentButtons(sp, svc)));
     }
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -446,81 +451,80 @@ class _GardenPageState extends ConsumerState<GardenPage> {
           Text('当前阳光：${_balance.toInt()} ☀ · 植物碎片：$_fragmentBalance',
               style: const TextStyle(fontSize: 13, color: Colors.grey)),
           const SizedBox(height: 8),
-          for (final ({PlantSpecies sp, _PlantOption opt}) e in options)
-            ListTile(
-              leading: const Icon(Icons.local_florist),
-              title: Text(e.sp.name),
-              subtitle:
-                  Text('${_rarityLabel(e.sp.rarity)} · ${e.opt.costLabel}'),
-              enabled: e.opt.enabled,
-              trailing: Text(
-                e.opt.costLabel,
-                style: TextStyle(
-                  color: e.opt.enabled ? null : Colors.red,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              onTap: e.opt.enabled
-                  ? () async {
-                      Navigator.of(ctx).pop();
-                      await _run(() => ref
-                          .read(plantGrowthServiceProvider)
-                          .plant(e.sp.id, potIndex, DateTime.now()));
-                    }
-                  : null,
+          for (final ({PlantSpecies sp, List<_PlantPaymentButton> buttons}) e in rows)
+            _PlantTile(
+              species: e.sp,
+              buttons: e.buttons,
+              onPay: (PlantCostKind kind) async {
+                Navigator.of(ctx).pop();
+                await _run(() => ref
+                    .read(plantGrowthServiceProvider)
+                    .plant(e.sp.id, potIndex, DateTime.now(), payWith: kind));
+              },
             ),
         ],
       ),
     );
   }
 
-  /// 计算某物种在「选择要种的植物」列表里的展示项（可用性 + 价格文案）。
+  /// 计算某物种在「选择要种的植物」弹窗里的可用支付方式按钮（可用性 + 文案 + 禁用原因）。
   ///
-  /// 计价口径与领域层 [PlantGrowthService.plantCost] **一致**（单点真源，避免 UI 与领域漂移）；
-  /// 该方法依赖账本 → 异步，UI 不得自行重算价格：
-  ///  · 该物种已有存活植株（`status != dead`，凋萎仍算存活）→ 不可种，文案「成长中」；
-  ///  · 持有免费种植券 → 可种，「种子兑换 · 免费」；
-  ///  · 否则按 [PlantCostKind]：`free`→「免费」、`sunlight`→「N 阳光」（阳光不足置灰）、
-  ///    `fragments`→「N 碎片」（碎片不足置灰并写明当前片数）。
-  Future<_PlantOption> _plantOption(
+  /// 计价口径与领域层 [PlantGrowthService.plantPaymentOptions] **一致**（单点真源）；
+  /// 依赖账本与余额 → 异步，UI 不得自行重算价格：
+  ///  · 已有存活植株（`status != dead`，凋萎仍算存活）→ 全部按钮禁用，原因「成长中」；
+  ///  · 否则按 [PlantPaymentOption]：free→「免费」；sunlight→「N 阳光」（阳光不足禁用）；
+  ///    fragments→「N 植物碎片」（碎片不足禁用并写明当前片数）。
+  Future<List<_PlantPaymentButton>> _plantPaymentButtons(
     PlantSpecies sp,
     PlantGrowthService svc,
   ) async {
     final bool hasAlive = _plants.any(
       (Plant p) => p.speciesId == sp.id && p.status != PlantStatus.dead,
     );
-    if (hasAlive) {
-      return const _PlantOption(enabled: false, costLabel: '成长中');
+    final List<PlantPaymentOption> options = await svc.plantPaymentOptions(sp);
+    final List<_PlantPaymentButton> buttons = <_PlantPaymentButton>[];
+    for (final PlantPaymentOption opt in options) {
+      String label;
+      bool enabled;
+      String? reason;
+      switch (opt.kind) {
+        case PlantCostKind.free:
+          label = '免费';
+          enabled = !hasAlive;
+          reason = hasAlive ? '成长中' : null;
+        case PlantCostKind.sunlight:
+          label = '${opt.amount} 阳光';
+          if (hasAlive) {
+            enabled = false;
+            reason = '成长中';
+          } else if (_balance < opt.amount) {
+            enabled = false;
+            reason = '阳光不足';
+          } else {
+            enabled = true;
+          }
+        case PlantCostKind.fragments:
+          label = '${opt.amount} 植物碎片';
+          if (hasAlive) {
+            enabled = false;
+            reason = '成长中';
+          } else if (_fragmentBalance < opt.amount) {
+            enabled = false;
+            reason = '植物碎片不足（当前 $_fragmentBalance 片）';
+          } else {
+            enabled = true;
+          }
+      }
+      buttons.add(_PlantPaymentButton(
+        kind: opt.kind,
+        amount: opt.amount,
+        label: label,
+        enabled: enabled,
+        disabledReason: reason,
+      ));
     }
-    if (_unlockedSpecies.contains(sp.id)) {
-      return const _PlantOption(enabled: true, costLabel: '种子兑换 · 免费');
-    }
-    final PlantCost cost = await svc.plantCost(sp, _tier);
-    switch (cost.kind) {
-      case PlantCostKind.free:
-        return const _PlantOption(enabled: true, costLabel: '免费');
-      case PlantCostKind.sunlight:
-        final bool afford = _balance >= cost.amount;
-        return _PlantOption(
-          enabled: afford,
-          costLabel: afford ? '${cost.amount} 阳光' : '阳光不足',
-        );
-      case PlantCostKind.fragments:
-        final bool afford = _fragmentBalance >= cost.amount;
-        return _PlantOption(
-          enabled: afford,
-          costLabel: afford
-              ? '${cost.amount} 植物碎片'
-              : '植物碎片不足（当前 $_fragmentBalance 片）',
-        );
-    }
+    return buttons;
   }
-
-  /// 稀有度 UI 文案（玄参 2026-09-27 物种表改版：**只显示两档**）。
-  ///
-  /// `common → 普通`；其余（`rare` / `legendary`）一律 → `精英`（legendary 暂无物种，
-  /// 枚举保留不动，此处兜底归并到精英）。
-  String _rarityLabel(Rarity r) => r == Rarity.common ? '普通' : '精英';
 
   /// 按 potIndex 找到占用该花盆的植物（无则 null）。
   Plant? _occupantOf(int potIndex) {
@@ -809,15 +813,144 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   }
 }
 
-/// 「选择要种的植物」列表项展示模型（可用性 + 价格文案）。
-class _PlantOption {
-  const _PlantOption({required this.enabled, required this.costLabel});
+/// 花园「选择要种的植物」弹窗里某个支付方式按钮的展示模型。
+class _PlantPaymentButton {
+  const _PlantPaymentButton({
+    required this.kind,
+    required this.amount,
+    required this.label,
+    required this.enabled,
+    this.disabledReason,
+  });
+
+  /// 支付方式（免费 / 阳光 / 碎片）。
+  final PlantCostKind kind;
+
+  /// 数量（阳光片数 / 碎片片数）。
+  final int amount;
+
+  /// 按钮文案（如「免费」「400 阳光」「10 植物碎片」）。
+  final String label;
 
   /// 是否可点击种下（false = 置灰，如已有存活植株 / 余额不足）。
   final bool enabled;
 
-  /// 价格 / 状态文案（如「免费」「400 阳光」「10 碎片」「成长中」「阳光不足」）。
-  final String costLabel;
+  /// 禁用原因（余额不足 / 成长中），仅 [enabled] 为 false 时有值。
+  final String? disabledReason;
+}
+
+/// 稀有度 UI 文案（玄参 2026-09-27 物种表改版：**只显示两档**）。
+///
+/// `common → 普通`；其余（`rare` / `legendary`）一律 → `精英`（legendary 暂无物种，
+/// 枚举保留不动，此处兜底归并到精英）。作为库级顶层函数，供 `_PlantTile` 等小组件复用。
+String _rarityLabel(Rarity r) => r == Rarity.common ? '普通' : '精英';
+
+/// 单个物种的选种卡片：名称 + 稀有度标签 + 一排支付方式按钮。
+class _PlantTile extends StatelessWidget {
+  const _PlantTile({
+    required this.species,
+    required this.buttons,
+    required this.onPay,
+  });
+
+  final PlantSpecies species;
+  final List<_PlantPaymentButton> buttons;
+  final void Function(PlantCostKind kind) onPay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const Icon(Icons.local_florist, color: Color(0xFF7CB342)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(species.name,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3EBD8),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(_rarityLabel(species.rarity),
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF8A5A00))),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: buttons.map((_PlantPaymentButton b) {
+                return _PayButtonWidget(
+                  label: b.label,
+                  enabled: b.enabled,
+                  disabledReason: b.disabledReason,
+                  onTap: b.enabled ? () => onPay(b.kind) : null,
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 大圆角马卡龙风格支付按钮（儿童友好）。
+class _PayButtonWidget extends StatelessWidget {
+  const _PayButtonWidget({
+    required this.label,
+    required this.enabled,
+    this.disabledReason,
+    this.onTap,
+  });
+
+  final String label;
+  final bool enabled;
+  final String? disabledReason;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg = enabled ? const Color(0xFF8FCF74) : Colors.grey.shade300;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        ElevatedButton(
+          onPressed: onTap,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: bg,
+            foregroundColor: enabled ? Colors.white : Colors.grey.shade600,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18)),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            textStyle: const TextStyle(fontSize: 15),
+          ),
+          child: Text(label),
+        ),
+        if (!enabled && disabledReason != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 2),
+            child: Text(disabledReason!,
+                style: const TextStyle(fontSize: 11, color: Colors.red)),
+          ),
+      ],
+    );
+  }
 }
 
 /// 花园页「精品碎片」入口（玄参 2026-09-27 物种表改版）：只展示碎片余额数字。
@@ -884,8 +1017,22 @@ class _FragmentSheet extends StatelessWidget {
   /// 当前碎片余额。
   final int balance;
 
-  /// 需碎片兑换的物种（名称 + 所需片数），顺序 = 物种表顺序。
-  final List<({String name, int cost})> needs;
+  /// 各物种（名称 + 可用支付方式），顺序 = 物种表顺序（玄参 2026-09-28 计价模型）。
+  final List<({String name, List<PlantPaymentOption> options})> needs;
+
+  /// 单个支付选项的文案（与 `_plantPaymentButtons` 口径一致）。
+  ///
+  /// 免费 → 「免费」；阳光 → 「N 阳光」；碎片 → 「N 植物碎片」。
+  static String _optionLabel(PlantPaymentOption opt) {
+    switch (opt.kind) {
+      case PlantCostKind.free:
+        return '免费';
+      case PlantCostKind.sunlight:
+        return '${opt.amount} 阳光';
+      case PlantCostKind.fragments:
+        return '${opt.amount} 植物碎片';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -905,12 +1052,12 @@ class _FragmentSheet extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            '攒够植物碎片后，去空花盆挑选植物就能兑换种下啦～',
+            '攒够植物碎片，或备好阳光后，去空花盆挑选植物就能兑换种下啦～',
             style: TextStyle(fontSize: 13),
           ),
           const SizedBox(height: 12),
           ...needs.map(
-            (({String name, int cost}) need) => Card(
+            (({String name, List<PlantPaymentOption> options}) need) => Card(
               margin: const EdgeInsets.symmetric(vertical: 4),
               child: ListTile(
                 leading: const Icon(
@@ -918,9 +1065,10 @@ class _FragmentSheet extends StatelessWidget {
                   color: Color(0xFFE8A33D),
                 ),
                 title: Text(need.name),
-                trailing: Text(
-                  '${need.cost} 植物碎片',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                subtitle: Text(
+                  need.options.length == 1
+                      ? _optionLabel(need.options.first)
+                      : need.options.map(_optionLabel).join(' 或 '),
                 ),
               ),
             ),

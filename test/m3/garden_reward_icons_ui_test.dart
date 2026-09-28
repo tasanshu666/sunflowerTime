@@ -272,22 +272,39 @@ void main() {
     expect(find.text('×1'), findsOneWidget);
   });
 
-  testWidgets('历史行（0/0/null 哨兵）→ 通用礼包图标', (WidgetTester tester) async {
+  testWidgets('历史行（0/0/null 哨兵）→ 加载时物化为明细图标（不再礼物盒）',
+      (WidgetTester tester) async {
     final DateTime now = DateTime.now();
     final _FakeSunlightRepository ledger = _FakeSunlightRepository();
     final InMemoryBloomRewardRepository bloom = InMemoryBloomRewardRepository();
+    // 三列默认 0/0/null → 哨兵（v12 之前的旧数据）。
     await bloom.insertPendingBloomReward(_pending(
       id: 'pr_legacy',
       dueAt: now.subtract(const Duration(hours: 1)),
       kind: kBloomRewardKindNormal,
-      // 三列默认 0/0/null → 哨兵。
     ));
 
     await _pumpGarden(tester, plant: _bloomedPlant(now), bloom: bloom, ledger: ledger);
-    final bool appeared =
-        await _pumpUntil(tester, () => _iconCount(Icons.card_giftcard) >= 1);
-    expect(appeared, isTrue, reason: '哨兵历史行应显示通用礼包图标');
-    expect(_iconCount(Icons.wb_sunny), 0);
+    // 加载时 materializeLegacyBloomRewards 把哨兵回写为真实奖励内容 → 显示明细、不再礼物盒。
+    final bool appeared = await _pumpUntil(
+      tester,
+      () =>
+          _iconCount(Icons.wb_sunny) +
+              _iconCount(Icons.auto_awesome) +
+              _iconCount(Icons.eco) >=
+          1,
+    );
+    expect(appeared, isTrue, reason: '哨兵历史行应物化为明细图标');
+    expect(_iconCount(Icons.card_giftcard), 0,
+        reason: '物化后不再显示通用礼包图标');
+    // 第二段奖励恒一项明细（随机落阳光/碎片/种子其一），合计恰 1。
+    expect(
+      _iconCount(Icons.wb_sunny) +
+          _iconCount(Icons.auto_awesome) +
+          _iconCount(Icons.eco),
+      1,
+      reason: '第二段奖励恰一项明细',
+    );
   });
 
   // ── ② 点击消失 + 账本恰一次 ──────────────────────────────────────────────

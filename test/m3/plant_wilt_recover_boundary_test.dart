@@ -188,29 +188,44 @@ class _MemorySettingsRepo implements SettingsRepository {
   PlantGrowthService svc,
   _MemoryLedger ledger,
   _MemoryPlantRepo plants,
+  InMemoryBloomRewardRepository bloomRewards,
 }) _make() {
   final _MemoryLedger ledger = _MemoryLedger();
   final _MemoryPlantRepo plants = _MemoryPlantRepo();
+  final InMemoryBloomRewardRepository bloomRewards =
+      InMemoryBloomRewardRepository();
   final PlantGrowthService svc = PlantGrowthService(
     plants: plants,
     focus: _NoFocusRepo(),
     ledger: ledger,
     settings: _MemorySettingsRepo(),
-    bloomRewards: InMemoryBloomRewardRepository(),
+    bloomRewards: bloomRewards,
   );
-  return (svc: svc, ledger: ledger, plants: plants);
+  return (svc: svc, ledger: ledger, plants: plants, bloomRewards: bloomRewards);
 }
 
 /// 种一株指定物种的植物，返回其 id（成本无关，余额充足）。
-Future<String> _seed(PlantGrowthService svc, String speciesId, DateTime now) async {
-  final Plant p = await svc.plant(speciesId, 0, now);
+///
+/// [payWith] 指定支付方式；精英物种（如月光兰）需传 [PlantCostKind.fragments] 并配合
+/// [bloomRewards] 预充值碎片余额，否则默认按碎片计价会因余额不足抛异常。
+Future<String> _seed(
+  PlantGrowthService svc,
+  String speciesId,
+  DateTime now, {
+  InMemoryBloomRewardRepository? bloomRewards,
+  PlantCostKind? payWith,
+}) async {
+  if (payWith == PlantCostKind.fragments && bloomRewards != null) {
+    await bloomRewards.setPremiumFragmentBalance(kSpeciesFragmentCostPremium);
+  }
+  final Plant p = await svc.plant(speciesId, 0, now, payWith: payWith);
   return p.id;
 }
 
 /// 构造一株 wilting 植物（供 careQuota / 恢复相关断言）。
 ///
-/// 默认物种为向日葵；死亡场景可显式传 [speciesId] 为月光兰（唯一阳光价 > 0 的物种），
-/// 用于验证「死亡全损」（旧口径下此处会有可见退款额，现应无任何退款行）。
+/// 默认物种为向日葵；死亡场景可显式传 [speciesId] 为月光兰（精英碎片价 > 0 的物种），
+/// 用于验证「死亡全损」（精英仅碎片、无阳光账本，死亡应无任何退款行）。
 Plant _wiltingPlant(
   String id,
   DateTime now, {
@@ -496,8 +511,9 @@ void main() {
     test('wiltedAt = now-7天 → tickAll 后 status==dead，且账本无 plant_death_refund、余额不变',
         () async {
       final ctx = _make();
-      // 用月光兰（唯一阳光价 > 0 的物种，旧口径下会产生可见退款额）验证「死亡全损」。
-      final String id = await _seed(ctx.svc, 'species_moon_orchid', t0);
+      // 用月光兰（精英碎片价 > 0 的物种）验证「死亡全损」（精英仅碎片，无阳光账本）。
+      final String id = await _seed(ctx.svc, 'species_moon_orchid', t0,
+          bloomRewards: ctx.bloomRewards, payWith: PlantCostKind.fragments);
       await ctx.plants.savePlant(_wiltingPlant(
         id,
         t0,
@@ -520,7 +536,8 @@ void main() {
 
     test('死亡全损幂等：多次 tickAll 都不产生退款行', () async {
       final ctx = _make();
-      final String id = await _seed(ctx.svc, 'species_moon_orchid', t0);
+      final String id = await _seed(ctx.svc, 'species_moon_orchid', t0,
+          bloomRewards: ctx.bloomRewards, payWith: PlantCostKind.fragments);
       await ctx.plants.savePlant(_wiltingPlant(
         id,
         t0,

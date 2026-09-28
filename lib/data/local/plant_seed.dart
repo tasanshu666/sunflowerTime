@@ -5,14 +5,14 @@
 ///    暂无物种，枚举保留不动）；
 ///  · **按物种计价**（在物种列表直接兑换并种下；种植本身不额外扣阳光）：
 ///      - 向日葵 [kStarterSpeciesId] = **免费**（初始物种，阳光价 / 碎片价均为 0）；
-///      - 月光兰 = **400 阳光**（[kSpeciesMoonOrchidSunlightCost]）；
-///      - 番茄 / 草莓（普通）= **6 碎片**（[kSpeciesFragmentCostCommon]，按档位派生）；
+///      - 月光兰（精英）= **10 碎片**（[kSpeciesFragmentCostPremium]，精英档仅碎片）；
+///      - 番茄 / 草莓（普通）= **6 碎片**（[kSpeciesFragmentCostCommon]）或 **400 阳光**（[kSpeciesSunlightCostCommon]，二选一）；
 ///      - 星辰花 / 虹影蕨 / 珊瑚岭兰 / 翡翠绣球（精英）= **10 碎片**（[kSpeciesFragmentCostPremium]）。
 ///  · **每物种同时仅存活一株**；植株死亡 / 移除后再种需**重新交费**（= 一次兑换买一株）；
 ///  · 种子掉落保留：掉到某物种种子 = 该物种一张**免费种植券**（种植时消耗券，不扣碎片 / 阳光）。
 ///
 /// ## 列表顺序 = 花园「选择要种的植物」弹窗展示顺序
-/// 向日葵（免费）第一、月光兰（阳光）第二，其后普通 / 精英各按上述顺序。
+/// 向日葵（免费）第一、月光兰（精英 · 10 碎片）第二，其后普通 / 精英各按上述顺序。
 ///
 /// ## 成长时长
 ///  · 普通植物（向日葵 / 番茄 / 草莓）→ [kPlantGrowthHoursPerStageDefault]
@@ -41,8 +41,8 @@ const List<PlantSpecies> kSeedPlantSpecies = <PlantSpecies>[
     id: 'species_moon_orchid',
     name: '月光兰',
     rarity: Rarity.rare,
-    baseCostHigh: kSpeciesMoonOrchidSunlightCost,
-    baseCostLow: kSpeciesMoonOrchidSunlightCost,
+    baseCostHigh: 0,
+    baseCostLow: 0,
     growthHoursPerStage: kPlantGrowthHoursPerStagePremium,
     subscriptionOnly: false,
   ),

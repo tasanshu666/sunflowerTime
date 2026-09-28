@@ -181,14 +181,16 @@ void main() {
       await tester.tap(find.byType(EmptyPot).first);
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 普通档：向日葵免费 1；番茄 / 草莓 各 6 植物碎片。
-      expect(find.text('普通 · 免费'), findsOneWidget, reason: '向日葵=普通·免费');
-      expect(find.text('普通 · 6 植物碎片'), findsNWidgets(2),
-          reason: '番茄/草莓=普通·6植物碎片');
-      // 精英档：月光兰 400 阳光 1；四个精英 各 10 植物碎片。
-      expect(find.text('精英 · 400 阳光'), findsOneWidget, reason: '月光兰=精英·400阳光');
-      expect(find.text('精英 · 10 植物碎片'), findsNWidgets(4),
-          reason: '4 精英=精英·10植物碎片');
+      // 新「选择要种」列表：稀有度单独成 chip（普通 / 精英），支付方式单独成按钮。
+      // 普通档 3 种：向日葵=免费；番茄 / 草莓 各「400 阳光」「6 植物碎片」两档可选。
+      expect(find.text('普通'), findsNWidgets(3), reason: '向日葵/番茄/草莓=普通档');
+      expect(find.text('精英'), findsNWidgets(5), reason: '月光兰+4精英=精英档');
+      expect(find.text('免费'), findsOneWidget, reason: '向日葵=免费');
+      expect(find.text('400 阳光'), findsNWidgets(2), reason: '番茄/草莓=各 400 阳光档');
+      expect(find.text('6 植物碎片'), findsNWidgets(2), reason: '番茄/草莓=各 6 植物碎片档');
+      // 精英档（含月光兰，新计价仅碎片）各 10 植物碎片。
+      expect(find.text('10 植物碎片'), findsNWidgets(5),
+          reason: '5 精英（含月光兰）=各 10 植物碎片');
 
       // 不得再出现旧的稀有度词。
       for (final String old in <String>['优良', '稀有', '传奇', '史诗']) {

@@ -1,7 +1,7 @@
 /// 花园页「第二段奖励气泡 + 精品碎片入口」UI 冒烟测试（成株后循环玩法 Batch 1 修订）。
 ///
 /// 覆盖：
-///  · 存在「可收集」第二段奖励时，花盆旁出现可点击气泡；点击收集后气泡消失。
+///  · 存在「可收集」第二段奖励时，花盆旁出现可点击明细图标；点击收集后图标消失。
 ///  · 常驻「精品碎片 N」入口显示当前余额。
 ///
 /// ⚠️ 花园页木牌默认 `animate: true`（无限呼吸动画）→ 一律 `pumpAndSettle` 会永不返回，
@@ -163,9 +163,10 @@ Future<bool> _pumpUntil(
 }
 
 bool _bubblePresent() => find.byIcon(Icons.card_giftcard).evaluate().isNotEmpty;
+bool _sunPresent() => find.byIcon(Icons.wb_sunny).evaluate().isNotEmpty;
 
 void main() {
-  testWidgets('有可收集第二段奖励 → 花盆旁出现气泡；点击后消失（已收集）',
+  testWidgets('有可收集第二段奖励 → 花盆旁出现明细图标；点击后消失（已收集）',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(360 * 3, 780 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -174,12 +175,13 @@ void main() {
     final DateTime now = DateTime.now();
     final Plant plant = _bloomedPlant(now);
     final InMemoryBloomRewardRepository bloom = InMemoryBloomRewardRepository();
-    // 已到期（now 之前 1 小时）→ 可收集。
+    // 已到期（now 之前 1 小时）→ 可收集；显式带明细列（阳光 12）使图标确定、不触发物化。
     await bloom.insertPendingBloomReward(PendingBloomReward(
       id: 'pr1',
       plantId: plant.id,
       dueAt: now.subtract(const Duration(hours: 1)),
       rewardKind: kBloomRewardKindNormal,
+      rewardSunlight: 12,
     ));
 
     await tester.pumpWidget(ProviderScope(
@@ -194,9 +196,9 @@ void main() {
       child: const MaterialApp(home: Scaffold(body: GardenPage(embedded: true))),
     ));
 
-    // 气泡出现（入场动画为有限时长，有界 pump 收敛）。
-    final bool appeared = await _pumpUntil(tester, _bubblePresent);
-    expect(appeared, isTrue, reason: '到期且花仍盛开 → 应出现可收集气泡');
+    // 明细图标出现（入场动画为有限时长，有界 pump 收敛）。
+    final bool appeared = await _pumpUntil(tester, _sunPresent);
+    expect(appeared, isTrue, reason: '到期且花仍盛开 → 应出现可收集明细图标');
 
     // 精品碎片入口常驻，显示余额 0。
     expect(find.text('植物碎片 0'), findsOneWidget);
@@ -205,9 +207,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
 
     // 点击收集 → 服务发放并置 claimed → 刷新后头顶图标消失。
-    await tester.tap(find.byIcon(Icons.card_giftcard));
-    final bool gone = await _pumpUntil(tester, () => !_bubblePresent());
-    expect(gone, isTrue, reason: '收集后气泡应消失（奖励已 claimed）');
+    await tester.tap(find.byIcon(Icons.wb_sunny));
+    final bool gone = await _pumpUntil(tester, () => !_sunPresent());
+    expect(gone, isTrue, reason: '收集后明细图标应消失（奖励已 claimed）');
 
     // 已收集：无剩余可收集奖励。
     expect(await bloom.pendingBloomRewardsDue(DateTime.now()), isEmpty);

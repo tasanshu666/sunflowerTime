@@ -132,9 +132,9 @@ void main() {
       final Map<String, (PlantCostKind, int)> expectLow =
           <String, (PlantCostKind, int)>{
         'species_sunflower': (PlantCostKind.free, 0),
-        'species_moon_orchid': (PlantCostKind.sunlight, 400),
-        'species_tomato': (PlantCostKind.fragments, 6),
-        'species_strawberry': (PlantCostKind.fragments, 6),
+        'species_moon_orchid': (PlantCostKind.fragments, kSpeciesFragmentCostPremium),
+        'species_tomato': (PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
+        'species_strawberry': (PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
         'species_star_flower': (PlantCostKind.fragments, 10),
         'species_rainbow_fern': (PlantCostKind.fragments, 10),
         'species_coral_orchid': (PlantCostKind.fragments, 10),
@@ -168,28 +168,29 @@ void main() {
     });
   });
 
-  // ── 月光兰扣阳光 + 账本记录 ─────────────────────────────────────────────
-  group('D2 · 月光兰：扣 400 阳光 + 账本 plant_plant 记录', () {
-    test('净额 -400、refId=species_moon_orchid、恰 1 条', () async {
+  // ── 月光兰（精英）扣碎片 + 账本记录 ─────────────────────────────────────
+  group('D2 · 月光兰（精英）：扣 10 碎片、账本无 plant_plant 记录', () {
+    test('碎片 -10、无 plant_plant 记录、阳光余额不变', () async {
       final _Ctx ctx = await _make();
       final DateTime now = DateTime(2026, 9, 27, 8);
+      await ctx.plants.setPremiumFragmentBalance(20);
       await ctx.svc.plant('species_moon_orchid', 0, now);
 
       final List<SunlightEntry> all = await ctx.ledger.all();
       final List<SunlightEntry> spends = all
           .where((SunlightEntry e) => e.refType == 'plant_plant')
           .toList();
-      expect(spends, hasLength(1));
-      expect(spends.first.net, -400);
-      expect(spends.first.refId, 'species_moon_orchid');
-      expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_moon_orchid'), 1);
-      expect(await ctx.ledger.balance(), 100000 - 400);
+      expect(spends, isEmpty, reason: '精英碎片物种不扣阳光');
+      expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_moon_orchid'), 0);
+      expect(await ctx.plants.premiumFragmentBalance(), 10);
+      expect(await ctx.ledger.balance(), 100000);
     });
 
-    test('碎片物种种植不扣阳光（无 plant_plant 记录）', () async {
+    test('普通物种用碎片种植不扣阳光（无 plant_plant 记录）', () async {
       final _Ctx ctx = await _make();
       await ctx.plants.setPremiumFragmentBalance(20);
-      await ctx.svc.plant('species_tomato', 0, DateTime(2026, 9, 27, 8));
+      await ctx.svc.plant('species_tomato', 0, DateTime(2026, 9, 27, 8),
+          payWith: PlantCostKind.fragments);
       expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_tomato'), 0);
       expect(await ctx.plants.premiumFragmentBalance(), 14);
     });
@@ -235,7 +236,8 @@ void main() {
       final _Ctx ctx = await _make();
       await ctx.plants.setPremiumFragmentBalance(5);
       await expectLater(
-        () => ctx.svc.plant('species_tomato', 0, DateTime(2026, 9, 27, 8)),
+        () => ctx.svc.plant('species_tomato', 0, DateTime(2026, 9, 27, 8),
+            payWith: PlantCostKind.fragments),
         throwsA(isA<PlantOperationException>()),
       );
       expect(await ctx.plants.premiumFragmentBalance(), 5);
@@ -245,7 +247,8 @@ void main() {
     test('普通 6/6：余额 6 种番茄成功，余额归 0', () async {
       final _Ctx ctx = await _make();
       await ctx.plants.setPremiumFragmentBalance(6);
-      await ctx.svc.plant('species_tomato', 0, DateTime(2026, 9, 27, 8));
+      await ctx.svc.plant('species_tomato', 0, DateTime(2026, 9, 27, 8),
+          payWith: PlantCostKind.fragments);
       expect(await ctx.plants.premiumFragmentBalance(), 0);
     });
 
@@ -279,28 +282,29 @@ void main() {
     });
   });
 
-  // ── 阳光不足边界 ────────────────────────────────────────────────────────
-  group('D5 · 阳光不足边界（月光兰）', () {
-    test('余额 399 种月光兰被拒：不扣、无账本行、不落植物', () async {
-      final _Ctx ctx = await _make(initialBalance: 399);
+  // ── 月光兰碎片不足边界 ──────────────────────────────────────────────────
+  group('D5 · 月光兰碎片不足边界', () {
+    test('碎片余额 9 种月光兰被拒：不扣、不落植物', () async {
+      final _Ctx ctx = await _make();
+      await ctx.plants.setPremiumFragmentBalance(9);
       await expectLater(
         () => ctx.svc.plant('species_moon_orchid', 0, DateTime(2026, 9, 27, 8)),
         throwsA(isA<PlantOperationException>()),
       );
-      expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_moon_orchid'), 0);
+      expect(await ctx.plants.premiumFragmentBalance(), 9);
       expect(await _plantCount(ctx.database), 0);
-      expect(await ctx.ledger.balance(), 399);
     });
 
-    test('余额 400 恰好可种，余额归 0', () async {
-      final _Ctx ctx = await _make(initialBalance: 400);
+    test('碎片余额 10 恰好可种，余额归 0', () async {
+      final _Ctx ctx = await _make();
+      await ctx.plants.setPremiumFragmentBalance(10);
       await ctx.svc.plant('species_moon_orchid', 0, DateTime(2026, 9, 27, 8));
-      expect(await ctx.ledger.balance(), 0);
+      expect(await ctx.plants.premiumFragmentBalance(), 0);
     });
   });
 
   // ── 同物种同时仅一株 ────────────────────────────────────────────────────
-  group('D6 · 同物种同时仅一株（枯萎算存活 / 死亡后可重种，首购用尽改走碎片）', () {
+  group('D6 · 同物种同时仅一株（枯萎算存活 / 死亡后可重种重扣）', () {
     final DateTime now = DateTime(2026, 9, 27, 8);
 
     test('已存活同物种 → 再种被拒', () async {
@@ -324,18 +328,19 @@ void main() {
       expect(await _plantCount(ctx.database), 1);
     });
 
-    test('死亡（dead）后可再种：首购 400 阳光已用 → 重种改走 10 碎片（不再扣阳光）', () async {
+    test('死亡（dead）后可再种：重种重扣 10 碎片（一次兑换买一株，死亡全损不退款）',
+        () async {
       final _Ctx ctx = await _make();
-      await ctx.plants.setPremiumFragmentBalance(20);
-      final Plant p0 = await ctx.svc.plant('species_moon_orchid', 0, now);
+      await ctx.plants.setPremiumFragmentBalance(40);
+      final Plant p0 = await ctx.svc.plant('species_moon_orchid', 0, now); // -10
       await ctx.plants.savePlant(p0.copyWith(status: PlantStatus.dead));
 
-      final Plant p1 = await ctx.svc.plant('species_moon_orchid', 0, now);
+      final Plant p1 = await ctx.svc.plant('species_moon_orchid', 0, now); // -10
       expect(p1.id, isNot(p0.id));
-      expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_moon_orchid'), 1,
-          reason: '首购阳光仅一次；重种不再扣阳光（改走碎片）');
-      expect(await ctx.plants.premiumFragmentBalance(), 10,
-          reason: '首购用尽 → 重种按档位碎片价 10');
+      expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_moon_orchid'), 0,
+          reason: '精英碎片物种不扣阳光');
+      expect(await ctx.plants.premiumFragmentBalance(), 20,
+          reason: '死亡全损不退款，重种重新扣 10 碎片（40→30→20）');
       expect(await _plantCount(ctx.database), 1, reason: '死株已释放，仅剩新株');
     });
 

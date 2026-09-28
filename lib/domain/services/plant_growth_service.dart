@@ -113,6 +113,20 @@ class PlantCost {
   const PlantCost.free() : this(PlantCostKind.free, 0);
 }
 
+/// 某物种的**可用支付方式**（玄参 2026-09-28 计价模型）。
+///
+/// 对应 UI「选择要种的植物」弹窗里的每个按钮：[kind] 决定扣哪种资源、[amount] 为数量
+/// （[PlantCostKind.free] 时恒为 0）。见 [PlantGrowthService.plantPaymentOptions]。
+class PlantPaymentOption {
+  const PlantPaymentOption(this.kind, this.amount);
+
+  /// 支付方式（免费 / 阳光 / 碎片）。
+  final PlantCostKind kind;
+
+  /// 数量（阳光片数 / 碎片片数；免费为 0）。
+  final int amount;
+}
+
 /// 植物养成领域服务。
 class PlantGrowthService {
   final PlantRepository _plants;
@@ -195,10 +209,16 @@ class PlantGrowthService {
 
   /// 种植（校验花盆容量 / 占用 → 校验「每物种仅一株」→ **按物种计价收费** → 落 Plant）。
   ///
-  /// 计价（玄参 2026-09-27 物种表改版，见 [plantCost]）：持有免费种植券 → 消耗券免费；
-  /// 否则月光兰扣阳光（走账本 `refType='plant_plant'`）、普通 / 精英物种扣碎片、向日葵免费。
-  /// 任一校验失败抛 [PlantOperationException]（UI 侧已前置校验并置灰，此处为兜底）。
-  Future<Plant> plant(String speciesId, int potIndex, DateTime now) async {
+  /// 计价（玄参 2026-09-28 计价模型，见 [plantPaymentOptions]）：持有免费种植券 → 消耗券免费；
+  /// 否则向日葵免费；精英仅碎片；普通二选一（阳光 / 碎片）。[payWith] 指定支付方式，
+  /// 缺省按默认（精英→碎片 / 普通→阳光）。任一校验失败抛 [PlantOperationException]
+  /// （UI 侧已前置校验并置灰，此处为兜底）。
+  Future<Plant> plant(
+    String speciesId,
+    int potIndex,
+    DateTime now, {
+    PlantCostKind? payWith,
+  }) async {
     final List<PlantSpecies> species = await _plants.species();
     final PlantSpecies? sp = _firstWhereOrNull(
       species,
@@ -237,7 +257,7 @@ class PlantGrowthService {
     }
 
     // 按物种计价收费（免费券优先；碎片不足 / 阳光不足在此拦截）。
-    await _chargeForPlanting(sp, settings, now);
+    await _chargeForPlanting(sp, settings, now, payWith: payWith);
 
     final Plant plant = Plant(
       id: _uuid.v4(),
@@ -262,33 +282,39 @@ class PlantGrowthService {
     return plant;
   }
 
-  /// 某物种的种植成本（按年段，**依赖账本 → 异步**）。
+  /// 某物种的**可用支付方式**列表（玄参 2026-09-28 计价模型）。
   ///
-  /// 规则（玄参 2026-09-27「死亡全损 + 首购优惠」拍板）：
-  ///  ① 初始免费物种向日葵（[kStarterSpeciesId]）→ 免费（[PlantCostKind.free]）；
-  ///  ② 阳光价 > 0 的物种（月光兰，[kSpeciesMoonOrchidSunlightCost]）：**首购**按阳光价
-  ///     （[PlantCostKind.sunlight]）；之后（该物种已有「用阳光买过」记录）改按档位碎片价；
-  ///  ③ 其余物种 → 档位碎片价（普通 [kSpeciesFragmentCostCommon] / 精英 [kSpeciesFragmentCostPremium]）。
+  /// 规则：
+  ///  · 向日葵（[kStarterSpeciesId]）→ 单一免费项；
+  ///  · 精英（[PlantSpecies.isPremium]）→ 单一碎片项（[kSpeciesFragmentCostPremium]）；
+  ///  · 普通（其余）→ 两项：阳光（[kSpeciesSunlightCostCommon]）或碎片（[kSpeciesFragmentCostCommon]）。
   ///
-  /// ⚠️ 事实源为阳光账本：`refType='plant_plant'` + `refId=物种 id` 是「用阳光买过该物种」的
-  /// 唯一记录（浇水 / 施肥落 `plant_water` / `plant_fertilize` + 植株 id，不会混入），故**不新增
-  /// 表 / 列**。免费种植券**不**消耗首购优惠——持券时由 [_chargeForPlanting] 直接免费、不写
-  /// `plant_plant`，也就不会把「首购」用掉。
-  ///
-  /// ⚠️ 领域层与 UI（花园页「选择要种的植物」弹窗）**必须共用本方法**，UI 不得自行重算价格。
-  Future<PlantCost> plantCost(PlantSpecies sp, AgeTier tier) async {
-    // ① 初始免费物种：恒免费。
-    if (sp.id == kStarterSpeciesId) return const PlantCost.free();
-    // ② 阳光价 > 0（月光兰）：首购按阳光价，之后按档位碎片价。
-    final int sunlight = _price(sp.baseCostLow, sp.baseCostHigh, tier);
-    if (sunlight > 0 &&
-        await _ledger.lastTsByRefTypeAndRefId('plant_plant', sp.id) == null) {
-      return PlantCost(PlantCostKind.sunlight, sunlight);
+  /// 领域层与 UI（花园页「选择要种的植物」弹窗）**必须共用本方法**，UI 不得自行重算价格。
+  Future<List<PlantPaymentOption>> plantPaymentOptions(PlantSpecies sp) async {
+    if (sp.id == kStarterSpeciesId) {
+      return const <PlantPaymentOption>[PlantPaymentOption(PlantCostKind.free, 0)];
     }
-    // ③ 碎片物种（含首购用尽后的月光兰）：档位派生碎片价。
-    final int fragments = fragmentCostOf(sp);
-    if (fragments > 0) return PlantCost(PlantCostKind.fragments, fragments);
-    return const PlantCost.free();
+    if (sp.isPremium) {
+      return const <PlantPaymentOption>[
+        PlantPaymentOption(PlantCostKind.fragments, kSpeciesFragmentCostPremium)
+      ];
+    }
+    return <PlantPaymentOption>[
+      const PlantPaymentOption(PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
+      const PlantPaymentOption(PlantCostKind.fragments, kSpeciesFragmentCostCommon),
+    ];
+  }
+
+  /// 某物种的种植成本（**向后兼容**：返回 [plantPaymentOptions] 的默认项）。
+  ///
+  /// 旧「首购优惠 / 月光兰阳光价」计价（玄参 2026-09-27）已废弃（玄参 2026-09-28 计价模型拍板）：
+  /// 向日葵免费；精英仅碎片；普通二选一（阳光 400 / 碎片 6），默认取阳光。领域层与 UI 的
+  /// **唯一真源**已是 [plantPaymentOptions]，本方法仅供需要单个 [PlantCost] 的历史调用
+  /// （测试 / 旧弹窗路径）使用，不应在收费主链路使用。
+  Future<PlantCost> plantCost(PlantSpecies sp, AgeTier tier) async {
+    final List<PlantPaymentOption> options = await plantPaymentOptions(sp);
+    final PlantPaymentOption def = options.first;
+    return PlantCost(def.kind, def.amount);
   }
 
   /// 某物种的精品碎片价：初始免费物种（[kStarterSpeciesId]）为 0，其余普通档
@@ -301,34 +327,51 @@ class PlantGrowthService {
         : kSpeciesFragmentCostCommon;
   }
 
-  /// 种植收费（玄参 2026-09-27「死亡全损 + 首购优惠」）。
+  /// 种植收费（玄参 2026-09-28 计价模型：向日葵免费 / 精英仅碎片 / 普通二选一）。
   ///
-  /// · 持有免费种植券（[BloomRewardRepository.unlockedSpeciesIds] 含该 id）→ **消耗券**，免费，
-  ///   **不写** `plant_plant`（故不消耗首购优惠）；
-  /// · 否则按 [plantCost]：`sunlight` 扣阳光（账本 `refType='plant_plant'` + `refId=物种 id`，
-  ///   值冻结；这也是首购优惠的事实源）、`fragments` 扣碎片（不足直接抛，绝不为负）、`free` 不扣。
+  ///  · 持有免费种植券（[BloomRewardRepository.unlockedSpeciesIds] 含该 id）→ **消耗券**，免费，
+  ///    不写 `plant_plant`（故不消耗任何资源）；
+  ///  · 向日葵（[kStarterSpeciesId]）→ 免费；
+  ///  · 决定 `kind = payWith ?? (sp.isPremium ? fragments : sunlight)`；
+  ///    - 防御：精英且 `payWith == sunlight` → 抛 `PlantOperationException('精英植物只能用碎片兑换')`；
+  ///    - `sunlight` 分支：扣 [kSpeciesSunlightCostCommon] 阳光（余额不足抛『阳光不足，还差 N 阳光』），
+  ///      走 `_appendSpend`（refType='plant_plant'、refId=物种 id）作审计；
+  ///    - `fragments` 分支：`amount = sp.isPremium ? [kSpeciesFragmentCostPremium] : [kSpeciesFragmentCostCommon]`，
+  ///      调 `_spendPremiumFragments`；
+  ///    - `free` 分支：直接返回。
   Future<void> _chargeForPlanting(
     PlantSpecies sp,
     AppSettings settings,
-    DateTime now,
-  ) async {
+    DateTime now, {
+    PlantCostKind? payWith,
+  }) async {
     final Set<String> coupons = await _bloomRewards.unlockedSpeciesIds();
     if (coupons.contains(sp.id)) {
       await _bloomRewards.consumeUnlock(sp.id); // 免费种植券：消耗券，不扣任何资源
       return;
     }
-    final PlantCost cost = await plantCost(sp, settings.ageTier);
-    switch (cost.kind) {
+    if (sp.id == kStarterSpeciesId) return; // 初始免费物种
+
+    final PlantCostKind kind =
+        payWith ?? (sp.isPremium ? PlantCostKind.fragments : PlantCostKind.sunlight);
+
+    // 防御：精英档仅接受碎片兑换。
+    if (sp.isPremium && kind == PlantCostKind.sunlight) {
+      throw const PlantOperationException('精英植物只能用碎片兑换');
+    }
+
+    switch (kind) {
       case PlantCostKind.free:
         return;
       case PlantCostKind.sunlight:
         final double balance = await _ledger.balance();
-        if (balance < cost.amount) {
+        if (balance < kSpeciesSunlightCostCommon) {
           throw PlantOperationException(
-              '阳光不足，还差 ${(cost.amount - balance).ceil()} 阳光');
+            '阳光不足，还差 ${(kSpeciesSunlightCostCommon - balance).ceil()} 阳光',
+          );
         }
         await _appendSpend(
-          amount: cost.amount.toDouble(),
+          amount: kSpeciesSunlightCostCommon.toDouble(),
           type: SunlightType.plant,
           refType: 'plant_plant',
           now: now,
@@ -336,7 +379,10 @@ class PlantGrowthService {
         );
         return;
       case PlantCostKind.fragments:
-        await _spendPremiumFragments(cost.amount);
+        final int amount = sp.isPremium
+            ? kSpeciesFragmentCostPremium
+            : kSpeciesFragmentCostCommon;
+        await _spendPremiumFragments(amount);
         return;
     }
   }
@@ -925,6 +971,44 @@ class PlantGrowthService {
           a.dueAt.compareTo(b.dueAt));
     }
     return result;
+  }
+
+  /// 把「零值哨兵」待收集奖励（v12 之前登记的旧行，三列 0/0/null）按当前档位回写内容，
+  /// 使其头顶图标直接显示明细（不再礼物盒）。仅对「仍可收集」（植物仍盛开）的哨兵行生效；
+  /// 不可收集者由 [tickAll] 兜底自动结算负责。一次性历史数据升级，幂等（已定奖行跳过）。
+  ///
+  /// 根因（玄参 2026-09-28 复验）：iOS 模拟器复用了 v12 之前的旧库，旧 pending 行三列全零，
+  /// `rewardIconSpecsFor` 据此渲染礼物盒；本方法在花园页 `_reload` 时调用，把仍可收集的旧行
+  /// 当场 roll 出内容写回，刷新后即显示阳光 / 碎片 / 种子明细。
+  Future<void> materializeLegacyBloomRewards(DateTime now) async {
+    final List<PendingBloomReward> due =
+        await _bloomRewards.pendingBloomRewardsDue(now);
+    if (due.isEmpty) return;
+    final List<Plant> plants = await _plants.plants();
+    final List<PlantSpecies> species = await _plants.species();
+    final Map<String, Plant> byId = <String, Plant>{
+      for (final Plant p in plants) p.id: p,
+    };
+    for (final PendingBloomReward r in due) {
+      if (r.hasPreAssignedReward) continue; // 已定奖 → 跳过（幂等）
+      final Plant? plant = byId[r.plantId];
+      if (plant == null || plant.status != PlantStatus.bloomed) {
+        continue; // 不可收集 → 留给 tickAll 兜底自动结算
+      }
+      final bool premium = _plantIsPremium(r.plantId, species, plants);
+      final BloomRewardOutcome outcome;
+      if (r.rewardKind == kBloomRewardPhaseInstant) {
+        outcome = await _rollInstantReward(premium, species);
+      } else {
+        outcome = await _rollSecondPhaseReward(premium, species);
+      }
+      await _bloomRewards.updatePendingRewardContent(
+        id: r.id,
+        rewardSunlight: outcome.sunlight,
+        rewardFragments: outcome.fragments,
+        rewardSpeciesId: outcome.seedSpeciesId,
+      );
+    }
   }
 
   /// 手动收集一条待收集奖励（变更 A/B + v12，花园页头顶图标点击）。

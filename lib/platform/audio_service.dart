@@ -9,7 +9,12 @@ import 'dart:async';
 
 import 'package:just_audio/just_audio.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
+
 /// 音效提示（SFX）枚举。每个 cue 映射到 `assets/audio/sfx/<name>.wav`。
+///
+/// 2026-09-28 新增 5 个 mp3 cue（玄参素材落地）：成长过渡 3 段 + 养护 2 段。
+/// 新 cue 一律 mp3；既有 4 个 wav 保持不动。
 enum AudioCue {
   /// 光回罐 / 结算奖励（settle 页 net > 0）。
   taskReward,
@@ -22,6 +27,21 @@ enum AudioCue {
 
   /// 四档唤醒。
   wake,
+
+  /// 成长过渡 · 种子破土成幼苗（花园升级动画配乐）。
+  growthSeedToSprout,
+
+  /// 成长过渡 · 幼苗长成成株。
+  growthSproutToAdult,
+
+  /// 成长过渡 · 成株绽放盛开。
+  growthAdultToBloomed,
+
+  /// 养护 · 浇水（花盆上叠加浇水效果帧时播放）。
+  careWater,
+
+  /// 养护 · 施肥。
+  careFertilize,
 }
 
 /// [AudioCue] 到 assets 音频文件路径的映射（相对工程根）。
@@ -37,6 +57,16 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/welcome_back.wav';
       case AudioCue.wake:
         return 'assets/audio/sfx/wake.wav';
+      case AudioCue.growthSeedToSprout:
+        return 'assets/audio/sfx/grow_seed_to_sprout.mp3';
+      case AudioCue.growthSproutToAdult:
+        return 'assets/audio/sfx/grow_sprout_to_adult.mp3';
+      case AudioCue.growthAdultToBloomed:
+        return 'assets/audio/sfx/grow_adult_to_bloomed.mp3';
+      case AudioCue.careWater:
+        return 'assets/audio/sfx/care_water.mp3';
+      case AudioCue.careFertilize:
+        return 'assets/audio/sfx/care_fertilize.mp3';
     }
   }
 }
@@ -68,18 +98,24 @@ class AudioService {
 
   AudioPlayer? _sfxPlayer;
   AudioPlayer? _bgmPlayer;
+  AudioPlayer? _ambientPlayer;
   bool _soundOn = true;
   bool _bgmOn = false;
   bool _bgmPlaying = false;
+  bool _ambientPlaying = false;
 
   /// 应用设置：决定 SFX / BGM 是否生效。
   ///
   /// 若关闭 BGM 且正在播放，则立即停止；开启由调用方在 [startBgm] 触发。
+  /// 花园氛围音（[_ambientPlayer]）同样受 [_bgmOn] 控制：关闭时立即停止。
   void applySettings({required bool soundOn, required bool bgmOn}) {
     _soundOn = soundOn;
     _bgmOn = bgmOn;
     if (!_bgmOn && _bgmPlaying) {
       unawaited(stopBgm());
+    }
+    if (!_bgmOn && _ambientPlaying) {
+      unawaited(stopGardenAmbient());
     }
   }
 
@@ -100,6 +136,11 @@ class AudioService {
   Future<AudioPlayer?> get _bgm async {
     _bgmPlayer ??= _safeCreate();
     return _bgmPlayer;
+  }
+
+  Future<AudioPlayer?> get _ambient async {
+    _ambientPlayer ??= _safeCreate();
+    return _ambientPlayer;
   }
 
   /// 播放一次性音效（fire-and-forget，非阻塞）。
@@ -151,16 +192,59 @@ class AudioService {
     }
   }
 
+  /// 播放一次花园氛围音（`assets/audio/bgm/background.mp3`，约 10s，不循环）。
+  ///
+  /// 玄参 2026-09-28 拍板口径：**花园 tab 内每 30s 播一次**（进入立即播一次），
+  /// 离开花园 tab 由花园页调 [stopGardenAmbient] 停止；受 [_bgmOn]（设置「背景音乐」）
+  /// 控制，关闭时静默跳过。与专注页 BGM（[startBgm]，循环）**独立播放器**，互不打断。
+  /// 资源缺失静默跳过（fire-and-forget，不阻塞 UI）。
+  void playGardenAmbient() {
+    if (!_bgmOn || _ambientPlaying) return;
+    unawaited(_playGardenAmbient());
+  }
+
+  Future<void> _playGardenAmbient() async {
+    final AudioPlayer? player = await _ambient;
+    if (player == null || !_bgmOn) return; // 播放器构造失败 / 设置已关：静默降级
+    try {
+      _ambientPlaying = true;
+      await player.stop();
+      await player.setAsset(kGardenAmbientAsset);
+      await player.seek(Duration.zero);
+      await player.play();
+      // play() 返回即认为本次氛围音已启动；播完自然结束（不循环）。
+    } catch (_) {
+      // 资源缺失或解码失败：静默降级。
+    } finally {
+      _ambientPlaying = false;
+    }
+  }
+
+  /// 停止花园氛围音（离开花园 tab 时由花园页调用；保留播放器便于复用）。
+  Future<void> stopGardenAmbient() async {
+    _ambientPlaying = false;
+    if (_ambientPlayer == null) return;
+    try {
+      await _ambientPlayer!.stop();
+      await _ambientPlayer!.seek(Duration.zero);
+    } catch (_) {
+      // 静默降级。
+    }
+  }
+
   /// 释放所有播放器（专注页 [dispose] 时调用；下次使用懒加载重建）。
   Future<void> dispose() async {
     try {
       await _sfxPlayer?.dispose();
       await _bgmPlayer?.dispose();
+      await _ambientPlayer?.dispose();
     } catch (_) {
       // 静默降级。
     }
     _sfxPlayer = null;
     _bgmPlayer = null;
+    _ambientPlayer = null;
     _bgmPlaying = false;
+    _ambientPlaying = false;
   }
 }

@@ -82,10 +82,12 @@ void main() {
     expect(find.byType(CustomPaint), findsWidgets);
   });
 
-  testWidgets('overlay 含植物副本（带 plant）时正常渲染无异常',
+  testWidgets('overlay 带 plant 上下文时正常渲染无异常（2026-09-28 起不再自绘植物副本）',
       (WidgetTester tester) async {
     await _pumpOverlay(tester, CareEffectType.fertilize, plant: _seed());
     expect(find.byType(CustomPaint), findsWidgets);
+    expect(find.byType(Image), findsNothing,
+        reason: 'overlay 不应再绘制植物副本 Image（花盆错位跳动根因，已删）');
   });
 
   testWidgets('序列帧预留接口：传入 frames 也能有限渲染（资源缺失走 errorBuilder）',

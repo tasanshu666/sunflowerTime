@@ -665,3 +665,26 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 | DEF-1 | M3/植物成长 | **盛开次数被静默清零**：`bloom_count` 意外归零，复开花档位 / 节奏判定随之不稳 | `_maybeRecover`（枯萎恢复路径）重建 `Plant` 时**漏传 `bloomCount`** → 恢复后 `bloomCount` 回到默认 0（重建时漏参比 `copyWith` 清空更隐蔽） | `_maybeRecover` 重建 `Plant` 时**显式带上 `bloomCount`**；新增回归测试断言「枯萎 → 恢复后 `bloomCount` 不变」 | ✅ 已修复（+ 回归测试） |
 
 **本轮口径关联**：死亡全损（废止 `kPlantDeathRefundRate`）/ 月光兰首购 400 阳光・其后碎片 / 满 8 片手动解锁废止（改花园页按物种直接兑换）——详见 `口径裁定表_v1.md` **C15**；**奖励物图标化 + 掉落即定奖**（`pending_bloom_rewards` +3 列 `reward_sunlight`/`reward_fragments`/`reward_species_id`、schemaVersion **11→12**、花谢自动到账提示、碎片对外改名「植物碎片」）——详见 **C16**。
+
+---
+
+# 养护动效序列帧 + 花园背景音轮（2026-09-28 ~ 09-29，分支 `main`，待提交）
+
+> 玄参交付 7 物种开花图 + 向日葵三段成长序列帧 + 浇水/施肥帧 + 音频，要求接入并按相机/中央卡演出。三轮模拟器/真机反馈后修复 7 处。口径见宪法 **C18** 与 `docs/美术资源_序列帧与音频命名规范_v1.md`。
+
+| ID | 模块 | 现象 / 报错 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F41 | iOS 构建 | 调试按钮报 `OSStatus -34018`（keychain 解锁失败，App 起不来） | 构建误加 `--no-codesign` → 产物无签名 → keychain 不可访问 | 去掉 `--no-codesign`，走默认 adhoc 自签 | ✅ 已修复 |
+| F42 | 美术接入 | 只听到水/肥音效、看不到帧，仍是旧粒子；花盆随帧上下移动 | ① `pubspec.yaml` 的 `flutter.assets` **目录声明不递归** → `grow/sunflower/*`、`care/*` 子目录帧未进包；② 旧 overlay 自绘带盆植物副本且错位 → 花盆跳动 | ① 改登 **5 个叶子目录**（`assets/fx/grow/sunflower/{seed_to_sprout,sprout_to_adult,adult_to_bloomed}` + `assets/fx/care/{water,fertilize}`），新增 `fx_frame_assets_guard_test` 护栏；② **整体删除 overlay 的 plant 层** | ✅ 已修复 |
+| F43 | 动效 | 浇水/施肥「一闪一闪」、落点掉到花盆底部而非根部 | ① 720 PNG 逐帧重解码白屏 → 闪烁；② 旧「底边对齐格底」定位 → 帧掉到盆底 | ① `precacheFxFrames` 预载 + `gaplessPlayback`；② 几何重定位：盆口 = 画布 0.659 高，水柱末端 x=0.21、肥 x=0.31，帧宽 1.15×格宽（允许越界），根 Stack 改 `Clip.none` | ✅ 已修复 |
+| F44 | 动效 | 进化（开花/成长过渡）动画**没播** | 旧设计在目标花盆格上放大 1.4×，格子太小看不清、与底层花盆重叠显乱，且实际未触发 | 改为**屏幕中央焦点卡**（`GrowthFxOverlay`）：奶油渐变底 + 金色径向柔光 + 阳光黄胶囊标题，弹入 → 播放 → 300ms 整卡淡出 | ✅ 已修复（玄参 2026-09-29 验收「可以」） |
+| F45 | 音频 | 花园背景音**从没响过** | `AudioService.applySettings({soundOn,bgmOn})` 全项目**零调用** → `bgm_on` 默认 false 永远不播；且存量库 `bgm_on=false` | ① 接线：外壳 `initState` 读设置后调 `applySettings`；设置页改完即时调；② `bgm_on` 默认 **false → true**；③ v12→v13 迁移把存量 `bgm_on` 翻 true；④ 新增 `startGardenAmbient` 每 30s 循环 `background.mp3` | ✅ 已修复（真 bug） |
+| F46 | 美术 | `tools/normalize_plant_art.py` 误把向日葵萎/死 6 图二次缩放（已归一化图被误伤） | 脚本无「防重跑」保护 | 加防重跑：无 `_originals` 备份且已是 1200×2000 则跳过；6 图已从 git 恢复 | ✅ 已修复 |
+| F47 | UI | 成长卡片**纯白底不好看** | 旧 `growth_fx_overlay` 用纯白卡 | 重做为「奶油阳光风」中央焦点卡（#FFFDF7→#FFF2D9 渐变 + 暖黄描边 #FFE0A3 + 暖棕阴影），与 App 马卡龙/奶油语言一致 | ✅ 已修复（玄参验收通过） |
+
+**本轮校验**
+
+- `flutter analyze` → **0 error**
+- `flutter test --no-pub`（摘四个代理变量）→ **663 全绿**（645 基线 + 新增：`fx_frame_assets_guard`（叶子目录/帧计数/命名/音频/8 图尺寸）/ `growth_fx_overlay` 3 / `migration_v12_to_v13` 4 / `care_effect_overlay` 更新）
+- 资产落位：`assets/audio/bgm/background.mp3`、`assets/audio/sfx/{grow_*,care_water,care_fertilize}.mp3`、`assets/fx/grow/sunflower/{seed_to_sprout,sprout_to_adult,adult_to_bloomed}/frame001..025.png`、`assets/fx/care/{water,fertilize}/frame001..025.png`、`assets/plants/species_*_adult_bloomed.png` ×8
+- iOS 模拟器（iPhone 17，无 GUI，用 `xcrun simctl` 装启）已装最新奶油卡版；Android APK 仍为旧包、真机未连

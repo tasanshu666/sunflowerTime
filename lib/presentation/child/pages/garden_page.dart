@@ -31,6 +31,8 @@
 ///  · 「加盆」格子**始终可点**（busy 除外）：阳光不足时点击弹分因提示，不静默。
 library garden_page;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,14 +46,17 @@ import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_reward_icons.dart';
+import 'package:sunflower_time/presentation/child/widgets/care_effect_overlay.dart';
+import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_background_layout.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_help_sheet.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart';
+import 'package:sunflower_time/presentation/child/widgets/growth_fx_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_sign_hotspot.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_care_sheet.dart';
-import 'package:sunflower_time/presentation/child/widgets/care_effect_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 
 /// 孩子端花园：植物养成主界面。
@@ -76,12 +81,38 @@ class _CareEffectSpec {
   final Plant? plant;
   final PlantSpecies? species;
 
+  /// 效果帧 asset 列表（2026-09-28 起为正式路径；粒子路径不再使用时也一并携带）。
+  final List<String> frames;
+
+  /// 播放时长（毫秒）= 对应音频时长。
+  final int durationMs;
+
   _CareEffectSpec({
     required this.type,
     required this.offset,
     required this.size,
+    required this.frames,
+    required this.durationMs,
     this.plant,
     this.species,
+  });
+}
+
+/// 正在播放的「成长过渡」演出描述（**屏幕中央焦点卡片**，玄参 2026-09-29 改口径）。
+///
+/// 2026-09-28 旧口径是「在目标花盆格上居中放大播放」——玄参实测：格子太小看不清、
+/// 与底层花盆重叠显得乱，且因逐帧解码出现「一闪一闪」。
+/// 新口径：画面正中弹出圆角白卡（宽 = 屏宽 [kGrowFxCardWidthRatio]），卡内放大播放
+/// 序列帧 + 成长音频，播完**整卡淡出**消失（见 `growth_fx_overlay.dart`）。
+class _GrowthFxSpec {
+  final GrowTransition transition;
+
+  /// 卡片标题文案（如「长大啦！」/「开花啦！」）。
+  final String title;
+
+  _GrowthFxSpec({
+    required this.transition,
+    required this.title,
   });
 }
 
@@ -127,6 +158,22 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   /// 置回 null 以移除叠加层。
   _CareEffectSpec? _activeEffect;
 
+  /// 当前正在播放的「成长过渡」演出（null = 无）。播完渐隐后由播放器回调移除。
+  _GrowthFxSpec? _activeGrowth;
+
+  /// 上一轮快照：`plantId → 'stage.name:status.name'`，用于在 [_reload] 后 diff 出
+  /// 「升级」（种子→幼苗 / 幼苗→成株 / 成株→盛开）并触发生长演出。首次加载为空表
+  /// → 不触发（进花园不该看到满屏动画）。
+  Map<String, String> _lastPhases = <String, String>{};
+
+  /// 花园氛围音计时器（玄参 2026-09-28：进入花园立即播一次 background.mp3，
+  /// 之后每 [kGardenAmbientIntervalSeconds] 秒一次；离开花园 tab 停止并取消）。
+  Timer? _ambientTimer;
+
+  /// 氛围音当前是否应处于「激活」（花园 tab 可见）状态；build 里按 TickerMode 可见性
+  /// 驱动（IndexedStack 保活 tab 切换不会 dispose，用 TickerMode 判可见性）。
+  bool _ambientActive = false;
+
   /// 网格区域滚动控制器（v3：网格锁 2 行高度，溢出时区域内滚动）。
   final ScrollController _gridScroll = ScrollController();
 
@@ -141,6 +188,9 @@ class _GardenPageState extends ConsumerState<GardenPage> {
 
   @override
   void dispose() {
+    // ⚠️ dispose 内不得用 ref（unmount 先标 disposed，用必抛）——AudioService 用静态单例。
+    _ambientTimer?.cancel();
+    unawaited(AudioService.instance.stopGardenAmbient());
     _gridScroll.dispose();
     super.dispose();
   }
@@ -167,6 +217,12 @@ class _GardenPageState extends ConsumerState<GardenPage> {
           await ref.read(settingsRepositoryProvider).getSettings();
       _tier = settings.ageTier;
       _capacity = settings.gardenPotCapacity;
+      // 花园氛围音与音效开关（玄参 2026-09-28）：花园页也应用一次最新设置，
+      // 保证从家长端改完开关回到花园立即生效（专注页进页时也会应用一次）。
+      ref.read(audioServiceProvider).applySettings(
+            soundOn: settings.soundOn,
+            bgmOn: settings.bgmOn,
+          );
       _species = await ref.read(plantRepositoryProvider).species();
       // 变更 A/B：读取当前「可收集」的待收集奖励（开花瞬间 + 第二段）→ 花盆上方头顶图标，
       // 手动点击收集；同一株最多 2 条。
@@ -183,6 +239,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       // （见 PlantCareSheet），少一次查询，也避免两处口径漂移。
       _balance = await ref.read(sunlightRepositoryProvider).balance();
       _error = null;
+      // 升级检测：与上一轮快照 diff，发现「阶段/开花」推进 → 播放成长过渡演出。
+      _detectGrowthTransitions();
       // 花谢自动到账提示（有则可，无则静默）。
       if (autoSettled.isNotEmpty && mounted) {
         _snack('花朵凋谢，奖励已自动收下：${autoSettled.map(_outcomeParts).join('；')}');
@@ -342,6 +400,9 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   ///
   /// 通过计算该花盆格相对页面根 Stack 的本地坐标，用 [Positioned] 把 [CareEffectOverlay]
   /// 精确摆到花盆上。若此时花盆未布局（context 为空，极端情况）则静默跳过，不抛错。
+  ///
+  /// 2026-09-28 起：效果帧序列（`assets/fx/care/{water|fertilize}`）+ 对应音频，
+  /// 「帧速 = 音频时长」（玄参口径）；音频经 [AudioService.playSfx]（受「音效」开关控制）。
   void _playCareEffect(int potIndex, CareEffectType type) {
     final BuildContext? potCtx = _potKey(potIndex).currentContext;
     final BuildContext? stackCtx = _pageStackKey.currentContext;
@@ -354,13 +415,130 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     final PlantSpecies? species =
         plant == null ? null : _speciesOf(plant);
     if (!mounted) return;
+    final List<String> frames;
+    final int durationMs;
+    final AudioCue cue;
+    switch (type) {
+      case CareEffectType.water:
+        frames = fxFrameAssets(kCareWaterFxDir, kFxFrameCount);
+        durationMs = kCareWaterDurationMs;
+        cue = AudioCue.careWater;
+      case CareEffectType.fertilize:
+        frames = fxFrameAssets(kCareFertilizeFxDir, kFxFrameCount);
+        durationMs = kCareFertilizeDurationMs;
+        cue = AudioCue.careFertilize;
+    }
+    AudioService.instance.playSfx(cue);
     setState(() => _activeEffect = _CareEffectSpec(
           type: type,
           offset: local,
           size: potBox.size,
           plant: plant,
           species: species,
+          frames: frames,
+          durationMs: durationMs,
         ));
+  }
+
+  /// 与上一轮快照 diff 出「升级」并触发生长演出（玄参 2026-09-28 拍板三段全播）。
+  ///
+  /// 判定（每株植物 `stage:status` 快照对比）：
+  ///  · `seed → sprout` → [GrowTransition.seedToSprout]；
+  ///  · `sprout → adult` → [GrowTransition.sproutToAdult]；
+  ///  · adult 且 `growing → bloomed` → [GrowTransition.adultToBloomed]（开花也算升级）。
+  /// 花谢回落（`bloomed → growing`）与枯萎/死亡**不播**（欢快动画配上蔫花很怪）；
+  /// 同帧多株升级只播第一株（现实里几乎不会同 tick 多株推进）。
+  void _detectGrowthTransitions() {
+    final Map<String, String> current = <String, String>{};
+    for (final Plant p in _plants) {
+      current[p.id] = '${p.stage.name}:${p.status.name}';
+    }
+    final Map<String, String> prev = _lastPhases;
+    _lastPhases = current;
+    if (prev.isEmpty) return; // 首次加载：不触发
+    for (final Plant p in _plants) {
+      final String? before = prev[p.id];
+      if (before == null || before == current[p.id]) continue;
+      if (p.status == PlantStatus.wilting || p.status == PlantStatus.dead) {
+        continue; // 枯萎/死亡态不播欢快动画
+      }
+      final List<String> parts = before.split(':');
+      final String prevStage = parts[0];
+      final String prevStatus = parts[1];
+      GrowTransition? t;
+      if (prevStage == PlantStage.seed.name &&
+          p.stage == PlantStage.sprout) {
+        t = GrowTransition.seedToSprout;
+      } else if (prevStage == PlantStage.sprout.name &&
+          p.stage == PlantStage.adult) {
+        t = GrowTransition.sproutToAdult;
+      } else if (p.stage == PlantStage.adult &&
+          prevStage == PlantStage.adult.name &&
+          prevStatus != PlantStatus.bloomed.name &&
+          p.status == PlantStatus.bloomed) {
+        t = GrowTransition.adultToBloomed;
+      }
+      if (t != null) {
+        _playGrowthFx(t);
+        return; // 一帧只播一场演出
+      }
+    }
+  }
+
+  /// 播放「屏幕中央焦点卡片」成长演出（玄参 2026-09-29 口径）+ 对应成长音频。
+  ///
+  /// 不再按花盆格定位（旧口径格子太小、与底层重叠显得乱）：卡片由
+  /// [GrowthFxOverlay] 自己在屏幕正中渲染，播完整卡淡出后由 [onComplete] 移除。
+  void _playGrowthFx(GrowTransition transition) {
+    if (!mounted) return;
+    AudioService.instance.playSfx(_growthCue(transition));
+    setState(() => _activeGrowth = _GrowthFxSpec(
+          transition: transition,
+          title: _growthTitle(transition),
+        ));
+  }
+
+  /// 成长演出卡片标题文案（单一真源，勿散在 build 里）。
+  String _growthTitle(GrowTransition t) {
+    switch (t) {
+      case GrowTransition.seedToSprout:
+        return '发芽啦！🌱';
+      case GrowTransition.sproutToAdult:
+        return '长大啦！🌿';
+      case GrowTransition.adultToBloomed:
+        return '开花啦！🌻';
+    }
+  }
+
+  /// 成长过渡对应的音频 cue。
+  AudioCue _growthCue(GrowTransition t) {
+    switch (t) {
+      case GrowTransition.seedToSprout:
+        return AudioCue.growthSeedToSprout;
+      case GrowTransition.sproutToAdult:
+        return AudioCue.growthSproutToAdult;
+      case GrowTransition.adultToBloomed:
+        return AudioCue.growthAdultToBloomed;
+    }
+  }
+
+  /// 按花园 tab 可见性启停氛围音计时器（build 内调用，无 setState，幂等）。
+  ///
+  /// 外壳用 IndexedStack 保活 tab：切走不 dispose，故用 `TickerMode.of` 判可见性
+  /// （外壳对隐藏 tab 包了 `TickerMode(enabled: false)`，切换会触发本页重建）。
+  /// 进入花园立即播一次，之后每 [kGardenAmbientIntervalSeconds] 秒一次；离开即停。
+  void _syncAmbientTimer() {
+    if (_ambientActive && _ambientTimer == null) {
+      AudioService.instance.playGardenAmbient();
+      _ambientTimer = Timer.periodic(
+        const Duration(seconds: kGardenAmbientIntervalSeconds),
+        (_) => AudioService.instance.playGardenAmbient(),
+      );
+    } else if (!_ambientActive && _ambientTimer != null) {
+      _ambientTimer!.cancel();
+      _ambientTimer = null;
+      unawaited(AudioService.instance.stopGardenAmbient());
+    }
   }
 
   /// 打开「玩法说明」弹窗（容量 / 种植 / 养护 / 生长 / 枯萎开花 / 扩容）。
@@ -701,6 +879,16 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       if (mounted) _reload(silent: true);
     });
 
+    // 花园氛围音可见性（玄参 2026-09-28）：花园 tab 可见才播、切走即停。
+    // 外壳 IndexedStack 保活 + 对隐藏 tab 包 TickerMode(enabled:false) → 切 tab 会
+    // 触发本页重建，这里按 TickerMode 可见性幂等启停计时器（无 setState，纯副作用闸门）。
+    final bool gardenVisible =
+        !widget.embedded || TickerMode.valuesOf(context).enabled;
+    if (gardenVisible != _ambientActive) {
+      _ambientActive = gardenVisible;
+      _syncAmbientTimer();
+    }
+
     // 整页草地背景：铺满页面 body（内嵌 tab 用 SafeArea、独立路由用 Scaffold body），
     // 图片缺失/失败回退到绿色渐变。阳光胶囊与木牌热区都叠在图片之上。
     final Widget background = Positioned.fill(
@@ -740,8 +928,12 @@ class _GardenPageState extends ConsumerState<GardenPage> {
         // 整页叠放：背景铺满 → 内容区（锁 2 行 + 区域内滚动）→ 左下角木牌热区
         // → 养护成功的一次性动效叠加层（仅播放期间存在）。
         // 木牌在左下、花盆区在中上部，互不重叠，故不会挡住花盆点击。
+        // ⚠️ `clipBehavior: Clip.none`（2026-09-29）：养护效果帧按玄参口径「略大于格宽、
+        // 允许越界」，帧顶部会落在花盆格**上方**（水壶 / 肥料袋位置）。Stack 默认
+        // `hardEdge` 会把越界部分裁掉 → 只看得到水柱看不到壶。
         return Stack(
           key: _pageStackKey,
+          clipBehavior: Clip.none,
           children: <Widget>[
             background,
             Positioned.fill(child: content),
@@ -769,7 +961,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
                 right: 12,
                 child: BloomDebugEntry(onTap: _openDebugPanel),
               ),
-            // 养护成功动效：精确摆到对应花盆格之上，有限时长，结束自移除。
+            // 养护成功动效：精确摆到对应花盆格之上（效果帧叠加 + 音频），有限时长，结束自移除。
             if (_activeEffect != null)
               Positioned(
                 left: _activeEffect!.offset.dx,
@@ -780,10 +972,28 @@ class _GardenPageState extends ConsumerState<GardenPage> {
                   type: _activeEffect!.type,
                   plant: _activeEffect!.plant,
                   species: _activeEffect!.species,
+                  frames: _activeEffect!.frames,
+                  durationMs: _activeEffect!.durationMs,
                   width: _activeEffect!.size.width,
                   height: _activeEffect!.size.height,
                   onComplete: () {
                     if (mounted) setState(() => _activeEffect = null);
+                  },
+                ),
+              ),
+            // 成长过渡演出（玄参 2026-09-29 改口径）：**屏幕中央焦点卡片**内放大播放
+            // 序列帧 + 成长音频，播完整卡淡出（组件内部处理），结束自移除。
+            if (_activeGrowth != null)
+              Positioned.fill(
+                child: GrowthFxOverlay(
+                  frames: fxFrameAssets(
+                    growFxDir('sunflower', _activeGrowth!.transition),
+                    kFxFrameCount,
+                  ),
+                  durationMs: _activeGrowth!.transition.durationMs,
+                  title: _activeGrowth!.title,
+                  onComplete: () {
+                    if (mounted) setState(() => _activeGrowth = null);
                   },
                 ),
               ),

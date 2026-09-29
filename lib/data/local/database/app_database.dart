@@ -54,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -184,6 +184,18 @@ class AppDatabase extends _$AppDatabase {
           await _ensureColumn(m, pendingBloomRewards, pendingBloomRewards.rewardSunlight);
           await _ensureColumn(m, pendingBloomRewards, pendingBloomRewards.rewardFragments);
           await _ensureColumn(m, pendingBloomRewards, pendingBloomRewards.rewardSpeciesId);
+
+          // ⑬ v13（花园氛围音默认开启，玄参 2026-09-29 拍板）：把存量 settings 行的
+          //    `bgm_on` 翻为 1。
+          //    背景：此前 `bgm_on` 默认 0，且**代码从未把设置接到音频服务**（`applySettings`
+          //    无调用点）→ 花园 BGM 从来不会响。玄参拍板「默认开启」后，仅改列默认值
+          //    救不了**已存在的行**（老设备仍是 0），故用一次迁移显式翻值。
+          //    幂等：① 只在 from<13 时执行；② 为**赋值**而非自增，重复执行无副作用。
+          //    ⚠️ 版本变更（12 → 13），必须配迁移测试（见
+          //       `test/m3/migration_v12_to_v13_test.dart`）。
+          if (from < 13) {
+            await customStatement('UPDATE settings SET bgm_on = 1;');
+          }
         },
       );
 

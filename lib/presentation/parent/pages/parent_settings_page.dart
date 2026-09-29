@@ -23,6 +23,7 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/platform/audio_service.dart';
 
 /// 设置页：家长可控开关集 + PIN 重设 + 阳光赠予 + 三个入口卡。
 class ParentSettingsPage extends ConsumerStatefulWidget {
@@ -50,8 +51,15 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
   }
 
   /// 落库并刷新本地副本 + 全局 settingsProvider。
+  ///
+  /// 2026-09-29：顺带把「音效 / 背景音乐」开关**立即**同步给音频服务 —— 否则家长改完
+  /// 开关要等孩子端外壳重建（甚至重启 App）才生效（花园 BGM 迟迟不响的次生原因）。
   Future<void> _update(AppSettings next) async {
     await ref.read(settingsRepositoryProvider).saveSettings(next);
+    AudioService.instance.applySettings(
+      soundOn: next.soundOn,
+      bgmOn: next.bgmOn,
+    );
     if (mounted) setState(() => _s = next);
     ref.invalidate(settingsProvider);
   }

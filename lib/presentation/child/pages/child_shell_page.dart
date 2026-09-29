@@ -25,6 +25,8 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
+import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
 import 'package:sunflower_time/presentation/child/pages/child_task_page.dart';
@@ -83,8 +85,29 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     // 预热 App 时长控制器：触发一次异步 hydrate，使「是否到顶」在首次点击前就绪。
     // 同时**抓住 notifier 引用**留给 dispose 停表（见 [_usageCtrl] 注释：dispose 里 ref 已不可用）。
     _usageCtrl = ref.read(appUsageControllerProvider.notifier);
+    // ⚠️ 2026-09-29 修复「花园背景音从来没响」：`AudioService.applySettings` 此前
+    // **全项目无调用点** → 服务内 `_bgmOn` 恒为 false → 花园氛围音一进门就被 return。
+    // 孩子端是家长设置的唯一消费端，故在此把设置真正接到音频服务（音效 / 背景音乐开关）。
+    unawaited(_syncAudioSettings());
     // 首帧后再弹窗，避免在 build 期间触发路由/覆盖层变更。
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkAllNotices());
+  }
+
+  /// 把「家长端设置」的音效 / 背景音乐开关接到音频服务。
+  ///
+  /// 只读一次设置（异步、失败静默）：家长端改过开关后，孩子端重新进入本外壳即生效。
+  /// 用静态单例 [AudioService.instance]，避免在异步间隙用 `ref`（可能已 dispose）。
+  Future<void> _syncAudioSettings() async {
+    try {
+      final AppSettings s =
+          await ref.read(settingsRepositoryProvider).getSettings();
+      AudioService.instance.applySettings(
+        soundOn: s.soundOn,
+        bgmOn: s.bgmOn,
+      );
+    } catch (_) {
+      // 静默降级：读不到设置时保持音频服务既有开关，不影响主流程。
+    }
   }
 
   @override

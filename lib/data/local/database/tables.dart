@@ -20,7 +20,9 @@ class Settings extends Table {
   IntColumn get monthlyPoolBudget => integer()();
   BoolColumn get quietMode => boolean().withDefault(const Constant(false))();
   BoolColumn get soundOn => boolean().withDefault(const Constant(true))();
-  BoolColumn get bgmOn => boolean().withDefault(const Constant(false))();
+  // 2026-09-29 玄参拍板：花园氛围音**默认开启**（此前默认 false，且代码从未把设置
+  // 接到音频服务 → 花园 BGM 从来没响过）。存量库由 v13 迁移把该列翻为 1。
+  BoolColumn get bgmOn => boolean().withDefault(const Constant(true))();
   BoolColumn get detectionOn => boolean().withDefault(const Constant(true))();
   IntColumn get autoConfirmSingleHigh => integer().withDefault(const Constant(kAutoApproveMaxCostHigh))();
   IntColumn get autoConfirmSingleLow => integer().withDefault(const Constant(kAutoApproveMaxCostLow))();

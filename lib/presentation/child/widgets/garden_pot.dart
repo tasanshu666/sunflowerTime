@@ -43,6 +43,7 @@ library garden_pot;
 
 import 'package:flutter/material.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
@@ -63,10 +64,12 @@ class _PotColors {
 /// 依据：美术图已被统一重排为 1200×2000 透明底画布，且植物图自带花盆
 /// （盆宽 800 / 盆底贴画布底边 y=2000 / 盆心居中 x=600）。代码只按此比例等比缩放，
 /// 即可保证各阶段各格子的盆自动等大。重排脚本见 `tools/normalize_plant_art.py`。
-const double _artAspectRatio = 2000 / 1200; // = 5/3 ≈ 1.6667
+// 2026-09-29：收口到 `prd_params.dart`（养护效果帧要按同一套参数算「盆口 / 根部」
+// 落点，两份参数必然漂移）。值未变，仅改指向。
+const double _artAspectRatio = kGardenArtAspect; // = 5/3 ≈ 1.6667
 
 /// 美术图宽占格宽比例（留出格子边距，避免相邻格视觉粘连）。
-const double _artWidthRatio = 0.86;
+const double _artWidthRatio = kGardenArtWidthRatio;
 
 /// 加号格里的加号圆**圆心 y 在美术画布高度上的比例**（盆的视觉中心）。
 ///
@@ -92,13 +95,13 @@ const double kExpandIconDiameterRatio = 0.92;
 /// v3 改造：标签外包了一层半透明白胶囊（上下各 1px 内边距），故由 30 上调到 **32**，
 /// 容纳 `4(间距) + 5(进度条) + 3(间距) + 胶囊(文字行高 + 上下各 1)`；同时保证最紧的
 /// 320 屏仍不溢出：格内高 ≈ (94.67-4)×0.86×5/3 + 32 ≈ 162 ≤ 167（见 v3 布局测试实测）。
-const double _footerHeight = 32;
+const double _footerHeight = kGardenPotFooterHeight;
 
 /// 三类格子统一的横向内边距：让「空盆 / 有植物 / 加盆」可用宽一致 → 盆等大。
-const double _horizontalPad = 2;
+const double _horizontalPad = kGardenCellHorizontalPad;
 
 /// 三类格子统一的纵向内边距（仅上下各 4，用于和相邻行留白）。
-const double _verticalPad = 4;
+const double _verticalPad = kGardenCellVerticalPad;
 
 /// 三类格子底部文案统一的**胶囊底**（半透明白，压深草地上的字）。
 ///

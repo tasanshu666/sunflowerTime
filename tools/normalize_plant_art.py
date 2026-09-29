@@ -63,27 +63,52 @@ for rel in FILES:
     im = Image.open(src).convert("RGBA")
     w, h = im.size
 
+    # 防重跑保护：没有 _originals 原图备份、且当前文件已是 1200×2000 成品画布
+    # → 说明它只能整图读回，绝不能当「2048 原图」再缩放（否则盆被二次缩小/贴偏）。
+    # 2026-09-28 实证：sunflower 萎/死系列 6 张因此被改坏（盆 800→517），靠 git 恢复。
+    if src == ROOT + rel and (w, h) == (CANVAS_W, CANVAS_H):
+        print(f"{rel:52s} 无原图备份且已是成品画布，跳过（请先把原图放进 _originals/）")
+        continue
+
     bbox = im.getchannel("A").getbbox()
     if bbox is None:
         print(f"{rel:52s} 全透明，跳过")
         continue
     left, top, right, bottom = bbox
 
-    pad_x = int((right - left) * PAD_RATIO)
-    pad_y = int((bottom - top) * PAD_RATIO)
-    cx0, cx1 = max(0, left - pad_x), min(w, right + pad_x)
-    cy0 = max(0, top - pad_y)
-    # 底部**不加**留白：盆底基线必须精确等于裁剪框底边，否则高图（成株/盛开）因
-    # 按内容高度比例留白而多出几像素，各阶段的盆在画布上就会垂直错位（实测最大 19px）。
-    cy1 = min(h, PLANTER_BOTTOM_Y)
+    def plan(pad_ratio: float) -> tuple:
+        """按给定 pad 比例计算 (cx0, cx1, cy0, scale)。
 
-    crop = im.crop((cx0, cy0, cx1, cy1))
-    new_w = max(1, round(crop.width * SCALE))
-    new_h = max(1, round(crop.height * SCALE))
+        scale = min(基准 SCALE, 左/右/顶三个出界约束) —— 「叶完整优先」（玄参
+        2026-09-28 拍板）：内容超宽时优先缩小整图保住叶冠，盆宽随之 < 800；
+        pad 先让位，能保住 800 就保 800。
+        """
+        pad_x = int((right - left) * pad_ratio)
+        pad_y = int((bottom - top) * pad_ratio)
+        cx0, cx1 = max(0, left - pad_x), min(w, right + pad_x)
+        cy0 = max(0, top - pad_y)
+        s_left = CANVAS_W / 2 / max(1e-6, PLANTER_CENTER_X - cx0)
+        s_right = CANVAS_W / 2 / max(1e-6, cx1 - PLANTER_CENTER_X)
+        s_top = CANVAS_H / max(1e-6, PLANTER_BOTTOM_Y - cy0)
+        return cx0, cx1, cy0, min(SCALE, s_left, s_right, s_top)
+
+    # 依次尝试：2% pad 保 800 → 0 pad 保 800 → 0 pad 缩盆保叶完整
+    cx0, cx1, cy0, s = plan(PAD_RATIO)
+    used_pad = PAD_RATIO
+    if s < SCALE:
+        cx0, cx1, cy0, s2 = plan(0.0)
+        if s2 >= SCALE:
+            cx0, cx1, cy0, s, used_pad = cx0, cx1, cy0, s2, 0.0
+        else:
+            cx0, cx1, cy0, s, used_pad = cx0, cx1, cy0, s2, 0.0
+
+    crop = im.crop((cx0, cy0, cx1, int(PLANTER_BOTTOM_Y)))
+    new_w = max(1, round(crop.width * s))
+    new_h = max(1, round(crop.height * s))
     resized = crop.resize((new_w, new_h), Image.LANCZOS)
 
     canvas = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
-    paste_x = round(CANVAS_W / 2 - (PLANTER_CENTER_X - cx0) * SCALE)
+    paste_x = round(CANVAS_W / 2 - (PLANTER_CENTER_X - cx0) * s)
     paste_y = CANVAS_H - new_h
     if paste_x < 0 or paste_y < 0 or paste_x + new_w > CANVAS_W:
         print(
@@ -94,10 +119,12 @@ for rel in FILES:
     canvas.alpha_composite(resized, (paste_x, paste_y))
     canvas.save(dst, optimize=True)
 
+    pot_w = round(PLANTER_W_REF * s)
+    tag = "✔" if abs(s - SCALE) < 1e-9 else f"⚠️ 盆宽 {pot_w}px（fit 回退，pad={used_pad}）"
     print(
         f"{rel:52s} {w}x{h} → 画布 {CANVAS_W}x{CANVAS_H} "
         f"内容 {new_w}x{new_h} 贴于 ({paste_x},{paste_y}) "
-        f"| 盆宽 {round(PLANTER_W_REF * SCALE)}px 盆底贴底 ✔"
+        f"| 盆宽 {pot_w}px 盆底贴底 {tag}"
     )
 
 print("\n完成：所有图的盆宽=800px、盆底=画布底边、盆心=画布中心，代码按格宽缩放即可等大。")

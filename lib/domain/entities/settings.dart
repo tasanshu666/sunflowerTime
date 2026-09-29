@@ -36,7 +36,8 @@ class AppSettings {
     required this.poolBudget,
     this.quietMode = false,
     this.soundOn = true,
-    this.bgmOn = false,
+    // 2026-09-29 玄参拍板：花园氛围音默认开启（家长端「背景音乐」可关）。
+    this.bgmOn = true,
     this.detectionOn = true,
     this.autoConfirmSingleHigh = kAutoApproveMaxCostHigh,
     this.autoConfirmSingleLow = kAutoApproveMaxCostLow,

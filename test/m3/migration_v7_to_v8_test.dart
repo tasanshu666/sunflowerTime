@@ -5,7 +5,7 @@
 /// 时刻 → 在 [Plant] 实体与 `plants` 表新增可空 `bloomed_at` 列（unix 秒 INTEGER）。
 ///
 /// 本测试钉死四件事（**必须把历史行读回来断言**，不能只断言「没抛异常」）：
-///  ① `AppDatabase.schemaVersion == 12`；
+///  ① `AppDatabase.schemaVersion == 13`；
 ///  ② v7 → v8 后 `plants` 表存在 `bloomed_at` 列（PRAGMA table_info 验证）；
 ///  ③ 历史植物（growing / bloomed / wilting / dead）的**其它字段原样保留**，`bloomed_at` 取 NULL
 ///     （老库无此列，ALERT TABLE ADD COLUMN 后历史行默认 NULL，首次 tick 自动补计时）；
@@ -182,7 +182,7 @@ void main() {
         _schemaDdl(withLegacyPlants: true),
         7,
       );
-      expect(database.schemaVersion, 12);
+      expect(database.schemaVersion, 13);
     });
 
     test('plants 表迁移后出现 bloomed_at 列', () async {
@@ -267,7 +267,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 12);
+      expect(first.schemaVersion, 13);
       expect(await _columns(first, 'plants'), contains('bloomed_at'));
       await first.close();
 
@@ -291,7 +291,7 @@ void main() {
         _schemaDdl(withLegacyPlants: true),
         6,
       );
-      expect(database.schemaVersion, 12);
+      expect(database.schemaVersion, 13);
 
       // ① v7 的清零分支（from<7）执行：growing 植物被清零。
       final db.Plant growing = (await database.plantDao.byId('p_growing'))!;

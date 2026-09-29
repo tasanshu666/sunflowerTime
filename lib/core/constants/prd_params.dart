@@ -447,3 +447,103 @@ const String kMilestoneFirstBloomType = 'first_bloom';
 
 /// 里程碑 4 阈值：累计开花植物数 ≥ 本值即达成（首株开花 = 1）。
 const int kMilestoneFirstBloomCount = 1;
+
+// ───────────────────────────────────────────────────────────────────────────
+// 序列帧动效与花园氛围音（玄参 2026-09-28 素材落地）。禁止裸字面量。
+//
+// 素材契约（`docs/美术资源_序列帧与音频命名规范_v1.md` + 交付实况）：
+//   · 序列帧目录 `assets/fx/grow/{物种}/{过渡名}/frame001..N.png`（三位零填充）与
+//     `assets/fx/care/{water|fertilize}/frame001..N.png`；
+//   · **每帧时长 = 音频时长 / 帧数**（玄参口径：「动画帧的播放速度与对应的音频时间
+//     保持一致」）——下列时长常量来自对交付 mp3 的 ffprobe 实测（192kbps）；
+//   · 花园氛围音 `assets/audio/bgm/background.mp3`（10s），花园 tab 每
+//     [kGardenAmbientIntervalSeconds] 秒播一次、离开即停（玄参拍板）。
+// ───────────────────────────────────────────────────────────────────────────
+
+/// 序列帧文件名起始编号（三位零填充，`frame001.png` 起）。
+const int kFxFirstFrameNumber = 1;
+
+/// 序列帧文件名位数（`frame001` → 3 位零填充）。
+const int kFxFrameDigits = 3;
+
+/// 每组序列帧的帧数（本次交付五组均为 25 帧；后续组数不同时在此按组拆分）。
+const int kFxFrameCount = 25;
+
+/// 成长过渡帧 · 播放时长（毫秒）· 种子→幼苗（= 音频 4.10s，25 帧 ≈164ms/帧）。
+const int kGrowSeedToSproutDurationMs = 4100;
+
+/// 成长过渡帧 · 播放时长（毫秒）· 幼苗→成株（= 音频 4.10s）。
+const int kGrowSproutToAdultDurationMs = 4100;
+
+/// 成长过渡帧 · 播放时长（毫秒）· 成株→盛开（= 音频 4.10s）。
+const int kGrowAdultToBloomedDurationMs = 4100;
+
+/// 浇水效果帧 · 播放时长（毫秒）（= 音频 2.90s，25 帧 ≈116ms/帧）。
+const int kCareWaterDurationMs = 2900;
+
+/// 施肥效果帧 · 播放时长（毫秒）（= 音频 3.06s，25 帧 ≈122ms/帧）。
+const int kCareFertilizeDurationMs = 3056;
+
+/// 成长过渡动画播完后的渐隐时长（毫秒）——玄参口径「播放完就可以直接渐变消失」。
+const int kFxDisplayFadeOutMs = 300;
+
+/// 成长过渡动画相对花盆格的放大倍数（居中放大演出，玄参拍板「居中放大演出」）。
+const double kGrowFxScale = 1.4;
+
+/// 花园氛围音资源路径（BGM 目录，玄参 2026-09-28 交付）。
+const String kGardenAmbientAsset = 'assets/audio/bgm/background.mp3';
+
+/// 花园氛围音播放间隔（秒）：进入花园立即播一次，之后每隔 N 秒再播一次。
+const int kGardenAmbientIntervalSeconds = 30;
+
+// ── 花园格几何（与 `garden_pot.dart` / `care_effect_overlay.dart` 共享）──────
+// ⚠️ 只此一份：养护效果帧要按「盆口（根部）」精确定位，必须复用与花盆格完全相同的
+// 布局参数。改这里 = 改花园格布局，务必同步跑 widget 测试与真机目检。
+
+/// 美术图统一画布宽高比（高 / 宽 = 2000 / 1200 = 5/3，宪法 C13）。
+const double kGardenArtAspect = 2000 / 1200;
+
+/// 美术图宽占格宽比例。
+const double kGardenArtWidthRatio = 0.86;
+
+/// 花盆图下方「进度条 + 标签」区的固定高度（三类格子共用，保证同行盆底对齐）。
+const double kGardenPotFooterHeight = 32;
+
+/// 格子横向内边距。
+const double kGardenCellHorizontalPad = 2;
+
+/// 格子纵向内边距（上下各 4）。
+const double kGardenCellVerticalPad = 4;
+
+/// **盆口（土面 / 植物根部）在植物画布高度上的比例**。
+///
+/// 实测依据：`assets/pots/pot.png`（1200×2000）内容 alpha bbox y = 1318~2000 →
+/// 1318 / 2000 = 0.659。浇水 / 施肥效果必须落在这条线上（玄参口径「落在植物根部，
+/// 而不是花盆底部」）。
+const double kPotRimYFraction = 0.659;
+
+// ── 养护效果帧落点锚点（实测 `assets/fx/care/*` 得出）──────────────────────
+// 效果帧是 720×720 纯效果层：水壶 / 肥料袋在画布上方偏右，水柱 / 肥粒自左上往右下
+// 流到画布**底边**（实测底部内容横向中心：water ≈ 0.21、fertilize ≈ 0.31）。
+// 播放时把「落点」对齐盆口：帧底边 = 盆口 y，横向按锚点回推左边缘 →
+// 水 / 肥恰好浇在植物根部，壶则自然位于植株上方偏右。
+
+/// 浇水：水流末端在帧画布上的横向比例（相对帧宽）。
+const double kCareWaterAnchorX = 0.21;
+
+/// 施肥：肥粒末端在帧画布上的横向比例（相对帧宽）。
+const double kCareFertilizeAnchorX = 0.31;
+
+/// 效果落点在帧画布上的纵向比例（1.0 = 画布底边）。
+const double kCareFxAnchorY = 1.0;
+
+/// 效果帧显示宽度 = 格宽 × 本值（玄参口径：略大于格宽、允许越出格子边界）。
+const double kCareFxWidthRatio = 1.15;
+
+// ── 成长演出「中央焦点卡片」几何（玄参 2026-09-29 拍板）─────────────────────
+
+/// 中央卡片宽度 = 屏幕短边 × 本值。
+const double kGrowFxCardWidthRatio = 0.78;
+
+/// 中央卡片圆角半径。
+const double kGrowFxCardRadius = 24;

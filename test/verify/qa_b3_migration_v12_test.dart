@@ -186,9 +186,9 @@ void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
 
   group('F · 迁移 v11 → v12：pending 加 3 列', () {
-    test('schemaVersion == 12；3 列出现', () async {
+    test('schemaVersion == 13；3 列出现', () async {
       final db.AppDatabase database = await _openMigratedMemory(_v11Ddl(), 11);
-      expect(database.schemaVersion, 12);
+      expect(database.schemaVersion, 13);
       expect(await _hasColumn(database, 'pending_bloom_rewards', 'reward_sunlight'),
           isTrue);
       expect(await _hasColumn(database, 'pending_bloom_rewards', 'reward_fragments'),
@@ -331,7 +331,7 @@ void main() {
         },
       ));
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 12);
+      expect(first.schemaVersion, 13);
       await first.bloomRewardDao.updatePendingContent(
         id: 'pr_legacy',
         rewardSunlight: 5,
@@ -344,7 +344,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(second.close);
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 12);
+      expect(second.schemaVersion, 13);
       expect(await _count(second, 'pending_bloom_rewards'), 1,
           reason: '二次打开不得丢 pending 数据');
       final db.PendingBloomRewardRow row =

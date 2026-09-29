@@ -60,6 +60,15 @@ flutter:
     - assets/pots/
     # 花园背景图（2026-09-23）：background.png，缺失时回退绿色渐变+草叶纹理自绘。
     - assets/garden/
+    # 序列帧资源（2026-09-28）：成长过渡帧 grow/、浇水·施肥效果层帧 care/。
+    # ⚠️ 目录声明**不递归**，必须把**叶子目录**逐个列全（漏一行 = 帧不进包 =
+    # Image.asset errorBuilder 静默吞 → 只剩音效没有动画，2026-09-28 实证翻车）；
+    # care/ 目录**禁止**跑归一化脚本。命名与规格见 `docs/美术资源_序列帧与音频命名规范_v1.md`。
+    - assets/fx/grow/sunflower/seed_to_sprout/
+    - assets/fx/grow/sunflower/sprout_to_adult/
+    - assets/fx/grow/sunflower/adult_to_bloomed/
+    - assets/fx/care/water/
+    - assets/fx/care/fertilize/
     # 奖励物美术资源（2026-09-27 奖励物图标化）：sunlight/fragment/seed[_物种id].png，
     # 命名见 `assets/rewards/README.txt`；缺失时头顶奖励图标回退内置 Icons。
     - assets/rewards/

@@ -14,6 +14,7 @@
 /// → 界面不刷新、异常被上层 catch 成「核销失败」（真机 BUG 复现）。
 library parent_today_page;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -113,11 +114,6 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
         final _TodayData data = snap.data!;
         final bool hasPending = data.pendingCheckIns.isNotEmpty;
         final bool hasRequests = data.requests.isNotEmpty;
-        if (!hasPending && !hasRequests) {
-          return const Center(
-            child: Text('暂无待确认奖励 🎉', style: TextStyle(fontSize: 18)),
-          );
-        }
 
         final List<Widget> cards = <Widget>[
           if (hasPending)
@@ -132,6 +128,16 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
               child: _requestCard(data, req),
             ),
         ];
+        if (!hasPending && !hasRequests) {
+          cards.add(const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(
+              child: Text('暂无待确认奖励 🎉', style: TextStyle(fontSize: 18)),
+            ),
+          ));
+        }
+        // 调试期临时开关（仅 debug 构建渲染，release 自动消失）。
+        if (kDebugMode) cards.add(const _DebugCapSwitchCard());
 
         return RefreshIndicator(
           onRefresh: () async {
@@ -158,6 +164,79 @@ class _TodayData {
     required this.requests,
     required this.templates,
   });
+}
+
+/// 调试期临时开关卡（**仅 kDebugMode 渲染**，release 自动消失）。
+///
+/// 玄参 2026-09-29：调试期间默认**打开** = 跳过 30 分钟防沉迷限时；
+/// 关掉后恢复拦截。状态存 shared_preferences（`kPrefDebugCapBypass`），
+/// 孩子端外壳（ChildShellPage）进入时读取。
+class _DebugCapSwitchCard extends ConsumerStatefulWidget {
+  const _DebugCapSwitchCard();
+
+  @override
+  ConsumerState<_DebugCapSwitchCard> createState() =>
+      _DebugCapSwitchCardState();
+}
+
+class _DebugCapSwitchCardState extends ConsumerState<_DebugCapSwitchCard> {
+  bool _bypass = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final bool v = await ref.read(settingsStoreProvider).debugCapBypass();
+      if (!mounted) return;
+      setState(() => _bypass = v);
+    } catch (_) {
+      // 读失败 → 保持默认 true（调试期绕过）。
+    }
+  }
+
+  Future<void> _toggle(bool v) async {
+    setState(() => _bypass = v);
+    try {
+      await ref.read(settingsStoreProvider).setDebugCapBypass(v);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(v ? '已跳过 30 分钟限时（调试）' : '已恢复 30 分钟限时拦截'),
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _bypass = !v); // 写失败回滚。
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('保存失败，请重试')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: Container(
+        decoration: creamCardDecoration(),
+        child: SwitchListTile(
+          value: _bypass,
+          onChanged: _toggle,
+          activeThumbColor: const Color(0xFF64B5F6),
+          title: const Text(
+            '🧪 调试：跳过 30 分钟限时',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          subtitle: const Text(
+            '调试期间默认开启（不进限时状态）；关闭后恢复防沉迷拦截。仅调试包可见。',
+            style: TextStyle(fontSize: 12),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// 「待确认的成长项」卡片（M4 家长监管）。列表为空时调用方整体不渲染。

@@ -119,6 +119,12 @@ const String kPrefAppUsageDate = 'app_usage_date';
 /// App 当日累计时长的 SharedPreferences 键（秒）。
 const String kPrefAppUsageSeconds = 'app_usage_seconds';
 
+/// 调试期「跳过 30 分钟防沉迷限时」的 SharedPreferences 键（仅 [kDebugMode] 生效）。
+///
+/// 玄参 2026-09-29：调试期间默认**打开**（true = 绕过限时，不进拦截状态）；
+/// 家长端首页有临时开关可关掉恢复拦截。release 构建不读该键（照常防沉迷）。
+const String kPrefDebugCapBypass = 'debug_cap_bypass';
+
 /// 家长端「每日 App 使用时长」可选档位（分钟）。
 ///
 /// 家长设置页下拉档位与本常量**唯一真源**（页面引用本常量，不再写裸字面量）。

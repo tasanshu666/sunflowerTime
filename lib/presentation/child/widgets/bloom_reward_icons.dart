@@ -13,8 +13,8 @@
 /// → 通用礼包图标 `Icons.card_giftcard`。数值从实际数据拼，**绝不写死**。
 ///
 /// ## 美术资源契约（`assets/rewards/`）
-/// · `sunlight.png` — 阳光；`fragment.png` — 植物碎片；`seed.png` — 种子（通用）；
-///   `seed_{speciesId}.png` — 物种专属种子（**优先于通用**）。
+/// · `sunlight.png` — 阳光；`fragment.png` — 植物碎片；`seed.png` — 种子（**通用，唯一**）。
+///   种子现已**全物种通用**（见宪法 C20），不再有 `seed_{speciesId}.png` 物种专属种子图标。
 /// · 判定资源是否存在用 `AssetManifest.loadFromAssetBundle` + `listAssets()`（由
 ///   `rewardAssetsProvider` 提供，**不用 `AssetManifest.json`**，Flutter 3.7+ 不再生成）。
 /// · 资源缺失一律回退内置 `Icons`（阳光 [Icons.wb_sunny] / 碎片 [Icons.auto_awesome] /
@@ -141,7 +141,8 @@ Color rewardIconColor(RewardIconKind kind) {
 /// 解析出「实际可用的图片资源路径」；null = 用内置 `Icons` 回退。
 ///
 /// [availableAssets] 为 `AssetManifest.listAssets()` 的字符串集合（见 `rewardAssetsProvider`）。
-/// 种子优先 `seed_{speciesId}.png`，其次通用 `seed.png`，都没有则回退 `Icons.eco`。
+/// 种子统一用通用 `seed.png`（宪法 C20：种子全物种通用，不再区分 `seed_{speciesId}.png`），
+/// 缺失则回退 `Icons.eco`。
 String? resolveRewardAsset(RewardIconSpec spec, Set<String> availableAssets) {
   switch (spec.kind) {
     case RewardIconKind.gift:
@@ -153,11 +154,7 @@ String? resolveRewardAsset(RewardIconSpec spec, Set<String> availableAssets) {
       const String name = 'assets/rewards/fragment.png';
       return availableAssets.contains(name) ? name : null;
     case RewardIconKind.seed:
-      final String? id = spec.seedSpeciesId;
-      if (id != null) {
-        final String specific = 'assets/rewards/seed_$id.png';
-        if (availableAssets.contains(specific)) return specific;
-      }
+      // 种子图标全物种通用（宪法 C20）：只认 `assets/rewards/seed.png`。
       const String general = 'assets/rewards/seed.png';
       return availableAssets.contains(general) ? general : null;
   }

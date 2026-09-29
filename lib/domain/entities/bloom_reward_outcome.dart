@@ -29,12 +29,21 @@ class BloomRewardOutcome {
   /// 是否由**花谢兜底自动到账**（true）而非小朋友手动点击收集（false）——用于文案。
   final bool autoSettled;
 
+  /// 重复种子被自动分解时，**被分解的种子**物种 id（null = 本次不是重复种子分解）。
+  ///
+  /// 玄参 2026-09-29 口径：结算时若种子对应物种已持免费种植券 → 种子自动分解为
+  /// 植物碎片（普通 3 / 精英 5，见 `prd_params`），此时 [seedSpeciesId] 为 null、
+  /// [fragments] = 分解所得片数，本字段记录「分解前是哪颗种子」供 UI 提示文案。
+  /// **瞬态字段，不落库**（pending 三列仍只存原始定奖内容，分解是结算规则）。
+  final String? decomposedSeedSpeciesId;
+
   const BloomRewardOutcome({
     this.sunlight = 0,
     this.fragments = 0,
     this.seedSpeciesId,
     this.isInstantPhase = false,
     this.autoSettled = false,
+    this.decomposedSeedSpeciesId,
   });
 
   /// 不可变副本（用于把「结算时现场 roll」的结果标记为 [autoSettled] 等）。
@@ -44,6 +53,7 @@ class BloomRewardOutcome {
     String? seedSpeciesId,
     bool? isInstantPhase,
     bool? autoSettled,
+    String? decomposedSeedSpeciesId,
   }) =>
       BloomRewardOutcome(
         sunlight: sunlight ?? this.sunlight,
@@ -51,13 +61,17 @@ class BloomRewardOutcome {
         seedSpeciesId: seedSpeciesId ?? this.seedSpeciesId,
         isInstantPhase: isInstantPhase ?? this.isInstantPhase,
         autoSettled: autoSettled ?? this.autoSettled,
+        decomposedSeedSpeciesId:
+            decomposedSeedSpeciesId ?? this.decomposedSeedSpeciesId,
       );
 
   /// 是否含任何实际奖励（阳光 / 碎片 / 种子）。用于 UI 判断是否需要渲染图标。
-  bool get hasAnyReward => sunlight > 0 || fragments > 0 || seedSpeciesId != null;
+  bool get hasAnyReward =>
+      sunlight > 0 || fragments > 0 || seedSpeciesId != null;
 
   @override
   String toString() =>
       'BloomRewardOutcome(sunlight: $sunlight, fragments: $fragments, '
-      'seed: $seedSpeciesId, instant: $isInstantPhase, auto: $autoSettled)';
+      'seed: $seedSpeciesId, decomposedSeed: $decomposedSeedSpeciesId, '
+      'instant: $isInstantPhase, auto: $autoSettled)';
 }

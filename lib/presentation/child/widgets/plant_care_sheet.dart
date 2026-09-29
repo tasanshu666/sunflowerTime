@@ -1,4 +1,4 @@
-/// 植物养护面板（底部弹出，2026-09-23 花园显示改造）。
+/// 植物养护卡（**屏幕中央弹出**，2026-09-29 由底部面板改居中卡；2026-09-23 花园显示改造）。
 ///
 /// ## 为什么独立成组件
 /// 改造后草地上不再摊按钮，**点花盆里的植物才弹出养护**。面板要满足两条硬要求：
@@ -22,50 +22,44 @@ import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 
 import 'care_effect_overlay.dart';
+import 'child_snack.dart';
 import 'plant_card.dart';
 
-/// 以底部面板形式打开某株植物的养护面板。
+/// 以**屏幕中央弹出卡**形式打开某株植物的养护面板（2026-09-29 玄参：
+/// 「不要从下面弹出来，要单独弹出来卡片」——由底部 ModalBottomSheet 改为居中 Dialog）。
 ///
-/// 返回的 Future 在面板关闭后完成 —— 调用方（花园页）据此刷新草地上的进度条。
+/// 返回的 Future 在卡片关闭后完成 —— 调用方（花园页）据此刷新草地上的进度条。
 /// 若期间发生过成功的养护动作（浇水 / 施肥），返回值携带最后一次的 [CareEffectType]，
 /// 供花园页在该花盆位置播放一次性动效（见 [CareEffectOverlay]）。
-Future<CareEffectType?> showPlantCareSheet(BuildContext context, String plantId) {
+Future<CareEffectType?> showPlantCareCard(BuildContext context, String plantId) {
   CareEffectType? lastEffect;
-  return showModalBottomSheet<CareEffectType?>(
+  return showDialog<CareEffectType?>(
     context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    // 暖奶油底（与花园草地的暖色调一致），替代通底白 —— 玄参 2026-09-25：
-    // 「不要通底，都是白底，要有一些分层」。卡片本体是白色圆角大卡（见 PlantCard），
-    // 与奶油底形成两层，进度/心情在卡内再做浅色分区。
-    backgroundColor: const Color(0xFFFBF4E4),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (BuildContext ctx) => PlantCareSheet(
+    barrierColor: Colors.black.withValues(alpha: 0.35),
+    builder: (BuildContext ctx) => PlantCareCard(
       plantId: plantId,
       onCareSuccess: (CareEffectType e) => lastEffect = e,
     ),
   ).then((_) => lastEffect);
 }
 
-class PlantCareSheet extends ConsumerStatefulWidget {
+class PlantCareCard extends ConsumerStatefulWidget {
   final String plantId;
 
   /// 养护动作成功后的回调（浇水/施肥），供花园页触发一次性动效。清理枯萎不触发。
   final ValueChanged<CareEffectType>? onCareSuccess;
 
-  const PlantCareSheet({
+  const PlantCareCard({
     super.key,
     required this.plantId,
     this.onCareSuccess,
   });
 
   @override
-  ConsumerState<PlantCareSheet> createState() => _PlantCareSheetState();
+  ConsumerState<PlantCareCard> createState() => _PlantCareCardState();
 }
 
-class _PlantCareSheetState extends ConsumerState<PlantCareSheet> {
+class _PlantCareCardState extends ConsumerState<PlantCareCard> {
   Plant? _plant;
   PlantSpecies? _species;
   PlantCareQuota? _quota;
@@ -115,16 +109,14 @@ class _PlantCareSheetState extends ConsumerState<PlantCareSheet> {
       );
 
   void _snack(String msg) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    }
+    if (mounted) showChildSnack(context, msg);
   }
 
   /// 执行养护动作：串行闸门 → 扣费 → 自增经济修订号 → 重新读取本株数据。
   ///
   /// [closeAfter] 用于「清理枯萎植物」：删完这株就没什么可看的了，直接关面板。
   /// [effect] 非 null 表示这是一次成功的养护（浇水/施肥），成功后会通过
-  /// [PlantCareSheet.onCareSuccess] 上报，供花园页播放一次性动效；清理枯萎不传。
+  /// [PlantCareCard.onCareSuccess] 上报，供花园页播放一次性动效；清理枯萎不传。
   Future<void> _run(
     Future<void> Function() action, {
     bool closeAfter = false,
@@ -203,22 +195,49 @@ class _PlantCareSheetState extends ConsumerState<PlantCareSheet> {
       );
     }
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            body,
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                '植物也会随时间自然生长，按时养护才能早点开花 🌻\n'
-                '成株盛开后，每周浇 3 次水 + 施 1 次肥才能继续开花 🌻',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+    // 居中弹出大卡：暖奶油底 + 大圆角，内容超高时内部滚动（不顶破屏幕）。
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      // 居中大卡：左右留 24 边距、上下留 40，超宽超高都不贴边。
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.78,
+        ),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
+          decoration: BoxDecoration(
+            // 暖奶油底（与花园草地的暖色调一致），替代通底白 —— 玄参 2026-09-25：
+            // 「不要通底，都是白底，要有一些分层」。卡片本体是白色圆角大卡（见 PlantCard），
+            // 与奶油底形成两层，进度/心情在卡内再做浅色分区。
+            color: const Color(0xFFFBF4E4),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: const Color(0xFFFFE3B0), width: 1.5),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: const Color(0xFF8A5A00).withValues(alpha: 0.22),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
               ),
+            ],
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                body,
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    '植物也会随时间自然生长，按时养护才能早点开花 🌻\n'
+                    '成株盛开后，每周浇 3 次水 + 施 1 次肥才能继续开花 🌻',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

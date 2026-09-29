@@ -34,6 +34,7 @@ import 'package:sunflower_time/presentation/child/pages/child_profile_page.dart'
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/pages/store_page.dart';
 import 'package:sunflower_time/presentation/child/state/app_usage_controller.dart';
+import 'package:sunflower_time/presentation/child/widgets/app_cap_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 
 /// 孩子端外壳：底部导航 + 5 个 tab。
@@ -47,6 +48,12 @@ class ChildShellPage extends ConsumerStatefulWidget {
 class _ChildShellPageState extends ConsumerState<ChildShellPage>
     with WidgetsBindingObserver {
   int _index = 0;
+
+  /// 调试期「跳过 30 分钟限时」开关（仅 kDebugMode 消费；默认 true = 绕过）。
+  ///
+  /// 玄参 2026-09-29：调试期间默认不进限时状态；家长端首页有临时开关可关回。
+  /// release 构建不读该开关，防沉迷照常。
+  bool _debugCapBypass = true;
 
   /// App 时长控制器引用（[initState] 期间抓取）。
   ///
@@ -89,6 +96,8 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     // **全项目无调用点** → 服务内 `_bgmOn` 恒为 false → 花园氛围音一进门就被 return。
     // 孩子端是家长设置的唯一消费端，故在此把设置真正接到音频服务（音效 / 背景音乐开关）。
     unawaited(_syncAudioSettings());
+    // 调试期限时开关：读 shared_preferences（默认 true = 绕过；异步失败保持默认）。
+    unawaited(_loadDebugCapBypass());
     // 首帧后再弹窗，避免在 build 期间触发路由/覆盖层变更。
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkAllNotices());
   }
@@ -131,6 +140,18 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     }
   }
 
+  /// 读取调试限时开关（异步、失败静默：保持默认 true = 绕过）。
+  Future<void> _loadDebugCapBypass() async {
+    try {
+      final bool bypass =
+          await ref.read(settingsStoreProvider).debugCapBypass();
+      if (!mounted) return;
+      setState(() => _debugCapBypass = bypass);
+    } catch (_) {
+      // 读不到 → 保持默认（调试期绕过），不阻塞外壳。
+    }
+  }
+
   /// 安全停表（**不经过 [ref]** —— dispose 阶段 `ref` 已不可用，用它会抛 Bad state；
   /// 这里改用 [initState] 抓到的 [_usageCtrl] 引用，保证 ticker 一定被同步取消）。
   void _stopAppUsageCounting() {
@@ -146,14 +167,17 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     final AppUsageState usage = ref.read(appUsageControllerProvider);
     final AppUsageController ctrl = ref.read(appUsageControllerProvider.notifier);
 
-    // 调试期临时绕过 30 分钟时长限制：仅 [kDebugMode] 且显式传入
-    // `--dart-define=DISABLE_APP_CAP=true` 时生效；release 构建不带该 define，
-    // 防沉迷逻辑照常拦截。测试（`flutter test`）亦不带该 define → 既有拦截测试不受影响。
-    if (!kDebugMode || !const bool.fromEnvironment('DISABLE_APP_CAP', defaultValue: false)) {
-      if (ctrl.isEntertainmentTab(i) && usage.reached) {
-        _showAppCapDialog(usage.capMinutes); // 到顶：不切换索引，仅给引导。
-        return;
-      }
+    // 防沉迷拦截口径：
+    //  · release（!kDebugMode）→ 照常拦截；
+    //  · debug → 调试开关 [_debugCapBypass]（默认 true = 绕过）或
+    //    `--dart-define=DISABLE_APP_CAP=true` 任一命中即不拦；测试可把
+    //    `kPrefDebugCapBypass` 写 false 恢复拦截（child_shell_app_cap_test）。
+    const bool defineBypass =
+        bool.fromEnvironment('DISABLE_APP_CAP', defaultValue: false);
+    final bool capEnforced = !kDebugMode || (!_debugCapBypass && !defineBypass);
+    if (capEnforced && ctrl.isEntertainmentTab(i) && usage.reached) {
+      unawaited(_showAppCapDialog(usage.capMinutes)); // 到顶：不切换索引，仅给引导。
+      return;
     }
 
     setState(() => _index = i);
@@ -164,21 +188,18 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     }
   }
 
-  /// App 总时长到顶的**分因温和提示**（点明原因 + 给出口；专注入口永远可用）。
-  void _showAppCapDialog(int capMinutes) {
-    showDialog<void>(
+  /// App 总时长到顶的**分因温和提示**（儿童风多色卡片，见 [AppCapDialog]）。
+  ///
+  /// 用户点「去今日开始专注」→ 关弹窗并直接切到「今日」tab（非娱乐 tab，随手停表）。
+  Future<void> _showAppCapDialog(int capMinutes) async {
+    final Object? result = await showDialog<Object>(
       context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('🌻 先歇一会儿吧'),
-        content: Text('今天逛 App 的时间用完啦（上限 $capMinutes 分钟），去「今日」开始专注吧 🌻'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('知道啦'),
-          ),
-        ],
-      ),
+      builder: (BuildContext ctx) => AppCapDialog(capMinutes: capMinutes),
     );
+    if (result == AppCapDialog.goFocus && mounted) {
+      unawaited(_usageCtrl?.stopCounting()); // 今日不计入娱乐时长。
+      setState(() => _index = 0);
+    }
   }
 
   /// 进入孩子端即检查「家长已核销」通知：有未读则弹窗告知，并标记已读。

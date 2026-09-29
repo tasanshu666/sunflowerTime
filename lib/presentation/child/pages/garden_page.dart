@@ -17,7 +17,7 @@
 ///   └────────────────────────────────────────────────────────────────┘
 /// ```
 ///
-/// **点花盆里的植物**才弹出养护面板（[showPlantCareSheet]），按钮不再摊在草地上；
+/// **点花盆里的植物**才弹出养护卡（[showPlantCareCard]，2026-09-29 由底部面板改居中卡），按钮不再摊在草地上；
 /// 空盆点击进入种植选择。花盆与植物外观都在 `garden_pot.dart` / `plant_artwork.dart`，
 /// 本页只负责数据、布局与动作编排。
 ///
@@ -50,6 +50,7 @@ import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_reward_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/care_effect_overlay.dart';
+import 'package:sunflower_time/presentation/child/widgets/child_snack.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_background_layout.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_help_sheet.dart';
@@ -236,7 +237,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       _unlockedSpecies =
           await ref.read(bloomRewardRepositoryProvider).unlockedSpeciesIds();
       // 注意：养护额度不在这里取——草地不展示次数，额度由弹出的养护面板自行读取
-      // （见 PlantCareSheet），少一次查询，也避免两处口径漂移。
+      // （见 PlantCareCard），少一次查询，也避免两处口径漂移。
       _balance = await ref.read(sunlightRepositoryProvider).balance();
       _error = null;
       // 升级检测：与上一轮快照 diff，发现「阶段/开花」推进 → 播放成长过渡演出。
@@ -285,19 +286,17 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     return ok;
   }
 
+  /// 花园页统一提示（儿童风浮空卡，2026-09-29 玄参：黑色默认 SnackBar 太丑）。
   void _snack(String msg) {
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(msg)));
-    }
+    if (mounted) showChildSnack(context, msg);
   }
 
   /// 点花盆里的植物 → 弹养护面板；面板关闭后**静默刷新草地**（进度条/形态可能变了）。
   ///
-  /// 面板自己负责读数据与动作（见 [PlantCareSheet]），本页只做「打开 + 关闭后刷新」。
+  /// 卡片自己负责读数据与动作（见 [PlantCareCard]），本页只做「打开 + 关闭后刷新」。
   /// 面板返回最后一次成功的养护类型（浇水/施肥），据此在该花盆位置播放一次性动效。
   Future<void> _openCareSheet(String plantId, int potIndex) async {
-    final CareEffectType? effect = await showPlantCareSheet(context, plantId);
+    final CareEffectType? effect = await showPlantCareCard(context, plantId);
     if (!mounted) return;
     // 养护成功 → 在该花盆位置播放一次性动效（动效结束自动移除自身）。
     if (effect != null) _playCareEffect(potIndex, effect);
@@ -309,7 +308,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   ///
   /// 点击任一图标 = 收下该条 pending 的**全部**奖励（按条收集）；文案区分「开花瞬间」
   /// （`+10 ☀ 阳光` / `+10 ☀ 阳光 · +1 植物碎片` / `+10 ☀ 阳光 · 掉落「番茄」种子`）与
-  /// 「第二段」（前缀「迟到的奖励：」）。
+  /// 「第二段」（前缀「盛开的礼物：」）。
   Future<void> _collectReward(PendingBloomReward reward) async {
     if (_busy) return;
     setState(() => _busy = true);
@@ -329,17 +328,24 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     }
     if (outcome != null && mounted) {
       final String body = _outcomeParts(outcome);
-      _snack(outcome.isInstantPhase ? body : '迟到的奖励：$body');
+      _snack(outcome.isInstantPhase ? body : '盛开的礼物：$body');
     }
   }
 
-  /// 把一条奖励结果拼成用户可见文案（`+N ☀ 阳光` / `+N 植物碎片` / `掉落「X」种子`）。
+  /// 把一条奖励结果拼成用户可见文案（`+N ☀ 阳光` / `+N 植物碎片` / `掉落「X」种子` /
+  /// `重复的「X」种子已分解为 N 植物碎片`）。
   String _outcomeParts(BloomRewardOutcome o) {
     final List<String> parts = <String>[];
     if (o.sunlight > 0) parts.add('+${o.sunlight} ☀ 阳光');
-    if (o.fragments > 0) parts.add('+${o.fragments} 植物碎片');
-    final String? seed = o.seedSpeciesId;
-    if (seed != null) parts.add('掉落「${_speciesNameById(seed)}」种子');
+    if (o.decomposedSeedSpeciesId != null) {
+      // 重复种子自动分解（玄参 2026-09-29）：此时 fragments 即分解所得，勿重复拼「+N 植物碎片」。
+      parts.add(
+          '重复的「${_speciesNameById(o.decomposedSeedSpeciesId!)}」种子已分解为 ${o.fragments} 植物碎片');
+    } else {
+      if (o.fragments > 0) parts.add('+${o.fragments} 植物碎片');
+      final String? seed = o.seedSpeciesId;
+      if (seed != null) parts.add('掉落「${_speciesNameById(seed)}」种子');
+    }
     return parts.isEmpty ? '收到一份小礼物～' : parts.join(' · ');
   }
 
@@ -633,6 +639,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
             _PlantTile(
               species: e.sp,
               buttons: e.buttons,
+              // 种子徽章（玄参 2026-09-29）：持有该物种免费种植券（掉落过种子且已收集）→ 卡片打「🌰 种子」标。
+              hasSeed: _unlockedSpecies.contains(e.sp.id),
               onPay: (PlantCostKind kind) async {
                 Navigator.of(ctx).pop();
                 await _run(() => ref
@@ -667,7 +675,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       String? reason;
       switch (opt.kind) {
         case PlantCostKind.free:
-          label = '免费';
+          // 种子券入口（玄参 2026-09-29）：非初始物种的免费项 = 持有该物种种子，文案点明来源。
+          label = sp.id == kStarterSpeciesId ? '免费' : '用种子种（免费）';
           enabled = !hasAlive;
           reason = hasAlive ? '成长中' : null;
         case PlantCostKind.sunlight:
@@ -1055,17 +1064,21 @@ class _PlantPaymentButton {
 /// 枚举保留不动，此处兜底归并到精英）。作为库级顶层函数，供 `_PlantTile` 等小组件复用。
 String _rarityLabel(Rarity r) => r == Rarity.common ? '普通' : '精英';
 
-/// 单个物种的选种卡片：名称 + 稀有度标签 + 一排支付方式按钮。
+/// 单个物种的选种卡片：名称 + 稀有度标签 +（持有种子时）种子徽章 + 一排支付方式按钮。
 class _PlantTile extends StatelessWidget {
   const _PlantTile({
     required this.species,
     required this.buttons,
     required this.onPay,
+    this.hasSeed = false,
   });
 
   final PlantSpecies species;
   final List<_PlantPaymentButton> buttons;
   final void Function(PlantCostKind kind) onPay;
+
+  /// 是否持有该物种的免费种植券（掉落过种子且已收集）→ 显示种子徽章。
+  final bool hasSeed;
 
   @override
   Widget build(BuildContext context) {
@@ -1086,6 +1099,21 @@ class _PlantTile extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
+                if (hasSeed) ...<Widget>[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF1C2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFF6C445)),
+                    ),
+                    child: const Text('🌰 种子',
+                        style: TextStyle(
+                            fontSize: 12, color: Color(0xFF8D6E00))),
+                  ),
+                  const SizedBox(width: 6),
+                ],
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 3),

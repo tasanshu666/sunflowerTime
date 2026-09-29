@@ -6,7 +6,8 @@
 ///  ③ **历史行哨兵兜底不丢且回写**：`0/0/null` 行结算时现场 roll + `updatePendingRewardContent` 回写；
 ///  ④ **`tickAll` 可选出参 `autoSettled`**：花谢兜底自动到账逐条 append（`autoSettled: true`），
 ///     不改返回类型（仍 `List<Plant>`）；
-///  ⑤ **种子全持券登记时兜底**：本档物种均持券 → 登记时即 roll 出「兜底大额阳光」，结算照单发。
+///  ⑤ **重复种子**：允许掉已持券物种的种子（登记仍定种子、不再兜底阳光）；
+///     结算时自动分解为植物碎片（普通 3 / 精英 5），券不重复写（玄参 2026-09-29）。
 ///
 /// 纯 Dart：仓储以内存 Fake 实现，随机源以可编排的 [_SeqRandom] 注入（确定性、不 flaky）。
 library bloom_reward_preassign_test;
@@ -495,9 +496,9 @@ void main() {
     });
   });
 
-  // ── ⑤ 种子全持券登记时兜底 ───────────────────────────────────────────────
-  group('⑤ 种子·本档全持券 → 登记时兜底大额阳光', () {
-    test('普通档物种全部已持券 + seed 分支 → 登记即定「兜底阳光」（不空掉、不等到结算）',
+  // ── ⑤ 重复种子：允许掉落 + 结算自动分解 ──────────────────────────────────
+  group('⑤ 重复种子：允许掉落，结算时自动分解为碎片（2026-09-29）', () {
+    test('普通档物种全部已持券 + seed 分支 → 登记仍定种子（允许重复，不再兜底阳光）',
         () async {
       final _Ctx ctx =
           _make(random: _SeqRandom(doubles: <double>[0.17], ints: <int>[0]));
@@ -509,12 +510,78 @@ void main() {
 
       final PendingBloomReward instant =
           _instantOf(await ctx.bloom.pendingBloomRewardsDue(due48h));
-      // r=0.17 ∈ [15%,20%) → seed 分支；候选为空 → 兜底大额阳光 nextInt=0 → 10；叠加保底 6。
-      expect(instant.rewardSpeciesId, isNull, reason: '无候选物种 → 不是种子');
-      expect(instant.rewardSunlight,
-          kBloomInstantSunlight + kBloomBonusSunlightMin,
-          reason: '登记时即定「保底 6 + 兜底大额 10」= 16');
+      // r=0.17 ∈ [15%,20%) → seed 分支；候选 = 全部普通物种（不再排除已持券）
+      // → nextInt=0 → sp_common_a（重复种子，允许掉落）。
+      expect(instant.rewardSpeciesId, 'sp_common_a',
+          reason: '2026-09-29 起：已持券物种仍可被 roll 中（重复掉落）');
+      expect(instant.rewardSunlight, kBloomInstantSunlight,
+          reason: '种子分支不再叠加兜底大额阳光，仅保底 6');
       expect(instant.hasPreAssignedReward, isTrue);
+    });
+
+    test('收集重复种子（普通档）→ 自动分解为 3 植物碎片，券不重复写', () async {
+      final _Ctx ctx =
+          _make(random: _SeqRandom(doubles: <double>[0.17], ints: <int>[0]));
+      await ctx.bloom.unlockSpecies('sp_common_a');
+      await ctx.bloom.unlockSpecies('sp_common_b');
+      await ctx.plants.savePlant(_readyToBloom('sp_common_a', bloomAt));
+      await ctx.svc.tickAll(bloomAt);
+
+      final PendingBloomReward instant =
+          _instantOf(await ctx.bloom.pendingBloomRewardsDue(due48h));
+      await ctx.svc.collectBloomReward(instant.id, due48h);
+
+      final Set<String> coupons = await ctx.bloom.unlockedSpeciesIds();
+      expect(coupons, <String>{'sp_common_a', 'sp_common_b'},
+          reason: '券不重复写、也不被结算误消耗（仍恰两张）');
+      expect(await ctx.bloom.premiumFragmentBalance(),
+          kDuplicateSeedDecomposeFragmentsCommon,
+          reason: '重复种子自动分解为 3 片（普通档）');
+    });
+
+    test('收集重复种子（精英档，预置定奖行）→ 自动分解为 5 植物碎片', () async {
+      final _Ctx ctx = _make();
+      await ctx.bloom.unlockSpecies('sp_premium');
+      await ctx.plants.savePlant(_bloomed('sp_premium', bloomAt));
+      await ctx.bloom.insertPendingBloomReward(PendingBloomReward(
+        id: 'pr_dup_premium',
+        plantId: _kPlantId,
+        dueAt: bloomAt,
+        rewardKind: kBloomRewardKindPremium,
+        rewardSpeciesId: 'sp_premium',
+      ));
+
+      final BloomRewardOutcome o = await ctx.svc
+          .collectBloomReward('pr_dup_premium', bloomAt.add(const Duration(hours: 1)));
+
+      expect(o.decomposedSeedSpeciesId, 'sp_premium',
+          reason: '结果标记「由重复种子分解而来」，供 UI 文案');
+      expect(o.seedSpeciesId, isNull, reason: '分解后不再以种子形态发放');
+      expect(o.fragments, kDuplicateSeedDecomposeFragmentsPremium,
+          reason: '重复种子自动分解为 5 片（精英档）');
+      expect(await ctx.bloom.unlockedSpeciesIds(), <String>{'sp_premium'},
+          reason: '券不重复写');
+      expect(await ctx.bloom.premiumFragmentBalance(),
+          kDuplicateSeedDecomposeFragmentsPremium);
+    });
+
+    test('未持券物种的种子照常发券（分解规则不误伤）', () async {
+      final _Ctx ctx = _make();
+      await ctx.plants.savePlant(_bloomed('sp_common_a', bloomAt));
+      await ctx.bloom.insertPendingBloomReward(PendingBloomReward(
+        id: 'pr_new_seed',
+        plantId: _kPlantId,
+        dueAt: bloomAt,
+        rewardKind: kBloomRewardKindNormal,
+        rewardSpeciesId: 'sp_common_b',
+      ));
+
+      final BloomRewardOutcome o = await ctx.svc
+          .collectBloomReward('pr_new_seed', bloomAt.add(const Duration(hours: 1)));
+
+      expect(o.seedSpeciesId, 'sp_common_b', reason: '未持券 → 照常发券');
+      expect(o.decomposedSeedSpeciesId, isNull);
+      expect(await ctx.bloom.unlockedSpeciesIds(), <String>{'sp_common_b'});
     });
   });
 }

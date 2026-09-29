@@ -375,6 +375,19 @@ const int kSpeciesSunlightCostCommon = 400;
 /// 月光兰（精英）不再走阳光价（旧的 [kSpeciesMoonOrchidSunlightCost] 已废弃）。
 const int kSpeciesFragmentCostPremium = 10;
 
+/// 重复种子自动分解 · 植物碎片数 · **普通档**（玄参 2026-09-29 拍板）。
+///
+/// 口径：种子掉落**允许重复**（不再排除已持券物种）；结算（手动收集 / 花谢兜底）时若
+/// 该物种已持免费种植券 → 种子**自动分解**为 [kDuplicateSeedDecomposeFragmentsCommon]
+/// 片植物碎片入账（券不重复写）。派生文案见花园页 `_outcomeParts`，勿散落字面量。
+const int kDuplicateSeedDecomposeFragmentsCommon = 3;
+
+/// 重复种子自动分解 · 植物碎片数 · **精英档**（玄参 2026-09-29 拍板）。
+///
+/// 精英档（= `rare`，见 `PlantSpecies.isPremium`）重复种子自动分解为 5 片
+/// （[kSpeciesFragmentCostPremium] 为种植价，勿混用）。
+const int kDuplicateSeedDecomposeFragmentsPremium = 5;
+
 /// 账本 refType · 开花瞬间奖励（保底 + 惊喜 roll）。
 const String kBloomRewardRefType = 'bloom_reward';
 

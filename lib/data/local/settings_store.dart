@@ -48,4 +48,14 @@ class SettingsStore {
     await _sp.setString(kPrefAppUsageDate, date);
     await _sp.setInt(kPrefAppUsageSeconds, seconds);
   }
+
+  /// 调试期「跳过 30 分钟防沉迷限时」开关（仅 kDebugMode 消费）。
+  ///
+  /// 默认 **true**（玄参 2026-09-29：调试期间默认不进限时状态）。
+  Future<bool> debugCapBypass() async =>
+      _sp.getBool(kPrefDebugCapBypass) ?? true;
+
+  /// 覆写调试限时开关。
+  Future<void> setDebugCapBypass(bool value) async =>
+      _sp.setBool(kPrefDebugCapBypass, value);
 }

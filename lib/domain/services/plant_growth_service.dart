@@ -282,10 +282,13 @@ class PlantGrowthService {
     return plant;
   }
 
-  /// 某物种的**可用支付方式**列表（玄参 2026-09-28 计价模型）。
+  /// 某物种的**可用支付方式**列表（玄参 2026-09-28 计价模型 + 2026-09-29 种子券入口）。
   ///
   /// 规则：
   ///  · 向日葵（[kStarterSpeciesId]）→ 单一免费项；
+  ///  · **持有该物种免费种植券**（[BloomRewardRepository.unlockedSpeciesIds] 含其 id，
+  ///    即「掉落过该物种种子且已收集」）→ **首项「用种子种 · 免费」**，付费项保留在后
+  ///    （玄参 2026-09-29 拍板：券入口置顶 + 保留付费按钮）；
   ///  · 精英（[PlantSpecies.isPremium]）→ 单一碎片项（[kSpeciesFragmentCostPremium]）；
   ///  · 普通（其余）→ 两项：阳光（[kSpeciesSunlightCostCommon]）或碎片（[kSpeciesFragmentCostCommon]）。
   ///
@@ -294,15 +297,22 @@ class PlantGrowthService {
     if (sp.id == kStarterSpeciesId) {
       return const <PlantPaymentOption>[PlantPaymentOption(PlantCostKind.free, 0)];
     }
-    if (sp.isPremium) {
-      return const <PlantPaymentOption>[
-        PlantPaymentOption(PlantCostKind.fragments, kSpeciesFragmentCostPremium)
+    final List<PlantPaymentOption> paid = sp.isPremium
+        ? const <PlantPaymentOption>[
+            PlantPaymentOption(PlantCostKind.fragments, kSpeciesFragmentCostPremium)
+          ]
+        : <PlantPaymentOption>[
+            const PlantPaymentOption(PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
+            const PlantPaymentOption(PlantCostKind.fragments, kSpeciesFragmentCostCommon),
+          ];
+    final Set<String> coupons = await _bloomRewards.unlockedSpeciesIds();
+    if (coupons.contains(sp.id)) {
+      return <PlantPaymentOption>[
+        const PlantPaymentOption(PlantCostKind.free, 0),
+        ...paid,
       ];
     }
-    return <PlantPaymentOption>[
-      const PlantPaymentOption(PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
-      const PlantPaymentOption(PlantCostKind.fragments, kSpeciesFragmentCostCommon),
-    ];
+    return paid;
   }
 
   /// 某物种的种植成本（**向后兼容**：返回 [plantPaymentOptions] 的默认项）。
@@ -1087,6 +1097,11 @@ class PlantGrowthService {
   ///   roll 结果**回写**该行（`updatePendingRewardContent`，不改 `claimed`），保证老 pending
   ///   奖励金额不减、不多给；哨兵不与真实奖励冲突，因真实奖励保底基础阳光恒 ≥1。
   /// · 非哨兵 → 直接按 `reward_sunlight / reward_fragments / reward_species_id` 发放（不再 roll）。
+  /// · **重复种子自动分解**（玄参 2026-09-29）：定奖内容为种子、但该物种**已持免费种植券**
+  ///   → 不再写券（券不重复），改为**自动分解**为植物碎片入账（普通
+  ///   [kDuplicateSeedDecomposeFragmentsCommon] / 精英 [kDuplicateSeedDecomposeFragmentsPremium]），
+  ///   并把结果标记 `decomposedSeedSpeciesId` 供 UI 提示「重复的「X」种子已分解」。分解是
+  ///   **结算规则**而非定奖内容，pending 三列保持原样（无需迁移）。
   ///
   /// 阶段分派：`reward_kind == [kBloomRewardPhaseInstant]` → 开花瞬间（[kBloomInstant*]）；
   /// 其它 → 第二段（[kBloomSecondPhase*]）。档位：第二段由 `reward_kind` 给出，开花瞬间由
@@ -1125,12 +1140,33 @@ class PlantGrowthService {
       );
     }
 
-    if (instant) {
-      await _grantInstantReward(outcome, premium, reward.plantId, now);
-    } else {
-      await _grantSecondPhaseReward(outcome, reward.plantId, now);
+    // 重复种子 → 自动分解为碎片（玄参 2026-09-29）：
+    // 用「重写后的有效结果」发放与回传；种子分支因此不再走到 unlockSpecies。
+    BloomRewardOutcome effective = outcome;
+    if (outcome.seedSpeciesId != null) {
+      final Set<String> coupons = await _bloomRewards.unlockedSpeciesIds();
+      if (coupons.contains(outcome.seedSpeciesId)) {
+        final PlantSpecies? seedSp =
+            _firstWhereOrNull(species, (PlantSpecies s) => s.id == outcome.seedSpeciesId);
+        final int decomposed = (seedSp?.isPremium ?? false)
+            ? kDuplicateSeedDecomposeFragmentsPremium
+            : kDuplicateSeedDecomposeFragmentsCommon;
+        // ⚠️ 不可用 copyWith（seedSpeciesId 显式置 null 清不掉），直接构造新对象。
+        effective = BloomRewardOutcome(
+          sunlight: outcome.sunlight,
+          fragments: decomposed,
+          decomposedSeedSpeciesId: outcome.seedSpeciesId,
+          isInstantPhase: outcome.isInstantPhase,
+        );
+      }
     }
-    return outcome;
+
+    if (instant) {
+      await _grantInstantReward(effective, premium, reward.plantId, now);
+    } else {
+      await _grantSecondPhaseReward(effective, reward.plantId, now);
+    }
+    return effective;
   }
 
   /// 该株是否精品档（找不到植物 / 物种时安全默认非精品）。
@@ -1315,30 +1351,30 @@ class PlantGrowthService {
     }
   }
 
-  /// **当场 roll** 一颗物种种子：从**本档**物种中挑一个**尚未持有券**的，返回其 id
-  /// （[BloomRewardOutcome.seedSpeciesId]）；若本档物种均已持券 → 兜底返回**大额阳光**
-  /// （[BloomRewardOutcome.sunlight] > 0，种子 id 为 null），避免空掉落（玄参 R3 处理）。
+  /// **当场 roll** 一颗物种种子：从**本档**物种中随机挑一个，返回其 id
+  /// （[BloomRewardOutcome.seedSpeciesId]）。
   ///
-  /// 语义（玄参 2026-09-27）：种子 = 该物种一张**免费种植券**（种植时消耗券，不扣碎片 / 阳光）；
-  /// 真正的 `unlockSpecies` **写入**发生在结算时（本方法只 roll「掉哪一颗」）。档位判据与
-  /// [PlantSpecies.isPremium] 一致（精英档 = rare + legendary）：
-  ///  · [premium] = true → 从全部**未持有券**的精英物种中随机；
-  ///  · [premium] = false → 从全部**未持有券**的普通物种（common）中随机。
+  /// 语义（玄参 2026-09-27 定「种子 = 免费种植券」；**2026-09-29 修订：允许重复掉落**）：
+  ///  · 旧口径「只从未持券物种中挑、全持券兜底大额阳光」**已废止** —— 重复种子现在**允许掉落**，
+  ///    结算（[_settlePendingReward]）时若该物种已持券 → **自动分解**为植物碎片
+  ///    （普通 [kDuplicateSeedDecomposeFragmentsCommon] / 精英 [kDuplicateSeedDecomposeFragmentsPremium]）；
+  ///  · 候选为空（物种表为空，防御）→ 仍兜底返回**大额阳光**（[BloomRewardOutcome.sunlight] > 0），
+  ///    避免空掉落；
+  ///  · 档位判据与 [PlantSpecies.isPremium] 一致（精英档 = rare + legendary）：
+  ///    [premium] = true → 全部精英物种中随机；false → 全部普通物种（common）中随机。
   ///
-  /// ⚠️ `_random` 消耗顺序与旧 `_grantSeed` 一致：先 `nextInt(candidates.length)`，
+  /// ⚠️ `_random` 消耗顺序与旧实现一致：先 `nextInt(candidates.length)`，
   ///    候选为空时 `nextInt`（兜底区间随机）。
   Future<BloomRewardOutcome> _rollSeed(
     bool premium,
     List<PlantSpecies> species,
   ) async {
-    final Set<String> unlocked = await _bloomRewards.unlockedSpeciesIds();
     final List<PlantSpecies> candidates = species
         .where((PlantSpecies s) =>
-            (premium ? s.isPremium : s.rarity == Rarity.common) &&
-            !unlocked.contains(s.id))
+            premium ? s.isPremium : s.rarity == Rarity.common)
         .toList();
     if (candidates.isEmpty) {
-      // 本档物种已全解锁 → 兜底大额阳光（精品档用精品区间）。
+      // 防御兜底（物种表为空才可能走到）：大额阳光（精品档用精品区间）。
       final int amount = _randRange(
         premium ? kBloomBonusSunlightMinPremium : kBloomBonusSunlightMin,
         premium ? kBloomBonusSunlightMaxPremium : kBloomBonusSunlightMax,

@@ -9,7 +9,8 @@
 ///  ⑥ 免费券（`UnlockedSpecies` 语义）：有券时种植不扣碎片 / 阳光，且券被消耗；
 ///  ⑦ 每物种同时仅存活一株（同物种再种被拒；枯萎仍算存活）；
 ///  ⑧ 死亡后再种 → 允许且**重新扣费**（一次兑换买一株）；
-///  ⑨ 花园页「选择要种的植物」弹窗：稀有度两档（普通 / 精英）与价格文案渲染。
+///  ⑨ 花园页「选择要种的植物」弹窗：稀有度两档（普通 / 精英）与价格文案渲染；
+///  ⑩ 种子券入口（玄参 2026-09-29）：持券物种徽章「🌰 种子」+ 「用种子种（免费）」按钮置顶。
 ///
 /// 纯 Dart 仓储以内存 Fake 实现；弹窗用例为真实 `GardenPage` 组件测试。
 library plant_species_pricing_test;
@@ -357,6 +358,39 @@ void main() {
       t.expect(await ctx.bloomRewards.premiumFragmentBalance(), 0);
       t.expect(await ctx.bloomRewards.unlockedSpeciesIds(), t.isEmpty);
     });
+
+    t.test('有券物种的可用支付方式：首位「免费（种子券）」，付费项保留在后（2026-09-29）',
+        () async {
+      final _Ctx ctx = _make();
+      await ctx.bloomRewards.unlockSpecies('species_tomato');
+
+      final List<PlantPaymentOption> opts =
+          await ctx.svc.plantPaymentOptions(_sp('species_tomato'));
+      t.expect(opts.first.kind, PlantCostKind.free,
+          reason: '券入口置顶（玄参 2026-09-29 拍板）');
+      t.expect(opts, t.hasLength(3), reason: '免费 + 400 阳光 + 6 碎片');
+
+      // 券消耗后回到两档付费（无免费项）。
+      await ctx.bloomRewards.consumeUnlock('species_tomato');
+      final List<PlantPaymentOption> after =
+          await ctx.svc.plantPaymentOptions(_sp('species_tomato'));
+      t.expect(after, t.hasLength(2));
+      t.expect(after.first.kind, PlantCostKind.sunlight);
+    });
+
+    t.test('精英券同样置顶免费；向日葵恒单一免费项不受券影响', () async {
+      final _Ctx ctx = _make();
+      await ctx.bloomRewards.unlockSpecies('species_star_flower');
+      final List<PlantPaymentOption> elite =
+          await ctx.svc.plantPaymentOptions(_sp('species_star_flower'));
+      t.expect(elite.first.kind, PlantCostKind.free);
+      t.expect(elite, t.hasLength(2), reason: '免费 + 10 碎片');
+
+      final List<PlantPaymentOption> starter =
+          await ctx.svc.plantPaymentOptions(_sp(kStarterSpeciesId));
+      t.expect(starter, t.hasLength(1));
+      t.expect(starter.first.kind, PlantCostKind.free);
+    });
   });
 
   // ── ⑦⑧ 每物种仅一株 + 死亡后再种重扣 ──────────────────────────────────────
@@ -465,6 +499,57 @@ void main() {
       // 稀有度只显示两档：不应再出现旧的「优良 / 稀有」。
       t.expect(find.textContaining('优良'), findsNothing);
       t.expect(find.textContaining('稀有'), findsNothing);
+    });
+  });
+
+  // ── ⑩ 选种弹窗种子券入口（玄参 2026-09-29）：徽章 + 「用种子种（免费）」按钮 ──
+  t.group('⑩ 选种弹窗种子券入口（徽章 + 免费按钮置顶）', () {
+    testWidgets('持有番茄券 → 番茄卡片显示「🌰 种子」徽章 + 「用种子种（免费）」按钮',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      final InMemoryBloomRewardRepository bloom = InMemoryBloomRewardRepository();
+      await bloom.unlockSpecies('species_tomato'); // 预发一张番茄免费种植券
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: <Override>[
+          settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepo()),
+          sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepo()),
+          focusRepositoryProvider.overrideWithValue(_FakeFocusRepo()),
+          plantRepositoryProvider.overrideWithValue(_FakePlantRepo()),
+          bloomRewardRepositoryProvider.overrideWithValue(bloom),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: GardenPage(embedded: true)),
+        ),
+      ));
+
+      final bool ready = await _pumpUntil(
+        tester,
+        () => find.byType(EmptyPot).evaluate().isNotEmpty,
+      );
+      t.expect(ready, t.isTrue);
+
+      await tester.tap(find.byType(EmptyPot).first);
+      final bool sheetShown = await _pumpUntil(
+        tester,
+        () => find.text('选择要种的植物').evaluate().isNotEmpty,
+      );
+      t.expect(sheetShown, t.isTrue);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // 种子徽章：仅番茄卡片有（其余 7 种无券）。
+      t.expect(find.text('🌰 种子'), findsOneWidget,
+          reason: '只有持券的番茄卡片显示种子徽章');
+      // 免费按钮：向日葵「免费」+ 番茄「用种子种（免费）」各一。
+      t.expect(find.text('免费'), findsOneWidget, reason: '向日葵 = 免费');
+      t.expect(find.text('用种子种（免费）'), findsOneWidget,
+          reason: '持券物种的券入口置顶且点明来源');
+      // 付费按钮保留在后（玄参拍板：券入口置顶 + 保留付费）。
+      t.expect(find.text('400 阳光'), findsWidgets);
+      t.expect(find.text('6 植物碎片'), findsWidgets);
     });
   });
 }

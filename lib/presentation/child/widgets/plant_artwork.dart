@@ -21,9 +21,10 @@
 /// - `{status}` = `growing` / `bloomed` / `wilting` / `dead`
 ///
 /// 说明：④/⑤ 的「通用级」（`shared_*`）供**跨物种共用的阶段图**使用 —— 种子期各物种
-/// 形态相近，只需出 `shared_seed.png` / `shared_seed_wilting.png` 两张通用图即可覆盖
-/// 所有物种的种子期，省掉每个物种各自的种子图。物种级（①–③）一旦存在仍优先命中，
-/// 通用级仅在其缺失时兜底。
+/// 形态相近，**全物种只出 3 张通用图**即可覆盖所有物种的种子期：
+/// `shared_seed.png`（健康）/ `shared_seed_wilting.png`（枯萎）/ `shared_seed_dead.png`（死亡），
+/// 无需任何 `species_*_seed*.png`（见宪法 C20：种子阶段一律通用、禁止物种专属种子图）。
+/// 物种级（①–③）仅用于幼苗 / 成株 / 开花，一旦存在优先命中、通用级仅兜底。
 ///
 /// 例：`assets/plants/species_sunflower_adult_bloomed.png`
 /// 只要文件名对上就会自动生效，新增植物/阶段都不需要改本文件。

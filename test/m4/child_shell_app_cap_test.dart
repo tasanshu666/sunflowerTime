@@ -209,6 +209,8 @@ Future<SharedPreferences> _mockPrefs({required bool reached}) async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     if (reached) kPrefAppUsageDate: dayKey(DateTime.now()),
     if (reached) kPrefAppUsageSeconds: 1800, // = 30 分钟 → 到顶
+    // 拦截用例显式关掉「调试跳过限时」开关（默认 true = 绕过，玄参 2026-09-29）。
+    kPrefDebugCapBypass: false,
   });
   return SharedPreferences.getInstance();
 }
@@ -305,6 +307,7 @@ void main() {
       SharedPreferences.setMockInitialValues(<String, Object>{
         kPrefAppUsageDate: '2099-01-01', // 未来日期（异常/脏数据）
         kPrefAppUsageSeconds: 999999, // 极大值
+        kPrefDebugCapBypass: false, // 走真实拦截判定路径
       });
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       await pumpShell(tester, prefs);
@@ -314,6 +317,25 @@ void main() {
 
       expect(_stackIndex(tester), 3,
           reason: '未来日期 != 今天 → 当日按 0 秒计 → 娱乐 tab 不应被拦');
+      expect(find.textContaining('今天逛 App 的时间用完啦'), findsNothing);
+    });
+
+    testWidgets('调试跳过限时开关默认开：即使到顶也不拦截娱乐 tab（玄参 2026-09-29）',
+        (WidgetTester tester) async {
+      // 不写 kPrefDebugCapBypass → 默认 true = 绕过（调试期不进限时状态）。
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        kPrefAppUsageDate: dayKey(DateTime.now()),
+        kPrefAppUsageSeconds: 1800, // 已到顶
+      });
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await pumpShell(tester, prefs);
+
+      // 注：勿用「花园」做断言 tab —— 花园木牌有无限呼吸动画，pumpAndSettle 会超时。
+      await tester.tap(_navTab('商店'));
+      await tester.pumpAndSettle();
+
+      expect(_stackIndex(tester), 3,
+          reason: '调试默认绕过 → 到顶也不拦，娱乐 tab 正常切换');
       expect(find.textContaining('今天逛 App 的时间用完啦'), findsNothing);
     });
 

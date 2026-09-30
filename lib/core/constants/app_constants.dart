@@ -65,7 +65,8 @@ const double kSunlightPerFocusMinute = 1.0;
 const List<double> kReportBoundaryFractions = [1 / 3, 2 / 3];
 
 /// 进入专注前可选时长档位（分钟）（PRD §4.1.2 进入前选时长；数值口径见用户裁定）。
-const List<int> kFocusDurationOptions = [15, 20, 25, 30, 45];
+/// 玄参 2026-09-30 拍板：固定三排展示 15-20-25 / 30-45-60，另有「自由」与「自定义」档。
+const List<int> kFocusDurationOptions = [15, 20, 25, 30, 45, 60];
 
 /// 自定义时长的上限（分钟）：入口页「自定义」数字输入校验上界（PRD §4.1.2 自由时长）。
 ///

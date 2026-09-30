@@ -705,7 +705,27 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 | F53 | 专注页 | 1/3 收集阳光时文案「我去把它放好。」以底部白色横条压在向日葵身上、遮挡角色 | 旧 `FeedbackOverlay` 为屏幕底部横向白底圆角条 | 重写为「向日葵说话气泡」：暖黄奶油底+深棕字+左下小尾巴指向花心，锚定花头右上，不遮挡；lvl2 文案后修订为「太好了，又收集到阳光了。」 | ✅ 已修复 |
 | F54 | 专注页 | 离席≥30s 回来的「欢迎回来」用独立顶部金色大字，与向日葵重叠/压住角色 | 欢迎回来走独立 `Text` 块而非气泡层 | lvl3 现也出气泡（`_bubbleText` 增 `lvl3⇒'欢迎回来'`）；`focus_page` 删独立金色大字块，统一走 `FeedbackOverlay` 右上角气泡，3 秒消失逻辑不变 | ✅ 已修复 |
 | F55 | 专注页 | 说话气泡初版被 `Align.topRight` 推到屏幕最右缘，离居中向日葵太远，不像向日葵说的话 | 气泡定位在屏幕边缘而非角色旁 | `feedback_overlay` 去内部 Align/Padding（只渲染本体）；`focus_page` 中部 `Center+SizedBox(s×s)+Stack`，气泡 `Positioned(top:s*0.04, left:s*0.92)` 锚花头右上外沿（随缩放联动），尾巴指向花心 | ✅ 已修复 |
+| F56 | 专注入口页 | 预设时长胶囊「点击的时候来回变动」——选中某档后胶囊位置跳动、整排排列不稳（玄参 2026-09-30） | 旧用 `Wrap` 流式排布：选中态会插入打勾图标 → 胶囊变宽 → **触发重新换行（重排）** | 改为**固定三排等宽**布局 `_DurationRow` + `Expanded`（15-20-25 / 30-45-60 / 自由-自定义），胶囊宽度由 `Expanded` 锁定，选中不再引起任何重排 | ✅ 已修复 |
 
 **同轮非 Bug 拍板（玄参）**：专注中**不放 BGM**（`focus_loop.mp3` 资产保留不使用）；专注页构图优化（elapsed 放大 46 号主视觉、向日葵 320→`kFocusStageSize=220`、底部提示半透明胶囊、双页深色渐变）。
 
 **本轮校验**：`flutter analyze` 0 error（92 info 基线）；`flutter test --no-pub`（摘四代理）**679 全绿**（678 + `holdLastFrame` 行为用例 1）。
+
+---
+
+## 2026-09-30 深夜轮：入口页档位三排 / 删横屏贴士 / 自由专注
+
+**同轮非 Bug 拍板（玄参）**：
+
+1. **删除底部「把手机横过来…」引导贴士**——直接点「开始专注」即可，不再口头引导转横屏。
+2. **时长档位固定三排**：15-20-25 / 30-45-60 / 自由-自定义；`kFocusDurationOptions` 由 `[15,20,25,30,45]` 增至 `[15,20,25,30,45,60]`（补 60 档）。
+3. **新增「自由」档（自由专注）**：不预设时长、**不自动结算**，孩子自己决定何时结束；计时照走、每日额度与防沉迷约束仍在。落库 `plannedMin=0`（`plannedMin==0` 在结算 / 成长项 / 完美日各处既有守卫天然兼容）。
+4. **「提示音效」开关保留不动**——该开关实际控制收集阳光 / 欢迎回来 / 结算庆祝音效；删除会导致这些音效**默认常响**（仅家长端可关），故维持现状。
+
+**实现落点**：`app_constants.dart`（档位 +60）、`focus_engine.dart`（构造增 `freeMode=false`；`_advance` 到时判定加 `!_freeMode` 守卫 → 越过 planned 不自动结算，离席打断 / 产光 / 额度照旧）、`focus_page.dart`（增 `freeMode`；自由模式引擎 `planned` 改用 `kFocusDurationDefaultMinutes`(20) **仅推导 1/3 报信节奏**；计时标签「自由专注」、隐藏「/ 计划时长」）、`app_router.dart`（`free=1` → `plannedMinutes:0` + `freeMode:true`）、`entry_page.dart`（删横屏贴士、`Wrap` → 三排等宽、增 `_free` 状态、`_start()` 自由分支跳 `free=1`）。
+
+**护栏**：`focus_engine_advance_test` 新增 **N 组 4 条**——N1 越过 planned 不结算仍 running 且产光照旧 / N2 手动 `stop()` 出 manual 结算 / **N3 对照组：非自由模式仍自动 `timedOut`**（防改坏定时专注）/ N4 自由模式离席 320s「打断」照旧生效。
+
+**本轮校验**：`flutter analyze` 0 error；`flutter test --no-pub`（摘四代理）**684 全绿**（680 + 自由模式 4）。
+
+**已知边界（待玄参定夺）**：自由模式目前是「孩子点结束才结算」+ 结算侧额度硬截断；**尚未实现**「额度用完自动弹结算」（需在 `focus_page` 加额度看护定时器）。

@@ -56,9 +56,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           final dnd = state.uri.queryParameters['dnd'] != '0';
           // task 可空：从「成长」联动项进入时携带成长项 id（M4 达标后自动结算）。
           final taskId = state.uri.queryParameters['task'];
+          // free=1：自由专注（玄参 2026-09-30）——不预设时长、无到时提醒，
+          // 孩子自定结束；minutes 透传 0（仅落库 plannedMin=0 的口径标记）。
+          final bool free = state.uri.queryParameters['free'] == '1';
           return FocusPage(
-            plannedMinutes: minutes,
+            plannedMinutes: free ? 0 : minutes,
             dnd: dnd,
+            freeMode: free,
             taskId: taskId,
           );
         },

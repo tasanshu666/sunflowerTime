@@ -10,8 +10,10 @@ import 'package:sunflower_time/domain/services/focus_engine.dart';
 void main() {
   late DateTime now;
 
-  FocusEngine makeEngine({int plannedMin = 20}) => FocusEngine(
+  FocusEngine makeEngine({int plannedMin = 20, bool freeMode = false}) =>
+      FocusEngine(
         planned: Duration(minutes: plannedMin),
+        freeMode: freeMode,
         clock: () => now,
       );
 
@@ -214,6 +216,56 @@ void main() {
       expect(a.sunlight, closeTo(b.sunlight, 1e-9));
       expect(a.elapsed, b.elapsed);
       expect(a.state, b.state);
+    });
+  });
+
+  group('N 自由专注（玄参 2026-09-30）：不自动到时结算', () {
+    test('N1 推进超过 planned → 不自动结算，仍 running，产光照旧', () {
+      final e = makeEngine(plannedMin: 20, freeMode: true);
+      e.start(now);
+      for (int i = 0; i < 25; i++) {
+        advance(const Duration(minutes: 1));
+        e.tick(now);
+      }
+      // 关键：自由模式越过 planned(20min) 仍不结束、不结算。
+      expect(e.isFinished, isFalse);
+      expect(e.state, FocusEngineState.running);
+      expect(e.actualFocusMin, closeTo(25.0, 0.01));
+      expect(e.sunlight, closeTo(25.0, 0.5)); // 产光速率照旧 1 阳光/分钟
+    });
+
+    test('N2 自由模式手动 stop() → 正常结算出 outcome（manual）', () {
+      final e = makeEngine(plannedMin: 20, freeMode: true);
+      e.start(now);
+      advance(const Duration(minutes: 10));
+      e.tick(now);
+      expect(e.isFinished, isFalse); // 先确认没被自动结算掉
+      e.stop();
+      expect(e.isFinished, isTrue);
+      expect(e.outcome, isNotNull);
+      expect(e.outcome!.endReason, FocusEndReason.manual);
+    });
+
+    test('N3 对照：非自由模式推进超过 planned → 自动 timedOut 结算', () {
+      final e = makeEngine(plannedMin: 20); // freeMode 默认 false
+      e.start(now);
+      for (int i = 0; i < 25; i++) {
+        advance(const Duration(minutes: 1));
+        e.tick(now);
+      }
+      expect(e.isFinished, isTrue);
+      expect(e.outcome!.endReason, FocusEndReason.timedOut);
+    });
+
+    test('N4 自由模式离席超时「打断」照旧生效（不受 freeMode 影响）', () {
+      final e = makeEngine(plannedMin: 20, freeMode: true);
+      e.start(now);
+      e.onAbsent(now);
+      // 离席累计 320s > 300s（kL3ThresholdSeconds + kInterruptSeconds）→ 打断结束。
+      advance(const Duration(seconds: 320));
+      e.tick(now);
+      expect(e.isFinished, isTrue);
+      expect(e.outcome!.endReason, FocusEndReason.interrupted);
     });
   });
 }

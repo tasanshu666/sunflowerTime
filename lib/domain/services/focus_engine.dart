@@ -117,11 +117,21 @@ class FocusOutcome {
 /// 专注引擎（用例级领域服务）。
 class FocusEngine {
   /// [planned] 计划时长；[clock] 时钟注入（默认 [DateTime.now]，单测可注入假时钟）。
-  FocusEngine({required Duration planned, DateTime Function()? clock})
-      : _planned = planned,
+  ///
+  /// [freeMode] 自由专注（玄参 2026-09-30 拍板）：**不预设结束时间**，孩子自己决定
+  /// 何时结束 —— 推进到 [planned] 时**不自动结算**；计时、产光、离席超时打断与
+  /// 每日额度截断全部照旧，[planned] 仅用于推导 1/3 报信节奏。
+  /// 默认 false = 定时专注（原行为不变，既有单测不受影响）。
+  FocusEngine({
+    required Duration planned,
+    bool freeMode = false,
+    DateTime Function()? clock,
+  })  : _planned = planned,
+        _freeMode = freeMode,
         _clock = clock ?? DateTime.now;
 
   final Duration _planned;
+  final bool _freeMode;
   final DateTime Function() _clock;
 
   final StreamController<FocusEvent> _controller =
@@ -231,7 +241,10 @@ class FocusEngine {
     _lastTick = now;
 
     // 到时正常结束（PRD §4.1.2）。离席不冻结会话时钟（暂停会冻结，见 pause）。
-    if ((_state == FocusEngineState.running ||
+    // 自由专注（_freeMode）**不自动到时结算**：孩子自己点结束才结算
+    // （玄参 2026-09-30）；离席超时的「打断」在 _checkWake 内照常发生，不受本开关影响。
+    if (!_freeMode &&
+        (_state == FocusEngineState.running ||
             _state == FocusEngineState.absent) &&
         _sessionElapsed >= _planned) {
       finish(FocusEndReason.timedOut);

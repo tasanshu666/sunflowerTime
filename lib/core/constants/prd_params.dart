@@ -531,6 +531,13 @@ const int kFocusSettleDurationMs = 6087;
 /// 回来帧 · 播放时长（毫秒）= `welcome_back.mp3` 5.09s（30 帧 ≈170ms/帧）。
 const int kFocusReturnDurationMs = 5094;
 
+/// 自由专注 · 随光报信间隔（分钟）。
+///
+/// 自由模式（玄参 2026-09-30 拍板）：不预设时长、孩子自己决定何时结束、软件不做
+/// 到时提醒；计时与产出照常，防沉迷底线（离席打断 / 日上限结算截断）不变。
+/// 无计划时长的 1/3 进度无处安放，lvl2「收集阳光」改为**每满该间隔**触发一次。
+const int kFreeFocusCollectIntervalMinutes = 15;
+
 /// 专注页 · 收集阳光 / 欢迎回来 切换时的**交叉淡入淡出**时长（毫秒）。
 ///
 /// 玄参 2026-09-30 反馈 idle↔collect/welcome 切换生硬突兀：舞台改为 idle 常驻底层、

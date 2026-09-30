@@ -51,6 +51,13 @@ class FocusPage extends ConsumerStatefulWidget {
   /// 专注期是否启用系统勿扰（DND）屏蔽通知；入口页可选，默认开（F01）。
   final bool dnd;
 
+  /// 自由专注（玄参 2026-09-30 拍板）：**不预设时长、不自动结算**，孩子自己点结束。
+  ///
+  /// 为 true 时 [plannedMinutes] 透传 0（仅作落库口径标记 `plannedMin=0`，
+  /// 结算/成长项/完美日各处 `plannedMin==0` 的既有守卫分支天然兼容）；
+  /// 引擎侧改用默认档推导 1/3 报信节奏，且 `freeMode` 关闭「到时自动结算」。
+  final bool freeMode;
+
   /// 从「成长」联动项进入时携带的成长项 id（M4）；自由专注为 null。
   ///
   /// 非空时，本次专注结束后按会话自动结算该成长项（见 [_FocusPageState._handleOutcome]）。
@@ -60,6 +67,7 @@ class FocusPage extends ConsumerStatefulWidget {
     super.key,
     this.plannedMinutes = kFocusDurationDefaultMinutes,
     this.dnd = true,
+    this.freeMode = false,
     this.taskId,
   });
 
@@ -107,7 +115,16 @@ class _FocusPageState extends ConsumerState<FocusPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // B30：监听生命周期以在返回设置后重查 DND
-    _engine = FocusEngine(planned: Duration(minutes: widget.plannedMinutes));
+    // 自由专注：plannedMinutes 透传 0（落库标记），引擎改用默认档推导 1/3 报信
+    // 节奏（约 8 分钟收一次阳光），并传 freeMode=true 关闭「到时自动结算」。
+    _engine = FocusEngine(
+      planned: Duration(
+        minutes: widget.freeMode
+            ? kFocusDurationDefaultMinutes
+            : widget.plannedMinutes,
+      ),
+      freeMode: widget.freeMode,
+    );
     _eventSub = _engine.events.listen(_onEvent);
     _enterFocusMode();
     unawaited(_applyDndOnEnter()); // F01：专注开始启用勿扰（如已授权）
@@ -524,9 +541,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        '本次专注',
-                        style: TextStyle(
+                      Text(
+                        widget.freeMode ? '自由专注' : '本次专注',
+                        style: const TextStyle(
                           color: Color(0xFF9E9ECF),
                           fontSize: 14,
                           letterSpacing: 2,
@@ -547,15 +564,19 @@ class _FocusPageState extends ConsumerState<FocusPage>
                               letterSpacing: 2,
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          Text(
-                            '/ ${_fmt(planned)}',
-                            style: const TextStyle(
-                              color: Color(0xFF8A8AA3),
-                              fontSize: 16,
-                              letterSpacing: 1,
+                          // 自由专注不显示「/ 计划时长」——没有倒计时压力，
+                          // 只看已经专注了多久（玄参 2026-09-30）。
+                          if (!widget.freeMode) ...<Widget>[
+                            const SizedBox(width: 10),
+                            Text(
+                              '/ ${_fmt(planned)}',
+                              style: const TextStyle(
+                                color: Color(0xFF8A8AA3),
+                                fontSize: 16,
+                                letterSpacing: 1,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ],

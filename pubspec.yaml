@@ -69,6 +69,14 @@ flutter:
     - assets/fx/grow/sunflower/adult_to_bloomed/
     - assets/fx/care/water/
     - assets/fx/care/fertilize/
+    # 专注页向日葵序列帧（2026-09-29 玄参交付）：常态 idle 循环 / 1-3 进度收集阳光 /
+    # 结算庆祝 / 回来 四组，**各组帧数不同**（13/40/36/30）。同样受「目录声明不递归」
+    # 约束 —— 四个叶子目录必须逐个列全。命名与规格见
+    # `docs/美术资源_序列帧与音频命名规范_v1.md`。
+    - assets/fx/focus/sunflower/idle/
+    - assets/fx/focus/sunflower/collect/
+    - assets/fx/focus/sunflower/settle/
+    - assets/fx/focus/sunflower/return/
     # 奖励物美术资源（2026-09-27 奖励物图标化）：sunlight/fragment/seed[_物种id].png，
     # 命名见 `assets/rewards/README.txt`；缺失时头顶奖励图标回退内置 Icons。
     - assets/rewards/

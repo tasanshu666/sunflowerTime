@@ -5,17 +5,18 @@
 ///    从 001 起，播放顺序 = 文件名字典序）；
 ///  · 养护效果帧：`assets/fx/care/{water|fertilize}/frame001..N.png`（纯效果层，
 ///    透明底、不含盆与植物 —— 播放时叠加在植物静态图**之上**，植物本体保持可见）；
-///  · 帧数统一 [kFxFrameCount]（本次交付五组均 25 帧）。
+///  · 专注页向日葵帧：`assets/fx/focus/sunflower/{idle|collect|settle|return}/frame001..N.png`
+///    （透明底角色层，2026-09-29 玄参交付；**各组帧数不同**，见 `prd_params.dart`）。
 ///
 /// ## 播放口径（玄参拍板）
 ///  · **每帧时长 = 音频时长 / 帧数**（「动画帧的播放速度与对应的音频时间保持一致」），
-///    时长常量在 `prd_params.dart`（grow 三段各 4100ms、water 2900ms、fertilize 3056ms）；
-///  · 成长过渡：居中放大演出（[kGrowFxScale] 倍格宽），播完后 [kFxDisplayFadeOutMs]
-///    渐隐消失，切回静态图；
-///  · 养护效果：底层植物静态图保持不动，效果帧叠加其上，播完渐隐移除。
+///    时长常量在 `prd_params.dart`；
+///  · **一次性**（[loop] = false，默认）：播完 [fadeOutMs] 渐隐后回调 [onComplete]
+///    （成长过渡 / 养护 / 专注收集 / 专注回来）；
+///  · **循环**（[loop] = true）：无限循环、不渐隐、不回调（专注常态 idle / 结算庆祝）。
 ///
 /// 实现：单一 [AnimationController] 驱动，播放段按进度取帧号，收尾段做透明度渐隐；
-/// 总时长有限（= 播放 + 渐隐），可被 `pumpAndSettle()` 正常结束（测试硬要求）。
+/// 一次性播放总时长有限（= 播放 + 渐隐），可被 `pumpAndSettle()` 正常结束（测试硬要求）。
 library frame_sequence_player;
 
 import 'dart:async';
@@ -74,6 +75,18 @@ const String kCareWaterFxDir = 'assets/fx/care/water';
 /// 施肥效果帧目录。
 const String kCareFertilizeFxDir = 'assets/fx/care/fertilize';
 
+/// 专注页 · 常态 idle 循环帧目录（2026-09-29 玄参交付）。
+const String kFocusIdleFxDir = 'assets/fx/focus/sunflower/idle';
+
+/// 专注页 · 1/3 进度收集阳光帧目录。
+const String kFocusCollectFxDir = 'assets/fx/focus/sunflower/collect';
+
+/// 专注页 · 结算庆祝帧目录。
+const String kFocusSettleFxDir = 'assets/fx/focus/sunflower/settle';
+
+/// 专注页 · 回来（欢迎）帧目录。
+const String kFocusReturnFxDir = 'assets/fx/focus/sunflower/return';
+
 /// 预热一组序列帧到 ImageCache（消除「画面一闪一闪」的换帧白屏）。
 ///
 /// 逐帧 `Image.asset` 换帧时会重新解码 720×720 PNG（异步）→ 旧图已丢弃则白屏闪烁
@@ -104,7 +117,10 @@ Future<void> precacheFxFrames(BuildContext context, List<String> frames) async {
 int frameIndexFor(double t, int count) =>
     (t * count).floor().clamp(0, count - 1);
 
-/// 序列帧一次性播放器：按序轮播 [frames]，播完 [fadeOutMs] 渐隐后回调 [onComplete]。
+/// 序列帧播放器：按序轮播 [frames]。
+///
+/// - [loop] = false（默认）：一次性播放，播完 [fadeOutMs] 渐隐后回调 [onComplete]；
+/// - [loop] = true：无限循环（不渐隐、不回调），用于常态 idle / 结算庆祝。
 ///
 /// 布局：外层给多大就画多大（[SizedBox.expand] + [BoxFit.contain]，帧画布 720×720
 /// 方形；「居中放大 / 底对齐」等几何编排由调用方用 [Positioned] 决定，本组件不掺和）。
@@ -115,19 +131,30 @@ class FrameSequencePlayer extends StatefulWidget {
     required this.frames,
     required this.durationMs,
     this.fadeOutMs = kFxDisplayFadeOutMs,
+    this.loop = false,
+    this.holdLastFrame = false,
     this.onComplete,
   });
 
   /// 帧asset 路径列表（顺序即播放顺序）。
   final List<String> frames;
 
-  /// 播放段总时长（毫秒）= 对应音频时长。
+  /// 播放段总时长（毫秒）= 对应音频时长（循环模式即单圈时长）。
   final int durationMs;
 
-  /// 播完后的渐隐时长（毫秒）；0 表示播完立即消失。
+  /// 播完后的渐隐时长（毫秒）；0 表示播完立即消失（循环/定格模式忽略）。
   final int fadeOutMs;
 
-  /// 整段（播放 + 渐隐）结束回调，供调用方移除本组件。
+  /// 是否无限循环播放（true 时忽略 [fadeOutMs]、不回调 [onComplete]）。
+  final bool loop;
+
+  /// 一次性播完后是否**停在末帧常驻**（不渐隐、不消失，仍回调 [onComplete] 恰一次）。
+  ///
+  /// 结算页庆祝帧专用（玄参 2026-09-30 拍板「结算动画帧播放一次就可以」——
+  /// 与 `focus_settle` 音效同时开始、同时结束，播完定格末帧而不是渐隐消失）。
+  final bool holdLastFrame;
+
+  /// 整段（播放 + 渐隐）结束回调，供调用方移除本组件（循环模式不触发）。
   final VoidCallback? onComplete;
 
   @override
@@ -138,14 +165,21 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
-    duration: Duration(milliseconds: widget.durationMs + widget.fadeOutMs),
+    duration: Duration(
+      milliseconds: widget.durationMs +
+          (widget.loop || widget.holdLastFrame ? 0 : widget.fadeOutMs),
+    ),
   );
 
   @override
   void initState() {
     super.initState();
-    _ctrl.addStatusListener(_onStatus);
-    _ctrl.forward();
+    if (widget.loop) {
+      _ctrl.repeat();
+    } else {
+      _ctrl.addStatusListener(_onStatus);
+      _ctrl.forward();
+    }
   }
 
   bool _precached = false;
@@ -177,16 +211,25 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
         animation: _ctrl,
         builder: (BuildContext context, Widget? _) {
           final double t = _ctrl.value;
-          // 播放段：t ∈ [0, playEnd) 取帧；渐隐段：停在末帧并线性淡出。
-          final double playEnd =
-              widget.durationMs / (widget.durationMs + widget.fadeOutMs);
-          final double opacity = t >= playEnd
-              ? (1 - (t - playEnd) / (1 - playEnd)).clamp(0.0, 1.0)
-              : 1.0;
-          final int idx = frameIndexFor(
-            (t / (playEnd == 0 ? 1 : playEnd)).clamp(0.0, 0.999),
-            widget.frames.length,
-          );
+          final bool steady = widget.loop || widget.holdLastFrame;
+          final double opacity;
+          final int idx;
+          if (steady) {
+            // 循环：不渐隐按整圈取帧；定格：播完停在末帧常驻。
+            opacity = 1.0;
+            idx = frameIndexFor(t.clamp(0.0, 0.999), widget.frames.length);
+          } else {
+            // 播放段：t ∈ [0, playEnd) 取帧；渐隐段：停在末帧并线性淡出。
+            final double playEnd =
+                widget.durationMs / (widget.durationMs + widget.fadeOutMs);
+            opacity = t >= playEnd
+                ? (1 - (t - playEnd) / (1 - playEnd)).clamp(0.0, 1.0)
+                : 1.0;
+            idx = frameIndexFor(
+              (t / (playEnd == 0 ? 1 : playEnd)).clamp(0.0, 0.999),
+              widget.frames.length,
+            );
+          }
           return SizedBox.expand(
             child: Opacity(
               opacity: opacity,

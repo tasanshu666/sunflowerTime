@@ -500,6 +500,48 @@ const int kCareFertilizeDurationMs = 3056;
 /// 成长过渡动画播完后的渐隐时长（毫秒）——玄参口径「播放完就可以直接渐变消失」。
 const int kFxDisplayFadeOutMs = 300;
 
+// ── 专注页向日葵序列帧（玄参 2026-09-29 素材落地）────────────────────────────
+// 目录：`assets/fx/focus/sunflower/{idle|collect|settle|return}/frame001..N.png`
+//（三位零填充、从 001 起，播放顺序 = 文件名字典序）；目录常量见
+// `frame_sequence_player.dart` 的 kFocus*FxDir。
+// 每帧时长 = 音频时长 / 帧数（时长常量来自交付 mp3 的 afinfo 实测）。
+
+/// 专注页 · 常态 idle 循环帧数（玄参 2026-09-30 重新导出 idle 序列，由 13 增至 46 帧）。
+const int kFocusIdleFrameCount = 46;
+
+/// 专注页 · 1/3 进度收集阳光帧数（40 帧）。
+const int kFocusCollectFrameCount = 40;
+
+/// 专注页 · 结算庆祝帧数（36 帧）。
+const int kFocusSettleFrameCount = 36;
+
+/// 专注页 · 回来（欢迎）帧数（30 帧）。
+const int kFocusReturnFrameCount = 30;
+
+/// idle 循环单圈时长（毫秒）——保持原 13 帧 / 4000ms 的逐帧节奏（≈308ms/帧），
+/// 帧数增至 46 后等比延长至 ~14.2s 一整圈（46 × 308ms），慢而不抢注意力。
+const int kFocusIdleLoopDurationMs = 14154;
+
+/// 收集阳光帧 · 播放时长（毫秒）= `focus_collect.mp3` 10.08s（40 帧 ≈252ms/帧）。
+const int kFocusCollectDurationMs = 10083;
+
+/// 结算庆祝帧 · 播放时长（毫秒）= `focus_settle.mp3` 6.09s（36 帧 ≈169ms/帧）。
+const int kFocusSettleDurationMs = 6087;
+
+/// 回来帧 · 播放时长（毫秒）= `welcome_back.mp3` 5.09s（30 帧 ≈170ms/帧）。
+const int kFocusReturnDurationMs = 5094;
+
+/// 专注页向日葵舞台边长（逻辑像素）。
+///
+/// 玄参 2026-09-30 反馈「向日葵需要缩小显示」：横屏逻辑高约 360dp，原 320 几乎
+/// 占满全高，收敛为 220（约占屏高 61%，时间区与底部提示各留出空间）。
+const double kFocusStageSize = 220;
+
+/// 欢迎回来最短离席门槛（秒）——玄参 2026-09-30 反馈「欢迎回来太灵敏，
+/// 不在专注界面立刻触发」：离席 < 此值（默认 30s，如息屏几秒又亮）恢复在场时
+/// 不弹「欢迎回来」、不播欢迎音，仅静默恢复（避免误触）。
+const int kWelcomeBackMinAbsentSeconds = 30;
+
 /// 成长过渡动画相对花盆格的放大倍数（居中放大演出，玄参拍板「居中放大演出」）。
 const double kGrowFxScale = 1.4;
 

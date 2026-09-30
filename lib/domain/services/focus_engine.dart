@@ -247,13 +247,19 @@ class FocusEngine {
     final DateTime t = now ?? _clock();
     _advance(t);
     if (_state != FocusEngineState.absent) return; // 离席满 300s 已在 _advance 内打断
+    // 玄参 2026-09-30：欢迎回来需离席满 [kWelcomeBackMinAbsentSeconds] 才触发，
+    // 短暂离开（如息屏几秒又亮）只静默恢复，不弹「欢迎回来」、不播欢迎音。
+    final bool shouldWelcome =
+        _absentElapsed >= const Duration(seconds: kWelcomeBackMinAbsentSeconds);
     _state = FocusEngineState.running;
     _resumeFrom = t;
     _absentElapsed = Duration.zero;
     _gentleFiredThisWindow = false;
     _strongFiredThisWindow = false;
     _lastTick = t;
-    _emit(const FocusEvent(level: FeedbackLevel.lvl3));
+    if (shouldWelcome) {
+      _emit(const FocusEvent(level: FeedbackLevel.lvl3));
+    }
   }
 
   /// 检测到离席（灭屏 / 离开，强判定 PRD §4.3 / §6.2）：产出停止，不扣减。

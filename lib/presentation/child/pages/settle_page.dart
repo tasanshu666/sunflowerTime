@@ -9,6 +9,7 @@ library settle_page;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
@@ -24,6 +25,7 @@ import 'package:sunflower_time/domain/entities/tracking_event.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
+import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
 
 /// 专注时长格式化（B25 修复）：[minutes] 单位为**分钟**。
@@ -89,15 +91,20 @@ class _SettlePageState extends ConsumerState<SettlePage>
   @override
   void initState() {
     super.initState();
+    // 玄参 2026-09-30 拍板：专注结束后**强制竖屏**进入结算页。
+    // 专注页锁横屏，结束时手机常仍横持（专注页 dispose 只复位方向 = 跟随传感器，
+    // 横持就保持横屏），竖版信息页在横屏下溢出（实测 BOTTOM OVERFLOWED BY 267
+    // PIXELS）。主流专注 App（番茄ToDo / Forest）的结算/统计页也均为竖屏信息页。
+    unawaited(_lockPortrait());
     _anim = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
     )..forward();
     // 显示口径修正：本栏只统计「获得」，单独读一次账本（不改动任何写入逻辑）。
     unawaited(_loadTodayEarned());
-    // M2：net > 0 光回罐动画启动时播放结算奖励音（受 soundOn 保护，缺素材静默降级）。
+    // 结算页向日葵庆祝序列帧（settle）配音；受 soundOn 保护，缺素材静默降级。
     if ((widget.args?.settlement?.net ?? 0) > 0) {
-      ref.read(audioServiceProvider).playSfx(AudioCue.taskReward);
+      ref.read(audioServiceProvider).playSfx(AudioCue.focusSettle);
     }
     // T-B：结算后注入 sun_earned / valid_focus_day 埋点（settlement 非空时）。
     final FocusSettlement? settlement = widget.args?.settlement;
@@ -107,6 +114,16 @@ class _SettlePageState extends ConsumerState<SettlePage>
       // P0 · B：结算后判定「本轮新跨过的里程碑」（按 type 去重，一生只写一次）。
       unawaited(_recordMilestones());
     }
+  }
+
+  /// 强制竖屏（portraitUp/Down；失败静默 —— 方向锁定只是体验优化，不阻塞结算）。
+  Future<void> _lockPortrait() async {
+    try {
+      await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    } catch (_) {}
   }
 
   @override
@@ -278,9 +295,33 @@ class _SettlePageState extends ConsumerState<SettlePage>
         if (!didPop) context.go('/');
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF1B1B2F),
-        body: SafeArea(
-        child: AnimatedBuilder(
+        backgroundColor: const Color(0xFF141426),
+        // 背景升级（玄参 2026-09-30）：不再纯黑 —— 保持与专注页一致的深色系，
+        // 叠深蓝紫渐变（顶部略亮的夜空感；参考潮汐「深色沉浸 + 层次渐变」）。
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                Color(0xFF2E2E52),
+                Color(0xFF1B1B2F),
+                Color(0xFF141426),
+              ],
+              stops: <double>[0.0, 0.45, 1.0],
+            ),
+          ),
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) =>
+                  SingleChildScrollView(
+                    // 横屏兜底：强制竖屏生效前的瞬间 / 未来内容增高也不再溢出报错。
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: IntrinsicHeight(
+                        child: AnimatedBuilder(
           animation: _anim,
           builder: (context, _) {
             final t = Curves.easeInOut.transform(_anim.value);
@@ -299,22 +340,38 @@ class _SettlePageState extends ConsumerState<SettlePage>
                 Expanded(
                   child: Center(
                     // B32 修复：中央向日葵**始终**渲染，避免 <5 分钟（net==0）结算时花消失。
-                    // net > 0：庆祝态花 + 「光回罐」上涨动画 + 小字；
-                    // net == 0（含 shortAborted / settlement 为 null）：静态呼吸花（celebrating=false），
-                    // 不显示罐与光点（花与罐已拆分，不再被整体隐藏）。
-                    child: net > 0
-                        ? Column(
-                            mainAxisSize: MainAxisSize.min,
+                    // 方案 A（玄参 2026-09-30）：有结算数据（settlement 非空）就**始终**播 settle
+                    // 序列帧（含 <5 分钟短专注 net==0），画面与庆祝态统一，不回退默认矢量花；
+                    // 音效仍只在 net>0 时播（initState 控制），短专注静音。
+                    // 仅 settlement 为 null（深链直入、无专注数据）才回退默认静态呼吸花。
+                    child: settlement != null
+                        ? Stack(
+                            alignment: Alignment.center,
                             children: [
-                              const Text(
-                                '向日葵把光收进罐子里 ☀️',
-                                style: TextStyle(
-                                  color: Color(0xFFBDBDBD),
-                                  fontSize: 14,
+                              // 柔和暖金光晕（庆祝氛围，不与帧特效抢戏）。
+                              Container(
+                                width: 300,
+                                height: 300,
+                                decoration: const BoxDecoration(
+                                  gradient: RadialGradient(
+                                    colors: <Color>[
+                                      Color(0x30FFE082),
+                                      Color(0x00FFE082),
+                                    ],
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              _LightBackToJar(progress: t),
+                              SizedBox(
+                                width: 260,
+                                height: 260,
+                                child: FrameSequencePlayer(
+                                  frames: fxFrameAssets(
+                                      kFocusSettleFxDir, kFocusSettleFrameCount),
+                                  durationMs: kFocusSettleDurationMs,
+                                  loop: false,
+                                  holdLastFrame: true, // 播一次定格末帧（不循环、不渐隐）
+                                ),
+                              ),
                             ],
                           )
                         : const SizedBox(
@@ -390,90 +447,15 @@ class _SettlePageState extends ConsumerState<SettlePage>
               ],
             );
           },
-        ),
-      ),
-      ),
-    );
-  }
-}
-
-/// 「光回罐」动画：那束光从屏外飞回罐子，罐内水位随进度上涨。
-class _LightBackToJar extends StatelessWidget {
-  final double progress;
-
-  const _LightBackToJar({required this.progress});
-
-  @override
-  Widget build(BuildContext context) {
-    // 光点行进阶段（前 70%）：从右上屏外飞入罐口；此后停在罐内。
-    final double travel = (progress / 0.7).clamp(0.0, 1.0);
-    final double fill = ((progress - 0.4) / 0.6).clamp(0.0, 1.0);
-    return SizedBox(
-      width: 260,
-      height: 260,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          const SunflowerCanvas(
-            level: FeedbackLevel.lvl1,
-            celebrating: true,
-          ),
-          // 光点：从右上 (dx=120, dy=-120) 飞向罐口 (0, 20)
-          Positioned(
-            left: 130 + (1 - travel) * 110,
-            top: 130 + (1 - travel) * (-110) + 30,
-            child: Opacity(
-              opacity: travel >= 0.98 ? 0.0 : 1.0,
-              child: Container(
-                width: 14,
-                height: 14,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFF59D),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: Color(0x88FFF59D), blurRadius: 12)
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // 阳光罐（简化：底部圆角罐 + 水位）
-          Positioned(
-            bottom: 6,
-            child: _Jar(fill: fill),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Jar extends StatelessWidget {
-  final double fill;
-
-  const _Jar({required this.fill});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 64,
-      height: 82,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white24, width: 2),
-      ),
-      alignment: Alignment.bottomCenter,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: FractionallySizedBox(
-          heightFactor: fill.clamp(0.0, 1.0),
-          widthFactor: 1.0,
-          alignment: Alignment.bottomCenter,
-          child: Container(color: const Color(0xFFFFE082)),
-        ),
-      ),
-    );
+                        ), // AnimatedBuilder
+                      ), // IntrinsicHeight
+                    ), // ConstrainedBox
+                  ), // SingleChildScrollView
+            ), // LayoutBuilder
+          ), // SafeArea
+        ), // DecoratedBox
+      ), // Scaffold
+    ); // PopScope
   }
 }
 

@@ -11,10 +11,11 @@ import 'package:just_audio/just_audio.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 
-/// 音效提示（SFX）枚举。每个 cue 映射到 `assets/audio/sfx/<name>.wav`。
+/// 音效提示（SFX）枚举。每个 cue 映射到 `assets/audio/sfx/<name>`。
 ///
-/// 2026-09-28 新增 5 个 mp3 cue（玄参素材落地）：成长过渡 3 段 + 养护 2 段。
-/// 新 cue 一律 mp3；既有 4 个 wav 保持不动。
+/// 2026-09-28 新增 5 个 mp3 cue（成长过渡 3 段 + 养护 2 段）；2026-09-29 新增专注页
+/// 2 个 mp3 cue（收集 / 结算），并把 `welcomeBack` 由 `.wav` 改为交付实况 `.mp3`。
+/// 新 cue 一律 mp3；`wake` / `taskReward` 等尚未交付的既有 wav 保持不动。
 enum AudioCue {
   /// 光回罐 / 结算奖励（settle 页 net > 0）。
   taskReward,
@@ -22,7 +23,7 @@ enum AudioCue {
   /// 二档送光粒子 / 气泡（专注进度）。
   progress,
 
-  /// 三档「欢迎回来」。
+  /// 三档「欢迎回来」（= `welcome_back.mp3`）。
   welcomeBack,
 
   /// 四档唤醒。
@@ -42,6 +43,12 @@ enum AudioCue {
 
   /// 养护 · 施肥。
   careFertilize,
+
+  /// 专注页 · 1/3 进度收集阳光（配 collect 序列帧）。
+  focusCollect,
+
+  /// 结算页 · 向日葵庆祝（配 settle 序列帧）。
+  focusSettle,
 }
 
 /// [AudioCue] 到 assets 音频文件路径的映射（相对工程根）。
@@ -54,7 +61,7 @@ extension AudioCueX on AudioCue {
       case AudioCue.progress:
         return 'assets/audio/sfx/progress.wav';
       case AudioCue.welcomeBack:
-        return 'assets/audio/sfx/welcome_back.wav';
+        return 'assets/audio/sfx/welcome_back.mp3';
       case AudioCue.wake:
         return 'assets/audio/sfx/wake.wav';
       case AudioCue.growthSeedToSprout:
@@ -67,6 +74,10 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/care_water.mp3';
       case AudioCue.careFertilize:
         return 'assets/audio/sfx/care_fertilize.mp3';
+      case AudioCue.focusCollect:
+        return 'assets/audio/sfx/focus_collect.mp3';
+      case AudioCue.focusSettle:
+        return 'assets/audio/sfx/focus_settle.mp3';
     }
   }
 }
@@ -154,23 +165,31 @@ class AudioService {
   Future<void> _playSfx(AudioCue cue) async {
     final AudioPlayer? player = await _sfx;
     if (player == null) return; // 播放器构造失败：静默降级
-    try {
-      await player.stop();
-      await player.setAsset(cue.assetPath);
-      await player.seek(Duration.zero);
-      await player.play();
-    } catch (_) {
-      // 资源缺失或解码失败：静默降级。
+    // 真机修复（玄参 2026-09-30 反馈「离席回来欢迎音无声」）：app 刚从后台恢复时
+    // 音频会话可能尚未就绪，首次播放被系统静默吞掉 → 首败后延迟 600ms 重试一次。
+    for (int attempt = 0; attempt < 2; attempt++) {
+      try {
+        if (attempt > 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+        }
+        await player.stop();
+        await player.setAsset(cue.assetPath);
+        await player.seek(Duration.zero);
+        await player.play();
+        return; // 启动成功即返回（播放中失败不在本层感知）
+      } catch (_) {
+        // 资源缺失或播放启动失败：重试一次后静默降级。
+      }
     }
   }
 
-  /// 循环播放背景音乐（focus_loop.wav）。资源缺失静默跳过。
+  /// 循环播放背景音乐（focus_loop.mp3）。资源缺失静默跳过。
   Future<void> startBgm() async {
     if (!_bgmOn || _bgmPlaying) return;
     final AudioPlayer? player = await _bgm;
     if (player == null) return; // 播放器构造失败：静默降级
     try {
-      await player.setAsset('assets/audio/bgm/focus_loop.wav');
+      await player.setAsset('assets/audio/bgm/focus_loop.mp3');
       await player.setLoopMode(LoopMode.one);
       await player.seek(Duration.zero);
       await player.play();

@@ -1,4 +1,4 @@
-// 序列帧与音频资产护栏测试（玄参 2026-09-28 素材落地批）。
+// 序列帧与音频资产护栏测试（玄参 2026-09-28 素材落地批；2026-09-29 增专注页向日葵帧）。
 //
 // 为什么存在：本项目两次吃过「资产静默回退」的亏（AssetManifest.json 失效、
 // 序列帧目录名/帧数与代码常量漂移）。本测试直读文件系统与 PNG IHDR，
@@ -81,7 +81,28 @@ void main() {
     });
   });
 
-  group('音频资产存在性（新 5 cue + 花园氛围音）', () {
+  group('专注页向日葵序列帧契约（玄参 2026-09-29 交付，**各组帧数不同**）', () {
+    final Map<String, int> focusDirs = <String, int>{
+      kFocusIdleFxDir: kFocusIdleFrameCount,
+      kFocusCollectFxDir: kFocusCollectFrameCount,
+      kFocusSettleFxDir: kFocusSettleFrameCount,
+      kFocusReturnFxDir: kFocusReturnFrameCount,
+    };
+
+    focusDirs.forEach((String dir, int count) {
+      test('$dir：恰有 $count 张、文件名与 fxFrameAssets 契约一致', () {
+        final List<String> files = pngsOf(dir);
+        expect(files.length, count,
+            reason: '$dir 帧数应为 $count，实际 ${files.length}');
+        final List<String> expected = fxFrameAssets(dir, count)
+            .map((String p) => p.split('/').last)
+            .toList();
+        expect(files, expected, reason: '$dir 文件名与契约不符');
+      });
+    });
+  });
+
+  group('音频资产存在性（新 cue + 专注页 cue + 花园氛围音）', () {
     test('AudioCue 新增 cue 的 mp3 文件真实存在', () {
       final List<AudioCue> newCues = <AudioCue>[
         AudioCue.growthSeedToSprout,
@@ -89,6 +110,8 @@ void main() {
         AudioCue.growthAdultToBloomed,
         AudioCue.careWater,
         AudioCue.careFertilize,
+        AudioCue.focusCollect,
+        AudioCue.focusSettle,
       ];
       for (final AudioCue cue in newCues) {
         expect(cue.assetPath.endsWith('.mp3'), isTrue,
@@ -96,6 +119,14 @@ void main() {
         expect(File('$root/${cue.assetPath}').existsSync(), isTrue,
             reason: '缺音频文件：${cue.assetPath}');
       }
+    });
+
+    test('专注页回来音 welcome_back.mp3 与 BGM focus_loop.mp3 存在', () {
+      expect(AudioCue.welcomeBack.assetPath, endsWith('welcome_back.mp3'));
+      expect(File('$root/${AudioCue.welcomeBack.assetPath}').existsSync(), isTrue,
+          reason: '缺音频文件：${AudioCue.welcomeBack.assetPath}');
+      const String bgm = 'assets/audio/bgm/focus_loop.mp3';
+      expect(File('$root/$bgm').existsSync(), isTrue, reason: '缺 BGM：$bgm');
     });
 
     test('花园氛围音 background.mp3 在 bgm 目录且存在', () {
@@ -110,14 +141,17 @@ void main() {
     // 但帧全在更深一层子目录 → 帧根本没进包，Image.asset errorBuilder 静默吞，
     // 真机「只剩音效没有动画」。本用例钉死：每个序列帧叶子目录必须出现在 pubspec。
     test('fx 全部叶子目录都在 pubspec.yaml 的 assets 里登记', () {
-      final String pubspec =
-          File('$root/pubspec.yaml').readAsStringSync();
+      final String pubspec = File('$root/pubspec.yaml').readAsStringSync();
       final List<String> dirs = <String>[
         growFxDir('sunflower', GrowTransition.seedToSprout),
         growFxDir('sunflower', GrowTransition.sproutToAdult),
         growFxDir('sunflower', GrowTransition.adultToBloomed),
         kCareWaterFxDir,
         kCareFertilizeFxDir,
+        kFocusIdleFxDir,
+        kFocusCollectFxDir,
+        kFocusSettleFxDir,
+        kFocusReturnFxDir,
       ];
       for (final String dir in dirs) {
         expect(pubspec.contains('    - $dir/'), isTrue,

@@ -688,3 +688,24 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 - `flutter test --no-pub`（摘四个代理变量）→ **663 全绿**（645 基线 + 新增：`fx_frame_assets_guard`（叶子目录/帧计数/命名/音频/8 图尺寸）/ `growth_fx_overlay` 3 / `migration_v12_to_v13` 4 / `care_effect_overlay` 更新）
 - 资产落位：`assets/audio/bgm/background.mp3`、`assets/audio/sfx/{grow_*,care_water,care_fertilize}.mp3`、`assets/fx/grow/sunflower/{seed_to_sprout,sprout_to_adult,adult_to_bloomed}/frame001..025.png`、`assets/fx/care/{water,fertilize}/frame001..025.png`、`assets/plants/species_*_adult_bloomed.png` ×8
 - iOS 模拟器（iPhone 17，无 GUI，用 `xcrun simctl` 装启）已装最新奶油卡版；Android APK 仍为旧包、真机未连
+
+---
+
+# 专注/结算页体验修订（2026-09-30，分支 `main`，待提交）
+
+> 玄参真机验收专注页序列帧（C21）的 4 条反馈：专注静音拍板、构图优化、结算页三问题、欢迎音无声。口径见宪法 **C22**。
+
+| ID | 模块 | 现象 / 报错 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| F48 | 音频 | 离席回来 welcome 动画正常但**无声**（settle 音正常，排除 soundOn/素材问题） | app 刚从后台恢复时音频会话尚未就绪，首次 `play()` 被系统静默吞掉（catch 吞掉无感知） | `AudioService._playSfx` 首败后延迟 600ms 重试一次（仍静默降级） | ✅ 已修复 |
+| F49 | 结算页 | settle 动画帧**无限循环**但音效只播一次（6.09s 音 vs 36 帧同速循环 → 失同步感） | C21 按旧口径把 settle 接成 `loop:true` | 玄参拍板「播放一次就可以」：`loop:false + holdLastFrame:true`（新参数：播完停末帧常驻，与音效同起同止） | ✅ 已修复 |
+| F50 | 结算页 | 横屏进入结算页 `BOTTOM OVERFLOWED BY 267 PIXELS`（截图实证） | 专注页锁横屏，结束时只「复位方向」（=跟随传感器），手机横持则保持横屏；竖版结算页 Column 超高 | `settle_page.initState` 强制 portraitUp/Down；另加 `LayoutBuilder+SingleChildScrollView+IntrinsicHeight` 滚动兜底 | ✅ 已修复 |
+| F51 | 结算页 | 结算页纯黑背景生硬；自制「光回罐+阳光罐」卡与帧内特效重复 | C21 保留了旧矢量时代的特效卡 | 删 `_LightBackToJar`/`_Jar` 及说明小字；背景升级为与专注页一致的深蓝紫渐变 + 暖金光晕（参考潮汐「深色沉浸+层次渐变」） | ✅ 已修复 |
+| F52 | 结算页 | <5 分钟短专注（net==0）结算中央回到系统默认矢量向日葵，与正式庆祝帧视觉割裂（孩子困惑「换图了」） | `settle_page.build` 原判定 `net > 0` 才播 settle 序列帧，net==0 走默认花 | 方案A：改为 `settlement != null` 才播 settle 帧——短专注也播（画面统一）；音效仍只在 net>0 播（短专注静音）；仅深链 `settlement==null` 才回退默认花 | ✅ 已修复 |
+| F53 | 专注页 | 1/3 收集阳光时文案「我去把它放好。」以底部白色横条压在向日葵身上、遮挡角色 | 旧 `FeedbackOverlay` 为屏幕底部横向白底圆角条 | 重写为「向日葵说话气泡」：暖黄奶油底+深棕字+左下小尾巴指向花心，锚定花头右上，不遮挡；lvl2 文案后修订为「太好了，又收集到阳光了。」 | ✅ 已修复 |
+| F54 | 专注页 | 离席≥30s 回来的「欢迎回来」用独立顶部金色大字，与向日葵重叠/压住角色 | 欢迎回来走独立 `Text` 块而非气泡层 | lvl3 现也出气泡（`_bubbleText` 增 `lvl3⇒'欢迎回来'`）；`focus_page` 删独立金色大字块，统一走 `FeedbackOverlay` 右上角气泡，3 秒消失逻辑不变 | ✅ 已修复 |
+| F55 | 专注页 | 说话气泡初版被 `Align.topRight` 推到屏幕最右缘，离居中向日葵太远，不像向日葵说的话 | 气泡定位在屏幕边缘而非角色旁 | `feedback_overlay` 去内部 Align/Padding（只渲染本体）；`focus_page` 中部 `Center+SizedBox(s×s)+Stack`，气泡 `Positioned(top:s*0.04, left:s*0.92)` 锚花头右上外沿（随缩放联动），尾巴指向花心 | ✅ 已修复 |
+
+**同轮非 Bug 拍板（玄参）**：专注中**不放 BGM**（`focus_loop.mp3` 资产保留不使用）；专注页构图优化（elapsed 放大 46 号主视觉、向日葵 320→`kFocusStageSize=220`、底部提示半透明胶囊、双页深色渐变）。
+
+**本轮校验**：`flutter analyze` 0 error（92 info 基线）；`flutter test --no-pub`（摘四代理）**679 全绿**（678 + `holdLastFrame` 行为用例 1）。

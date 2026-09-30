@@ -150,19 +150,34 @@ void main() {
       expect(e.isFinished, isFalse);
     });
 
-    test('M3 重复 onAbsent → 幂等；重复 onPresent → 只发一次 lvl3', () {
+    test('M3 重复 onAbsent → 幂等；真实离席后重复 onPresent → 只发一次 lvl3', () {
       final e = makeEngine();
       e.start(now);
       advance(const Duration(seconds: 10));
       e.tick(now);
       e.onAbsent(now);
-      e.onAbsent(now.add(const Duration(seconds: 5))); // 重复
+      e.onAbsent(now.add(const Duration(seconds: 5))); // 重复（幂等）
       expect(e.state, FocusEngineState.absent);
 
-      e.onPresent(now);
-      e.onPresent(now.add(const Duration(seconds: 1))); // 重复（已 running）
+      // 真实离席 35s 后恢复（满足欢迎回来最短门槛 kWelcomeBackMinAbsentSeconds）。
+      final DateTime back = now.add(const Duration(seconds: 35));
+      e.onPresent(back);
+      e.onPresent(back.add(const Duration(seconds: 1))); // 重复（已 running）
       expect(e.state, FocusEngineState.running);
       expect(countLevel(e, FeedbackLevel.lvl3), 1);
+    });
+
+    test('M6 离席 <30s 恢复 → 不弹「欢迎回来」（无 lvl3，静默恢复）', () {
+      final e = makeEngine();
+      e.start(now);
+      advance(const Duration(seconds: 10));
+      e.tick(now);
+      e.onAbsent(now);
+      final DateTime back = now.add(const Duration(seconds: 8)); // 仅离席 8s
+      e.onPresent(back);
+      expect(e.state, FocusEngineState.running);
+      expect(countLevel(e, FeedbackLevel.lvl3), 0,
+          reason: '短暂离开（息屏几秒）不应触发欢迎回来');
     });
 
     test('M4 finished 后再 onAbsent / onPresent → 不崩、outcome 不变', () {

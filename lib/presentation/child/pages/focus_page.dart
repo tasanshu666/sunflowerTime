@@ -43,7 +43,7 @@ import 'package:sunflower_time/platform/dnd_controller.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/feedback_overlay.dart';
-import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
+import 'package:sunflower_time/presentation/child/widgets/focus_sunflower_stage.dart';
 
 class FocusPage extends ConsumerStatefulWidget {
   final int plannedMinutes;
@@ -156,15 +156,17 @@ class _FocusPageState extends ConsumerState<FocusPage>
     }
   }
 
-  /// M2：进入专注时按设置装配音频——应用 soundOn/bgmOn，开启则启动 BGM 循环。
+  /// M2：进入专注时按设置装配音频——应用 soundOn/bgmOn。
+  ///
+  /// 玄参 2026-09-30 拍板：**专注中不放任何背景音乐**（真机反馈「没有声音反而
+  /// 更好，有声音反而是打扰」）→ 不再调用 `startBgm`（`focus_loop.mp3` 资产保留
+  /// 但不使用）；SFX（收集 / 欢迎回来 / 唤醒）仍按 soundOn 生效。
   Future<void> _applyAudioOnEnter() async {
     final AppSettings s = await ref.read(settingsRepositoryProvider).getSettings();
     if (!mounted) return;
     _tier = s.ageTier; // T-B：记录档位供埋点
     _dailyFocusCap = s.dailyFocusCap; // 日上限口径：结算按此截断
-    final AudioService audio = ref.read(audioServiceProvider);
-    audio.applySettings(soundOn: s.soundOn, bgmOn: s.bgmOn);
-    if (s.bgmOn) unawaited(audio.startBgm());
+    ref.read(audioServiceProvider).applySettings(soundOn: s.soundOn, bgmOn: s.bgmOn);
   }
 
   Future<void> _enterFocusMode() async {
@@ -199,7 +201,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
         setState(() => _level = FeedbackLevel.lvl2);
         _pulseParticle();
         _showBubble(event.textKey);
-        ref.read(audioServiceProvider).playSfx(AudioCue.progress); // M2：送光提示音
+        ref.read(audioServiceProvider).playSfx(AudioCue.focusCollect); // 收集阳光序列帧配音
       case FeedbackLevel.lvl3:
         setState(() {
           _level = FeedbackLevel.lvl3;
@@ -441,8 +443,8 @@ class _FocusPageState extends ConsumerState<FocusPage>
     _eventSub?.cancel();
     _presence?.stop();
     _engine.dispose();
-    // M2：退出专注停止并释放音频播放器（下次进入懒加载重建）。
-    unawaited(ref.read(audioServiceProvider).stopBgm());
+    // M2：退出专注释放音频播放器（下次使用懒加载重建）。专注中已不放 BGM
+    // （玄参 2026-09-30 拍板），这里只负责释放 SFX 播放器。
     unawaited(ref.read(audioServiceProvider).dispose());
     // F01：万一 _handleOutcome 未跑（如进程被杀），退出时仍尝试恢复通知。
     unawaited(_dnd.setEnabled(false));
@@ -476,12 +478,14 @@ class _FocusPageState extends ConsumerState<FocusPage>
   Widget build(BuildContext context) {
     final Duration elapsed = _engine.elapsed;
     final Duration planned = _engine.planned;
-    final double progress = planned.inMicroseconds == 0
-        ? 0
-        : (elapsed.inMicroseconds / planned.inMicroseconds).clamp(0.0, 1.0);
 
     // 打盹屏经 go('/focus') 进入 = 路由栈底，不拦的话 Android 返回键会直接退出 App。
     // 按架构 §1.3 / M0 §7 约定，「手动退出」与物理竖屏同路：暂停 + 确认框。
+    // 2026-09-30 重排（玄参反馈「叠了、花太大」）：改用「三段式 Column」——
+    // 顶部计时区 / 中部向日葵(flex 自适应) / 底部提示胶囊，三段互不重叠；
+    // 向日葵在 Expanded 内按可用高度动态缩放（参考 Forest / 番茄ToDo：
+    // 时间在上、图案居中、提示沉底，分区清晰）。
+    final bool showBanner = _dndBanner && widget.dnd && !_finished;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -489,20 +493,124 @@ class _FocusPageState extends ConsumerState<FocusPage>
         _requestExit();
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF1B1B2F), // 低亮深色打盹屏底
-      body: Stack(
-        fit: StackFit.expand,
-        alignment: Alignment.center,
-        children: [
-            // 中央：在做自己事的花（呼吸式明暗，零突事件）
-            SunflowerCanvas(
-              level: _level,
-              emitParticle: _emitParticle,
-              progress: progress,
-              welcoming: _welcoming,
+        backgroundColor: const Color(0xFF141426), // 低亮深色打盹屏底（渐变最深处）
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 背景：深蓝紫微渐变（顶部略亮的夜空感）。
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Color(0xFF262647),
+                    Color(0xFF1B1B2F),
+                    Color(0xFF141426),
+                  ],
+                  stops: <double>[0.0, 0.5, 1.0],
+                ),
+              ),
             ),
-            // B30：未获勿扰授权时的顶部常驻提示条幅（用户从设置返回后自动消失）。
-            if (_dndBanner && widget.dnd && !_finished)
+            // 主三段式结构：计时 / 向日葵 / 提示。SafeArea 避开刘海/圆角。
+            SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  // 为顶部 DND 条幅预留等高占位（条幅绝对定位于 Stack 顶层）。
+                  SizedBox(height: showBanner ? 48 : 0),
+                  const SizedBox(height: 16),
+                  // 顶部计时区（参考潮汐：大数字 + 极简层级）。
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        '本次专注',
+                        style: TextStyle(
+                          color: Color(0xFF9E9ECF),
+                          fontSize: 14,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            _fmt(elapsed),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 42,
+                              fontWeight: FontWeight.w300,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            '/ ${_fmt(planned)}',
+                            style: const TextStyle(
+                              color: Color(0xFF8A8AA3),
+                              fontSize: 16,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  // 中部向日葵：占满剩余空间并居中，按容器高度自适应缩放，不溢出/不重叠。
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (BuildContext ctx, BoxConstraints constraints) {
+                        final double s =
+                            constraints.biggest.height.clamp(110.0, 230.0);
+                        // 以向日葵为中心的 s×s 子 Stack：气泡锚在**向日葵头右上旁**，
+                        // 而不是贴屏幕右缘（玄参 2026-09-30：太远不像向日葵说的话）。
+                        return Center(
+                          child: SizedBox(
+                            width: s,
+                            height: s,
+                            child: Stack(
+                              clipBehavior: Clip.none, // 气泡可越出 s×s 界（仍在区内）
+                              alignment: Alignment.center,
+                              children: [
+                                FocusSunflowerStage(
+                                  collectSignal: _emitParticle,
+                                  returnSignal: _welcoming,
+                                  size: s,
+                                ),
+                                // B27：三档「欢迎回来」改为说话气泡，与二档/四档统一由
+                                // 气泡层渲染（玄参 2026-09-30 拍板，取代原顶部金色大字）。
+                                // 位置：花头右上外沿（left 0.92s 略越帧缘、top 0.04s 贴花顶），
+                                // 尾巴左下指向花心，不遮挡角色。
+                                if (_bubbleKey != null || _welcoming)
+                                  Positioned(
+                                    top: s * 0.04,
+                                    left: s * 0.92,
+                                    child: FeedbackOverlay(
+                                      level: _level,
+                                      wakeIntensity: _wake,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  // 底部提示胶囊。
+                  const _FocusHintChip(),
+                  const SizedBox(height: 14),
+                ],
+              ),
+            ),
+            // B30：未获勿扰授权时的顶部常驻提示条幅。
+            if (showBanner)
               Positioned(
                 top: 0,
                 left: 0,
@@ -533,52 +641,6 @@ class _FocusPageState extends ConsumerState<FocusPage>
                   ),
                 ),
               ),
-            // 顶部：只留本次倒计时（不显示阳光池数字，PRD §4.2）
-            // B30：顶部出现 DND 提示条幅时，倒计时下移避免遮挡。
-            Positioned(
-              top: _dndBanner && widget.dnd && !_finished ? 56 : 24,
-              left: 0,
-              right: 0,
-              child: Text(
-                '本次 ${_fmt(elapsed)} / ${_fmt(planned)}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFFBDBDBD),
-                  fontSize: 22,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
-            // B27：三档「欢迎回来」文字（亮屏瞬间补判），与离席遮罩区分，2–3 秒后消失。
-            if (_welcoming)
-              const Positioned(
-                top: 76,
-                left: 0,
-                right: 0,
-                child: Text(
-                  '欢迎回来',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFFFFE082),
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            // 底部：本屏不可交互提示
-            const Positioned(
-              bottom: 20,
-              left: 0,
-              right: 0,
-              child: Text(
-                '本屏不可交互 · 竖屏即可结束',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF616161), fontSize: 14),
-              ),
-            ),
-            // 二档/四档气泡层（lvl1/lvl3 不出气泡）
-            if (_bubbleKey != null)
-              FeedbackOverlay(level: _level, wakeIntensity: _wake),
             // 离席降亮（灭屏=离席；离席产出停止，不扣减，PRD §4.3 / §4.1.5）
             if (_absent)
               Container(
@@ -600,6 +662,39 @@ class _FocusPageState extends ConsumerState<FocusPage>
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 底部提示胶囊（玄参 2026-09-30「提示文字美化」）：
+/// 低饱和小字 + 半透明白圆角胶囊 + 🌻 点缀，弱化存在感但不消失。
+class _FocusHintChip extends StatelessWidget {
+  const _FocusHintChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('🌻', style: TextStyle(fontSize: 12)),
+          SizedBox(width: 8),
+          Text(
+            '本屏不可交互 · 竖屏即可结束',
+            style: TextStyle(
+              color: Color(0xFF8A8AA3),
+              fontSize: 12,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }

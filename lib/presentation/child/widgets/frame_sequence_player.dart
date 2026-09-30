@@ -220,9 +220,11 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
             idx = frameIndexFor(t.clamp(0.0, 0.999), widget.frames.length);
           } else {
             // 播放段：t ∈ [0, playEnd) 取帧；渐隐段：停在末帧并线性淡出。
-            final double playEnd =
-                widget.durationMs / (widget.durationMs + widget.fadeOutMs);
-            opacity = t >= playEnd
+            // fadeOutMs==0（专注页 transient 由舞台统一交叉淡出）时 playEnd=1，无渐隐段。
+            final double playEnd = widget.fadeOutMs > 0
+                ? widget.durationMs / (widget.durationMs + widget.fadeOutMs)
+                : 1.0;
+            opacity = (widget.fadeOutMs > 0 && t >= playEnd)
                 ? (1 - (t - playEnd) / (1 - playEnd)).clamp(0.0, 1.0)
                 : 1.0;
             idx = frameIndexFor(

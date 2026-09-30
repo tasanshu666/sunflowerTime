@@ -506,8 +506,8 @@ const int kFxDisplayFadeOutMs = 300;
 // `frame_sequence_player.dart` 的 kFocus*FxDir。
 // 每帧时长 = 音频时长 / 帧数（时长常量来自交付 mp3 的 afinfo 实测）。
 
-/// 专注页 · 常态 idle 循环帧数（玄参 2026-09-30 重新导出 idle 序列，由 13 增至 46 帧）。
-const int kFocusIdleFrameCount = 46;
+/// 专注页 · 常态 idle 循环帧数（玄参 2026-09-30 替换 idle 为「向日葵看书」序列，由 46 增至 60 帧；5fps = 200ms/帧）。
+const int kFocusIdleFrameCount = 60;
 
 /// 专注页 · 1/3 进度收集阳光帧数（40 帧）。
 const int kFocusCollectFrameCount = 40;
@@ -518,9 +518,9 @@ const int kFocusSettleFrameCount = 36;
 /// 专注页 · 回来（欢迎）帧数（30 帧）。
 const int kFocusReturnFrameCount = 30;
 
-/// idle 循环单圈时长（毫秒）——保持原 13 帧 / 4000ms 的逐帧节奏（≈308ms/帧），
-/// 帧数增至 46 后等比延长至 ~14.2s 一整圈（46 × 308ms），慢而不抢注意力。
-const int kFocusIdleLoopDurationMs = 14154;
+/// idle 循环单圈时长（毫秒）——玄参指定 5fps（200ms/帧），60 帧整圈 = 12000ms（12s），
+/// 慢节奏不抢注意力。
+const int kFocusIdleLoopDurationMs = 12000;
 
 /// 收集阳光帧 · 播放时长（毫秒）= `focus_collect.mp3` 10.08s（40 帧 ≈252ms/帧）。
 const int kFocusCollectDurationMs = 10083;
@@ -530,6 +530,13 @@ const int kFocusSettleDurationMs = 6087;
 
 /// 回来帧 · 播放时长（毫秒）= `welcome_back.mp3` 5.09s（30 帧 ≈170ms/帧）。
 const int kFocusReturnDurationMs = 5094;
+
+/// 专注页 · 收集阳光 / 欢迎回来 切换时的**交叉淡入淡出**时长（毫秒）。
+///
+/// 玄参 2026-09-30 反馈 idle↔collect/welcome 切换生硬突兀：舞台改为 idle 常驻底层、
+/// 切换时在新相位之上叠层做交叉淡入（idle 渐隐、新相位渐显），播完再交叉淡出回 idle，
+/// 使画面过渡平滑（不再硬切）。250ms 足够柔和不拖沓。
+const int kFocusTransientCrossfadeMs = 250;
 
 /// 专注页向日葵舞台边长（逻辑像素）。
 ///

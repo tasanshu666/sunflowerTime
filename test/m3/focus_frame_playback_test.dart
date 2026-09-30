@@ -71,19 +71,22 @@ void main() {
   });
 
   group('FocusSunflowerStage · 相位切换', () {
-    testWidgets('idle 初始渲染；collect 上升沿切换仍恰有一个播放器', (tester) async {
+    testWidgets('idle 仅常驻 idle 层；collect 上升沿叠一层 transient 做交叉淡入',
+        (tester) async {
       await tester.pumpWidget(const MaterialApp(
         home: FocusSunflowerStage(collectSignal: false, returnSignal: false),
       ));
+      // 空闲态：只有常驻 idle 一层。
       expect(find.byType(FrameSequencePlayer), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 100));
 
-      // collect 上升沿（false→true）→ 切到一次性 collect（10.08s）。
+      // collect 上升沿（false→true）→ 在原 idle 之上叠一层一次性 collect（交叉淡入）。
       await tester.pumpWidget(const MaterialApp(
         home: FocusSunflowerStage(collectSignal: true, returnSignal: false),
       ));
       await tester.pump();
-      expect(find.byType(FrameSequencePlayer), findsOneWidget);
+      // 此刻为「idle 底层 + collect 叠加层」两层并存（交叉淡入过渡中）。
+      expect(find.byType(FrameSequencePlayer), findsNWidgets(2));
       await tester.pumpWidget(const SizedBox()); // 卸载以释放 Ticker
     });
   });

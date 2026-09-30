@@ -45,6 +45,19 @@ import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/feedback_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/focus_sunflower_stage.dart';
 
+/// 本场是否已把「今日剩余额度」用尽（供专注页轻提示判定）。
+///
+/// 公开纯函数（便于单测，不依赖 widget）：[remainingMin] 为进入专注时的今日剩余
+/// 额度（分钟，1:1 于阳光），[elapsed] 为本场会话已走时长。
+/// 剩余不足 1 分钟（零头）视为已用尽——与入口页「额度耗尽」同口径。
+bool focusQuotaExhausted({
+  required Duration elapsed,
+  required double remainingMin,
+}) {
+  if (remainingMin < 1) return true;
+  return elapsed.inSeconds >= (remainingMin * 60).round();
+}
+
 class FocusPage extends ConsumerStatefulWidget {
   final int plannedMinutes;
 
@@ -93,6 +106,21 @@ class _FocusPageState extends ConsumerState<FocusPage>
   bool _finished = false;
   String? _bubbleKey;
 
+  /// 进入专注时读到的「今日剩余专注额度」（分钟，1:1 于阳光）；null = 未读到。
+  ///
+  /// 只用于**轻提示**：额度用完后在专注页左上角弹一次小卡。真正的截断仍在结算侧
+  /// （`SunlightService.settle`），本字段不是收口，读到 null 就安静不提示。
+  double? _quotaRemainingMin;
+
+  /// 「额度用完」轻提示卡是否正在显示。
+  bool _quotaHint = false;
+
+  /// 本场是否已弹过额度提示卡（整场一次，不再重复打扰）。
+  bool _quotaHintShownOnce = false;
+
+  /// 轻提示卡自动淡出的计时（UI 层驻留，非额度轮询；见 [kFocusQuotaHintSeconds]）。
+  Timer? _quotaHintTimer;
+
   /// 本次专注会话 id（埋点 focus_session_start/end 关联用，T-B）。
   late final String _sessionId = Uuid().v4();
 
@@ -132,6 +160,8 @@ class _FocusPageState extends ConsumerState<FocusPage>
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_finished) return;
       _engine.tick(DateTime.now());
+      // 额度用完轻提示：复用本 tick 判定（玄参 2026-09-30：不另起额度定时器）。
+      _maybeShowQuotaHint();
       if (mounted) setState(() {});
     });
     _presence = PresenceDetector(
@@ -184,7 +214,43 @@ class _FocusPageState extends ConsumerState<FocusPage>
     _tier = s.ageTier; // T-B：记录档位供埋点
     _dailyFocusCap = s.dailyFocusCap; // 日上限口径：结算按此截断
     ref.read(audioServiceProvider).applySettings(soundOn: s.soundOn, bgmOn: s.bgmOn);
+    // 顺带读「今日剩余额度」供轻提示判定（与结算同源的账本口径）。
+    try {
+      final double remaining = await ref
+          .read(sunlightServiceProvider)
+          .focusRemainingToday(s.dailyFocusCap, DateTime.now());
+      if (!mounted) return;
+      setState(() => _quotaRemainingMin = remaining);
+    } catch (_) {
+      // 读不到就不提示（正确性由结算侧截断兜底，绝不用假数据打扰孩子）。
+    }
   }
+
+  /// 额度用完 → 轻弹一次提示卡（左上角，不遮挡居中的向日葵）。
+  ///
+  /// 只在**尚未提示过**且本场已专注时长达到进入时的剩余额度时触发一次；
+  /// 判定挂在既有秒级 tick 上，**不新增额度定时器**（玄参 2026-09-30）。
+  void _maybeShowQuotaHint() {
+    if (_quotaHint || _quotaHintShownOnce) return;
+    final double? remaining = _quotaRemainingMin;
+    if (remaining == null) return;
+    if (!focusQuotaExhausted(
+      elapsed: _engine.elapsed,
+      remainingMin: remaining,
+    )) {
+      return;
+    }
+    _quotaHintShownOnce = true; // 整场只弹一次
+    setState(() => _quotaHint = true);
+    _quotaHintTimer?.cancel();
+    _quotaHintTimer = Timer(
+      const Duration(seconds: kFocusQuotaHintSeconds),
+      () {
+        if (mounted) setState(() => _quotaHint = false);
+      },
+    );
+  }
+
 
   Future<void> _enterFocusMode() async {
     // 常亮保持（P6 风险：国内 ROM 省电可能杀常亮，待真机验证）
@@ -319,6 +385,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
     _ticker?.cancel();
     _pulseTimer?.cancel();
     _bubbleTimer?.cancel();
+    _quotaHintTimer?.cancel();
     _presence?.stop();
     await _dnd.setEnabled(false); // F01：退出专注恢复通知
     await _restoreSystemChrome();
@@ -457,6 +524,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
     _ticker?.cancel();
     _pulseTimer?.cancel();
     _bubbleTimer?.cancel();
+    _quotaHintTimer?.cancel();
     _eventSub?.cancel();
     _presence?.stop();
     _engine.dispose();
@@ -630,6 +698,21 @@ class _FocusPageState extends ConsumerState<FocusPage>
                 ],
               ),
             ),
+            // 额度用完 · 轻提示卡（玄参 2026-09-30）：锚在**左上角**，向日葵居中，
+            // 二者互不重叠；淡入驻留 [kFocusQuotaHintSeconds] 秒后自动淡出，整场一次。
+            if (_quotaHintShownOnce)
+              Positioned(
+                top: showBanner ? 56 : 10,
+                left: 14,
+                child: IgnorePointer(
+                  ignoring: !_quotaHint,
+                  child: AnimatedOpacity(
+                    opacity: _quotaHint ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 320),
+                    child: const _FocusQuotaHintCard(),
+                  ),
+                ),
+              ),
             // B30：未获勿扰授权时的顶部常驻提示条幅。
             if (showBanner)
               Positioned(
@@ -683,6 +766,47 @@ class _FocusPageState extends ConsumerState<FocusPage>
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 「今日专注额度用完」轻提示卡（玄参 2026-09-30）。
+///
+/// 设计取向：**温和报信，不催不停**——自由专注下孩子自己决定何时结束，这里只
+/// 说明「额度用完了、超出部分不再有阳光」，不打断、不弹窗、不遮挡向日葵。
+class _FocusQuotaHintCard extends StatelessWidget {
+  const _FocusQuotaHintCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 244,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFE9B8).withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(color: Colors.black26, blurRadius: 8),
+        ],
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text('🌻', style: TextStyle(fontSize: 18)),
+          SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              '今天的专注额度用完啦，剩下的时间不再收集阳光，累了随时可以结束哦',
+              style: TextStyle(
+                color: Color(0xFF5D4037),
+                fontSize: 13,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

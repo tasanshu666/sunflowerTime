@@ -285,6 +285,10 @@ class _SettlePageState extends ConsumerState<SettlePage>
         _todayEarned ?? (todayNet > 0 ? todayNet : 0.0);
     final double actualMin = settlement?.actualFocusMin ?? 0;
     final bool shortAborted = settlement?.status == FocusStatus.shortAborted;
+    // 本次产出被**今日专注额度**削过（原始 > 实得）：在结算页做一次温和说明
+    // （玄参 2026-09-30：不因此在专注页加额度定时器打扰孩子）。
+    final bool capped = settlement?.capped ?? false;
+    final double rawS = settlement?.rawS ?? 0;
 
     // B20 修复：结算页经 go('/settle') 进入 → 路由栈底唯一页。
     // 用 PopScope 拦截系统返回手势（Android 右滑 / iOS 边缘滑动），
@@ -417,6 +421,48 @@ class _SettlePageState extends ConsumerState<SettlePage>
                           '这次太短啦，向日葵没来得及收集阳光（≥5 分钟才有产出哦）',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 13),
+                        ),
+                      ],
+                      // 超额说明（玄参 2026-09-30）：额度用完被截断时讲清楚原因，
+                      // 让孩子知道「不是向日葵没收，是今天的额度到顶了」。
+                      if (capped) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFE9B8).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color:
+                                  const Color(0xFFFFE9B8).withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Text(
+                                '🌻 今天专注额度用完啦',
+                                style: TextStyle(
+                                  color: Color(0xFFFFE082),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '超出额度的部分就不再收集阳光了'
+                                '${capped && rawS > net ? '（原本 ${_fmtSun(rawS)} ☀️，实到 ${_fmtSun(net)} ☀️）' : ''}。'
+                                '今天已经很棒啦，明天再来吧！',
+                                style: const TextStyle(
+                                  color: Color(0xFFBDBDBD),
+                                  fontSize: 13,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                       // 联动成长项结算（仅从「成长」进入专注才会有）。

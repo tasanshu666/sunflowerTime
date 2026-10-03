@@ -85,7 +85,8 @@ void main() {
   group('花盆网格 · 不溢出（多屏宽）', () {
     // 320 = 最窄常见屏；360 = 主流 Android；390 = iPhone 常规宽
     for (final double w in <double>[320, 360, 390]) {
-      testWidgets('屏宽 ${w.toInt()}：3 列 + 多个花盆不抛异常', (WidgetTester tester) async {
+      testWidgets('屏宽 ${w.toInt()}：3 列 + 多个花盆不抛异常',
+          (WidgetTester tester) async {
         _setScreen(tester, w, 780);
         await tester.pumpWidget(_harness(
           screenWidth: w,
@@ -94,6 +95,8 @@ void main() {
               plant: _plant(potIndex: 0),
               species: _sunflower,
               onTap: () {},
+              onClearWeed: () {},
+              onClearPest: () {},
             ),
             EmptyPot(potIndex: 1, onTap: () {}),
             GardenPot(
@@ -105,6 +108,8 @@ void main() {
               ),
               species: _sunflower,
               onTap: () {},
+              onClearWeed: () {},
+              onClearPest: () {},
             ),
             ExpandPotSlot(
               cost: 400,
@@ -134,13 +139,18 @@ void main() {
   });
 
   group('花盆网格 · 空盆与有植物盆等大 + 底部对齐（本次改造的主要目标）', () {
-    testWidgets('空盆与有植物盆的图片框尺寸一致、底部对齐、且足够大',
-        (WidgetTester tester) async {
+    testWidgets('空盆与有植物盆的图片框尺寸一致、底部对齐、且足够大', (WidgetTester tester) async {
       _setScreen(tester, 360, 780);
       await tester.pumpWidget(_harness(
         screenWidth: 360,
         cells: <Widget>[
-          GardenPot(plant: _plant(potIndex: 0), species: _sunflower, onTap: () {}),
+          GardenPot(
+            plant: _plant(potIndex: 0),
+            species: _sunflower,
+            onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
+          ),
           EmptyPot(potIndex: 1, onTap: () {}),
         ],
       ));
@@ -181,13 +191,18 @@ void main() {
       expect(filled.height / filled.width, closeTo(5 / 3, 0.002));
     });
 
-    testWidgets('有植物格内只有 1 个 Image（不再叠第二个花盆）',
-        (WidgetTester tester) async {
+    testWidgets('有植物格内只有 1 个 Image（不再叠第二个花盆）', (WidgetTester tester) async {
       _setScreen(tester, 360, 780);
       await tester.pumpWidget(_harness(
         screenWidth: 360,
         cells: <Widget>[
-          GardenPot(plant: _plant(potIndex: 0), species: _sunflower, onTap: () {}),
+          GardenPot(
+            plant: _plant(potIndex: 0),
+            species: _sunflower,
+            onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
+          ),
         ],
       ));
       await tester.pumpAndSettle();
@@ -209,16 +224,26 @@ void main() {
       await tester.pumpWidget(_harness(
         screenWidth: 360,
         cells: <Widget>[
-          GardenPot(plant: _plant(potIndex: 0), species: _sunflower, onTap: () {}),
+          GardenPot(
+            plant: _plant(potIndex: 0),
+            species: _sunflower,
+            onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
+          ),
           GardenPot(
             plant: _plant(id: 'p2', potIndex: 1),
             species: _sunflower,
             onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
           ),
           GardenPot(
             plant: _plant(id: 'p3', potIndex: 2),
             species: _sunflower,
             onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
           ),
         ],
       ));
@@ -250,6 +275,8 @@ void main() {
               plant: _plant(id: 'p$i', potIndex: i),
               species: _sunflower,
               onTap: () {},
+              onClearWeed: () {},
+              onClearPest: () {},
             ),
         ],
       ));
@@ -271,6 +298,8 @@ void main() {
             plant: _plant(status: PlantStatus.bloomed, progress: 1.0),
             species: _sunflower,
             onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
           ),
         ],
       ));
@@ -293,6 +322,8 @@ void main() {
             plant: _plant(progress: 0.5),
             species: _sunflower,
             onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
           ),
         ],
       ));
@@ -377,16 +408,22 @@ void main() {
             plant: _plant(id: 'a', potIndex: 0, status: PlantStatus.wilting),
             species: _sunflower,
             onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
           ),
           GardenPot(
             plant: _plant(id: 'b', potIndex: 1, status: PlantStatus.dead),
             species: _sunflower,
             onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
           ),
           GardenPot(
             plant: _plant(id: 'c', potIndex: 2, status: PlantStatus.bloomed),
             species: _sunflower,
             onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
           ),
         ],
       ));

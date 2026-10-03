@@ -9,7 +9,7 @@
 /// 关键教训：**光升 `schemaVersion` 不够，光加 `_ensureColumn` 也不够，两者缺一不可**；
 /// 而且 `flutter analyze` 与常规单测都抓不到（4 和 5 都是合法 Dart），
 /// 只能靠「拿老库真跑一次迁移」来验。故本测试钉死三件事：
-///  ① `AppDatabase.schemaVersion == 13`（版本号与建表改动不许脱节）；
+///  ① `AppDatabase.schemaVersion == 14`（版本号与建表改动不许脱节）；
 ///  ② v4 老库升级后 `custom_subject` 存在、历史行取 NULL、写入/读回成功；
 ///  ③ **跨版本跳跃**（v3 直跳 v5）也补得齐（plants 表 + garden_pot_capacity + custom_subject）。
 library migration_v4_to_v5_test;
@@ -201,14 +201,14 @@ Future<db.AppDatabase> _openMigrated(
 
 void main() {
   group('迁移 v4->v5：tasks.custom_subject 补列', () {
-    test('schemaVersion 必须为最新 12（版本号与建表改动不许脱节）', () async {
+    test('schemaVersion 必须为最新 14（版本号与建表改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(_v4Ddl(), 4);
       // 护栏：版本号若停在旧值，onUpgrade 不跑，下面所有列断言都会红。
       // 注：M4（v6）给 check_ins 补 5 列后，最新版本号已上移到 6
       //（见 test/m4/migration_v5_to_v6_test.dart）；植物成长 V2（v7，玄参大人
       // 2026-09-22）给成长中植物做重置清零后上移到 7
       //（见 test/m3/migration_v6_to_v7_test.dart），本护栏随之跟进。
-      expect(database.schemaVersion, 13);
+      expect(database.schemaVersion, 14);
     });
 
     test('v4 老库迁移后 tasks 含 custom_subject，历史行取 NULL 且数据不丢', () async {

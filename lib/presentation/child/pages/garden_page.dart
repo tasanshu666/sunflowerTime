@@ -127,6 +127,12 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   bool _busy = false;
   String? _error;
 
+  /// 花盆上方刚清除掉的干扰物提示（口径 C26）：`potIndex` 指明浮在哪一格。
+  ///
+  /// 只保留**最后一条**（同一格连续点两次时，第二条直接覆盖第一条，不排队）。
+  ({int potIndex, String text})? _clearHint;
+  Timer? _clearHintTimer;
+
   /// 当前「可收集」的待收集奖励（`plantId → 待收集奖励列表`，变更 A/B）。
   /// 到期后在该花盆**上方**掉落「头顶奖励图标」（玄参 2026-09-27 图标化），点击收集
   /// （见 [_collectReward]）。
@@ -191,6 +197,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   void dispose() {
     // ⚠️ dispose 内不得用 ref（unmount 先标 disposed，用必抛）——AudioService 用静态单例。
     _ambientTimer?.cancel();
+    // ⚠️ 纯 Timer 字段（不碰 ref），dispose 里取消即可；不取消会让 setState 打到已卸载页。
+    _clearHintTimer?.cancel();
     unawaited(AudioService.instance.stopGardenAmbient());
     _gridScroll.dispose();
     super.dispose();
@@ -330,6 +338,31 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       final String body = _outcomeParts(outcome);
       _snack(outcome.isInstantPhase ? body : '盛开的礼物：$body');
     }
+  }
+
+  /// 拔草 / 除虫（花园干扰物玩法，口径 C26）：**点图标即清除**，成功后在该花盆
+  /// **正上方**浮一条提示（1.2s 自动消失），数值全部取自常量 —— 改奖励不用改 UI。
+  ///
+  /// 走 [_run]：异常 → SnackBar 分因提示；成功后 → 经济修订号自增 + 静默刷新
+  /// （杂草消失、进度条恢复涨动）。
+  ///
+  /// ⚠️ [_busy] 闸门在这里同样必要：浮标与整格是**嵌套热区**，若手势穿透导致
+  /// 同一帧触发两次，第二次会被 [_run] 挡掉，不会写出两条阳光账本行。
+  Future<void> _clearPest(String plantId, int potIndex, {required bool weed}) async {
+    final bool ok = await _run(() {
+      final PlantGrowthService svc = ref.read(plantGrowthServiceProvider);
+      final DateTime now = DateTime.now();
+      return weed ? svc.clearWeed(plantId, now) : svc.clearPest(plantId, now);
+    });
+    if (!ok || !mounted) return;
+    final String text = weed
+        ? '${kGardenWeedEmoji} 除草 +${kGardenWeedReward.toInt()} ☀'
+        : '${kGardenPestEmoji} 除虫 +${kGardenPestReward.toInt()} ☀';
+    setState(() => _clearHint = (potIndex: potIndex, text: text));
+    _clearHintTimer?.cancel();
+    _clearHintTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _clearHint = null);
+    });
   }
 
   /// 把一条奖励结果拼成用户可见文案（`+N ☀ 阳光` / `+N 植物碎片` / `掉落「X」种子` /
@@ -736,6 +769,14 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     );
   }
 
+  /// 物种档位查询（物种缺失时按普通档兜底）——种子奖励图标据此选分档图。
+  bool _isPremiumSpecies(String speciesId) {
+    for (final PlantSpecies s in _species) {
+      if (s.id == speciesId) return s.isPremium;
+    }
+    return false;
+  }
+
   /// 草地上的格子：0..capacity-1 是花盆（空/有植物），末尾追加「加盆」格（未达上限时）。
   ///
   /// 变更 A/B + v12 图标化：有植物且存在「可收集」待收集奖励的花盆，**花盆上方**叠加一排
@@ -753,18 +794,20 @@ class _GardenPageState extends ConsumerState<GardenPage> {
           plant: occupant,
           species: _speciesOf(occupant),
           onTap: () => _openCareSheet(occupant.id, i),
+          onClearWeed: () => _clearPest(occupant.id, i, weed: true),
+          onClearPest: () => _clearPest(occupant.id, i, weed: false),
         );
         final List<PendingBloomReward> rewards =
             _collectibles[occupant.id] ?? const <PendingBloomReward>[];
-        if (rewards.isEmpty) {
-          cells.add(pot);
-        } else {
-          cells.add(Stack(
-            // ⚠️ StackFit.expand：让 GardenPot 仍收到「紧约束」（与直接嵌入网格一致）——
-            // GardenPot 用 LayoutBuilder 按格宽推导高度，收到松约束会缩成内容高度而错位。
-            fit: StackFit.expand,
-            children: <Widget>[
-              pot,
+        // ⚠️ StackFit.expand：让 GardenPot 仍收到「紧约束」（与直接嵌入网格一致）——
+        // GardenPot 用 LayoutBuilder 按格宽推导高度，收到松约束会缩成内容高度而错位。
+        // 这里**常驻** Stack（不再只在有奖励时包）：干扰物浮标与清除提示都要叠在盆上，
+        // 且两者都是 Positioned、不占布局高度 → 草地网格高度不受影响。
+        cells.add(Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            pot,
+            if (rewards.isNotEmpty)
               // 头顶奖励图标：花盆上方、横向一排、整体居中；`Positioned` 叠加**不占布局高度**。
               Positioned(
                 top: 0,
@@ -775,12 +818,35 @@ class _GardenPageState extends ConsumerState<GardenPage> {
                     rewards: rewards,
                     availableAssets: _rewardAssets,
                     onCollect: _collectReward,
+                    isPremiumOf: _isPremiumSpecies,
                   ),
                 ),
               ),
-            ],
-          ));
-        }
+            if (_clearHint?.potIndex == i)
+              // 刚拔草 / 除虫的提示：浮在花盆正上方（玄参口径「在花盆上面显示提示」），
+              // 1.2s 后自行消失；文案数值取常量，改奖励不用动 UI。
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xEFFFFFFF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      _clearHint!.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ));
       }
     }
     if (_capacity < kGardenPotCapacityMax) {
@@ -1102,15 +1168,35 @@ class _PlantTile extends StatelessWidget {
                 if (hasSeed) ...<Widget>[
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 3),
+                        horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFF1C2),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: const Color(0xFFF6C445)),
                     ),
-                    child: const Text('🌰 种子',
-                        style: TextStyle(
-                            fontSize: 12, color: Color(0xFF8D6E00))),
+                    // 种子美术图（2026-10-03 玄参提供分档图）：按物种档位选
+                    // seed_premium / seed_common；缺失回退 🌰 emoji。
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Image.asset(
+                          species.isPremium
+                              ? 'assets/rewards/seed_premium.png'
+                              : 'assets/rewards/seed_common.png',
+                          width: 16,
+                          height: 16,
+                          fit: BoxFit.contain,
+                          errorBuilder:
+                              (BuildContext _, Object __, StackTrace? ___) =>
+                                  const Text('🌰',
+                                      style: TextStyle(fontSize: 12)),
+                        ),
+                        const SizedBox(width: 3),
+                        const Text('种子',
+                            style: TextStyle(
+                                fontSize: 12, color: Color(0xFF8D6E00))),
+                      ],
+                    ),
                   ),
                   const SizedBox(width: 6),
                 ],
@@ -1220,10 +1306,18 @@ class _FragmentEntry extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Icon(
-                Icons.extension,
-                size: 16,
-                color: Color(0xFF9C917C),
+              // 碎片美术图（2026-10-03 玄参提供）：透明底裸图；缺失回退拼图 Icon。
+              Image.asset(
+                'assets/rewards/fragment.png',
+                width: 18,
+                height: 18,
+                fit: BoxFit.contain,
+                errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+                    const Icon(
+                  Icons.extension,
+                  size: 16,
+                  color: Color(0xFF9C917C),
+                ),
               ),
               const SizedBox(width: 4),
               Text(

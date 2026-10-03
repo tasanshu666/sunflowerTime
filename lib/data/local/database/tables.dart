@@ -58,6 +58,16 @@ class Plants extends Table {
       integer().withDefault(const Constant(0))(); // 累计盛开次数（成株后循环玩法；v10 新增）
   IntColumn get mood => integer().withDefault(const Constant(0))(); // PlantMood index
 
+  // ── v14 新增：花园干扰物（杂草 / 害虫，玄参 2026-09-30 拍板，口径 C26）──────
+  // 存「出现当天零点」而非时刻：口径是「每天发生一次、当天有效、次日自动消失」，
+  // 零点判等即天然保证跨天失效（次日零点 ≠ 今日零点 → 自动过期），不需要额外清理任务。
+  DateTimeColumn get weedAt =>
+      dateTime().nullable()(); // 杂草出现当天零点；null = 无杂草
+  DateTimeColumn get pestAt =>
+      dateTime().nullable()(); // 害虫出现当天零点；null = 无害虫
+  DateTimeColumn get weedPestRollDay =>
+      dateTime().nullable()(); // 「杂草/害虫每日 roll」已执行的当天零点（幂等基准）
+
   @override
   Set<Column> get primaryKey => {id};
 }

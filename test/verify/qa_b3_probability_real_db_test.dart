@@ -30,6 +30,7 @@ import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:test/test.dart';
+import '../helpers/no_hit_random.dart';
 
 class _NoFocusRepo implements FocusRepository {
   @override
@@ -40,8 +41,8 @@ class _NoFocusRepo implements FocusRepository {
   @override
   Future<int> countValidFocusDaysLastWeek(DateTime now) async => 0;
   @override
-  Future<FocusStats> totalStats() async =>
-      const FocusStats(totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
+  Future<FocusStats> totalStats() async => const FocusStats(
+      totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
 }
 
 const String _pid = 'p1';
@@ -114,13 +115,20 @@ void main() {
       settings: settings,
       bloomRewards: plants,
       random: Random(20260101),
+      weedRandom: NoHitRandom(),
     );
 
     final Map<String, int> inst = <String, int>{
-      'frag': 0, 'seed': 0, 'bonus': 0, 'none': 0,
+      'frag': 0,
+      'seed': 0,
+      'bonus': 0,
+      'none': 0,
     };
     final Map<String, int> sec = <String, int>{
-      'frag': 0, 'seed': 0, 'bonus': 0, 'base': 0,
+      'frag': 0,
+      'seed': 0,
+      'bonus': 0,
+      'base': 0,
     };
     final DateTime base = DateTime(2026, 9, 25, 8, 0);
 
@@ -129,8 +137,8 @@ void main() {
       await plants.savePlant(_readyToBloom(now));
       await svc.tickAll(now);
       // 读回**登记时**的定奖内容：区间取到 now+48h，令 instant 与第二段两条都到期可见。
-      final List<PendingBloomReward> due = await plants
-          .pendingBloomRewardsDue(now.add(const Duration(hours: kBloomRewardDelayHours)));
+      final List<PendingBloomReward> due = await plants.pendingBloomRewardsDue(
+          now.add(const Duration(hours: kBloomRewardDelayHours)));
       final PendingBloomReward instant = due.firstWhere(
           (PendingBloomReward r) => r.rewardKind == kBloomRewardPhaseInstant);
       final PendingBloomReward second = due.firstWhere(
@@ -151,12 +159,26 @@ void main() {
     expect(f(inst, 'frag'), closeTo(kBloomInstantFragmentRate, 0.03));
     expect(f(inst, 'seed'), closeTo(kBloomInstantSeedRate, 0.03));
     expect(f(inst, 'bonus'), closeTo(kBloomInstantBonusRate, 0.03));
-    expect(f(inst, 'none'), closeTo(1 - kBloomInstantFragmentRate - kBloomInstantSeedRate - kBloomInstantBonusRate, 0.03));
+    expect(
+        f(inst, 'none'),
+        closeTo(
+            1 -
+                kBloomInstantFragmentRate -
+                kBloomInstantSeedRate -
+                kBloomInstantBonusRate,
+            0.03));
 
     // 普通档「第二段」：碎片 15% / 种子 5% / 大额阳光 20% / 基础阳光 60%。
     expect(f(sec, 'frag'), closeTo(kBloomSecondPhaseFragmentRate, 0.03));
     expect(f(sec, 'seed'), closeTo(kBloomSecondPhaseSeedRate, 0.03));
     expect(f(sec, 'bonus'), closeTo(kBloomSecondPhaseBonusRate, 0.03));
-    expect(f(sec, 'base'), closeTo(1 - kBloomSecondPhaseFragmentRate - kBloomSecondPhaseSeedRate - kBloomSecondPhaseBonusRate, 0.03));
+    expect(
+        f(sec, 'base'),
+        closeTo(
+            1 -
+                kBloomSecondPhaseFragmentRate -
+                kBloomSecondPhaseSeedRate -
+                kBloomSecondPhaseBonusRate,
+            0.03));
   });
 }

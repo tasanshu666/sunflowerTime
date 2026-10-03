@@ -32,6 +32,7 @@ import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
+import '../helpers/no_hit_random.dart';
 
 // ── 内存 Fake 仓储 ──────────────────────────────────────────────────────────
 
@@ -79,8 +80,8 @@ class _NoFocusRepo implements FocusRepository {
   Future<int> countValidFocusDaysLastWeek(DateTime now) async => 0;
 
   @override
-  Future<FocusStats> totalStats() async =>
-      const FocusStats(totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
+  Future<FocusStats> totalStats() async => const FocusStats(
+      totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
 }
 
 /// 账本 Fake：余额充足；记录全部 append 条目（供断言阳光发放）。
@@ -137,13 +138,12 @@ class _MemLedger implements SunlightRepository {
   ) async =>
       entries
           .where((SunlightEntry e) =>
-              e.refType == refType &&
-              e.refId == refId &&
-              !e.ts.isBefore(since))
+              e.refType == refType && e.refId == refId && !e.ts.isBefore(since))
           .length;
 
   @override
-  Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async {
+  Future<DateTime?> lastTsByRefTypeAndRefId(
+      String refType, String refId) async {
     DateTime? last;
     for (final SunlightEntry e in entries) {
       if (e.refType != refType || e.refId != refId) continue;
@@ -263,6 +263,7 @@ _Ctx _make({Random? random, List<PlantSpecies>? species}) {
     settings: _MemSettingsRepo(),
     bloomRewards: bloomRewards,
     random: random,
+    weedRandom: NoHitRandom(),
   );
   return _Ctx(svc, plants, ledger, bloomRewards);
 }
@@ -461,7 +462,8 @@ void main() {
   // ── ② 开花瞬间奖励（普通档） ─────────────────────────────────────────────
   group('开花瞬间奖励 · 普通植物', () {
     test('保底 +6☀（100%）必给，且 roll 命中「无额外」时不掉碎片/种子', () async {
-      final _Ctx ctx = _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
+      final _Ctx ctx =
+          _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
       final DateTime now = DateTime(2026, 9, 25);
       await ctx.plants.savePlant(_readyToBloom('sp_common_a', now));
       await ctx.svc.tickAll(now);
@@ -515,7 +517,8 @@ void main() {
       final List<SunlightEntry> earns = _earns(ctx, kBloomRewardRefType);
       expect(earns, hasLength(2), reason: '保底 + 大额阳光两笔');
       final double bonus = earns.map((SunlightEntry e) => e.net).reduce(max);
-      expect(bonus, inInclusiveRange(kBloomBonusSunlightMin, kBloomBonusSunlightMax));
+      expect(bonus,
+          inInclusiveRange(kBloomBonusSunlightMin, kBloomBonusSunlightMax));
       expect(bonus, kBloomBonusSunlightMin + 5);
     });
   });
@@ -558,7 +561,8 @@ void main() {
       await ctx.svc.tickAll(now);
       await _collectInstant(ctx, now);
 
-      expect(await ctx.bloomRewards.unlockedSpeciesIds(), <String>['sp_premium']);
+      expect(
+          await ctx.bloomRewards.unlockedSpeciesIds(), <String>['sp_premium']);
     });
 
     test('精品 30% ≤ roll <55% → 掉大额阳光 15–25☀', () async {
@@ -576,9 +580,9 @@ void main() {
           kBloomBonusSunlightMinPremium);
     });
 
-    test('开花即登记两条待收集奖励：瞬间（即刻可收集，未入账）+ 第二段（due = +48h）',
-        () async {
-      final _Ctx ctx = _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
+    test('开花即登记两条待收集奖励：瞬间（即刻可收集，未入账）+ 第二段（due = +48h）', () async {
+      final _Ctx ctx =
+          _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
       final DateTime now = DateTime(2026, 9, 25, 8, 0);
       await ctx.plants.savePlant(_readyToBloom('sp_common_a', now));
       await ctx.svc.tickAll(now);
@@ -593,7 +597,8 @@ void main() {
 
       // 48h 后：瞬间 + 第二段两条均到期。
       final List<PendingBloomReward> later = await ctx.bloomRewards
-          .pendingBloomRewardsDue(now.add(const Duration(hours: kBloomRewardDelayHours)));
+          .pendingBloomRewardsDue(
+              now.add(const Duration(hours: kBloomRewardDelayHours)));
       expect(later, hasLength(2), reason: '瞬间 + 第二段两条都到期');
       expect(
         later.map((PendingBloomReward r) => r.rewardKind).toSet(),
@@ -699,7 +704,8 @@ void main() {
         kind: kBloomRewardKindPremium,
       );
       await ctx.svc.collectBloomReward('pr_1', dueTime);
-      expect(await ctx.bloomRewards.unlockedSpeciesIds(), <String>['sp_premium']);
+      expect(
+          await ctx.bloomRewards.unlockedSpeciesIds(), <String>['sp_premium']);
     });
 
     test('精品：roll ≥55% → 基础阳光 6–10☀', () async {
@@ -720,13 +726,13 @@ void main() {
     final DateTime dueTime =
         bloomAt.add(const Duration(hours: kBloomRewardDelayHours));
 
-    Future<void> insertPending(_Ctx ctx) => ctx.bloomRewards
-        .insertPendingBloomReward(PendingBloomReward(
-      id: 'pr_1',
-      plantId: _kPlantId,
-      dueAt: dueTime,
-      rewardKind: kBloomRewardKindNormal,
-    ));
+    Future<void> insertPending(_Ctx ctx) =>
+        ctx.bloomRewards.insertPendingBloomReward(PendingBloomReward(
+          id: 'pr_1',
+          plantId: _kPlantId,
+          dueAt: dueTime,
+          rewardKind: kBloomRewardKindNormal,
+        ));
 
     test('到期但花仍盛开 → tickAll 不自动发放，且列入可收集', () async {
       final _Ctx ctx = _make(random: _SeqRandom(doubles: <double>[0.90]));
@@ -792,8 +798,7 @@ void main() {
 
       final Plant after = (await ctx.plants.plant(_kPlantId))!;
       expect(after.status, PlantStatus.growing);
-      expect(after.bloomCount, 3,
-          reason: '枯萎浇活后退回首花速率 = DEF-1 回归');
+      expect(after.bloomCount, 3, reason: '枯萎浇活后退回首花速率 = DEF-1 回归');
     });
 
     test('硬枯萎（≥3 天）3 浇 +1 肥恢复 → bloomCount 保留（fertilize 路径）', () async {
@@ -872,7 +877,8 @@ void main() {
       await ctx.svc.tickAll(now);
 
       final Map<String, List<PendingBloomReward>> due = await ctx.svc
-          .collectibleBloomRewards(now.add(const Duration(hours: kBloomRewardDelayHours)));
+          .collectibleBloomRewards(
+              now.add(const Duration(hours: kBloomRewardDelayHours)));
       final List<PendingBloomReward> list =
           due[_kPlantId] ?? const <PendingBloomReward>[];
       final PendingBloomReward second = list.firstWhere(
@@ -891,7 +897,8 @@ void main() {
         bloomAt.add(const Duration(hours: kBloomRewardDelayHours));
 
     test('开花 → 登记一条可收集的 instant 记录（due = bloomedAt），且未入账', () async {
-      final _Ctx ctx = _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
+      final _Ctx ctx =
+          _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
       await ctx.plants.savePlant(_readyToBloom('sp_common_a', bloomAt));
       await ctx.svc.tickAll(bloomAt);
 
@@ -907,7 +914,8 @@ void main() {
     });
 
     test('点击 instant 气泡 → 入账一次；重复点击不再入账', () async {
-      final _Ctx ctx = _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
+      final _Ctx ctx =
+          _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
       await ctx.plants.savePlant(_readyToBloom('sp_common_a', bloomAt));
       await ctx.svc.tickAll(bloomAt);
 

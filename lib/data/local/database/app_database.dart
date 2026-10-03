@@ -54,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -196,6 +196,17 @@ class AppDatabase extends _$AppDatabase {
           if (from < 13) {
             await customStatement('UPDATE settings SET bgm_on = 1;');
           }
+
+          // ⑭ v14（花园干扰物「杂草 / 害虫」，玄参 2026-09-30 拍板，口径 C26）：plants 新增
+          //    3 列——`weed_at` / `pest_at` / `weed_pest_roll_day`。
+          //    · 三者都是 nullable 且无语义默认值（null = 无杂草 / 无害虫 / 尚未 roll），
+          //      存量行取 NULL 即可，不需要回填脚本；
+          //    · `_ensureColumn` 幂等补列，保证重复升级不报错。
+          //    ⚠️ 版本变更（13 → 14），必须配迁移测试（见
+          //       `test/m3/migration_v13_to_v14_test.dart`）。
+          await _ensureColumn(m, plants, plants.weedAt);
+          await _ensureColumn(m, plants, plants.pestAt);
+          await _ensureColumn(m, plants, plants.weedPestRollDay);
         },
       );
 

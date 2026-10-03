@@ -10,7 +10,7 @@
 ///  ⑦ 每物种同时仅存活一株（同物种再种被拒；枯萎仍算存活）；
 ///  ⑧ 死亡后再种 → 允许且**重新扣费**（一次兑换买一株）；
 ///  ⑨ 花园页「选择要种的植物」弹窗：稀有度两档（普通 / 精英）与价格文案渲染；
-///  ⑩ 种子券入口（玄参 2026-09-29）：持券物种徽章「🌰 种子」+ 「用种子种（免费）」按钮置顶。
+///  ⑩ 种子券入口（玄参 2026-09-29；2026-10-03 徽章图片化）：持券物种徽章（分档种子图/🌰 回退 + 「种子」文字）+ 「用种子种（免费）」按钮置顶。
 ///
 /// 纯 Dart 仓储以内存 Fake 实现；弹窗用例为真实 `GardenPage` 组件测试。
 library plant_species_pricing_test;
@@ -540,8 +540,9 @@ void main() {
       t.expect(sheetShown, t.isTrue);
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 种子徽章：仅番茄卡片有（其余 7 种无券）。
-      t.expect(find.text('🌰 种子'), findsOneWidget,
+      // 种子徽章：仅番茄卡片有（其余 7 种无券）。2026-10-03 徽章图片化：
+      // 图标为分档种子图（测试环境无 AssetManifest，异步回退 🌰，不作断言）+ 「种子」文字。
+      t.expect(find.text('种子'), findsOneWidget,
           reason: '只有持券的番茄卡片显示种子徽章');
       // 免费按钮：向日葵「免费」+ 番茄「用种子种（免费）」各一。
       t.expect(find.text('免费'), findsOneWidget, reason: '向日葵 = 免费');

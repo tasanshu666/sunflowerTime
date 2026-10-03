@@ -3,7 +3,7 @@
 /// 其**存量植株直接删除**（不做迁移映射；这两物种已从物种表下线）。
 ///
 /// 本测试钉死五件事（**必须把历史行读回来断言**，不能只断言「没抛异常」）：
-///  ① `AppDatabase.schemaVersion == 13`；
+///  ① `AppDatabase.schemaVersion == 14`；
 ///  ② v10 → v11 后 daisy / cactus 的存量植株 **被删除**（byId 返回 null、计数归零）；
 ///  ③ 其它物种（向日葵 / 番茄）植株 **原样保留**（含各字段逐项一致）；
 ///  ④ 其它表数据（settings / 碎片余额 / 已解锁物种 / 待收集奖励）原样保留；
@@ -187,12 +187,12 @@ Future<db.AppDatabase> _openMigrated(
 
 void main() {
   group('迁移 v10->v11：移除 daisy / cactus 存量植株', () {
-    test('schemaVersion 必须为最新 12（版本号与迁移改动不许脱节）', () async {
+    test('schemaVersion 必须为最新 14（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(
         _v10Ddl(withLegacyPlants: true),
         10,
       );
-      expect(database.schemaVersion, 13);
+      expect(database.schemaVersion, 14);
     });
 
     test('daisy / cactus 存量植株被删除；保留物种原样保留', () async {
@@ -292,7 +292,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 13);
+      expect(first.schemaVersion, 14);
       expect(await first.plantDao.byId('p_daisy'), isNull);
       expect(await first.plantDao.byId('p_sunflower'), isNotNull);
 
@@ -312,7 +312,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 13);
+      expect(second.schemaVersion, 14);
       expect(await second.plantDao.byId('p_sunflower'), isNotNull,
           reason: '二次打开不得丢数据');
       expect(await second.plantDao.byId('p_daisy_after'), isNotNull,

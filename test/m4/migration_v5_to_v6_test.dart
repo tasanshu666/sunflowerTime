@@ -241,14 +241,14 @@ List<String> _v3Ddl() => _schemaDdl(
 
 void main() {
   group('迁移 v5->v6：check_ins 补 5 列（家长核销流水）', () {
-    test('schemaVersion 必须为最新 12（版本号与建表改动不许脱节）', () async {
+    test('schemaVersion 必须为最新 14（版本号与建表改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(_v5Ddl(), 5);
       // 这一条是本次改动的直接护栏：版本号若停在 5，onUpgrade 不跑，
       // 下面所有列断言都会红。
       // 注：植物成长 V2（v7，玄参大人 2026-09-22）把版本号从 6 上移到 7
       //（见 test/m3/migration_v6_to_v7_test.dart）；物种表改版 v11、奖励物图标化
       // + 掉落即定奖 v12 继续上移，本护栏随之跟进。
-      expect(database.schemaVersion, 13);
+      expect(database.schemaVersion, 14);
     });
 
     test('v5 老库迁移后 check_ins 含 5 新列；历史行 status=0(verified)、新列取默认', () async {

@@ -167,11 +167,22 @@ class GardenPot extends StatelessWidget {
   /// 点击整格（弹养护面板）。
   final VoidCallback onTap;
 
+  /// 点击杂草浮标 → 拔草（口径 C26）。
+  ///
+  /// ⚠️ 该回调必须**自带手势消费**（[_PestChip] 用 `GestureDetector.behavior:
+  /// opaque`）：否则同一次点击会穿透到外层整格 [onTap]，出现「除完草又弹养护卡」。
+  final VoidCallback onClearWeed;
+
+  /// 点击害虫浮标 → 除虫（口径 C26）。约束同 [onClearWeed]。
+  final VoidCallback onClearPest;
+
   const GardenPot({
     super.key,
     required this.plant,
     required this.species,
     required this.onTap,
+    required this.onClearWeed,
+    required this.onClearPest,
   });
 
   /// 状态色：与养护面板保持一致，进度条与图标用它。
@@ -231,15 +242,62 @@ class GardenPot extends StatelessWidget {
                   child: SizedBox(
                     width: artW,
                     height: artH,
-                    child: PlantArtwork(
-                      plant: plant,
-                      species: species,
-                      size: artW,
-                      tint: _statusColor,
-                      // 盆必须恒定大小（用户口径「自带的花盆是可控的、是一样的」），
-                      // 故**不做**随进度的整图缩放 —— 否则同一排花盆会大小不一。
-                      // 生长反馈交给盆下的进度条（value: plant.growthProgress）。
-                      growthScale: 0,
+                    // ⚠️ 用 Stack 而非 Row/Column：浮标是**叠加**在植物图上的，
+                    // 不占布局高度 —— 草地网格高度由矮屏测试钉死，不能因加图标而变高。
+                    // StackFit.loose：浮标走 Positioned（脱离流），植物图自己定尺寸。
+                    child: Stack(
+                      fit: StackFit.loose,
+                      children: <Widget>[
+                        // ⚠️ 植物图必须 Positioned.fill 钉满紧约束框（artW×artH）：
+                        // 若让它走 loose 约束自定尺寸，占位/加载分支会按自身逻辑尺寸
+                        // 布局，「空盆与有植物盆图片框等大」契约被破坏（测试实证）。
+                        Positioned.fill(
+                          child: PlantArtwork(
+                            plant: plant,
+                            species: species,
+                            size: artW,
+                            tint: _statusColor,
+                            // 盆必须恒定大小（用户口径「自带的花盆是可控的、是一样的」），
+                            // 故**不做**随进度的整图缩放 —— 否则同一排花盆会大小不一。
+                            // 生长反馈交给盆下的进度条（value: plant.growthProgress）。
+                            growthScale: 0,
+                          ),
+                        ),
+                        // 花园干扰物（杂草 / 害虫，口径 C26 + 2026-10-03 位置/样式口径）：
+                        //  · 杂草**长在花盆里面** → 盆口土面上、略偏左（玄参 2026-10-03
+                        //    多轮反馈：放大 44 → 60 → 左移 left 0.26 → 0.17 →
+                        //    top 0.575 → 0.50 → 0.44 → **0.47 定稿**）；
+                        //  · 蝗虫**趴在花盆沿上** → 盆口右沿（玄参 2026-10-03 反馈上移：
+                        //    top 0.71 → 0.53，脚踩盆沿、身体在盆口上方，不再垂到盆身下缘）；
+                        //  · 均**裸图直贴**（素材透明背景，无白圆底衬）。
+                        // 点一下即清除 + 奖励阳光。
+                        if (plant.hasWeed)
+                          Positioned(
+                            left: artW * 0.17,
+                            top: artH * 0.47,
+                            child: _PestChip(
+                              assetPath: kGardenWeedAsset,
+                              emoji: kGardenWeedEmoji,
+                              glyphWidth: 60,
+                              glyphHeight: 60,
+                              tooltip: '有杂草，点我拔掉 +${kGardenWeedReward.toInt()} ☀',
+                              onTap: onClearWeed,
+                            ),
+                          ),
+                        if (plant.hasPest)
+                          Positioned(
+                            right: artW * 0.03,
+                            top: artH * 0.53,
+                            child: _PestChip(
+                              assetPath: kGardenPestAsset,
+                              emoji: kGardenPestEmoji,
+                              glyphWidth: 52,
+                              glyphHeight: 30,
+                              tooltip: '有害虫，点我除掉 +${kGardenPestReward.toInt()} ☀',
+                              onTap: onClearPest,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -314,6 +372,80 @@ class GardenPot extends StatelessWidget {
       case PlantStatus.growing:
         return species.name;
     }
+  }
+}
+
+/// 花园干扰物浮标「杂草 / 害虫」（口径 C26；2026-10-03 图片化 + 去白圆底）。
+///
+/// **直接显示美术图**（[assetPath]，`assets/garden/weed.png` / `pest.png`）——
+/// 素材自带透明背景，**裸图贴合花盆**（玄参 2026-10-03：白色圆底「太丑了，去掉」，
+/// 杂草直接长在盆里、蝗虫直接趴在盆上）；加载失败（资源缺失 / 测试环境）回退
+/// [emoji]，两条路径的点击行为与命中区完全一致。
+///
+/// ⚠️ 两处刻意为之：
+///  · **命中区 [hitSize] 保留 48×48**（视觉图可以比命中区大/小）：儿童可点尺寸下限，
+///    视觉再花哨也不能把可点面积做小（点不中比点错更挫败）；
+///  · 图片用 `BoxFit.contain`（蝗虫图是 1518×853 横构图趴姿，contain 不裁剪；
+///    显式宽高避免 loose 约束布局异常）。
+class _PestChip extends StatelessWidget {
+  final String? assetPath;
+  final String emoji;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  /// 视觉图尺寸（透明底 PNG 裸贴）；杂草方形、蝗虫横构图按素材比例给。
+  final double glyphWidth;
+  final double glyphHeight;
+
+  const _PestChip({
+    required this.assetPath,
+    required this.emoji,
+    required this.tooltip,
+    required this.onTap,
+    required this.glyphWidth,
+    required this.glyphHeight,
+  });
+
+  /// 命中区边长（视觉图外接方，≥48 满足儿童触控目标下限）。
+  static const double hitSize = 48;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: GestureDetector(
+        // ⚠️ 必须 opaque：让本浮标**吃掉**这次点击，不穿透到外层整格 onTap
+        // （否则会出现「点杂草 → 草除掉了、养护卡也弹出来」双反馈）。
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          // 命中区 = max(视觉图, 48 下限)：视觉图放大（如杂草 60）时命中区跟着扩，
+          // 视觉图小于 48（如蝗虫 52×30 高）时仍保住儿童触控目标下限。
+          width: hitSize > glyphWidth ? hitSize : glyphWidth,
+          height: hitSize > glyphHeight ? hitSize : glyphHeight,
+          child: Center(child: _glyph()),
+        ),
+      ),
+    );
+  }
+
+  /// 图标本体：有美术图用 `Image.asset`（**显式宽高** + contain 裸贴），失败回退 emoji。
+  Widget _glyph() {
+    final String? path = assetPath;
+    if (path != null) {
+      return Image.asset(
+        path,
+        width: glyphWidth,
+        height: glyphHeight,
+        fit: BoxFit.contain,
+        errorBuilder: (BuildContext _, Object __, StackTrace? ___) => Text(
+          emoji,
+          style: const TextStyle(fontSize: 26),
+        ),
+      );
+    }
+    return Text(emoji, style: const TextStyle(fontSize: 26));
   }
 }
 

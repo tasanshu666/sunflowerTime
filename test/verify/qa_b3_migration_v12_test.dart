@@ -25,6 +25,7 @@ import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:test/test.dart';
+import '../helpers/no_hit_random.dart';
 
 int _secs(DateTime d) => d.millisecondsSinceEpoch ~/ 1000;
 
@@ -143,18 +144,21 @@ List<String> _v11Ddl() => <String>[
     ];
 
 Future<int> _count(db.AppDatabase database, String table) async {
-  final QueryRow row =
-      await database.customSelect('SELECT COUNT(*) AS c FROM $table;').getSingle();
+  final QueryRow row = await database
+      .customSelect('SELECT COUNT(*) AS c FROM $table;')
+      .getSingle();
   return row.read<int>('c');
 }
 
-Future<bool> _hasColumn(db.AppDatabase database, String table, String col) async {
+Future<bool> _hasColumn(
+    db.AppDatabase database, String table, String col) async {
   final List<QueryRow> info =
       await database.customSelect('PRAGMA table_info($table);').get();
   return info.any((QueryRow r) => r.read<String>('name') == col);
 }
 
-Future<db.AppDatabase> _openMigratedMemory(List<String> ddl, int userVersion) async {
+Future<db.AppDatabase> _openMigratedMemory(
+    List<String> ddl, int userVersion) async {
   final NativeDatabase executor = NativeDatabase.memory(
     setup: (raw) {
       for (final String sql in ddl) {
@@ -178,22 +182,28 @@ class _NoFocusRepo implements FocusRepository {
   @override
   Future<int> countValidFocusDaysLastWeek(DateTime now) async => 0;
   @override
-  Future<FocusStats> totalStats() async =>
-      const FocusStats(totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
+  Future<FocusStats> totalStats() async => const FocusStats(
+      totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
 }
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
 
   group('F · 迁移 v11 → v12：pending 加 3 列', () {
-    test('schemaVersion == 13；3 列出现', () async {
+    test('schemaVersion == 14；3 列出现', () async {
       final db.AppDatabase database = await _openMigratedMemory(_v11Ddl(), 11);
-      expect(database.schemaVersion, 13);
-      expect(await _hasColumn(database, 'pending_bloom_rewards', 'reward_sunlight'),
+      expect(database.schemaVersion, 14);
+      expect(
+          await _hasColumn(
+              database, 'pending_bloom_rewards', 'reward_sunlight'),
           isTrue);
-      expect(await _hasColumn(database, 'pending_bloom_rewards', 'reward_fragments'),
+      expect(
+          await _hasColumn(
+              database, 'pending_bloom_rewards', 'reward_fragments'),
           isTrue);
-      expect(await _hasColumn(database, 'pending_bloom_rewards', 'reward_species_id'),
+      expect(
+          await _hasColumn(
+              database, 'pending_bloom_rewards', 'reward_species_id'),
           isTrue);
     });
 
@@ -233,7 +243,8 @@ void main() {
       expect(await database.bloomRewardDao.fragmentBalance(), 7);
       expect(await database.bloomRewardDao.unlockedSpeciesIds(),
           <String>['species_tomato']);
-      expect((await database.plantDao.byId('p_sf'))!.speciesId, 'species_sunflower');
+      expect((await database.plantDao.byId('p_sf'))!.speciesId,
+          'species_sunflower');
       final db.Setting settings = (await database.settingsDao.getRow())!;
       expect(settings.quietMode, isTrue);
       expect(settings.soundOn, isFalse);
@@ -243,7 +254,8 @@ void main() {
     test('新列可写：插入带奖励内容的新行 / 回写历史行均 round-trip', () async {
       final db.AppDatabase database = await _openMigratedMemory(_v11Ddl(), 11);
       // 写入一条「已定奖」新行。
-      await database.bloomRewardDao.insertPending(db.PendingBloomRewardsCompanion(
+      await database.bloomRewardDao
+          .insertPending(db.PendingBloomRewardsCompanion(
         id: const Value('pr_new'),
         plantId: const Value('p_sf'),
         dueAt: Value(_t),
@@ -276,13 +288,15 @@ void main() {
       final db.AppDatabase database = await _openMigratedMemory(_v11Ddl(), 11);
       final PlantLocalRepository plants = PlantLocalRepository(database);
       final SunlightLocalRepository ledger = SunlightLocalRepository(database);
-      final SettingsLocalRepository settings = SettingsLocalRepository(database);
+      final SettingsLocalRepository settings =
+          SettingsLocalRepository(database);
       final PlantGrowthService svc = PlantGrowthService(
         plants: plants,
         focus: _NoFocusRepo(),
         ledger: ledger,
         settings: settings,
         bloomRewards: plants,
+        weedRandom: NoHitRandom(),
       );
 
       final double before = await ledger.balance();
@@ -331,7 +345,7 @@ void main() {
         },
       ));
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 13);
+      expect(first.schemaVersion, 14);
       await first.bloomRewardDao.updatePendingContent(
         id: 'pr_legacy',
         rewardSunlight: 5,
@@ -344,7 +358,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(second.close);
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 13);
+      expect(second.schemaVersion, 14);
       expect(await _count(second, 'pending_bloom_rewards'), 1,
           reason: '二次打开不得丢 pending 数据');
       final db.PendingBloomRewardRow row =
@@ -355,7 +369,8 @@ void main() {
       expect(await _count(second, 'tasks'), 1);
       expect(await second.bloomRewardDao.fragmentBalance(), 7);
       // 三列仍在。
-      expect(await _hasColumn(second, 'pending_bloom_rewards', 'reward_sunlight'),
+      expect(
+          await _hasColumn(second, 'pending_bloom_rewards', 'reward_sunlight'),
           isTrue);
     });
   });

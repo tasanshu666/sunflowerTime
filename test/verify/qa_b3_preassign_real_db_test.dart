@@ -36,6 +36,8 @@ import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:test/test.dart';
 
+import '../helpers/no_hit_random.dart';
+
 // ── 依赖替身（仅「无关」依赖用内存；被验对象一律真实库）────────────────────────
 
 class _NoFocusRepo implements FocusRepository {
@@ -47,8 +49,8 @@ class _NoFocusRepo implements FocusRepository {
   @override
   Future<int> countValidFocusDaysLastWeek(DateTime now) async => 0;
   @override
-  Future<FocusStats> totalStats() async =>
-      const FocusStats(totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
+  Future<FocusStats> totalStats() async => const FocusStats(
+      totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
 }
 
 /// 可编排随机源（确定性）：`nextDouble` 依次取 [doubles]（循环）；`nextInt` 取 [ints]。
@@ -97,7 +99,8 @@ class _Ctx {
   _Ctx(this.database, this.svc, this.plants, this.ledger);
   final db.AppDatabase database;
   final PlantGrowthService svc;
-  final PlantLocalRepository plants; // 同时是 PlantRepository 与 BloomRewardRepository
+  final PlantLocalRepository
+      plants; // 同时是 PlantRepository 与 BloomRewardRepository
   final SunlightLocalRepository ledger;
 }
 
@@ -142,14 +145,16 @@ Future<_Ctx> _make({double initialBalance = 1000000, Random? random}) async {
     settings: settings,
     bloomRewards: plants,
     random: random,
+    // 本文件只验「掉落即定奖」，与 C26 干扰物无关：注入永不命中的桩，
+    // 防止随机 roll 出杂草/虫 → 当天成长暂停 → 盛开分支被跳过（seed=2 实证）。
+    weedRandom: NoHitRandom(),
   );
   return _Ctx(database, svc, plants, ledger);
 }
 
 // ── 真实 SQL 计数辅助 ────────────────────────────────────────────────────────
 
-Future<int> _countByRefType(
-    db.AppDatabase database, String refType) async {
+Future<int> _countByRefType(db.AppDatabase database, String refType) async {
   final QueryRow row = await database.customSelect(
     'SELECT COUNT(*) AS c FROM sunlight_ledgers WHERE ref_type = ?;',
     variables: <Variable>[Variable.withString(refType)],
@@ -226,8 +231,7 @@ Future<BloomRewardOutcome> _settleAndAssert(
   if (o.seedSpeciesId == null) {
     expect(seedDelta, isEmpty, reason: '无种子 → 券不增');
   } else {
-    expect(seedDelta, <String>{o.seedSpeciesId!},
-        reason: '种子 → 恰写入该物种一张券');
+    expect(seedDelta, <String>{o.seedSpeciesId!}, reason: '种子 → 恰写入该物种一张券');
   }
   return o;
 }
@@ -257,10 +261,11 @@ void main() {
         final PendingBloomReward sec = _secondOf(due);
 
         // 登记时已定奖（非零值哨兵）。
-        expect(inst.hasPreAssignedReward, isTrue, reason: 'seed=$seed instant 非哨兵');
-        expect(sec.hasPreAssignedReward, isTrue, reason: 'seed=$seed second 非哨兵');
-        expect(inst.rewardSunlight, greaterThan(0),
-            reason: 'instant 保底阳光恒 ≥1');
+        expect(inst.hasPreAssignedReward, isTrue,
+            reason: 'seed=$seed instant 非哨兵');
+        expect(sec.hasPreAssignedReward, isTrue,
+            reason: 'seed=$seed second 非哨兵');
+        expect(inst.rewardSunlight, greaterThan(0), reason: 'instant 保底阳光恒 ≥1');
 
         branches.add(
             'I:${inst.rewardSunlight}/${inst.rewardFragments}/${inst.rewardSpeciesId}');
@@ -271,10 +276,10 @@ void main() {
         await _settleAndAssert(ctx, sec, due48h);
 
         // 两条各恰入账一次；账本条数与档位 refType 对齐。
-        final int instRows = await _countByRefType(
-            ctx.database, kBloomRewardRefType);
-        final int secRows = await _countByRefType(
-            ctx.database, kBloomSecondPhaseRefType);
+        final int instRows =
+            await _countByRefType(ctx.database, kBloomRewardRefType);
+        final int secRows =
+            await _countByRefType(ctx.database, kBloomSecondPhaseRefType);
         // instant 至少一笔（保底），大额阳光档为两笔；第二段最多一笔。
         expect(instRows, greaterThanOrEqualTo(1));
         expect(secRows, lessThanOrEqualTo(1));
@@ -365,10 +370,12 @@ void main() {
       // 行被回写为定奖结果（不再是哨兵），且 claimed。
       final db.PendingBloomRewardRow after =
           await ctx.database.bloomRewardDao.byId('legacy_second');
-      expect(after.rewardSunlight != 0 ||
+      expect(
+          after.rewardSunlight != 0 ||
               after.rewardFragments != 0 ||
               after.rewardSpeciesId != null,
-          isTrue, reason: '结算后应回写奖励内容（脱离零值哨兵）');
+          isTrue,
+          reason: '结算后应回写奖励内容（脱离零值哨兵）');
       expect(after.rewardSunlight, o.sunlight);
       expect(after.rewardFragments, o.fragments);
       expect(after.claimed, isTrue);
@@ -422,8 +429,7 @@ void main() {
       final double balBefore = await ctx.ledger.balance();
       final BloomRewardOutcome o =
           await ctx.svc.collectBloomReward('legacy_instant', due48h);
-      expect(o.sunlight, kBloomInstantSunlight,
-          reason: '瞬间保底 +6（无额外）');
+      expect(o.sunlight, kBloomInstantSunlight, reason: '瞬间保底 +6（无额外）');
       expect(await ctx.ledger.balance() - balBefore, kBloomInstantSunlight);
 
       final db.PendingBloomRewardRow after =

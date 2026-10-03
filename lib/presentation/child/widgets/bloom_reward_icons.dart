@@ -47,13 +47,14 @@ enum RewardIconKind {
   gift,
 }
 
-/// 单个奖励图标的展示模型（类型 + 角标 + 种子物种 id）。
+/// 单个奖励图标的展示模型（类型 + 角标 + 种子物种 id + 物种档位）。
 @immutable
 class RewardIconSpec {
   const RewardIconSpec({
     required this.kind,
     this.badge,
     this.seedSpeciesId,
+    this.seedIsPremium,
   });
 
   /// 图标类型。
@@ -62,25 +63,34 @@ class RewardIconSpec {
   /// 角标文案（如 `+10` / `×1`）；null = 不显示角标。
   final String? badge;
 
-  /// 种子物种 id（仅 [RewardIconKind.seed] 有意义，用于优先匹配 `seed_{id}.png`）。
+  /// 种子物种 id（仅 [RewardIconKind.seed] 有意义，用于派生档位种子图）。
   final String? seedSpeciesId;
+
+  /// 物种档位（仅 [RewardIconKind.seed] 有意义）：精英 → `seed_premium.png`、
+  /// 普通 → `seed_common.png`；null（拿不到档位）→ 通用 `seed.png`。
+  final bool? seedIsPremium;
 
   @override
   bool operator ==(Object other) =>
       other is RewardIconSpec &&
       other.kind == kind &&
       other.badge == badge &&
-      other.seedSpeciesId == seedSpeciesId;
+      other.seedSpeciesId == seedSpeciesId &&
+      other.seedIsPremium == seedIsPremium;
 
   @override
-  int get hashCode => Object.hash(kind, badge, seedSpeciesId);
+  int get hashCode => Object.hash(kind, badge, seedSpeciesId, seedIsPremium);
 }
 
 /// 从一条待收集奖励的三列（阳光 / 植物碎片 / 种子）**派生图标列表**。
 ///
 /// · 三列全零（`0/0/null` = 历史行「未预先定奖」哨兵）→ 单个通用礼包图标；
-/// · 否则按「阳光 → 碎片 → 种子」顺序派生（一条 instant 奖励可能同时有阳光 + 碎片 / 阳光 + 种子）。
-List<RewardIconSpec> rewardIconSpecsFor(PendingBloomReward reward) {
+/// · 否则按「阳光 → 碎片 → 种子」顺序派生（一条 instant 奖励可能同时有阳光 + 碎片 / 阳光 + 种子）；
+/// · [isPremiumOf] 提供物种档位查询（speciesId → 是否精英）；不给则种子图标走通用图。
+List<RewardIconSpec> rewardIconSpecsFor(
+  PendingBloomReward reward, {
+  bool Function(String speciesId)? isPremiumOf,
+}) {
   if (!reward.hasPreAssignedReward) {
     return const <RewardIconSpec>[
       RewardIconSpec(kind: RewardIconKind.gift),
@@ -101,7 +111,11 @@ List<RewardIconSpec> rewardIconSpecsFor(PendingBloomReward reward) {
   }
   final String? seedId = reward.rewardSpeciesId;
   if (seedId != null) {
-    specs.add(RewardIconSpec(kind: RewardIconKind.seed, seedSpeciesId: seedId));
+    specs.add(RewardIconSpec(
+      kind: RewardIconKind.seed,
+      seedSpeciesId: seedId,
+      seedIsPremium: isPremiumOf?.call(seedId),
+    ));
   }
   if (specs.isEmpty) {
     // 理论上不会走到（hasPreAssignedReward 已排除哨兵）；防御性兜底。
@@ -141,8 +155,9 @@ Color rewardIconColor(RewardIconKind kind) {
 /// 解析出「实际可用的图片资源路径」；null = 用内置 `Icons` 回退。
 ///
 /// [availableAssets] 为 `AssetManifest.listAssets()` 的字符串集合（见 `rewardAssetsProvider`）。
-/// 种子统一用通用 `seed.png`（宪法 C20：种子全物种通用，不再区分 `seed_{speciesId}.png`），
-/// 缺失则回退 `Icons.eco`。
+/// 种子图标（2026-10-03 玄参提供分档图，C20 口径修订）：按物种档位优先取
+/// `seed_premium.png`（精英）/ `seed_common.png`（普通）；档位图缺失回退通用
+/// `seed.png`；再缺失回退 `Icons.eco`。
 String? resolveRewardAsset(RewardIconSpec spec, Set<String> availableAssets) {
   switch (spec.kind) {
     case RewardIconKind.gift:
@@ -154,7 +169,15 @@ String? resolveRewardAsset(RewardIconSpec spec, Set<String> availableAssets) {
       const String name = 'assets/rewards/fragment.png';
       return availableAssets.contains(name) ? name : null;
     case RewardIconKind.seed:
-      // 种子图标全物种通用（宪法 C20）：只认 `assets/rewards/seed.png`。
+      // 分档种子图：精英 / 普通各自优先；缺失回退通用 seed.png（C20 历史口径保留作兜底）。
+      final String? tiered = switch (spec.seedIsPremium) {
+        true => 'assets/rewards/seed_premium.png',
+        false => 'assets/rewards/seed_common.png',
+        null => null,
+      };
+      if (tiered != null && availableAssets.contains(tiered)) {
+        return tiered;
+      }
       const String general = 'assets/rewards/seed.png';
       return availableAssets.contains(general) ? general : null;
   }
@@ -170,6 +193,7 @@ class BloomRewardIconsBar extends StatelessWidget {
     required this.rewards,
     required this.availableAssets,
     required this.onCollect,
+    this.isPremiumOf,
   });
 
   /// 当前可收集的待收集奖励（一条 pending = 一「条」，点击收下整条）。
@@ -181,11 +205,15 @@ class BloomRewardIconsBar extends StatelessWidget {
   /// 收集回调：点击某图标 → 收下其**所属 pending 整条**奖励。
   final void Function(PendingBloomReward reward) onCollect;
 
+  /// 物种档位查询（speciesId → 是否精英）；种子图标据此选分档图，不给则走通用图。
+  final bool Function(String speciesId)? isPremiumOf;
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> icons = <Widget>[];
     for (final PendingBloomReward reward in rewards) {
-      for (final RewardIconSpec spec in rewardIconSpecsFor(reward)) {
+      for (final RewardIconSpec spec
+          in rewardIconSpecsFor(reward, isPremiumOf: isPremiumOf)) {
         icons.add(BloomRewardIcon(
           spec: spec,
           assetPath: resolveRewardAsset(spec, availableAssets),

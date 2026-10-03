@@ -287,6 +287,28 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
         await _svc.tickAll(now);
       });
 
+  /// 强制长出杂草 / 害虫（调试）。
+  ///
+  /// 只写字段：`weedAt` / `pestAt` = **今日零点**，并把 `weedPestRollDay` 一并对齐到
+  /// 今日（否则下次 `tickAll` 会再 roll 一次，可能把手工写入的状态覆盖掉）。
+  /// 清除走花园页真实点击链路（`clearWeed` / `clearPest` 入账），面板不代劳。
+  Future<void> _forceWeedPest({required bool weed}) => _run(() async {
+        final Plant? p = _selected;
+        if (p == null) return;
+        if (p.status == PlantStatus.dead) {
+          _snack('该株已死亡，不参与干扰物玩法～');
+          return;
+        }
+        final DateTime now = DateTime.now();
+        final DateTime day = DateTime(now.year, now.month, now.day);
+        Plant np = p.copyWith(weedPestRollDay: day);
+        np = weed
+            ? np.copyWith(weedAt: day)
+            : np.copyWith(pestAt: day);
+        await _repo.savePlant(np);
+        await _svc.tickAll(now);
+      });
+
   /// 快进 +1 天：按当前档位把复开花自动回填量加到进度上 → 结算。
   ///
   /// 普通 [kRebloomAutoProgressPerDay]，精品 ÷[kRebloomPremiumCycleMultiplier]
@@ -483,6 +505,14 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
                     onPressed: _busy ? null : _fastForwardOneDay,
                     child: const Text('快进 +1 天'),
                   ),
+                  FilledButton.tonal(
+                    onPressed: _busy ? null : () => _forceWeedPest(weed: true),
+                    child: const Text('长出杂草$kGardenWeedEmoji'),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: _busy ? null : () => _forceWeedPest(weed: false),
+                    child: const Text('长出害虫$kGardenPestEmoji'),
+                  ),
                 ],
               ),
             ],
@@ -519,11 +549,20 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
           _kv('阶段进度', '${(p.growthProgress * 100).round()}%'),
           _kv('累计开花', '${p.bloomCount} 次'),
           _kv('花期剩余', _bloomRemaining(p)),
+          _kv('干扰物', _weedPestLabel(p)),
           _kv('48h 奖励', collectible ? '已可收集（花园页有气泡）' : '未到期 / 无'),
           _kv('阳光余额', '${_balance.toInt()} ☀'),
         ],
       ),
     );
+  }
+
+  /// 干扰物状态文案（C26）：无 / 仅杂草 / 仅害虫 / 双双存在。
+  String _weedPestLabel(Plant p) {
+    if (!p.hasPestOrWeed) return '无';
+    if (p.hasWeed && p.hasPest) return '杂草 + 害虫（成长暂停）';
+    if (p.hasWeed) return '杂草（成长暂停）';
+    return '害虫（成长暂停）';
   }
 
   Widget _kv(String k, String v) => Padding(

@@ -624,3 +624,45 @@ const double kGrowFxCardWidthRatio = 0.78;
 
 /// 中央卡片圆角半径。
 const double kGrowFxCardRadius = 24;
+
+// ── 杂草 / 害虫（花园干扰物玩法，玄参 2026-09-30 拍板，口径 C26）────────────
+// 每株**活的**植物每天各自 roll 一次：杂草 [kGardenWeedRate] / 害虫 [kGardenPestRate]
+// 互相独立、**可同时出现**（同一天同一盆可以既有草又有虫）。
+//  · 杂草 / 害虫只在其出现的**当天**有效：次日每日 roll 时自动清掉（不会永久卡成长）；
+//  · 存在期间该株**成长暂停**（当天不涨进度），点掉图标即恢复；
+//  · 拔草 +[kGardenWeedReward] 阳光 / 除虫 +[kGardenPestReward] 阳光，走账本入账。
+
+/// 杂草出现概率（每株每天独立 roll；口径 C26）。
+const double kGardenWeedRate = 0.40;
+
+/// 害虫出现概率（每株每天独立 roll，与 [kGardenWeedRate] 互不排斥 → 可同时出现）。
+const double kGardenPestRate = 0.25;
+
+/// 拔草奖励阳光。
+const double kGardenWeedReward = 1;
+
+/// 除虫奖励阳光。
+const double kGardenPestReward = 2;
+
+/// 账本 `refType`：拔草。
+/// ⚠️ 字符串值**一经写入即冻结**（append-only 对账源）：改名只能改常量名，
+/// 不改本值，否则历史行与新行的 tag 分裂。新增 refType 必须同步
+/// `child_sunlight_history_page.dart` 的 `_refLabels`，否则孩子端显示「其他」。
+const String kGardenWeedRefType = 'plant_weed';
+
+/// 账本 `refType`：除虫（冻结约束同 [kGardenWeedRefType]）。
+const String kGardenPestRefType = 'plant_pest';
+
+/// 杂草 emoji（**回退**：`kGardenWeedAsset` 图片加载失败时显示）。
+const String kGardenWeedEmoji = '🌿';
+
+/// 害虫 emoji（**回退**：`kGardenPestAsset` 图片加载失败时显示）。
+const String kGardenPestEmoji = '🦗';
+
+/// 杂草美术图（2026-10-03 玄参提供；**长在花盆里面**——盆口土面上，裸图直贴无白底）。
+/// 加载失败回退 [kGardenWeedEmoji]，`assets/garden/` 已按目录登记进包。
+const String kGardenWeedAsset = 'assets/garden/weed.png';
+
+/// 蝗虫美术图（2026-10-03 玄参提供；**趴在花盆上**——盆身位置，横构图）。
+/// 加载失败回退 [kGardenPestEmoji]。
+const String kGardenPestAsset = 'assets/garden/pest.png';

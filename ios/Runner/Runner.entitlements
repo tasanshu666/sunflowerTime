@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Keychain Sharing（Keychain Sharing）：flutter_secure_storage（家长空间 PIN 哈希）
+	     在 iOS（尤其模拟器）缺此 entitlement 会抛
+	     PlatformException(-34018, "A required entitlement isn't present")。
+	     2026-10-03 玄参真机反馈修复。 -->
+	<!-- ⚠️ 不用 $(AppIdentifierPrefix)：模拟器 ad-hoc 签名（Sign to Run Locally）下该变量
+	     展开为空 → keychain-access-groups 条目无效被 productPackagingUtility 丢弃 →
+	     签进 App 的 entitlements 变空字典、-34018 依旧。硬编码团队前缀（设备与模拟器
+	     通用；换团队时需同步改这里）。 -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>6NW722K2GN.com.sunflowertime.app</string>
+	</array>
+</dict>
+</plist>

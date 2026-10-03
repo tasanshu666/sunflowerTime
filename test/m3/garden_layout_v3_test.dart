@@ -168,7 +168,8 @@ class _FakeSunlightRepository implements SunlightRepository {
   @override
   Future<double> netByRefTypeOnDay(String refType, String dayKey) async => 0;
   @override
-  Future<double> netByRefTypeInMonth(String refType, String monthKey) async => 0;
+  Future<double> netByRefTypeInMonth(String refType, String monthKey) async =>
+      0;
   @override
   Future<int> countByRefTypeAndRefIdOnDay(
           String refType, String refId, String dayKey) async =>
@@ -178,7 +179,8 @@ class _FakeSunlightRepository implements SunlightRepository {
           String refType, String refId, DateTime since) async =>
       0;
   @override
-  Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async =>
+  Future<DateTime?> lastTsByRefTypeAndRefId(
+          String refType, String refId) async =>
       null;
   @override
   Future<double> earnGrossOnDay(String dayKey) async => 0;
@@ -228,7 +230,8 @@ Widget _realGarden({required int capacity}) => ProviderScope(
         bloomRewardRepositoryProvider
             .overrideWithValue(InMemoryBloomRewardRepository()),
       ],
-      child: const MaterialApp(home: Scaffold(body: GardenPage(embedded: true))),
+      child:
+          const MaterialApp(home: Scaffold(body: GardenPage(embedded: true))),
     );
 
 /// 有界帧推进：最多 [maxFrames] 帧、每帧 [step]，直到 [ready] 为真即停。
@@ -450,7 +453,8 @@ void main() {
       await _pumpGridUntil(
         tester,
         () =>
-            _gridThumbVisible(tester) && _gridPosition(tester).maxScrollExtent > 0,
+            _gridThumbVisible(tester) &&
+            _gridPosition(tester).maxScrollExtent > 0,
       );
 
       expect(find.byType(EmptyPot), findsNWidgets(12));
@@ -474,8 +478,7 @@ void main() {
       expect(_gridPosition(tester).maxScrollExtent, greaterThan(0));
     });
 
-    testWidgets('容量 4（5 格，2 行内）：不滚动 + 无滚动条',
-        (WidgetTester tester) async {
+    testWidgets('容量 4（5 格，2 行内）：不滚动 + 无滚动条', (WidgetTester tester) async {
       _setScreen(tester, 360, 780);
       await tester.pumpWidget(_realGarden(capacity: 4));
       // 条件收敛：等「无滚动条 且 maxScrollExtent 归零」成立即停。
@@ -513,7 +516,8 @@ void main() {
       await _pumpGridUntil(
         tester,
         () =>
-            _gridThumbVisible(tester) && _gridPosition(tester).maxScrollExtent > 0,
+            _gridThumbVisible(tester) &&
+            _gridPosition(tester).maxScrollExtent > 0,
       );
 
       expect(find.byType(EmptyPot), findsNWidgets(12));
@@ -545,7 +549,8 @@ void main() {
       // 若 firstRowTop 被错传为 0，此值会变为 expectedViewport + 12（≈337.27）→ 必红。
       expect(viewportHeight, closeTo(expectedViewport, 0.05),
           reason: 'firstRowTop 传错会让可视高偏 +12px');
-      expect(viewportHeight, isNot(closeTo(expectedViewport + pageTopPad, 1.0)));
+      expect(
+          viewportHeight, isNot(closeTo(expectedViewport + pageTopPad, 1.0)));
     });
   });
 
@@ -569,8 +574,7 @@ void main() {
       expect(expectedWidthFraction, closeTo(0.6675, 1e-9));
     });
 
-    testWidgets('圆心落在画框高的 82.95% 处、外径 ≈ 盆宽 × 92%',
-        (WidgetTester tester) async {
+    testWidgets('圆心落在画框高的 82.95% 处、外径 ≈ 盆宽 × 92%', (WidgetTester tester) async {
       _setScreen(tester, 360, 780);
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
@@ -593,7 +597,8 @@ void main() {
 
       final Rect artBox =
           tester.getRect(find.byKey(const Key('expand_pot_artbox')));
-      final Rect icon = tester.getRect(find.byKey(const Key('expand_pot_icon')));
+      final Rect icon =
+          tester.getRect(find.byKey(const Key('expand_pot_icon')));
 
       // ① 圆心 y = 画框高 × 82.95%（独立推导，误差 ≤ 0.5px）。
       final double expectedCenterY =
@@ -616,8 +621,7 @@ void main() {
 
   // ── 改动 3：文案胶囊 + 底边对齐 + 五态对比度 ─────────────────────────────────
   group('底部文案 · 胶囊底 + 三类对齐 + 对比度', () {
-    testWidgets('三类格子底部文案底边互差 ≤ 1px（同一行）',
-        (WidgetTester tester) async {
+    testWidgets('三类格子底部文案底边互差 ≤ 1px（同一行）', (WidgetTester tester) async {
       _setScreen(tester, 360, 780);
       const double gridWidth = 360 - 44;
       await tester.pumpWidget(_boxed(
@@ -628,6 +632,8 @@ void main() {
             plant: _plant(status: PlantStatus.bloomed, progress: 1.0),
             species: _sunflower,
             onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
           ),
           EmptyPot(potIndex: 1, onTap: () {}),
           ExpandPotSlot(
@@ -640,14 +646,17 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      final Rect potLabel = tester.getRect(find.byKey(const Key('garden_pot_label')));
+      final Rect potLabel =
+          tester.getRect(find.byKey(const Key('garden_pot_label')));
       final Rect emptyFooter =
           tester.getRect(find.byKey(const Key('empty_pot_footer')));
       final Rect expandLabel =
           tester.getRect(find.byKey(const Key('expand_pot_label')));
 
-      expect((potLabel.bottom - expandLabel.bottom).abs(), lessThanOrEqualTo(1.0));
-      expect((potLabel.bottom - emptyFooter.bottom).abs(), lessThanOrEqualTo(1.0));
+      expect(
+          (potLabel.bottom - expandLabel.bottom).abs(), lessThanOrEqualTo(1.0));
+      expect(
+          (potLabel.bottom - emptyFooter.bottom).abs(), lessThanOrEqualTo(1.0));
     });
 
     test('五态字色 WCAG 对比度 ≥ 4.5:1（相对胶囊底 composite）', () {
@@ -669,7 +678,8 @@ void main() {
             reason: '$name vs 纯白');
       });
       // 防回退：旧色 orange.shade900 不达标，必须低于 4.5。
-      expect(_contrastRatio(Colors.orange.shade900, pillOnGrass), lessThan(4.5));
+      expect(
+          _contrastRatio(Colors.orange.shade900, pillOnGrass), lessThan(4.5));
     });
 
     testWidgets('不可点态（还差 N）字色 = grey.shade700', (WidgetTester tester) async {
@@ -705,6 +715,8 @@ void main() {
             plant: _plant(status: PlantStatus.wilting),
             species: _sunflower,
             onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
           ),
         ),
       ));
@@ -726,6 +738,8 @@ void main() {
             plant: _plant(status: PlantStatus.dead),
             species: _sunflower,
             onTap: () {},
+            onClearWeed: () {},
+            onClearPest: () {},
           ),
         ),
       ));
@@ -781,8 +795,7 @@ void main() {
 
   // ── 改动 4：玩法说明弹窗 ──────────────────────────────────────────────────
   group('玩法说明弹窗', () {
-    testWidgets('从木牌热区点开，弹出「玩法说明」并显示容量文案',
-        (WidgetTester tester) async {
+    testWidgets('从木牌热区点开，弹出「玩法说明」并显示容量文案', (WidgetTester tester) async {
       _setScreen(tester, 360, 780);
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(

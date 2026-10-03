@@ -132,6 +132,9 @@ Plant _toPlant(db.Plant r) => Plant(
       bloomedAt: r.bloomedAt,
       bloomCount: r.bloomCount,
       mood: PlantMood.values[r.mood],
+      weedAt: r.weedAt,
+      pestAt: r.pestAt,
+      weedPestRollDay: r.weedPestRollDay,
     );
 
 /// 领域 [Plant] → [db.PlantsCompanion]（append-only 落库）。
@@ -153,4 +156,7 @@ db.PlantsCompanion _toCompanion(Plant p) => db.PlantsCompanion(
       bloomedAt: Value(p.bloomedAt),
       bloomCount: Value(p.bloomCount),
       mood: Value(p.mood.index),
+      weedAt: Value(p.weedAt),
+      pestAt: Value(p.pestAt),
+      weedPestRollDay: Value(p.weedPestRollDay),
     );

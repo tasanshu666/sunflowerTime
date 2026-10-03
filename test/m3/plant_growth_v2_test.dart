@@ -30,6 +30,7 @@ import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import '../helpers/no_hit_random.dart';
 
 // ── 内存 Fake 仓储 ──────────────────────────────────────────────────────────
 
@@ -61,7 +62,8 @@ class _MemPlantRepo implements PlantRepository {
       store.removeWhere((Plant p) => p.id == id);
 
   @override
-  Future<List<PlantSpecies>> species() async => List<PlantSpecies>.of(speciesList);
+  Future<List<PlantSpecies>> species() async =>
+      List<PlantSpecies>.of(speciesList);
 }
 
 /// 无任何专注会话：成长系数为 1.0（隔离「不养护」场景）。
@@ -138,7 +140,8 @@ class _MemLedgerRepo implements SunlightRepository {
       0;
 
   @override
-  Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async {
+  Future<DateTime?> lastTsByRefTypeAndRefId(
+      String refType, String refId) async {
     DateTime? last;
     for (final SunlightEntry e in entries) {
       if (e.refType != refType || e.refId != refId) continue;
@@ -193,6 +196,7 @@ const String _kPlantId = 'p1';
     ledger: _MemLedgerRepo(),
     settings: _MemSettingsRepo(),
     bloomRewards: InMemoryBloomRewardRepository(),
+    weedRandom: NoHitRandom(),
   );
   return (svc: svc, plants: plants);
 }
@@ -454,8 +458,7 @@ void main() {
       await ctx.svc.tickAll(t0.add(Duration(days: kBloomDurationDays + 1)));
       final Plant cur = (await ctx.plants.plant(_kPlantId))!;
       expect(cur.status, PlantStatus.growing);
-      expect(cur.growthProgress,
-          closeTo(kBloomWiltProgressFloor + 0.10, 1e-9));
+      expect(cur.growthProgress, closeTo(kBloomWiltProgressFloor + 0.10, 1e-9));
     });
 
     test('花谢后经时间重新养满 → 再度盛开（循环成立）', () async {

@@ -766,3 +766,15 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 **本轮校验**：`flutter analyze` 0 error（92 info 基线）；`flutter test --no-pub`（摘四代理）**690 全绿**。
 **本轮其他**：校准 `项目进度跟踪表.md`（提交数 38→**45**、测试 663→**690**、HEAD `58ce640`→`7710ed4`、补记 §1.7 五个提交、§4 美术线重盘）；
 新立**「提交前文档同步纪律」**（见 `项目进度跟踪表.md` §7）——每次 push 前必须同步本表 + 进度表 + 口径裁定表 + 产品开发/软件设计文档，文档未齐不得 commit/push。
+
+## 2026-10-03 C26 花园干扰物轮
+
+> 实现 C26（杂草/害虫）过程中，新功能与存量测试互相作用的**三条实现级坑**，全部有测试钉死。
+> 本轮校验：`flutter analyze` 0 error（97 info 基线）；`flutter test --no-pub`（摘四代理）**706 全绿**（修复前 31 条红）。
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| **F60** | `Plant.copyWith` | 测试 ③「拔草后成长恢复」失败：`copyWith(weedAt: Plant.kClear)` 清不掉字段，杂草永远在 | 「未传」与「清空」用**同一个哨兵实例**，`_resolve` 把显式清空判成「没传」→ 静默保持原值（即 `copyWith ?? this.x` 老坑的变体） | 改**哨兵三态**：`_unset`（未传，默认）/ 传入值 / `Plant.kClear`（清空）三个不同实例；`garden_weed_pest_test` 哨兵三态用例钉死 | ✅ 已修复 |
+| **F61** | `GardenPot` 布局 | 干扰物浮标接入后，「空盆与有植物盆图片框等大」测试红（83.7 vs 139.5，恰为 5:3 倒置） | 植物图从「紧约束 SizedBox 直包」改成 `Stack(fit: StackFit.loose)` 子级后失去紧约束，占位图按**自身逻辑尺寸**布局（测试环境无真图，回退占位） | 植物图改 `Positioned.fill` 钉满紧约束框，浮标仍走 `Positioned` 叠加（不占布局高度）；几何契约与改造前完全一致 | ✅ 已修复 |
+| **F62** | 存量测试回归 | C26 接入后全量 **31 条红**：GardenPot 新 required 回调 2 文件编译失败；成长/奖励类测试的精确天数与「结算零消耗」断言被打红 | ① 干扰物 roll 走主随机源，消耗随机数且可能 roll 出杂草 → 成长暂停、盛开分支被跳过（seed=2 实证）；② 固定种子治标不治本（序列跑久了必命中 40%/25%） | 服务构造器加独立 `Random? weedRandom` 注入点（默认与 `random` 同源，生产行为不变）；存量测试注入 `NoHitRandom`（`test/helpers/no_hit_random.dart`，`nextDouble()` 恒 0.999…，永不命中、不耗主序列） | ✅ 已修复 |
+| **F63** | iOS 模拟器钥匙串 | 点击家长空间 → `PlatformException(-34018, "A required entitlement isn't present")` | ① 项目从无 `.entitlements`，`flutter_secure_storage`（PIN 哈希）在 iOS 缺 **Keychain Sharing** 权限；② 首次修复后又失效：给模拟器装的包是 **`--no-codesign` 构建**（禁签 → entitlements 根本不进 App）；③ `$(AppIdentifierPrefix)` 在模拟器 ad-hoc 签名下展开为空 → 条目被打包工具剥离 | 新建 `ios/Runner/Runner.entitlements`（keychain-access-groups **硬编码** `6NW722K2GN.com.sunflowertime.app`）+ `pbxproj` 三个 Runner 配置加 `CODE_SIGN_ENTITLEMENTS`；模拟器构建**禁止 `--no-codesign`**。验证：`otool -s __TEXT __entitlements`（新 Xcode 由链接器嵌 entitlements 进该段，签名 blob 空属正常）。⚠️ 手动重签 .app 会 launch 失败，勿做 | ✅ 已修复（玄参 2026-10-03 真机确认） |

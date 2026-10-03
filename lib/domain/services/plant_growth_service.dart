@@ -137,6 +137,13 @@ class PlantGrowthService {
   final Uuid _uuid;
   final Random _random;
 
+  /// 花园干扰物（杂草 / 害虫，口径 C26）专用随机源。
+  ///
+  /// 默认与 [_random] 同源（生产行为不变）；测试可单独注入「永不命中」的桩
+  /// （见 `test/helpers/no_hit_random.dart`），既不让老成长 / 奖励断言被随机
+  /// 暂停污染，也不消耗主随机序列（保住「结算零消耗」类计数断言）。
+  final Random _weedRandom;
+
   /// 经济变更回调（可选）：任何会改变孩子端经济展示的操作成功后调用。
   /// 生产环境由 DI 装配自增 `economyRevisionProvider` 刷新 UI；域层保持零 Flutter 依赖。
   final void Function()? _onEconomyChanged;
@@ -149,6 +156,7 @@ class PlantGrowthService {
     required BloomRewardRepository bloomRewards,
     Uuid? uuid,
     Random? random,
+    Random? weedRandom,
     void Function()? onEconomyChanged,
   })  : _plants = plants,
         _focus = focus,
@@ -157,6 +165,7 @@ class PlantGrowthService {
         _bloomRewards = bloomRewards,
         _uuid = uuid ?? const Uuid(),
         _random = random ?? Random(),
+        _weedRandom = weedRandom ?? random ?? Random(),
         _onEconomyChanged = onEconomyChanged;
 
   /// 两档价：低年段取 low，其余（中 / 高）取 high（U3 决策：植物保留 §4.6 两档）。
@@ -446,7 +455,9 @@ class PlantGrowthService {
           updated.add(p); // 物种缺失（数据安全）跳过成长
           continue;
         }
-        Plant np = _advanceGrowth(p, sp, now, wfdDays);
+        // 花园干扰物「杂草 / 害虫」每日 roll（口径 C26）：每株**当天一次**、活株才参与。
+        // 次日零点 ≠ 今日零点 → 杂草 / 虫自动失效、成长恢复，**不会永久卡住成长**。
+        Plant np = _advanceGrowth(_rollWeedPest(p, now), sp, now, wfdDays);
         // 本次 tick 新盛开（growing → bloomed）：发放开花瞬间奖励。
         final bool justBloomed =
             p.status != PlantStatus.bloomed && np.status == PlantStatus.bloomed;
@@ -475,6 +486,33 @@ class PlantGrowthService {
     return updated;
   }
 
+  /// 花园干扰物「杂草 / 害虫」每日 roll（口径 C26，玄参 2026-09-30 拍板）。
+  ///
+  /// 规则（与 prd_params「花园干扰物」常量段一一对应）：
+  ///  · 每株**活着的**植物（dead 不参与）每天**各自** roll 一次，互不共享
+  ///    （每盆差异大，花园更热闹）；
+  ///  · 杂草 [kGardenWeedRate] / 害虫 [kGardenPestRate] 独立判定、**可同时出现**；
+  ///  · 同一天重复 tick **不重 roll**（幂等基准 `weedPestRollDay`）——否则「每天发生
+  ///    一次」会退化成「每次 tick 都 roll」，杂草在孩子开着 App 的几小时里凭空冒出来；
+  ///  · 只在其出现的**当天**有效：次日零点 ≠ 今日零点 → 自动清空、成长次日恢复。
+  ///
+  /// 返回**新的** Plant：当日发生 roll 时写入 weed_at / pest_at / weed_pest_roll_day；
+  /// 已在今日 roll 过则原样返回（调用方据此判定是否变化、是否需落库）。
+  Plant _rollWeedPest(Plant p, DateTime now) {
+    if (p.status == PlantStatus.dead) return p;
+    final DateTime today = DateTime(now.year, now.month, now.day);
+    if (p.weedPestRollDay == today) return p; // 今日已 roll → 幂等
+    return p.copyWith(
+      weedAt: _rollHit(kGardenWeedRate, _weedRandom) ? today : null,
+      pestAt: _rollHit(kGardenPestRate, _weedRandom) ? today : null,
+      weedPestRollDay: today,
+    );
+  }
+
+  /// 按概率掷一次（随机源由构造器注入，测试可喂固定 `Random` 保证确定性）。
+  bool _rollHit(double rate, [Random? source]) =>
+      (source ?? _random).nextDouble() < rate;
+
   /// 逐日推进成长进度（sync）。系数：当日有效专注 ×1.3，否则 ×1.0。
   Plant _advanceGrowth(
     Plant p,
@@ -483,6 +521,19 @@ class PlantGrowthService {
     Set<String> wfdDays,
   ) {
     if (p.status == PlantStatus.dead) return p;
+
+    // 杂草 / 害虫任一存在 → 当天成长暂停（口径 C26）：不累加进度。
+    //
+    // ⚠️ 但**照常推进幂等基准** `stageStartedAt → now`：暂停的这段时间就让它过去，
+    // 清掉干扰物后不再倒补。否则「有虫不长」会因为「攒着暂停时长、清完一次补回来」
+    // 而**净损失为零** —— 惩罚彻底归零，孩子不除草照样一点不亏。
+    // （返回入参 p 本身也会「不推进基准」，那是另一个 bug，不要照抄。）
+    if (p.hasPestOrWeed) {
+      return p.copyWith(
+        stageStartedAt:
+            now.isAfter(p.stageStartedAt) ? now : p.stageStartedAt,
+      );
+    }
 
     double progress = p.growthProgress;
     PlantStage stage = p.stage;
@@ -814,6 +865,46 @@ class PlantGrowthService {
     final Plant recovered =
         p.status == PlantStatus.wilting ? await _maybeRecover(after, now) : after;
     await _plants.savePlant(recovered);
+  }
+
+  /// 拔掉杂草（口径 C26，玄参 2026-09-30 拍板）：清除当天杂草 + 入账
+  /// [kGardenWeedReward] 阳光（账本 `refType='plant_weed'`，可 child 端阳光来源显示）。
+  ///
+  /// 分因失败抛 [PlantOperationException]：植物不存在 / 已死亡 / 本盆当前无杂草。
+  /// ⚠️ 清除后**保留** `weedPestRollDay = 今天`：否则同日再 tick 会重 roll 又长出杂草，
+  /// 「点一下就没了」退化成「点完没几分钟又冒出来」。
+  Future<void> clearWeed(String plantId, DateTime now) =>
+      _clearPestOrWeed(plantId: plantId, now: now, isWeed: true);
+
+  /// 除虫（口径 C26，玄参 2026-09-30 拍板）：语义同 [clearWeed]，奖励
+  /// [kGardenPestReward] 阳光（账本 `refType='plant_pest'`）。
+  Future<void> clearPest(String plantId, DateTime now) =>
+      _clearPestOrWeed(plantId: plantId, now: now, isWeed: false);
+
+  /// [clearWeed] / [clearPest] 的公共实现（入账 + 清字段，不做第二次校验）。
+  Future<void> _clearPestOrWeed({
+    required String plantId,
+    required DateTime now,
+    required bool isWeed,
+  }) async {
+    final Plant? p = await _plants.plant(plantId);
+    if (p == null) throw const PlantOperationException('植物不存在');
+    if (p.status == PlantStatus.dead) {
+      throw const PlantOperationException('这株已经枯萎了，不用清理啦');
+    }
+    final bool hit = isWeed ? p.hasWeed : p.hasPest;
+    if (!hit) {
+      throw PlantOperationException(isWeed ? '这盆没有杂草哦' : '这盆没有害虫哦');
+    }
+    await _appendEarn(
+      amount: isWeed ? kGardenWeedReward : kGardenPestReward,
+      refType: isWeed ? kGardenWeedRefType : kGardenPestRefType,
+      now: now,
+      refId: plantId,
+    );
+    final Plant after =
+        isWeed ? p.copyWith(weedAt: null) : p.copyWith(pestAt: null);
+    await _plants.savePlant(after);
   }
 
   /// 余额闸门：不足则抛 [PlantOperationException]（扣减前校验，§3.2 账本铁律）。

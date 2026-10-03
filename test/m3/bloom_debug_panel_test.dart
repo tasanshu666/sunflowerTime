@@ -28,8 +28,11 @@ import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart';
+
+import '../helpers/no_hit_random.dart';
 
 // ── 假仓储 ──────────────────────────────────────────────────────────────────
 
@@ -95,7 +98,8 @@ class _FakeSunlightRepository implements SunlightRepository {
   @override
   Future<double> netByRefTypeOnDay(String refType, String dayKey) async => 0;
   @override
-  Future<double> netByRefTypeInMonth(String refType, String monthKey) async => 0;
+  Future<double> netByRefTypeInMonth(String refType, String monthKey) async =>
+      0;
   @override
   Future<int> countByRefTypeAndRefIdOnDay(
           String refType, String refId, String dayKey) async =>
@@ -105,7 +109,8 @@ class _FakeSunlightRepository implements SunlightRepository {
           String refType, String refId, DateTime since) async =>
       0;
   @override
-  Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async =>
+  Future<DateTime?> lastTsByRefTypeAndRefId(
+          String refType, String refId) async =>
       null;
   @override
   Future<double> earnGrossOnDay(String dayKey) async => 0;
@@ -181,15 +186,26 @@ Widget _host(PlantRepository plants) => ProviderScope(
         plantRepositoryProvider.overrideWithValue(plants),
         bloomRewardRepositoryProvider
             .overrideWithValue(InMemoryBloomRewardRepository()),
+        // C26：干扰物 roll 注入「永不命中」桩 —— 本文件验的是调试面板与催熟
+        // 链路，随机长出的杂草/虫会当天暂停成长、让催熟结算不盛开（实证红过）。
+        plantGrowthServiceProvider.overrideWith((ref) => PlantGrowthService(
+              plants: ref.watch(plantRepositoryProvider),
+              focus: ref.watch(focusRepositoryProvider),
+              ledger: ref.watch(sunlightRepositoryProvider),
+              settings: ref.watch(settingsRepositoryProvider),
+              bloomRewards: ref.watch(bloomRewardRepositoryProvider),
+              weedRandom: NoHitRandom(),
+            )),
       ],
-      child: const MaterialApp(home: Scaffold(body: GardenPage(embedded: true))),
+      child:
+          const MaterialApp(home: Scaffold(body: GardenPage(embedded: true))),
     );
 
 void main() {
   testWidgets('源码守卫：入口必须写在 if (kDebugMode …) 内（release 自动隐藏）',
       (WidgetTester tester) async {
-    final String src =
-        File('lib/presentation/child/pages/garden_page.dart').readAsStringSync();
+    final String src = File('lib/presentation/child/pages/garden_page.dart')
+        .readAsStringSync();
     expect(src.contains("import 'package:flutter/foundation.dart';"), isTrue,
         reason: 'kDebugMode 来自 foundation.dart');
     expect(
@@ -199,8 +215,7 @@ void main() {
     );
   });
 
-  testWidgets('debug 下入口渲染 → 点击弹出面板，含 5 个动作按钮',
-      (WidgetTester tester) async {
+  testWidgets('debug 下入口渲染 → 点击弹出面板，含 5 个动作按钮', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(360 * 3, 780 * 3);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
@@ -236,8 +251,7 @@ void main() {
     }
   });
 
-  testWidgets('动作走真实领域逻辑：点「催熟到成株」→ 目标株被结算为盛开',
-      (WidgetTester tester) async {
+  testWidgets('动作走真实领域逻辑：点「催熟到成株」→ 目标株被结算为盛开', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(360 * 3, 780 * 3);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);

@@ -32,6 +32,7 @@ import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import '../helpers/no_hit_random.dart';
 
 // ── 内存 Fake 仓储 ──────────────────────────────────────────────────────────
 
@@ -130,13 +131,12 @@ class _MemLedger implements SunlightRepository {
           String refType, String refId, DateTime since) async =>
       entries
           .where((SunlightEntry e) =>
-              e.refType == refType &&
-              e.refId == refId &&
-              !e.ts.isBefore(since))
+              e.refType == refType && e.refId == refId && !e.ts.isBefore(since))
           .length;
 
   @override
-  Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async {
+  Future<DateTime?> lastTsByRefTypeAndRefId(
+      String refType, String refId) async {
     DateTime? last;
     for (final SunlightEntry e in entries) {
       if (e.refType != refType || e.refId != refId) continue;
@@ -266,6 +266,7 @@ _Ctx _make({Random? random, List<PlantSpecies>? species}) {
     settings: _MemSettingsRepo(),
     bloomRewards: bloom,
     random: random,
+    weedRandom: NoHitRandom(),
   );
   return _Ctx(svc, plants, ledger, bloom);
 }
@@ -302,9 +303,8 @@ Plant _bloomed(String speciesId, DateTime bloomedAt) => Plant(
       mood: PlantMood.calm,
     );
 
-List<SunlightEntry> _earns(_MemLedger ledger, String refType) => ledger.entries
-    .where((SunlightEntry e) => e.refType == refType)
-    .toList();
+List<SunlightEntry> _earns(_MemLedger ledger, String refType) =>
+    ledger.entries.where((SunlightEntry e) => e.refType == refType).toList();
 
 PendingBloomReward _instantOf(List<PendingBloomReward> list) => list.firstWhere(
       (PendingBloomReward r) => r.rewardKind == kBloomRewardPhaseInstant,
@@ -329,8 +329,7 @@ void main() {
       expect(due, hasLength(2), reason: '瞬间 + 第二段两条');
 
       final PendingBloomReward instant = _instantOf(due);
-      expect(instant.hasPreAssignedReward, isTrue,
-          reason: '登记时已 roll → 非零值哨兵');
+      expect(instant.hasPreAssignedReward, isTrue, reason: '登记时已 roll → 非零值哨兵');
       expect(instant.rewardSunlight, kBloomInstantSunlight,
           reason: 'r=0.99 → 无额外，仅保底 +6');
       expect(instant.rewardFragments, 0);
@@ -401,6 +400,7 @@ void main() {
         settings: _MemSettingsRepo(),
         bloomRewards: bloom,
         random: _SeqRandom(doubles: <double>[0.14], ints: <int>[0]),
+        weedRandom: NoHitRandom(),
       );
       // 历史行：三列默认零值哨兵。
       await bloom.insertPendingBloomReward(PendingBloomReward(
@@ -431,6 +431,7 @@ void main() {
         settings: _MemSettingsRepo(),
         bloomRewards: bloom,
         random: _SeqRandom(doubles: <double>[0.21], ints: <int>[0]),
+        weedRandom: NoHitRandom(),
       );
       await bloom.insertPendingBloomReward(PendingBloomReward(
         id: 'legacy_2',
@@ -478,7 +479,8 @@ void main() {
       // 4 天后：花期已过 + 3 天未浇水 → 不再盛开 → 两条都兜底自动结算。
       final DateTime wellAfter = bloomAt.add(const Duration(days: 4));
       final List<BloomRewardOutcome> auto = <BloomRewardOutcome>[];
-      final List<Plant> plants = await ctx.svc.tickAll(wellAfter, autoSettled: auto);
+      final List<Plant> plants =
+          await ctx.svc.tickAll(wellAfter, autoSettled: auto);
 
       expect(plants, isNotEmpty, reason: '返回类型仍为 List<Plant>（向后兼容）');
       expect(auto, hasLength(2), reason: '两条均花谢兜底 → 逐条 append');
@@ -498,8 +500,7 @@ void main() {
 
   // ── ⑤ 重复种子：允许掉落 + 结算自动分解 ──────────────────────────────────
   group('⑤ 重复种子：允许掉落，结算时自动分解为碎片（2026-09-29）', () {
-    test('普通档物种全部已持券 + seed 分支 → 登记仍定种子（允许重复，不再兜底阳光）',
-        () async {
+    test('普通档物种全部已持券 + seed 分支 → 登记仍定种子（允许重复，不再兜底阳光）', () async {
       final _Ctx ctx =
           _make(random: _SeqRandom(doubles: <double>[0.17], ints: <int>[0]));
       // 两个 common 均持券。
@@ -551,8 +552,8 @@ void main() {
         rewardSpeciesId: 'sp_premium',
       ));
 
-      final BloomRewardOutcome o = await ctx.svc
-          .collectBloomReward('pr_dup_premium', bloomAt.add(const Duration(hours: 1)));
+      final BloomRewardOutcome o = await ctx.svc.collectBloomReward(
+          'pr_dup_premium', bloomAt.add(const Duration(hours: 1)));
 
       expect(o.decomposedSeedSpeciesId, 'sp_premium',
           reason: '结果标记「由重复种子分解而来」，供 UI 文案');
@@ -576,8 +577,8 @@ void main() {
         rewardSpeciesId: 'sp_common_b',
       ));
 
-      final BloomRewardOutcome o = await ctx.svc
-          .collectBloomReward('pr_new_seed', bloomAt.add(const Duration(hours: 1)));
+      final BloomRewardOutcome o = await ctx.svc.collectBloomReward(
+          'pr_new_seed', bloomAt.add(const Duration(hours: 1)));
 
       expect(o.seedSpeciesId, 'sp_common_b', reason: '未持券 → 照常发券');
       expect(o.decomposedSeedSpeciesId, isNull);

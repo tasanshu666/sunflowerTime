@@ -25,6 +25,10 @@ const Map<String, String> _refLabels = <String, String>{
   'plant_fertilize': '施肥',
   'plant_revive': '救回植物',
   'plant_expand': '花园扩容',
+  // 花园干扰物（口径 C26）：漏配这两个 refType 时孩子端会一律显示「其他」，
+  // 阳光来源对不上账 —— 新增 refType 必须同步本映射（既有铁律）。
+  'plant_weed': '拔草',
+  'plant_pest': '除虫',
   'plant_death_refund': '植物死亡返还',
   'bloom_reward': '开花奖励',
   'bloom_reward_24h': '花开回访奖励',

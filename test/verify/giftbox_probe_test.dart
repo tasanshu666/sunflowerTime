@@ -36,6 +36,7 @@ import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_reward_icons.dart';
 import 'package:test/test.dart';
+import '../helpers/no_hit_random.dart';
 
 // ── 依赖替身（仅「无关」依赖用内存；被验对象一律真实库）────────────────────────
 
@@ -48,8 +49,8 @@ class _NoFocusRepo implements FocusRepository {
   @override
   Future<int> countValidFocusDaysLastWeek(DateTime now) async => 0;
   @override
-  Future<FocusStats> totalStats() async =>
-      const FocusStats(totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
+  Future<FocusStats> totalStats() async => const FocusStats(
+      totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
 }
 
 /// 可编排随机源（确定性）：`nextDouble` 依次取 [doubles]（循环）；`nextInt` 取 [ints]。
@@ -73,7 +74,8 @@ class _Ctx {
   _Ctx(this.database, this.svc, this.plants, this.ledger);
   final db.AppDatabase database;
   final PlantGrowthService svc;
-  final PlantLocalRepository plants; // 同时是 PlantRepository 与 BloomRewardRepository
+  final PlantLocalRepository
+      plants; // 同时是 PlantRepository 与 BloomRewardRepository
   final SunlightLocalRepository ledger;
 }
 
@@ -118,6 +120,7 @@ Future<_Ctx> _make({double initialBalance = 1000000, Random? random}) async {
     settings: settings,
     bloomRewards: plants,
     random: random,
+    weedRandom: NoHitRandom(),
   );
   return _Ctx(database, svc, plants, ledger);
 }
@@ -140,7 +143,8 @@ Plant _readyToBloom(String speciesId, DateTime now) => Plant(
     );
 
 /// 真实库读回的 [db.PendingBloomRewardRow] → 领域 [PendingBloomReward]（与真实仓储映射一致）。
-PendingBloomReward _toReward(db.PendingBloomRewardRow row) => PendingBloomReward(
+PendingBloomReward _toReward(db.PendingBloomRewardRow row) =>
+    PendingBloomReward(
       id: row.id,
       plantId: row.plantId,
       dueAt: row.dueAt,
@@ -161,11 +165,10 @@ void main() {
   // (a) 全新 v12 库：开花写入三列 → 头顶图标显示明细（无礼物盒）
   // ══════════════════════════════════════════════════════════════════════
   group('(a) 全新 v12 库开花 → 真实库读回三列非空 → 头顶图标无礼物盒', () {
-    test('确定性单株：instant 保底阳光≥1 且至少一列非空，rewardIconSpecsFor 不含 gift',
-        () async {
+    test('确定性单株：instant 保底阳光≥1 且至少一列非空，rewardIconSpecsFor 不含 gift', () async {
       // instant r=0.10 < 15% → 掉 1 片（+ 保底阳光）；second r=0.99 → 基础阳光。
-      final _Ctx ctx =
-          await _make(random: _SeqRandom(doubles: <double>[0.10, 0.99], ints: <int>[0]));
+      final _Ctx ctx = await _make(
+          random: _SeqRandom(doubles: <double>[0.10, 0.99], ints: <int>[0]));
       await ctx.plants.savePlant(_readyToBloom('species_sunflower', bloomAt));
       await ctx.svc.tickAll(bloomAt);
 
@@ -174,15 +177,17 @@ void main() {
           await ctx.database.bloomRewardDao.pendingDue(farFuture);
       expect(rows, hasLength(2), reason: '应登记瞬间 + 第二段两条');
 
-      final db.PendingBloomRewardRow instantRow = rows
-          .firstWhere((db.PendingBloomRewardRow r) => r.rewardKind == kBloomRewardPhaseInstant);
+      final db.PendingBloomRewardRow instantRow = rows.firstWhere(
+          (db.PendingBloomRewardRow r) =>
+              r.rewardKind == kBloomRewardPhaseInstant);
       final PendingBloomReward instant = _toReward(instantRow);
 
       // 断言：instant 保底阳光 ≥1。
       expect(instant.rewardSunlight, greaterThanOrEqualTo(1),
           reason: 'instant 保底阳光恒 ≥1');
       // 断言：rewardFragments / rewardSpeciesId 至少其一非空。
-      expect(instant.rewardFragments != 0 || instant.rewardSpeciesId != null, isTrue,
+      expect(instant.rewardFragments != 0 || instant.rewardSpeciesId != null,
+          isTrue,
           reason: '至少一列非空（此处为碎片）');
       // 不变式：非哨兵。
       expect(instant.hasPreAssignedReward, isTrue, reason: '新开花非哨兵');
@@ -197,8 +202,7 @@ void main() {
           'speciesId=${instant.rewardSpeciesId} → icons=${icons.map((s) => s.kind.name)}');
     });
 
-    test('多随机种子（1..20）加强：每条 instant 均 rewardSunlight≥1 且不含 gift',
-        () async {
+    test('多随机种子（1..20）加强：每条 instant 均 rewardSunlight≥1 且不含 gift', () async {
       int giftSeen = 0;
       for (int seed = 1; seed <= 20; seed++) {
         final _Ctx ctx = await _make(random: Random(seed));
@@ -210,7 +214,8 @@ void main() {
         expect(rows, hasLength(2), reason: 'seed=$seed 应登记两条');
 
         final db.PendingBloomRewardRow instantRow = rows.firstWhere(
-            (db.PendingBloomRewardRow r) => r.rewardKind == kBloomRewardPhaseInstant);
+            (db.PendingBloomRewardRow r) =>
+                r.rewardKind == kBloomRewardPhaseInstant);
         final PendingBloomReward instant = _toReward(instantRow);
 
         expect(instant.rewardSunlight, greaterThanOrEqualTo(1),
@@ -220,8 +225,7 @@ void main() {
             .any((RewardIconSpec s) => s.kind == RewardIconKind.gift);
         if (hasGift) giftSeen++;
       }
-      expect(giftSeen, 0,
-          reason: '20 个种子中无一显示礼物盒 → 新开花三列均正确落库');
+      expect(giftSeen, 0, reason: '20 个种子中无一显示礼物盒 → 新开花三列均正确落库');
     });
   });
 
@@ -229,8 +233,7 @@ void main() {
   // (b) 旧数据哨兵 0/0/null → 头顶图标显示礼物盒
   // ══════════════════════════════════════════════════════════════════════
   group('(b) 旧数据零值哨兵 0/0/null → 头顶图标显示礼物盒', () {
-    test('手写插入 0/0/null 的 pending 行 → rewardIconSpecsFor 返回单个 gift',
-        () async {
+    test('手写插入 0/0/null 的 pending 行 → rewardIconSpecsFor 返回单个 gift', () async {
       final _Ctx ctx = await _make(); // 全新 v12 库
       // 手写插入一条哨兵 pending 行（模拟 v12 之前登记的旧行；三列默认零值哨兵）。
       // 走真实写入链路（PlantLocalRepository.insertPendingBloomReward → bloomRewardDao.insertPending）。
@@ -252,8 +255,7 @@ void main() {
       final PendingBloomReward reward = _toReward(row);
       final List<RewardIconSpec> icons = rewardIconSpecsFor(reward);
       expect(icons, hasLength(1), reason: '哨兵行只产生一个图标');
-      expect(icons.single.kind, RewardIconKind.gift,
-          reason: '旧哨兵行显示礼物盒');
+      expect(icons.single.kind, RewardIconKind.gift, reason: '旧哨兵行显示礼物盒');
       print('(b) 哨兵行实际值：'
           'sunlight=${reward.rewardSunlight}, fragments=${reward.rewardFragments}, '
           'speciesId=${reward.rewardSpeciesId} → icons=${icons.map((s) => s.kind.name)}');

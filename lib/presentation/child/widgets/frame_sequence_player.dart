@@ -75,6 +75,12 @@ const String kCareWaterFxDir = 'assets/fx/care/water';
 /// 施肥效果帧目录。
 const String kCareFertilizeFxDir = 'assets/fx/care/fertilize';
 
+/// 除草效果帧目录（2026-10-03 玄参交付，27 帧 720×720）。
+const String kCareWeedFxDir = 'assets/fx/care/weed';
+
+/// 除虫效果帧目录（2026-10-03 玄参交付，27 帧 720×720）。
+const String kCarePestFxDir = 'assets/fx/care/pest';
+
 /// 专注页 · 常态 idle 循环帧目录（2026-09-29 玄参交付）。
 const String kFocusIdleFxDir = 'assets/fx/focus/sunflower/idle';
 

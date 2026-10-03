@@ -44,6 +44,12 @@ enum AudioCue {
   /// 养护 · 施肥。
   careFertilize,
 
+  /// 养护 · 除草（点杂草 → 播除草效果帧 + 音效，2026-10-03 玄参交付）。
+  careWeed,
+
+  /// 养护 · 除虫（点害虫 → 播除虫效果帧 + 音效）。
+  carePest,
+
   /// 专注页 · 1/3 进度收集阳光（配 collect 序列帧）。
   focusCollect,
 
@@ -74,6 +80,10 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/care_water.mp3';
       case AudioCue.careFertilize:
         return 'assets/audio/sfx/care_fertilize.mp3';
+      case AudioCue.careWeed:
+        return 'assets/audio/sfx/care_weed.mp3';
+      case AudioCue.carePest:
+        return 'assets/audio/sfx/care_pest.mp3';
       case AudioCue.focusCollect:
         return 'assets/audio/sfx/focus_collect.mp3';
       case AudioCue.focusSettle:

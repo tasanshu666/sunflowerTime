@@ -176,6 +176,13 @@ class GardenPot extends StatelessWidget {
   /// 点击害虫浮标 → 除虫（口径 C26）。约束同 [onClearWeed]。
   final VoidCallback onClearPest;
 
+  /// 杂草浮标是否正在「渐变消失」（2026-10-03 玄参口径：播完除草动画后先淡出
+  /// 浮标、再刷新草地）。true 时浮标透明度动画到 0，数据刷新后整支被移除。
+  final bool weedFading;
+
+  /// 害虫浮标是否正在渐变消失（同 [weedFading]）。
+  final bool pestFading;
+
   const GardenPot({
     super.key,
     required this.plant,
@@ -183,6 +190,8 @@ class GardenPot extends StatelessWidget {
     required this.onTap,
     required this.onClearWeed,
     required this.onClearPest,
+    this.weedFading = false,
+    this.pestFading = false,
   });
 
   /// 状态色：与养护面板保持一致，进度条与图标用它。
@@ -275,26 +284,42 @@ class GardenPot extends StatelessWidget {
                           Positioned(
                             left: artW * 0.17,
                             top: artH * 0.47,
-                            child: _PestChip(
-                              assetPath: kGardenWeedAsset,
-                              emoji: kGardenWeedEmoji,
-                              glyphWidth: 60,
-                              glyphHeight: 60,
-                              tooltip: '有杂草，点我拔掉 +${kGardenWeedReward.toInt()} ☀',
-                              onTap: onClearWeed,
+                            // 「播放完杂草渐变消失」（2026-10-03 玄参口径）：
+                            // 动画播完先透明度淡出，数据刷新后整支移除。
+                            child: AnimatedOpacity(
+                              opacity: weedFading ? 0.0 : 1.0,
+                              duration: const Duration(
+                                milliseconds: kPestFadeOutMs,
+                              ),
+                              child: _PestChip(
+                                assetPath: kGardenWeedAsset,
+                                emoji: kGardenWeedEmoji,
+                                glyphWidth: 60,
+                                glyphHeight: 60,
+                                tooltip:
+                                    '有杂草，点我拔掉 +${kGardenWeedReward.toInt()} ☀',
+                                onTap: onClearWeed,
+                              ),
                             ),
                           ),
                         if (plant.hasPest)
                           Positioned(
                             right: artW * 0.03,
                             top: artH * 0.53,
-                            child: _PestChip(
-                              assetPath: kGardenPestAsset,
-                              emoji: kGardenPestEmoji,
-                              glyphWidth: 52,
-                              glyphHeight: 30,
-                              tooltip: '有害虫，点我除掉 +${kGardenPestReward.toInt()} ☀',
-                              onTap: onClearPest,
+                            child: AnimatedOpacity(
+                              opacity: pestFading ? 0.0 : 1.0,
+                              duration: const Duration(
+                                milliseconds: kPestFadeOutMs,
+                              ),
+                              child: _PestChip(
+                                assetPath: kGardenPestAsset,
+                                emoji: kGardenPestEmoji,
+                                glyphWidth: 52,
+                                glyphHeight: 30,
+                                tooltip:
+                                    '有害虫，点我除掉 +${kGardenPestReward.toInt()} ☀',
+                                onTap: onClearPest,
+                              ),
                             ),
                           ),
                       ],

@@ -69,6 +69,9 @@ flutter:
     - assets/fx/grow/sunflower/adult_to_bloomed/
     - assets/fx/care/water/
     - assets/fx/care/fertilize/
+    # 除草 / 除虫效果帧（2026-10-03 玄参交付，各 27 帧）：点干扰物播放，禁止归一化。
+    - assets/fx/care/weed/
+    - assets/fx/care/pest/
     # 专注页向日葵序列帧（2026-09-29 玄参交付）：常态 idle 循环 / 1-3 进度收集阳光 /
     # 结算庆祝 / 回来 四组，**各组帧数不同**（13/40/36/30）。同样受「目录声明不递归」
     # 约束 —— 四个叶子目录必须逐个列全。命名与规格见

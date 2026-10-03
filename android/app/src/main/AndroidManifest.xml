@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <application
-        android:label="sunflower_time"
+        android:label="向日葵专注"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

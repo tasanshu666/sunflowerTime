@@ -778,3 +778,13 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 | **F61** | `GardenPot` 布局 | 干扰物浮标接入后，「空盆与有植物盆图片框等大」测试红（83.7 vs 139.5，恰为 5:3 倒置） | 植物图从「紧约束 SizedBox 直包」改成 `Stack(fit: StackFit.loose)` 子级后失去紧约束，占位图按**自身逻辑尺寸**布局（测试环境无真图，回退占位） | 植物图改 `Positioned.fill` 钉满紧约束框，浮标仍走 `Positioned` 叠加（不占布局高度）；几何契约与改造前完全一致 | ✅ 已修复 |
 | **F62** | 存量测试回归 | C26 接入后全量 **31 条红**：GardenPot 新 required 回调 2 文件编译失败；成长/奖励类测试的精确天数与「结算零消耗」断言被打红 | ① 干扰物 roll 走主随机源，消耗随机数且可能 roll 出杂草 → 成长暂停、盛开分支被跳过（seed=2 实证）；② 固定种子治标不治本（序列跑久了必命中 40%/25%） | 服务构造器加独立 `Random? weedRandom` 注入点（默认与 `random` 同源，生产行为不变）；存量测试注入 `NoHitRandom`（`test/helpers/no_hit_random.dart`，`nextDouble()` 恒 0.999…，永不命中、不耗主序列） | ✅ 已修复 |
 | **F63** | iOS 模拟器钥匙串 | 点击家长空间 → `PlatformException(-34018, "A required entitlement isn't present")` | ① 项目从无 `.entitlements`，`flutter_secure_storage`（PIN 哈希）在 iOS 缺 **Keychain Sharing** 权限；② 首次修复后又失效：给模拟器装的包是 **`--no-codesign` 构建**（禁签 → entitlements 根本不进 App）；③ `$(AppIdentifierPrefix)` 在模拟器 ad-hoc 签名下展开为空 → 条目被打包工具剥离 | 新建 `ios/Runner/Runner.entitlements`（keychain-access-groups **硬编码** `6NW722K2GN.com.sunflowertime.app`）+ `pbxproj` 三个 Runner 配置加 `CODE_SIGN_ENTITLEMENTS`；模拟器构建**禁止 `--no-codesign`**。验证：`otool -s __TEXT __entitlements`（新 Xcode 由链接器嵌 entitlements 进该段，签名 blob 空属正常）。⚠️ 手动重签 .app 会 launch 失败，勿做 | ✅ 已修复（玄参 2026-10-03 真机确认） |
+
+## 2026-10-03 除草 / 除虫动效轮（C27）
+
+> 玄参真机验收除草/除虫动效过程中发现的两条缺陷，全部修复并复验通过。
+> 本轮校验：`flutter analyze` 0 error（info 基线）；`flutter test --no-pub`（摘四代理）**718 全绿**（+2 条帧契约护栏）。
+
+| ID | 模块 | 现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| **F64** | 花园清除演出 | 点杂草后**草瞬间消失**，除草动画播在空盆上（玄参：「应该动画播完了之后再消失」） | 「写库 + 延迟 UI 刷新」的草地刷新有**两条独立触发路径**：`_run` finally 内部静默刷新 + `economyRevisionProvider` 的 `ref.listen` 监听。第一版只挡了内部刷新，监听路径仍把草在动画开播前移除 | 加 `_suppressReload` 抑制闸门**同时压制两条路径**：写库阶段置 true → 动画播完 → 浮标淡出 300ms → 解锁并 `_reload(silent)`。⚠️ 凡「写库 + 延迟 UI 刷新」的动效流程，必须同时挡两条路径，只挡一条必然漏 | ✅ 已修复（玄参复验通过） |
+| **F65** | 清除成功飘字 | 「除草成功，阳光+1」**显示不全**（窄格截断成省略号）；且玄参要求「阳光」用图标不是文字 | 飘字是单行 `Text` + `TextOverflow.ellipsis`，花盆格窄时被截断；纯文字无图标 | ① 内容改富排版「文字 + 阳光美术图标（`assets/rewards/sunlight.png`，缺失回退内置图标）+ 数字」；② 胶囊外套 `FittedBox` 等比缩放，超宽整体缩小不再截断；③ 起始位置上移到花盆格垂直中心（玄参「出现位置在花盆口上方一点」） | ✅ 已修复（玄参复验通过） |

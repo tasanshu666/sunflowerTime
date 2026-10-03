@@ -88,6 +88,10 @@ class _CareEffectSpec {
   /// 播放时长（毫秒）= 对应音频时长。
   final int durationMs;
 
+  /// 动画播放完成后的业务收尾回调（2026-10-03 除草 / 除虫用）：在叠加层被移除前
+  /// 执行（如「干扰物渐变消失 → 刷新草地 → 弹飘字」）。null = 只移除叠加层。
+  final VoidCallback? onFinished;
+
   _CareEffectSpec({
     required this.type,
     required this.offset,
@@ -96,6 +100,7 @@ class _CareEffectSpec {
     required this.durationMs,
     this.plant,
     this.species,
+    this.onFinished,
   });
 }
 
@@ -127,11 +132,29 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   bool _busy = false;
   String? _error;
 
-  /// 花盆上方刚清除掉的干扰物提示（口径 C26）：`potIndex` 指明浮在哪一格。
-  ///
-  /// 只保留**最后一条**（同一格连续点两次时，第二条直接覆盖第一条，不排队）。
-  ({int potIndex, String text})? _clearHint;
-  Timer? _clearHintTimer;
+  /// 花盆上方刚清除掉的干扰物提示（口径 C26 + 2026-10-03 飘字口径）：
+  /// `potIndex` 指明浮在哪一格；`label` = 「除草成功」/「除虫成功」；
+  /// `sunlight` = 奖励阳光数（**渲染成阳光图标 + 「+N」**，玄参 2026-10-03 口径：
+  /// 「阳光+1」的阳光二字要用图标不是文字，「就像之前那样显示」= 与头顶奖励
+  /// 图标同源 `assets/rewards/sunlight.png`，缺失回退内置 `Icons.wb_sunny`）。
+  /// 由 [_RisingHint] 自下而上飘动淡出（约 1.6s），走完经 onComplete 自清；
+  /// 只保留**最后一条**（同格连点时后一条覆盖前一条）。
+  ({int potIndex, String label, int sunlight})? _clearHint;
+
+  /// 除草 / 除虫收尾序列计时器：效果帧播完 → 等 [kPestFadeOutMs] 淡出 → 刷新 + 弹飘字。
+  /// dispose 里必须取消（不碰 ref，纯 Timer）。
+  Timer? _clearSeqTimer;
+
+  /// 正在「渐变消失」的干扰物（2026-10-03 玄参口径：播完动画先淡出浮标再刷新草地）：
+  /// `plantId` 定位植株、`weed` 区分杂草 / 蝗虫。淡出结束置 null。
+  ({String plantId, bool weed})? _fadingClear;
+
+  /// 刷新抑制闸门（2026-10-03 除草/除虫动效回归修复）：清除干扰物**已写库但动画
+  /// 未播完**期间置 true，挡住 [_run] 内部的 `_reload(silent)` 与
+  /// `economyRevisionProvider` 监听触发的静默刷新 —— 否则草/虫在动画播完前就
+  /// 从草地消失（玄参真机反馈「点击草之后，草直接消失了」的根因）。
+  /// 动画收尾（[_onClearAnimated]）复位并统一补一次刷新。
+  bool _suppressReload = false;
 
   /// 当前「可收集」的待收集奖励（`plantId → 待收集奖励列表`，变更 A/B）。
   /// 到期后在该花盆**上方**掉落「头顶奖励图标」（玄参 2026-09-27 图标化），点击收集
@@ -198,7 +221,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     // ⚠️ dispose 内不得用 ref（unmount 先标 disposed，用必抛）——AudioService 用静态单例。
     _ambientTimer?.cancel();
     // ⚠️ 纯 Timer 字段（不碰 ref），dispose 里取消即可；不取消会让 setState 打到已卸载页。
-    _clearHintTimer?.cancel();
+    _clearSeqTimer?.cancel();
     unawaited(AudioService.instance.stopGardenAmbient());
     _gridScroll.dispose();
     super.dispose();
@@ -210,7 +233,11 @@ class _GardenPageState extends ConsumerState<GardenPage> {
 
   /// [silent] = true 时不整页转圈（养护动作后静默刷新），避免每次浇水都闪一次
   /// 全屏 loading，孩子看着像「页面重载」而不是「浇完了」。
+  ///
+  /// ⚠️ [_suppressReload] = true 期间一律跳过（除草/除虫动画播放中：数据已写库但
+  /// 界面要等「播完 → 淡出」才更新，见 [_clearPest]）。
   Future<void> _reload({bool silent = false}) async {
+    if (_suppressReload) return;
     if (!silent && mounted) setState(() => _loading = true);
     try {
       final DateTime now = DateTime.now();
@@ -340,28 +367,63 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     }
   }
 
-  /// 拔草 / 除虫（花园干扰物玩法，口径 C26）：**点图标即清除**，成功后在该花盆
-  /// **正上方**浮一条提示（1.2s 自动消失），数值全部取自常量 —— 改奖励不用改 UI。
+  /// 拔草 / 除虫（花园干扰物玩法，口径 C26 + 2026-10-03 动效口径）：
+  /// 点图标 → 写库 → **播效果帧 + 音效**（期间 [_busy] 锁整页，防连点重复写账本）→
+  /// 播完干扰物**渐变消失**（[kPestFadeOutMs] 淡出）→ 刷新草地 + 花盆上方弹
+  /// 「XX成功，阳光+N」飘字（[_RisingHint]，自下而上飘动淡出）。数值全部取自常量。
   ///
-  /// 走 [_run]：异常 → SnackBar 分因提示；成功后 → 经济修订号自增 + 静默刷新
-  /// （杂草消失、进度条恢复涨动）。
+  /// 走 [_run]：异常 → SnackBar 分因提示；成功后 → 经济修订号自增。
   ///
   /// ⚠️ [_busy] 闸门在这里同样必要：浮标与整格是**嵌套热区**，若手势穿透导致
   /// 同一帧触发两次，第二次会被 [_run] 挡掉，不会写出两条阳光账本行。
   Future<void> _clearPest(String plantId, int potIndex, {required bool weed}) async {
+    // 先上抑制闸门再写库：[_run] 内部的 `_reload(silent)` 与 economyRevision 监听
+    // 触发的刷新都必须被挡住，否则动画还没播草/虫就没了（玄参真机实证）。
+    _suppressReload = true;
     final bool ok = await _run(() {
       final PlantGrowthService svc = ref.read(plantGrowthServiceProvider);
       final DateTime now = DateTime.now();
       return weed ? svc.clearWeed(plantId, now) : svc.clearPest(plantId, now);
     });
-    if (!ok || !mounted) return;
-    final String text = weed
-        ? '${kGardenWeedEmoji} 除草 +${kGardenWeedReward.toInt()} ☀'
-        : '${kGardenPestEmoji} 除虫 +${kGardenPestReward.toInt()} ☀';
-    setState(() => _clearHint = (potIndex: potIndex, text: text));
-    _clearHintTimer?.cancel();
-    _clearHintTimer = Timer(const Duration(milliseconds: 1200), () {
-      if (mounted) setState(() => _clearHint = null);
+    if (!ok) {
+      _suppressReload = false; // 写库失败（无草可除等）：恢复刷新，SnackBar 已给分因。
+      return;
+    }
+    if (!mounted) return;
+    // [_run] 的 finally 已解锁，这里重新锁上：动画播放期间（约 4.1s）整页不可再操作，
+    // 防止动画中途再次点干扰物 / 养护（数据已写库但草地未刷新，界面与库不一致）。
+    setState(() => _busy = true);
+    _playCareEffect(
+      potIndex,
+      weed ? CareEffectType.weed : CareEffectType.pest,
+      onFinished: () => _onClearAnimated(plantId, potIndex, weed: weed),
+    );
+  }
+
+  /// 除草 / 除虫动画播完的业务收尾（玄参 2026-10-03 口径）：
+  /// 1) 干扰物渐变消失：置 [_fadingClear] → 浮标透明度动画淡出（数据尚未刷新）；
+  /// 2) 淡出结束 → 刷新草地（干扰物从数据层移除）+ 解锁整页；
+  /// 3) 花盆上方弹「XX成功，阳光+N」飘字（[_RisingHint] 自下而上飘动淡出，走完自清）。
+  void _onClearAnimated(String plantId, int potIndex, {required bool weed}) {
+    if (!mounted) return;
+    setState(() {
+      _fadingClear = (plantId: plantId, weed: weed);
+      _busy = false;
+    });
+    _clearSeqTimer?.cancel();
+    _clearSeqTimer = Timer(const Duration(milliseconds: kPestFadeOutMs), () {
+      if (!mounted) return;
+      // 淡出结束：复位抑制闸门 → 刷新草地（草/虫此时才从数据层消失）→ 弹飘字。
+      _suppressReload = false;
+      setState(() {
+        _fadingClear = null;
+        _clearHint = (
+          potIndex: potIndex,
+          label: weed ? '除草成功' : '除虫成功',
+          sunlight: (weed ? kGardenWeedReward : kGardenPestReward).toInt(),
+        );
+      });
+      unawaited(_reload(silent: true));
     });
   }
 
@@ -442,13 +504,25 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   ///
   /// 2026-09-28 起：效果帧序列（`assets/fx/care/{water|fertilize}`）+ 对应音频，
   /// 「帧速 = 音频时长」（玄参口径）；音频经 [AudioService.playSfx]（受「音效」开关控制）。
-  void _playCareEffect(int potIndex, CareEffectType type) {
+  /// 2026-10-03 扩展除草 / 除虫（`{weed|pest}`，27 帧），并支持 [onFinished] 业务收尾。
+  void _playCareEffect(
+    int potIndex,
+    CareEffectType type, {
+    VoidCallback? onFinished,
+  }) {
     final BuildContext? potCtx = _potKey(potIndex).currentContext;
     final BuildContext? stackCtx = _pageStackKey.currentContext;
-    if (potCtx == null || stackCtx == null || !mounted) return;
+    if (potCtx == null || stackCtx == null || !mounted) {
+      // 拿不到坐标（极端情况）也要保证业务收尾不丢：直接执行并退出。
+      onFinished?.call();
+      return;
+    }
     final RenderBox? potBox = potCtx.findRenderObject() as RenderBox?;
     final RenderBox? stackBox = stackCtx.findRenderObject() as RenderBox?;
-    if (potBox == null || stackBox == null) return;
+    if (potBox == null || stackBox == null) {
+      onFinished?.call();
+      return;
+    }
     final Offset local = stackBox.globalToLocal(potBox.localToGlobal(Offset.zero));
     final Plant? plant = _occupantOf(potIndex);
     final PlantSpecies? species =
@@ -466,6 +540,14 @@ class _GardenPageState extends ConsumerState<GardenPage> {
         frames = fxFrameAssets(kCareFertilizeFxDir, kFxFrameCount);
         durationMs = kCareFertilizeDurationMs;
         cue = AudioCue.careFertilize;
+      case CareEffectType.weed:
+        frames = fxFrameAssets(kCareWeedFxDir, kCareWeedFrameCount);
+        durationMs = kCareWeedDurationMs;
+        cue = AudioCue.careWeed;
+      case CareEffectType.pest:
+        frames = fxFrameAssets(kCarePestFxDir, kCarePestFrameCount);
+        durationMs = kCarePestDurationMs;
+        cue = AudioCue.carePest;
     }
     AudioService.instance.playSfx(cue);
     setState(() => _activeEffect = _CareEffectSpec(
@@ -476,6 +558,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
           species: species,
           frames: frames,
           durationMs: durationMs,
+          onFinished: onFinished,
         ));
   }
 
@@ -796,6 +879,12 @@ class _GardenPageState extends ConsumerState<GardenPage> {
           onTap: () => _openCareSheet(occupant.id, i),
           onClearWeed: () => _clearPest(occupant.id, i, weed: true),
           onClearPest: () => _clearPest(occupant.id, i, weed: false),
+          weedFading: _fadingClear != null &&
+              _fadingClear!.plantId == occupant.id &&
+              _fadingClear!.weed,
+          pestFading: _fadingClear != null &&
+              _fadingClear!.plantId == occupant.id &&
+              !_fadingClear!.weed,
         );
         final List<PendingBloomReward> rewards =
             _collectibles[occupant.id] ?? const <PendingBloomReward>[];
@@ -823,25 +912,24 @@ class _GardenPageState extends ConsumerState<GardenPage> {
                 ),
               ),
             if (_clearHint?.potIndex == i)
-              // 刚拔草 / 除虫的提示：浮在花盆正上方（玄参口径「在花盆上面显示提示」），
-              // 1.2s 后自行消失；文案数值取常量，改奖励不用动 UI。
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xEFFFFFFF),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      _clearHint!.text,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                    ),
+              // 除草 / 除虫成功飘字（2026-10-03 玄参口径）：起始位置 = **格子垂直中心**
+              // （≈花盆口上方一点 / 花的中部，玄参反馈「格顶太靠上」后下移），自下而
+              // 上飘动 + 淡出（约 1.6s），走完经 onComplete 自行移除；文案数值取常量。
+              Positioned.fill(
+                child: Align(
+                  alignment: Alignment.center,
+                  child: _RisingHint(
+                    label: _clearHint!.label,
+                    sunlight: _clearHint!.sunlight,
+                    // 阳光图标与头顶奖励图标同源（玄参口径「就像之前那样显示」）；
+                    // 资源缺失时 _RisingHint 内部回退内置 Icons.wb_sunny。
+                    sunIconAsset:
+                        _rewardAssets.contains('assets/rewards/sunlight.png')
+                            ? 'assets/rewards/sunlight.png'
+                            : null,
+                    onComplete: () {
+                      if (mounted) setState(() => _clearHint = null);
+                    },
                   ),
                 ),
               ),
@@ -1052,7 +1140,11 @@ class _GardenPageState extends ConsumerState<GardenPage> {
                   width: _activeEffect!.size.width,
                   height: _activeEffect!.size.height,
                   onComplete: () {
+                    // 先取业务收尾回调（除草 / 除虫：渐变消失 → 刷新 → 飘字），
+                    // 再移除叠加层 —— 置 null 后 spec 就取不到了。
+                    final VoidCallback? finished = _activeEffect?.onFinished;
                     if (mounted) setState(() => _activeEffect = null);
+                    finished?.call();
                   },
                 ),
               ),
@@ -1095,6 +1187,154 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       ),
       body: page,
     );
+  }
+}
+
+/// 除草 / 除虫成功飘字（2026-10-03 玄参口径）：半透明白胶囊，**自下而上飘动 +
+/// 淡出**（总时长 [kClearHintRiseMs]）。前 10% 淡入、中段平稳上飘、后 30% 淡出，
+/// 走完经 [onComplete] 通知花园页移除。有限时长动画（可被 pumpAndSettle 结束）。
+///
+/// 内容 = `[label] [阳光图标] [+N]`（玄参：「阳光+1」的阳光要用**图标**不是文字，
+/// 与头顶奖励图标同源 `assets/rewards/sunlight.png`，缺失回退内置 `Icons.wb_sunny`）。
+/// 胶囊外套 [FittedBox]：窄格里内容超宽时**等比缩小**而不是省略号截断
+/// （玄参反馈「除草成功，阳光+1 显示不全」的修复，与头顶图标条同口径）。
+class _RisingHint extends StatefulWidget {
+  /// 「除草成功」/「除虫成功」。
+  final String label;
+
+  /// 奖励阳光数（渲染成「+N」跟在阳光图标后）。
+  final int sunlight;
+
+  /// 阳光图标 asset（null 或加载失败 → 回退内置 `Icons.wb_sunny`）。
+  final String? sunIconAsset;
+
+  /// 动画走完回调（花园页在此清掉 [_clearHint] 移除本组件）。
+  final VoidCallback? onComplete;
+
+  const _RisingHint({
+    required this.label,
+    required this.sunlight,
+    this.sunIconAsset,
+    this.onComplete,
+  });
+
+  @override
+  State<_RisingHint> createState() => _RisingHintState();
+}
+
+class _RisingHintState extends State<_RisingHint>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: kClearHintRiseMs),
+  );
+
+  /// 上飘位移：0 → -[kClearHintRiseDistance]（easeOut，起快后缓）。
+  late final Animation<double> _rise = Tween<double>(
+    begin: 0,
+    end: -kClearHintRiseDistance,
+  ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.addStatusListener(_onStatus);
+    _ctrl.forward();
+  }
+
+  void _onStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) widget.onComplete?.call();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.removeStatusListener(_onStatus);
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (BuildContext context, Widget? _) {
+        final double t = _ctrl.value;
+        // 透明度包络：前 10% 淡入 → 中段 1.0 → 后 30% 淡出（端点齐平不跳变）。
+        final double alpha = t < 0.10
+            ? t / 0.10
+            : t > 0.70
+                ? (1 - (t - 0.70) / 0.30).clamp(0.0, 1.0)
+                : 1.0;
+        return Transform.translate(
+          offset: Offset(0, _rise.value),
+          child: Opacity(
+            opacity: alpha,
+            // FittedBox：内容超宽时等比缩小（不截断）——窄格不再「显示不全」。
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xEFFFFFFF),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      widget.label,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF8D6E00),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    _sunIcon(),
+                    const SizedBox(width: 2),
+                    Text(
+                      '+${widget.sunlight}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFE8A33D),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 阳光图标：美术图（16×16，显式宽高）优先，缺失/失败回退内置 `Icons.wb_sunny`。
+  Widget _sunIcon() {
+    final String? path = widget.sunIconAsset;
+    if (path != null) {
+      return Image.asset(
+        path,
+        width: 16,
+        height: 16,
+        fit: BoxFit.contain,
+        errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+            const Icon(Icons.wb_sunny, size: 16, color: Color(0xFFE8A33D)),
+      );
+    }
+    return const Icon(Icons.wb_sunny, size: 16, color: Color(0xFFE8A33D));
   }
 }
 

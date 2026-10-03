@@ -497,6 +497,61 @@ const int kCareWaterDurationMs = 2900;
 /// 施肥效果帧 · 播放时长（毫秒）（= 音频 3.06s，25 帧 ≈122ms/帧）。
 const int kCareFertilizeDurationMs = 3056;
 
+// ── 除草 / 除虫效果帧（2026-10-03 玄参交付，27 帧 720×720）─────────────────
+// 交互口径（玄参 2026-10-03）：点干扰物 → 播效果帧 + 音效（帧速 = 音频时长）→
+// 播完干扰物渐变消失 → 花盆上方弹「XX成功，阳光+N」飘字（自下而上飘动淡出）。
+
+/// 除草效果帧 · 帧数（`assets/fx/care/weed/` 27 帧；⚠️ 与 [kFxFrameCount] 25 不同组）。
+const int kCareWeedFrameCount = 27;
+
+/// 除虫效果帧 · 帧数（`assets/fx/care/pest/` 27 帧）。
+const int kCarePestFrameCount = 27;
+
+/// 除草效果帧 · 播放时长（毫秒）（= `care_weed.mp3` 4.10s，27 帧 ≈152ms/帧）。
+const int kCareWeedDurationMs = 4101;
+
+/// 除虫效果帧 · 播放时长（毫秒）（= `care_pest.mp3` 4.10s，27 帧 ≈152ms/帧）。
+const int kCarePestDurationMs = 4101;
+
+/// 除草效果帧 · 落点横向锚点（帧内比例；left = 盆心x − anchorX × 帧宽）。
+///
+/// 2026-10-03 玄参三轮微调：0.5 → 0.42 → **0.36**（逐轮「往右一点」= anchorX 减小）。
+const double kCareWeedAnchorX = 0.36;
+
+/// 除虫效果帧 · 落点横向锚点（口径同 [kCareWeedAnchorX]）。
+///
+/// 2026-10-03 玄参三轮微调：0.5 → 0.40 → **0.34**（药团/罐子逐轮右移，高度已定稿）。
+const double kCarePestAnchorX = 0.34;
+
+/// 除草效果帧 · 落点纵向锚点（帧内 y 比例，1.0 = 帧底贴盆口线）。
+///
+/// 2026-10-03 玄参两轮微调：1.0（铲子悬空）→ 0.56（落进盆土）→ **0.64**
+/// （「往上一点」= anchorY 增大 = 帧上移）。
+const double kCareWeedAnchorY = 0.64;
+
+/// 除虫效果帧 · 落点纵向锚点（口径同 [kCareWeedAnchorY]）。
+const double kCarePestAnchorY = 0.52;
+
+/// 除虫效果帧 · 上下往复摆动幅度（逻辑像素，0 = 不摆）。
+///
+/// 玄参 2026-10-03：「喷在花盆土的位置，**或者上下来回喷一下**」——两条都做：
+/// 帧整体下沉对准盆土，再叠加 ±[kCarePestBobPx] 的上下往复（两个来回），
+/// 呈现「来回喷」的动感。除草是插入动作不摆。
+const double kCarePestBobPx = 8;
+
+/// 除虫效果帧 · 上下往复摆动次数（播放全程内的完整来回数）。
+const double kCarePestBobCycles = 2;
+
+/// 除草 / 除虫飘字 · 上飘总时长（毫秒）：弹出后自下而上飘动并淡出，走完自移除。
+const int kClearHintRiseMs = 1600;
+
+/// 除草 / 除虫飘字 · 上飘总距离（逻辑像素，向上为负）。
+const double kClearHintRiseDistance = 36;
+
+/// 播完效果帧后干扰物（杂草 / 蝗虫）**渐变消失**的时长（毫秒）：
+/// 数据已写库，UI 先淡出该浮标再刷新草地（玄参口径「播放完杂草渐变消失」）。
+const int kPestFadeOutMs = 300;
+
 /// 成长过渡动画播完后的渐隐时长（毫秒）——玄参口径「播放完就可以直接渐变消失」。
 const int kFxDisplayFadeOutMs = 300;
 

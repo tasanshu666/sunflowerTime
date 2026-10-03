@@ -81,6 +81,25 @@ void main() {
     });
   });
 
+  group('除草 / 除虫序列帧契约（2026-10-03 玄参交付，各 27 帧 ≠ kFxFrameCount）', () {
+    final Map<String, int> clearDirs = <String, int>{
+      kCareWeedFxDir: kCareWeedFrameCount,
+      kCarePestFxDir: kCarePestFrameCount,
+    };
+
+    clearDirs.forEach((String dir, int count) {
+      test('$dir：恰有 $count 张、文件名与 fxFrameAssets 契约一致', () {
+        final List<String> files = pngsOf(dir);
+        expect(files.length, count,
+            reason: '$dir 帧数应为 $count，实际 ${files.length}');
+        final List<String> expected = fxFrameAssets(dir, count)
+            .map((String p) => p.split('/').last)
+            .toList();
+        expect(files, expected, reason: '$dir 文件名与契约不符');
+      });
+    });
+  });
+
   group('专注页向日葵序列帧契约（玄参 2026-09-29 交付，**各组帧数不同**）', () {
     final Map<String, int> focusDirs = <String, int>{
       kFocusIdleFxDir: kFocusIdleFrameCount,
@@ -110,6 +129,8 @@ void main() {
         AudioCue.growthAdultToBloomed,
         AudioCue.careWater,
         AudioCue.careFertilize,
+        AudioCue.careWeed,
+        AudioCue.carePest,
         AudioCue.focusCollect,
         AudioCue.focusSettle,
       ];
@@ -148,6 +169,8 @@ void main() {
         growFxDir('sunflower', GrowTransition.adultToBloomed),
         kCareWaterFxDir,
         kCareFertilizeFxDir,
+        kCareWeedFxDir,
+        kCarePestFxDir,
         kFocusIdleFxDir,
         kFocusCollectFxDir,
         kFocusSettleFxDir,

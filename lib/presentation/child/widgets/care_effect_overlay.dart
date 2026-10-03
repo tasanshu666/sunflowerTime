@@ -29,8 +29,8 @@ import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 
-/// 养护动效类型。
-enum CareEffectType { water, fertilize }
+/// 养护动效类型（2026-10-03 扩展：除草 / 除虫沿用同一套效果帧播放管线）。
+enum CareEffectType { water, fertilize, weed, pest }
 
 // ── 动效参数（命名常量集中区，禁止散在 build 里）─────────────────────
 /// 总时长（毫秒）：≤ 1500，保证动画有限、可被 pumpAndSettle 结束。
@@ -224,9 +224,21 @@ class _CareEffectOverlayState extends State<CareEffectOverlay>
   /// 末 10% 进度整体渐隐，避免「壶/袋」瞬间消失的跳变；资源缺失不崩。
   Widget _frameLayer(double w, double h) {
     final List<String> frames = widget.frames!;
-    final double anchorX = widget.type == CareEffectType.water
-        ? kCareWaterAnchorX
-        : kCareFertilizeAnchorX;
+    // 落点横向锚点：四类效果帧各取常量（water 0.21 / fertilize 0.31 实测自素材；
+    // weed / pest 居中于盆口 0.5，2026-10-03 玄参真机验收后可微调）。
+    final double anchorX = switch (widget.type) {
+      CareEffectType.water => kCareWaterAnchorX,
+      CareEffectType.fertilize => kCareFertilizeAnchorX,
+      CareEffectType.weed => kCareWeedAnchorX,
+      CareEffectType.pest => kCarePestAnchorX,
+    };
+    // 落点纵向锚点（帧内 y 比例，1.0 = 帧底贴盆口线）：weed / pest 的铲子 / 喷嘴
+    // 画在帧的上半部，玄参 2026-10-03 反馈「要落在花盆土的位置」→ 整帧下沉（<1.0）。
+    final double anchorY = switch (widget.type) {
+      CareEffectType.weed => kCareWeedAnchorY,
+      CareEffectType.pest => kCarePestAnchorY,
+      _ => kCareFxAnchorY,
+    };
     // 格内框（格子 Padding 与 garden_pot 一致）。
     final double innerW = w - 2 * kGardenCellHorizontalPad;
     final double innerH = h - 2 * kGardenCellVerticalPad;
@@ -238,7 +250,7 @@ class _CareEffectOverlayState extends State<CareEffectOverlay>
     final double rootX = w / 2;
     final double f = innerW * kCareFxWidthRatio;
     final double left = rootX - anchorX * f;
-    final double top = rootY - kCareFxAnchorY * f;
+    final double top = rootY - anchorY * f;
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (BuildContext context, Widget? _) {
@@ -248,9 +260,14 @@ class _CareEffectOverlayState extends State<CareEffectOverlay>
         final double t = _ctrl.value;
         final double alpha =
             t < 0.9 ? 1.0 : (1 - (t - 0.9) / 0.1).clamp(0.0, 1.0);
+        // 除虫：上下往复摆动（玄参 2026-10-03「上下来回喷一下」）——
+        // sin 全周期 × [kCarePestBobCycles]，幅度 [kCarePestBobPx]，首尾为零不跳变。
+        final double bob = widget.type == CareEffectType.pest
+            ? math.sin(t * 2 * math.pi * kCarePestBobCycles) * kCarePestBobPx
+            : 0.0;
         return Positioned(
           left: left,
-          top: top,
+          top: top + bob,
           width: f,
           height: f,
           child: Opacity(

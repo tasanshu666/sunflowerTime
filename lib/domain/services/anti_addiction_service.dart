@@ -10,6 +10,8 @@ library anti_addiction_service;
 import 'dart:math';
 
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/services/app_usage_service.dart';
 
@@ -43,6 +45,48 @@ class AntiAddictionService {
   /// （即 2/4/6… 场后触发，1/3/5… 场不触发）。
   bool restRequired(AppSettings s, int todayValidSessions) =>
       todayValidSessions > 0 && todayValidSessions % s.restAfterSessions == 0;
+
+  /// 今日最后一场完成会话的结束时间（F66：休息义务的起始基准）。
+  ///
+  /// 「每 2 场休 10 分钟」触发时，义务从**触发场结算完成那一刻**就开始算——
+  /// 孩子锁屏离开、去喝水玩耍，全是真实休息。此前只在休息页开着且 App 前台时
+  /// 才计时，导致「离开 20 分钟回来仍被要求重新休息 10 分钟」（真机 2026-10-03）。
+  DateTime? lastCompletedSessionEnd(Iterable<FocusSession> sessions) {
+    DateTime? last;
+    for (final FocusSession s in sessions) {
+      final DateTime? e = s.end;
+      if (s.status == FocusStatus.completed && e != null) {
+        if (last == null || e.isAfter(last)) last = e;
+      }
+    }
+    return last;
+  }
+
+  /// 休息义务是否已自然满足（F66）：最后一场完成至今已过 [restMinutes]。
+  ///
+  /// 休息的本质是**眼睛离开屏幕**——待在休息页、锁屏、切走都算。墙上时钟
+  /// 推导天然幂等，杀进程也不丢（不再依赖内存 restSatisfied 标记）。
+  /// [lastSessionEnd] 为 null（无完成会话/数据异常）时不放行，返回 false。
+  bool restNaturallySatisfied({
+    required int restMinutes,
+    required DateTime now,
+    required DateTime? lastSessionEnd,
+  }) =>
+      lastSessionEnd != null &&
+      now.difference(lastSessionEnd) >= Duration(minutes: restMinutes);
+
+  /// 休息页剩余等待时长（F66）。基准 = [lastSessionEnd]；
+  /// null（数据异常）时回退完整 [restMinutes]（安全侧，维持旧行为）。
+  Duration restRemaining({
+    required int restMinutes,
+    required DateTime now,
+    required DateTime? lastSessionEnd,
+  }) {
+    if (lastSessionEnd == null) return Duration(minutes: restMinutes);
+    final Duration required = Duration(minutes: restMinutes);
+    final Duration elapsed = now.difference(lastSessionEnd);
+    return elapsed >= required ? Duration.zero : required - elapsed;
+  }
 
   /// App 总使用时长是否达上限（仅用于娱乐页准入；**绝不**参与 evaluate 的专注准入）。
   ///

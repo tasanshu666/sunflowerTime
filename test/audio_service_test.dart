@@ -47,6 +47,38 @@ void main() {
     });
   });
 
+  group('氛围音自愈判定（F67：养护音效打断花园背景音后不恢复）', () {
+    test('播放中 → 不自愈', () {
+      expect(
+        AudioService.ambientNeedsHeal(isPlaying: true, completed: false),
+        isFalse,
+      );
+    });
+
+    test('自然播完（completed）→ 不自愈，交给花园页 30s 定时器', () {
+      expect(
+        AudioService.ambientNeedsHeal(isPlaying: false, completed: true),
+        isFalse,
+      );
+    });
+
+    test('被打断（paused，未播完）→ 自愈续播', () {
+      expect(
+        AudioService.ambientNeedsHeal(isPlaying: false, completed: false),
+        isTrue,
+      );
+    });
+
+    test('被 stop 打断（idle，未播完）→ 自愈续播', () {
+      // 被 SFX 在共享音频会话上抢停后 processingState 可能是 idle 而非 paused，
+      // 两者都「未播完」，都应自愈。
+      expect(
+        AudioService.ambientNeedsHeal(isPlaying: false, completed: false),
+        isTrue,
+      );
+    });
+  });
+
   // 释放（无可用播放器时为空操作），便于进程干净退出。
   tearDownAll(() => unawaited(audio.dispose()));
 }

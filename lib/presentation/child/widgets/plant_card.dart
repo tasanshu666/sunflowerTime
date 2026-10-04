@@ -170,6 +170,27 @@ class PlantCard extends StatelessWidget {
     return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
   }
 
+  /// 本次养护的真实进度增量（F68）：走领域层公开单点口径
+  /// [PlantGrowthService.careProgressGain]——首花 +1%/+3%，复开花 +0.8%/+1.2%
+  /// （精品再 ÷1.5），与实际落库增量**恒等**，杜绝文案承诺与涨幅不符。
+  double _careGain({
+    required double firstGain,
+    required double rebloomGain,
+  }) =>
+      PlantGrowthService.careProgressGain(
+        bloomCount: plant.bloomCount,
+        isPremium: species.isPremium,
+        firstGain: firstGain,
+        rebloomGain: rebloomGain,
+      );
+
+  /// 增量百分比格式：整数不带小数（3%），非整数保留一位（1.2% / 0.8%）。
+  String _fmtGain(double gain) {
+    final double pct = gain * 100;
+    final String s = pct.toStringAsFixed(1);
+    return s.endsWith('.0') ? pct.round().toString() : s;
+  }
+
   /// 当前「有事可做」的能力入口（未来玩法的统一挂点）。
   ///
   /// 注册表默认为空 → 返回空列表 → 卡片不新增任何视觉元素。
@@ -361,7 +382,7 @@ class PlantCard extends StatelessWidget {
                     icon: Icons.water_drop,
                     title: q == null
                         ? '浇水'
-                        : '浇水 +${(kPlantWaterProgressGain * 100).round()}%',
+                        : '浇水 +${_fmtGain(_careGain(firstGain: kPlantWaterProgressGain, rebloomGain: kRebloomWaterProgressGain))}%',
                     cost: kPlantWaterCost,
                     enabled: canWater,
                     onTap: onWater,
@@ -373,7 +394,7 @@ class PlantCard extends StatelessWidget {
                     icon: Icons.eco,
                     title: q == null
                         ? '施肥'
-                        : '施肥 +${(kPlantFertilizeProgressGain * 100).round()}%',
+                        : '施肥 +${_fmtGain(_careGain(firstGain: kPlantFertilizeProgressGain, rebloomGain: kRebloomFertilizeProgressGain))}%',
                     cost: kPlantFertilizeCost,
                     enabled: canFertilize,
                     onTap: onFertilize,

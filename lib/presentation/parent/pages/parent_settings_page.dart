@@ -306,6 +306,37 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           onChanged: (v) => _update(s.copyWith(restMinutes: v)),
         ),
         const SizedBox(height: 12),
+        // C28 少儿护眼休息（玄参 2026-10-04 拍板，口径裁定表 v1 C28 §4）。
+        // 注意：这里只有 **3 项** —— 总开关 / 触发间隔 / 是否允许孩子跳过。
+        // ⚠️ 刻意**没有「护眼时长」设置项**：单次护眼固定 60 秒（前 30 秒闭眼 + 口令
+        // 转眼球、后 30 秒睁眼远眺），玄参拍板「家长端不设、不可调」；时长常量单点
+        // 收口在 `kEyeCareDurationSeconds`。加这个开关等于把已拍板的口径改回去。
+        _SectionTitle('护眼休息'),
+        _SwitchTile(
+          title: '护眼提醒',
+          subtitle: const Text(
+            '专注每满一定时间弹出护眼卡，帮孩子歇歇眼睛（固定 60 秒）',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          value: s.eyeCareEnabled,
+          onChanged: (v) => _update(s.copyWith(eyeCareEnabled: v)),
+        ),
+        _IntTile(
+          title: '护眼触发间隔（每 N 分钟）',
+          value: s.eyeCareIntervalMin,
+          options: kEyeCareIntervalOptions,
+          onChanged: (v) => _update(s.copyWith(eyeCareIntervalMin: v)),
+        ),
+        _SwitchTile(
+          title: '允许孩子跳过护眼',
+          subtitle: const Text(
+            '关掉后孩子只能完成休息，跳过按钮不生效',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          value: s.eyeCareSkipAllowed,
+          onChanged: (v) => _update(s.copyWith(eyeCareSkipAllowed: v)),
+        ),
+        const SizedBox(height: 12),
         _SectionTitle('环境与音效'),
         _SwitchTile(
           title: '音效',
@@ -379,16 +410,25 @@ class _SectionTitle extends StatelessWidget {
 }
 
 /// 开关行。
+///
+/// [subtitle] 为可选补充说明（C28 护眼三项都带一句「这样是什么效果」的说明，
+/// 否则家长只看「护眼提醒 / 允许跳过」不知道能管什么）。
 class _SwitchTile extends StatelessWidget {
   final String title;
+  final Widget? subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
-  const _SwitchTile(
-      {required this.title, required this.value, required this.onChanged});
+  const _SwitchTile({
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) => SwitchListTile(
         title: Text(title),
+        subtitle: subtitle,
         value: value,
         onChanged: onChanged,
       );

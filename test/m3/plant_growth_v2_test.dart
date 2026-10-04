@@ -500,4 +500,65 @@ void main() {
       expect(cur.bloomedAt, t0, reason: '应以本次 tick 为计时起点补上');
     });
   });
+
+  // ── F68（玄参 2026-10-04）：养护增量公开单点口径 ──────────────────────
+  // 背景：按钮文案曾写死首花「施肥 +3%」，复开花植物实际 +1.2%（59%→60%）被当成
+  // bug 上报。修复 = 文案与领域层共用 [PlantGrowthService.careProgressGain]。
+  group('careProgressGain 养护增量单点口径', () {
+    test('首花（bloomCount==0）：浇水 +1% / 施肥 +3%，不受精品影响', () {
+      expect(
+        PlantGrowthService.careProgressGain(
+          bloomCount: 0,
+          isPremium: false,
+          firstGain: kPlantWaterProgressGain,
+          rebloomGain: kRebloomWaterProgressGain,
+        ),
+        kPlantWaterProgressGain,
+      );
+      expect(
+        PlantGrowthService.careProgressGain(
+          bloomCount: 0,
+          isPremium: true,
+          firstGain: kPlantFertilizeProgressGain,
+          rebloomGain: kRebloomFertilizeProgressGain,
+        ),
+        kPlantFertilizeProgressGain,
+      );
+    });
+
+    test('复开花（普通）：浇水 +0.8% / 施肥 +1.2%', () {
+      expect(
+        PlantGrowthService.careProgressGain(
+          bloomCount: 1,
+          isPremium: false,
+          firstGain: kPlantWaterProgressGain,
+          rebloomGain: kRebloomWaterProgressGain,
+        ),
+        kRebloomWaterProgressGain,
+      );
+      expect(
+        PlantGrowthService.careProgressGain(
+          bloomCount: 3,
+          isPremium: false,
+          firstGain: kPlantFertilizeProgressGain,
+          rebloomGain: kRebloomFertilizeProgressGain,
+        ),
+        closeTo(0.012, 1e-12),
+        reason: '玄参实证：59% 施肥后 60.2%（截断显示 60%）',
+      );
+    });
+
+    test('复开花（精品）：增量 ÷ kRebloomPremiumCycleMultiplier', () {
+      expect(
+        PlantGrowthService.careProgressGain(
+          bloomCount: 1,
+          isPremium: true,
+          firstGain: kPlantFertilizeProgressGain,
+          rebloomGain: kRebloomFertilizeProgressGain,
+        ),
+        closeTo(kRebloomFertilizeProgressGain / kRebloomPremiumCycleMultiplier,
+            1e-12),
+      );
+    });
+  });
 }

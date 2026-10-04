@@ -6,6 +6,7 @@ library anti_addiction_test;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
 
@@ -182,5 +183,117 @@ void main() {
     test('sessions=2 → true', () => expect(service.restRequired(s, 2), isTrue));
     test('sessions=3 → false', () => expect(service.restRequired(s, 3), isFalse));
     test('sessions=4 → true', () => expect(service.restRequired(s, 4), isTrue));
+  });
+
+  // F66（2026-10-03 真机反馈）：休息义务按墙上时钟推导——锁屏/离开 App 也算休息。
+  group('F66 休息义务墙上时钟推导', () {
+    final s = _highSettings(); // restMinutes = 10
+    final service = AntiAddictionService();
+
+    FocusSession completedAt(DateTime end) => FocusSession(
+          id: 's1',
+          start: end.subtract(const Duration(minutes: 20)),
+          end: end,
+          plannedMin: 20,
+          actualFocusMin: 20,
+          status: FocusStatus.completed,
+          sunlightEarned: 20,
+          createdAt: end,
+        );
+
+    test('lastCompletedSessionEnd：取完成会话的最晚 end（忽略未完成/无 end）', () {
+      final DateTime t1 = DateTime(2026, 10, 3, 10, 0);
+      final DateTime t2 = DateTime(2026, 10, 3, 11, 0);
+      final sessions = <FocusSession>[
+        completedAt(t1),
+        completedAt(t2),
+        FocusSession(
+          id: 's3',
+          start: t2.add(const Duration(minutes: 30)),
+          plannedMin: 15,
+          actualFocusMin: 0,
+          status: FocusStatus.shortAborted,
+          sunlightEarned: 0,
+          createdAt: t2.add(const Duration(minutes: 30)),
+        ),
+      ];
+      expect(service.lastCompletedSessionEnd(sessions), t2);
+    });
+
+    test('lastCompletedSessionEnd：空列表 → null', () {
+      expect(service.lastCompletedSessionEnd(const <FocusSession>[]), isNull);
+    });
+
+    test('restNaturallySatisfied：结束至今恰好 10 分钟 → true', () {
+      final DateTime end = DateTime(2026, 10, 3, 10, 0);
+      expect(
+        service.restNaturallySatisfied(
+          restMinutes: s.restMinutes,
+          now: end.add(const Duration(minutes: 10)),
+          lastSessionEnd: end,
+        ),
+        isTrue,
+      );
+    });
+
+    test('restNaturallySatisfied：结束至今 9 分 59 秒 → false', () {
+      final DateTime end = DateTime(2026, 10, 3, 10, 0);
+      expect(
+        service.restNaturallySatisfied(
+          restMinutes: s.restMinutes,
+          now: end.add(
+            const Duration(minutes: 9, seconds: 59),
+          ),
+          lastSessionEnd: end,
+        ),
+        isFalse,
+      );
+    });
+
+    test('restNaturallySatisfied：基准为 null → false（不放行）', () {
+      expect(
+        service.restNaturallySatisfied(
+          restMinutes: s.restMinutes,
+          now: DateTime(2026, 10, 3, 12, 0),
+          lastSessionEnd: null,
+        ),
+        isFalse,
+      );
+    });
+
+    test('restRemaining：结束至今 20 分钟 → 零（免重新计满）', () {
+      final DateTime end = DateTime(2026, 10, 3, 10, 0);
+      expect(
+        service.restRemaining(
+          restMinutes: s.restMinutes,
+          now: end.add(const Duration(minutes: 20)),
+          lastSessionEnd: end,
+        ),
+        Duration.zero,
+      );
+    });
+
+    test('restRemaining：结束至今 4 分钟 → 还剩 6 分钟', () {
+      final DateTime end = DateTime(2026, 10, 3, 10, 0);
+      expect(
+        service.restRemaining(
+          restMinutes: s.restMinutes,
+          now: end.add(const Duration(minutes: 4)),
+          lastSessionEnd: end,
+        ),
+        const Duration(minutes: 6),
+      );
+    });
+
+    test('restRemaining：基准为 null → 完整 restMinutes（安全侧回退）', () {
+      expect(
+        service.restRemaining(
+          restMinutes: s.restMinutes,
+          now: DateTime(2026, 10, 3, 12, 0),
+          lastSessionEnd: null,
+        ),
+        const Duration(minutes: 10),
+      );
+    });
   });
 }

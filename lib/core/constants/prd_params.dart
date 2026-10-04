@@ -721,3 +721,99 @@ const String kGardenWeedAsset = 'assets/garden/weed.png';
 /// 蝗虫美术图（2026-10-03 玄参提供；**趴在花盆上**——盆身位置，横构图）。
 /// 加载失败回退 [kGardenPestEmoji]。
 const String kGardenPestAsset = 'assets/garden/pest.png';
+
+// ───────────────────────────────────────────────────────────────────────────
+// C28 少儿护眼休息（20-20-20 变体·特色功能，玄参 2026-10-03 初稿 / 2026-10-04 收口）
+//
+// 单点纪律（宪法总纪律 #2）：护眼的**节奏 / 时长 / 奖励 / 提示文案**全部收口在这里，
+// 任何页面不得再出现第二个相同含义的字面量（尤其「60」「30」「+2」「20 分钟」「10 分钟」
+// 与那句「不可跳过」）。
+//
+// 三条口径锚点（口径裁定表 v1 C28）：
+//  · 场内「累计注视每满 N 分钟」＝一次护眼，护眼期间**计时暂停**、不计入专注时长、不产光；
+//  · 场末「距上次护眼之后的本段注视 ≥ [kEyeCareSessionEndMinutes] 分钟」→ **结算页之前**
+//    插一次护眼卡（先护眼、后领奖励，防孩子为拿奖励跳过护眼）；
+//  · **单次护眼总时长固定 [kEyeCareDurationSeconds] 秒，家长端不设、不可调**（玄参
+//    2026-10-04 拍板：砍掉「护眼时长」设置项）。
+// ───────────────────────────────────────────────────────────────────────────
+
+/// 护眼提醒**总开关**默认值（家长端默认开）。
+const bool kEyeCareEnabledDefault = true;
+
+/// 护眼触发**间隔**（分钟）默认值：场内累计注视每满 20 分钟 → 一次护眼。
+const int kEyeCareIntervalMinDefault = 20;
+
+/// 护眼触发间隔**合法下限**（分钟）：家长端下拉档位不能低于此值。
+const int kEyeCareIntervalMinMin = 5;
+
+/// 护眼触发间隔**合法上限**（分钟）。
+const int kEyeCareIntervalMinMax = 60;
+
+/// 家长端「护眼触发间隔」可选档位（分钟，含默认值 20）。
+const List<int> kEyeCareIntervalOptions = <int>[5, 10, 15, 20, 30];
+
+/// 是否**允许孩子跳过**护眼卡默认值（默认允许；跳过不发奖励）。
+const bool kEyeCareSkipAllowedDefault = true;
+
+/// 单次护眼**总时长**（秒）——固定值，**家长端不设、不可调**（玄参 2026-10-04 拍板）。
+///
+/// 本期无语音素材（mp3 待美术供给），段内靠「倒计时 + 阶段文案步进」程序占位实现。
+const int kEyeCareDurationSeconds = 60;
+
+/// 护眼两段**等分**时长（秒）：两段各占总长一半（闭眼口令 30s / 睁眼远眺 30s）。
+///
+/// 由 [kEyeCareDurationSeconds] 推导（避免总长改动后这里又留一个 30 的孪生字面量）。
+const int kEyeCarePhaseSeconds = kEyeCareDurationSeconds ~/ 2;
+
+/// 闭眼口令段**每一步时长**（秒）：30s 走完 5 步「上 / 下 / 左 / 右 / 画圈」= 6s/步。
+const int kEyeCareCueStepSeconds = 6;
+
+/// 闭眼口令段的**阶段标题**（单点，UI 与文案只引这里）。
+const String kEyeCarePhaseClosedTitle = '闭上眼睛，跟着向日葵动动眼球';
+
+/// 睁眼远眺段的**阶段标题**（单点）。
+const String kEyeCarePhaseFarGazeTitle = '睁开眼睛，望向远处';
+
+/// 闭眼口令段 5 步口令文案（单点）：依次「上 → 下 → 左 → 右 → 画圈圈」。
+///
+/// ⚠️ 元素数量必须与「闭眼段步数」一致：改这里要同步改成 [kEyeCareCueStepSeconds] 的
+/// 除数（30s ÷ 步数 = 每步秒数），否则最后一步永远走不到。
+const List<String> kEyeCareCueTexts = <String>[
+  '跟向日葵一起：向上看',
+  '再向下看',
+  '慢慢向左看',
+  '再慢慢向右看',
+  '最后画个圈圈',
+];
+
+/// 睁眼远眺段文案（单点）。
+const String kEyeCareFarGazeText = '睁开眼睛，望望窗外最远的地方';
+
+/// 完整完成一次护眼的**奖励阳光**（玄参 2026-10-03 拍板：+2）。
+const int kEyeCareRewardSunlight = 2;
+
+/// 场末（结算页之前）插入护眼卡的**本段注视门槛**（分钟）：≥ 该值才打断，
+/// 本段 < 该值不打断（交给「每 2 场休 10 分钟」大休息兜底）。
+const int kEyeCareSessionEndMinutes = 10;
+
+/// 账本 `refType`：护眼完成。
+/// ⚠️ 字符串值**一经写入即冻结**（append-only 对账源）：改名只能改常量名，不改本值，
+/// 否则历史行与新行的 tag 分裂。新增 refType 必须同步 `child_sunlight_history_page.dart`
+/// 的 `_refLabels`（现在指向 [kEyeCareRefLabel]「护眼」），否则孩子端显示「其他」。
+const String kEyeCareRefType = 'eye_care_break';
+
+/// 孩子端阳光来源里 `eye_care_break` 的显示文案（单点）。
+const String kEyeCareRefLabel = '护眼';
+
+/// 「不可跳过」提示文案（**单点收口，便于后期改词**）：家长关掉「允许跳过」时点跳过、
+/// 以及护眼卡期间按系统返回键被拦截时，都弹这一句。
+const String kEyeCareNotSkippableText = '不可跳过，请爱护眼睛';
+
+/// 允许跳过时点「跳过」的**二次确认**文案（确认才生效，取消＝回护眼卡继续休息）。
+const String kEyeCareSkipConfirmText = '跳过就没有小阳光啦，真的要跳过吗？';
+
+/// 护眼卡主按钮文案（完成的唯一入口，"不可跳过"时也是唯一出路）。
+const String kEyeCareFinishLabel = '完成休息';
+
+/// 护眼卡副按钮文案（允许跳过时才渲染）。
+const String kEyeCareSkipLabel = '跳过';

@@ -54,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -207,6 +207,22 @@ class AppDatabase extends _$AppDatabase {
           await _ensureColumn(m, plants, plants.weedAt);
           await _ensureColumn(m, plants, plants.pestAt);
           await _ensureColumn(m, plants, plants.weedPestRollDay);
+
+          // ⑮ v15（少儿护眼休息，玄参 2026-10-03 初稿 / 2026-10-04 收口，口径 C28）：
+          //     settings 新增 3 列 —— `eye_care_enabled` / `eye_care_interval_min` /
+          //     `eye_care_skip_allowed`，承载家长端 C28 §4 的三项配置（总开关 / 触发
+          //     间隔（分钟）/ 是否允许孩子跳过）。
+          //     · 三者都是**带语义默认值**的列（开 / 20 / 允许），存量 settings 行经
+          //       `ALTER TABLE ADD COLUMN` 补列后直接落到默认口径，不需要回填脚本；
+          //     · 用 `_ensureColumn` 幂等补列，重复升级不报错、也不覆盖家长既有配置；
+          //     · ⚠️ 护眼**时长**（固定 60 秒，两段各 30 秒）**刻意不落列** —— 玄参
+          //       2026-10-04 拍板「家长端不设、不可调」，时长常量收口
+          //       `kEyeCareDurationSeconds`，别在这里另开一列。
+          //     ⚠️ 版本变更（14 → 15），必须配迁移测试（见
+          //        `test/m3/migration_v14_to_v15_test.dart`）。
+          await _ensureColumn(m, settings, settings.eyeCareEnabled);
+          await _ensureColumn(m, settings, settings.eyeCareIntervalMin);
+          await _ensureColumn(m, settings, settings.eyeCareSkipAllowed);
         },
       );
 

@@ -151,7 +151,7 @@ void main() {
     test('schemaVersion == 13（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database =
           await _openMigrated(_v10Ddl(withLegacyPlants: true), 10);
-      expect(database.schemaVersion, 14);
+      expect(database.schemaVersion, 15);
     });
 
     test('daisy / cactus 行被删除；向日葵行完好保留（含各字段）', () async {
@@ -230,7 +230,7 @@ void main() {
         },
       ));
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 14);
+      expect(first.schemaVersion, 15);
       expect(await first.plantDao.byId('p_daisy'), isNull);
       expect(await first.plantDao.byId('p_sunflower'), isNotNull);
 
@@ -249,7 +249,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 14);
+      expect(second.schemaVersion, 15);
       expect(await second.plantDao.byId('p_sunflower'), isNotNull);
       expect(await second.plantDao.byId('p_daisy_after'), isNotNull,
           reason: 'from<11 守卫 → from==11 不再执行删除（幂等/守卫验证）');

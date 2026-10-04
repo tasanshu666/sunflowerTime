@@ -9,7 +9,7 @@
 ///    故用一次显式迁移把存量行翻值；新库由列默认值 `Constant(true)` 覆盖。
 ///
 /// 本测试钉死四件事（**必须把历史行读回来断言**，不能只断言「没抛异常」）：
-///  ① `AppDatabase.schemaVersion == 14`；
+///  ① `AppDatabase.schemaVersion == 15`；
 ///  ② 老库 `bgm_on = 0` 的历史行 → 迁移后读回 **true**（氛围音默认开）；
 ///  ③ 其它表数据（植物 / 待收集奖励）原样保留；
 ///  ④ 幂等：已迁移到 v13 的库二次打开不报错、值稳定为 1。
@@ -158,7 +158,7 @@ void main() {
   group('迁移 v12->v13：花园氛围音默认开启（bgm_on → 1）', () {
     test('schemaVersion 必须为最新 14（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(12);
-      expect(database.schemaVersion, 14);
+      expect(database.schemaVersion, 15);
     });
 
     test('老库 bgm_on = 0 的历史行 → 迁移后读回 true（默认开启）', () async {
@@ -198,13 +198,13 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 14);
+      expect(first.schemaVersion, 15);
       await first.close();
 
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 14);
+      expect(second.schemaVersion, 15);
       expect((await SettingsLocalRepository(second).getSettings()).bgmOn, isTrue,
           reason: '二次打开不得把 bgm_on 又翻回去');
       expect(await _count(second, 'plants'), 1);

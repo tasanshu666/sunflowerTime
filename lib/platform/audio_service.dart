@@ -125,6 +125,24 @@ class AudioService {
   bool _bgmPlaying = false;
   bool _ambientPlaying = false;
 
+  /// 氛围音「应然」状态（F67）：花园 tab 可见且设置开启 → true。
+  ///
+  /// 背景（玄参 2026-10-04 真机反馈）：养护音效在共享 iOS 音频会话上启动时，
+  /// ambient 播放器被 just_audio 打断处理暂停，原逻辑**无人续播**——最长静默到
+  /// 下一个 30s 定时点、会话激活混乱时甚至一直静默。自愈监听（[_attachAmbientHeal]）
+  /// 依本标记判定「应播而未播」即续播。
+  bool _ambientShouldPlay = false;
+
+  /// 主动重载窗口守卫：[_playGardenAmbient] 内部的 stop/setAsset/seek 本身会触发
+  /// 播放器状态流事件，此窗口内一律忽略（否则自愈会把自己的主动 stop 误判为「被打断」）。
+  bool _ambientReloading = false;
+
+  /// 自愈节流：防止「续播后又被同一段音效打断」时高频反复重启。
+  DateTime _lastAmbientHealAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// 氛围音播放器状态订阅（自愈监听），[dispose] 时取消。
+  StreamSubscription<PlayerState>? _ambientStateSub;
+
   /// 应用设置：决定 SFX / BGM 是否生效。
   ///
   /// 若关闭 BGM 且正在播放，则立即停止；开启由调用方在 [startBgm] 触发。
@@ -221,6 +239,39 @@ class AudioService {
     }
   }
 
+  /// 纯函数：氛围音是否需要自愈续播（可单测，headless 测试无音频后端无法造真播放器）。
+  ///
+  /// 被打断（paused / idle，未播完）→ 需要续播；自然播完（completed）→ 不自愈，
+  /// 交给花园页 30s 定时器重播。
+  static bool ambientNeedsHeal({
+    required bool isPlaying,
+    required bool completed,
+  }) =>
+      !isPlaying && !completed;
+
+  /// 给氛围音播放器挂「自愈监听」（幂等：只在首次拿到播放器时挂一次）。
+  ///
+  /// 花园 tab 可见（[_ambientShouldPlay]）期间，播放器出现「应播而未播」的非自然
+  /// 暂停（＝被 SFX 在共享音频会话上打断）→ 节流后从头续播，实现「音效与背景音
+  /// 同响、互不打断」的用户口径（F67）。
+  void _attachAmbientHeal(AudioPlayer player) {
+    _ambientStateSub ??= player.playerStateStream.listen((PlayerState st) {
+      if (_ambientReloading || !_ambientShouldPlay || !_bgmOn) return;
+      if (!ambientNeedsHeal(
+        isPlaying: st.playing,
+        completed: st.processingState == ProcessingState.completed,
+      )) {
+        return; // 正常播放中 / 自然播完：不需要自愈
+      }
+      final DateTime now = DateTime.now();
+      if (now.difference(_lastAmbientHealAt) < const Duration(seconds: 1)) {
+        return; // 节流：1s 内不重复重启
+      }
+      _lastAmbientHealAt = now;
+      unawaited(_playGardenAmbient()); // 从头续播
+    });
+  }
+
   /// 播放一次花园氛围音（`assets/audio/bgm/background.mp3`，约 10s，不循环）。
   ///
   /// 玄参 2026-09-28 拍板口径：**花园 tab 内每 30s 播一次**（进入立即播一次），
@@ -235,22 +286,30 @@ class AudioService {
   Future<void> _playGardenAmbient() async {
     final AudioPlayer? player = await _ambient;
     if (player == null || !_bgmOn) return; // 播放器构造失败 / 设置已关：静默降级
+    _attachAmbientHeal(player); // 首次拿到播放器时挂自愈监听（幂等）
     try {
       _ambientPlaying = true;
+      _ambientReloading = true; // 主动重载窗口：自愈监听忽略期间的暂停事件
       await player.stop();
       await player.setAsset(kGardenAmbientAsset);
       await player.seek(Duration.zero);
       await player.play();
+      _ambientShouldPlay = true;
       // play() 返回即认为本次氛围音已启动；播完自然结束（不循环）。
     } catch (_) {
       // 资源缺失或解码失败：静默降级。
     } finally {
+      _ambientReloading = false;
       _ambientPlaying = false;
     }
   }
 
   /// 停止花园氛围音（离开花园 tab 时由花园页调用；保留播放器便于复用）。
+  ///
+  /// ⚠️ 必须**先**把 [_ambientShouldPlay] 翻 false 再 stop——否则主动 stop 触发的
+  /// 状态事件会被自愈监听误判为「被打断」而立刻续播（离开花园后音乐阴魂不散）。
   Future<void> stopGardenAmbient() async {
+    _ambientShouldPlay = false;
     _ambientPlaying = false;
     if (_ambientPlayer == null) return;
     try {
@@ -263,6 +322,8 @@ class AudioService {
 
   /// 释放所有播放器（专注页 [dispose] 时调用；下次使用懒加载重建）。
   Future<void> dispose() async {
+    await _ambientStateSub?.cancel();
+    _ambientStateSub = null;
     try {
       await _sfxPlayer?.dispose();
       await _bgmPlayer?.dispose();
@@ -275,5 +336,7 @@ class AudioService {
     _ambientPlayer = null;
     _bgmPlaying = false;
     _ambientPlaying = false;
+    _ambientShouldPlay = false;
+    _ambientReloading = false;
   }
 }

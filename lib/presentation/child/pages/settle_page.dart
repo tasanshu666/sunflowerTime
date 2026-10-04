@@ -17,14 +17,17 @@ import 'package:uuid/uuid.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/services/eye_care_service.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
+import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/tracking_event.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
+import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
 
@@ -59,11 +62,21 @@ class SettleArgs {
   /// 是否跳过了成长项结算（取不到真实落库会话 / 结算异常，兜底标记）。
   final bool taskSettleSkipped;
 
+  /// 进入结算页之前是否**还需要一次护眼休息**（C28 §1 场末插入点）。
+  ///
+  /// 真值 → 本页会先把 [EyeCarePage] 压在自己之上，等它结束（完成 / 确认跳过）才
+  /// 露出下面的奖励数字：**先护眼、后领奖励**，防止孩子为了拿奖励直接跳过护眼。
+  ///
+  /// 由专注页按「距上次护眼之后的本段注视 ≥ [kEyeCareSessionEndMinutes] 分钟」算出
+  /// 后随 [SettleArgs] 传入；深链直入（本参数为默认 false）不插卡，行为与既往一致。
+  final bool eyeCarePending;
+
   const SettleArgs({
     this.settlement,
     this.taskOutcome,
     this.taskName,
     this.taskSettleSkipped = false,
+    this.eyeCarePending = false,
   });
 }
 
@@ -87,6 +100,24 @@ class _SettlePageState extends ConsumerState<SettlePage>
   /// 变成负数（真机实测 -173）；本栏口径改为「当日 earn 类型的 net 合计」，恒 ≥ 0。
   /// null = 尚未拉到，此时先用 [FocusSettlement.todayNet] 钳到 ≥ 0 顶一帧。
   double? _todayEarned;
+
+  /// 本次结算**前置**的护眼休息是否已经走完（拿到护眼卡结果后翻 true）。
+  ///
+  /// 这是「先护眼、后领奖励」在**渲染层**的落点：护眼卡压在本页之上、结果未回时
+  /// （[_eyeCareBlocking]），本页所有数字以「···」占位，不在卡背后抢先露出
+  /// 奖励数字（孩子会以为「先领了再护眼」）。
+  bool _eyeCareDone = false;
+
+  /// 本场结算的护眼奖励（玄参 2026-10-04 拍板口径）：完成护眼 = [kEyeCareRewardSunlight]
+  /// （账本入账由护眼卡内部完成，本页只收结果显示）；跳过 / 未触发 = 0。
+  int _eyeCareReward = 0;
+
+  /// 结算前护眼卡是否仍在展示（带 [SettleArgs.eyeCarePending] 进场且结果未回）。
+  bool get _eyeCareBlocking =>
+      (widget.args?.eyeCarePending ?? false) && !_eyeCareDone;
+
+  /// 数字占位：护眼卡未收口时全部以「···」遮住。
+  String _mask(String value) => _eyeCareBlocking ? '···' : value;
 
   @override
   void initState() {
@@ -114,6 +145,48 @@ class _SettlePageState extends ConsumerState<SettlePage>
       // P0 · B：结算后判定「本轮新跨过的里程碑」（按 type 去重，一生只写一次）。
       unawaited(_recordMilestones());
     }
+    // C28 §1 场末插入点（玄参 2026-10-04 补接线）：带 eyeCarePending 进场时，
+    // 先把护眼卡压在本页之上，拿到结果（完成 / 确认跳过）才露出奖励数字。
+    if (widget.args?.eyeCarePending ?? false) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_openEyeCareIfPending());
+      });
+    }
+  }
+
+  /// 压入结算前护眼卡（C28「先护眼、后领奖励」）。
+  ///
+  /// 完成时的 [kEyeCareRewardSunlight] 由**护眼卡内部**写阳光账本（唯一真源，
+  /// `refType='eye_care_break'`），本页只收结果、驱动「护眼奖励」行显示；
+  /// 跳过（确认后）→ 无奖励显示 0。设置读取失败按默认「允许跳过」放行（安全侧，
+  /// 不让配置异常阻塞结算流程）。
+  Future<void> _openEyeCareIfPending() async {
+    if (!mounted || _eyeCareDone) return;
+    bool skipAllowed = true;
+    try {
+      final AppSettings s =
+          await ref.read(settingsRepositoryProvider).getSettings();
+      skipAllowed = EyeCareService.isSkipAllowed(s);
+    } catch (_) {
+      // 设置读取失败：按默认「允许跳过」放行。
+    }
+    if (!mounted || _eyeCareDone) return;
+    // 护眼卡 pop 出的是 [EyeCareResult] 包装（不是裸枚举）。
+    final Object? result = await Navigator.of(context).push<Object?>(
+      MaterialPageRoute<Object?>(
+        fullscreenDialog: true,
+        builder: (_) =>
+            EyeCarePage(args: EyeCareArgs(skipAllowed: skipAllowed)),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _eyeCareDone = true;
+      _eyeCareReward =
+          result is EyeCareResult && result.completed
+              ? kEyeCareRewardSunlight
+              : 0;
+    });
   }
 
   /// 强制竖屏（portraitUp/Down；失败静默 —— 方向锁定只是体验优化，不阻塞结算）。
@@ -395,25 +468,34 @@ class _SettlePageState extends ConsumerState<SettlePage>
                     children: [
                       _StatRow(
                         label: '本次专注',
-                        value: formatFocusMinutes(actualMin),
+                        value: _mask(formatFocusMinutes(actualMin)),
                       ),
                       const SizedBox(height: 8),
                       _StatRow(
-                        label: '收到阳光',
+                        label: '收集阳光',
                         // 数字滚动上涨（按动画进度）。
-                        value: '+${(net * t).round()}',
+                        value: _mask('+${(net * t).round()}'),
                         highlight: true,
                       ),
                       const SizedBox(height: 8),
                       _StatRow(
+                        label: '护眼奖励',
+                        // 玄参 2026-10-04：本场结算前护眼的结果——完成 +2 ☀
+                        // （护眼卡内部已入账）；跳过 / 未触发显示 0。
+                        value: _mask(
+                          _eyeCareReward > 0 ? '+$_eyeCareReward ☀️' : '0 ☀️',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _StatRow(
                         label: '今日累计',
-                        value: '${(todayEarned * t).round()} ☀️',
+                        value: _mask('${(todayEarned * t).round()} ☀️'),
                       ),
                       const SizedBox(height: 8),
                       _StatRow(
                         label: '拥有阳光',
                         // 结算后余额（FocusSettlement.balanceAfter）。
-                        value: '${(settlement?.balanceAfter ?? 0).round()} ☀️',
+                        value: _mask('${(settlement?.balanceAfter ?? 0).round()} ☀️'),
                       ),
                       if (shortAborted) ...[
                         const SizedBox(height: 12),

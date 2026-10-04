@@ -47,6 +47,7 @@ import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
 
@@ -375,20 +376,32 @@ class _EntryPageState extends ConsumerState<EntryPage> {
         .focusEarnedToday(DateTime.now());
     if (!mounted) return;
 
-    final int todayValid =
-        sessions.where((s) => s.status == FocusStatus.completed).length;
+    // F66：完成会话列表同时供场数统计与「休息义务起始基准」推导。
+    final List<FocusSession> completed =
+        sessions.where((s) => s.status == FocusStatus.completed).toList();
+    final int todayValid = completed.length;
     final int cap = settings.dailyFocusCap;
 
     final AntiAddictionService antiAddiction = AntiAddictionService();
     final double remaining =
         antiAddiction.dailyFocusRemaining(settings, usedToday);
 
+    // F66：休息满足 = 休息页走完倒计时（内存标记）**或** 触发场结束至今已自然
+    // 流逝 ≥ restMinutes（墙上时钟）。锁屏/离开 App 期间同样是休息，回来不该
+    // 重新计满 10 分钟。基准从会话库推导，幂等、杀进程不丢。
+    final bool restSatisfied = ref.read(restSatisfiedProvider) ||
+        antiAddiction.restNaturallySatisfied(
+          restMinutes: settings.restMinutes,
+          now: DateTime.now(),
+          lastSessionEnd: antiAddiction.lastCompletedSessionEnd(completed),
+        );
+
     final AntiAddictionDecision decision = antiAddiction.evaluate(
       s: settings,
       now: DateTime.now(),
       todayFocusMin: usedToday,
       todayValidSessions: todayValid,
-      restSatisfied: ref.read(restSatisfiedProvider),
+      restSatisfied: restSatisfied,
     );
 
     switch (decision) {

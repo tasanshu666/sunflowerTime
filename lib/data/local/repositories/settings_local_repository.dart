@@ -52,6 +52,11 @@ class SettingsLocalRepository implements SettingsRepository {
       currencyRate: row.currencyRate,
       themeDark: row.themeDark,
       autonomousMode: row.autonomousMode,
+      // C28：护眼三项（口径裁定表 v1 C28 §4）。老库由 v15 迁移幂等补列并落默认值，
+      // 这里直接取列值即可（若列缺失会因 schema 不一致抛错，属必配迁移未跑，不该静默兜底）。
+      eyeCareEnabled: row.eyeCareEnabled,
+      eyeCareIntervalMin: row.eyeCareIntervalMin,
+      eyeCareSkipAllowed: row.eyeCareSkipAllowed,
     );
   }
 
@@ -80,6 +85,9 @@ class SettingsLocalRepository implements SettingsRepository {
         currencyRate: Value(s.currencyRate),
         themeDark: Value(s.themeDark),
         autonomousMode: Value(s.autonomousMode),
+        eyeCareEnabled: Value(s.eyeCareEnabled),
+        eyeCareIntervalMin: Value(s.eyeCareIntervalMin),
+        eyeCareSkipAllowed: Value(s.eyeCareSkipAllowed),
       ),
     );
   }

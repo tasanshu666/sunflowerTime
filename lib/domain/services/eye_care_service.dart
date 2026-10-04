@@ -1,0 +1,202 @@
+/// 少儿护眼休息判定 EyeCareService（口径 C28，玄参 2026-10-03 初稿 / 2026-10-04 收口）。
+///
+/// **纯 Dart、零 Flutter 依赖**（架构 §3 领域层纪律，可被 `dart test` 直接单测）。
+/// 本服务只收口「什么时候该护眼 / 这一秒该说什么」，**不做任何 I/O**（不写库、不起
+/// 定时器、不弹窗）——页面负责把判定接进计时 tick 与路由。
+///
+/// 全部数值 / 文案来自 `core/constants/prd_params.dart`，本文件**不出现裸字面量**。
+///
+/// 两条触发节奏（口径裁定表 v1 C28 §1）：
+///  · **场内**：单场专注「累计注视」每满 `eyeCareIntervalMin` 分钟 → 触发一次护眼，
+///    护眼期间**专注计时暂停**（页面调 `FocusEngine.pause()` / `resume()`），护眼
+///    60 秒不计入专注时长、不产专注阳光；结束后从 0 重新累计下一个间隔；
+///  · **场末**：单场结束时「距上次护眼之后的本段注视」≥ [kEyeCareSessionEndMinutes]
+///    分钟 → 在**结算页之前**插入一次护眼卡（先护眼、后领奖励）；本段不足则不打断，
+///    交给「每 2 场休 10 分钟」的大休息兜底。
+///
+/// 「累计注视」= 在场秒数（离席不累计），与 [FocusEngine.actualFocusMin] 同源；
+/// 单位统一为**秒**（int），避免页面上出现「分钟 / 秒」两种口径打架。
+library eye_care_service;
+
+import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/domain/entities/settings.dart';
+
+/// 护眼两个阶段（C28 §2）。
+enum EyeCarePhase {
+  /// 闭眼 + 口令转眼球（前 [kEyeCarePhaseSeconds] 秒）。
+  closed,
+  /// 睁眼远眺 6 米外（后 [kEyeCarePhaseSeconds] 秒）。
+  farGaze,
+}
+
+/// 一次护眼的结果（完成 / 跳过）。
+///
+/// - `completed` → 写账本 +[kEyeCareRewardSunlight] 阳光（`refType='eye_care_break'`）；
+/// - `skipped` → **不发奖励、不写账本**，且不回溯把护眼时长补算成专注时长。
+enum EyeCareResultType {
+  completed,
+  skipped,
+}
+
+/// 护眼卡对外返回的结果（供专注页 / 结算页决定下一步）。
+class EyeCareResult {
+  final EyeCareResultType type;
+
+  const EyeCareResult(this.type);
+
+  /// 完整休息完（有奖励）。
+  bool get completed => type == EyeCareResultType.completed;
+
+  /// 被跳过（无奖励）。
+  bool get skipped => type == EyeCareResultType.skipped;
+}
+
+/// 某一秒对应的护眼阶段演示信息（阶段 + 标题 + 口令 + 环进度）。
+class EyeCareCue {
+  /// 当前阶段。
+  final EyeCarePhase phase;
+
+  /// 阶段标题（单点文案）。
+  final String phaseTitle;
+
+  /// 本步口令（单点文案；远眺段恒定 [kEyeCareFarGazeText]）。
+  final String cueText;
+
+  /// 本阶段第几步（1-based，供 UI 显示「3/5」；远眺段恒 0）。
+  final int stepIndex;
+
+  /// 本阶段**剩余**秒数（闭眼段到阶段末、远眺段到整段末）。
+  final int remainingSeconds;
+
+  /// 本阶段进度 0..1（给环形进度条用，避免页面再算一遍除法）。
+  final double progress;
+
+  const EyeCareCue({
+    required this.phase,
+    required this.phaseTitle,
+    required this.cueText,
+    required this.stepIndex,
+    required this.remainingSeconds,
+    required this.progress,
+  });
+}
+
+/// 少儿护眼休息判定（纯函数集合，无状态、无副作用）。
+class EyeCareService {
+  const EyeCareService();
+
+  /// 护眼提醒总开关是否打开（家长端 `eye_care_enabled`，默认开）。
+  ///
+  /// 关掉后场内 / 场末都不再插入护眼卡（C28 §4 第 ① 项）。
+  static bool isEnabled(AppSettings settings) => settings.eyeCareEnabled;
+
+  /// 是否**允许孩子跳过**护眼卡（家长端 `eye_care_skip_allowed`，默认允许）。
+  ///
+  /// 关掉后「跳过」按钮无效（点它只弹 [kEyeCareNotSkippableText]），流程不推进，
+  /// 只留「完成休息」一条路（C28 §7）。
+  static bool isSkipAllowed(AppSettings settings) =>
+      settings.eyeCareSkipAllowed;
+
+  /// 场内触发间隔（**秒**）：把设置的分钟数夹进 [kEyeCareIntervalMinMin,
+  /// [kEyeCareIntervalMinMax] 合法区间后乘 60。
+  ///
+  /// 夹取而不是直接返回：家长端下拉档位与历史遗留值都可能越界，越界会让「每 0 分钟
+  /// 触发一次」变成死循环弹卡（真机体验灾难），故在此单点收敛。
+  static int intervalSeconds(AppSettings settings) {
+    final int min = settings.eyeCareIntervalMin;
+    final int clamped = min < kEyeCareIntervalMinMin
+        ? kEyeCareIntervalMinMin
+        : (min > kEyeCareIntervalMinMax ? kEyeCareIntervalMinMax : min);
+    return clamped * 60;
+  }
+
+  /// 场内：距上次护眼之后的累计注视是否**又满了一个间隔** → 该触发护眼了。
+  ///
+  /// [focusElapsedSeconds] 为本场**累计注视秒数**（在场秒数，护眼期间由页面暂停计时，
+  /// 因此天然不含护眼时长）；[lastEyeCareAtSecond] 为上次护眼触发时的累计注视秒数
+  /// （从未护眼过传 null，视为 0）。
+  ///
+  /// [settings] 为 null 时按 [kEyeCareIntervalMinDefault] 兜底（未读到家长配置的默认
+  /// 口径）；正常调用方（专注页）一律传真实设置，家长改间隔后当场生效。
+  ///
+  /// ⚠️ 幂等约定：本函数只回答「此刻是否已达阈值」，调用方在触发后**必须**把
+  /// `lastEyeCareAtSecond` 回写为当前 [focusElapsedSeconds]（即「从 0 重新累计」），
+  /// 否则下一秒仍然满足阈值、会连续弹卡。回写助手见 [baselineAfterTrigger]。
+  static bool shouldTriggerInSession({
+    required int focusElapsedSeconds,
+    required int? lastEyeCareAtSecond,
+    AppSettings? settings,
+  }) {
+    final int intervalSec = settings == null
+        ? kEyeCareIntervalMinDefault * 60
+        : intervalSeconds(settings);
+    final int span = focusElapsedSeconds - (lastEyeCareAtSecond ?? 0);
+    return span >= intervalSec;
+  }
+
+  /// 触发后应回写的「下次累计注视基准」（= 触发当下的累计注视秒数）。
+  ///
+  /// 单独抽出来的理由：调用方常常要在一行里同时「置基准 + 弹卡」，抽成命名函数
+  /// 既能让单测直接断言这条幂等契约，也避免有人写成 `+1` 之类的错位。
+  static int baselineAfterTrigger(int focusElapsedSeconds) =>
+      focusElapsedSeconds;
+
+  /// 场末：本段（距上次护眼之后的累计注视）是否 ≥ [kEyeCareSessionEndMinutes] 分钟
+  /// → 应在**结算页之前**插入一次护眼卡。
+  ///
+  /// 与 [shouldTriggerInSession] 的区别：这里用固定门槛（10 分钟）而非家长配的间隔，
+  /// 且判的是「本段」而不是「每满间隔」—— 场末只补一次，绝不因为超长专注连插多张。
+  static bool shouldTriggerAtSessionEnd({
+    required int focusElapsedSeconds,
+    required int? lastEyeCareAtSecond,
+  }) {
+    final int span = focusElapsedSeconds - (lastEyeCareAtSecond ?? 0);
+    return span >= kEyeCareSessionEndMinutes * 60;
+  }
+
+  /// 第 [elapsedSeconds] 秒（整段 0..[kEyeCareDurationSeconds]）所处的阶段与文案。
+  ///
+  /// 两段等分：`< kEyeCarePhaseSeconds` 闭眼口令段（每 [kEyeCareCueStepSeconds] 秒
+  /// 走一步口令），`>= kEyeCarePhaseSeconds` 睁眼远眺段。
+  /// 超出总长（护眼被异常延长）时按总长封顶，返回「最后一步」，绝不返回越界索引。
+  static EyeCareCue cuesForPhase(int elapsedSeconds) {
+    final int t = elapsedSeconds < 0
+        ? 0
+        : (elapsedSeconds > kEyeCareDurationSeconds
+            ? kEyeCareDurationSeconds
+            : elapsedSeconds);
+
+    if (t < kEyeCarePhaseSeconds) {
+      final int step = t ~/ kEyeCareCueStepSeconds;
+      final int idx = step >= kEyeCareCueTexts.length
+          ? kEyeCareCueTexts.length - 1
+          : step;
+      return EyeCareCue(
+        phase: EyeCarePhase.closed,
+        phaseTitle: kEyeCarePhaseClosedTitle,
+        cueText: kEyeCareCueTexts[idx],
+        stepIndex: idx + 1,
+        remainingSeconds: kEyeCarePhaseSeconds - t,
+        progress: kEyeCarePhaseSeconds <= 0
+            ? 1.0
+            : t / kEyeCarePhaseSeconds,
+      );
+    }
+
+    final int t2 = t - kEyeCarePhaseSeconds;
+    return EyeCareCue(
+      phase: EyeCarePhase.farGaze,
+      phaseTitle: kEyeCarePhaseFarGazeTitle,
+      cueText: kEyeCareFarGazeText,
+      stepIndex: 0,
+      remainingSeconds: kEyeCareDurationSeconds - t,
+      progress: kEyeCarePhaseSeconds <= 0 ? 1.0 : t2 / kEyeCarePhaseSeconds,
+    );
+  }
+
+  /// 完整完成一次的护眼奖励阳光（= [kEyeCareRewardSunlight]）。
+  static int rewardSunlight() => kEyeCareRewardSunlight;
+
+  /// 护眼总时长（秒，固定 = [kEyeCareDurationSeconds]；家长端不设、不可调）。
+  static int durationSeconds() => kEyeCareDurationSeconds;
+}

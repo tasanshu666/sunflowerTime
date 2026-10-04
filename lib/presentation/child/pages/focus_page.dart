@@ -18,6 +18,7 @@ library focus_page;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,12 +36,14 @@ import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/entities/tracking_event.dart';
+import 'package:sunflower_time/domain/services/eye_care_service.dart';
 import 'package:sunflower_time/domain/services/focus_engine.dart';
 import 'package:sunflower_time/domain/services/presence_detector.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/platform/dnd_controller.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
+import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/feedback_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/focus_sunflower_stage.dart';
@@ -127,6 +130,24 @@ class _FocusPageState extends ConsumerState<FocusPage>
   /// 当前分龄档（进入时从设置读取，供埋点 payload.tier，T-B）。
   AgeTier _tier = AgeTier.low;
 
+  // ── C28 少儿护眼休息（玄参 2026-10-04 拍板，口径裁定表 v1 C28）──────────────
+
+  /// 进入专注时读到的设置（供护眼判定）：场内触发间隔 / 是否允许孩子跳过都来自它。
+  ///
+  /// null = 还没读到（首帧 tick 之前），此时**不触发**护眼——宁可晚一秒，
+  /// 也绝不用假设置（默认 20 分钟）把还没到点的孩子叫起来休息。
+  AppSettings? _eyeCareSettings;
+
+  /// 「距上次护眼的**累计注视**秒数」基准。
+  ///
+  /// 每次护眼（场内触发 / 场末插入）都把基准回写为「护眼当下的累计注视秒数」，
+  /// 于是「下一个间隔从 0 重新累计」这条幂等契约只落在一个字段上，不会出现
+  /// 「同一区间反复弹卡」或「基准回退导致又立刻再弹」两种事故。
+  int _eyeCareBaselineFocusSeconds = 0;
+
+  /// 护眼卡是否正在展示（展示期间：专注计时暂停、退出确认与场末判定都不再推进）。
+  bool _eyeCareActive = false;
+
   /// 本次专注适用的**每日专注上限**（分钟）：进入时与 [_tier] 一起从设置读取，
   /// 结算时传给 `SunlightService.settle` 做额度截断（2026-09-23 日上限口径）。
   ///
@@ -162,6 +183,8 @@ class _FocusPageState extends ConsumerState<FocusPage>
       _engine.tick(DateTime.now());
       // 额度用完轻提示：复用本 tick 判定（玄参 2026-09-30：不另起额度定时器）。
       _maybeShowQuotaHint();
+      // C28：场内护眼触发同样复用本 tick（不另起定时器）。
+      _maybeTriggerEyeCare();
       if (mounted) setState(() {});
     });
     _presence = PresenceDetector(
@@ -213,6 +236,8 @@ class _FocusPageState extends ConsumerState<FocusPage>
     if (!mounted) return;
     _tier = s.ageTier; // T-B：记录档位供埋点
     _dailyFocusCap = s.dailyFocusCap; // 日上限口径：结算按此截断
+    // C28：护眼判定用设置（总开关 / 触发间隔 / 是否允许跳过）。
+    _eyeCareSettings = s;
     ref.read(audioServiceProvider).applySettings(soundOn: s.soundOn, bgmOn: s.bgmOn);
     // 顺带读「今日剩余额度」供轻提示判定（与结算同源的账本口径）。
     try {
@@ -265,6 +290,95 @@ class _FocusPageState extends ConsumerState<FocusPage>
       ]);
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     } catch (_) {}
+  }
+
+  // ── C28 护眼休息（口径裁定表 v1 C28 §1 / §7）──────────────────────────
+  /// 场内「累计注视每满 N 分钟」→ 弹出护眼卡。
+  ///
+  /// 挂在既有 1 秒 tick 上判定，**不新增定时器**（与「额度用完轻提示」同口径）。
+  /// 到点后：
+  ///  · `_engine.pause()` —— **护眼期间专注计时冻结**（这才是「护眼不计入专注时长」的
+  ///    唯一实现：不用结算补减，避免「暂停 + 结算时补减」两条口径打架）；
+  ///  · 护眼 60 秒**不产专注阳光**（引擎 paused 状态本来就不累加 `_sunlight`）；
+  ///  · 护眼结束 `_engine.resume()` 并把 [\_eyeCareBaselineFocusSeconds] 回写为
+  ///    触发当下的累计注视秒数 → 下一个间隔从 0 重新累计。
+  ///
+  /// 无论孩子是「完成休息」还是「确认跳过」，护眼时长都**不回溯补算**为专注时长
+  /// （计时已被暂停，不做任何补减）。
+  void _maybeTriggerEyeCare() {
+    if (_finished || _eyeCareActive) return; // 已结束 / 护眼卡正在展示
+    final AppSettings? s = _eyeCareSettings;
+    if (s == null || !EyeCareService.isEnabled(s)) return;
+    if (_engine.state != FocusEngineState.running) return; // 离席 / 退出确认中不动
+
+    final int presentSeconds = (_engine.actualFocusMin * 60).round();
+    if (!EyeCareService.shouldTriggerInSession(
+      focusElapsedSeconds: presentSeconds,
+      lastEyeCareAtSecond: _eyeCareBaselineFocusSeconds,
+      settings: s,
+    )) {
+      return;
+    }
+    unawaited(_openEyeCare(focusSecondsAtTrigger: presentSeconds));
+  }
+
+  /// 弹出护眼卡并等它结束。
+  ///
+  /// [focusSecondsAtTrigger] 是**触发当下**的累计注视秒数，护眼结束后用它回写基准，
+  /// 保证「护眼这一段」被算进基准、不会被下一秒的 tick 当成「又积累了一秒」。
+  Future<void> _openEyeCare({required int focusSecondsAtTrigger}) async {
+    // 只有 `isEnabled` 判定通过的那条路径会走到这里，故设置必定已读到（非空）。
+    final AppSettings settings = _eyeCareSettings!;
+    _engine.pause(); // 护眼期间计时暂停 → 不计入专注时长（C28 §1）
+    if (mounted) setState(() => _eyeCareActive = true);
+
+    // 护眼奖励以**阳光账本为唯一真源**，在 EyeCarePage 内部就已入账，这里只收尾状态，
+    // 绝不（也不允许）再写一次账本，否则一次护眼会变成 +4 阳光。
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => EyeCarePage(
+          args: EyeCareArgs(
+            skipAllowed: EyeCareService.isSkipAllowed(settings),
+          ),
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    setState(() => _eyeCareActive = false);
+    // 幂等基准：下一个间隔从护眼当下重新累计（跳过也一样，避免立刻再弹卡）。
+    _eyeCareBaselineFocusSeconds =
+        EyeCareService.baselineAfterTrigger(focusSecondsAtTrigger);
+    _engine.resume();
+  }
+
+  /// 本场结束时「距上次护眼后的本段注视」是否达到场末插入门槛（≥ [kEyeCareSessionEndMinutes]）。
+  ///
+  /// 真值 → 结算页会**先**插一次护眼卡、再领奖励（先护眼、后领奖励，防孩子为拿奖励
+  /// 跳过护眼）；不满足则不打断，交给「每 2 场休 10 分钟」的大休息兜底。
+  bool _shouldEyeCareAtSessionEnd() {
+    final AppSettings? s = _eyeCareSettings;
+    if (s == null || !EyeCareService.isEnabled(s)) return false;
+    return EyeCareService.shouldTriggerAtSessionEnd(
+      focusElapsedSeconds: (_engine.actualFocusMin * 60).round(),
+      lastEyeCareAtSecond: _eyeCareBaselineFocusSeconds,
+    );
+  }
+
+  /// 【仅 debug 构建】快进场内专注时长（玄参 2026-10-04：方便调试 C28 护眼触发，
+  /// 免去真等 5~15 分钟）。实现＝把引擎时间基准整体前移 [minutes] 分钟：
+  /// `tick(now + Δ)` 让 `_advance` 把 (Δ) 计入 `_sessionElapsed`/`_focusSeconds`
+  /// （阳光产出同步按elapsed走），随后真实 tick 的 dt 为负被 `dt > Duration.zero`
+  /// 守卫跳过并回归真实时钟——**单次精确 +Δ、不重复累计**。
+  ///
+  /// release 包不存在该按钮（kDebugMode 门控），领域层零改动。
+  void _debugFastForward({int minutes = 5}) {
+    if (!kDebugMode || _finished) return;
+    if (_eyeCareActive) return; // 护眼卡展示中引擎已暂停，跳过避免干扰恢复基准
+    _engine.tick(DateTime.now().add(Duration(minutes: minutes)));
+    _maybeShowQuotaHint();
+    _maybeTriggerEyeCare(); // 立即判定（不等下一个 1s tick）
+    if (mounted) setState(() {});
   }
 
   // ── 引擎事件 → 四档呈现 ───────────────────────────────────────
@@ -339,7 +453,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
   // ── 退出路径（B18 / B20）─────────────────────────────────────
   /// 退出意图统一入口：物理竖屏与系统返回键**共用**，行为一致（暂停 + 确认框）。
   void _requestExit() {
-    if (_finished || _paused) return; // 已在确认中/已结束则不重复弹
+    // C28：护眼卡展示期间不接受「结束专注」——退出确认会把专注计时一起冻住，
+    // 而护眼结束后的 resume 又被弹窗抢先，容易把计时留在 paused 态。
+    if (_finished || _paused || _eyeCareActive) return;
     setState(() => _paused = true);
     _engine.pause();
     _showExitConfirm();
@@ -457,6 +573,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
 
     if (!mounted) return;
     // go 是替换路由栈（B20）；结算页经 go 进入，退出用 go('/')。
+    //
+    // C28 §1 场末：若「距上次护眼之后的本段注视 ≥ [kEyeCareSessionEndMinutes] 分钟」，
+    // 结算页会**在显示任何奖励之前**先插一次护眼卡（先护眼、后领奖励）。
     context.go(
       '/settle',
       extra: SettleArgs(
@@ -464,6 +583,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
         taskOutcome: taskOutcome,
         taskName: taskName,
         taskSettleSkipped: taskSettleSkipped,
+        eyeCarePending: _shouldEyeCareAtSessionEnd(),
       ),
     );
   }
@@ -597,6 +717,22 @@ class _FocusPageState extends ConsumerState<FocusPage>
                 ),
               ),
             ),
+            // 【仅 debug 构建】护眼调试角标：每次点击快进 5 分钟场内时长，
+            // 用于真机/模拟器免等待验证 C28 护眼触发节奏（release 无此按钮）。
+            if (kDebugMode && !_finished)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  tooltip: '调试：快进 5 分钟（护眼触发用）',
+                  icon: const Icon(
+                    Icons.bug_report,
+                    color: Color(0x55FFFFFF),
+                    size: 28,
+                  ),
+                  onPressed: () => _debugFastForward(),
+                ),
+              ),
             // 主三段式结构：计时 / 向日葵 / 提示。SafeArea 避开刘海/圆角。
             SafeArea(
               top: false,

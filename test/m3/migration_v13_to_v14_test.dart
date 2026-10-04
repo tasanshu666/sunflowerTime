@@ -13,7 +13,7 @@
 ///    因此历史行取 NULL 即可，不需要回填脚本。
 ///
 /// 本测试钉死四件事（**必须把历史行读回来断言**，不能只断言「没抛异常」）：
-///  ① `AppDatabase.schemaVersion == 14`；
+///  ① `AppDatabase.schemaVersion == 15`；
 ///  ② 老库 plants 行的三条新列**读得到、且为 NULL**（历史语义 = 无杂草 / 无害虫）；
 ///  ③ 经 `PlantLocalRepository` 读回的 [Plant] 实体 `hasWeed` / `hasPest` 为 false，
 ///     且老行原有字段（进度 / 状态 / 花期起点）**一条没丢**；
@@ -180,7 +180,7 @@ void main() {
   group('迁移 v13->v14：花园干扰物杂草 / 害虫三列（C26）', () {
     test('schemaVersion 必须为最新 14（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(13);
-      expect(database.schemaVersion, 14);
+      expect(database.schemaVersion, 15);
     });
 
     test('三列补出来且历史行为 NULL（= 无杂草 / 无害虫 / 当日未 roll）', () async {
@@ -238,13 +238,13 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 14);
+      expect(first.schemaVersion, 15);
       await first.close();
 
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 14);
+      expect(second.schemaVersion, 15);
       expect(await _count(second, 'plants'), 1);
       final Map<String, Object?> row = await _weedPestRow(second);
       expect(row['weed_at'], equals(null));

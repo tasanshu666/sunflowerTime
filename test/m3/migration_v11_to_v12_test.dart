@@ -6,7 +6,7 @@
 /// （= 未预先定奖），结算时退回「现场 roll」并回写本行，保证老 pending 奖励不丢。
 ///
 /// 本测试钉死六件事（**必须把历史行读回来断言**，不能只断言「没抛异常」）：
-///  ① `AppDatabase.schemaVersion == 14`；
+///  ① `AppDatabase.schemaVersion == 15`；
 ///  ② v11 → v12 后 `pending_bloom_rewards` **新增 3 列**（PRAGMA table_info 可见）；
 ///  ③ 历史 pending 行**原样保留**，三列读回为**零值哨兵** `0/0/null`；
 ///  ④ 历史 pending 行**可正常结算**（现场 roll 发放 + 回写该行）；
@@ -214,7 +214,7 @@ void main() {
     test('schemaVersion 必须为最新 14（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database =
           await _openMigrated(_v11Ddl(), 11);
-      expect(database.schemaVersion, 14);
+      expect(database.schemaVersion, 15);
     });
 
     test('新增 3 列（reward_sunlight / reward_fragments / reward_species_id）可见', () async {
@@ -315,7 +315,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 14);
+      expect(first.schemaVersion, 15);
       // 回写一行内容（证明新列可写）。
       await first.bloomRewardDao.updatePendingContent(
         id: 'pr_legacy',
@@ -329,7 +329,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 14);
+      expect(second.schemaVersion, 15);
       expect(await _count(second, 'pending_bloom_rewards'), 1,
           reason: '二次打开不得丢数据');
       final db.PendingBloomRewardRow row =

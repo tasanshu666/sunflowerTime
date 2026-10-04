@@ -33,6 +33,17 @@ class Settings extends Table {
   IntColumn get gardenPotCapacity =>
       integer().withDefault(const Constant(kGardenPotCapacityDefault))(); // 花园花盆容量（M3 §3.1）
 
+  // ── v15 新增：C28 少儿护眼休息（玄参 2026-10-04 拍板，口径裁定表 v1 C28 §4）────
+  // 三项家长端配置，均为「带默认值」的 ALTER TABLE ADD COLUMN（老库经 v15 迁移幂等补列，
+  // 历史行取默认值，见 `app_database.dart` 的 ⑮ 段与 `migration_v14_to_v15_test.dart`）。
+  // 护眼**时长**（固定 60 秒）刻意不落列：它是护眼有效性区间、家长端不设（玄参拍板）。
+  BoolColumn get eyeCareEnabled =>
+      boolean().withDefault(const Constant(kEyeCareEnabledDefault))();
+  IntColumn get eyeCareIntervalMin =>
+      integer().withDefault(const Constant(kEyeCareIntervalMinDefault))();
+  BoolColumn get eyeCareSkipAllowed =>
+      boolean().withDefault(const Constant(kEyeCareSkipAllowedDefault))();
+
   @override
   Set<Column> get primaryKey => {id};
 }

@@ -1003,11 +1003,28 @@ class PlantGrowthService {
     double firstGain,
     double rebloomGain,
     PlantSpecies? sp,
-  ) {
-    if (p.bloomCount == 0) return firstGain;
-    final double premiumDiv =
-        (sp != null && sp.isPremium) ? kRebloomPremiumCycleMultiplier : 1.0;
-    return rebloomGain / premiumDiv;
+  ) =>
+      careProgressGain(
+        bloomCount: p.bloomCount,
+        isPremium: sp?.isPremium ?? false,
+        firstGain: firstGain,
+        rebloomGain: rebloomGain,
+      );
+
+  /// 养护进度增量的**公开单点口径**（F68：UI 文案与领域层共用同一来源，杜绝
+  /// 「按钮写死首花 +3%、复开花实际 +1.2%」的文案失真）。
+  ///
+  /// 首花（bloomCount==0）→ [firstGain]；复开花（bloomCount≥1）→ [rebloomGain]，
+  /// 精品物种再 ÷ [kRebloomPremiumCycleMultiplier]。领域层与展示层都从这里取值，
+  /// 改常量两侧自动跟随。
+  static double careProgressGain({
+    required int bloomCount,
+    required bool isPremium,
+    required double firstGain,
+    required double rebloomGain,
+  }) {
+    if (bloomCount == 0) return firstGain;
+    return rebloomGain / (isPremium ? kRebloomPremiumCycleMultiplier : 1.0);
   }
 
   /// 兜底结算「已到期但已无法收集」的奖励（变更 A + v12 掉落即定奖）。

@@ -170,6 +170,34 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       type: DriftSqlType.int,
       requiredDuringInsert: false,
       defaultValue: const Constant(kGardenPotCapacityDefault));
+  static const VerificationMeta _eyeCareEnabledMeta =
+      const VerificationMeta('eyeCareEnabled');
+  @override
+  late final GeneratedColumn<bool> eyeCareEnabled = GeneratedColumn<bool>(
+      'eye_care_enabled', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("eye_care_enabled" IN (0, 1))'),
+      defaultValue: const Constant(kEyeCareEnabledDefault));
+  static const VerificationMeta _eyeCareIntervalMinMeta =
+      const VerificationMeta('eyeCareIntervalMin');
+  @override
+  late final GeneratedColumn<int> eyeCareIntervalMin = GeneratedColumn<int>(
+      'eye_care_interval_min', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kEyeCareIntervalMinDefault));
+  static const VerificationMeta _eyeCareSkipAllowedMeta =
+      const VerificationMeta('eyeCareSkipAllowed');
+  @override
+  late final GeneratedColumn<bool> eyeCareSkipAllowed = GeneratedColumn<bool>(
+      'eye_care_skip_allowed', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("eye_care_skip_allowed" IN (0, 1))'),
+      defaultValue: const Constant(kEyeCareSkipAllowedDefault));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -192,7 +220,10 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
         currencyRate,
         themeDark,
         autonomousMode,
-        gardenPotCapacity
+        gardenPotCapacity,
+        eyeCareEnabled,
+        eyeCareIntervalMin,
+        eyeCareSkipAllowed
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -331,6 +362,24 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
           gardenPotCapacity.isAcceptableOrUnknown(
               data['garden_pot_capacity']!, _gardenPotCapacityMeta));
     }
+    if (data.containsKey('eye_care_enabled')) {
+      context.handle(
+          _eyeCareEnabledMeta,
+          eyeCareEnabled.isAcceptableOrUnknown(
+              data['eye_care_enabled']!, _eyeCareEnabledMeta));
+    }
+    if (data.containsKey('eye_care_interval_min')) {
+      context.handle(
+          _eyeCareIntervalMinMeta,
+          eyeCareIntervalMin.isAcceptableOrUnknown(
+              data['eye_care_interval_min']!, _eyeCareIntervalMinMeta));
+    }
+    if (data.containsKey('eye_care_skip_allowed')) {
+      context.handle(
+          _eyeCareSkipAllowedMeta,
+          eyeCareSkipAllowed.isAcceptableOrUnknown(
+              data['eye_care_skip_allowed']!, _eyeCareSkipAllowedMeta));
+    }
     return context;
   }
 
@@ -383,6 +432,12 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
           .read(DriftSqlType.bool, data['${effectivePrefix}autonomous_mode'])!,
       gardenPotCapacity: attachedDatabase.typeMapping.read(
           DriftSqlType.int, data['${effectivePrefix}garden_pot_capacity'])!,
+      eyeCareEnabled: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}eye_care_enabled'])!,
+      eyeCareIntervalMin: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}eye_care_interval_min'])!,
+      eyeCareSkipAllowed: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool, data['${effectivePrefix}eye_care_skip_allowed'])!,
     );
   }
 
@@ -414,6 +469,9 @@ class Setting extends DataClass implements Insertable<Setting> {
   final bool themeDark;
   final bool autonomousMode;
   final int gardenPotCapacity;
+  final bool eyeCareEnabled;
+  final int eyeCareIntervalMin;
+  final bool eyeCareSkipAllowed;
   const Setting(
       {required this.id,
       required this.ageTier,
@@ -435,7 +493,10 @@ class Setting extends DataClass implements Insertable<Setting> {
       required this.currencyRate,
       required this.themeDark,
       required this.autonomousMode,
-      required this.gardenPotCapacity});
+      required this.gardenPotCapacity,
+      required this.eyeCareEnabled,
+      required this.eyeCareIntervalMin,
+      required this.eyeCareSkipAllowed});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -460,6 +521,9 @@ class Setting extends DataClass implements Insertable<Setting> {
     map['theme_dark'] = Variable<bool>(themeDark);
     map['autonomous_mode'] = Variable<bool>(autonomousMode);
     map['garden_pot_capacity'] = Variable<int>(gardenPotCapacity);
+    map['eye_care_enabled'] = Variable<bool>(eyeCareEnabled);
+    map['eye_care_interval_min'] = Variable<int>(eyeCareIntervalMin);
+    map['eye_care_skip_allowed'] = Variable<bool>(eyeCareSkipAllowed);
     return map;
   }
 
@@ -486,6 +550,9 @@ class Setting extends DataClass implements Insertable<Setting> {
       themeDark: Value(themeDark),
       autonomousMode: Value(autonomousMode),
       gardenPotCapacity: Value(gardenPotCapacity),
+      eyeCareEnabled: Value(eyeCareEnabled),
+      eyeCareIntervalMin: Value(eyeCareIntervalMin),
+      eyeCareSkipAllowed: Value(eyeCareSkipAllowed),
     );
   }
 
@@ -518,6 +585,9 @@ class Setting extends DataClass implements Insertable<Setting> {
       themeDark: serializer.fromJson<bool>(json['themeDark']),
       autonomousMode: serializer.fromJson<bool>(json['autonomousMode']),
       gardenPotCapacity: serializer.fromJson<int>(json['gardenPotCapacity']),
+      eyeCareEnabled: serializer.fromJson<bool>(json['eyeCareEnabled']),
+      eyeCareIntervalMin: serializer.fromJson<int>(json['eyeCareIntervalMin']),
+      eyeCareSkipAllowed: serializer.fromJson<bool>(json['eyeCareSkipAllowed']),
     );
   }
   @override
@@ -545,6 +615,9 @@ class Setting extends DataClass implements Insertable<Setting> {
       'themeDark': serializer.toJson<bool>(themeDark),
       'autonomousMode': serializer.toJson<bool>(autonomousMode),
       'gardenPotCapacity': serializer.toJson<int>(gardenPotCapacity),
+      'eyeCareEnabled': serializer.toJson<bool>(eyeCareEnabled),
+      'eyeCareIntervalMin': serializer.toJson<int>(eyeCareIntervalMin),
+      'eyeCareSkipAllowed': serializer.toJson<bool>(eyeCareSkipAllowed),
     };
   }
 
@@ -569,7 +642,10 @@ class Setting extends DataClass implements Insertable<Setting> {
           double? currencyRate,
           bool? themeDark,
           bool? autonomousMode,
-          int? gardenPotCapacity}) =>
+          int? gardenPotCapacity,
+          bool? eyeCareEnabled,
+          int? eyeCareIntervalMin,
+          bool? eyeCareSkipAllowed}) =>
       Setting(
         id: id ?? this.id,
         ageTier: ageTier ?? this.ageTier,
@@ -594,6 +670,9 @@ class Setting extends DataClass implements Insertable<Setting> {
         themeDark: themeDark ?? this.themeDark,
         autonomousMode: autonomousMode ?? this.autonomousMode,
         gardenPotCapacity: gardenPotCapacity ?? this.gardenPotCapacity,
+        eyeCareEnabled: eyeCareEnabled ?? this.eyeCareEnabled,
+        eyeCareIntervalMin: eyeCareIntervalMin ?? this.eyeCareIntervalMin,
+        eyeCareSkipAllowed: eyeCareSkipAllowed ?? this.eyeCareSkipAllowed,
       );
   Setting copyWithCompanion(SettingsCompanion data) {
     return Setting(
@@ -646,6 +725,15 @@ class Setting extends DataClass implements Insertable<Setting> {
       gardenPotCapacity: data.gardenPotCapacity.present
           ? data.gardenPotCapacity.value
           : this.gardenPotCapacity,
+      eyeCareEnabled: data.eyeCareEnabled.present
+          ? data.eyeCareEnabled.value
+          : this.eyeCareEnabled,
+      eyeCareIntervalMin: data.eyeCareIntervalMin.present
+          ? data.eyeCareIntervalMin.value
+          : this.eyeCareIntervalMin,
+      eyeCareSkipAllowed: data.eyeCareSkipAllowed.present
+          ? data.eyeCareSkipAllowed.value
+          : this.eyeCareSkipAllowed,
     );
   }
 
@@ -672,7 +760,10 @@ class Setting extends DataClass implements Insertable<Setting> {
           ..write('currencyRate: $currencyRate, ')
           ..write('themeDark: $themeDark, ')
           ..write('autonomousMode: $autonomousMode, ')
-          ..write('gardenPotCapacity: $gardenPotCapacity')
+          ..write('gardenPotCapacity: $gardenPotCapacity, ')
+          ..write('eyeCareEnabled: $eyeCareEnabled, ')
+          ..write('eyeCareIntervalMin: $eyeCareIntervalMin, ')
+          ..write('eyeCareSkipAllowed: $eyeCareSkipAllowed')
           ..write(')'))
         .toString();
   }
@@ -699,7 +790,10 @@ class Setting extends DataClass implements Insertable<Setting> {
         currencyRate,
         themeDark,
         autonomousMode,
-        gardenPotCapacity
+        gardenPotCapacity,
+        eyeCareEnabled,
+        eyeCareIntervalMin,
+        eyeCareSkipAllowed
       ]);
   @override
   bool operator ==(Object other) =>
@@ -725,7 +819,10 @@ class Setting extends DataClass implements Insertable<Setting> {
           other.currencyRate == this.currencyRate &&
           other.themeDark == this.themeDark &&
           other.autonomousMode == this.autonomousMode &&
-          other.gardenPotCapacity == this.gardenPotCapacity);
+          other.gardenPotCapacity == this.gardenPotCapacity &&
+          other.eyeCareEnabled == this.eyeCareEnabled &&
+          other.eyeCareIntervalMin == this.eyeCareIntervalMin &&
+          other.eyeCareSkipAllowed == this.eyeCareSkipAllowed);
 }
 
 class SettingsCompanion extends UpdateCompanion<Setting> {
@@ -750,6 +847,9 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
   final Value<bool> themeDark;
   final Value<bool> autonomousMode;
   final Value<int> gardenPotCapacity;
+  final Value<bool> eyeCareEnabled;
+  final Value<int> eyeCareIntervalMin;
+  final Value<bool> eyeCareSkipAllowed;
   const SettingsCompanion({
     this.id = const Value.absent(),
     this.ageTier = const Value.absent(),
@@ -772,6 +872,9 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     this.themeDark = const Value.absent(),
     this.autonomousMode = const Value.absent(),
     this.gardenPotCapacity = const Value.absent(),
+    this.eyeCareEnabled = const Value.absent(),
+    this.eyeCareIntervalMin = const Value.absent(),
+    this.eyeCareSkipAllowed = const Value.absent(),
   });
   SettingsCompanion.insert({
     this.id = const Value.absent(),
@@ -795,6 +898,9 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     this.themeDark = const Value.absent(),
     this.autonomousMode = const Value.absent(),
     this.gardenPotCapacity = const Value.absent(),
+    this.eyeCareEnabled = const Value.absent(),
+    this.eyeCareIntervalMin = const Value.absent(),
+    this.eyeCareSkipAllowed = const Value.absent(),
   })  : ageTier = Value(ageTier),
         dailyFocusCap = Value(dailyFocusCap),
         dailyAppCapMinutes = Value(dailyAppCapMinutes),
@@ -824,6 +930,9 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     Expression<bool>? themeDark,
     Expression<bool>? autonomousMode,
     Expression<int>? gardenPotCapacity,
+    Expression<bool>? eyeCareEnabled,
+    Expression<int>? eyeCareIntervalMin,
+    Expression<bool>? eyeCareSkipAllowed,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -852,6 +961,11 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
       if (themeDark != null) 'theme_dark': themeDark,
       if (autonomousMode != null) 'autonomous_mode': autonomousMode,
       if (gardenPotCapacity != null) 'garden_pot_capacity': gardenPotCapacity,
+      if (eyeCareEnabled != null) 'eye_care_enabled': eyeCareEnabled,
+      if (eyeCareIntervalMin != null)
+        'eye_care_interval_min': eyeCareIntervalMin,
+      if (eyeCareSkipAllowed != null)
+        'eye_care_skip_allowed': eyeCareSkipAllowed,
     });
   }
 
@@ -876,7 +990,10 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
       Value<double>? currencyRate,
       Value<bool>? themeDark,
       Value<bool>? autonomousMode,
-      Value<int>? gardenPotCapacity}) {
+      Value<int>? gardenPotCapacity,
+      Value<bool>? eyeCareEnabled,
+      Value<int>? eyeCareIntervalMin,
+      Value<bool>? eyeCareSkipAllowed}) {
     return SettingsCompanion(
       id: id ?? this.id,
       ageTier: ageTier ?? this.ageTier,
@@ -901,6 +1018,9 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
       themeDark: themeDark ?? this.themeDark,
       autonomousMode: autonomousMode ?? this.autonomousMode,
       gardenPotCapacity: gardenPotCapacity ?? this.gardenPotCapacity,
+      eyeCareEnabled: eyeCareEnabled ?? this.eyeCareEnabled,
+      eyeCareIntervalMin: eyeCareIntervalMin ?? this.eyeCareIntervalMin,
+      eyeCareSkipAllowed: eyeCareSkipAllowed ?? this.eyeCareSkipAllowed,
     );
   }
 
@@ -973,6 +1093,15 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     if (gardenPotCapacity.present) {
       map['garden_pot_capacity'] = Variable<int>(gardenPotCapacity.value);
     }
+    if (eyeCareEnabled.present) {
+      map['eye_care_enabled'] = Variable<bool>(eyeCareEnabled.value);
+    }
+    if (eyeCareIntervalMin.present) {
+      map['eye_care_interval_min'] = Variable<int>(eyeCareIntervalMin.value);
+    }
+    if (eyeCareSkipAllowed.present) {
+      map['eye_care_skip_allowed'] = Variable<bool>(eyeCareSkipAllowed.value);
+    }
     return map;
   }
 
@@ -999,7 +1128,10 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
           ..write('currencyRate: $currencyRate, ')
           ..write('themeDark: $themeDark, ')
           ..write('autonomousMode: $autonomousMode, ')
-          ..write('gardenPotCapacity: $gardenPotCapacity')
+          ..write('gardenPotCapacity: $gardenPotCapacity, ')
+          ..write('eyeCareEnabled: $eyeCareEnabled, ')
+          ..write('eyeCareIntervalMin: $eyeCareIntervalMin, ')
+          ..write('eyeCareSkipAllowed: $eyeCareSkipAllowed')
           ..write(')'))
         .toString();
   }
@@ -6613,6 +6745,9 @@ typedef $$SettingsTableCreateCompanionBuilder = SettingsCompanion Function({
   Value<bool> themeDark,
   Value<bool> autonomousMode,
   Value<int> gardenPotCapacity,
+  Value<bool> eyeCareEnabled,
+  Value<int> eyeCareIntervalMin,
+  Value<bool> eyeCareSkipAllowed,
 });
 typedef $$SettingsTableUpdateCompanionBuilder = SettingsCompanion Function({
   Value<int> id,
@@ -6636,6 +6771,9 @@ typedef $$SettingsTableUpdateCompanionBuilder = SettingsCompanion Function({
   Value<bool> themeDark,
   Value<bool> autonomousMode,
   Value<int> gardenPotCapacity,
+  Value<bool> eyeCareEnabled,
+  Value<int> eyeCareIntervalMin,
+  Value<bool> eyeCareSkipAllowed,
 });
 
 class $$SettingsTableFilterComposer
@@ -6718,6 +6856,18 @@ class $$SettingsTableFilterComposer
 
   ColumnFilters<int> get gardenPotCapacity => $composableBuilder(
       column: $table.gardenPotCapacity,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get eyeCareEnabled => $composableBuilder(
+      column: $table.eyeCareEnabled,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get eyeCareIntervalMin => $composableBuilder(
+      column: $table.eyeCareIntervalMin,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get eyeCareSkipAllowed => $composableBuilder(
+      column: $table.eyeCareSkipAllowed,
       builder: (column) => ColumnFilters(column));
 }
 
@@ -6805,6 +6955,18 @@ class $$SettingsTableOrderingComposer
   ColumnOrderings<int> get gardenPotCapacity => $composableBuilder(
       column: $table.gardenPotCapacity,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get eyeCareEnabled => $composableBuilder(
+      column: $table.eyeCareEnabled,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get eyeCareIntervalMin => $composableBuilder(
+      column: $table.eyeCareIntervalMin,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get eyeCareSkipAllowed => $composableBuilder(
+      column: $table.eyeCareSkipAllowed,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$SettingsTableAnnotationComposer
@@ -6878,6 +7040,15 @@ class $$SettingsTableAnnotationComposer
 
   GeneratedColumn<int> get gardenPotCapacity => $composableBuilder(
       column: $table.gardenPotCapacity, builder: (column) => column);
+
+  GeneratedColumn<bool> get eyeCareEnabled => $composableBuilder(
+      column: $table.eyeCareEnabled, builder: (column) => column);
+
+  GeneratedColumn<int> get eyeCareIntervalMin => $composableBuilder(
+      column: $table.eyeCareIntervalMin, builder: (column) => column);
+
+  GeneratedColumn<bool> get eyeCareSkipAllowed => $composableBuilder(
+      column: $table.eyeCareSkipAllowed, builder: (column) => column);
 }
 
 class $$SettingsTableTableManager extends RootTableManager<
@@ -6924,6 +7095,9 @@ class $$SettingsTableTableManager extends RootTableManager<
             Value<bool> themeDark = const Value.absent(),
             Value<bool> autonomousMode = const Value.absent(),
             Value<int> gardenPotCapacity = const Value.absent(),
+            Value<bool> eyeCareEnabled = const Value.absent(),
+            Value<int> eyeCareIntervalMin = const Value.absent(),
+            Value<bool> eyeCareSkipAllowed = const Value.absent(),
           }) =>
               SettingsCompanion(
             id: id,
@@ -6947,6 +7121,9 @@ class $$SettingsTableTableManager extends RootTableManager<
             themeDark: themeDark,
             autonomousMode: autonomousMode,
             gardenPotCapacity: gardenPotCapacity,
+            eyeCareEnabled: eyeCareEnabled,
+            eyeCareIntervalMin: eyeCareIntervalMin,
+            eyeCareSkipAllowed: eyeCareSkipAllowed,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -6970,6 +7147,9 @@ class $$SettingsTableTableManager extends RootTableManager<
             Value<bool> themeDark = const Value.absent(),
             Value<bool> autonomousMode = const Value.absent(),
             Value<int> gardenPotCapacity = const Value.absent(),
+            Value<bool> eyeCareEnabled = const Value.absent(),
+            Value<int> eyeCareIntervalMin = const Value.absent(),
+            Value<bool> eyeCareSkipAllowed = const Value.absent(),
           }) =>
               SettingsCompanion.insert(
             id: id,
@@ -6993,6 +7173,9 @@ class $$SettingsTableTableManager extends RootTableManager<
             themeDark: themeDark,
             autonomousMode: autonomousMode,
             gardenPotCapacity: gardenPotCapacity,
+            eyeCareEnabled: eyeCareEnabled,
+            eyeCareIntervalMin: eyeCareIntervalMin,
+            eyeCareSkipAllowed: eyeCareSkipAllowed,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

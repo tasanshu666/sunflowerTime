@@ -24,6 +24,18 @@ class AppSettings {
   final bool autonomousMode;
   final int gardenPotCapacity; // 花园花盆容量（初始 4 → 解锁 12，§3.1 M3）
 
+  // ── C28 少儿护眼休息（玄参 2026-10-04 拍板，口径裁定表 v1 C28 §4）───────────
+  // 三项落 `settings` 表新列（`eye_care_enabled` / `eye_care_interval_min` /
+  // `eye_care_skip_allowed`），默认值与合法区间单点收口 `prd_params.dart`。
+  // ⚠️ 护眼**时长**（固定 60 秒）**不是**设置项，家长端不设、不可调，见
+  // `kEyeCareDurationSeconds`（玄参 2026-10-04 明确砍掉「护眼时长」设置项）。
+  /// 护眼提醒总开关（默认开）。
+  final bool eyeCareEnabled;
+  /// 护眼触发间隔：场内累计注视每满该**分钟**数触发一次（默认 20）。
+  final int eyeCareIntervalMin;
+  /// 是否允许孩子跳过护眼卡（默认允许；跳过不发奖励）。
+  final bool eyeCareSkipAllowed;
+
   const AppSettings({
     required this.ageTier,
     this.nightBoundaryHour = kNightBoundaryDefaultHour,
@@ -46,6 +58,9 @@ class AppSettings {
     this.themeDark = false, // 默认浅色（§4.1.4 明亮向日葵基调）；深色由家长显式开启
     this.autonomousMode = false,
     this.gardenPotCapacity = kGardenPotCapacityDefault,
+    this.eyeCareEnabled = kEyeCareEnabledDefault,
+    this.eyeCareIntervalMin = kEyeCareIntervalMinDefault,
+    this.eyeCareSkipAllowed = kEyeCareSkipAllowedDefault,
   });
 
   /// 不可变副本（M2 入口页持久化音效 / 背景音乐开关时使用）。
@@ -70,6 +85,9 @@ class AppSettings {
     bool? themeDark,
     bool? autonomousMode,
     int? gardenPotCapacity,
+    bool? eyeCareEnabled,
+    int? eyeCareIntervalMin,
+    bool? eyeCareSkipAllowed,
   }) {
     return AppSettings(
       ageTier: ageTier ?? this.ageTier,
@@ -92,6 +110,9 @@ class AppSettings {
       themeDark: themeDark ?? this.themeDark,
       autonomousMode: autonomousMode ?? this.autonomousMode,
       gardenPotCapacity: gardenPotCapacity ?? this.gardenPotCapacity,
+      eyeCareEnabled: eyeCareEnabled ?? this.eyeCareEnabled,
+      eyeCareIntervalMin: eyeCareIntervalMin ?? this.eyeCareIntervalMin,
+      eyeCareSkipAllowed: eyeCareSkipAllowed ?? this.eyeCareSkipAllowed,
     );
   }
 }

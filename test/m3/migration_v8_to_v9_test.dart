@@ -6,7 +6,7 @@
 /// → 读作「其他」，避免历史数据被误判成具体分类（学习/运动/生活 / 零食/游玩/娱乐）。
 ///
 /// 本测试钉死四件事（**必须把历史行读回来断言**，不能只断言「没抛异常」）：
-///  ① `AppDatabase.schemaVersion == 14`；
+///  ① `AppDatabase.schemaVersion == 15`；
 ///  ② v8 → v9 后 `tasks` 表存在 `category` 列、`reward_templates` 表存在 `content_category` 列；
 ///  ③ 历史成长项 / 奖励（v8 无该列）的**其它字段原样保留**，新列取默认值 0（= other）；
 ///  ④ 幂等：已迁移到 v9 的库重复打开不报错、列仍在、数据不丢；
@@ -160,7 +160,7 @@ void main() {
         _schemaDdl(withLegacyRows: true),
         8,
       );
-      expect(database.schemaVersion, 14);
+      expect(database.schemaVersion, 15);
     });
 
     test('迁移后 tasks 出现 category 列、reward_templates 出现 content_category 列',
@@ -235,7 +235,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 14);
+      expect(first.schemaVersion, 15);
       expect(await _columns(first, 'tasks'), contains('category'));
       await first.close();
 
@@ -256,7 +256,7 @@ void main() {
         _schemaDdl(withLegacyRows: true),
         6,
       );
-      expect(database.schemaVersion, 14);
+      expect(database.schemaVersion, 15);
       // v8→v9 补列分支执行：category / content_category 列存在。
       expect(await _columns(database, 'tasks'), contains('category'));
       expect(await _columns(database, 'reward_templates'),

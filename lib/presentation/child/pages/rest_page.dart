@@ -12,6 +12,9 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/domain/entities/focus_session.dart';
+import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
 
 class RestPage extends ConsumerStatefulWidget {
   const RestPage({super.key});
@@ -33,10 +36,33 @@ class _RestPageState extends ConsumerState<RestPage> {
         ref.read(settingsProvider).value?.restMinutes ?? kRestMinutes;
     _totalSeconds = restMinutes * 60;
     _remainingSeconds = _totalSeconds;
+    _applyWallClockRemaining(restMinutes);
     _timer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => _tick(),
     );
+  }
+
+  /// F66：休息剩余按**墙上时钟**推导——基准 = 今日最后一场完成会话的结束时间。
+  /// 锁屏/切走 App 期间同样是休息（Timer 后台不走导致此前「离开 20 分钟回来
+  /// 仍要求重新休息满 10 分钟」）。基准取不到时维持完整倒计时（安全侧）。
+  Future<void> _applyWallClockRemaining(int restMinutes) async {
+    final String day = dayKey(DateTime.now());
+    final List<FocusSession> sessions =
+        await ref.read(focusRepositoryProvider).sessionsOfDay(day);
+    if (!mounted) return;
+    final AntiAddictionService antiAddiction = AntiAddictionService();
+    final DateTime? lastEndedAt = antiAddiction.lastCompletedSessionEnd(sessions);
+    final Duration remaining = antiAddiction.restRemaining(
+      restMinutes: restMinutes,
+      now: DateTime.now(),
+      lastSessionEnd: lastEndedAt,
+    );
+    if (!mounted) return;
+    setState(() {
+      _remainingSeconds = remaining.inSeconds;
+      if (_remainingSeconds <= 0) _timer?.cancel();
+    });
   }
 
   void _tick() {

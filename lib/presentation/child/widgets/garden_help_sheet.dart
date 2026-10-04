@@ -78,7 +78,8 @@ class GardenHelpSheet extends StatelessWidget {
               title: '植物怎么长大',
               detail: '不照顾也会随时间自己长大；浇水 +${(kPlantWaterProgressGain * 100).round()}%、'
                   '施肥 +${(kPlantFertilizeProgressGain * 100).round()}% 长得更快\n'
-                  '（每天最多浇 $kPlantWaterMaxPerDay 次、施 $kPlantFertilizeMaxPerDay 次，'
+                  '（花谢后重新养时增量会小一些，看按钮上的实际数字；\n'
+                  '每天最多浇 $kPlantWaterMaxPerDay 次、施 $kPlantFertilizeMaxPerDay 次，'
                   '两次浇水要隔 $kPlantWaterIntervalMinutes 分钟）；\n'
                   '进度养满就开花，开满 $kBloomDurationDays 天后花谢，再养满又能再开 🌻',
             ),

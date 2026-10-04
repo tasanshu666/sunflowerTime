@@ -30,6 +30,10 @@ const Map<String, String> _refLabels = <String, String>{
   'plant_weed': '拔草',
   'plant_pest': '除虫',
   'plant_death_refund': '植物死亡返还',
+  // C28 少儿护眼休息（玄参 2026-10-03 拍板）：完整完成一次 60 秒护眼 → +2 阳光，
+  // `refType='eye_care_break'`（**字符串值一经写入即冻结**，改名会与历史行分裂）。
+  // 漏配这条时孩子端会一律显示「其他」，阳光来源对不上账（新增 refType 必须同步本映射）。
+  'eye_care_break': '护眼',
   'bloom_reward': '开花奖励',
   'bloom_reward_24h': '花开回访奖励',
   'redeem': '兑换奖励',

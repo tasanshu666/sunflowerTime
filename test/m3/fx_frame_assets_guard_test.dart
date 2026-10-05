@@ -121,6 +121,52 @@ void main() {
     });
   });
 
+  group('护眼卡序列帧契约（2026-10-05 玄参交付：5 套素材 7 槽位，整幅画面带背景）', () {
+    // 播放列表里 look 复用 3 次 → 按目录去重后校验（5 套）。
+    final Map<String, int> eyeDirs = <String, int>{
+      for (final EyeCareSegment seg in kEyeCarePlaylist) seg.dir: seg.frameCount,
+    };
+
+    test('去重后恰为 5 套素材（close / doitagain / lookTip / look / done）', () {
+      expect(eyeDirs, hasLength(5));
+    });
+
+    eyeDirs.forEach((String dir, int count) {
+      test('$dir：恰有 $count 张、文件名与 fxFrameAssets 契约一致、720×720', () {
+        final List<String> files = pngsOf(dir);
+        expect(files.length, count,
+            reason: '$dir 帧数应为 $count，实际 ${files.length}');
+        final List<String> expected = fxFrameAssets(dir, count)
+            .map((String p) => p.split('/').last)
+            .toList();
+        expect(files, expected, reason: '$dir 文件名与契约不符（三位零填充 frame001..N）');
+        // 整幅画面带背景：全部帧统一 720×720（直读 PNG IHDR，抽样每张都查）。
+        for (final String name in files) {
+          final RandomAccessFile raf = File('$root/$dir/$name').openSync();
+          final PngHead head = _readHead(raf);
+          raf.closeSync();
+          expect('${head.w} x ${head.h}', '720 x 720',
+              reason: '$dir/$name 尺寸漂移（应统一 720×720）');
+        }
+      });
+    });
+
+    test('护眼配音 5 个 mp3 全部存在且 cue 映射齐全', () {
+      final List<AudioCue> eyeCues = <AudioCue>[
+        AudioCue.eyeCareClose,
+        AudioCue.eyeCareAgain,
+        AudioCue.eyeCareLookTip,
+        AudioCue.eyeCareLook,
+        AudioCue.eyeCareDone,
+      ];
+      for (final AudioCue cue in eyeCues) {
+        expect(cue.assetPath, startsWith('assets/audio/sfx/eyecare_'));
+        expect(File('$root/${cue.assetPath}').existsSync(), isTrue,
+            reason: '缺护眼配音：${cue.assetPath}');
+      }
+    });
+  });
+
   group('音频资产存在性（新 cue + 专注页 cue + 花园氛围音）', () {
     test('AudioCue 新增 cue 的 mp3 文件真实存在', () {
       final List<AudioCue> newCues = <AudioCue>[
@@ -133,6 +179,11 @@ void main() {
         AudioCue.carePest,
         AudioCue.focusCollect,
         AudioCue.focusSettle,
+        AudioCue.eyeCareClose,
+        AudioCue.eyeCareAgain,
+        AudioCue.eyeCareLookTip,
+        AudioCue.eyeCareLook,
+        AudioCue.eyeCareDone,
       ];
       for (final AudioCue cue in newCues) {
         expect(cue.assetPath.endsWith('.mp3'), isTrue,
@@ -175,6 +226,7 @@ void main() {
         kFocusCollectFxDir,
         kFocusSettleFxDir,
         kFocusReturnFxDir,
+        ...kEyeCarePlaylist.map((EyeCareSegment s) => s.dir).toSet(),
       ];
       for (final String dir in dirs) {
         expect(pubspec.contains('    - $dir/'), isTrue,

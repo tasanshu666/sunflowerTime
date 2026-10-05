@@ -55,6 +55,21 @@ enum AudioCue {
 
   /// 结算页 · 向日葵庆祝（配 settle 序列帧）。
   focusSettle,
+
+  /// 护眼卡 · 段① 闭眼转眼球提示（配 `assets/fx/eyecare/close/`，2026-10-05 交付）。
+  eyeCareClose,
+
+  /// 护眼卡 · 段② 再来一次转眼球（配 `assets/fx/eyecare/doitagain/`）。
+  eyeCareAgain,
+
+  /// 护眼卡 · 段③ 远眺提示（配 `assets/fx/eyecare/lookTip/`）。
+  eyeCareLookTip,
+
+  /// 护眼卡 · 段④ 远眺（配 `assets/fx/eyecare/look/`，播放列表中复用 3 次）。
+  eyeCareLook,
+
+  /// 护眼卡 · 段⑤ 结束提示（配 `assets/fx/eyecare/done/`）。
+  eyeCareDone,
 }
 
 /// [AudioCue] 到 assets 音频文件路径的映射（相对工程根）。
@@ -88,6 +103,16 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/focus_collect.mp3';
       case AudioCue.focusSettle:
         return 'assets/audio/sfx/focus_settle.mp3';
+      case AudioCue.eyeCareClose:
+        return 'assets/audio/sfx/eyecare_close.mp3';
+      case AudioCue.eyeCareAgain:
+        return 'assets/audio/sfx/eyecare_doitagain.mp3';
+      case AudioCue.eyeCareLookTip:
+        return 'assets/audio/sfx/eyecare_lookTip.mp3';
+      case AudioCue.eyeCareLook:
+        return 'assets/audio/sfx/eyecare_look.mp3';
+      case AudioCue.eyeCareDone:
+        return 'assets/audio/sfx/eyecare_done.mp3';
     }
   }
 }

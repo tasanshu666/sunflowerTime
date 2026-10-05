@@ -1,8 +1,9 @@
-/// 少儿护眼休息卡（口径 C28，玄参 2026-10-03 初稿 / 2026-10-04 收口）。
+/// 少儿护眼休息卡（口径 C28，玄参 2026-10-03 初稿 / 2026-10-04 收口 /
+/// 2026-10-05 素材定稿接入）。
 ///
-/// 一张**全屏 modality 卡**：固定 [kEyeCareDurationSeconds]（60）秒两段式——
-/// 前 [kEyeCarePhaseSeconds]（30）秒「闭眼 + 口令转眼球」，后 [kEyeCarePhaseSeconds]
-/// 秒「睁眼远眺 6 米外」；大环形倒计时 + 阶段文案步进，完整休息给
+/// 一张**全屏 modality 卡**：按 [kEyeCarePlaylist]（5 套素材排 7 个槽位，10+10+8+
+/// 10×3+5 = 63s）逐槽播放「序列帧 + 配音」——**帧速 = 帧数 ÷ 音频时长**（项目既有
+/// 契约），每槽音频经 [AudioService.playSfx]（受「音效」开关控制）。完整休息给
 /// +[kEyeCareRewardSunlight] 阳光（`refType='eye_care_break'`）。
 ///
 /// 三条硬口径（C28 §7，勿改）：
@@ -16,9 +17,6 @@
 ///
 /// 无论跳过与否，护眼时长**都不回溯补算**为专注时长（专注页已用
 /// `FocusEngine.pause()` 冻结计时，本页不碰计时、也不「结算补减」）。
-///
-/// 本期**无语音素材**（mp3 待美术供给）：两段各自的倒计时 + 阶段文案步进全部由
-/// 程序占位实现（阶段文案见 [EyeCareService.cuesForPhase]），向日葵演示走自绘占位。
 library eye_care_page;
 
 import 'dart:async';
@@ -34,7 +32,20 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
-import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
+import 'package:sunflower_time/platform/audio_service.dart';
+import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
+
+/// 各槽位对应的配音 cue（⚠️ 与 [kEyeCarePlaylist] **按位对齐**，槽位顺序变更必须
+/// 同步这里——护栏测试钉住两者长度相等）。
+const List<AudioCue> _slotCues = <AudioCue>[
+  AudioCue.eyeCareClose,
+  AudioCue.eyeCareAgain,
+  AudioCue.eyeCareLookTip,
+  AudioCue.eyeCareLook,
+  AudioCue.eyeCareLook,
+  AudioCue.eyeCareLook,
+  AudioCue.eyeCareDone,
+];
 
 /// 护眼卡入参。
 ///
@@ -63,8 +74,11 @@ class EyeCarePage extends ConsumerStatefulWidget {
 }
 
 class _EyeCarePageState extends ConsumerState<EyeCarePage> {
-  /// 已走秒数（0..[kEyeCareDurationSeconds]）。
-  int _elapsed = 0;
+  /// 当前播放槽位（0..[kEyeCarePlaylist].length-1）。
+  int _slot = 0;
+
+  /// 已走毫秒（**仅用于「还剩 N 秒」标签**；槽位推进由播放器回调驱动，与音频同源）。
+  int _elapsedMs = 0;
 
   /// 跳过二次确认弹窗是否已打开（防止连续点击叠出多个对话框）。
   bool _confirmOpen = false;
@@ -78,28 +92,45 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
   @override
   void initState() {
     super.initState();
-    _startTimer();
+    // 首槽配音（initState 里 ref 仍可用；dispose 里才禁用 ref——本项目 Riverpod 铁律）。
+    _playSfxFor(_slot);
+    // 1s tick：只刷新「还剩 N 秒」标签 + 兜底保险丝（播放器回调才是推进正源）。
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
-  /// 1 秒 tick：推进整段倒计时，走到总长自动「完成休息」。
-  void _startTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || _finishing) return;
-      final int next = _elapsed + 1;
-      if (next >= kEyeCareDurationSeconds) {
-        setState(() => _elapsed = kEyeCareDurationSeconds);
-        unawaited(_finish(EyeCareResultType.completed));
-        return;
-      }
-      setState(() => _elapsed = next);
-    });
+  void _tick() {
+    if (!mounted || _finishing) return;
+    setState(() => _elapsedMs += 1000);
+    // 兜底保险丝：正常应永远走不到（播放器回调先到）；万一序列帧播放器异常卡死，
+    // 超过列表总长 + 10s 仍要放孩子出去，别把人锁死在护眼卡里。
+    if (_elapsedMs >= kEyeCarePlaylistTotalMs + 10000) {
+      unawaited(_finish(EyeCareResultType.completed));
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  // ── 槽位推进 ──────────────────────────────────────────────────
+
+  void _playSfxFor(int slot) {
+    ref.read(audioServiceProvider).playSfx(_slotCues[slot]);
+  }
+
+  /// 当前槽位播完（[FrameSequencePlayer.onComplete]，与音频同时长 → 天然同步）。
+  void _onSlotComplete() {
+    if (!mounted || _finishing) return;
+    if (_slot >= kEyeCarePlaylist.length - 1) {
+      unawaited(_finish(EyeCareResultType.completed));
+      return;
+    }
+    setState(() {
+      _slot += 1;
+    });
+    _playSfxFor(_slot);
   }
 
   // ── 出口（完成 / 跳过）────────────────────────────────────────
@@ -199,13 +230,14 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
 
   @override
   Widget build(BuildContext context) {
-    final EyeCareCue cue =
-        EyeCareService.cuesForPhase(_elapsed);
+    final EyeCareSegment seg = kEyeCarePlaylist[_slot];
     final double totalProgress =
-        kEyeCareDurationSeconds <= 0
+        kEyeCarePlaylistTotalMs <= 0
             ? 1.0
-            : _elapsed / kEyeCareDurationSeconds;
-    final bool finished = _elapsed >= kEyeCareDurationSeconds;
+            : (_elapsedMs / kEyeCarePlaylistTotalMs).clamp(0.0, 1.0);
+    final int remainingSeconds = (_elapsedMs ~/ 1000) >= kEyeCareDurationSeconds
+        ? 0
+        : kEyeCareDurationSeconds - _elapsedMs ~/ 1000;
 
     // ⚠️ 类型参数必须是本页 pop 出去的结果类型 [EyeCareResult]（**不是** bool）：
     // `PopScope.onPopInvokedWithResult` 收到的是「本次 pop 的返回值」，框架会按本页
@@ -220,218 +252,108 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
       child: Scaffold(
         backgroundColor: const Color(0xFFFBF6EC), // 暖米白（孩子端基调）
         body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const SizedBox(height: 12),
-                  const Text(
-                    '眼睛休息一下吧',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF5A4A2F),
-                    ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const SizedBox(height: 12),
+                const Text(
+                  '眼睛休息一下吧',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5A4A2F),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    cue.phaseTitle,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      color: Color(0xFF8A7A5F),
-                    ),
+                ),
+                const SizedBox(height: 4),
+                // 段标题（配音已含口令，这里只做同步字幕）。
+                Text(
+                  seg.label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Color(0xFF8A7A5F),
                   ),
-                  const SizedBox(height: 18),
-                  // 大环形倒计时 + 中央剩余秒数
-                  SizedBox(
-                    width: 220,
-                    height: 220,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: <Widget>[
-                        // 大环形倒计时：自绘环（不依赖 CircularProgressIndicator 的
-                        // 参数命名，跨 Flutter 版本零风险，也更好控制线头圆角）。
-                        CustomPaint(
-                          painter: _RingPainter(
-                            progress: totalProgress.clamp(0.0, 1.0),
-                            active: cue.phase == EyeCarePhase.closed
-                                ? const Color(0xFFFFB4C4)
-                                : const Color(0xFF8FD6A8),
-                            track: const Color(0xFFFFF1C2),
-                          ),
+                ),
+                const SizedBox(height: 16),
+                // 整幅画面序列帧（素材 720×720 带背景；圆角白卡裁切，居中最大 340）。
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 340),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(28),
+                        child: FrameSequencePlayer(
+                          // ⚠️ key 按槽位换 → 槽位切换即整体重建（换帧组 + 换配音）。
+                          key: ValueKey<int>(_slot),
+                          frames: fxFrameAssets(seg.dir, seg.frameCount),
+                          durationMs: seg.durationMs,
+                          fadeOutMs: 0, // 槽位间硬切（下一段紧接着开始，不渐隐）
+                          onComplete: _onSlotComplete,
                         ),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Text(
-                              finished ? '0' : '${cue.remainingSeconds}',
-                              style: const TextStyle(
-                                fontSize: 56,
-                                fontWeight: FontWeight.w300,
-                                color: Color(0xFF5A4A2F),
-                              ),
-                            ),
-                            const Text(
-                              '秒',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF8A7A5F),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  // 向日葵演示（本期程序占位：闭眼 / 远眺两态自绘）+ 口令
-                  _EyeCareStage(cue: cue),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () =>
-                          unawaited(_finish(EyeCareResultType.completed)),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        textStyle: const TextStyle(fontSize: 18),
                       ),
-                      child: const Text(kEyeCareFinishLabel),
                     ),
                   ),
-                  // 「跳过」按钮**恒存在**（口径 C28 §7：护眼卡恒有「跳过」与「完成
-                  // 休息」两个出口）。家长关掉「允许跳过」时它只是**点了无效**（弹
-                  // [kEyeCareNotSkippableText]、流程不推进），而**不是整块消失**——
-                  // 消失的话孩子根本点不到、也就看不到「不可跳过」的提示，与口径相悖。
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: _onSkipPressed,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        textStyle: const TextStyle(fontSize: 16),
-                      ),
-                      child: const Text(kEyeCareSkipLabel),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '还剩 $remainingSeconds 秒',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF5A4A2F),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // 整体进度条（圆角细条，暖色）。
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: totalProgress,
+                    minHeight: 8,
+                    backgroundColor: const Color(0xFFFFF1C2),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFFFFB4C4),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                ],
-              ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () =>
+                        unawaited(_finish(EyeCareResultType.completed)),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      textStyle: const TextStyle(fontSize: 18),
+                    ),
+                    child: const Text(kEyeCareFinishLabel),
+                  ),
+                ),
+                // 「跳过」按钮**恒存在**（口径 C28 §7：护眼卡恒有「跳过」与「完成
+                // 休息」两个出口）。家长关掉「允许跳过」时它只是**点了无效**（弹
+                // [kEyeCareNotSkippableText]、流程不推进），而**不是整块消失**——
+                // 消失的话孩子根本点不到、也就看不到「不可跳过」的提示，与口径相悖。
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _onSkipPressed,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      textStyle: const TextStyle(fontSize: 16),
+                    ),
+                    child: const Text(kEyeCareSkipLabel),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
             ),
           ),
         ),
       ),
-    );
-  }
-}
-
-/// 环形倒计时进度环（大环 + 背景轨道 + 进度弧）。
-///
-/// 用 [CustomPaint] 自绘而不是 [CircularProgressIndicator]：本项目已跨过若干 Flutter
-/// 版本，进度条的轨道色参数在版本间换过名字（`trackColor` → `background`），
-/// 自绘可彻底避开这类「换个 SDK 就编译不过」的风险，且能自己控制线头与圆角。
-class _RingPainter extends CustomPainter {
-  /// 进度 0..1。
-  final double progress;
-
-  /// 已走过的弧色（闭眼段粉 / 远眺段绿）。
-  final Color active;
-
-  /// 未走过的轨道底色。
-  final Color track;
-
-  const _RingPainter({
-    required this.progress,
-    required this.active,
-    required this.track,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Rect inset = (Offset.zero & size).deflate(94);
-    final Paint trackPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..color = track;
-
-    canvas.drawArc(inset, 0, 6.28318, false, trackPaint);
-
-    final Paint activePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..color = active;
-    // 从 12 点开始顺时针（0 弧是 3 点方向，减 90° 拨回顶部）。
-    canvas.drawArc(
-      inset,
-      -1.5708,
-      6.28318 * progress.clamp(0.0, 1.0),
-      false,
-      activePaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_RingPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.active != active;
-}
-
-/// 向日葵演示占位（闭眼口令段 / 睁眼远眺段两态）。
-///
-/// ⚠️ 本期**无美术素材交付**：不引任何图片资源（widget 测试走占位假绿、抓不到美术
-/// 分支），用「🌻 + 自绘眼睛」占位，美术资源到位后整体替换为序列帧即可。
-class _EyeCareStage extends StatelessWidget {
-  /// 当前阶段的演示信息。
-  final EyeCareCue cue;
-
-  const _EyeCareStage({required this.cue});
-
-  @override
-  Widget build(BuildContext context) {
-    final bool closed = cue.phase == EyeCarePhase.closed;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Container(
-          width: 160,
-          height: 160,
-          decoration: BoxDecoration(
-            color: closed ? const Color(0xFFFFF1C2) : const Color(0xFFE7F4EA),
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Center(
-            child: SizedBox(
-              width: 96,
-              height: 96,
-              child: SunflowerCanvas(
-                level: FeedbackLevel.lvl1,
-                celebrating: !closed,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        // 口令文案（阶段步进）+ 步数提示（闭眼段显示「3/5」）
-        Text(
-          cue.cueText,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF5A4A2F),
-          ),
-        ),
-        if (closed && cue.stepIndex > 0) ...<Widget>[
-          const SizedBox(height: 4),
-          Text(
-            '第 ${cue.stepIndex}/${kEyeCareCueTexts.length} 步',
-            style: const TextStyle(fontSize: 13, color: Color(0xFF8A7A5F)),
-          ),
-        ],
-      ],
     );
   }
 }

@@ -14,6 +14,7 @@
 library settle_eye_care_test;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MethodCall, MethodChannel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -25,7 +26,6 @@ import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
-import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
 
 /// 记录 append 的假账本（与 eye_care_page_test 同款）。
@@ -109,6 +109,16 @@ void _usePhoneScreen(WidgetTester tester) {
   tester.view.physicalSize = const Size(390 * 3, 844 * 3);
   tester.view.devicePixelRatio = 3.0;
   addTearDown(tester.view.reset);
+  // ⚠️ 护眼帧是真实 720×720 位图，flutter_tester 里真解码（5 套 × 67 帧）会把
+  // 测试进程 OOM 杀死（exit 137，2026-10-05 实证）——拦截资产加载走 errorBuilder
+  // 占位（本文件断言只依赖文案与账本，不依赖位图；美术正确性由玄参模拟器验收）。
+  const MethodChannel assets = MethodChannel('flutter/assets');
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    assets,
+    (MethodCall call) async => null,
+  );
+  addTearDown(() => tester.binding.defaultBinaryMessenger
+      .setMockMethodCallHandler(assets, null));
 }
 
 /// 有界收敛（护眼页呼吸动画 → 禁 pumpAndSettle）。
@@ -197,8 +207,19 @@ void main() {
     );
     expect(find.text('完成休息'), findsOneWidget);
 
-    // 快进 61 秒 → 护眼卡自然完成（内部写账本 +2）并回结果。
-    await tester.pump(const Duration(seconds: 61));
+    // 播放列表驱动（≈63.7s，槽位由播放器回调推进）：步进 pump 直到护眼卡退场
+    // （「完成休息」消失；skipOffstage:false 防入场过渡期误判提前 break）。
+    // ⚠️ 不能一次 pump 大时长：入场过渡期页面 offstage、播放器实际 tick 起点偏移，
+    // 一步 pump 的时长略短于段长 → onComplete 不触发 → 永不推进（137 实证）。
+    for (int i = 0; i < 170; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+      if (find
+          .text('完成休息', skipOffstage: false)
+          .evaluate()
+          .isEmpty) {
+        break;
+      }
+    }
     await _settle(tester);
 
     expect(find.text('···'), findsNothing, reason: '护眼收口后占位应解除');

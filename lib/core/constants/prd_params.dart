@@ -726,15 +726,15 @@ const String kGardenPestAsset = 'assets/garden/pest.png';
 // C28 少儿护眼休息（20-20-20 变体·特色功能，玄参 2026-10-03 初稿 / 2026-10-04 收口）
 //
 // 单点纪律（宪法总纪律 #2）：护眼的**节奏 / 时长 / 奖励 / 提示文案**全部收口在这里，
-// 任何页面不得再出现第二个相同含义的字面量（尤其「60」「30」「+2」「20 分钟」「10 分钟」
+// 任何页面不得再出现第二个相同含义的字面量（尤其「63」「+2」「20 分钟」「10 分钟」
 // 与那句「不可跳过」）。
 //
-// 三条口径锚点（口径裁定表 v1 C28）：
+// 三条口径锚点（口径裁定表 v1 C28，2026-10-05 素材定稿修订）：
 //  · 场内「累计注视每满 N 分钟」＝一次护眼，护眼期间**计时暂停**、不计入专注时长、不产光；
 //  · 场末「距上次护眼之后的本段注视 ≥ [kEyeCareSessionEndMinutes] 分钟」→ **结算页之前**
 //    插一次护眼卡（先护眼、后领奖励，防孩子为拿奖励跳过护眼）；
-//  · **单次护眼总时长固定 [kEyeCareDurationSeconds] 秒，家长端不设、不可调**（玄参
-//    2026-10-04 拍板：砍掉「护眼时长」设置项）。
+//  · **单次护眼总时长固定，家长端不设、不可调**（玄参 2026-10-04 拍板砍掉设置项；
+//    2026-10-05 交付 5 段素材定稿节奏：10+10+8+10×3+5 = 63s，见 [kEyeCarePlaylist]）。
 // ───────────────────────────────────────────────────────────────────────────
 
 /// 护眼提醒**总开关**默认值（家长端默认开）。
@@ -755,39 +755,103 @@ const List<int> kEyeCareIntervalOptions = <int>[5, 10, 15, 20, 30];
 /// 是否**允许孩子跳过**护眼卡默认值（默认允许；跳过不发奖励）。
 const bool kEyeCareSkipAllowedDefault = true;
 
-/// 单次护眼**总时长**（秒）——固定值，**家长端不设、不可调**（玄参 2026-10-04 拍板）。
+/// 单次护眼**总时长**（秒）——固定值，**家长端不设、不可调**（玄参 2026-10-04 拍板；
+/// 2026-10-05 素材定稿由 60 → **63**：5 段素材的排布 10+10+8+10×3+5 = 63s）。
 ///
-/// 本期无语音素材（mp3 待美术供给），段内靠「倒计时 + 阶段文案步进」程序占位实现。
-const int kEyeCareDurationSeconds = 60;
+/// 显示倒计时用；真实播放总长 = [kEyeCarePlaylist] 各段 `durationMs` 之和（≈63.7s，
+/// 以音频实长为准，见 [kEyeCarePlaylistTotalMs]）。
+const int kEyeCareDurationSeconds = 63;
 
-/// 护眼两段**等分**时长（秒）：两段各占总长一半（闭眼口令 30s / 睁眼远眺 30s）。
+/// 护眼卡**播放列表**（2026-10-05 玄参交付素材定稿）：5 套素材按序排 7 个槽位——
+/// ①闭眼转眼球(10s) → ②再来一次(10s) → ③远眺提示(8s) → ④远眺×3(10s) → ⑤结束(5s)。
 ///
-/// 由 [kEyeCareDurationSeconds] 推导（避免总长改动后这里又留一个 30 的孪生字面量）。
-const int kEyeCarePhaseSeconds = kEyeCareDurationSeconds ~/ 2;
+/// 每段 = 一组序列帧（`assets/fx/eyecare/<dir>/frame001..N.png`，720×720 整幅画面
+/// 带背景、不归一化）+ 一段配音 mp3；**帧速 = 帧数 ÷ 音频时长**（项目既有契约）。
+/// ⚠️ 段④ `look` 在列表中出现 3 次（同一套素材连播，不是三份拷贝）。
+class EyeCareSegment {
+  /// 帧目录（`assets/fx/eyecare/` 下，禁止改动——与交付目录一一对应）。
+  final String dir;
 
-/// 闭眼口令段**每一步时长**（秒）：30s 走完 5 步「上 / 下 / 左 / 右 / 画圈」= 6s/步。
-const int kEyeCareCueStepSeconds = 6;
+  /// 配音 mp3 asset 路径。
+  final String sfxAsset;
 
-/// 闭眼口令段的**阶段标题**（单点，UI 与文案只引这里）。
-const String kEyeCarePhaseClosedTitle = '闭上眼睛，跟着向日葵动动眼球';
+  /// 本段帧数（已核：交付无缺号，见护栏测试）。
+  final int frameCount;
 
-/// 睁眼远眺段的**阶段标题**（单点）。
-const String kEyeCarePhaseFarGazeTitle = '睁开眼睛，望向远处';
+  /// 本段播放时长（毫秒）= 配音实长（afinfo 实测，帧速 = 帧数 ÷ 时长）。
+  final int durationMs;
 
-/// 闭眼口令段 5 步口令文案（单点）：依次「上 → 下 → 左 → 右 → 画圈圈」。
-///
-/// ⚠️ 元素数量必须与「闭眼段步数」一致：改这里要同步改成 [kEyeCareCueStepSeconds] 的
-/// 除数（30s ÷ 步数 = 每步秒数），否则最后一步永远走不到。
-const List<String> kEyeCareCueTexts = <String>[
-  '跟向日葵一起：向上看',
-  '再向下看',
-  '慢慢向左看',
-  '再慢慢向右看',
-  '最后画个圈圈',
+  /// 屏幕阶段标题（配音已含口令，这里只做简短同步字幕）。
+  final String label;
+
+  const EyeCareSegment({
+    required this.dir,
+    required this.sfxAsset,
+    required this.frameCount,
+    required this.durationMs,
+    required this.label,
+  });
+}
+
+/// 段① 闭眼 + 转眼球提示（`eyecare_close.mp3` 10.16s，67 帧）。
+const EyeCareSegment kEyeCareSegClose = EyeCareSegment(
+  dir: 'assets/fx/eyecare/close',
+  sfxAsset: 'assets/audio/sfx/eyecare_close.mp3',
+  frameCount: 67,
+  durationMs: 10162,
+  label: '闭上眼睛，转动眼球',
+);
+
+/// 段② 再来一次转眼球（`eyecare_doitagain.mp3` 10.08s，67 帧）。
+const EyeCareSegment kEyeCareSegAgain = EyeCareSegment(
+  dir: 'assets/fx/eyecare/doitagain',
+  sfxAsset: 'assets/audio/sfx/eyecare_doitagain.mp3',
+  frameCount: 67,
+  durationMs: 10083,
+  label: '再来一次，转动眼球',
+);
+
+/// 段③ 远眺提示（`eyecare_lookTip.mp3` 8.10s，53 帧）。
+const EyeCareSegment kEyeCareSegLookTip = EyeCareSegment(
+  dir: 'assets/fx/eyecare/lookTip',
+  sfxAsset: 'assets/audio/sfx/eyecare_lookTip.mp3',
+  frameCount: 53,
+  durationMs: 8098,
+  label: '睁开眼睛，望向远处',
+);
+
+/// 段④ 远眺本体（`eyecare_look.mp3` 10.08s，67 帧）——播放列表复用 3 次。
+const EyeCareSegment kEyeCareSegLook = EyeCareSegment(
+  dir: 'assets/fx/eyecare/look',
+  sfxAsset: 'assets/audio/sfx/eyecare_look.mp3',
+  frameCount: 67,
+  durationMs: 10083,
+  label: '望着远处，放松眼睛',
+);
+
+/// 段⑤ 结束提示（`eyecare_done.mp3` 5.09s，33 帧）。
+const EyeCareSegment kEyeCareSegDone = EyeCareSegment(
+  dir: 'assets/fx/eyecare/done',
+  sfxAsset: 'assets/audio/sfx/eyecare_done.mp3',
+  frameCount: 33,
+  durationMs: 5094,
+  label: '眼睛休息好啦！',
+);
+
+/// 护眼 63s 播放列表（7 个槽位；顺序即播放顺序，玄参 2026-10-05 拍板）。
+const List<EyeCareSegment> kEyeCarePlaylist = <EyeCareSegment>[
+  kEyeCareSegClose,
+  kEyeCareSegAgain,
+  kEyeCareSegLookTip,
+  kEyeCareSegLook,
+  kEyeCareSegLook,
+  kEyeCareSegLook,
+  kEyeCareSegDone,
 ];
 
-/// 睁眼远眺段文案（单点）。
-const String kEyeCareFarGazeText = '睁开眼睛，望望窗外最远的地方';
+/// 播放列表真实总时长（毫秒）= 各段 `durationMs` 之和（63.7s；显示口径取
+/// [kEyeCareDurationSeconds] = 63s，两者差 <1s，以播放列表收尾为准）。
+const int kEyeCarePlaylistTotalMs = 10162 + 10083 + 8098 + 10083 * 3 + 5094;
 
 /// 完整完成一次护眼的**奖励阳光**（玄参 2026-10-03 拍板：+2）。
 const int kEyeCareRewardSunlight = 2;
@@ -815,5 +879,5 @@ const String kEyeCareSkipConfirmText = '跳过就没有小阳光啦，真的要�
 /// 护眼卡主按钮文案（完成的唯一入口，"不可跳过"时也是唯一出路）。
 const String kEyeCareFinishLabel = '完成休息';
 
-/// 护眼卡副按钮文案（允许跳过时才渲染）。
+/// 护眼卡副按钮文案（**恒存在**——家长关「允许跳过」时点了无效并弹提示，而非隐藏）。
 const String kEyeCareSkipLabel = '跳过';

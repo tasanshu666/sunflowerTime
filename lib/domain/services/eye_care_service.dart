@@ -9,25 +9,21 @@
 /// 两条触发节奏（口径裁定表 v1 C28 §1）：
 ///  · **场内**：单场专注「累计注视」每满 `eyeCareIntervalMin` 分钟 → 触发一次护眼，
 ///    护眼期间**专注计时暂停**（页面调 `FocusEngine.pause()` / `resume()`），护眼
-///    60 秒不计入专注时长、不产专注阳光；结束后从 0 重新累计下一个间隔；
+///    63 秒不计入专注时长、不产专注阳光；结束后从 0 重新累计下一个间隔；
 ///  · **场末**：单场结束时「距上次护眼之后的本段注视」≥ [kEyeCareSessionEndMinutes]
 ///    分钟 → 在**结算页之前**插入一次护眼卡（先护眼、后领奖励）；本段不足则不打断，
 ///    交给「每 2 场休 10 分钟」的大休息兜底。
 ///
 /// 「累计注视」= 在场秒数（离席不累计），与 [FocusEngine.actualFocusMin] 同源；
 /// 单位统一为**秒**（int），避免页面上出现「分钟 / 秒」两种口径打架。
+///
+/// 护眼**过程**（60→63 秒两段式占位 → 2026-10-05 素材定稿后为 5 段素材 7 槽位播放
+/// 列表）由 `prd_params.dart` 的 `kEyeCarePlaylist` 单点定义、护眼卡页面执行——
+/// 素材排布是 UI/资产口径，不进本服务。
 library eye_care_service;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
-
-/// 护眼两个阶段（C28 §2）。
-enum EyeCarePhase {
-  /// 闭眼 + 口令转眼球（前 [kEyeCarePhaseSeconds] 秒）。
-  closed,
-  /// 睁眼远眺 6 米外（后 [kEyeCarePhaseSeconds] 秒）。
-  farGaze,
-}
 
 /// 一次护眼的结果（完成 / 跳过）。
 ///
@@ -49,36 +45,6 @@ class EyeCareResult {
 
   /// 被跳过（无奖励）。
   bool get skipped => type == EyeCareResultType.skipped;
-}
-
-/// 某一秒对应的护眼阶段演示信息（阶段 + 标题 + 口令 + 环进度）。
-class EyeCareCue {
-  /// 当前阶段。
-  final EyeCarePhase phase;
-
-  /// 阶段标题（单点文案）。
-  final String phaseTitle;
-
-  /// 本步口令（单点文案；远眺段恒定 [kEyeCareFarGazeText]）。
-  final String cueText;
-
-  /// 本阶段第几步（1-based，供 UI 显示「3/5」；远眺段恒 0）。
-  final int stepIndex;
-
-  /// 本阶段**剩余**秒数（闭眼段到阶段末、远眺段到整段末）。
-  final int remainingSeconds;
-
-  /// 本阶段进度 0..1（给环形进度条用，避免页面再算一遍除法）。
-  final double progress;
-
-  const EyeCareCue({
-    required this.phase,
-    required this.phaseTitle,
-    required this.cueText,
-    required this.stepIndex,
-    required this.remainingSeconds,
-    required this.progress,
-  });
 }
 
 /// 少儿护眼休息判定（纯函数集合，无状态、无副作用）。
@@ -152,46 +118,6 @@ class EyeCareService {
   }) {
     final int span = focusElapsedSeconds - (lastEyeCareAtSecond ?? 0);
     return span >= kEyeCareSessionEndMinutes * 60;
-  }
-
-  /// 第 [elapsedSeconds] 秒（整段 0..[kEyeCareDurationSeconds]）所处的阶段与文案。
-  ///
-  /// 两段等分：`< kEyeCarePhaseSeconds` 闭眼口令段（每 [kEyeCareCueStepSeconds] 秒
-  /// 走一步口令），`>= kEyeCarePhaseSeconds` 睁眼远眺段。
-  /// 超出总长（护眼被异常延长）时按总长封顶，返回「最后一步」，绝不返回越界索引。
-  static EyeCareCue cuesForPhase(int elapsedSeconds) {
-    final int t = elapsedSeconds < 0
-        ? 0
-        : (elapsedSeconds > kEyeCareDurationSeconds
-            ? kEyeCareDurationSeconds
-            : elapsedSeconds);
-
-    if (t < kEyeCarePhaseSeconds) {
-      final int step = t ~/ kEyeCareCueStepSeconds;
-      final int idx = step >= kEyeCareCueTexts.length
-          ? kEyeCareCueTexts.length - 1
-          : step;
-      return EyeCareCue(
-        phase: EyeCarePhase.closed,
-        phaseTitle: kEyeCarePhaseClosedTitle,
-        cueText: kEyeCareCueTexts[idx],
-        stepIndex: idx + 1,
-        remainingSeconds: kEyeCarePhaseSeconds - t,
-        progress: kEyeCarePhaseSeconds <= 0
-            ? 1.0
-            : t / kEyeCarePhaseSeconds,
-      );
-    }
-
-    final int t2 = t - kEyeCarePhaseSeconds;
-    return EyeCareCue(
-      phase: EyeCarePhase.farGaze,
-      phaseTitle: kEyeCarePhaseFarGazeTitle,
-      cueText: kEyeCareFarGazeText,
-      stepIndex: 0,
-      remainingSeconds: kEyeCareDurationSeconds - t,
-      progress: kEyeCarePhaseSeconds <= 0 ? 1.0 : t2 / kEyeCarePhaseSeconds,
-    );
   }
 
   /// 完整完成一次的护眼奖励阳光（= [kEyeCareRewardSunlight]）。

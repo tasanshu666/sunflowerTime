@@ -62,17 +62,13 @@ void main() {
       expect(EyeCareService.isSkipAllowed(s), isFalse);
     });
 
-    test('护眼时长固定 60 秒、家长端不设（改间隔不许动时长）', () {
+    test('护眼时长固定 63 秒、家长端不设（改间隔不许动时长）', () {
       expect(EyeCareService.durationSeconds(), kEyeCareDurationSeconds);
-      expect(EyeCareService.durationSeconds(), 60);
-      expect(
-        kEyeCarePhaseSeconds,
-        kEyeCareDurationSeconds ~/ 2,
-        reason: '两段等分：闭眼 30s + 远眺 30s',
-      );
+      expect(EyeCareService.durationSeconds(), 63,
+          reason: '2026-10-05 素材定稿：10+10+8+10×3+5 = 63s');
       // 间隔可调（5~60）但时长恒定 —— 两者不共用同一个数。
       expect(EyeCareService.intervalSeconds(_eyeSettings(intervalMin: 5)), 300);
-      expect(EyeCareService.durationSeconds(), 60);
+      expect(EyeCareService.durationSeconds(), 63);
     });
   });
 
@@ -296,70 +292,42 @@ void main() {
     });
   });
 
-  group('两段式口令（C28 §2：闭眼 30s 转眼球 → 睁眼 30s 远眺）', () {
-    test('第 0 秒：闭眼段第 1 步，倒计时 30 秒', () {
-      final EyeCareCue cue = EyeCareService.cuesForPhase(0);
-      expect(cue.phase, EyeCarePhase.closed);
-      expect(cue.phaseTitle, kEyeCarePhaseClosedTitle);
-      expect(cue.stepIndex, 1);
-      expect(cue.cueText, kEyeCareCueTexts[0]);
-      expect(cue.remainingSeconds, kEyeCarePhaseSeconds);
-      expect(cue.progress, 0.0);
+  group('播放列表契约（2026-10-05 玄参素材定稿：5 套素材排 7 槽位）', () {
+    test('槽位顺序 = 玄参拍板：①close ②doitagain ③lookTip ④look×3 ⑤done', () {
+      expect(kEyeCarePlaylist, hasLength(7));
+      expect(kEyeCarePlaylist[0].dir, endsWith('/close'));
+      expect(kEyeCarePlaylist[1].dir, endsWith('/doitagain'));
+      expect(kEyeCarePlaylist[2].dir, endsWith('/lookTip'));
+      expect(kEyeCarePlaylist[3].dir, endsWith('/look'));
+      expect(kEyeCarePlaylist[4].dir, endsWith('/look'));
+      expect(kEyeCarePlaylist[5].dir, endsWith('/look'));
+      expect(kEyeCarePlaylist[6].dir, endsWith('/done'));
+      // 段④是同一套素材连播 3 次（不是三份拷贝）。
+      expect(identical(kEyeCarePlaylist[3], kEyeCarePlaylist[4]), isTrue);
+      expect(identical(kEyeCarePlaylist[3], kEyeCarePlaylist[5]), isTrue);
     });
 
-    test('两段分界：t=kEyeCarePhaseSeconds 整点切到远眺，绝不重叠', () {
-      final EyeCareCue lastClosed =
-          EyeCareService.cuesForPhase(kEyeCarePhaseSeconds - 1);
-      expect(lastClosed.phase, EyeCarePhase.closed);
-      expect(lastClosed.remainingSeconds, 1);
-
-      final EyeCareCue firstGaze =
-          EyeCareService.cuesForPhase(kEyeCarePhaseSeconds);
-      expect(firstGaze.phase, EyeCarePhase.farGaze);
-      expect(firstGaze.phaseTitle, kEyeCarePhaseFarGazeTitle);
-      expect(firstGaze.stepIndex, 0, reason: '远眺段不出「第 N/5 步」');
-      expect(firstGaze.cueText, kEyeCareFarGazeText);
-      expect(firstGaze.remainingSeconds, kEyeCarePhaseSeconds);
-    });
-
-    test('整段走完：倒计时归零、进度 1.0', () {
-      final EyeCareCue end =
-          EyeCareService.cuesForPhase(kEyeCareDurationSeconds);
-      expect(end.phase, EyeCarePhase.farGaze);
-      expect(end.remainingSeconds, 0);
-      expect(end.progress, 1.0);
-    });
-
-    test('闭眼段全程：步号落在 1..口令条数、进度与剩余秒单调、文案不越界', () {
-      for (int t = 0; t < kEyeCarePhaseSeconds; t++) {
-        final EyeCareCue cue = EyeCareService.cuesForPhase(t);
-        expect(cue.phase, EyeCarePhase.closed);
-        expect(cue.stepIndex, greaterThanOrEqualTo(1));
-        expect(cue.stepIndex, lessThanOrEqualTo(kEyeCareCueTexts.length));
-        expect(kEyeCareCueTexts, contains(cue.cueText));
-        expect(cue.remainingSeconds, greaterThan(0));
-        expect(cue.progress, greaterThanOrEqualTo(0.0));
-        expect(cue.progress, lessThanOrEqualTo(1.0));
+    test('每段帧数 > 0、时长 > 0；配音文件名与目录词干一一对应', () {
+      for (final EyeCareSegment seg in kEyeCarePlaylist) {
+        expect(seg.frameCount, greaterThan(0), reason: seg.dir);
+        expect(seg.durationMs, greaterThan(0), reason: seg.dir);
+        expect(
+          seg.sfxAsset,
+          endsWith('/eyecare_${seg.dir.split('/').last}.mp3'),
+          reason: '配音词干必须与目录名一致（音频防静默失效）',
+        );
+        expect(seg.label, isNotEmpty);
       }
     });
 
-    test('负数 / 超长入参都封顶，不越界、不抛异常', () {
-      expect(EyeCareService.cuesForPhase(-5).stepIndex, 1);
-      expect(EyeCareService.cuesForPhase(-5).phase, EyeCarePhase.closed);
-
-      final EyeCareCue over = EyeCareService.cuesForPhase(99999);
-      expect(over.phase, EyeCarePhase.farGaze);
-      expect(over.remainingSeconds, 0);
-      expect(over.progress, 1.0);
-      expect(over.cueText, kEyeCareFarGazeText);
-    });
-
-    test('口令条数与「每 6 秒一步」自洽（上/下/左/右/画圈）', () {
-      expect(kEyeCareCueStepSeconds, 6);
-      expect(kEyeCareCueTexts.length, 5);
-      // 30 秒闭眼段 ÷ 6 秒一步 = 5 步，最后一步正好落在阶段末。
-      expect(EyeCareService.cuesForPhase(kEyeCarePhaseSeconds - 1).stepIndex,
-          kEyeCareCueTexts.length);
+    test('列表总长 ≈ 63.7s（音频实长），显示口径 63s 与之差 < 2s', () {
+      expect(kEyeCarePlaylistTotalMs, 10162 + 10083 + 8098 + 10083 * 3 + 5094);
+      expect(kEyeCarePlaylistTotalMs, closeTo(63700, 100));
+      expect(
+        (kEyeCarePlaylistTotalMs / 1000 - kEyeCareDurationSeconds).abs(),
+        lessThan(2.0),
+        reason: '显示倒计时（63s）与真实播放总长差距过大会让孩子困惑',
+      );
     });
   });
 

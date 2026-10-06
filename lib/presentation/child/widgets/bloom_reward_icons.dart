@@ -28,6 +28,8 @@
 ///   的既有陷阱）。
 library bloom_reward_icons;
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/domain/entities/pending_bloom_reward.dart';
@@ -185,8 +187,12 @@ String? resolveRewardAsset(RewardIconSpec spec, Set<String> availableAssets) {
 
 /// 花朵「头顶奖励图标」一排（横向、居中）。
 ///
-/// 每条 [rewards] 派生 1..N 个图标；**点击任一图标 = 收下该条 pending 的全部奖励**
+/// 每条 [rewards] 派生 1..N 个图标；**点击任一图标 = 收下其所属 pending 的全部奖励**
 /// （按条收集，见 [onCollect] 回调）。整体宽度超出可用宽度时用 [FittedBox] 缩放（窄屏不溢出）。
+///
+/// [bob] = true 时整排做**上下轻漂浮**（±3px、约 1.4s 往返，玄参 2026-10-05「悬浮
+/// 状态更有效果」）。⚠️ 无限动画 → 仅限**已用有界 pump 的调用方**开启（花园页木牌
+/// 同款纪律）；widget 测试直接构造本组件（默认 false）不受影响。
 class BloomRewardIconsBar extends StatelessWidget {
   const BloomRewardIconsBar({
     super.key,
@@ -194,6 +200,7 @@ class BloomRewardIconsBar extends StatelessWidget {
     required this.availableAssets,
     required this.onCollect,
     this.isPremiumOf,
+    this.bob = false,
   });
 
   /// 当前可收集的待收集奖励（一条 pending = 一「条」，点击收下整条）。
@@ -202,11 +209,16 @@ class BloomRewardIconsBar extends StatelessWidget {
   /// 可用美术资源集合（来自 `rewardAssetsProvider`；空集 → 全回退内置 Icons）。
   final Set<String> availableAssets;
 
-  /// 收集回调：点击某图标 → 收下其**所属 pending 整条**奖励。
-  final void Function(PendingBloomReward reward) onCollect;
+  /// 收集回调：点击某图标 → 收下其**所属 pending 整条**奖励，并带上**被点的那个
+  /// 图标规格**（2026-10-06 玄参「点哪个图标播哪个收集音效」——调用方按
+  /// `spec.kind` 选 cue；点击任一图标仍收下整条）。
+  final void Function(PendingBloomReward reward, RewardIconSpec spec) onCollect;
 
   /// 物种档位查询（speciesId → 是否精英）；种子图标据此选分档图，不给则走通用图。
   final bool Function(String speciesId)? isPremiumOf;
+
+  /// 是否开启上下轻漂浮（默认关闭；见类注释 pumpAndSettle 纪律）。
+  final bool bob;
 
   @override
   Widget build(BuildContext context) {
@@ -217,28 +229,90 @@ class BloomRewardIconsBar extends StatelessWidget {
         icons.add(BloomRewardIcon(
           spec: spec,
           assetPath: resolveRewardAsset(spec, availableAssets),
-          // 点击任一图标 → 收下「该条 pending」全部奖励（按条收集，非按图标）。
-          onTap: () => onCollect(reward),
+          // 点击任一图标 → 收下「该条 pending」全部奖励（按条收集，非按图标）；
+          // 回调带上被点 spec（收集音效按被点图标类型选 cue）。
+          onTap: () => onCollect(reward, spec),
         ));
       }
     }
-    return FittedBox(
+    final Widget row = FittedBox(
       fit: BoxFit.scaleDown,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: icons,
       ),
     );
+    return bob ? _Bobbing(child: row) : row;
+  }
+}
+
+/// 上下轻漂浮包装（无限往返动画，**仅限有界 pump 调用方开启**）。
+class _Bobbing extends StatefulWidget {
+  const _Bobbing({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_Bobbing> createState() => _BobbingState();
+}
+
+class _BobbingState extends State<_Bobbing> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    // 相位对齐（玄参 2026-10-06「有时浮动高有时浮动低」）：所有漂浮条按纪元时钟
+    // 推导同一初相，duration 恒定 → 永远同涨同落；条目重建/新建不产生相位跳变。
+    const int periodMs = 1400;
+    _ctrl.value =
+        (DateTime.now().millisecondsSinceEpoch % periodMs) / periodMs;
+    // 单向循环 + sin(2πv)：v 在 1→0 回绕处 sin 值与导数都连续，全程匀滑。
+    // （旧 `repeat(reverse: true)` 在往返边界 v=0/1 处于静止点、速度瞬间反向——
+    // 「有时快有时慢」的根因，玄参 2026-10-06 反馈。）
+    _ctrl.repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      // RepaintBoundary：把每帧重绘隔离在漂浮条自身，不连累整格花盆网格重栅格化
+      // （玄参 2026-10-06「漂浮一卡一卡」优化之一）。
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (BuildContext context, Widget? child) {
+          // 平滑正弦漂浮（±3px 一整周期）：旧实现 `_ctrl.value * 2 % 1` 在每半周期
+          // 有一次 +3 → -3 的**速度不连续跳变**（视觉「一卡一卡」的根因，玄参
+          // 2026-10-06 反馈），改 `sin(2πv)` 全程连续。
+          final double dy =
+              3 * math.sin(2 * math.pi * _ctrl.value);
+          return Transform.translate(offset: Offset(0, dy), child: child);
+        },
+        child: RepaintBoundary(child: widget.child),
+      ),
+    );
   }
 }
 
 /// 单个奖励图标（圆形底 + 图标/图片 + 角标；命中区 ≥40×40，图标视觉 ~34）。
+///
+/// [onTap] 为 null 时不包手势（无命中区、命中测试透明）——供「收集幽灵动效」等
+/// 纯展示场景复用（幽灵不响应点击）。
 class BloomRewardIcon extends StatelessWidget {
   const BloomRewardIcon({
     super.key,
     required this.spec,
     required this.assetPath,
-    required this.onTap,
+    this.onTap,
   });
 
   /// 展示模型。
@@ -247,8 +321,8 @@ class BloomRewardIcon extends StatelessWidget {
   /// 可用图片资源路径（null → 用内置 `Icons` 回退）。
   final String? assetPath;
 
-  /// 点击回调（收集该条奖励）。
-  final VoidCallback onTap;
+  /// 点击回调（收集该条奖励）；null = 纯展示，不响应点击。
+  final VoidCallback? onTap;
 
   /// 命中区边长（≥40×40，满足触控目标下限）。
   static const double hitSize = 42;
@@ -260,7 +334,7 @@ class BloomRewardIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color color = rewardIconColor(spec.kind);
     // 有限时长入场动画（弹性回弹，只跑一遍；≤400ms）——避免无限动画卡死 pumpAndSettle。
-    return TweenAnimationBuilder<double>(
+    final Widget disc = TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutBack,
@@ -270,23 +344,26 @@ class BloomRewardIcon extends StatelessWidget {
           child: Transform.scale(scale: 0.7 + 0.3 * t, child: child),
         );
       },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: SizedBox(
-          width: hitSize,
-          height: hitSize,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: <Widget>[
-              _buildDisc(color),
-              if (spec.badge != null)
-                Positioned(bottom: 0, right: 0, child: _badge(color)),
-            ],
-          ),
+      child: SizedBox(
+        width: hitSize,
+        height: hitSize,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: <Widget>[
+            _buildDisc(color),
+            if (spec.badge != null)
+              Positioned(bottom: 0, right: 0, child: _badge(color)),
+          ],
         ),
       ),
+    );
+    // 纯展示（onTap == null）：不包手势，命中测试透明（幽灵图标不挡下层点击）。
+    if (onTap == null) return disc;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: disc,
     );
   }
 

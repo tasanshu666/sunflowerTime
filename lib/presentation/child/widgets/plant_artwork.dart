@@ -134,6 +134,75 @@ class _PlantArtAssets {
       status: status,
     );
   }
+
+  /// **按物种**解析「展示用」成株/开花图（无 Plant 实体的场景：种植弹窗选种卡）。
+  ///
+  /// 口径（玄参 2026-10-05「对应的植物替换为现有的成株或者开花的素材」）：按
+  /// `{物种}_adult_bloomed` 起查（命中开花图最优）；缺失自然回退 `{物种}_adult`
+  /// → `{物种}` → `shared_adult_*`（五级链见 [PlantArtCandidates]），全不中返回
+  /// null（调用方走内置占位）。结果与 [resolve] 共用缓存。
+  static Future<String?> resolveForSpecies({
+    required String speciesId,
+  }) async {
+    final String key = 'species_preview_$speciesId';
+    final String? cached = _resolved[key];
+    if (cached != null || _resolved.containsKey(key)) return cached;
+
+    final Set<String> assets = await _loadManifest();
+    return _resolved[key] = PlantArtCandidates.resolve(
+      assets,
+      speciesId: speciesId,
+      stage: 'adult',
+      status: 'bloomed',
+    );
+  }
+}
+
+/// 物种预览图（**无 Plant 实体**的展示场景：种植弹窗选种卡，玄参 2026-10-05）。
+///
+/// 按 [_PlantArtAssets.resolveForSpecies] 取成株/开花素材；缺失回退内置花卉图标。
+/// ⚠️ 图片必须显式尺寸盒子（loose 约束按原图逻辑尺寸布局必炸，2026-09-24 事故）。
+class SpeciesPreviewArt extends StatelessWidget {
+  const SpeciesPreviewArt({
+    super.key,
+    required this.species,
+    this.size = 64,
+  });
+
+  /// 物种。
+  final PlantSpecies species;
+
+  /// 正方形边长。
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: _PlantArtAssets.resolveForSpecies(speciesId: species.id),
+      builder: (BuildContext context, AsyncSnapshot<String?> snap) {
+        final String? path = snap.data;
+        if (path == null) {
+          return SizedBox(
+            width: size,
+            height: size,
+            child: Icon(Icons.local_florist,
+                size: size * 0.55, color: const Color(0xFF7CB342)),
+          );
+        }
+        return SizedBox(
+          width: size,
+          height: size,
+          child: Image.asset(
+            path,
+            fit: BoxFit.contain,
+            errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+                Icon(Icons.local_florist,
+                    size: size * 0.55, color: const Color(0xFF7CB342)),
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// 植物外观（美术资源优先，缺失自动回退内置自绘简笔）。

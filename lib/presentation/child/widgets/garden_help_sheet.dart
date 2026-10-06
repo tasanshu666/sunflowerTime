@@ -62,6 +62,7 @@ class GardenHelpSheet extends StatelessWidget {
             const SizedBox(height: 14),
             _HelpRow(
               icon: Icons.wb_sunny_outlined,
+              iconAsset: 'assets/rewards/sunlight.png',
               title: '怎么挣阳光',
               detail: '白天专注就能挣阳光：每分钟 +$perMinute ☀；\n'
                   '完成成长任务打卡，每项还 +$kTaskSunlightReward ☀。',
@@ -121,11 +122,16 @@ class _HelpRow extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.detail,
+    this.iconAsset,
   });
 
   final IconData icon;
   final String title;
   final String detail;
+
+  /// 美术图标（2026-10-06 玄参交付 `assets/rewards/sunlight.png`，「所有用到
+  /// 阳光图标的地方都替换」）；提供时优先用素材，缺失/失败回退 [icon]。
+  final String? iconAsset;
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +140,16 @@ class _HelpRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(icon, size: 18, color: Colors.green.shade700),
+          iconAsset != null
+              ? Image.asset(
+                  iconAsset!,
+                  width: 18,
+                  height: 18,
+                  fit: BoxFit.contain,
+                  errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+                      Icon(icon, size: 18, color: Colors.green.shade700),
+                )
+              : Icon(icon, size: 18, color: Colors.green.shade700),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

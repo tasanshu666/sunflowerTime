@@ -1271,6 +1271,14 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
   late final GeneratedColumn<DateTime> weedPestRollDay =
       GeneratedColumn<DateTime>('weed_pest_roll_day', aliasedName, true,
           type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _shovelRefundMeta =
+      const VerificationMeta('shovelRefund');
+  @override
+  late final GeneratedColumn<int> shovelRefund = GeneratedColumn<int>(
+      'shovel_refund', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -1292,7 +1300,8 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
         mood,
         weedAt,
         pestAt,
-        weedPestRollDay
+        weedPestRollDay,
+        shovelRefund
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1411,6 +1420,12 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
           weedPestRollDay.isAcceptableOrUnknown(
               data['weed_pest_roll_day']!, _weedPestRollDayMeta));
     }
+    if (data.containsKey('shovel_refund')) {
+      context.handle(
+          _shovelRefundMeta,
+          shovelRefund.isAcceptableOrUnknown(
+              data['shovel_refund']!, _shovelRefundMeta));
+    }
     return context;
   }
 
@@ -1460,6 +1475,8 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
           .read(DriftSqlType.dateTime, data['${effectivePrefix}pest_at']),
       weedPestRollDay: attachedDatabase.typeMapping.read(
           DriftSqlType.dateTime, data['${effectivePrefix}weed_pest_roll_day']),
+      shovelRefund: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}shovel_refund'])!,
     );
   }
 
@@ -1490,6 +1507,7 @@ class Plant extends DataClass implements Insertable<Plant> {
   final DateTime? weedAt;
   final DateTime? pestAt;
   final DateTime? weedPestRollDay;
+  final int shovelRefund;
   const Plant(
       {required this.id,
       required this.speciesId,
@@ -1510,7 +1528,8 @@ class Plant extends DataClass implements Insertable<Plant> {
       required this.mood,
       this.weedAt,
       this.pestAt,
-      this.weedPestRollDay});
+      this.weedPestRollDay,
+      required this.shovelRefund});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1548,6 +1567,7 @@ class Plant extends DataClass implements Insertable<Plant> {
     if (!nullToAbsent || weedPestRollDay != null) {
       map['weed_pest_roll_day'] = Variable<DateTime>(weedPestRollDay);
     }
+    map['shovel_refund'] = Variable<int>(shovelRefund);
     return map;
   }
 
@@ -1584,6 +1604,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       weedPestRollDay: weedPestRollDay == null && nullToAbsent
           ? const Value.absent()
           : Value(weedPestRollDay),
+      shovelRefund: Value(shovelRefund),
     );
   }
 
@@ -1611,6 +1632,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       weedAt: serializer.fromJson<DateTime?>(json['weedAt']),
       pestAt: serializer.fromJson<DateTime?>(json['pestAt']),
       weedPestRollDay: serializer.fromJson<DateTime?>(json['weedPestRollDay']),
+      shovelRefund: serializer.fromJson<int>(json['shovelRefund']),
     );
   }
   @override
@@ -1637,6 +1659,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       'weedAt': serializer.toJson<DateTime?>(weedAt),
       'pestAt': serializer.toJson<DateTime?>(pestAt),
       'weedPestRollDay': serializer.toJson<DateTime?>(weedPestRollDay),
+      'shovelRefund': serializer.toJson<int>(shovelRefund),
     };
   }
 
@@ -1660,7 +1683,8 @@ class Plant extends DataClass implements Insertable<Plant> {
           int? mood,
           Value<DateTime?> weedAt = const Value.absent(),
           Value<DateTime?> pestAt = const Value.absent(),
-          Value<DateTime?> weedPestRollDay = const Value.absent()}) =>
+          Value<DateTime?> weedPestRollDay = const Value.absent(),
+          int? shovelRefund}) =>
       Plant(
         id: id ?? this.id,
         speciesId: speciesId ?? this.speciesId,
@@ -1684,6 +1708,7 @@ class Plant extends DataClass implements Insertable<Plant> {
         weedPestRollDay: weedPestRollDay.present
             ? weedPestRollDay.value
             : this.weedPestRollDay,
+        shovelRefund: shovelRefund ?? this.shovelRefund,
       );
   Plant copyWithCompanion(PlantsCompanion data) {
     return Plant(
@@ -1719,6 +1744,9 @@ class Plant extends DataClass implements Insertable<Plant> {
       weedPestRollDay: data.weedPestRollDay.present
           ? data.weedPestRollDay.value
           : this.weedPestRollDay,
+      shovelRefund: data.shovelRefund.present
+          ? data.shovelRefund.value
+          : this.shovelRefund,
     );
   }
 
@@ -1744,33 +1772,36 @@ class Plant extends DataClass implements Insertable<Plant> {
           ..write('mood: $mood, ')
           ..write('weedAt: $weedAt, ')
           ..write('pestAt: $pestAt, ')
-          ..write('weedPestRollDay: $weedPestRollDay')
+          ..write('weedPestRollDay: $weedPestRollDay, ')
+          ..write('shovelRefund: $shovelRefund')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id,
-      speciesId,
-      potIndex,
-      stage,
-      stageStartedAt,
-      growthProgress,
-      growthFactor,
-      waterUsed,
-      fertilizerUsed,
-      status,
-      plantedAt,
-      lastWaterAt,
-      wiltedAt,
-      deadAt,
-      bloomedAt,
-      bloomCount,
-      mood,
-      weedAt,
-      pestAt,
-      weedPestRollDay);
+  int get hashCode => Object.hashAll([
+        id,
+        speciesId,
+        potIndex,
+        stage,
+        stageStartedAt,
+        growthProgress,
+        growthFactor,
+        waterUsed,
+        fertilizerUsed,
+        status,
+        plantedAt,
+        lastWaterAt,
+        wiltedAt,
+        deadAt,
+        bloomedAt,
+        bloomCount,
+        mood,
+        weedAt,
+        pestAt,
+        weedPestRollDay,
+        shovelRefund
+      ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1794,7 +1825,8 @@ class Plant extends DataClass implements Insertable<Plant> {
           other.mood == this.mood &&
           other.weedAt == this.weedAt &&
           other.pestAt == this.pestAt &&
-          other.weedPestRollDay == this.weedPestRollDay);
+          other.weedPestRollDay == this.weedPestRollDay &&
+          other.shovelRefund == this.shovelRefund);
 }
 
 class PlantsCompanion extends UpdateCompanion<Plant> {
@@ -1818,6 +1850,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
   final Value<DateTime?> weedAt;
   final Value<DateTime?> pestAt;
   final Value<DateTime?> weedPestRollDay;
+  final Value<int> shovelRefund;
   final Value<int> rowid;
   const PlantsCompanion({
     this.id = const Value.absent(),
@@ -1840,6 +1873,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     this.weedAt = const Value.absent(),
     this.pestAt = const Value.absent(),
     this.weedPestRollDay = const Value.absent(),
+    this.shovelRefund = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PlantsCompanion.insert({
@@ -1863,6 +1897,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     this.weedAt = const Value.absent(),
     this.pestAt = const Value.absent(),
     this.weedPestRollDay = const Value.absent(),
+    this.shovelRefund = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         speciesId = Value(speciesId),
@@ -1892,6 +1927,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     Expression<DateTime>? weedAt,
     Expression<DateTime>? pestAt,
     Expression<DateTime>? weedPestRollDay,
+    Expression<int>? shovelRefund,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1915,6 +1951,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       if (weedAt != null) 'weed_at': weedAt,
       if (pestAt != null) 'pest_at': pestAt,
       if (weedPestRollDay != null) 'weed_pest_roll_day': weedPestRollDay,
+      if (shovelRefund != null) 'shovel_refund': shovelRefund,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1940,6 +1977,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       Value<DateTime?>? weedAt,
       Value<DateTime?>? pestAt,
       Value<DateTime?>? weedPestRollDay,
+      Value<int>? shovelRefund,
       Value<int>? rowid}) {
     return PlantsCompanion(
       id: id ?? this.id,
@@ -1962,6 +2000,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       weedAt: weedAt ?? this.weedAt,
       pestAt: pestAt ?? this.pestAt,
       weedPestRollDay: weedPestRollDay ?? this.weedPestRollDay,
+      shovelRefund: shovelRefund ?? this.shovelRefund,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2029,6 +2068,9 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     if (weedPestRollDay.present) {
       map['weed_pest_roll_day'] = Variable<DateTime>(weedPestRollDay.value);
     }
+    if (shovelRefund.present) {
+      map['shovel_refund'] = Variable<int>(shovelRefund.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2058,6 +2100,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
           ..write('weedAt: $weedAt, ')
           ..write('pestAt: $pestAt, ')
           ..write('weedPestRollDay: $weedPestRollDay, ')
+          ..write('shovelRefund: $shovelRefund, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7217,6 +7260,7 @@ typedef $$PlantsTableCreateCompanionBuilder = PlantsCompanion Function({
   Value<DateTime?> weedAt,
   Value<DateTime?> pestAt,
   Value<DateTime?> weedPestRollDay,
+  Value<int> shovelRefund,
   Value<int> rowid,
 });
 typedef $$PlantsTableUpdateCompanionBuilder = PlantsCompanion Function({
@@ -7240,6 +7284,7 @@ typedef $$PlantsTableUpdateCompanionBuilder = PlantsCompanion Function({
   Value<DateTime?> weedAt,
   Value<DateTime?> pestAt,
   Value<DateTime?> weedPestRollDay,
+  Value<int> shovelRefund,
   Value<int> rowid,
 });
 
@@ -7315,6 +7360,9 @@ class $$PlantsTableFilterComposer
   ColumnFilters<DateTime> get weedPestRollDay => $composableBuilder(
       column: $table.weedPestRollDay,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get shovelRefund => $composableBuilder(
+      column: $table.shovelRefund, builder: (column) => ColumnFilters(column));
 }
 
 class $$PlantsTableOrderingComposer
@@ -7390,6 +7438,10 @@ class $$PlantsTableOrderingComposer
   ColumnOrderings<DateTime> get weedPestRollDay => $composableBuilder(
       column: $table.weedPestRollDay,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get shovelRefund => $composableBuilder(
+      column: $table.shovelRefund,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$PlantsTableAnnotationComposer
@@ -7460,6 +7512,9 @@ class $$PlantsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get weedPestRollDay => $composableBuilder(
       column: $table.weedPestRollDay, builder: (column) => column);
+
+  GeneratedColumn<int> get shovelRefund => $composableBuilder(
+      column: $table.shovelRefund, builder: (column) => column);
 }
 
 class $$PlantsTableTableManager extends RootTableManager<
@@ -7505,6 +7560,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             Value<DateTime?> weedAt = const Value.absent(),
             Value<DateTime?> pestAt = const Value.absent(),
             Value<DateTime?> weedPestRollDay = const Value.absent(),
+            Value<int> shovelRefund = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlantsCompanion(
@@ -7528,6 +7584,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             weedAt: weedAt,
             pestAt: pestAt,
             weedPestRollDay: weedPestRollDay,
+            shovelRefund: shovelRefund,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -7551,6 +7608,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             Value<DateTime?> weedAt = const Value.absent(),
             Value<DateTime?> pestAt = const Value.absent(),
             Value<DateTime?> weedPestRollDay = const Value.absent(),
+            Value<int> shovelRefund = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlantsCompanion.insert(
@@ -7574,6 +7632,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             weedAt: weedAt,
             pestAt: pestAt,
             weedPestRollDay: weedPestRollDay,
+            shovelRefund: shovelRefund,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

@@ -79,6 +79,13 @@ class Plants extends Table {
   DateTimeColumn get weedPestRollDay =>
       dateTime().nullable()(); // 「杂草/害虫每日 roll」已执行的当天零点（幂等基准）
 
+  // ── v16 新增：铲除返还（C29，玄参 2026-10-05 拍板）───────────────────────
+  // 种下时即定好的「铲除返还阳光数」：普通 150（300×50%）/ 精英 250（500×50%）；
+  // 向日葵免费首株 / 历史行（v16 前种下）为 0 = 铲除不返还（防「免费种→铲→循环刷阳光」）。
+  // 不返还培养（浇水/施肥）消耗；死亡株按「死亡全损」口径铲除返还 0（领域层判定）。
+  IntColumn get shovelRefund =>
+      integer().withDefault(const Constant(0))();
+
   @override
   Set<Column> get primaryKey => {id};
 }

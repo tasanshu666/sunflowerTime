@@ -214,7 +214,7 @@ void main() {
       expect(await _plantCount(ctx.database), 1);
     });
 
-    test('券对月光兰同样生效（不扣 400 阳光）', () async {
+    test('券对月光兰同样生效（不扣阳光）', () async {
       final _Ctx ctx = await _make();
       await ctx.plants.unlockSpecies('species_moon_orchid');
       await ctx.svc.plant('species_moon_orchid', 0, DateTime(2026, 9, 27, 8));
@@ -304,28 +304,30 @@ void main() {
   });
 
   // ── 同物种同时仅一株 ────────────────────────────────────────────────────
-  group('D6 · 同物种同时仅一株（枯萎算存活 / 死亡后可重种重扣）', () {
+  group('D6 · 同物种可重复种植（C29 修订）/ 死亡后可重种重扣', () {
     final DateTime now = DateTime(2026, 9, 27, 8);
 
-    test('已存活同物种 → 再种被拒', () async {
+    test('已存活同物种 → 再种放行，第 2 株扣 300 阳光（C29）', () async {
       final _Ctx ctx = await _make();
-      await ctx.svc.plant('species_sunflower', 0, now);
-      await expectLater(
-        () => ctx.svc.plant('species_sunflower', 1, now),
-        throwsA(isA<PlantOperationException>()),
-      );
-      expect(await _plantCount(ctx.database), 1);
+      await ctx.svc.plant('species_sunflower', 0, now); // 首株免费
+      final Plant p2 = await ctx.svc.plant('species_sunflower', 1, now);
+      expect(p2.shovelRefund, 150, reason: '付费株铲除返还 = 普通 300×50%');
+      expect(await _plantCount(ctx.database), 2,
+          reason: 'C29：同物种可多株并存');
+      final QueryRow row = await ctx.database.customSelect(
+          'SELECT net FROM sunlight_ledgers WHERE ref_type = \'plant_plant\';')
+          .getSingle();
+      expect(row.read<double>('net'), -300,
+          reason: '向日葵第 2 株起按普通档阳光价收费');
     });
 
-    test('枯萎（wilting）算存活 → 再种被拒', () async {
+    test('枯萎（wilting）算存活 → 再种仍按付费口径放行（C29）', () async {
       final _Ctx ctx = await _make();
       final Plant p = await ctx.svc.plant('species_sunflower', 0, now);
       await ctx.plants.savePlant(p.copyWith(status: PlantStatus.wilting));
-      await expectLater(
-        () => ctx.svc.plant('species_sunflower', 1, now),
-        throwsA(isA<PlantOperationException>()),
-      );
-      expect(await _plantCount(ctx.database), 1);
+      final Plant p2 = await ctx.svc.plant('species_sunflower', 1, now);
+      expect(await _plantCount(ctx.database), 2);
+      expect(p2.shovelRefund, 150);
     });
 
     test('死亡（dead）后可再种：重种重扣 10 碎片（一次兑换买一株，死亡全损不退款）',

@@ -118,11 +118,12 @@ double _contrastRatio(Color fg, Color bg) {
 /// **独立推导**木牌屏幕矩形：直接用背景源图像素区间 + cover 映射公式算，
 /// **不引用**被测常量 [kGardenSignNormalizedRect]（破自指 → 改常量必红）。
 ///
-/// 标定来源：`background.png`（玄参 2026-09-23 换图后重标）左下角木牌，
-/// 源图像素 x 86.6~272.4 / y 1499.7~1686.6，画布 1056×2336。
+/// 标定来源：`background.png` 左下角木牌（2026-10-06 玄参「热区比木牌大出不少」
+/// 后用 PIL 逐像素重标）牌面 x 54~272 / y 1507~1659（含 ~5px 点按余量），
+/// 画布 1056×2336。
 Rect _expectedSignScreenRect(Size box) {
   const double srcW = 1056, srcH = 2336;
-  const double x0 = 86.6, x1 = 272.4, y0 = 1499.7, y1 = 1686.6;
+  const double x0 = 54, x1 = 272, y0 = 1507, y1 = 1659;
   final double scale = math.max(box.width / srcW, box.height / srcH);
   final double drawnW = srcW * scale, drawnH = srcH * scale;
   final double ox = (box.width - drawnW) / 2;
@@ -398,15 +399,15 @@ void main() {
       expect(actual.bottom, closeTo(expected.bottom, 0.05));
     });
 
-    test('360×780：硬钉实测值（新图标定 29.52 / 503.08 / 92.88 / 566.79）', () {
+    test('360×780：硬钉实测值（2026-10-06 重标 18.41 / 505.56 / 92.73 / 557.39）', () {
       const Size box = Size(360, 780);
       final Rect r = gardenSignScreenRect(box);
-      expect(r.left, closeTo(29.52, 0.05));
-      expect(r.top, closeTo(503.08, 0.05));
-      expect(r.right, closeTo(92.88, 0.05));
-      expect(r.bottom, closeTo(566.79, 0.05));
-      expect(r.width, closeTo(63.36, 0.05));
-      expect(r.height, closeTo(63.71, 0.05));
+      expect(r.left, closeTo(18.41, 0.05));
+      expect(r.top, closeTo(505.56, 0.05));
+      expect(r.right, closeTo(92.73, 0.05));
+      expect(r.bottom, closeTo(557.39, 0.05));
+      expect(r.width, closeTo(74.32, 0.05));
+      expect(r.height, closeTo(51.82, 0.05));
       // cover 上下裁切证据（origin.dy 为负 → 木牌整体上移）。
       expect(gardenCoverRect(box).top, closeTo(-8.1818, 0.01));
     });
@@ -419,9 +420,9 @@ void main() {
       expect(r.top, closeTo(expected.top, 0.05));
       expect(r.right, closeTo(expected.right, 0.05));
       expect(r.bottom, closeTo(expected.bottom, 0.05));
-      // 新图标定：32.80 / 565.65 / 103.20 / 636.44，尺寸 70.40×70.79。
-      expect(r.width, closeTo(70.40, 0.2));
-      expect(r.height, closeTo(70.79, 0.2));
+      // 2026-10-06 重标：218×152 源像素 → 尺寸 82.58×57.58。
+      expect(r.width, closeTo(82.58, 0.2));
+      expect(r.height, closeTo(57.58, 0.2));
       expect(gardenCoverRect(box).top, closeTo(-2.4242, 0.01));
     });
 

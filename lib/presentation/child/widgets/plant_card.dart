@@ -39,6 +39,9 @@ class PlantCard extends StatelessWidget {
   final VoidCallback? onFertilize;
   final VoidCallback? onClear;
 
+  /// 铲除（C29，非死亡株也可铲）：点击后由调用方弹二次确认卡再执行。
+  final VoidCallback? onShovel;
+
   const PlantCard({
     super.key,
     required this.plant,
@@ -47,6 +50,7 @@ class PlantCard extends StatelessWidget {
     this.onWater,
     this.onFertilize,
     this.onClear,
+    this.onShovel,
   });
 
   String get _stageLabel {
@@ -248,6 +252,8 @@ class PlantCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           // ── ① 头部：外观 + 名称 + 状态徽章（替代两行灰绿字）─────────────
+          // 铲除入口（C29；2026-10-05 玄参反馈「放右上角，底部排版不协调」）：
+          // 头部行尾红色小图标按钮，点击后由调用方弹二次确认卡（明示返还额）再执行。
           Row(
             children: <Widget>[
               PlantArtwork(
@@ -286,6 +292,34 @@ class PlantCard extends StatelessWidget {
                   ],
                 ),
               ),
+              // 铲除入口（C29；2026-10-05 二次修订「图标变大 + 下方红色小字标注铲除」）：
+              // 图标 26 + 下方 11px 红字，命中区 ≥44×44。点击后由调用方弹二次确认卡。
+              if (onShovel != null)
+                SizedBox(
+                  width: 44,
+                  child: InkWell(
+                    onTap: onShovel,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(Icons.delete_outline,
+                              size: 26, color: Colors.red.shade400),
+                          Text(
+                            '铲除',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.red.shade400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 14),

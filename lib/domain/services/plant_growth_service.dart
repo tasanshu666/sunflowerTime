@@ -127,6 +127,43 @@ class PlantPaymentOption {
   final int amount;
 }
 
+/// 一键操作类型（花园悬浮按钮，口径 C29，玄参 2026-10-05 拍板）。
+enum PlantOneClickKind {
+  /// 一键浇水：对所有「今日可浇」的存活株各浇 1 次。
+  water,
+
+  /// 一键施肥：对所有「今日可施」的存活株各施 1 次。
+  fertilize,
+
+  /// 一键护理：清除所有当日杂草 / 害虫（☀ 奖励照常逐株发放）。
+  care,
+}
+
+/// 一键操作执行前的**计划快照**（[PlantGrowthService.oneClickPlan]，纯读取不写库）。
+class OneClickPlan {
+  /// 可执行的植物 id 列表（water / fertilize 用）。
+  final List<String> plantIds;
+
+  /// 合计扣费（阳光）：water = N×[kPlantWaterCost]、fertilize = N×[kPlantFertilizeCost]、care = 0。
+  final int totalCost;
+
+  /// 护理目标（care 用）：每处干扰物一条（同一株可同时有草 + 虫 → 两条，奖励分别发）。
+  final List<({String plantId, bool weed})> careTargets;
+
+  const OneClickPlan({
+    this.plantIds = const <String>[],
+    this.totalCost = 0,
+    this.careTargets = const <({String plantId, bool weed})>[],
+  });
+
+  /// 该计划涉及的动作次数（浇水 / 施肥 = 株数；护理 = 干扰物处数）。
+  int get actionCount =>
+      careTargets.isNotEmpty ? careTargets.length : plantIds.length;
+
+  /// 计划是否为空（无可执行目标 → UI 提示「没有需要…的植物」）。
+  bool get isEmpty => actionCount == 0;
+}
+
 /// 植物养成领域服务。
 class PlantGrowthService {
   final PlantRepository _plants;
@@ -216,10 +253,12 @@ class PlantGrowthService {
     ));
   }
 
-  /// 种植（校验花盆容量 / 占用 → 校验「每物种仅一株」→ **按物种计价收费** → 落 Plant）。
+  /// 种植（校验花盆容量 / 占用 → **按物种计价收费** → 落 Plant）。
   ///
-  /// 计价（玄参 2026-09-28 计价模型，见 [plantPaymentOptions]）：持有免费种植券 → 消耗券免费；
-  /// 否则向日葵免费；精英仅碎片；普通二选一（阳光 / 碎片）。[payWith] 指定支付方式，
+  /// C29（玄参 2026-10-05）：植物**可重复种植**（同物种可多株并存，唯一约束只剩
+  /// 「花盆容量 / 占用」）；向日葵无存活株时首株免费、第 2 株起收
+  /// [kSpeciesSunlightCostCommon] 阳光。计价（[plantPaymentOptions]）：持有免费种植券 →
+  /// 消耗券免费；精英仅碎片；普通二选一（阳光 / 碎片）。[payWith] 指定支付方式，
   /// 缺省按默认（精英→碎片 / 普通→阳光）。任一校验失败抛 [PlantOperationException]
   /// （UI 侧已前置校验并置灰，此处为兜底）。
   Future<Plant> plant(
@@ -257,16 +296,14 @@ class PlantGrowthService {
     );
     if (dead != null) await _plants.deletePlant(dead.id);
 
-    // 每物种同时仅存活一株（凋萎 wilting 仍算存活；死亡 dead 后可再种）。
-    final bool alreadyGrowing = existing.any(
-      (Plant p) => p.speciesId == speciesId && p.status != PlantStatus.dead,
-    );
-    if (alreadyGrowing) {
-      throw const PlantOperationException('该植物已经在成长中啦');
-    }
+    // （C29，玄参 2026-10-05 拍板）植物**可重复种植**：废除旧「每物种同时仅存活一株」
+    // 限制（娃想同时种多株向日葵）。同物种多株并存允许，唯一约束只剩「花盆容量/占用」。
+    // 计价随之改为「向日葵当前无存活株 → 首株免费；已有存活株 → 第 2 株起收阳光」，
+    // 见 [plantPaymentOptions] / [_chargeForPlanting]。
 
     // 按物种计价收费（免费券优先；碎片不足 / 阳光不足在此拦截）。
-    await _chargeForPlanting(sp, settings, now, payWith: payWith);
+    final int shovelRefund =
+        await _chargeForPlanting(sp, settings, now, payWith: payWith);
 
     final Plant plant = Plant(
       id: _uuid.v4(),
@@ -284,6 +321,9 @@ class PlantGrowthService {
       wiltedAt: null,
       deadAt: null,
       mood: PlantMood.calm,
+      // C29：铲除返还额在种下时即定好落列（普通 150 / 精英 250 / 免费 0），
+      // 铲除时按本值返还，不随其后调价变化。
+      shovelRefund: shovelRefund,
     );
     await _plants.savePlant(plant);
     // 种植可能改变经济（碎片 / 阳光）→ 通知 UI 刷新。
@@ -291,10 +331,21 @@ class PlantGrowthService {
     return plant;
   }
 
-  /// 某物种的**可用支付方式**列表（玄参 2026-09-28 计价模型 + 2026-09-29 种子券入口）。
+  /// 某物种当前是否还有「非死亡」的存活株（凋萎 wilting / 盛开 bloomed 都算存活）。
+  Future<bool> _hasAliveOfSpecies(String speciesId) async {
+    final List<Plant> all = await _plants.plants();
+    return all.any(
+      (Plant p) => p.speciesId == speciesId && p.status != PlantStatus.dead,
+    );
+  }
+
+  /// 某物种的**可用支付方式**列表（玄参 2026-09-28 计价模型 + 2026-09-29 种子券入口
+  /// + **C29 可重复种植修订，2026-10-05**）。
   ///
   /// 规则：
-  ///  · 向日葵（[kStarterSpeciesId]）→ 单一免费项；
+  ///  · 向日葵（[kStarterSpeciesId]）→ **当前无存活向日葵 → 免费首株**；**已有存活株 →
+  ///    第 2 株起按普通档阳光价（[kSpeciesSunlightCostCommon]）**（C29：娃想同时种
+  ///    多株向日葵，废除「永久免费 / 每物种一株」旧口径）；
   ///  · **持有该物种免费种植券**（[BloomRewardRepository.unlockedSpeciesIds] 含其 id，
   ///    即「掉落过该物种种子且已收集」）→ **首项「用种子种 · 免费」**，付费项保留在后
   ///    （玄参 2026-09-29 拍板：券入口置顶 + 保留付费按钮）；
@@ -303,19 +354,29 @@ class PlantGrowthService {
   ///
   /// 领域层与 UI（花园页「选择要种的植物」弹窗）**必须共用本方法**，UI 不得自行重算价格。
   Future<List<PlantPaymentOption>> plantPaymentOptions(PlantSpecies sp) async {
+    final bool hasCoupon =
+        (await _bloomRewards.unlockedSpeciesIds()).contains(sp.id);
     if (sp.id == kStarterSpeciesId) {
-      return const <PlantPaymentOption>[PlantPaymentOption(PlantCostKind.free, 0)];
+      final bool hasAlive = await _hasAliveOfSpecies(sp.id);
+      if (!hasAlive) {
+        return const <PlantPaymentOption>[
+          PlantPaymentOption(PlantCostKind.free, 0),
+        ];
+      }
+      return <PlantPaymentOption>[
+        if (hasCoupon) const PlantPaymentOption(PlantCostKind.free, 0),
+        PlantPaymentOption(PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
+      ];
     }
     final List<PlantPaymentOption> paid = sp.isPremium
         ? const <PlantPaymentOption>[
             PlantPaymentOption(PlantCostKind.fragments, kSpeciesFragmentCostPremium)
           ]
         : <PlantPaymentOption>[
-            const PlantPaymentOption(PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
+            PlantPaymentOption(PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
             const PlantPaymentOption(PlantCostKind.fragments, kSpeciesFragmentCostCommon),
           ];
-    final Set<String> coupons = await _bloomRewards.unlockedSpeciesIds();
-    if (coupons.contains(sp.id)) {
+    if (hasCoupon) {
       return <PlantPaymentOption>[
         const PlantPaymentOption(PlantCostKind.free, 0),
         ...paid,
@@ -346,19 +407,29 @@ class PlantGrowthService {
         : kSpeciesFragmentCostCommon;
   }
 
-  /// 种植收费（玄参 2026-09-28 计价模型：向日葵免费 / 精英仅碎片 / 普通二选一）。
+  /// 铲除返还额（C29）：按档位统一口径 —— 普通 [kShovelRefundCommon]（300×50%）/
+  /// 精英 [kShovelRefundPremium]（500×50%）。种子券 / 付费种下的株同口径返还；
+  /// 向日葵免费首株返还 0（防循环刷阳光，见 [_chargeForPlanting]）。
+  int _tierShovelRefund(PlantSpecies sp) =>
+      sp.isPremium ? kShovelRefundPremium : kShovelRefundCommon;
+
+  /// 种植收费（玄参 2026-09-28 计价模型 + **C29 可重复种植修订，2026-10-05**）。
+  ///
+  /// 返回值 = 本次种下植株的**铲除返还阳光数**（落 `plants.shovel_refund` 列，v16）。
   ///
   ///  · 持有免费种植券（[BloomRewardRepository.unlockedSpeciesIds] 含该 id）→ **消耗券**，免费，
-  ///    不写 `plant_plant`（故不消耗任何资源）；
-  ///  · 向日葵（[kStarterSpeciesId]）→ 免费；
+  ///    不写 `plant_plant`（不消耗任何资源）；返还额 = 档位价 50%（玄参「统一按 50% 返还」）；
+  ///  · 向日葵（[kStarterSpeciesId]）**当前无存活株** → 免费首株，返还 0
+  ///    （防「免费种 → 铲 → 循环刷阳光」经济漏洞）；**已有存活株 → 第 2 株起**按
+  ///    [kSpeciesSunlightCostCommon] 收阳光；
   ///  · 决定 `kind = payWith ?? (sp.isPremium ? fragments : sunlight)`；
   ///    - 防御：精英且 `payWith == sunlight` → 抛 `PlantOperationException('精英植物只能用碎片兑换')`；
   ///    - `sunlight` 分支：扣 [kSpeciesSunlightCostCommon] 阳光（余额不足抛『阳光不足，还差 N 阳光』），
-  ///      走 `_appendSpend`（refType='plant_plant'、refId=物种 id）作审计；
+  ///      走 `_appendSpend`（refType='plant_plant'、refId=物种 id）作审计；返还 = 档位价 50%；
   ///    - `fragments` 分支：`amount = sp.isPremium ? [kSpeciesFragmentCostPremium] : [kSpeciesFragmentCostCommon]`，
-  ///      调 `_spendPremiumFragments`；
-  ///    - `free` 分支：直接返回。
-  Future<void> _chargeForPlanting(
+  ///      调 `_spendPremiumFragments`；返还 = 档位价 50%（阳光计价基准，非碎片）；
+  ///    - `free` 分支：返还 0（当前仅防御性保留）。
+  Future<int> _chargeForPlanting(
     PlantSpecies sp,
     AppSettings settings,
     DateTime now, {
@@ -367,9 +438,12 @@ class PlantGrowthService {
     final Set<String> coupons = await _bloomRewards.unlockedSpeciesIds();
     if (coupons.contains(sp.id)) {
       await _bloomRewards.consumeUnlock(sp.id); // 免费种植券：消耗券，不扣任何资源
-      return;
+      return _tierShovelRefund(sp); // C29：券种株铲除仍按档位 50% 返还
     }
-    if (sp.id == kStarterSpeciesId) return; // 初始免费物种
+    if (sp.id == kStarterSpeciesId &&
+        !(await _hasAliveOfSpecies(sp.id))) {
+      return 0; // 向日葵免费首株（C29：无存活向日葵时免费；返还 0 防刷）
+    }
 
     final PlantCostKind kind =
         payWith ?? (sp.isPremium ? PlantCostKind.fragments : PlantCostKind.sunlight);
@@ -381,7 +455,7 @@ class PlantGrowthService {
 
     switch (kind) {
       case PlantCostKind.free:
-        return;
+        return 0; // 防御分支：免费路径已全部在前两段返回
       case PlantCostKind.sunlight:
         final double balance = await _ledger.balance();
         if (balance < kSpeciesSunlightCostCommon) {
@@ -396,13 +470,13 @@ class PlantGrowthService {
           now: now,
           refId: sp.id,
         );
-        return;
+        return _tierShovelRefund(sp);
       case PlantCostKind.fragments:
         final int amount = sp.isPremium
             ? kSpeciesFragmentCostPremium
             : kSpeciesFragmentCostCommon;
         await _spendPremiumFragments(amount);
-        return;
+        return _tierShovelRefund(sp);
     }
   }
 
@@ -865,6 +939,75 @@ class PlantGrowthService {
     final Plant recovered =
         p.status == PlantStatus.wilting ? await _maybeRecover(after, now) : after;
     await _plants.savePlant(recovered);
+  }
+
+  /// 铲除植物（口径 C29，玄参 2026-10-05 拍板）：删除植株 + 按 `plants.shovel_refund`
+  /// 返还种植阳光的 50%（普通 150 / 精英 250；向日葵免费首株与历史行 = 0 不返还；
+  /// **培养（浇水/施肥）消耗一律不返还**）。返回实际返还的阳光数（供 UI 飘字）。
+  ///
+  ///  · 死亡（dead）株按「死亡全损」既有口径**返还 0**（C12 延续：死亡不退还任何资源）；
+  ///  · 返还走账本入账（refType=[kPlantShovelRefundRefType]，值冻结，`_refLabels`
+  ///    已同步「铲除返还」）；返还 0 时不写账本行；
+  ///  · UI 侧负责二次确认弹卡（明示返还额）后再调本方法，领域层不做确认。
+  Future<int> shovel(String plantId, DateTime now) async {
+    final Plant? p = await _plants.plant(plantId);
+    if (p == null) throw const PlantOperationException('植物不存在');
+    final int refund =
+        p.status == PlantStatus.dead ? 0 : p.shovelRefund.clamp(0, 1 << 30);
+    await _plants.deletePlant(plantId);
+    if (refund > 0) {
+      await _appendEarn(
+        amount: refund.toDouble(),
+        refType: kPlantShovelRefundRefType,
+        now: now,
+        refId: p.speciesId,
+      );
+    }
+    // 铲除改变经济（返还 / 植物消失）→ 通知 UI 刷新。
+    _onEconomyChanged?.call();
+    return refund;
+  }
+
+  /// 一键操作**计划**（口径 C29）：纯读取（查账本额度 / 干扰物状态），不写库不扣费。
+  ///
+  ///  · water：仅「今日可浇」的存活株（[PlantCareQuota.canWater]：成长/枯萎态 + 未达
+  ///    每日上限 + 满足 30 分钟间隔）——已达上限 / 间隔中的株**跳过**（玄参拍板：跳过不扣费）；
+  ///  · fertilize：同上，判 [PlantCareQuota.canFertilize]；
+  ///  · care：所有非死亡株的当日杂草 / 害虫（[Plant.hasWeed] / [Plant.hasPest]），
+  ///    奖励（[kGardenWeedReward] / [kGardenPestReward]）照常逐株发放。
+  ///
+  /// UI 流程（玄参拍板）：确认卡（明示合计价）→ 阳光不足**整体拦截**（一株都不执行）→
+  /// 逐株执行既有单株方法（本服务 [water] / [fertilize] / [clearWeed] / [clearPest]，
+  /// 各自再校验一次额度，幂等安全）→ 汇总飘字 + 每盆轻量反馈。
+  Future<OneClickPlan> oneClickPlan(PlantOneClickKind kind, DateTime now) async {
+    final List<Plant> plants = await _plants.plants();
+    switch (kind) {
+      case PlantOneClickKind.water:
+      case PlantOneClickKind.fertilize:
+        final Map<String, PlantCareQuota> quotas =
+            await careQuotas(plants, now);
+        final List<String> ids = <String>[];
+        for (final Plant p in plants) {
+          final PlantCareQuota? q = quotas[p.id];
+          if (q == null) continue;
+          final bool ok = kind == PlantOneClickKind.water
+              ? q.canWater
+              : q.canFertilize;
+          if (ok) ids.add(p.id);
+        }
+        final int unit =
+            kind == PlantOneClickKind.water ? kPlantWaterCost : kPlantFertilizeCost;
+        return OneClickPlan(plantIds: ids, totalCost: ids.length * unit);
+      case PlantOneClickKind.care:
+        final List<({String plantId, bool weed})> targets =
+            <({String plantId, bool weed})>[];
+        for (final Plant p in plants) {
+          if (p.status == PlantStatus.dead) continue;
+          if (p.hasWeed) targets.add((plantId: p.id, weed: true));
+          if (p.hasPest) targets.add((plantId: p.id, weed: false));
+        }
+        return OneClickPlan(careTargets: targets);
+    }
   }
 
   /// 拔掉杂草（口径 C26，玄参 2026-09-30 拍板）：清除当天杂草 + 入账

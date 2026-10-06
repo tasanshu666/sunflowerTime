@@ -7,6 +7,8 @@ library audio_service;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import 'package:just_audio/just_audio.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
@@ -49,6 +51,10 @@ enum AudioCue {
 
   /// 养护 · 除虫（点害虫 → 播除虫效果帧 + 音效）。
   carePest,
+
+  /// 收集奖励（点头顶阳光 / 碎片 / 种子图标收集时**统一播放**；素材待玄参交付，
+  /// `collect_reward.mp3`，2026-10-06 预留——缺失静默跳过）。
+  collectReward,
 
   /// 专注页 · 1/3 进度收集阳光（配 collect 序列帧）。
   focusCollect,
@@ -99,6 +105,8 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/care_weed.mp3';
       case AudioCue.carePest:
         return 'assets/audio/sfx/care_pest.mp3';
+      case AudioCue.collectReward:
+        return 'assets/audio/sfx/collect_reward.mp3';
       case AudioCue.focusCollect:
         return 'assets/audio/sfx/focus_collect.mp3';
       case AudioCue.focusSettle:
@@ -150,6 +158,32 @@ class AudioService {
   bool _bgmPlaying = false;
   bool _ambientPlaying = false;
 
+  // ── 后台/锁屏暂停（F70，玄参 2026-10-05 反馈「花园页锁屏/退后台背景音乐还在响」）──
+
+  /// 是否处于「后台挂起」状态（退后台/锁屏后为 true；此时一切新的播放请求被闸门拦下）。
+  ///
+  /// 为什么要闸门：花园页的 30s 氛围音定时器在后台仍会触发（Timer 不因退后台停止），
+  /// 若只 stop 不拦新请求，背景音乐会在后台被定时器重新拉起（玄参实测的 bug 本体）。
+  bool _suspendedForBackground = false;
+
+  /// 暂停前 BGM 是否在播（回前台据此恢复）。
+  bool _bgmWasPlayingBeforeBackground = false;
+
+  /// 暂停前氛围音是否应播（回前台据此恢复；花园 tab 可见时才为 true）。
+  bool _ambientShouldPlayBeforeBackground = false;
+
+  /// [isSuspendedForBackground]（测试可见性）。
+  @visibleForTesting
+  bool get isSuspendedForBackground => _suspendedForBackground;
+
+  /// [_bgmPlaying]（测试可见性）。
+  @visibleForTesting
+  bool get bgmPlaying => _bgmPlaying;
+
+  /// [_ambientShouldPlay]（测试可见性）。
+  @visibleForTesting
+  bool get ambientShouldPlay => _ambientShouldPlay;
+
   /// 氛围音「应然」状态（F67）：花园 tab 可见且设置开启 → true。
   ///
   /// 背景（玄参 2026-10-04 真机反馈）：养护音效在共享 iOS 音频会话上启动时，
@@ -194,17 +228,41 @@ class AudioService {
 
   Future<AudioPlayer?> get _sfx async {
     _sfxPlayer ??= _safeCreate();
+    await _clearStaleAssetCacheOnce();
     return _sfxPlayer;
   }
 
   Future<AudioPlayer?> get _bgm async {
     _bgmPlayer ??= _safeCreate();
+    await _clearStaleAssetCacheOnce();
     return _bgmPlayer;
   }
 
   Future<AudioPlayer?> get _ambient async {
     _ambientPlayer ??= _safeCreate();
+    await _clearStaleAssetCacheOnce();
     return _ambientPlayer;
+  }
+
+  /// 是否已在本次启动内清理过 just_audio 资产拷贝缓存。
+  static bool _assetCacheCleared = false;
+
+  /// 每次冷启动清理一次 just_audio 的资产拷贝缓存（tmp/just_audio_cache）。
+  ///
+  /// ⚠️ F77 二层根因（just_audio 0.9.46 实证）：`setAsset` 会把 bundle 资产**拷贝**
+  /// 到 tmp 缓存并**只按路径判缓存、不校验内容**——App 更新后同名素材换了内容，
+  /// 仍会命中陈旧拷贝永不生效（初版 1.04s 的 collect_reward.mp3 命中缓存 → iOS
+  /// AudioFileStream 报 -11849 → 被静默 catch 吞 → 无声无日志）。iOS/Android 的
+  /// tmp 在 App 更新后不保证清空 → 冷启动清一次，保证素材永远取自当前包；
+  /// 缓存拷贝是懒加载按需进行，开销可忽略。
+  Future<void> _clearStaleAssetCacheOnce() async {
+    if (_assetCacheCleared) return;
+    _assetCacheCleared = true;
+    try {
+      await AudioPlayer.clearAssetCache();
+    } catch (_) {
+      // headless 测试环境无 path_provider 插件：静默降级。
+    }
   }
 
   /// 播放一次性音效（fire-and-forget，非阻塞）。
@@ -237,14 +295,23 @@ class AudioService {
   }
 
   /// 循环播放背景音乐（focus_loop.mp3）。资源缺失静默跳过。
+  ///
+  /// 后台挂起（[_suspendedForBackground]）期间一律跳过（F70 闸门）；**play() 前
+  /// 二次复查**（F70 v2，玄参 2026-10-05 复测「锁屏/退后台仍会响」）：setAsset/seek
+  /// 是几百 ms 的异步间隙，期间可能刚好退后台——若只查入口一次，在途加载会在
+  /// 后台把音乐拉起。
   Future<void> startBgm() async {
-    if (!_bgmOn || _bgmPlaying) return;
+    if (!_bgmOn || _bgmPlaying || _suspendedForBackground) return;
     final AudioPlayer? player = await _bgm;
     if (player == null) return; // 播放器构造失败：静默降级
     try {
       await player.setAsset('assets/audio/bgm/focus_loop.mp3');
       await player.setLoopMode(LoopMode.one);
       await player.seek(Duration.zero);
+      if (_suspendedForBackground) {
+        await player.stop(); // 加载间隙已退后台：绝不发声
+        return;
+      }
       await player.play();
       _bgmPlaying = true;
     } catch (_) {
@@ -303,12 +370,17 @@ class AudioService {
   /// 离开花园 tab 由花园页调 [stopGardenAmbient] 停止；受 [_bgmOn]（设置「背景音乐」）
   /// 控制，关闭时静默跳过。与专注页 BGM（[startBgm]，循环）**独立播放器**，互不打断。
   /// 资源缺失静默跳过（fire-and-forget，不阻塞 UI）。
+  ///
+  /// 后台挂起（[_suspendedForBackground]）期间一律跳过（F70 闸门）：否则花园页 30s
+  /// 定时器会在退后台/锁屏后把氛围音重新拉起（玄参 2026-10-05 实测 bug）。
   void playGardenAmbient() {
-    if (!_bgmOn || _ambientPlaying) return;
+    if (!_bgmOn || _ambientPlaying || _suspendedForBackground) return;
     unawaited(_playGardenAmbient());
   }
 
   Future<void> _playGardenAmbient() async {
+    // F70 v2：直呼路径（自愈监听）兜底闸门——挂起态一律不进入加载流程。
+    if (_suspendedForBackground) return;
     final AudioPlayer? player = await _ambient;
     if (player == null || !_bgmOn) return; // 播放器构造失败 / 设置已关：静默降级
     _attachAmbientHeal(player); // 首次拿到播放器时挂自愈监听（幂等）
@@ -318,6 +390,12 @@ class AudioService {
       await player.stop();
       await player.setAsset(kGardenAmbientAsset);
       await player.seek(Duration.zero);
+      // F70 v2：setAsset 是几百 ms 的异步间隙，期间可能刚好锁屏/退后台——
+      // 若只查入口一次，在途加载会在后台把氛围音拉起（玄参 2026-10-05 复测）。
+      if (_suspendedForBackground) {
+        await player.stop(); // 加载间隙已退后台：绝不发声、不置「应播」标记
+        return;
+      }
       await player.play();
       _ambientShouldPlay = true;
       // play() 返回即认为本次氛围音已启动；播完自然结束（不循环）。
@@ -363,5 +441,41 @@ class AudioService {
     _ambientPlaying = false;
     _ambientShouldPlay = false;
     _ambientReloading = false;
+    _suspendedForBackground = false;
+    _bgmWasPlayingBeforeBackground = false;
+    _ambientShouldPlayBeforeBackground = false;
+  }
+
+  // ── 后台/锁屏暂停与恢复（F70，玄参 2026-10-05 反馈）─────────────────────
+
+  /// **退后台 / 锁屏**：暂停一切音频（幂等）。
+  ///
+  /// 由外壳页生命周期监听（`child_shell_page.didChangeAppLifecycleState`）在
+  /// `hidden` / `paused` 时调用。记录暂停前各通道的「应然」状态，回前台由
+  /// [resumeFromBackground] 恢复。幂等：重复调用只生效第一次（hidden → paused
+  /// 会连发两次）。
+  Future<void> pauseAllForBackground() async {
+    if (_suspendedForBackground) return;
+    _suspendedForBackground = true;
+    _bgmWasPlayingBeforeBackground = _bgmPlaying;
+    _ambientShouldPlayBeforeBackground = _ambientShouldPlay;
+    await stopBgm();
+    await stopGardenAmbient();
+  }
+
+  /// **回前台**：恢复暂停前在播的通道（幂等；无在播通道则什么都不做）。
+  ///
+  /// 恢复即「从头播」：BGM 循环曲与氛围音都是短曲（10s 级），从头播无感知差异。
+  Future<void> resumeFromBackground() async {
+    if (!_suspendedForBackground) return;
+    _suspendedForBackground = false;
+    if (_bgmWasPlayingBeforeBackground) {
+      _bgmWasPlayingBeforeBackground = false;
+      unawaited(startBgm());
+    }
+    if (_ambientShouldPlayBeforeBackground) {
+      _ambientShouldPlayBeforeBackground = false;
+      unawaited(_playGardenAmbient());
+    }
   }
 }

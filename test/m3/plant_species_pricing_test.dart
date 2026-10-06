@@ -1,16 +1,22 @@
-/// 物种表改版（玄参 2026-09-27 拍板）单测：**按物种计价** + 每物种仅一株 + 免费券 + 死亡后再种重扣。
+/// 物种表改版（玄参 2026-09-27 拍板）单测：**按物种计价** + 免费券 + 死亡后再种重扣。
+///
+/// C29 修订（玄参 2026-10-05 拍板）：**植物可重复种植**（废除「每物种仅一株」）；
+/// 向日葵**无存活株时首株免费**、第 2 株起按 [kSpeciesSunlightCostCommon]（300）收阳光；
+/// 普通档阳光价 400 → **300**。
 ///
 /// 覆盖：
-///  ① [PlantGrowthService.plantCost] 具体值（默认项）：向日葵免费 / 月光兰（精英）10 碎片 / 普通 400 阳光 / 精英 10 碎片；
+///  ① [PlantGrowthService.plantCost] 具体值（默认项）：向日葵免费 / 月光兰（精英）10 碎片 / 普通 300 阳光 / 精英 10 碎片；
 ///  ② 向日葵免费种植：不扣阳光、不扣碎片、不写账本；
-///  ③ 月光兰扣 400 阳光进账本（`refType='plant_plant'`）；
+///  ③ 普通档扣 300 阳光进账本（`refType='plant_plant'`）；
 ///  ④ 精英 / 普通碎片物种扣对应碎片；
 ///  ⑤ 碎片余额不足 → 拒绝且余额不变（**绝不为负**）；
 ///  ⑥ 免费券（`UnlockedSpecies` 语义）：有券时种植不扣碎片 / 阳光，且券被消耗；
-///  ⑦ 每物种同时仅存活一株（同物种再种被拒；枯萎仍算存活）；
+///  ⑦ **C29 可重复种植**：同物种可多株并存；向日葵第 2 株起扣 300 阳光；
 ///  ⑧ 死亡后再种 → 允许且**重新扣费**（一次兑换买一株）；
 ///  ⑨ 花园页「选择要种的植物」弹窗：稀有度两档（普通 / 精英）与价格文案渲染；
 ///  ⑩ 种子券入口（玄参 2026-09-29；2026-10-03 徽章图片化）：持券物种徽章（分档种子图/🌰 回退 + 「种子」文字）+ 「用种子种（免费）」按钮置顶。
+///  ⑪ **C29 铲除返还**：付费/券种株按档位 50% 返还（普通 150 / 精英 250）、免费首株与死亡株返 0、账本 refType 冻结值。
+///  ⑫ **C29 一键操作计划**：跳过不可浇 / 不可施株、合计扣费、护理目标含草+虫双条。
 ///
 /// 纯 Dart 仓储以内存 Fake 实现；弹窗用例为真实 `GardenPage` 组件测试。
 library plant_species_pricing_test;
@@ -122,7 +128,12 @@ class _MemLedger implements SunlightRepository {
     String refId,
     String key,
   ) async =>
-      0;
+      entries
+          .where((SunlightEntry e) =>
+              e.refType == refType &&
+              e.refId == refId &&
+              e.dayKey == key)
+          .length;
   @override
   Future<int> countByRefTypeAndRefIdSince(
     String refType,
@@ -215,12 +226,12 @@ void main() {
       );
     });
 
-    t.test('普通档（番茄 / 草莓）→ 400 阳光（默认取阳光，二选一之一）', () async {
+    t.test('普通档（番茄 / 草莓）→ 300 阳光（默认取阳光，二选一之一；C29 修订 400→300）', () async {
       for (final String id in <String>['species_tomato', 'species_strawberry']) {
         final PlantCost c = await ctx.svc.plantCost(_sp(id), AgeTier.low);
         t.expect(c.kind, PlantCostKind.sunlight);
         t.expect(c.amount, kSpeciesSunlightCostCommon);
-        t.expect(c.amount, 400);
+        t.expect(c.amount, 300);
       }
     });
 
@@ -368,7 +379,7 @@ void main() {
           await ctx.svc.plantPaymentOptions(_sp('species_tomato'));
       t.expect(opts.first.kind, PlantCostKind.free,
           reason: '券入口置顶（玄参 2026-09-29 拍板）');
-      t.expect(opts, t.hasLength(3), reason: '免费 + 400 阳光 + 6 碎片');
+      t.expect(opts, t.hasLength(3), reason: '免费 + 300 阳光 + 6 碎片');
 
       // 券消耗后回到两档付费（无免费项）。
       await ctx.bloomRewards.consumeUnlock('species_tomato');
@@ -393,18 +404,41 @@ void main() {
     });
   });
 
-  // ── ⑦⑧ 每物种仅一株 + 死亡后再种重扣 ──────────────────────────────────────
-  t.group('⑦⑧ 每物种仅一株 / 死亡后再种重扣', () {
+  // ── ⑦⑧ 可重复种植（C29）+ 死亡后再种重扣 ─────────────────────────────────
+  t.group('⑦⑧ 可重复种植（C29）/ 死亡后再种重扣', () {
     final DateTime now = DateTime(2026, 9, 27, 8);
 
-    t.test('同物种再种被拒（同物种已存活）', () async {
+    t.test('同物种可重复种植（C29）：向日葵第 2 株起扣 300 阳光', () async {
+      final _Ctx ctx = _make();
+      final Plant p1 = await ctx.svc.plant(kStarterSpeciesId, 0, now); // 首株免费
+      final Plant p2 = await ctx.svc.plant(kStarterSpeciesId, 1, now); // 第 2 株 -300
+      t.expect(p1.id, t.isNot(p2.id));
+      t.expect(await ctx.plants.plants(), t.hasLength(2),
+          reason: 'C29：同物种可多株并存（娃想种多株向日葵）');
+      final List<SunlightEntry> spends = ctx.ledger.entriesOf('plant_plant');
+      t.expect(spends, t.hasLength(1), reason: '首株免费不写账本，第 2 株写一条');
+      t.expect(spends.single.net, -kSpeciesSunlightCostCommon);
+      t.expect(spends.single.refId, kStarterSpeciesId);
+      // 第 2 株的铲除返还 = 普通 150（付费途径）。
+      t.expect(p2.shovelRefund, kShovelRefundCommon);
+      t.expect(p1.shovelRefund, 0, reason: '免费首株铲除不返还（防循环刷阳光）');
+    });
+
+    t.test('向日葵铲掉唯一一株后再种 → 恢复免费（无存活向日葵即首株）', () async {
       final _Ctx ctx = _make();
       await ctx.svc.plant(kStarterSpeciesId, 0, now);
-      await t.expectLater(
-        () => ctx.svc.plant(kStarterSpeciesId, 1, now),
-        t.throwsA(t.isA<PlantOperationException>()),
-      );
-      t.expect(await ctx.plants.plants(), t.hasLength(1));
+      await ctx.svc.plant(kStarterSpeciesId, 1, now); // -300
+      // 铲掉两株（首株返 0、第 2 株返 150）。
+      final List<Plant> alive = await ctx.plants.plants();
+      int refunded = 0;
+      for (final Plant p in alive) {
+        refunded += await ctx.svc.shovel(p.id, now);
+      }
+      t.expect(refunded, kShovelRefundCommon, reason: '仅付费株返还 150');
+      final Plant p3 = await ctx.svc.plant(kStarterSpeciesId, 0, now);
+      t.expect(p3.shovelRefund, 0, reason: '无存活向日葵 → 再种又是免费首株');
+      final List<SunlightEntry> spends = ctx.ledger.entriesOf('plant_plant');
+      t.expect(spends, t.hasLength(1), reason: '全程仅第 2 株付费');
     });
 
     t.test('不同物种可各种一株', () async {
@@ -435,20 +469,175 @@ void main() {
           reason: '同花盆死亡残留已清理，仅剩新株');
     });
 
-    t.test('枯萎中（wilting）仍算存活 → 同物种不可再种', () async {
+    t.test('枯萎中（wilting）仍算存活 → 再种第 2 株按付费口径（C29）', () async {
       final _Ctx ctx = _make();
       final Plant p0 = await ctx.svc.plant(kStarterSpeciesId, 0, now);
       await ctx.plants.savePlant(_withStatus(p0, PlantStatus.wilting));
-      await t.expectLater(
-        () => ctx.svc.plant(kStarterSpeciesId, 1, now),
-        t.throwsA(t.isA<PlantOperationException>()),
-      );
+      // 枯萎不算「无存活」→ 第 2 株收费 300。
+      final Plant p2 = await ctx.svc.plant(kStarterSpeciesId, 1, now);
+      t.expect(p2.shovelRefund, kShovelRefundCommon);
+      t.expect(ctx.ledger.entriesOf('plant_plant'), t.hasLength(1));
+    });
+  });
+
+  // ── ⑪ 铲除返还（C29）────────────────────────────────────────────────────
+  t.group('⑪ 铲除返还（C29）', () {
+    final DateTime now = DateTime(2026, 9, 27, 8);
+
+    t.test('阳光付费种下的普通株 → 铲除返还 150（档位价 300×50%）', () async {
+      final _Ctx ctx = _make();
+      final Plant p = await ctx.svc.plant('species_tomato', 0, now); // -300
+      t.expect(p.shovelRefund, kShovelRefundCommon);
+      final double before = await ctx.ledger.balance();
+      final int refund = await ctx.svc.shovel(p.id, now);
+      t.expect(refund, 150);
+      t.expect(await ctx.ledger.balance(), before + 150);
+      // 账本入账：refType 冻结值 + refId = 物种 id。
+      final List<SunlightEntry> earns =
+          ctx.ledger.entriesOf(kPlantShovelRefundRefType);
+      t.expect(earns, t.hasLength(1));
+      t.expect(earns.single.gross, 150);
+      t.expect(earns.single.refId, 'species_tomato');
+      t.expect(await ctx.plants.plants(), t.isEmpty, reason: '铲除后植株消失');
+    });
+
+    t.test('碎片种下的精英株 → 铲除返还 250（精英 500×50%，统一口径）', () async {
+      final _Ctx ctx = _make();
+      await ctx.bloomRewards.setPremiumFragmentBalance(20);
+      final Plant p = await ctx.svc.plant('species_moon_orchid', 0, now);
+      t.expect(p.shovelRefund, kShovelRefundPremium);
+      final int refund = await ctx.svc.shovel(p.id, now);
+      t.expect(refund, 250, reason: '精英按阳光等价价 500×50%，与支付通道无关');
+      t.expect(await ctx.bloomRewards.premiumFragmentBalance(), 10,
+          reason: '碎片不返还（只返阳光）');
+    });
+
+    t.test('券种株 → 铲除按档位 50% 返还（玄参「统一」口径）', () async {
+      final _Ctx ctx = _make();
+      await ctx.bloomRewards.unlockSpecies('species_star_flower');
+      final Plant p = await ctx.svc.plant('species_star_flower', 0, now);
+      t.expect(p.shovelRefund, kShovelRefundPremium, reason: '精英券种株同样 250');
+      t.expect(await ctx.svc.shovel(p.id, now), 250);
+    });
+
+    t.test('向日葵免费首株 → 铲除返还 0（防「免费种→铲→循环刷阳光」）', () async {
+      final _Ctx ctx = _make();
+      final Plant p = await ctx.svc.plant(kStarterSpeciesId, 0, now);
+      final double before = await ctx.ledger.balance();
+      t.expect(await ctx.svc.shovel(p.id, now), 0);
+      t.expect(await ctx.ledger.balance(), before,
+          reason: '返 0 不写账本行');
+      t.expect(ctx.ledger.entriesOf(kPlantShovelRefundRefType), t.isEmpty);
+    });
+
+    t.test('死亡株 → 铲除返还 0（死亡全损口径延续）', () async {
+      final _Ctx ctx = _make();
+      final Plant p0 = await ctx.svc.plant('species_tomato', 0, now); // -300
+      await ctx.plants.savePlant(_withStatus(p0, PlantStatus.dead));
+      final double before = await ctx.ledger.balance();
+      t.expect(await ctx.svc.shovel(p0.id, now), 0,
+          reason: '死亡全损：即使付费种下也返还 0');
+      t.expect(await ctx.ledger.balance(), before);
+    });
+
+    t.test('培养消耗（浇水/施肥）不参与铲除返还', () async {
+      final _Ctx ctx = _make();
+      final Plant p = await ctx.svc.plant('species_tomato', 0, now);
+      await ctx.svc.water(p.id, now); // -5（培养消耗）
+      final double before = await ctx.ledger.balance();
+      t.expect(await ctx.svc.shovel(p.id, now), 150,
+          reason: '只返种植价 50%，浇水消耗不返');
+      t.expect(await ctx.ledger.balance(), before + 150);
+    });
+  });
+
+  // ── ⑫ 一键操作计划（C29）────────────────────────────────────────────────
+  t.group('⑫ 一键操作计划（C29）', () {
+    final DateTime now = DateTime(2026, 9, 27, 8);
+
+    t.test('一键浇水计划：跳过枯萎态外死亡株 / 今日已浇满株，合计 = N×5', () async {
+      final _Ctx ctx = _make();
+      final Plant a = await ctx.svc.plant(kStarterSpeciesId, 0, now);
+      final Plant b = await ctx.svc.plant(kStarterSpeciesId, 1, now); // -300
+      final Plant c = await ctx.svc.plant('species_tomato', 2, now); // -300
+      // b 今日浇满 3 次 → 跳过；c 置死亡 → 跳过。
+      for (int i = 0; i < kPlantWaterMaxPerDay; i++) {
+        await ctx.svc.water(b.id, now.add(Duration(minutes: 31 * i)));
+      }
+      await ctx.plants.savePlant(_withStatus(c, PlantStatus.dead));
+
+      final OneClickPlan plan =
+          await ctx.svc.oneClickPlan(PlantOneClickKind.water, now);
+      t.expect(plan.plantIds, <String>[a.id],
+          reason: '仅剩 a 可浇（b 今日已浇满 3 次达上限、c 死亡跳过）');
+      t.expect(plan.totalCost, kPlantWaterCost);
+    });
+
+    t.test('一键浇水计划为空 → isEmpty（UI 提示「今天没有可浇水的植物」）', () async {
+      final _Ctx ctx = _make();
+      final Plant a = await ctx.svc.plant(kStarterSpeciesId, 0, now);
+      for (int i = 0; i < kPlantWaterMaxPerDay; i++) {
+        await ctx.svc.water(a.id, now.add(Duration(minutes: 31 * i)));
+      }
+      final OneClickPlan plan =
+          await ctx.svc.oneClickPlan(PlantOneClickKind.water, now);
+      t.expect(plan.isEmpty, t.isTrue);
+    });
+
+    t.test('一键施肥计划：合计 = N×10（每株每日 1 次）', () async {
+      final _Ctx ctx = _make();
+      await ctx.svc.plant(kStarterSpeciesId, 0, now);
+      await ctx.svc.plant(kStarterSpeciesId, 1, now);
+      final OneClickPlan plan =
+          await ctx.svc.oneClickPlan(PlantOneClickKind.fertilize, now);
+      t.expect(plan.plantIds, t.hasLength(2));
+      t.expect(plan.totalCost, 2 * kPlantFertilizeCost);
+      // 施 1 株后其跳出计划。
+      await ctx.svc.fertilize(plan.plantIds.first, now);
+      final OneClickPlan after =
+          await ctx.svc.oneClickPlan(PlantOneClickKind.fertilize, now);
+      t.expect(after.plantIds, t.hasLength(1));
+    });
+
+    t.test('一键护理计划：草 + 虫各一条（同株可双目标），死亡株不算', () async {
+      final _Ctx ctx = _make();
+      final Plant a = await ctx.svc.plant(kStarterSpeciesId, 0, now);
+      final Plant b = await ctx.svc.plant(kStarterSpeciesId, 1, now);
+      await ctx.plants.savePlant(a.copyWith(
+        weedAt: DateTime(now.year, now.month, now.day),
+        pestAt: DateTime(now.year, now.month, now.day),
+      ));
+      await ctx.plants.savePlant(b.copyWith(
+        weedAt: DateTime(now.year, now.month, now.day),
+      ));
+      final Plant c = await ctx.svc.plant('species_tomato', 2, now);
+      await ctx.plants.savePlant(_withStatus(c, PlantStatus.dead));
+
+      final OneClickPlan plan =
+          await ctx.svc.oneClickPlan(PlantOneClickKind.care, now);
+      t.expect(plan.careTargets, t.hasLength(3),
+          reason: 'a 有草+虫 → 2 条；b 只有草 → 1 条；c 死亡跳过');
+      t.expect(plan.totalCost, 0, reason: '护理不扣费，奖励照常发放');
+      t.expect(plan.actionCount, 3);
+      // 真执行：奖励逐株入账（weed +1 / pest +2）。
+      for (final ({String plantId, bool weed}) t2 in plan.careTargets) {
+        t2.weed
+            ? await ctx.svc.clearWeed(t2.plantId, now)
+            : await ctx.svc.clearPest(t2.plantId, now);
+      }
+      t.expect(ctx.ledger.entriesOf('plant_weed'), t.hasLength(2));
+      t.expect(ctx.ledger.entriesOf('plant_pest'), t.hasLength(1));
+    });
+
+    t.test('铲除返还常量自洽：普通 150 = 300×50%、精英 250 = 500×50%', () {
+      t.expect(kShovelRefundCommon, kSpeciesSunlightCostCommon * 0.5);
+      t.expect(kShovelRefundPremium, kSpeciesSunlightValuePremium * 0.5);
     });
   });
 
   // ── ⑨ 花园页「选择要种的植物」弹窗：稀有度两档 + 价格文案 ───────────────────
   t.group('⑨ 花园页选种弹窗（稀有度两档 + 价格文案）', () {
-    testWidgets('点空花盆 → 弹窗展示稀有度两档（普通 / 精英）+ 价格按钮（免费 / 400 阳光 / 6 植物碎片 / 10 植物碎片）',
+    testWidgets('点空花盆 → 弹窗展示稀有度两档（普通 / 精英）+ 价格按钮（免费 / 300 阳光 / 6 植物碎片 / 10 植物碎片）',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(360 * 3, 780 * 3);
       tester.view.devicePixelRatio = 3.0;
@@ -491,11 +680,12 @@ void main() {
       t.expect(find.text('精英'), findsWidgets,
           reason: '精英档（月光兰等 5 种）卡片显示「精英」标签');
       t.expect(find.text('免费'), findsOneWidget, reason: '向日葵 = 免费');
-      t.expect(find.text('400 阳光'), findsWidgets,
-          reason: '普通档二选一：阳光 400');
-      t.expect(find.text('6 植物碎片'), findsWidgets,
+      // 2026-10-05 玄参美化口径：价格=「素材图标 + 数字」，不再写「N 阳光」文字。
+      t.expect(find.text('300'), findsWidgets,
+          reason: '普通档二选一：阳光 300（C29 修订 400→300）');
+      t.expect(find.text('6'), findsWidgets,
           reason: '普通档二选一：碎片 6');
-      t.expect(find.text('10 植物碎片'), findsWidgets, reason: '精英档：碎片 10');
+      t.expect(find.text('10'), findsWidgets, reason: '精英档：碎片 10');
       // 稀有度只显示两档：不应再出现旧的「优良 / 稀有」。
       t.expect(find.textContaining('优良'), findsNothing);
       t.expect(find.textContaining('稀有'), findsNothing);
@@ -540,17 +730,112 @@ void main() {
       t.expect(sheetShown, t.isTrue);
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 种子徽章：仅番茄卡片有（其余 7 种无券）。2026-10-03 徽章图片化：
-      // 图标为分档种子图（测试环境无 AssetManifest，异步回退 🌰，不作断言）+ 「种子」文字。
-      t.expect(find.text('种子'), findsOneWidget,
-          reason: '只有持券的番茄卡片显示种子徽章');
+      // 种子徽章：仅番茄卡片有（其余 7 种无券）。2026-10-05 三修为**纯种子图标**
+      // （玄参「掉落了种子，也需要显示一个种子图标」；去掉了「种子」文字）。
+      // 断言走 widget 级（AssetImage 路径，确定性；errorBuilder 渲染是异步的不可依赖）：
+      // 普通档种子图 = 番茄卡徽章 1 + 券按钮内芯 1 + 花园左上角「普通种子 ×N」计数 chip
+      // 常驻 1（2026-10-05 玄参需求）= 3 处。
+      t.expect(
+        find.byWidgetPredicate((Widget w) =>
+            w is Image &&
+            w.image is AssetImage &&
+            (w.image! as AssetImage).assetName ==
+                'assets/rewards/seed_common.png'),
+        findsNWidgets(3),
+        reason: '番茄卡徽章 + 券按钮内芯 + 花园普通种子计数 chip',
+      );
       // 免费按钮：向日葵「免费」+ 番茄「用种子种（免费）」各一。
       t.expect(find.text('免费'), findsOneWidget, reason: '向日葵 = 免费');
       t.expect(find.text('用种子种（免费）'), findsOneWidget,
           reason: '持券物种的券入口置顶且点明来源');
       // 付费按钮保留在后（玄参拍板：券入口置顶 + 保留付费）。
-      t.expect(find.text('400 阳光'), findsWidgets);
-      t.expect(find.text('6 植物碎片'), findsWidgets);
+      t.expect(find.text('300'), findsWidgets, reason: '阳光价=图标+数字');
+      t.expect(find.text('6'), findsWidgets, reason: '碎片价=图标+数字');
+    });
+  });
+
+  // ── ⑪ 种植二次确认（玄参 2026-10-05「点阳光 / 植物碎片 / 种子都需二次确认，
+  //    防止误操作」）：选种弹窗点支付按钮 → 确认卡 → 确认才种植 / 取消分毫不扣 ──
+  t.group('⑪ 种植二次确认弹窗（确认才种植 / 取消分毫不扣）', () {
+    Future<({_SpyPlantRepo spy, bool ready})> _openSheetWithCoupon(
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      final _SpyPlantRepo spy = _SpyPlantRepo();
+      final InMemoryBloomRewardRepository bloom = InMemoryBloomRewardRepository();
+      await bloom.unlockSpecies('species_tomato'); // 预发一张番茄免费种植券
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: <Override>[
+          settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepo()),
+          sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepo()),
+          focusRepositoryProvider.overrideWithValue(_FakeFocusRepo()),
+          plantRepositoryProvider.overrideWithValue(spy),
+          bloomRewardRepositoryProvider.overrideWithValue(bloom),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: GardenPage(embedded: true)),
+        ),
+      ));
+
+      final bool ready = await _pumpUntil(
+        tester,
+        () => find.byType(EmptyPot).evaluate().isNotEmpty,
+      );
+      t.expect(ready, t.isTrue);
+      await tester.tap(find.byType(EmptyPot).first);
+      final bool sheetShown = await _pumpUntil(
+        tester,
+        () => find.text('选择要种的植物').evaluate().isNotEmpty,
+      );
+      t.expect(sheetShown, t.isTrue);
+      await tester.pump(const Duration(milliseconds: 400));
+      return (spy: spy, ready: ready);
+    }
+
+    testWidgets('点「用种子种（免费）」→ 弹二次确认卡；点「取消」→ 不种植',
+        (WidgetTester tester) async {
+      await _openSheetWithCoupon(tester);
+
+      await tester.tap(find.text('用种子种（免费）'));
+      final bool confirmShown = await _pumpUntil(
+        tester,
+        () => find.text('要种下番茄吗？').evaluate().isNotEmpty,
+      );
+      t.expect(confirmShown, t.isTrue, reason: '支付按钮点击后必须弹二次确认卡');
+      t.expect(find.text('将使用 1 张番茄种子（免费）'), findsOneWidget,
+          reason: '确认卡明示本次消耗');
+
+      await tester.tap(find.text('取消'));
+      await tester.pump(const Duration(milliseconds: 300));
+      t.expect(find.text('要种下番茄吗？'), findsNothing,
+          reason: '取消后确认卡关闭');
+      t.expect(find.byType(EmptyPot), findsWidgets,
+          reason: '取消 → 分毫不扣、种子券不消耗，花盆仍为空');
+    });
+
+    testWidgets('确认卡点「确定种植」→ 才真正调 plant() 落库', (WidgetTester tester) async {
+      final ({_SpyPlantRepo spy, bool ready}) ctx =
+          await _openSheetWithCoupon(tester);
+
+      await tester.tap(find.text('用种子种（免费）'));
+      final bool confirmShown = await _pumpUntil(
+        tester,
+        () => find.text('要种下番茄吗？').evaluate().isNotEmpty,
+      );
+      t.expect(confirmShown, t.isTrue);
+      t.expect(ctx.spy.saved, t.isEmpty, reason: '确认前绝不落库');
+
+      await tester.tap(find.text('确定种植'));
+      final bool planted = await _pumpUntil(
+        tester,
+        () => ctx.spy.saved.isNotEmpty,
+      );
+      t.expect(planted, t.isTrue, reason: '确认后才真正种植');
+      t.expect(ctx.spy.saved.single.speciesId, 'species_tomato');
     });
   });
 }
@@ -632,6 +917,13 @@ class _FakePlantRepo implements PlantRepository {
   Future<void> deletePlant(String id) async {}
   @override
   Future<List<PlantSpecies>> species() async => kSeedPlantSpecies;
+}
+
+/// 记录 `savePlant` 调用的 Spy（⑪ 二次确认用例：断言「确认后才真正种植」）。
+class _SpyPlantRepo extends _FakePlantRepo {
+  final List<Plant> saved = <Plant>[];
+  @override
+  Future<void> savePlant(Plant plant) async => saved.add(plant);
 }
 
 /// 有界帧推进（木牌无限呼吸动画 → 禁用 `pumpAndSettle`）。

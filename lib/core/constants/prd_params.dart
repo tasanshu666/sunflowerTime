@@ -361,12 +361,14 @@ const String kStarterSpeciesId = 'species_sunflower';
 /// 需消耗 6 片精品碎片（取代原「满 8 片手动解锁精品物种」旧体系）。
 const int kSpeciesFragmentCostCommon = 6;
 
-/// 物种种植价 · 阳光 · **普通档**（番茄 / 草莓）。
+/// 物种种植价 · 阳光 · **普通档**（番茄 / 草莓，含向日葵第 2 株起）。
 ///
-/// 玄参 2026-09-28 计价模型拍板：普通档物种**二选一** —— **400 阳光** 或
-/// **6 碎片**（[kSpeciesFragmentCostCommon]）兑换种下。此常量对应「用阳光兑换」分支；
-/// 精英档（[kSpeciesFragmentCostPremium]）仅碎片、起始物种（[kStarterSpeciesId]）免费。
-const int kSpeciesSunlightCostCommon = 400;
+/// 玄参 2026-09-28 计价模型拍板：普通档物种**二选一** —— 阳光 或 6 碎片
+/// （[kSpeciesFragmentCostCommon]）兑换种下。此常量对应「用阳光兑换」分支；
+/// 精英档（[kSpeciesFragmentCostPremium]）仅碎片。
+/// **C29 修订（玄参 2026-10-05 拍板）**：阳光价 400 → **300**；且植物**可重复种植**，
+/// 向日葵不再是永久免费——**当前无存活向日葵时首株免费，第 2 株起同样按本价收阳光**。
+const int kSpeciesSunlightCostCommon = 300;
 
 /// 物种种植价 · 碎片 · **精英档**（星辰花 / 虹影蕨 / 珊瑚岭兰 / 翡翠绣球 / 月光兰）。
 ///
@@ -374,6 +376,33 @@ const int kSpeciesSunlightCostCommon = 400;
 /// `PlantSpecies.isPremium`）物种兑换**仅碎片**，需消耗 10 片精品碎片。
 /// 月光兰（精英）不再走阳光价（旧的 [kSpeciesMoonOrchidSunlightCost] 已废弃）。
 const int kSpeciesFragmentCostPremium = 10;
+
+// ── C29 铲除与一键操作（玄参 2026-10-05 拍板）──────────────────────────────
+
+/// 铲除返还 · 计价基准 · **精英档**阳光等价价（**非购买通道**）。
+///
+/// 玄参 2026-10-05 拍板：精英植物仍**仅碎片兑换**（暂不开放 500 阳光购买），
+/// 但铲除返还「统一按 50% 阳光返回，普通按 300 / 精英按 500 计算」——
+/// 故精英的铲除返还基准单列为 500，勿与购买价混用（购买价只有碎片档）。
+const int kSpeciesSunlightValuePremium = 500;
+
+/// 铲除返还 · **普通档**（= [kSpeciesSunlightCostCommon] 300 × 50%）。
+const int kShovelRefundCommon = 150;
+
+/// 铲除返还 · **精英档**（= [kSpeciesSunlightValuePremium] 500 × 50%）。
+const int kShovelRefundPremium = 250;
+
+/// 账本 refType · 铲除植物返还（C29）。
+///
+/// ⚠️ 字符串值一经写入即冻结（append-only 对账源），改名只能改常量名不改值；
+/// 已同步 `child_sunlight_history_page.dart` 的 `_refLabels`（「铲除返还」）。
+const String kPlantShovelRefundRefType = 'plant_shovel_refund';
+
+/// 一键操作（悬浮按钮）出现门槛 · **已种植株数下限**（C29）。
+///
+/// 玄参 2026-10-05 口径：「花园植物大于 3 盆的时候弹出来」→ 存活株 ≥ 4 才显示；
+/// 订阅门控后补（当前所有孩子可用）。
+const int kOneClickMinPlants = 4;
 
 /// 重复种子自动分解 · 植物碎片数 · **普通档**（玄参 2026-09-29 拍板）。
 ///

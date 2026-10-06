@@ -54,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -223,6 +223,17 @@ class AppDatabase extends _$AppDatabase {
           await _ensureColumn(m, settings, settings.eyeCareEnabled);
           await _ensureColumn(m, settings, settings.eyeCareIntervalMin);
           await _ensureColumn(m, settings, settings.eyeCareSkipAllowed);
+
+          // ⑯ v16（铲除返还，玄参 2026-10-05 拍板，口径 C29）：plants 新增
+          //    `shovel_refund` 列 —— 种下时即定好的「铲除返还阳光数」。
+          //    · INT NOT NULL DEFAULT 0：历史行（v16 前种下）与向日葵免费首株均为 0
+          //      = 铲除不返还（防「免费种 → 铲 → 循环刷阳光」的经济漏洞）；
+          //    · 普通档付费/种子券种下 = 150（300×50%）、精英档 = 250（500×50%），
+          //      由领域层 `PlantGrowthService._chargeForPlanting` 在种下时计算落列；
+          //    · 用 `_ensureColumn` 幂等补列，重复升级不报错。
+          //    ⚠️ 版本变更（15 → 16），必须配迁移测试（见
+          //       `test/m3/migration_v15_to_v16_test.dart`）。
+          await _ensureColumn(m, plants, plants.shovelRefund);
         },
       );
 

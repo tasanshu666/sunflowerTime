@@ -163,7 +163,15 @@ Future<bool> _pumpUntil(
 }
 
 bool _bubblePresent() => find.byIcon(Icons.card_giftcard).evaluate().isNotEmpty;
-bool _sunPresent() => find.byIcon(Icons.wb_sunny).evaluate().isNotEmpty;
+
+/// 阳光明细图标 = 素材图（`sunlight.png`，2026-10-06 交付后 AssetManifest 在测试
+/// 环境也能真实命中 → 头顶图标走素材分支）**或**内置回退 Icon（素材缺失时）。
+Finder _sunIconFinder() => find.byWidgetPredicate((Widget w) =>
+    (w is Icon && w.icon == Icons.wb_sunny) ||
+    (w is Image &&
+        w.image is AssetImage &&
+        (w.image as AssetImage).assetName == 'assets/rewards/sunlight.png'));
+bool _sunPresent() => _sunIconFinder().evaluate().isNotEmpty;
 
 void main() {
   testWidgets('有可收集第二段奖励 → 花盆旁出现明细图标；点击后消失（已收集）',
@@ -200,14 +208,14 @@ void main() {
     final bool appeared = await _pumpUntil(tester, _sunPresent);
     expect(appeared, isTrue, reason: '到期且花仍盛开 → 应出现可收集明细图标');
 
-    // 精品碎片入口常驻，显示余额 0。
-    expect(find.text('植物碎片 0'), findsOneWidget);
+    // 左上角三个 chip（碎片 + 普通/精英种子）均为「图标 ×N」样式（2026-10-05 统一口径）。
+    expect(find.text('×0'), findsNWidgets(3));
 
     // 让头顶图标入场动画（有限时长）走完，避免误点在缩放中途。
     await tester.pump(const Duration(milliseconds: 600));
 
     // 点击收集 → 服务发放并置 claimed → 刷新后头顶图标消失。
-    await tester.tap(find.byIcon(Icons.wb_sunny));
+    await tester.tap(_sunIconFinder());
     final bool gone = await _pumpUntil(tester, () => !_sunPresent());
     expect(gone, isTrue, reason: '收集后明细图标应消失（奖励已 claimed）');
 
@@ -239,7 +247,7 @@ void main() {
     // 等一次网格/入口建好。
     final bool ready = await _pumpUntil(
       tester,
-      () => find.text('植物碎片 0').evaluate().isNotEmpty,
+      () => find.text('×0').evaluate().isNotEmpty,
     );
     expect(ready, isTrue, reason: '碎片入口应常驻显示');
     expect(_bubblePresent(), isFalse, reason: '无到期奖励不应出现气泡');

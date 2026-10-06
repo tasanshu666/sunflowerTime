@@ -118,7 +118,7 @@ void main() {
           child: BloomRewardIconsBar(
             rewards: rewards,
             availableAssets: const <String>{}, // 空集 → 全回退内置 Icons
-            onCollect: (PendingBloomReward _) {},
+            onCollect: (PendingBloomReward _, RewardIconSpec __) {},
           ),
         ),
       ),
@@ -178,7 +178,7 @@ void main() {
           child: BloomRewardIconsBar(
             rewards: <PendingBloomReward>[_r('a', sunlight: 10, fragments: 2)],
             availableAssets: const <String>{},
-            onCollect: (PendingBloomReward r) => got = r,
+            onCollect: (PendingBloomReward r, RewardIconSpec _) => got = r,
           ),
         ),
       ),
@@ -251,7 +251,7 @@ void main() {
         body: Center(
           child: _Host(
             initial: seeded,
-            onCollect: (PendingBloomReward r) async {
+            onCollect: (PendingBloomReward r, RewardIconSpec _) async {
               pendingCollect = svc.collectBloomReward(r.id, now);
               await pendingCollect;
             },
@@ -308,7 +308,7 @@ void main() {
             child: BloomRewardIconsBar(
               rewards: rewards,
               availableAssets: const <String>{},
-              onCollect: (PendingBloomReward _) {},
+              onCollect: (PendingBloomReward _, RewardIconSpec __) {},
             ),
           ),
         ),
@@ -327,7 +327,7 @@ class _Host extends StatefulWidget {
   const _Host({required this.initial, this.onCollect});
 
   final List<PendingBloomReward> initial;
-  final Future<void> Function(PendingBloomReward r)? onCollect;
+  final Future<void> Function(PendingBloomReward r, RewardIconSpec _)? onCollect;
 
   @override
   State<_Host> createState() => _HostState();
@@ -341,8 +341,9 @@ class _HostState extends State<_Host> {
     return BloomRewardIconsBar(
       rewards: _rewards,
       availableAssets: const <String>{},
-      onCollect: (PendingBloomReward r) async {
-        await widget.onCollect?.call(r);
+      onCollect: (PendingBloomReward r, RewardIconSpec _) async {
+        await widget.onCollect
+            ?.call(r, const RewardIconSpec(kind: RewardIconKind.gift));
         if (mounted) {
           setState(() {
             _rewards =

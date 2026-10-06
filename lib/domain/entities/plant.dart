@@ -37,6 +37,13 @@ class Plant {
   /// 杂草会在孩子开着 App 的几小时里凭空冒出来。null = 今日（或史上）尚未 roll。
   final DateTime? weedPestRollDay;
 
+  /// 铲除返还阳光数（口径 C29，玄参 2026-10-05 拍板）。
+  ///
+  /// **种下时即定好**（领域层 `_chargeForPlanting` 计算落列）：普通档 150（300×50%）/
+  /// 精英档 250（500×50%）/ 向日葵免费首株与历史行（v16 前种下）0 = 铲除不返还。
+  /// 铲除时按本字段值返还（不返还培养消耗）；死亡株按「死亡全损」口径返还 0。
+  final int shovelRefund;
+
   /// copyWith 的「清空」哨兵（仅用于 [weedAt] / [pestAt] / [weedPestRollDay] 三个可空日期字段）。
   ///
   /// ⚠️ 本项目 copyWith 一律用 `x ?? this.x` 惯写法，所以**直接**
@@ -78,6 +85,7 @@ class Plant {
     this.weedAt,
     this.pestAt,
     this.weedPestRollDay,
+    this.shovelRefund = 0,
   });
 
   /// 当前是否有杂草（口径 C26）。
@@ -116,6 +124,7 @@ class Plant {
     Object? weedAt = _unset,
     Object? pestAt = _unset,
     Object? weedPestRollDay = _unset,
+    int? shovelRefund,
   }) {
     return Plant(
       id: id ?? this.id,
@@ -138,6 +147,7 @@ class Plant {
       weedAt: _resolve(weedAt, this.weedAt),
       pestAt: _resolve(pestAt, this.pestAt),
       weedPestRollDay: _resolve(weedPestRollDay, this.weedPestRollDay),
+      shovelRefund: shovelRefund ?? this.shovelRefund,
     );
   }
 

@@ -192,7 +192,7 @@ void main() {
         _v10Ddl(withLegacyPlants: true),
         10,
       );
-      expect(database.schemaVersion, 15);
+      expect(database.schemaVersion, 16);
     });
 
     test('daisy / cactus 存量植株被删除；保留物种原样保留', () async {
@@ -292,7 +292,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 15);
+      expect(first.schemaVersion, 16);
       expect(await first.plantDao.byId('p_daisy'), isNull);
       expect(await first.plantDao.byId('p_sunflower'), isNotNull);
 
@@ -312,7 +312,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 15);
+      expect(second.schemaVersion, 16);
       expect(await second.plantDao.byId('p_sunflower'), isNotNull,
           reason: '二次打开不得丢数据');
       expect(await second.plantDao.byId('p_daisy_after'), isNotNull,

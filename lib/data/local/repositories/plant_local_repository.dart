@@ -135,6 +135,7 @@ Plant _toPlant(db.Plant r) => Plant(
       weedAt: r.weedAt,
       pestAt: r.pestAt,
       weedPestRollDay: r.weedPestRollDay,
+      shovelRefund: r.shovelRefund,
     );
 
 /// 领域 [Plant] → [db.PlantsCompanion]（append-only 落库）。
@@ -159,4 +160,5 @@ db.PlantsCompanion _toCompanion(Plant p) => db.PlantsCompanion(
       weedAt: Value(p.weedAt),
       pestAt: Value(p.pestAt),
       weedPestRollDay: Value(p.weedPestRollDay),
+      shovelRefund: Value(p.shovelRefund),
     );

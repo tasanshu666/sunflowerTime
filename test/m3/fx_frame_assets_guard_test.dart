@@ -177,6 +177,7 @@ void main() {
         AudioCue.careFertilize,
         AudioCue.careWeed,
         AudioCue.carePest,
+        AudioCue.collectReward,
         AudioCue.focusCollect,
         AudioCue.focusSettle,
         AudioCue.eyeCareClose,
@@ -205,6 +206,22 @@ void main() {
       expect(kGardenAmbientAsset, startsWith('assets/audio/bgm/'));
       expect(File('$root/$kGardenAmbientAsset').existsSync(), isTrue,
           reason: '缺氛围音文件：$kGardenAmbientAsset');
+    });
+
+    test('奖励物 4 张 PNG（阳光/碎片/分档种子）真实存在且为合法 PNG（2026-10-06 玄参交付齐）', () {
+      const List<String> rewardPngs = <String>[
+        'assets/rewards/sunlight.png',
+        'assets/rewards/fragment.png',
+        'assets/rewards/seed_common.png',
+        'assets/rewards/seed_premium.png',
+      ];
+      for (final String p in rewardPngs) {
+        final RandomAccessFile raf = File('$root/$p').openSync();
+        final PngHead head = _readHead(raf);
+        raf.closeSync();
+        expect(head.w, greaterThan(0), reason: 'PNG 头非法（宽）：$p');
+        expect(head.h, greaterThan(0), reason: 'PNG 头非法（高）：$p');
+      }
     });
   });
 

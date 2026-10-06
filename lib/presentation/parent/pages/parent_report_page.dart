@@ -210,8 +210,16 @@ class _HeroCard extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              const Icon(Icons.wb_sunny_rounded,
-                  size: 18, color: Color(0xFFD9A21A)),
+              // 阳光美术图（2026-10-06 玄参交付；缺失/失败回退内置图标）。
+              Image.asset(
+                'assets/rewards/sunlight.png',
+                width: 18,
+                height: 18,
+                fit: BoxFit.contain,
+                errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+                    const Icon(Icons.wb_sunny_rounded,
+                        size: 18, color: Color(0xFFD9A21A)),
+              ),
               const SizedBox(width: 6),
               Text('本周专注',
                   style: TextStyle(

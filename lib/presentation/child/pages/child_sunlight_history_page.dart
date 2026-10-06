@@ -34,6 +34,9 @@ const Map<String, String> _refLabels = <String, String>{
   // `refType='eye_care_break'`（**字符串值一经写入即冻结**，改名会与历史行分裂）。
   // 漏配这条时孩子端会一律显示「其他」，阳光来源对不上账（新增 refType 必须同步本映射）。
   'eye_care_break': '护眼',
+  // C29 铲除返还（玄参 2026-10-05 拍板）：铲除植物按种下时定好的返还额入账
+  // （普通 150 / 精英 250 / 免费首株与死亡株 0），refType 值冻结。
+  'plant_shovel_refund': '铲除返还',
   'bloom_reward': '开花奖励',
   'bloom_reward_24h': '花开回访奖励',
   'redeem': '兑换奖励',
@@ -127,7 +130,15 @@ class _BalanceBanner extends StatelessWidget {
         ),
         child: Row(
           children: <Widget>[
-            const Icon(Icons.wb_sunny, color: Color(0xFFE8A600)),
+            // 阳光美术图（2026-10-06 玄参交付；缺失/失败回退内置图标）。
+            Image.asset(
+              'assets/rewards/sunlight.png',
+              width: 24,
+              height: 24,
+              fit: BoxFit.contain,
+              errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+                  const Icon(Icons.wb_sunny, color: Color(0xFFE8A600)),
+            ),
             const SizedBox(width: 10),
             const Expanded(
               child: Text('当前拥有阳光',

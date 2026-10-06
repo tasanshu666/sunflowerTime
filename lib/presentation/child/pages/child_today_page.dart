@@ -83,6 +83,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage> {
       children: <Widget>[
         _StatCard(
           icon: Icons.wb_sunny,
+          iconAsset: 'assets/rewards/sunlight.png',
           color: const Color(0xFFE8A600),
           label: '我的阳光',
           value: '${_balance.toInt()}',
@@ -141,12 +142,17 @@ class _StatCard extends StatelessWidget {
   final String value;
   final String unit;
 
+  /// 美术图标（2026-10-06 玄参交付 `assets/rewards/sunlight.png`，「所有用到
+  /// 阳光图标的地方都替换」）；提供时优先用素材，缺失/失败回退 [icon]。
+  final String? iconAsset;
+
   const _StatCard({
     required this.icon,
     required this.color,
     required this.label,
     required this.value,
     required this.unit,
+    this.iconAsset,
   });
 
   @override
@@ -159,7 +165,16 @@ class _StatCard extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: color.withValues(alpha: 0.15),
-                child: Icon(icon, color: color, size: 26),
+                child: iconAsset != null
+                    ? Image.asset(
+                        iconAsset!,
+                        width: 26,
+                        height: 26,
+                        fit: BoxFit.contain,
+                        errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+                            Icon(icon, color: color, size: 26),
+                      )
+                    : Icon(icon, color: color, size: 26),
               ),
               const SizedBox(width: 16),
               Expanded(

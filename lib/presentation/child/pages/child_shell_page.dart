@@ -28,6 +28,7 @@ import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
+import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
 import 'package:sunflower_time/presentation/child/pages/child_task_page.dart';
 import 'package:sunflower_time/presentation/child/pages/child_profile_page.dart';
@@ -130,11 +131,21 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   // ── P0 · A App 总时长：生命周期 + 拦截 ───────────────────────────────
 
   /// App 切前后台：非前台一律暂停计时；回前台且仍处娱乐 tab 则恢复。
+  ///
+  /// F70（玄参 2026-10-05）：退后台 / 锁屏时**同步暂停一切音频**（花园氛围音 +
+  /// 专注 BGM），回前台恢复暂停前在播的通道——此前花园页锁屏/退后台背景音乐
+  /// 仍在响。`hidden`（iOS 锁屏先于 paused）与 `paused`（Android）都触发暂停；
+  /// [AudioService.pauseAllForBackground] 幂等，连发两次安全。
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final AppUsageController ctrl = ref.read(appUsageControllerProvider.notifier);
     if (state == AppLifecycleState.resumed) {
       if (ctrl.isEntertainmentTab(_index)) unawaited(ctrl.startCounting());
+      unawaited(AudioService.instance.resumeFromBackground());
+    } else if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
+      unawaited(ctrl.stopCounting());
+      unawaited(AudioService.instance.pauseAllForBackground());
     } else {
       unawaited(ctrl.stopCounting());
     }
@@ -181,6 +192,9 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     }
 
     setState(() => _index = i);
+    // F71：同步 tab 索引 provider——花园页据此**确定性**启停氛围音
+    //（原 TickerMode 依赖重建方案在 IndexedStack 下时机不可靠，切走后音乐继续播）。
+    ref.read(childShellTabIndexProvider.notifier).state = i;
     if (ctrl.isEntertainmentTab(i)) {
       unawaited(ctrl.startCounting());
     } else {
@@ -199,6 +213,7 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     if (result == AppCapDialog.goFocus && mounted) {
       unawaited(_usageCtrl?.stopCounting()); // 今日不计入娱乐时长。
       setState(() => _index = 0);
+      ref.read(childShellTabIndexProvider.notifier).state = 0; // F71 同步。
     }
   }
 

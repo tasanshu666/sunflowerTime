@@ -198,27 +198,29 @@ void main() {
 
   // ── 免费券 ──────────────────────────────────────────────────────────────
   group('D3 · 免费种植券（UnlockedSpecies 语义）', () {
-    test('持券：不扣碎片 / 不扣阳光、券被消耗（表里该行消失）', () async {
+    test('种子支付（2026-10-07）：不扣碎片 / 不扣阳光、同档位一张券被消耗（表里该行消失）', () async {
       final _Ctx ctx = await _make();
       await ctx.plants.setPremiumFragmentBalance(0);
-      await ctx.plants.unlockSpecies('species_star_flower'); // 发券
+      await ctx.plants.unlockSpecies('species_star_flower'); // 发精英券
       expect(await ctx.plants.unlockedSpeciesIds(), contains('species_star_flower'));
 
-      await ctx.svc.plant('species_star_flower', 0, DateTime(2026, 9, 27, 8));
+      await ctx.svc.plant('species_star_flower', 0, DateTime(2026, 9, 27, 8),
+          payWith: PlantCostKind.seed);
 
-      expect(await ctx.plants.premiumFragmentBalance(), 0, reason: '有券不扣碎片');
+      expect(await ctx.plants.premiumFragmentBalance(), 0, reason: '种子支付不扣碎片');
       expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_star_flower'), 0,
-          reason: '有券不扣阳光');
+          reason: '种子支付不扣阳光');
       expect(await ctx.plants.unlockedSpeciesIds(), isNot(contains('species_star_flower')),
           reason: '券被消耗 → 行消失');
       expect(await _plantCount(ctx.database), 1);
     });
 
-    test('券对月光兰同样生效（不扣阳光）', () async {
+    test('种子支付对同档位跨物种生效（月光兰券种星辰花，不扣阳光）', () async {
       final _Ctx ctx = await _make();
-      await ctx.plants.unlockSpecies('species_moon_orchid');
-      await ctx.svc.plant('species_moon_orchid', 0, DateTime(2026, 9, 27, 8));
-      expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_moon_orchid'), 0);
+      await ctx.plants.unlockSpecies('species_moon_orchid'); // 精英券
+      await ctx.svc.plant('species_star_flower', 0, DateTime(2026, 9, 27, 8),
+          payWith: PlantCostKind.seed);
+      expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_star_flower'), 0);
       expect(await ctx.plants.unlockedSpeciesIds(), isEmpty);
     });
 

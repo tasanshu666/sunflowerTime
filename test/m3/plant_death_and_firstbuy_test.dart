@@ -293,17 +293,18 @@ void main() {
     });
   });
 
-  // ── ④ 免费券优先 ────────────────────────────────────────────────────────
-  group('④ 免费券优先', () {
-    test('有券 → 不扣阳光 / 碎片、券消失；死亡后再种按档位碎片价', () async {
+  // ── ④ 种子券（2026-10-07 新口径：显式种子支付，不再自动优先耗券）───────
+  group('④ 种子券（显式支付，2026-10-07）', () {
+    test('点种子支付 → 不扣阳光 / 碎片、券消失；死亡后再种按档位碎片价', () async {
       final _Ctx ctx = _make();
       await ctx.bloomRewards.setPremiumFragmentBalance(0);
-      await ctx.bloomRewards.unlockSpecies('species_moon_orchid'); // 发券
+      await ctx.bloomRewards.unlockSpecies('species_moon_orchid'); // 发精英券
 
-      final Plant p0 = await ctx.svc.plant('species_moon_orchid', 0, now);
-      expect(ctx.ledger.entriesOf('plant_plant'), isEmpty, reason: '有券不扣阳光');
-      expect(await ctx.ledger.balance(), 1000000, reason: '有券不扣阳光');
-      expect(await ctx.bloomRewards.premiumFragmentBalance(), 0, reason: '有券不扣碎片');
+      final Plant p0 = await ctx.svc
+          .plant('species_moon_orchid', 0, now, payWith: PlantCostKind.seed);
+      expect(ctx.ledger.entriesOf('plant_plant'), isEmpty, reason: '种子支付不扣阳光');
+      expect(await ctx.ledger.balance(), 1000000, reason: '种子支付不扣阳光');
+      expect(await ctx.bloomRewards.premiumFragmentBalance(), 0, reason: '种子支付不扣碎片');
       expect(await ctx.bloomRewards.unlockedSpeciesIds(), isEmpty, reason: '券被消耗');
 
       // 死亡后再种 → 按档位碎片价（精英 10 碎片，无首购优惠概念）。

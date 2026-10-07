@@ -2,7 +2,7 @@
 ///
 /// ## 用途
 /// 产品 / 开发在 iOS 模拟器上验收「花开花谢」时，不必等真实天数即可驱动完整链路：
-/// 成株 → 开花瞬间奖励 → 盛开 3 / 4.5 天 → 花谢回落 → 复开花 → 开花 48h 掉落气泡 →
+/// 成株 → 开花瞬间奖励 → 盛开 3 / 4.5 天 → 花谢回落 → 复开花 → 花期每日晨露掉落气泡 →
 /// 手动收集 / 花谢前未点自动到账。
 ///
 /// ## 设计纪律（宪法总纪律 #2：单点收口 / 不复制业务判定）
@@ -31,6 +31,7 @@ import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/presentation/shared/consent_page.dart';
 
 /// 花园页右上角「花期调试」浮层入口（**紧凑圆形按钮**）。
 ///
@@ -248,7 +249,7 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
         await _svc.tickAll(now);
       });
 
-  /// 让 48h 第二段奖励「现在可领取」（把该株未领取记录的 `due_at` 改为 `now - 1s`）。
+  /// 让该株待领奖励「现在可领取」（把未领取记录的 `due_at` 改为 `now - 1s`）。
   ///
   /// 需目标株**正盛开**才会出现可收集气泡；否则 tickAll 会按兜底直接结算（不发气泡）。
   Future<void> _makeRewardDueNow() => _run(() async {
@@ -332,6 +333,20 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
         : kBloomDurationDays.toDouble();
     return Duration(milliseconds: (days * Duration.millisecondsPerDay).round());
   }
+
+  /// 调试：**+1 指定档位种子**（免费种植券）—— 玄参 2026-10-07「增加普通种子和精英
+  /// 种子的测试按钮，不然测试无法有效获取」。
+  ///
+  /// 走领域单点 [PlantGrowthService.grantSeedForDebug]（不绕过仓储直写数据库）；发完
+  /// 由 [_run] 统一 `_refresh` + `onChanged` → 花园页左上角种子计数 chip 立即刷新。
+  Future<void> _grantSeed({required bool premium}) => _run(() async {
+        final String? id = await _svc.grantSeedForDebug(premium: premium);
+        if (id == null) {
+          _snack(premium
+              ? '精英种子已全部持有，无法再 +1（券按物种去重）'
+              : '普通种子已全部持有，无法再 +1（券按物种去重）');
+        }
+      });
 
   /// 花期剩余文案（不在花期显示「—」）。
   String _bloomRemaining(Plant p) {
@@ -499,7 +514,7 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
                   ),
                   FilledButton.tonal(
                     onPressed: _busy ? null : _makeRewardDueNow,
-                    child: const Text('让 48h 奖励可领取'),
+                    child: const Text('让待领奖励可领取'),
                   ),
                   FilledButton.tonal(
                     onPressed: _busy ? null : _fastForwardOneDay,
@@ -512,6 +527,32 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
                   FilledButton.tonal(
                     onPressed: _busy ? null : () => _forceWeedPest(weed: false),
                     child: const Text('长出害虫$kGardenPestEmoji'),
+                  ),
+                  // 种子发放（玄参 2026-10-07「增加普通种子和精英种子的测试按钮」）：
+                  // 走领域单点发券，发完花园页左上角计数 chip 立即刷新。
+                  FilledButton.tonal(
+                    onPressed:
+                        _busy ? null : () => _grantSeed(premium: false),
+                    child: const Text('+1 普通种子'),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: _busy ? null : () => _grantSeed(premium: true),
+                    child: const Text('+1 精英种子'),
+                  ),
+                  // 预览首启欢迎页（玄参 2026-10-07「打开软件直接进主页，看不到欢迎页，
+                  // 无法反馈」）：只读打开 [ConsentPage]（preview:true），**不写同意状态、
+                  // 不影响主流程**；先关掉本面板再推入，返回后即回到花园。
+                  FilledButton.tonal(
+                    onPressed: _busy
+                        ? null
+                        : () {
+                            final NavigatorState nav = Navigator.of(context);
+                            nav.pop(); // 关闭调试面板 → 回到花园
+                            nav.push<void>(MaterialPageRoute<void>(
+                              builder: (_) => const ConsentPage(preview: true),
+                            ));
+                          },
+                    child: const Text('预览首启欢迎页'),
                   ),
                 ],
               ),
@@ -550,7 +591,7 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
           _kv('累计开花', '${p.bloomCount} 次'),
           _kv('花期剩余', _bloomRemaining(p)),
           _kv('干扰物', _weedPestLabel(p)),
-          _kv('48h 奖励', collectible ? '已可收集（花园页有气泡）' : '未到期 / 无'),
+          _kv('待领奖励', collectible ? '已可收集（花园页有气泡）' : '未到期 / 无'),
           _kv('阳光余额', '${_balance.toInt()} ☀'),
         ],
       ),

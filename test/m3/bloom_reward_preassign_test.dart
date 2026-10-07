@@ -317,8 +317,8 @@ void main() {
 
   // ── ① 登记时定奖 ─────────────────────────────────────────────────────────
   group('① 登记时定奖（掉落即定奖）', () {
-    test('新盛开 → 两条 pending 的奖励内容在登记时就 roll 好并落库（非零值哨兵）', () async {
-      // instant r=0.99 → 无额外（保底 6）；第二段 r=0.99 → 基础阳光 3–6（nextInt=0 → 3）。
+    test('新盛开 → 登记即定奖落库（非零值哨兵）：instant + 花期两轮晨露（2026-10-07）', () async {
+      // instant r=0.99 → 无额外（保底 6）；晨露每轮 r=0.99 → 基础阳光 3–6（nextInt=0 → 3）。
       final _Ctx ctx =
           _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
       await ctx.plants.savePlant(_readyToBloom('sp_common_a', bloomAt));
@@ -326,7 +326,9 @@ void main() {
 
       final List<PendingBloomReward> due =
           await ctx.bloom.pendingBloomRewardsDue(due48h);
-      expect(due, hasLength(2), reason: '瞬间 + 第二段两条');
+      // 开花 08:00 → 晨露首轮 = 次日 08:00；花期 3 天（至 09-28 08:00）→
+      // 09-26 / 09-27 两轮晨露（09-28 08:00 == 花谢时刻不计）+ instant = 3 条。
+      expect(due, hasLength(3), reason: '瞬间 + 两轮晨露');
 
       final PendingBloomReward instant = _instantOf(due);
       expect(instant.hasPreAssignedReward, isTrue, reason: '登记时已 roll → 非零值哨兵');
@@ -335,11 +337,16 @@ void main() {
       expect(instant.rewardFragments, 0);
       expect(instant.rewardSpeciesId, isNull);
 
-      final PendingBloomReward second = due.firstWhere(
-          (PendingBloomReward r) => r.rewardKind != kBloomRewardPhaseInstant);
-      expect(second.hasPreAssignedReward, isTrue);
-      expect(second.rewardSunlight, kBloomSecondPhaseBaseSunlightMin + 0,
-          reason: '第二段 r=0.99 → 基础阳光 3–6，nextInt=0 → 3');
+      final List<PendingBloomReward> mornings = due
+          .where((PendingBloomReward r) => r.rewardKind != kBloomRewardPhaseInstant)
+          .toList();
+      expect(mornings, hasLength(2));
+      for (final PendingBloomReward r in mornings) {
+        expect(r.hasPreAssignedReward, isTrue);
+        expect(r.rewardSunlight, kBloomSecondPhaseBaseSunlightMin + 0,
+            reason: '晨露 r=0.99 → 基础阳光 3–6，nextInt=0 → 3');
+        expect(r.dueAt.hour, 8, reason: '晨露固定 08:00 到期');
+      }
     });
 
     test('开花瞬间掉碎片 → 登记即写入 rewardFragments（+ 保底阳光）', () async {

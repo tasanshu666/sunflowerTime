@@ -580,7 +580,7 @@ void main() {
           kBloomBonusSunlightMinPremium);
     });
 
-    test('开花即登记两条待收集奖励：瞬间（即刻可收集，未入账）+ 第二段（due = +48h）', () async {
+    test('开花即登记一批待收集奖励：瞬间（即刻可收集）+ 花期内每日 8 点晨露（2026-10-07）', () async {
       final _Ctx ctx =
           _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
       final DateTime now = DateTime(2026, 9, 25, 8, 0);
@@ -595,15 +595,24 @@ void main() {
       expect(_earns(ctx, kBloomRewardRefType), isEmpty,
           reason: '变更 B：未点击收集前不入账');
 
-      // 48h 后：瞬间 + 第二段两条均到期。
-      final List<PendingBloomReward> later = await ctx.bloomRewards
-          .pendingBloomRewardsDue(
-              now.add(const Duration(hours: kBloomRewardDelayHours)));
-      expect(later, hasLength(2), reason: '瞬间 + 第二段两条都到期');
+      // 每日 8 点晨露（取代旧 48h 第二段）：花期 3 天（09-25 08:00 → 09-28 08:00），
+      // 开花恰在 08:00 → 首轮次日 → 09-26 / 09-27 / 09-28 08:00 中早于花谢时刻者。
+      // 09-28 08:00 == 花谢时刻（isBefore=false）→ 共 2 条晨露。
+      final DateTime after48h = now.add(const Duration(hours: 48));
+      final List<PendingBloomReward> later =
+          await ctx.bloomRewards.pendingBloomRewardsDue(after48h);
+      expect(later, hasLength(3),
+          reason: '瞬间 + 次日 8 点 + 再次日 8 点（09-28 8 点恰在花谢时刻不计）');
       expect(
         later.map((PendingBloomReward r) => r.rewardKind).toSet(),
         <String>{kBloomRewardPhaseInstant, kBloomRewardKindNormal},
       );
+      // 晨露 dueAt 都是 08:00 本地时刻。
+      for (final PendingBloomReward r in later) {
+        if (r.rewardKind != kBloomRewardPhaseInstant) {
+          expect(r.dueAt.hour, 8, reason: '晨露奖励固定每天 08:00 到期');
+        }
+      }
     });
   });
 
@@ -951,7 +960,7 @@ void main() {
           reason: '两条均已结算，无可收集残留');
     });
 
-    test('instant 与 48h 记录互不干扰：独立登记、分别收集', () async {
+    test('instant 与每日 8 点晨露记录互不干扰：独立登记、分别收集（2026-10-07）', () async {
       final _Ctx ctx = _make(
         random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]),
       );
@@ -964,24 +973,30 @@ void main() {
       expect(atBloom[_kPlantId], hasLength(1));
       expect(atBloom[_kPlantId]!.first.rewardKind, kBloomRewardPhaseInstant);
 
-      // 收集 instant → 只发 instant；48h 记录仍在、未受影响。
+      // 收集 instant → 只发 instant；晨露记录仍在、未受影响。
       await ctx.svc.collectBloomReward(atBloom[_kPlantId]!.first.id, bloomAt);
       expect(_earns(ctx, kBloomRewardRefType), hasLength(1),
           reason: 'instant 入账一次');
       expect(_earns(ctx, kBloomSecondPhaseRefType), isEmpty,
-          reason: '48h 记录互不干扰、仍待收集');
+          reason: '晨露记录互不干扰、仍待收集');
 
-      // 到 48h（花仍盛开）：仅剩第二段可收集。
+      // 到 +48h（09-27 08:00，花仍盛开）：09-26 / 09-27 两条晨露均可收集。
       final Map<String, List<PendingBloomReward>> at48 =
           await ctx.svc.collectibleBloomRewards(due48h);
       final List<PendingBloomReward> rest =
           at48[_kPlantId] ?? const <PendingBloomReward>[];
-      expect(rest, hasLength(1), reason: 'instant 已领 → 仅剩第二段');
-      expect(rest.first.rewardKind, kBloomRewardKindNormal);
+      expect(rest, hasLength(2),
+          reason: 'instant 已领 → 剩花期两轮晨露（09-26 / 09-27 8 点）');
+      for (final PendingBloomReward r in rest) {
+        expect(r.rewardKind, kBloomRewardKindNormal);
+        expect(r.dueAt.hour, 8);
+      }
 
-      await ctx.svc.collectBloomReward(rest.first.id, due48h);
-      expect(_earns(ctx, kBloomSecondPhaseRefType), hasLength(1),
-          reason: '第二段入账一次');
+      // 逐条收集：各自入账一次（refType 同为 bloom_reward_24h 冻结值）。
+      await ctx.svc.collectBloomReward(rest[0].id, due48h);
+      await ctx.svc.collectBloomReward(rest[1].id, due48h);
+      expect(_earns(ctx, kBloomSecondPhaseRefType), hasLength(2),
+          reason: '两轮晨露各自入账一次');
       expect(await ctx.svc.collectibleBloomRewards(due48h), isEmpty);
     });
   });

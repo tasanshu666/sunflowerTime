@@ -256,15 +256,21 @@ void main() {
 
         final List<PendingBloomReward> due =
             await ctx.plants.pendingBloomRewardsDue(due48h);
-        expect(due, hasLength(2), reason: 'seed=$seed 应登记瞬间 + 第二段两条');
+        // 每日 8 点口径（2026-10-07）：instant + 花期两轮晨露 = 3 条。
+        expect(due, hasLength(3), reason: 'seed=$seed 应登记瞬间 + 两轮晨露');
         final PendingBloomReward inst = _instantOf(due);
-        final PendingBloomReward sec = _secondOf(due);
+        final List<PendingBloomReward> mornings = due
+            .where((PendingBloomReward r) => r.rewardKind != kBloomRewardPhaseInstant)
+            .toList();
+        expect(mornings, hasLength(2), reason: 'seed=$seed 晨露两轮');
 
         // 登记时已定奖（非零值哨兵）。
         expect(inst.hasPreAssignedReward, isTrue,
             reason: 'seed=$seed instant 非哨兵');
-        expect(sec.hasPreAssignedReward, isTrue,
-            reason: 'seed=$seed second 非哨兵');
+        for (final PendingBloomReward sec in mornings) {
+          expect(sec.hasPreAssignedReward, isTrue,
+              reason: 'seed=$seed morning 非哨兵');
+        }
         expect(inst.rewardSunlight, greaterThan(0), reason: 'instant 保底阳光恒 ≥1');
 
         branches.add(
@@ -272,17 +278,19 @@ void main() {
 
         // 结算 instant：登记值 == 返回 == 账本增量。
         await _settleAndAssert(ctx, inst, bloomAt);
-        // 结算第二段：登记值 == 返回 == 账本/碎片/券增量。
-        await _settleAndAssert(ctx, sec, due48h);
+        // 结算两轮晨露：登记值 == 返回 == 账本/碎片/券增量。
+        for (final PendingBloomReward sec in mornings) {
+          await _settleAndAssert(ctx, sec, due48h);
+        }
 
-        // 两条各恰入账一次；账本条数与档位 refType 对齐。
+        // 各恰入账一次；账本条数与档位 refType 对齐。
         final int instRows =
             await _countByRefType(ctx.database, kBloomRewardRefType);
         final int secRows =
             await _countByRefType(ctx.database, kBloomSecondPhaseRefType);
-        // instant 至少一笔（保底），大额阳光档为两笔；第二段最多一笔。
+        // instant 至少一笔（保底），大额阳光档为两笔；晨露两轮各一笔。
         expect(instRows, greaterThanOrEqualTo(1));
-        expect(secRows, lessThanOrEqualTo(1));
+        expect(secRows, lessThanOrEqualTo(2));
       }
       print('[①] 观察到的 instant 分支样本（阳光/碎片/种子）：$branches');
       expect(branches, isNotEmpty);
@@ -457,19 +465,22 @@ void main() {
       final List<PendingBloomReward> due =
           await ctx.plants.pendingBloomRewardsDue(due48h);
       final PendingBloomReward inst = _instantOf(due);
-      final PendingBloomReward sec = _secondOf(due);
+      final List<PendingBloomReward> mornings = due
+          .where((PendingBloomReward r) => r.rewardKind != kBloomRewardPhaseInstant)
+          .toList();
+      expect(mornings, hasLength(2), reason: '花期两轮晨露');
 
       final double balBefore = await ctx.ledger.balance();
       final int fragBefore = await ctx.plants.premiumFragmentBalance();
       final Set<String> unlockedBefore = await ctx.plants.unlockedSpeciesIds();
 
-      // 4 天后：花期（3 天）已过 + 3 天未浇水 → 不再盛开 → 兜底自动结算两条。
+      // 4 天后：花期（3 天）已过 + 3 天未浇水 → 不再盛开 → 兜底自动结算全部三条。
       final DateTime fade = bloomAt.add(const Duration(days: 4));
       final List<BloomRewardOutcome> auto = <BloomRewardOutcome>[];
       final List<Plant> plants = await ctx.svc.tickAll(fade, autoSettled: auto);
 
       expect(plants, isNotEmpty, reason: '返回类型仍为 List<Plant>（向后兼容）');
-      expect(auto, hasLength(2), reason: '两条均花谢兜底 → 逐条 append');
+      expect(auto, hasLength(3), reason: '三条均花谢兜底 → 逐条 append');
       expect(auto.every((BloomRewardOutcome o) => o.autoSettled), isTrue,
           reason: '出参 outcome 标记 autoSettled=true');
 
@@ -498,12 +509,13 @@ void main() {
           .toSet();
       final Set<String> registered = <String>{
         '${inst.rewardSunlight}/${inst.rewardFragments}/${inst.rewardSpeciesId}',
-        '${sec.rewardSunlight}/${sec.rewardFragments}/${sec.rewardSpeciesId}',
+        for (final PendingBloomReward sec in mornings)
+          '${sec.rewardSunlight}/${sec.rewardFragments}/${sec.rewardSpeciesId}',
       };
       expect(outContent, registered, reason: '兜底发放内容 == 登记时定奖内容');
 
       expect(await ctx.svc.collectibleBloomRewards(fade), isEmpty,
-          reason: '两条均已结算，无残留可收集');
+          reason: '三条均已结算，无残留可收集');
     });
 
     test('未发生兜底（花仍盛开）→ out 为空，奖励仍可收集', () async {
@@ -513,13 +525,14 @@ void main() {
       await ctx.plants.savePlant(_readyToBloom('species_sunflower', bloomAt));
       await ctx.svc.tickAll(bloomAt);
 
-      // 48h 后花仍在花期（3 天）内 → 两条到期但可收集 → 不兜底。
+      // +48h（09-29 08:00）花仍在花期（3 天）内 → 到期的 instant + 两轮晨露均可收集 → 不兜底。
       final List<BloomRewardOutcome> out = <BloomRewardOutcome>[];
       await ctx.svc.tickAll(due48h, autoSettled: out);
       expect(out, isEmpty, reason: '可收集的到期奖励不自动发放');
       final Map<String, List<PendingBloomReward>> collectible =
           await ctx.svc.collectibleBloomRewards(due48h);
-      expect(collectible[_pid], hasLength(2), reason: '两条仍可收集');
+      expect(collectible[_pid], hasLength(3),
+          reason: 'instant + 两轮晨露均可收集（同轮花期）');
     });
   });
 

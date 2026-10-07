@@ -10,6 +10,10 @@
 ///    的几百 ms 异步间隙内可能刚好退后台，只查入口一次会让在途加载在后台发声。
 ///    该语义需真实播放器才能模拟，headless 覆盖不到，由 `startBgm` /
 ///    `_playGardenAmbient` 内联保障（真机验证）。
+///  ⑥ F71 v3（2026-10-07 复测「切 tab 后音乐停一下又继续播完」）：**代际 guard**——
+///    `stopGardenAmbient` 递增代际，在途的 `_playGardenAmbient` 在每个 await 间隙
+///    校验代际、被 stop 过即作废。headless 可断言「stop 递增代际 + stop 后
+///    `ambientShouldPlay` 恒 false」；await 间隙竞态本身需真实播放器，真机验证。
 library;
 
 import 'package:flutter_test/flutter_test.dart' as ft;
@@ -57,6 +61,96 @@ void main() {
 
       await svc.resumeFromBackground();
       ft.expect(svc.isSuspendedForBackground, ft.isFalse);
+    });
+
+    ft.test('⑥ F71 v3 · stopGardenAmbient 递增代际并保持「应播=false」', () async {
+      final AudioService svc = AudioService(playerFactory: () => null);
+      svc.applySettings(soundOn: true, bgmOn: true);
+
+      // 在途播放请求（null player → 静默降级，但代际语义仍可断言）。
+      svc.playGardenAmbient();
+      final int genBefore = svc.ambientGeneration;
+
+      // 切 tab 的 stop：必须递增代际（作废一切在途加载/启动）。
+      await svc.stopGardenAmbient();
+      ft.expect(svc.ambientGeneration, ft.greaterThan(genBefore),
+          reason: 'stopGardenAmbient 递增代际（F71 v3 竞态修复的闸门）');
+      ft.expect(svc.ambientShouldPlay, ft.isFalse,
+          reason: 'stop 后「应播」标记必须为 false（自愈监听不再续播）');
+
+      // 重复 stop 继续递增（每次 stop 都要作废新一代在途请求）。
+      final int genAfterFirst = svc.ambientGeneration;
+      await svc.stopGardenAmbient();
+      ft.expect(svc.ambientGeneration, ft.greaterThan(genAfterFirst));
+    });
+  });
+
+  ft.group('F82 · 氛围音启动有限次重试（玄参 2026-10-07「首次进花园 BGM 不响」）', () {
+    // headless 无音频后端、无法造真 AudioPlayer（just_audio 静态通道缺实现会抛）。
+    // 故把重试逻辑抽成纯静态函数 [AudioService.startAmbientWithRetries]，用回调驱动单测。
+
+    ft.test('首次 start 抛错 → 重试后成功启动（attempts=2）', () async {
+      int attempts = 0;
+      final bool ok = await AudioService.startAmbientWithRetries(
+        start: () async {
+          attempts++;
+          if (attempts == 1) throw StateError('首次 setAsset 失败（冷启动缓存被清）');
+        },
+        isPlaying: () => true,
+        shouldAbort: () => false,
+        onAbort: () async {},
+        retryDelay: Duration.zero,
+      );
+      ft.expect(ok, ft.isTrue, reason: '重试后成功 → 应置「已启动」');
+      ft.expect(attempts, 2, reason: '首次失败 + 第二次成功 = 2 次尝试');
+    });
+
+    ft.test('play() 返回但实际未在播 → 重试后确在播（attempts=2）', () async {
+      int attempts = 0;
+      bool playing = false;
+      final bool ok = await AudioService.startAmbientWithRetries(
+        start: () async {
+          attempts++;
+          if (attempts >= 2) playing = true; // 第二次才真正播起来
+        },
+        isPlaying: () => playing,
+        shouldAbort: () => false,
+        onAbort: () async {},
+        retryDelay: Duration.zero,
+      );
+      ft.expect(ok, ft.isTrue);
+      ft.expect(attempts, 2);
+    });
+
+    ft.test('有限次（maxAttempts）仍失败 → 返回 false 且 onAbort 停播', () async {
+      int attempts = 0;
+      bool aborted = false;
+      final bool ok = await AudioService.startAmbientWithRetries(
+        start: () async => attempts++,
+        isPlaying: () => false, // 始终未在播
+        shouldAbort: () => false,
+        onAbort: () async => aborted = true,
+        maxAttempts: 3,
+        retryDelay: Duration.zero,
+      );
+      ft.expect(ok, ft.isFalse, reason: '始终未启动 → 不得置「已启动」');
+      ft.expect(attempts, 3, reason: '尝试次数恰为上限');
+      ft.expect(aborted, ft.isTrue, reason: '失败收尾必须停播，不留残响');
+    });
+
+    ft.test('shouldAbort 命中（退后台 / 代际失效）→ 立即停播、返回 false、不再尝试', () async {
+      int attempts = 0;
+      bool aborted = false;
+      final bool ok = await AudioService.startAmbientWithRetries(
+        start: () async => attempts++,
+        isPlaying: () => true,
+        shouldAbort: () => true, // 一进循环即命中（模拟退后台）
+        onAbort: () async => aborted = true,
+        retryDelay: Duration.zero,
+      );
+      ft.expect(ok, ft.isFalse);
+      ft.expect(attempts, 0, reason: '命中闸门不得发起任何启动');
+      ft.expect(aborted, ft.isTrue, reason: '命中闸门必须停播（F70 v2 不发声）');
     });
   });
 }

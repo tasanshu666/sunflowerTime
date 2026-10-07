@@ -225,15 +225,17 @@ void main() {
   // A · 反向质疑：upsert 是否掩盖「同株重复登记 → 奖励翻倍 / due 反复重置」
   // ══════════════════════════════════════════════════════════════════════
   group('A · 反向质疑 upsert 掩盖重复登记', () {
-    test('同一株一次盛开 → 真实表里恰好 2 条 pending（instant + 第二段）', () async {
+    test('同一株一次盛开 → 真实表里恰 3 条 pending（instant + 花期两轮晨露，2026-10-07）', () async {
       final _Ctx ctx = await _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
       final DateTime now = DateTime(2026, 9, 27, 8);
       await ctx.plants.savePlant(_readyToBloom('species_sunflower', now));
 
       await ctx.svc.tickAll(now);
 
-      expect(await _pendingCount(ctx.database), 2,
-          reason: '一次盛开只应登记 2 条（开花瞬间 + 第二段）');
+      // 花期 3 天（09-27 08:00 → 09-30 08:00），开花恰在 08:00 → 晨露 09-28 / 09-29
+      // 两天（09-30 08:00 == 花谢时刻不计）+ instant = 3 条。
+      expect(await _pendingCount(ctx.database), 3,
+          reason: '一次盛开登记 instant + 每日 8 点晨露（花期两轮）');
 
       final List<PendingBloomReward> due =
           await ctx.plants.pendingBloomRewardsDue(now.add(const Duration(hours: kBloomRewardDelayHours)));
@@ -243,14 +245,19 @@ void main() {
       );
       final PendingBloomReward inst = due.firstWhere(
           (PendingBloomReward r) => r.rewardKind == kBloomRewardPhaseInstant);
-      final PendingBloomReward second = due.firstWhere(
-          (PendingBloomReward r) => r.rewardKind != kBloomRewardPhaseInstant);
       expect(inst.dueAt, now, reason: 'instant due = bloomedAt');
-      expect(second.dueAt, now.add(const Duration(hours: kBloomRewardDelayHours)),
-          reason: '第二段 due = bloomedAt + 48h');
+      final List<PendingBloomReward> mornings = due
+          .where((PendingBloomReward r) => r.rewardKind != kBloomRewardPhaseInstant)
+          .toList();
+      expect(mornings.map((PendingBloomReward r) => r.dueAt).toSet(),
+          <DateTime>{
+            DateTime(2026, 9, 28, 8),
+            DateTime(2026, 9, 29, 8),
+          },
+          reason: '晨露 = 花期内每天 08:00（玄参 2026-10-07 口径）');
     });
 
-    test('连续多次 tickAll（花一直盛开）→ pending 条数恒为 2，不重复登记', () async {
+    test('连续多次 tickAll（花一直盛开）→ pending 条数恒为 3，不重复登记', () async {
       final _Ctx ctx = await _make(random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
       final DateTime now = DateTime(2026, 9, 27, 8);
       await ctx.plants.savePlant(_readyToBloom('species_sunflower', now));
@@ -259,11 +266,11 @@ void main() {
       for (int i = 0; i < 8; i++) {
         await ctx.svc.tickAll(now.add(Duration(minutes: i)));
       }
-      expect(await _pendingCount(ctx.database), 2,
+      expect(await _pendingCount(ctx.database), 3,
           reason: '重复 tick 不得新增 pending（否则奖励翻倍）');
     });
 
-    test('已收集的两条，后续 tick 不会被 upsert 重新写回（不复活已领奖励）', () async {
+    test('已收集的全部三条，后续 tick 不会被 upsert 重新写回（不复活已领奖励）', () async {
       final _Ctx ctx = await _make(
           random: _SeqRandom(doubles: <double>[0.99], ints: <int>[0]));
       final DateTime now = DateTime(2026, 9, 27, 8);
@@ -272,24 +279,27 @@ void main() {
 
       // 收集 instant（花仍盛开）。
       await _collectInstant(ctx, now);
-      // 到 48h 收集第二段。
+      // 到 +48h 逐条收集两条晨露。
       final DateTime due48 = now.add(const Duration(hours: kBloomRewardDelayHours));
       final Map<String, List<PendingBloomReward>> at48 =
           await ctx.svc.collectibleBloomRewards(due48);
-      await ctx.svc.collectBloomReward(at48[_pid]!.first.id, due48);
+      for (final PendingBloomReward r in at48[_pid]!) {
+        await ctx.svc.collectBloomReward(r.id, due48);
+      }
 
-      expect(await _pendingUnclaimedCount(ctx.database), 0, reason: '两条都已领');
+      expect(await _pendingUnclaimedCount(ctx.database), 0, reason: '三条都已领');
       expect(await _ledgerCount(ctx.database, kBloomRewardRefType), 1);
-      expect(await _ledgerCount(ctx.database, kBloomSecondPhaseRefType), 1);
+      expect(await _ledgerCount(ctx.database, kBloomSecondPhaseRefType), 2,
+          reason: '两轮晨露各入账一次');
 
       // 再 tick 多次（花仍盛开）：不得把已领记录改回未领 / 不新增。
       for (int i = 0; i < 5; i++) {
         await ctx.svc.tickAll(due48.add(Duration(minutes: i)));
       }
-      expect(await _pendingCount(ctx.database), 2, reason: '条数不变');
+      expect(await _pendingCount(ctx.database), 3, reason: '条数不变');
       expect(await _pendingUnclaimedCount(ctx.database), 0, reason: '不被写回应领');
       expect(await _ledgerCount(ctx.database, kBloomRewardRefType), 1);
-      expect(await _ledgerCount(ctx.database, kBloomSecondPhaseRefType), 1);
+      expect(await _ledgerCount(ctx.database, kBloomSecondPhaseRefType), 2);
     });
   });
 
@@ -354,13 +364,14 @@ void main() {
       await ctx.svc.tickAll(fade);
       expect(await _ledgerCount(ctx.database, kBloomRewardRefType), 1,
           reason: 'instant 兜底恰一次');
-      // instant + 第二段两条此刻都已到期且不再盛开 → 都兜底。
-      expect(await _ledgerCount(ctx.database, kBloomSecondPhaseRefType), 1);
+      // instant + 两轮晨露此刻都已到期且不再盛开 → 都兜底。
+      expect(await _ledgerCount(ctx.database, kBloomSecondPhaseRefType), 2,
+          reason: '花期两轮晨露各兜底一次');
 
       // 再 tick：不得翻倍。
       await ctx.svc.tickAll(fade.add(const Duration(days: 1)));
       expect(await _ledgerCount(ctx.database, kBloomRewardRefType), 1);
-      expect(await _ledgerCount(ctx.database, kBloomSecondPhaseRefType), 1);
+      expect(await _ledgerCount(ctx.database, kBloomSecondPhaseRefType), 2);
     });
 
     test('B4 竞态：先点击 instant 收集，紧接着花谢兜底 → 不二次入账', () async {
@@ -379,8 +390,8 @@ void main() {
       await ctx.svc.tickAll(fade);
       expect(await _ledgerCount(ctx.database, kBloomRewardRefType), 1,
           reason: '竞态下 instant 仍只发一次（同一 id 去重）');
-      expect(await _ledgerCount(ctx.database, kBloomSecondPhaseRefType), 1,
-          reason: '第二段在此之前未领 → 兜底恰一次');
+      expect(await _ledgerCount(ctx.database, kBloomSecondPhaseRefType), 2,
+          reason: '两轮晨露在此之前未领 → 兜底各恰一次');
     });
 
     test('B5 枯萎路径：第二段到期前枯萎 → 兜底恰一次', () async {

@@ -175,7 +175,7 @@ void main() {
       // 从真实库读回（real Drift read path），不限 due（farFuture）。
       final List<db.PendingBloomRewardRow> rows =
           await ctx.database.bloomRewardDao.pendingDue(farFuture);
-      expect(rows, hasLength(2), reason: '应登记瞬间 + 第二段两条');
+      expect(rows, hasLength(3), reason: '应登记瞬间 + 花期两轮晨露（2026-10-07 每日 8 点口径）');
 
       final db.PendingBloomRewardRow instantRow = rows.firstWhere(
           (db.PendingBloomRewardRow r) =>
@@ -211,7 +211,7 @@ void main() {
 
         final List<db.PendingBloomRewardRow> rows =
             await ctx.database.bloomRewardDao.pendingDue(farFuture);
-        expect(rows, hasLength(2), reason: 'seed=$seed 应登记两条');
+        expect(rows, hasLength(3), reason: 'seed=$seed 应登记瞬间 + 两轮晨露（2026-10-07）');
 
         final db.PendingBloomRewardRow instantRow = rows.firstWhere(
             (db.PendingBloomRewardRow r) =>

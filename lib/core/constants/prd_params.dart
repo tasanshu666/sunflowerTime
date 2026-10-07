@@ -312,6 +312,10 @@ const int kBloomBonusSunlightMaxPremium = 25;
 ///
 /// 玄参 2026-09-25 修订（变更 A）：由 24h 改为 **48h**；第二段奖励不再是 tick 自动发放，
 /// 而是到期后在花盆旁掉落气泡，由小朋友**手动点击收集**（见 `PlantGrowthService.collectBloomReward`）。
+///
+/// ⚠️ **已废弃（2026-10-07 每日 8 点口径，玄参拍板）**：花开 48h 单条第二段已由
+/// 「花期内每天 08:00 各掉一轮」取代（登记见 `PlantGrowthService._enqueueBloomRewards`）。
+/// 本常量代码中已无调用点，仅作历史口径留存；字符串值 `bloom_reward_24h` 冻结不受影响。
 const int kBloomRewardDelayHours = 48;
 
 /// 第二段奖励 · 精品碎片概率 · 普通植物（掉 1 片）。
@@ -439,6 +443,19 @@ const String kBloomRewardKindNormal = 'normal';
 
 /// 第二段待发奖励的档位标识 · 精品。
 const String kBloomRewardKindPremium = 'premium';
+
+/// 「同轮花期」判定的**时钟容差**（秒）· F78 修订（玄参 2026-10-07）。
+///
+/// 背景：待收集奖励「可收集」的单点判据是「植物盛开 且 `dueAt >= bloomedAt`（属本轮花期）」。
+/// 开花瞬间奖励登记时 `dueAt = bloomedAt`（同一 `now`），本应恒等；但极端情况下
+/// （时钟回拨 / 存储精度 / 催熟与 tick 的 `DateTime.now()` 基准微差）可能出现
+/// `dueAt` 比 `bloomedAt` 早若干毫秒的**同 tick 抖动** → 被误判为「旧轮」而不可收集
+/// （玄参 2026-10-07 真机「催熟后看不到奖励」的兜底防线）。
+///
+/// 容差取 1s：足以吸收任意时钟抖动，又远小于「两次真实开花」的最短间隔
+/// （复开花最快 ≈7 天；调试连点催熟也 ≳1s），故**不会**把旧轮 pending 重新算作可收集、
+/// 不会回归 F78「头顶蹦出一排图标」。
+const int kBloomSameRoundToleranceSeconds = 1;
 
 // ───────────────────────────────────────────────────────────────────────────
 // M3 任务模板配置常量（T05，§4.4 / §8.2）。禁止裸字面量。
@@ -577,6 +594,18 @@ const int kClearHintRiseMs = 1600;
 /// 除草 / 除虫飘字 · 上飘总距离（逻辑像素，向上为负）。
 const double kClearHintRiseDistance = 36;
 
+/// 提示卡（飘字 / 汇总提示）· 淡入时长（毫秒）· 所有提示共用（短促起手，不拖沓）。
+const int kHintFadeInMs = 120;
+
+/// 一键操作汇总提示 · **停留时长**（毫秒）· 玄参 2026-10-07 真机口径：
+/// 「一键浇水的提示卡，还是在屏幕的最下面……淡出的时间还是很长」→ 改为**屏幕正中**
+/// 确定性叠加 + 「显示约 1s 后快速淡出」。停留 [kOneClickHintHoldMs] + 淡出
+/// [kOneClickHintFadeMs]，合计 ≈1.3s（比原 1s 单一控制器更快收尾）。
+const int kOneClickHintHoldMs = 1000;
+
+/// 一键操作汇总提示 · **淡出时长**（毫秒）· 停留结束后的干脆淡出（不再慢悠悠）。
+const int kOneClickHintFadeMs = 300;
+
 /// 播完效果帧后干扰物（杂草 / 蝗虫）**渐变消失**的时长（毫秒）：
 /// 数据已写库，UI 先淡出该浮标再刷新草地（玄参口径「播放完杂草渐变消失」）。
 const int kPestFadeOutMs = 300;
@@ -656,6 +685,36 @@ const String kGardenAmbientAsset = 'assets/audio/bgm/background.mp3';
 
 /// 花园氛围音播放间隔（秒）：进入花园立即播一次，之后每隔 N 秒再播一次。
 const int kGardenAmbientIntervalSeconds = 30;
+
+/// 花园氛围音「启动尝试次数」（首次 + 重试）· F82（玄参 2026-10-07：
+/// 「第一次安装后第一次进花园 BGM 不响，切几次 tab 才响」）。
+///
+/// 根因：冷启动首次使用播放器前会 `clearAssetCache()` 清 just_audio 资产拷贝缓存，
+/// 随后**首次** `setAsset` / `play()` 可能因缓存目录被清 / 首次解码耗时**失败或静默未播**
+/// ——此时 [_ambientShouldPlay] 仍为 true 但播放器实际未播，自愈监听有 1s 节流，
+/// 于是要等下一轮定时器或切 tab 才补上。故首播**有限次重试**（3 = 首次 + 2 重试），
+/// 仍失败则静默放弃（不卡 UI）。
+const int kAmbientStartAttempts = 3;
+
+/// 花园氛围音启动重试间隔（毫秒）· 首次失败后等待再重试（够首次解码就绪，又不拖沓）。
+const int kAmbientRetryDelayMs = 400;
+
+/// SFX 播放期间花园氛围音被压低的音量（ducking）· 玄参 2026-10-07 真机：
+/// 「种植/养护音效会打断花园背景音；需要优化，背景音正常播放，**或者**降低音量」。
+///
+/// 🔴 **2026-10-07 第 5 轮真机复测后由 0.35 改为 0.80**（原值 = -9.1 dB，过重）：
+/// 设备日志（`/tmp/ambdiag.log`）实证 SFX 播放期间氛围音播放器**从未 pause/stop**，
+/// 「戛然而止」的真因是**响度掩蔽**——素材实测 `background.mp3` 仅 -38.6 LUFS（峰值
+/// -24.1 dB），而 `shovel.mp3` -14.8 LUFS（峰值 -0.3 dB），**峰值差 23.8 dB**：
+/// 背景音本就轻到几乎听不见，任何更响的音效都会把它完全盖住。
+/// 已用 EBU R128 把 BGM 统一到 -26 LUFS、全部 SFX 统一到 -20 LUFS（层级差 6 dB）。
+/// 此时若再按 0.35 压低（-9.1 dB）等于把背景音重新按回「听不见」→ 仍会被听成打断；
+/// 改 0.80（-1.9 dB）为**轻微让位**：SFX 清晰、背景音全程可闻、绝不出现「消失感」。
+const double kSfxDuckAmbientVolume = 0.80;
+
+/// ducking 恢复的兜底超时（毫秒）· 万一监听不到 SFX `completed`（加载失败 / 播放器异常），
+/// 最多压低这么久即恢复，避免氛围音音量被永久钉死。
+const int kSfxDuckMaxMs = 5000;
 
 // ── 花园格几何（与 `garden_pot.dart` / `care_effect_overlay.dart` 共享）──────
 // ⚠️ 只此一份：养护效果帧要按「盆口（根部）」精确定位，必须复用与花盆格完全相同的

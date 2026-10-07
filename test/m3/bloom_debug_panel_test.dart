@@ -178,14 +178,15 @@ Future<bool> _pumpUntil(
   return ready();
 }
 
-Widget _host(PlantRepository plants) => ProviderScope(
+Widget _host(PlantRepository plants, {InMemoryBloomRewardRepository? bloom}) =>
+    ProviderScope(
       overrides: <Override>[
         settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
         sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
         focusRepositoryProvider.overrideWithValue(_FakeFocusRepository()),
         plantRepositoryProvider.overrideWithValue(plants),
-        bloomRewardRepositoryProvider
-            .overrideWithValue(InMemoryBloomRewardRepository()),
+        bloomRewardRepositoryProvider.overrideWithValue(
+            bloom ?? InMemoryBloomRewardRepository()),
         // C26：干扰物 roll 注入「永不命中」桩 —— 本文件验的是调试面板与催熟
         // 链路，随机长出的杂草/虫会当天暂停成长、让催熟结算不盛开（实证红过）。
         plantGrowthServiceProvider.overrideWith((ref) => PlantGrowthService(
@@ -244,7 +245,7 @@ void main() {
       '应用进度并结算',
       '催熟到成株',
       '立即花谢',
-      '让 48h 奖励可领取',
+      '让待领奖励可领取',
       '快进 +1 天',
     ]) {
       expect(find.text(label), findsOneWidget, reason: '缺动作按钮：$label');
@@ -288,5 +289,37 @@ void main() {
     expect(after.stage, PlantStage.adult);
     expect(after.status, PlantStatus.bloomed);
     expect(after.bloomCount, 1);
+  });
+
+  testWidgets('调试面板「+1 普通种子」→ 走领域发券（unlockedSpecies 增）',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final _StoringPlantRepository repo =
+        _StoringPlantRepository(<Plant>[_sprout()]);
+    final InMemoryBloomRewardRepository bloom = InMemoryBloomRewardRepository();
+    await tester.pumpWidget(_host(repo, bloom: bloom));
+
+    await _pumpUntil(
+      tester,
+      () => find.byType(BloomDebugEntry).evaluate().isNotEmpty,
+    );
+    await tester.tap(find.byType(BloomDebugEntry));
+    await _pumpUntil(
+      tester,
+      () => find.text('+1 普通种子').evaluate().isNotEmpty,
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(await bloom.unlockedSpeciesIds(), isEmpty, reason: '发券前无种子');
+    await tester.tap(find.text('+1 普通种子'));
+    // 等发券落库（按钮动作异步 → 逐帧推进有限帧）。
+    for (int i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(await bloom.unlockedSpeciesIds(), contains('species_sunflower'),
+        reason: '普通档券应落到普通物种 species_sunflower');
   });
 }

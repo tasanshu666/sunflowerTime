@@ -155,9 +155,18 @@ class _GardenPageState extends ConsumerState<GardenPage> {
 
   // ── 一键操作（口径 C29，玄参 2026-10-05 拍板）────────────────────────────
 
-  /// 一键操作汇总飘字：完成后**页面顶部居中**飘出「一键XX成功 ×N」+ 阳光增减
-  /// （扣费为负数，显示「-N」）。由 [_RisingHint] 走完自清。
-  ({String label, int sunlight})? _batchHint;
+  /// 一键操作汇总提示的**根 Overlay 浮层**（玄参 2026-10-07 真机复测修订）。
+  ///
+  /// 背景（真机「提示卡还是在屏幕最下面」的根因）：旧实现把提示挂在花园页**根 Stack**
+  /// 内（`Positioned.fill(Center(...))`）——理论上居中，但**受父层布局链影响**
+  /// （SafeArea / 嵌套 Stack 的约束来源不确定），真机上曾出现贴底。故改为**根 Overlay
+  /// 全屏浮层**：`Overlay.of(context, rootOverlay: true)` 的坐标系恒等于屏幕，
+  /// `Positioned.fill + Center` → **确定性居中**（与 [_showCollectGhost] 同款做法，
+  /// 且脱离页面重建树、不受格内裁剪影响）。
+  OverlayEntry? _batchHintEntry;
+
+  /// 汇总提示兜底清除计时器（动画 onComplete 未触发时清理；dispose 必须取消）。
+  Timer? _batchHintTimer;
 
   /// 一键操作的每盆**轻量反馈**（不做 4s 完整动效）：potIndex → 动效类型，
   /// 短暂显示约 1.1s 后整批清除。
@@ -206,6 +215,13 @@ class _GardenPageState extends ConsumerState<GardenPage> {
 
   /// 持有的免费种植券物种 id 集合（花园「选择要种的植物」列表判「种子兑换 · 免费」用）。
   Set<String> _unlockedSpecies = <String>{};
+
+  /// 各物种支付按钮**预取缓存**（speciesId → buttons；玄参 2026-10-07「种子同步到
+  /// 种植卡片里感觉有点慢」）：[_reload] 末尾统一预取（逐物种查库太慢，打开弹窗
+  /// 逐个 await 会卡），[_openPlantSheet] 直接读缓存零等待；缓存未命中时弹窗内
+  /// 现场查兜底（口径仍单点 [PlantGrowthService.plantPaymentOptions]）。
+  final Map<String, List<_PlantPaymentButton>> _paymentButtonsCache =
+      <String, List<_PlantPaymentButton>>{};
 
   /// 各花盆格的全局 Key（稳定）：用于在养护成功后定位该花盆在屏幕上的坐标，
   /// 把动效叠加层精确地摆到对应花盆之上。按 potIndex 懒创建、复用。
@@ -256,7 +272,10 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     _collectGhostTimer?.cancel();
     _collectGhostEntry?.remove(); // 根 Overlay 浮层不随本页卸载，必须显式移除。
     _collectGhostEntry = null;
-    unawaited(AudioService.instance.stopGardenAmbient());
+    _batchHintTimer?.cancel();
+    _batchHintEntry?.remove(); // 汇总提示同为根 Overlay 浮层，必须显式移除。
+    _batchHintEntry = null;
+    unawaited(AudioService.instance.stopGardenAmbient(reason: 'dispose'));
     _gridScroll.dispose();
     super.dispose();
   }
@@ -308,6 +327,13 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       // 注意：养护额度不在这里取——草地不展示次数，额度由弹出的养护面板自行读取
       // （见 PlantCareCard），少一次查询，也避免两处口径漂移。
       _balance = await ref.read(sunlightRepositoryProvider).balance();
+      // 预取各物种支付按钮（玄参 2026-10-07「种子同步到种植卡片慢」）：余额 / 券 /
+      // 碎片全部就绪后统一算一遍，打开选种弹窗零等待。逐物种仍走领域单点。
+      final PlantGrowthService svcForButtons = ref.read(plantGrowthServiceProvider);
+      _paymentButtonsCache.clear();
+      for (final PlantSpecies sp in _species) {
+        _paymentButtonsCache[sp.id] = await _plantPaymentButtons(sp, svcForButtons);
+      }
       _error = null;
       // 升级检测：与上一轮快照 diff，发现「阶段/开花」推进 → 播放成长过渡演出。
       _detectGrowthTransitions();
@@ -372,6 +398,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     if (result.effect != null) _playCareEffect(potIndex, result.effect!);
     if (result.shovelRefund != null) {
       final int refund = result.shovelRefund!;
+      // 铲除音效（2026-10-07 玄参交付 `shovel.mp3`；确认卡点「确定铲除」成功后播）。
+      AudioService.instance.playSfx(AudioCue.shovel);
       _snack(refund > 0 ? '铲除成功，返还 $refund ☀' : '铲除成功');
     }
     await _reload(silent: true);
@@ -431,6 +459,55 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     _collectGhostTimer = null;
     _collectGhostEntry?.remove();
     _collectGhostEntry = null;
+  }
+
+  /// 弹出「一键操作汇总提示」**根 Overlay 全屏浮层**（玄参 2026-10-07 真机复测修订）。
+  ///
+  /// 与 [_showCollectGhost] 同款做法：`Overlay.of(rootOverlay:true)` 的坐标系恒等于屏幕，
+  /// `Positioned.fill + Center` 保证**确定性居中**（不再受花园页布局链约束来源影响，
+  /// 修复真机「仍在屏幕最下面」）。`IgnorePointer`：提示不挡任何点击。
+  /// 停留 [kOneClickHintHoldMs] + 淡出 [kOneClickHintFadeMs]（总 = 淡入 + 停留 + 淡出），
+  /// 走完 onComplete 自清；另加定时器兜底（页面被卸载重建等极端情况）。
+  void _showBatchHint(String label, int sunlight, {bool showSunlight = true}) {
+    _removeBatchHint();
+    final OverlayEntry entry = OverlayEntry(
+      builder: (BuildContext _) => Positioned.fill(
+        child: IgnorePointer(
+          child: Center(
+            child: _RisingHint(
+              label: label,
+              sunlight: sunlight,
+              showSunlight: showSunlight,
+              holdMs: kOneClickHintHoldMs,
+              fadeOutMs: kOneClickHintFadeMs,
+              riseDistance: 0, // 原地居中（玄参「要在中间显示」）
+              pillKey: kOneClickBatchHintPillKey,
+              sunIconAsset:
+                  _rewardAssets.contains('assets/rewards/sunlight.png')
+                      ? 'assets/rewards/sunlight.png'
+                      : null,
+              onComplete: _removeBatchHint,
+            ),
+          ),
+        ),
+      ),
+    );
+    _batchHintEntry = entry;
+    Overlay.of(context, rootOverlay: true).insert(entry);
+    // 兜底：动画 onComplete 因任何原因未触发也保证浮层被清走。
+    final int totalMs = kHintFadeInMs + kOneClickHintHoldMs + kOneClickHintFadeMs;
+    _batchHintTimer = Timer(
+      Duration(milliseconds: totalMs + 300),
+      _removeBatchHint,
+    );
+  }
+
+  /// 移除汇总提示浮层（幂等）。
+  void _removeBatchHint() {
+    _batchHintTimer?.cancel();
+    _batchHintTimer = null;
+    _batchHintEntry?.remove();
+    _batchHintEntry = null;
   }
 
   /// 手动收集一条待收集奖励（变更 A/B + v12，花盆上方头顶图标点击）：调服务发放并刷新，
@@ -741,7 +818,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     } else if (!_ambientActive && _ambientTimer != null) {
       _ambientTimer!.cancel();
       _ambientTimer = null;
-      unawaited(AudioService.instance.stopGardenAmbient());
+      unawaited(AudioService.instance.stopGardenAmbient(reason: 'leave'));
     }
   }
 
@@ -822,17 +899,34 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     final DateTime now = DateTime.now();
     final OneClickPlan plan = await svc.oneClickPlan(kind, now);
     if (!mounted) return;
+    // 一键操作的「计划为空 / 不可执行」提示统一走**居中 Overlay 浮层**（玄参 2026-10-07
+    // 截图实证：旧 `_snack` 是屏幕最下面的 SnackBar，停留久且不居中）——复用 [_showBatchHint]，
+    // 与一键成功汇总**同节奏**（淡入 [kHintFadeInMs] → 停留 [kOneClickHintHoldMs] → 淡出
+    // [kOneClickHintFadeMs]）；无阳光数值，故 `showSunlight: false`。
     switch (kind) {
       case PlantOneClickKind.water:
-        if (plan.isEmpty) return _snack('今天没有可浇水的植物');
+        if (plan.isEmpty) {
+          _showBatchHint('今天没有可浇水的植物', 0, showSunlight: false);
+          return;
+        }
       case PlantOneClickKind.fertilize:
-        if (plan.isEmpty) return _snack('今天没有可施肥的植物');
+        if (plan.isEmpty) {
+          _showBatchHint('今天没有可施肥的植物', 0, showSunlight: false);
+          return;
+        }
       case PlantOneClickKind.care:
-        if (plan.isEmpty) return _snack('没有需要护理的植物');
+        if (plan.isEmpty) {
+          _showBatchHint('没有需要护理的植物', 0, showSunlight: false);
+          return;
+        }
     }
     // 阳光不足 → 整体拦截（玄参拍板：一株都不执行，避免「浇一半没阳光」的挫败）。
     if (kind != PlantOneClickKind.care && _balance < plan.totalCost) {
-      _snack('阳光不足，还差 ${(plan.totalCost - _balance).ceil()} ☀ —— 去专注赚阳光吧');
+      _showBatchHint(
+        '阳光不足，还差 ${(plan.totalCost - _balance).ceil()} ☀ —— 去专注赚阳光吧',
+        0,
+        showSunlight: false,
+      );
       return;
     }
     // 确认卡：明示合计价 / 奖励口径。
@@ -933,28 +1027,33 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       _batchPulse
         ..clear()
         ..addAll(pulse);
-      _batchHint = switch (kind) {
-        PlantOneClickKind.water => (
-            label: '一键浇水成功 ×${plan.plantIds.length}',
-            sunlight: -plan.totalCost,
-          ),
-        PlantOneClickKind.fertilize => (
-            label: '一键施肥成功 ×${plan.plantIds.length}',
-            sunlight: -plan.totalCost,
-          ),
-        PlantOneClickKind.care => (
-            label: '一键护理成功 ×${plan.actionCount}',
-            sunlight: careEarned,
-          ),
-      };
     });
+    // 汇总提示（**根 Overlay 全屏浮层**，确定性居中）：「一键XX成功 ×N」+ 阳光增减
+    // （扣费负数 / 护理奖励正数），走 envelope 自清。
+    final (String hintLabel, int hintSunlight) = switch (kind) {
+      PlantOneClickKind.water =>
+        ('一键浇水成功 ×${plan.plantIds.length}', -plan.totalCost),
+      PlantOneClickKind.fertilize =>
+        ('一键施肥成功 ×${plan.plantIds.length}', -plan.totalCost),
+      PlantOneClickKind.care =>
+        ('一键护理成功 ×${plan.actionCount}', careEarned),
+    };
+    _showBatchHint(hintLabel, hintSunlight);
+    // 一键护理 = 除草 / 除虫合集，成功时**整批只播一次**，且按**实际护理内容**选音效
+    // （玄参 2026-10-07：「如果只有杂草，就播放除草的音效；如果有除虫和除草，就播放除虫
+    // 的音效」）——存在任一害虫目标 → carePest；全是杂草 → careWeed；不逐株连播、不叠加。
+    if (kind == PlantOneClickKind.care) {
+      final bool hasPest = plan.careTargets.any((t) => !t.weed);
+      AudioService.instance
+          .playSfx(hasPest ? AudioCue.carePest : AudioCue.careWeed);
+    }
     _batchPulseTimer?.cancel();
-    // 清场定时器 = 本类脉冲显示时长 + 150ms 余量（浇水/施肥与音效等长，
-    // 玄参 2026-10-06；一键护理维持旧 1s 轻脉冲 + 100ms）。
+    // 清场定时器 = 本类脉冲显示时长 + 150ms 余量（浇水/施肥与音效等长，玄参 2026-10-06；
+    // 一键护理 2026-10-07 对齐除虫音效 = kCarePestDurationMs + 150ms）。
     final int pulseClearMs = switch (kind) {
       PlantOneClickKind.water => kCareWaterDurationMs + 150,
       PlantOneClickKind.fertilize => kCareFertilizeDurationMs + 150,
-      PlantOneClickKind.care => 1100,
+      PlantOneClickKind.care => kCarePestDurationMs + 150,
     };
     _batchPulseTimer = Timer(Duration(milliseconds: pulseClearMs), () {
       if (!mounted) return;
@@ -977,7 +1076,12 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     final List<({PlantSpecies sp, List<_PlantPaymentButton> buttons})> rows =
         <({PlantSpecies sp, List<_PlantPaymentButton> buttons})>[];
     for (final PlantSpecies sp in _species) {
-      rows.add((sp: sp, buttons: await _plantPaymentButtons(sp, svc)));
+      // 优先读 [_reload] 预取缓存（玄参 2026-10-07「同步慢」）；未命中现场查兜底。
+      rows.add((
+        sp: sp,
+        buttons: _paymentButtonsCache[sp.id] ??
+            await _plantPaymentButtons(sp, svc),
+      ));
     }
     if (!mounted) return;
     await showDialog<void>(
@@ -1080,8 +1184,9 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   /// 依赖账本与余额 → 异步，UI 不得自行重算价格。
   /// C29：植物**可重复种植**，不再按「已有存活植株」禁用（同物种可多株并存）；
   /// 禁用只看余额（阳光不足 / 碎片不足并写明当前片数）。
-  ///  · free → 「免费」/「用种子种（免费）」；sunlight → 「N 阳光」（阳光不足禁用）；
-  ///    fragments → 「N 植物碎片」（碎片不足禁用）。
+  ///  · free → 「免费」（仅向日葵首株）；seed → 「种子」（前置分档种子图，玄参 2026-10-07
+  ///    「文案精简」）；sunlight → 「N 阳光」（阳光不足禁用）；fragments → 「N 植物碎片」
+  ///    （碎片不足禁用）。
   Future<List<_PlantPaymentButton>> _plantPaymentButtons(
     PlantSpecies sp,
     PlantGrowthService svc,
@@ -1094,8 +1199,12 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       String? reason;
       switch (opt.kind) {
         case PlantCostKind.free:
-          // 种子券入口（玄参 2026-09-29）：非初始物种的免费项 = 持有该物种种子，文案点明来源。
-          label = sp.id == kStarterSpeciesId ? '免费' : '用种子种（免费）';
+          // 免费入口现在只剩向日葵首株（2026-10-07：种子独立成第三支付方式，不再并入 free）。
+          label = '免费';
+          enabled = true;
+        case PlantCostKind.seed:
+          // 第三支付方式（玄参 2026-10-07）：文案精简为「种子」，分档种子图在按钮组件前置。
+          label = '种子';
           enabled = true;
         case PlantCostKind.sunlight:
           label = '${opt.amount} 阳光';
@@ -1120,6 +1229,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
         label: label,
         enabled: enabled,
         disabledReason: reason,
+        seedIsPremium: opt.kind == PlantCostKind.seed ? sp.isPremium : null,
       ));
     }
     return buttons;
@@ -1149,8 +1259,10 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     }
     if (opt == null || !mounted) return;
     final String costLine = switch (kind) {
-      PlantCostKind.free =>
-        sp.id == kStarterSpeciesId ? '本次种植：免费' : '将使用 1 张${sp.name}种子（免费）',
+      PlantCostKind.free => '本次种植：免费',
+      PlantCostKind.seed =>
+        // 玄参 2026-10-07「文案精简」：不再点明物种名与「（免费）」后缀。
+        '将使用 1 张${sp.isPremium ? '精英' : '普通'}种子\n当前种子：${sp.isPremium ? _premiumSeedCount : _commonSeedCount} 张',
       PlantCostKind.sunlight =>
         '本次种植将扣除：${opt.amount} ☀\n当前阳光：${_balance.toInt()} ☀',
       PlantCostKind.fragments =>
@@ -1174,7 +1286,12 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       ),
     );
     if (ok != true) return; // 取消 / 关闭 → 不扣任何资源
-    await _run(() => svc.plant(sp.id, potIndex, DateTime.now(), payWith: kind));
+    // 种植音效（玄参 2026-10-07 交付 `cultivate.mp3`）：**仅种下成功后播放一次**
+    // （_run 返回 true）；选择卡片弹出 / 取消 / 种植失败时一律不播。
+    final bool planted = await _run(
+      () => svc.plant(sp.id, potIndex, DateTime.now(), payWith: kind),
+    );
+    if (planted) AudioService.instance.playSfx(AudioCue.cultivate);
   }
 
   /// 按 potIndex 找到占用该花盆的植物（无则 null）。
@@ -1524,27 +1641,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
                 bottom: 12,
                 child: _OneClickFab(onSelected: _onOneClick),
               ),
-            // 一键操作汇总飘字（C29）：页面顶部居中，「一键XX成功 ×N」+ 阳光增减
-            // （扣费显示 -N / 护理奖励显示 +N），由 _RisingHint 走完自清。
-            if (_batchHint != null)
-              Positioned(
-                top: 96,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: _RisingHint(
-                    label: _batchHint!.label,
-                    sunlight: _batchHint!.sunlight,
-                    sunIconAsset:
-                        _rewardAssets.contains('assets/rewards/sunlight.png')
-                            ? 'assets/rewards/sunlight.png'
-                            : null,
-                    onComplete: () {
-                      if (mounted) setState(() => _batchHint = null);
-                    },
-                  ),
-                ),
-              ),
+            // 一键操作汇总提示（C29）已于 2026-10-07 改为**根 Overlay 全屏浮层**
+            // （见 [_showBatchHint]）——不再挂在根 Stack 内，避免真机「贴底」问题。
             // 「花期调试」入口（**仅 kDebugMode**）：同样为根 Stack 浮层——紧凑、不占布局
             // 高度（避免把矮屏用例顶出视口 / 触发 overflow），release 构建自动不渲染。
             // 摆在右上角（左上角是阳光胶囊、左下角木牌、右下角碎片入口）。
@@ -1620,6 +1718,13 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   }
 }
 
+/// 一键汇总提示**胶囊本体**的公开 Key（供 widget 测试精确度量其屏幕中心，
+/// 验证「确定性居中」；见 [kOneClickBatchHintCenterTolerance]）。
+const Key kOneClickBatchHintPillKey = Key('oneClickBatchHintPill');
+
+/// 一键汇总提示「居中」判定的像素容差（widget 测试用）：胶囊中心与屏幕中心的偏差上限。
+const double kOneClickBatchHintCenterTolerance = 20;
+
 /// 除草 / 除虫成功飘字（2026-10-03 玄参口径）：半透明白胶囊，**自下而上飘动 +
 /// 淡出**（总时长 [kClearHintRiseMs]）。前 10% 淡入、中段平稳上飘、后 30% 淡出，
 /// 走完经 [onComplete] 通知花园页移除。有限时长动画（可被 pumpAndSettle 结束）。
@@ -1635,17 +1740,42 @@ class _RisingHint extends StatefulWidget {
   /// 奖励阳光数（渲染成「+N」跟在阳光图标后）。
   final int sunlight;
 
+  /// 是否渲染尾段「[阳光图标] +N」（默认 true）。
+  /// 「计划为空 / 不可执行」类**居中提示**只有文案、无阳光数值 → 传 false（玄参 2026-10-07）。
+  final bool showSunlight;
+
   /// 阳光图标 asset（null 或加载失败 → 回退内置 `Icons.wb_sunny`）。
   final String? sunIconAsset;
 
   /// 动画走完回调（花园页在此清掉 [_clearHint] 移除本组件）。
   final VoidCallback? onComplete;
 
+  /// **停留时长**（毫秒，可选）· 与 [fadeOutMs] 同时给出时启用**显式透明度包络**：
+  /// 淡入 [kHintFadeInMs] → 停留 [holdMs] → 淡出 [fadeOutMs]，总时长 = 三者之和。
+  /// 一键汇总提示用（玄参 2026-10-07「显示 1s 就可以了，然后淡出消失」）；
+  /// 不给则走旧口径（总时长 [kClearHintRiseMs] + 比例包络，除草/除虫沿用）。
+  final int? holdMs;
+
+  /// **淡出时长**（毫秒，可选）· 见 [holdMs]。
+  final int? fadeOutMs;
+
+  /// 上飘距离（像素）；0 = 原地不动（居中提示模式）。
+  /// 一键汇总提示传 0（玄参 2026-10-07「要在中间显示」），除草/除虫维持默认上飘。
+  final double riseDistance;
+
+  /// 胶囊本体的可选 Key（供 widget 测试**精确度量**其屏幕中心，验证「确定性居中」）。
+  final Key? pillKey;
+
   const _RisingHint({
     required this.label,
     required this.sunlight,
+    this.showSunlight = true,
     this.sunIconAsset,
     this.onComplete,
+    this.holdMs,
+    this.fadeOutMs,
+    this.riseDistance = kClearHintRiseDistance,
+    this.pillKey,
   });
 
   @override
@@ -1654,16 +1784,47 @@ class _RisingHint extends StatefulWidget {
 
 class _RisingHintState extends State<_RisingHint>
     with SingleTickerProviderStateMixin {
+  /// 是否启用「显式包络」（淡入 / 停留 / 淡出分段时间给定）。
+  bool get _explicitEnvelope => widget.holdMs != null && widget.fadeOutMs != null;
+
+  /// 动画总时长：显式包络 = 淡入 + 停留 + 淡出；否则沿用 [kClearHintRiseMs]。
+  late final int _totalMs = _explicitEnvelope
+      ? kHintFadeInMs + widget.holdMs! + widget.fadeOutMs!
+      : kClearHintRiseMs;
+
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: kClearHintRiseMs),
+    duration: Duration(milliseconds: _totalMs),
   );
 
-  /// 上飘位移：0 → -[kClearHintRiseDistance]（easeOut，起快后缓）。
+  /// 上飘位移：0 → -`widget.riseDistance`（easeOut，起快后缓；0 = 原地居中）。
   late final Animation<double> _rise = Tween<double>(
     begin: 0,
-    end: -kClearHintRiseDistance,
+    end: -widget.riseDistance,
   ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+
+  /// 透明度包络（0..1 的动画进度 → 透明度）。
+  ///
+  /// · 显式包络：按**毫秒分段**——淡入 [kHintFadeInMs]、停留 [holdMs]、淡出 [fadeOutMs]；
+  /// · 旧口径：按比例——前 10% 淡入、中段 1.0、后 30% 淡出。
+  double _alpha(double t) {
+    if (!_explicitEnvelope) {
+      return t < 0.10
+          ? t / 0.10
+          : t > 0.70
+              ? (1 - (t - 0.70) / 0.30).clamp(0.0, 1.0)
+              : 1.0;
+    }
+    final double ms = t * _totalMs;
+    final int fadeOutStart = _totalMs - widget.fadeOutMs!;
+    if (ms < kHintFadeInMs) {
+      return (ms / kHintFadeInMs).clamp(0.0, 1.0);
+    }
+    if (ms > fadeOutStart) {
+      return ((_totalMs - ms) / widget.fadeOutMs!).clamp(0.0, 1.0);
+    }
+    return 1.0;
+  }
 
   @override
   void initState() {
@@ -1689,12 +1850,8 @@ class _RisingHintState extends State<_RisingHint>
       animation: _ctrl,
       builder: (BuildContext context, Widget? _) {
         final double t = _ctrl.value;
-        // 透明度包络：前 10% 淡入 → 中段 1.0 → 后 30% 淡出（端点齐平不跳变）。
-        final double alpha = t < 0.10
-            ? t / 0.10
-            : t > 0.70
-                ? (1 - (t - 0.70) / 0.30).clamp(0.0, 1.0)
-                : 1.0;
+        // 透明度包络：旧口径前 10% 淡入 → 中段 1.0 → 后 30% 淡出；显式包络见 [_alpha]。
+        final double alpha = _alpha(t);
         return Transform.translate(
           offset: Offset(0, _rise.value),
           child: Opacity(
@@ -1702,11 +1859,12 @@ class _RisingHintState extends State<_RisingHint>
             // FittedBox：内容超宽时等比缩小（不截断）——窄格不再「显示不全」。
             child: FittedBox(
               fit: BoxFit.scaleDown,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+            child: Container(
+              key: widget.pillKey,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 4,
+              ),
                 decoration: BoxDecoration(
                   color: const Color(0xEFFFFFFF),
                   borderRadius: BorderRadius.circular(12),
@@ -1730,20 +1888,23 @@ class _RisingHintState extends State<_RisingHint>
                         color: Color(0xFF8D6E00),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    _sunIcon(),
-                    const SizedBox(width: 2),
-                    Text(
-                      // C29：一键操作汇总飘字带负数（扣费）→ 显示「-N」而非「+-N」。
-                      widget.sunlight >= 0
-                          ? '+${widget.sunlight}'
-                          : '${widget.sunlight}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFFE8A33D),
+                    // 无阳光数值的提示（计划为空 / 不可执行）只显示文案，不渲染尾段。
+                    if (widget.showSunlight) ...<Widget>[
+                      const SizedBox(width: 4),
+                      _sunIcon(),
+                      const SizedBox(width: 2),
+                      Text(
+                        // C29：一键操作汇总飘字带负数（扣费）→ 显示「-N」而非「+-N」。
+                        widget.sunlight >= 0
+                            ? '+${widget.sunlight}'
+                            : '${widget.sunlight}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFE8A33D),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -1790,11 +1951,12 @@ class _PotPulse extends StatelessWidget {
     // 显示时长与同播音效**等长**（玄参 2026-10-06「浇水的音效明显比统一显示的
     // 图标时间要长，图标显示时间需要增长」）：浇水 = care_water.mp3 2.90s、
     // 施肥 = care_fertilize.mp3 3.06s（常量单点 prd_params，与效果帧共用）；
-    // 除草/除虫（一键护理逐株另有完整效果帧）维持 1s 轻脉冲。
+    // 除草/除虫（一键护理）2026-10-07 玄参口径修订：播放除虫音效 care_pest.mp3（4.10s），
+    // 故轻脉冲图标时长**对齐音效** = kCarePestDurationMs（原写死 1s 与音效不齐）。
     final int pulseMs = switch (type) {
       CareEffectType.water => kCareWaterDurationMs,
       CareEffectType.fertilize => kCareFertilizeDurationMs,
-      CareEffectType.weed || CareEffectType.pest => 1000,
+      CareEffectType.weed || CareEffectType.pest => kCarePestDurationMs,
     };
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),
@@ -1839,15 +2001,16 @@ class _PlantPaymentButton {
     required this.label,
     required this.enabled,
     this.disabledReason,
+    this.seedIsPremium,
   });
 
-  /// 支付方式（免费 / 阳光 / 碎片）。
+  /// 支付方式（免费 / 阳光 / 碎片 / 种子）。
   final PlantCostKind kind;
 
   /// 数量（阳光片数 / 碎片片数）。
   final int amount;
 
-  /// 按钮文案（如「免费」「400 阳光」「10 植物碎片」）。
+  /// 按钮文案（如「免费」「400 阳光」「10 植物碎片」「种子」）。
   final String label;
 
   /// 是否可点击种下（false = 置灰，如已有存活植株 / 余额不足）。
@@ -1855,6 +2018,10 @@ class _PlantPaymentButton {
 
   /// 禁用原因（余额不足 / 成长中），仅 [enabled] 为 false 时有值。
   final String? disabledReason;
+
+  /// 种子档位（仅 [PlantCostKind.seed] 有意义）：精英 → `seed_premium.png`、
+  /// 普通 → `seed_common.png`；null → 通用 `seed.png`。
+  final bool? seedIsPremium;
 }
 
 /// 稀有度 UI 文案（玄参 2026-09-27 物种表改版：**只显示两档**）。
@@ -2185,21 +2352,29 @@ class _PayButtonWidget extends StatelessWidget {
     final _PlantPaymentButton b = button;
     final Color bg = b.enabled ? const Color(0xFF8FCF74) : Colors.grey.shade300;
     final Widget child = switch (b.kind) {
-      // 免费类保留文字（测试口径）：向日葵首株「免费」；种子券按钮前置分档种子图。
-      PlantCostKind.free => Row(
+      // 免费类保留文字（测试口径）：向日葵首株「免费」。
+      PlantCostKind.free => Text(b.label,
+          style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: b.enabled ? Colors.white : Colors.grey.shade600)),
+      // 种子（第三支付方式，2026-10-07）：前置分档种子图 + 文字「种子」（玄参「精简」）。
+      PlantCostKind.seed => Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            if (b.label.contains('种子')) ...<Widget>[
-              Image.asset(
-                seedAsset ?? 'assets/rewards/seed_common.png',
-                width: 16,
-                height: 16,
-                fit: BoxFit.contain,
-                errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
-                    const Text('🌰', style: TextStyle(fontSize: 12)),
-              ),
-              const SizedBox(width: 4),
-            ],
+            Image.asset(
+              switch (b.seedIsPremium) {
+                true => seedAsset ?? 'assets/rewards/seed_premium.png',
+                false => seedAsset ?? 'assets/rewards/seed_common.png',
+                null => seedAsset ?? 'assets/rewards/seed.png',
+              },
+              width: 16,
+              height: 16,
+              fit: BoxFit.contain,
+              errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+                  const Text('🌰', style: TextStyle(fontSize: 12)),
+            ),
+            const SizedBox(width: 4),
             Text(b.label,
                 style: TextStyle(
                     fontSize: 14,

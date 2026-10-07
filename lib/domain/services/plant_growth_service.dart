@@ -87,9 +87,9 @@ class PlantCareQuota {
   bool get canFertilize => fertilizeBlockReason == null;
 }
 
-/// 种植计价方式（玄参 2026-09-27 物种表改版：按物种计价）。
+/// 种植计价方式（玄参 2026-09-27 物种表改版：按物种计价；2026-10-07 增 [PlantCostKind.seed]）。
 enum PlantCostKind {
-  /// 免费（初始物种向日葵 / 持有免费种植券）。
+  /// 免费（初始物种向日葵首株专用；不消耗任何资源、返还 0）。
   free,
 
   /// 扣阳光（月光兰）。
@@ -97,6 +97,12 @@ enum PlantCostKind {
 
   /// 扣精品碎片（普通 [kSpeciesFragmentCostCommon] / 精英 [kSpeciesFragmentCostPremium]）。
   fragments,
+
+  /// 消耗一张**同档位**免费种植券（种子）· 玄参 2026-10-07 拍板：
+  /// 种子从「与 free 合并的入口」改为**第三种独立支付方式**，且判券口径由
+  /// 「持有该物种的券」改为「持有**同档位**任意物种的券」（与花园左上角
+  /// 普通 / 精英种子计数口径对齐）。免费，返还 = 档位价 50%（C29 口径）。
+  seed,
 }
 
 /// 某物种的种植成本：[kind] + 数量（免费时 [amount] 恒为 0）。
@@ -340,22 +346,23 @@ class PlantGrowthService {
   }
 
   /// 某物种的**可用支付方式**列表（玄参 2026-09-28 计价模型 + 2026-09-29 种子券入口
-  /// + **C29 可重复种植修订，2026-10-05**）。
+  /// + C29 可重复种植修订（2026-10-05）+ **种子第三支付方式 / 按档位判券（2026-10-07）**）。
   ///
   /// 规则：
   ///  · 向日葵（[kStarterSpeciesId]）→ **当前无存活向日葵 → 免费首株**；**已有存活株 →
   ///    第 2 株起按普通档阳光价（[kSpeciesSunlightCostCommon]）**（C29：娃想同时种
   ///    多株向日葵，废除「永久免费 / 每物种一株」旧口径）；
-  ///  · **持有该物种免费种植券**（[BloomRewardRepository.unlockedSpeciesIds] 含其 id，
-  ///    即「掉落过该物种种子且已收集」）→ **首项「用种子种 · 免费」**，付费项保留在后
-  ///    （玄参 2026-09-29 拍板：券入口置顶 + 保留付费按钮）；
-  ///  · 精英（[PlantSpecies.isPremium]）→ 单一碎片项（[kSpeciesFragmentCostPremium]）；
-  ///  · 普通（其余）→ 两项：阳光（[kSpeciesSunlightCostCommon]）或碎片（[kSpeciesFragmentCostCommon]）。
+  ///  · **种子 = 第三种支付方式**（玄参 2026-10-07 拍板）：持有**同档位**任意物种的
+  ///    免费种植券（[_hasSeedOfTier]，即「掉落过同档位任一物种种子且已收集」）→
+  ///    付费项之后追加 [PlantCostKind.seed] 项（按钮文案「种子」，玄参「精简」）；
+  ///    判券口径由旧「持有该物种的券」改为**按档位**，与花园左上角普通 / 精英种子
+  ///    计数同源；
+  ///  · 精英（[PlantSpecies.isPremium]）→ 碎片项（[kSpeciesFragmentCostPremium]）；
+  ///  · 普通（其余）→ 阳光（[kSpeciesSunlightCostCommon]）或碎片（[kSpeciesFragmentCostCommon]）。
   ///
   /// 领域层与 UI（花园页「选择要种的植物」弹窗）**必须共用本方法**，UI 不得自行重算价格。
   Future<List<PlantPaymentOption>> plantPaymentOptions(PlantSpecies sp) async {
-    final bool hasCoupon =
-        (await _bloomRewards.unlockedSpeciesIds()).contains(sp.id);
+    final bool hasSeed = await _hasSeedOfTier(sp.isPremium);
     if (sp.id == kStarterSpeciesId) {
       final bool hasAlive = await _hasAliveOfSpecies(sp.id);
       if (!hasAlive) {
@@ -364,8 +371,8 @@ class PlantGrowthService {
         ];
       }
       return <PlantPaymentOption>[
-        if (hasCoupon) const PlantPaymentOption(PlantCostKind.free, 0),
         PlantPaymentOption(PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
+        if (hasSeed) const PlantPaymentOption(PlantCostKind.seed, 0),
       ];
     }
     final List<PlantPaymentOption> paid = sp.isPremium
@@ -376,13 +383,62 @@ class PlantGrowthService {
             PlantPaymentOption(PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
             const PlantPaymentOption(PlantCostKind.fragments, kSpeciesFragmentCostCommon),
           ];
-    if (hasCoupon) {
-      return <PlantPaymentOption>[
-        const PlantPaymentOption(PlantCostKind.free, 0),
-        ...paid,
-      ];
+    // 种子置末 = 第三种支付方式（玄参 2026-10-07：阳光 / 碎片 / 种子并列）。
+    return <PlantPaymentOption>[
+      ...paid,
+      if (hasSeed) const PlantPaymentOption(PlantCostKind.seed, 0),
+    ];
+  }
+
+  /// 是否持有**同档位**任意物种的免费种植券（种子）· 2026-10-07 口径：
+  /// 按物种券（[BloomRewardRepository.unlockedSpeciesIds]）按档位聚合判定，
+  /// 与花园左上角「普通 / 精英种子计数」同源；不再要求券物种与种植物种一一对应
+  /// （玄参 2026-10-07「有种子的情况下，把种子购买植物做成第三种支付方式」）。
+  Future<bool> _hasSeedOfTier(bool premium) async {
+    final Set<String> coupons = await _bloomRewards.unlockedSpeciesIds();
+    if (coupons.isEmpty) return false;
+    final List<PlantSpecies> species = await _plants.species();
+    for (final PlantSpecies s in species) {
+      if (s.isPremium == premium && coupons.contains(s.id)) return true;
     }
-    return paid;
+    return false;
+  }
+
+  /// 消耗一张**同档位**种子券：按物种表顺序删除第一个持券的同档位物种行。
+  /// 返回被消耗券的物种 id（无券返回 null——调用方应先经 [_hasSeedOfTier] /
+  /// [plantPaymentOptions] 校验，此处兜底安全不抛）。
+  Future<String?> _consumeSeedOfTier(bool premium) async {
+    final Set<String> coupons = await _bloomRewards.unlockedSpeciesIds();
+    final List<PlantSpecies> species = await _plants.species();
+    for (final PlantSpecies s in species) {
+      if (s.isPremium == premium && coupons.contains(s.id)) {
+        await _bloomRewards.consumeUnlock(s.id);
+        return s.id;
+      }
+    }
+    return null;
+  }
+
+  /// **调试专用**：发放一张指定档位的免费种植券（种子）—— 择该档位**尚未持券**的物种
+  /// 写券（[BloomRewardRepository.unlockSpecies]，与花园左上角「普通 / 精英种子计数」
+  /// 同源：计数 = 持券物种数）。
+  ///
+  /// 用途（玄参 2026-10-07「增加普通种子和精英种子的测试按钮，不然测试无法有效获取」）：
+  /// debug 面板「+1 普通种子 / +1 精英种子」按钮，走领域单点、**不绕过仓储直写数据库**，
+  /// 领域层保持 flutter-free。
+  ///
+  /// 返回成功发放的物种 id；该档位所有物种**均已有券**时返回 null（券按 speciesId 去重，
+  /// 已全持券则计数无法再 +1——调用方据此提示，不误报成功）。
+  Future<String?> grantSeedForDebug({required bool premium}) async {
+    final Set<String> held = await _bloomRewards.unlockedSpeciesIds();
+    final List<PlantSpecies> species = await _plants.species();
+    for (final PlantSpecies s in species) {
+      if (s.isPremium == premium && !held.contains(s.id)) {
+        await _bloomRewards.unlockSpecies(s.id);
+        return s.id;
+      }
+    }
+    return null;
   }
 
   /// 某物种的种植成本（**向后兼容**：返回 [plantPaymentOptions] 的默认项）。
@@ -413,12 +469,11 @@ class PlantGrowthService {
   int _tierShovelRefund(PlantSpecies sp) =>
       sp.isPremium ? kShovelRefundPremium : kShovelRefundCommon;
 
-  /// 种植收费（玄参 2026-09-28 计价模型 + **C29 可重复种植修订，2026-10-05**）。
+  /// 种植收费（玄参 2026-09-28 计价模型 + C29 可重复种植修订（2026-10-05）
+  /// + **种子第三支付方式（2026-10-07）**）。
   ///
   /// 返回值 = 本次种下植株的**铲除返还阳光数**（落 `plants.shovel_refund` 列，v16）。
   ///
-  ///  · 持有免费种植券（[BloomRewardRepository.unlockedSpeciesIds] 含该 id）→ **消耗券**，免费，
-  ///    不写 `plant_plant`（不消耗任何资源）；返还额 = 档位价 50%（玄参「统一按 50% 返还」）；
   ///  · 向日葵（[kStarterSpeciesId]）**当前无存活株** → 免费首株，返还 0
   ///    （防「免费种 → 铲 → 循环刷阳光」经济漏洞）；**已有存活株 → 第 2 株起**按
   ///    [kSpeciesSunlightCostCommon] 收阳光；
@@ -428,34 +483,39 @@ class PlantGrowthService {
   ///      走 `_appendSpend`（refType='plant_plant'、refId=物种 id）作审计；返还 = 档位价 50%；
   ///    - `fragments` 分支：`amount = sp.isPremium ? [kSpeciesFragmentCostPremium] : [kSpeciesFragmentCostCommon]`，
   ///      调 `_spendPremiumFragments`；返还 = 档位价 50%（阳光计价基准，非碎片）；
-  ///    - `free` 分支：返还 0（当前仅防御性保留）。
+  ///    - `free` 分支：返还 0（当前仅防御性保留）；
+  ///    - `seed` 分支（2026-10-07 第三支付方式）：消耗一张**同档位**种子券
+  ///      （[_consumeSeedOfTier]，不再要求券物种与种植物种一致），免费；返还 = 档位价 50%
+  ///      （C29 口径不变）。券已耗尽（并发/校验间隙）→ 抛『种子已用完』。
   Future<int> _chargeForPlanting(
     PlantSpecies sp,
     AppSettings settings,
     DateTime now, {
     PlantCostKind? payWith,
   }) async {
-    final Set<String> coupons = await _bloomRewards.unlockedSpeciesIds();
-    if (coupons.contains(sp.id)) {
-      await _bloomRewards.consumeUnlock(sp.id); // 免费种植券：消耗券，不扣任何资源
-      return _tierShovelRefund(sp); // C29：券种株铲除仍按档位 50% 返还
-    }
     if (sp.id == kStarterSpeciesId &&
         !(await _hasAliveOfSpecies(sp.id))) {
-      return 0; // 向日葵免费首株（C29：无存活向日葵时免费；返还 0 防刷）
+      return 0; // 向日葵免费首株（C29：无存活向日葵时免费；返还 0 防刷；不消耗券）
     }
 
     final PlantCostKind kind =
         payWith ?? (sp.isPremium ? PlantCostKind.fragments : PlantCostKind.sunlight);
 
-    // 防御：精英档仅接受碎片兑换。
+    // 防御：精英档仅接受碎片 / 种子券兑换。
     if (sp.isPremium && kind == PlantCostKind.sunlight) {
       throw const PlantOperationException('精英植物只能用碎片兑换');
     }
 
     switch (kind) {
       case PlantCostKind.free:
-        return 0; // 防御分支：免费路径已全部在前两段返回
+        return 0; // 防御分支：免费路径已全部在前段返回
+      case PlantCostKind.seed:
+        // 2026-10-07 种子第三支付方式：消耗一张同档位券（判券口径 = 档位，非物种）。
+        final String? used = await _consumeSeedOfTier(sp.isPremium);
+        if (used == null) {
+          throw const PlantOperationException('种子已用完，去开花收集新的种子吧');
+        }
+        return _tierShovelRefund(sp); // C29：券种株铲除仍按档位 50% 返还
       case PlantCostKind.sunlight:
         final double balance = await _ledger.balance();
         if (balance < kSpeciesSunlightCostCommon) {
@@ -493,12 +553,13 @@ class PlantGrowthService {
   /// 计时驱动成长：对每株推进 growthProgress；满 1.0 进阶段；adult 满 → bloomed；
   /// 同时处理枯萎 / 死亡（死亡**全损**，不写任何账本行）。返回更新后的全部植物。
   ///
-  /// 成株后循环玩法 Batch 1 双阶段奖励（玄参 2026-09-26 变更 B 后）：① 每株若本次 tick
-  /// 新盛开 → **登记两条**待收集记录（开花瞬间 `due=bloomedAt` + 第二段 `due=+48h`），
-  /// 并在**登记时当场 roll** 好奖励内容落库（「掉落即定奖」，v12），**不再即时入账**；
-  /// ② 结算「已到期但已无法收集」的待收集奖励（花谢 / 枯萎 / 植物消失 → 自动兜底发放，
-  /// 照单发放库中已定好的奖励）。**仍可收集**（植物仍盛开）的到期奖励不在此发放，
-  /// 留给花园页头顶图标，由小朋友手动点击收集（[collectBloomReward]）。
+  /// 成株后循环玩法 Batch 1 双阶段奖励（玄参 2026-09-26 变更 B 后；**2026-10-07 每日 8 点修订**）：
+  /// ① 每株若本次 tick 新盛开 → **登记一批**待收集记录（开花瞬间 `due=bloomedAt` +
+  /// 花期内每天 08:00 各一条，取代旧「48h 第二段」），并在**登记时当场 roll** 好奖励内容
+  /// 落库（「掉落即定奖」，v12），**不再即时入账**；
+  /// ② 结算「已到期但已无法收集」的待收集奖励（花谢 / 枯萎 / 植物消失 / **旧轮滞留行** →
+  /// 自动兜底发放，照单发放库中已定好的奖励）。**仍可收集**（植物盛开且属本轮花期）的
+  /// 到期奖励不在此发放，留给花园页头顶图标，由小朋友手动点击收集（[collectBloomReward]）。
   ///
   /// [autoSettled]（可选，非 null 时）按结算顺序**追加**每条「花谢兜底自动到账」奖励的
   /// [BloomRewardOutcome]（`autoSettled: true`），供花园页提示「花朵凋谢，奖励已自动收下：…」。
@@ -1193,7 +1254,10 @@ class PlantGrowthService {
     bool granted = false;
     for (final PendingBloomReward reward in due) {
       final Plant? p = byId[reward.plantId];
-      final bool collectible = p != null && p.status == PlantStatus.bloomed;
+      // F78（玄参 2026-10-07）：豁免条件收紧为「同轮花期」——旧轮 pending（dueAt 早于
+      // 本轮 bloomedAt）在植物重新盛开（如调试催熟）时必须兜底结算，否则每次重新开花
+      // 都让旧奖励滞留累积（真机实证：催熟一次头顶蹦出一排图标）。
+      final bool collectible = _isRewardCollectible(p, reward);
       if (collectible) continue; // 仍可收集 → 留着让小朋友点，不自动发
       final BloomRewardOutcome outcome =
           await _settlePendingReward(reward, species, plants, now);
@@ -1204,11 +1268,34 @@ class PlantGrowthService {
     return granted;
   }
 
-  /// 读取当前**可收集**的待收集奖励（已到期 + 未领取 + 对应植物仍在盛开）。
+  /// 「待收集奖励」是否**可收集**（单点口径，F78 修订 2026-10-07）：
+  /// 植物盛开 **且** 该奖励属于**本轮花期**（`dueAt >= bloomedAt - 容差`）。
   ///
-  /// 返回 `plantId → 待收集奖励列表`（供花园页在花盆旁掉落气泡；同一株可能同时有
-  /// 「开花瞬间」与「第二段」两条 → 最多 2 个气泡）。列表按 `dueAt` 升序（瞬间的更早）。
-  /// 只读、无副作用。到期但植物已不盛开者由 [tickAll] 兜底自动结算，故此处只返回仍可收集者。
+  /// · 开花瞬间 `due == bloomedAt`、第二段 / 每日 8 点 `due > bloomedAt` → 本轮，保留；
+  /// · 旧轮 pending（`dueAt` 明显早于 `bloomedAt`，如调试催熟反复开花留下的）→ 不可收集，
+  ///   由 [_autoSettleUncollectibleRewards] 兜底结算，不再滞留累积。
+  ///
+  /// **容差（[kBloomSameRoundToleranceSeconds]，玄参 2026-10-07 兜底防线）**：同轮奖励的
+  /// `dueAt` 与 `bloomedAt` 由同一 `now` 写入，理论恒相等；但时钟抖动 / 存储精度 / 催熟与
+  /// tick 的基准微差可能让 `dueAt` 比 `bloomedAt` 早几毫秒，若严格 `!dueAt.isBefore(bloomedAt)`
+  /// 会把它误判成「旧轮」→ 头顶图标不显示（用户口径「催熟后看不到奖励」）。
+  /// 故放宽为「不早于 `bloomedAt` 之前 [kBloomSameRoundToleranceSeconds] 秒」。
+  /// 容差远小于两次真实开花的最短间隔，**不会**让旧轮 pending 重新可收集（不回归 F78）。
+  static bool _isRewardCollectible(Plant? p, PendingBloomReward reward) {
+    if (p == null || p.status != PlantStatus.bloomed) return false;
+    final DateTime? bloomedAt = p.bloomedAt;
+    if (bloomedAt == null) return false;
+    final DateTime earliest = bloomedAt.subtract(
+      const Duration(seconds: kBloomSameRoundToleranceSeconds),
+    );
+    return !reward.dueAt.isBefore(earliest);
+  }
+
+  /// 读取当前**可收集**的待收集奖励（已到期 + 未领取 + 对应植物仍在盛开**且属本轮花期**）。
+  ///
+  /// 返回 `plantId → 待收集奖励列表`（供花园页在花盆旁掉落气泡）。列表按 `dueAt` 升序
+  /// （瞬间的更早）。只读、无副作用。到期但不满足可收集条件者（植物已谢 / 旧轮滞留行）
+  /// 由 [tickAll] 兜底自动结算，故此处只返回仍可收集者。
   Future<Map<String, List<PendingBloomReward>>> collectibleBloomRewards(
     DateTime now,
   ) async {
@@ -1223,7 +1310,7 @@ class PlantGrowthService {
         <String, List<PendingBloomReward>>{};
     for (final PendingBloomReward reward in due) {
       final Plant? p = byId[reward.plantId];
-      if (p != null && p.status == PlantStatus.bloomed) {
+      if (_isRewardCollectible(p, reward)) {
         (result[reward.plantId] ??= <PendingBloomReward>[]).add(reward);
       }
     }
@@ -1299,16 +1386,20 @@ class PlantGrowthService {
     return outcome;
   }
 
-  /// 开花瞬间：登记**两条**待收集奖励（玄参 2026-09-26 变更 B + 2026-09-27「掉落即定奖」）。
+  /// 开花瞬间：登记**开花瞬间 + 花期内每日 8 点**待收集奖励
+  /// （玄参 2026-09-26 变更 B + 2026-09-27「掉落即定奖」+ **2026-10-07 每日 8 点口径**）。
   ///
   ///  · 开花瞬间奖励：`reward_kind = [kBloomRewardPhaseInstant]`，`due = bloomedAt`（即刻可收集）；
-  ///  · 第二段奖励：`reward_kind = 档位`（`normal`/`premium`），`due = bloomedAt + 48h`。
+  ///  · **每日晨露奖励（2026-10-07 玄参拍板，取代旧「花开 48h 第二段」）**：花期内每天
+  ///    `08:00` 各登记一条，`reward_kind = 档位`（`normal`/`premium`）。登记范围 =
+  ///    开花时刻之后（含开花当天 08:00，若开花早于 08:00）至花期结束（[kBloomDurationDays] /
+  ///    [kBloomDurationDaysPremium]）之间的每个 08:00——普通花期 3 天 → 2~3 条，精品 4.5 天 → 4~5 条。
+  ///    金额沿用旧第二段档（[kBloomSecondPhase*] 常量族）。
   ///
-  /// **掉落即定奖（v12）**：登记两条时**当场 roll** 出奖励内容（阳光 / 碎片 / 种子）并**写入**
-  /// 对应 pending 行（`reward_sunlight / reward_fragments / reward_species_id`），结算时**照单发放**、
-  /// 不再二次 roll。两条各自生成**唯一 uuid**；仍**不在登记时入账**——点击头顶图标
-  /// （[collectBloomReward]）或花谢兜底（[_autoSettleUncollectibleRewards]）时才由
-  /// [_settlePendingReward] 真正发放。
+  /// **掉落即定奖（v12）**：登记时**当场 roll** 出奖励内容（阳光 / 碎片 / 种子）并**写入**
+  /// 对应 pending 行，结算时**照单发放**、不再二次 roll。各自生成**唯一 uuid**；仍**不在登记时
+  /// 入账**——点击头顶图标（[collectBloomReward]）或花谢兜底（[_autoSettleUncollectibleRewards]）
+  /// 时才由 [_settlePendingReward] 真正发放。
   Future<void> _enqueueBloomRewards(
     Plant p,
     PlantSpecies sp,
@@ -1317,11 +1408,9 @@ class PlantGrowthService {
   ) async {
     final DateTime bloomedAt = p.bloomedAt ?? now;
     final bool premium = sp.isPremium;
-    // 掉落即定奖：登记前先 roll 出两条奖励内容（消耗同一 _random 序列，与旧「结算时 roll」等价）。
+    // 掉落即定奖：登记前先 roll 出奖励内容（消耗同一 _random 序列，与旧「结算时 roll」等价）。
     final BloomRewardOutcome instant =
         await _rollInstantReward(premium, species);
-    final BloomRewardOutcome second =
-        await _rollSecondPhaseReward(premium, species);
     await _bloomRewards.insertPendingBloomReward(PendingBloomReward(
       id: _uuid.v4(),
       plantId: p.id,
@@ -1331,15 +1420,32 @@ class PlantGrowthService {
       rewardFragments: instant.fragments,
       rewardSpeciesId: instant.seedSpeciesId,
     ));
-    await _bloomRewards.insertPendingBloomReward(PendingBloomReward(
-      id: _uuid.v4(),
-      plantId: p.id,
-      dueAt: bloomedAt.add(const Duration(hours: kBloomRewardDelayHours)),
-      rewardKind: premium ? kBloomRewardKindPremium : kBloomRewardKindNormal,
-      rewardSunlight: second.sunlight,
-      rewardFragments: second.fragments,
-      rewardSpeciesId: second.seedSpeciesId,
+    // 每日 8 点晨露奖励（玄参 2026-10-07「植物开花之后，每天早上 8 点产生一轮，直至花谢」，
+    // 取代旧 48h 第二段单条）：花期内每个 08:00 一条，掉落即定奖。
+    final double bloomDays = premium
+        ? kBloomDurationDaysPremium
+        : kBloomDurationDays.toDouble();
+    final DateTime bloomEnd = bloomedAt.add(Duration(
+      milliseconds: (bloomDays * Duration.millisecondsPerDay).round(),
     ));
+    DateTime day = DateTime(bloomedAt.year, bloomedAt.month, bloomedAt.day, 8);
+    if (!day.isAfter(bloomedAt)) {
+      day = day.add(const Duration(days: 1)); // 开花晚于当天 8 点 → 首轮明天
+    }
+    while (day.isBefore(bloomEnd)) {
+      final BloomRewardOutcome morning =
+          await _rollSecondPhaseReward(premium, species);
+      await _bloomRewards.insertPendingBloomReward(PendingBloomReward(
+        id: _uuid.v4(),
+        plantId: p.id,
+        dueAt: day,
+        rewardKind: premium ? kBloomRewardKindPremium : kBloomRewardKindNormal,
+        rewardSunlight: morning.sunlight,
+        rewardFragments: morning.fragments,
+        rewardSpeciesId: morning.seedSpeciesId,
+      ));
+      day = day.add(const Duration(days: 1));
+    }
   }
 
   /// 结算一条待收集奖励（头顶图标点击 / 花谢兜底共用），**照单发放**库中已定好的奖励。

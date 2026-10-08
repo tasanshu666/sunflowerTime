@@ -49,6 +49,19 @@ class SettingsStore {
     await _sp.setInt(kPrefAppUsageSeconds, seconds);
   }
 
+  /// 单次锁定解锁时刻（epoch ms；无记录 / 已清 → null = 未锁定）。F99。
+  Future<int?> appUsageLockedUntilMs() async =>
+      _sp.getInt(kPrefAppUsageLockedUntilMs);
+
+  /// 覆写单次锁定解锁时刻（传 null = 清除锁定）。
+  Future<void> saveAppUsageLockedUntilMs(int? ms) async {
+    if (ms == null) {
+      await _sp.remove(kPrefAppUsageLockedUntilMs);
+    } else {
+      await _sp.setInt(kPrefAppUsageLockedUntilMs, ms);
+    }
+  }
+
   /// 调试期「跳过 30 分钟防沉迷限时」开关（仅 kDebugMode 消费）。
   ///
   /// 默认 **true**（玄参 2026-09-29：调试期间默认不进限时状态）。

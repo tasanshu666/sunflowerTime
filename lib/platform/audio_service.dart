@@ -106,6 +106,10 @@ enum AudioCue {
   /// 结算页 · 向日葵庆祝（配 settle 序列帧）。
   focusSettle,
 
+  /// 专注到时 · 结束过渡 5 秒倒计时配音（`5s_countdown.mp3`，2026-10-08 玄参交付，
+  /// 实测 4.99s；替代此前的系统「叮」，倒计时缓冲由 3s 改 5s 同日拍板）。
+  focusEndCountdown,
+
   /// 护眼卡 · 段① 闭眼转眼球提示（配 `assets/fx/eyecare/close/`，2026-10-05 交付）。
   eyeCareClose,
 
@@ -159,6 +163,8 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/focus_collect.mp3';
       case AudioCue.focusSettle:
         return 'assets/audio/sfx/focus_settle.mp3';
+      case AudioCue.focusEndCountdown:
+        return 'assets/audio/sfx/5s_countdown.mp3';
       case AudioCue.eyeCareClose:
         return 'assets/audio/sfx/eyecare_close.mp3';
       case AudioCue.eyeCareAgain:

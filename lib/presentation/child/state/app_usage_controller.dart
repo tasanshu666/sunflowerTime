@@ -40,11 +40,19 @@ class AppUsageState {
   /// 是否已达当日上限（由 [AppUsageService.isCapReached] 判定，勿在此另写比较）。
   final bool reached;
 
+  /// 本次单次连续使用累计秒数（F99；仅锁定触发时归零，离开 tab 不重置）。
+  final int singleSeconds;
+
+  /// 单次锁定解锁时刻（epoch ms；null = 未锁定）。
+  final int? lockedUntilMs;
+
   const AppUsageState({
     required this.secondsToday,
     required this.capSeconds,
     required this.counting,
     required this.reached,
+    this.singleSeconds = 0,
+    this.lockedUntilMs,
   });
 
   /// 初始态：0 秒 / 回退上限 [kDailyAppCapMinutes] 分钟 / 未计时 / 未到顶。
@@ -58,17 +66,29 @@ class AppUsageState {
   /// 上限分钟数（用于文案「上限 N 分钟」）。
   int get capMinutes => capSeconds ~/ 60;
 
+  /// 此刻是否处于**单次锁定**（F99）：lockedUntilMs 非空且尚未到期。
+  ///
+  /// 惰性求值（传 [now]）——状态是快照，到期与否只能按当前时钟判定。
+  bool sessionLockedAt(DateTime now) =>
+      lockedUntilMs != null && now.millisecondsSinceEpoch < lockedUntilMs!;
+
   AppUsageState copyWith({
     int? secondsToday,
     int? capSeconds,
     bool? counting,
     bool? reached,
+    int? singleSeconds,
+    int? lockedUntilMs,
+    bool clearLockedUntil = false,
   }) =>
       AppUsageState(
         secondsToday: secondsToday ?? this.secondsToday,
         capSeconds: capSeconds ?? this.capSeconds,
         counting: counting ?? this.counting,
         reached: reached ?? this.reached,
+        singleSeconds: singleSeconds ?? this.singleSeconds,
+        lockedUntilMs:
+            clearLockedUntil ? null : (lockedUntilMs ?? this.lockedUntilMs),
       );
 }
 
@@ -77,6 +97,17 @@ class AppUsageState {
 /// ⚠️ Provider 定义在 `lib/core/di/providers.dart`（`appUsageControllerProvider`），
 /// 与之保持一致的单点注册习惯。
 class AppUsageController extends Notifier<AppUsageState> {
+  /// 生产路径用默认口径；测试可注入缩小值免等真实 10 分钟（F99）。
+  AppUsageController({int? singleLimitMinutes, int? singleLockMinutes})
+      : _singleLimitMinutes = singleLimitMinutes ?? kSingleUseLimitMinutes,
+        _singleLockMinutes = singleLockMinutes ?? kSingleUseLockMinutes;
+
+  /// 单次上限（分钟）——判定交给 [AppUsageService.isSingleLimitReached]（唯一入口）。
+  final int _singleLimitMinutes;
+
+  /// 单次锁定时长（分钟）。
+  final int _singleLockMinutes;
+
   /// 计时器（仅在娱乐 tab 前台存在；离开 / 切后台 / dispose 时取消）。
   Timer? _ticker;
 
@@ -94,6 +125,12 @@ class AppUsageController extends Notifier<AppUsageState> {
 
   /// 当日上限（分钟）。判定到顶时交给 [AppUsageService.isCapReached]（唯一入口）。
   int _capMinutes = kDailyAppCapMinutes;
+
+  /// 本次单次连续使用秒数（F99；仅锁定触发时归零）。
+  int _singleSeconds = 0;
+
+  /// 单次锁定解锁时刻（epoch ms；null = 未锁定）。与持久化同步。
+  int? _lockedUntilMs;
 
   bool _hydrated = false;
   Future<void>? _hydration;
@@ -114,6 +151,8 @@ class AppUsageController extends Notifier<AppUsageState> {
           await ref.read(settingsStoreProvider).appUsageDate();
       final int storedSeconds =
           await ref.read(settingsStoreProvider).appUsageSeconds();
+      final int? storedLockedUntilMs =
+          await ref.read(settingsStoreProvider).appUsageLockedUntilMs();
       final int capMinutes =
           (await ref.read(settingsRepositoryProvider).getSettings())
               .dailyAppCapMinutes;
@@ -121,6 +160,7 @@ class AppUsageController extends Notifier<AppUsageState> {
       _date = today;
       _secondsToday = seconds;
       _capMinutes = capMinutes;
+      _lockedUntilMs = storedLockedUntilMs;
       _setStateIfAlive(AppUsageState(
         secondsToday: seconds,
         capSeconds: capMinutes * 60,
@@ -130,6 +170,8 @@ class AppUsageController extends Notifier<AppUsageState> {
           capMinutes: capMinutes,
           secondsToday: seconds,
         ),
+        singleSeconds: _singleSeconds,
+        lockedUntilMs: _lockedUntilMs,
       ));
     } catch (_) {
       // 读取失败容忍：保持初始态（0 秒），不阻塞外壳。
@@ -147,11 +189,14 @@ class AppUsageController extends Notifier<AppUsageState> {
   /// 该 tab 是否计入 App 总时长（口径开关 = [kAppUsageCountingTabs]）。
   bool isEntertainmentTab(int i) => kAppUsageCountingTabs.contains(i);
 
-  /// 进入娱乐 tab：设基准并（若未计）启动 ticker。已到顶则不放行。
+  /// 进入娱乐 tab：设基准并（若未计）启动 ticker。已到顶 / 单次锁定中则不放行。
   Future<void> startCounting() async {
     await _ensureHydrated();
+    final DateTime now = DateTime.now();
+    _evalLockExpiry(now); // 锁定已到期 → 先解锁再放行。
     if (_current.reached) return; // 到顶不放行（UI 已拦截，这里再守一道）。
-    _baseAt = DateTime.now();
+    if (_current.sessionLockedAt(now)) return; // F99：单次锁定中不放行。
+    _baseAt = now;
     _ticker ??= Timer.periodic(
       const Duration(seconds: kAppUsageTickSeconds),
       (_) => _tick(),
@@ -180,6 +225,8 @@ class AppUsageController extends Notifier<AppUsageState> {
 
   /// 结算一次（幂等）：推进基准 → 更新内存态 + Provider 状态 + 落盘。
   Future<void> _settle(DateTime now) async {
+    final int prevTotal = _secondsToday;
+    final String? prevDate = _date;
     final AppUsageTick tick = AppUsageService.advance(
       storedDate: _date ?? dayKey(now),
       storedSeconds: _secondsToday,
@@ -190,15 +237,45 @@ class AppUsageController extends Notifier<AppUsageState> {
     _secondsToday = tick.seconds;
     _baseAt = now;
 
+    // F99：单次连续使用同步累加。日累计的增量（同日取差值；跨天全段都算本次连续），
+    // 时钟回拨增量为 0 → 单次也不增长。
+    final int delta =
+        (tick.date == prevDate && tick.seconds >= prevTotal)
+            ? tick.seconds - prevTotal
+            : tick.seconds;
+    _singleSeconds += delta > 0 ? delta : 0;
+
     // 唯一判定入口（不在此内联比较）。
     final bool reached = AppUsageService.isCapReached(
       capMinutes: _capMinutes,
       secondsToday: tick.seconds,
     );
+
+    // F99：单次连续使用达上限 → 触发锁定（清零单次、记解锁时刻、停表）。
+    // 每日到顶（reached）不触发本锁定——到顶后本来就不放行。
+    bool lockFired = false;
+    if (_lockedUntilMs == null &&
+        !reached &&
+        AppUsageService.isSingleLimitReached(
+          limitMinutes: _singleLimitMinutes,
+          singleSeconds: _singleSeconds,
+        )) {
+      _singleSeconds = 0;
+      _lockedUntilMs =
+          now.add(Duration(minutes: _singleLockMinutes))
+              .millisecondsSinceEpoch;
+      lockFired = true;
+      _cancelTicker(); // 锁定即刻停表（人可能还停在娱乐 tab，由外壳弹卡引导离开）。
+      unawaited(_persistLock(_lockedUntilMs));
+    }
+
     _setStateIfAlive(_current.copyWith(
       secondsToday: tick.seconds,
       capSeconds: _capMinutes * 60,
       reached: reached,
+      singleSeconds: _singleSeconds,
+      lockedUntilMs: _lockedUntilMs,
+      counting: lockFired ? false : null,
     ));
 
     try {
@@ -208,6 +285,25 @@ class AppUsageController extends Notifier<AppUsageState> {
           );
     } catch (_) {
       // 落盘失败容忍：内存态仍准确，下次 tick 再试。
+    }
+  }
+
+  /// 锁定到期惰性解锁：到期则清锁（内存 + 持久化），返回**此刻是否仍在锁**。
+  bool _evalLockExpiry(DateTime now) {
+    if (_lockedUntilMs != null &&
+        now.millisecondsSinceEpoch >= _lockedUntilMs!) {
+      _lockedUntilMs = null;
+      unawaited(_persistLock(null));
+      _setStateIfAlive(_current.copyWith(clearLockedUntil: true));
+    }
+    return _current.sessionLockedAt(now);
+  }
+
+  Future<void> _persistLock(int? ms) async {
+    try {
+      await ref.read(settingsStoreProvider).saveAppUsageLockedUntilMs(ms);
+    } catch (_) {
+      // 落盘失败容忍：内存态仍准确（重启后最多多玩一轮单次，日上限兜底）。
     }
   }
 

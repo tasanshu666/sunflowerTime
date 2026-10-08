@@ -182,6 +182,7 @@ void main() {
         AudioCue.cultivate,
         AudioCue.focusCollect,
         AudioCue.focusSettle,
+        AudioCue.focusEndCountdown,
         AudioCue.eyeCareClose,
         AudioCue.eyeCareAgain,
         AudioCue.eyeCareLookTip,

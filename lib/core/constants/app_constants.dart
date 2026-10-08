@@ -73,9 +73,10 @@ const List<double> kReportBoundaryFractions = [1 / 2];
 const int kResumeResyncGraceSeconds = 2;
 
 /// 专注到时结束 → 护眼卡之前的**过渡缓冲**（秒，玄参 2026-10-08）：
-/// 「20 分钟一到就直接进护眼太突兀」，先给 3s 文字提示过渡（仍横屏），
-/// 再进入护眼动画。
-const int kFocusEndBufferSeconds = 3;
+/// 「20 分钟一到就直接进护眼太突兀」，先给文字提示过渡（仍横屏），再进入护眼动画。
+/// 2026-10-08 晚修订：3s → **5s**（玄参拍板），配交付的 5 秒倒计时音效
+/// （`5s_countdown.mp3`，4.99s，[AudioCue.focusEndCountdown]）。
+const int kFocusEndBufferSeconds = 5;
 
 /// 进入专注前可选时长档位（分钟）（PRD §4.1.2 进入前选时长；数值口径见用户裁定）。
 /// 玄参 2026-09-30 拍板：固定三排展示 15-20-25 / 30-45-60，另有「自由」与「自定义」档。
@@ -132,6 +133,24 @@ const String kPrefAppUsageDate = 'app_usage_date';
 
 /// App 当日累计时长的 SharedPreferences 键（秒）。
 const String kPrefAppUsageSeconds = 'app_usage_seconds';
+
+// ── 单次使用限时（F99，玄参 2026-10-08）──────────────────────────────
+
+/// **单次连续使用上限（分钟）**：娱乐 tab 连续前台满 N 分钟 → 锁定娱乐 tab。
+///
+/// 玄参 2026-10-08：「当前只有一个 30 分钟的使用时长，怕孩子单次使用太久，
+/// 加一个 10 分钟的单次使用限时」。单次秒数只在锁定触发时归零（离开 tab /
+/// 切后台**不**重置——否则切一下 tab 就能绕过），每日总时长仍 [kDailyAppCapMinutes]。
+const int kSingleUseLimitMinutes = 10;
+
+/// 单次触发锁定后的**解锁等待（分钟）**：锁满 N 分钟自动解锁，可继续玩
+/// （消耗每日总时长）。
+const int kSingleUseLockMinutes = 10;
+
+/// 单次锁定解锁时刻的 SharedPreferences 键（epoch ms；null/过期 = 未锁定）。
+///
+/// 持久化的意义：杀 App 重启**绕不过**进行中的锁定（每日总量本身另有持久化兜底）。
+const String kPrefAppUsageLockedUntilMs = 'app_usage_locked_until_ms';
 
 /// 调试期「跳过 30 分钟防沉迷限时」的 SharedPreferences 键（仅 [kDebugMode] 生效）。
 ///

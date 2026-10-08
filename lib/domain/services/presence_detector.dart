@@ -155,6 +155,18 @@ class PresenceDetector with WidgetsBindingObserver {
     }
   }
 
+  /// F97（玄参 2026-10-08：娃点「再坐一会」后抱着竖屏手机走开 → 手机一直竖着
+  /// 没有横屏事件 → [_portraitFired] 不复位 → 不再弹卡、专注计时一直走）：
+  /// 退出确认「再坐一会」后**重武装**竖屏退出检测——只复位 [_portraitFired]，
+  /// **不**主动起定时器：
+  ///  · 孩子点完后把手机放回桌面横放 → landscape 事件照常武装/复位，无感；
+  ///  · 孩子点完后抱着竖屏手机走开 → 移动触发新的 portrait 事件 → 去抖到点
+  ///    重新弹卡 + 暂停计时（旧口径「resume 后需先回横屏才能再次触发」的洞）；
+  ///  · 静止竖持（拿在手里看）不产生新事件 → 不会连环弹卡。
+  void rearmPortrait() {
+    _portraitFired = false;
+  }
+
   /// 是否为横屏方向（landscapeLeft / landscapeRight）。
   bool _isLandscape(NativeDeviceOrientation o) =>
       o == NativeDeviceOrientation.landscapeLeft ||

@@ -114,4 +114,65 @@ void main() {
       await controller.close();
     });
   });
+
+  group('F97（玄参 2026-10-08）：再坐一会后重武装——竖屏离场必须重新弹卡', () {
+    test('C1：触发一次后未回横屏、直接 rearmPortrait → 再收到 portrait 事件必须再次触发', () async {
+      final StreamController<NativeDeviceOrientation> controller =
+          StreamController<NativeDeviceOrientation>.broadcast();
+      int portraitCalls = 0;
+
+      final PresenceDetector detector = PresenceDetector(
+        onPortraitIntent: () => portraitCalls++,
+        orientationStream: controller.stream,
+        grace: kTestGrace,
+      );
+      detector.start();
+
+      // 横屏武装 → 竖屏第一次触发（弹卡 + 暂停）。
+      controller.add(NativeDeviceOrientation.landscapeLeft);
+      await Future<void>.delayed(const Duration(milliseconds: 150)); // 过宽限期 → 武装
+      controller.add(NativeDeviceOrientation.portraitUp);
+      await Future<void>.delayed(kDebounceWait);
+      expect(portraitCalls, 1, reason: '第一次竖屏持有应触发');
+
+      // 娃点「再坐一会」→ focus_page._resume() 调 rearmPortrait()（未回横屏）。
+      detector.rearmPortrait();
+
+      // 娃抱着竖屏手机走开（移动产生新的 portrait 事件，中间没有 landscape）。
+      controller.add(NativeDeviceOrientation.portraitUp);
+      await Future<void>.delayed(kDebounceWait);
+
+      expect(portraitCalls, 2,
+          reason: 'F97：再坐一会后重武装，竖屏离场必须重新触发 onPortraitIntent（暂停计时）');
+      detector.stop();
+      await controller.close();
+    });
+
+    test('C2：不调 rearmPortrait 时维持 B31 旧口径——portrait 不重触（对照组）', () async {
+      final StreamController<NativeDeviceOrientation> controller =
+          StreamController<NativeDeviceOrientation>.broadcast();
+      int portraitCalls = 0;
+
+      final PresenceDetector detector = PresenceDetector(
+        onPortraitIntent: () => portraitCalls++,
+        orientationStream: controller.stream,
+        grace: kTestGrace,
+      );
+      detector.start();
+
+      controller.add(NativeDeviceOrientation.landscapeLeft);
+      await Future<void>.delayed(const Duration(milliseconds: 150)); // 过宽限期 → 武装
+      controller.add(NativeDeviceOrientation.portraitUp);
+      await Future<void>.delayed(kDebounceWait);
+      expect(portraitCalls, 1);
+
+      // 未回横屏、未重武装：重复 portrait 事件不得再触发（一次竖屏持有只弹一次）。
+      controller.add(NativeDeviceOrientation.portraitUp);
+      await Future<void>.delayed(kDebounceWait);
+
+      expect(portraitCalls, 1, reason: 'B31 旧口径保持：未重武装不重复触发');
+      detector.stop();
+      await controller.close();
+    });
+  });
 }

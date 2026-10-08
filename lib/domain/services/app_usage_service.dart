@@ -96,4 +96,15 @@ class AppUsageService {
     required int secondsToday,
   }) =>
       secondsToday >= capMinutes * 60;
+
+  /// 单次连续使用是否已达上限（F99，玄参 2026-10-08）——**唯一判定入口**，
+  /// 禁止在他处另写 `singleSeconds >= limitMinutes * 60` 比较（防「判定孪生」）。
+  ///
+  /// 边界与 [isCapReached] 同口径（守卫用 `>=`）：`limitMinutes = 10` 时
+  /// `599 秒 → false`、`600 秒 → true`。
+  static bool isSingleLimitReached({
+    required int limitMinutes,
+    required int singleSeconds,
+  }) =>
+      singleSeconds >= limitMinutes * 60;
 }

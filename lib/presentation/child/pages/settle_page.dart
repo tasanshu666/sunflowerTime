@@ -148,7 +148,10 @@ class _SettlePageState extends ConsumerState<SettlePage>
     // 显示口径修正：本栏只统计「获得」，单独读一次账本（不改动任何写入逻辑）。
     unawaited(_loadTodayEarned());
     // 结算页向日葵庆祝序列帧（settle）配音；受 soundOn 保护，缺素材静默降级。
-    if ((widget.args?.settlement?.net ?? 0) > 0) {
+    // F95（玄参 2026-10-08）：口径与 B32 动画对齐——只要带结算数据进场就配音
+    // （含短专注 net==0），不再「画面庆祝、声音静音」。静音开关仍由 playSfx
+    // 内部 [_soundOn] 统一拦截。
+    if (widget.args?.settlement != null) {
       ref.read(audioServiceProvider).playSfx(AudioCue.focusSettle);
     }
     // T-B：结算后注入 sun_earned / valid_focus_day 埋点（settlement 非空时）。
@@ -433,7 +436,8 @@ class _SettlePageState extends ConsumerState<SettlePage>
                     // B32 修复：中央向日葵**始终**渲染，避免 <5 分钟（net==0）结算时花消失。
                     // 方案 A（玄参 2026-09-30）：有结算数据（settlement 非空）就**始终**播 settle
                     // 序列帧（含 <5 分钟短专注 net==0），画面与庆祝态统一，不回退默认矢量花；
-                    // 音效仍只在 net>0 时播（initState 控制），短专注静音。
+                    // F95（玄参 2026-10-08）：音效口径同步对齐——settlement 非空即播
+                    // （initState 控制），不再短专注静音。
                     // 仅 settlement 为 null（深链直入、无专注数据）才回退默认静态呼吸花。
                     child: settlement != null
                         ? Stack(
@@ -501,6 +505,24 @@ class _SettlePageState extends ConsumerState<SettlePage>
                           _eyeCareReward > 0 ? '+$_eyeCareReward ☀️' : '0 ☀️',
                         ),
                       ),
+                      // F98（玄参 2026-10-08）：任务奖励升级为正式数据行——此前只是
+                      // 「拥有阳光」下方的金色小字，真机反馈「只有专注奖励和护眼奖励，
+                      // 没有任务奖励」（+6 实际已入账但展示层级太弱漏看）。
+                      // 带联动成长项结算结果进场时与护眼奖励同级展示：
+                      // verified → '+N ☀️'（N = 实际入账，含日上限削减后的值）；
+                      // rejected → '0 ☀️'（本次没达标，下方灰字解释）。
+                      if (widget.args?.taskOutcome != null) ...[
+                        const SizedBox(height: 8),
+                        _StatRow(
+                          label: '任务奖励',
+                          value: _mask(
+                            widget.args!.taskOutcome!.status ==
+                                    CheckInStatus.verified
+                                ? '+${_fmtSun(widget.args!.taskOutcome!.granted)} ☀️'
+                                : '0 ☀️',
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       _StatRow(
                         label: '今日累计',

@@ -176,9 +176,21 @@ class FocusEngine {
   Duration get planned => _planned;
   Duration get elapsed => _sessionElapsed;
 
-  /// 剩余时长（不小于 0）。
+  /// 实际专注时长（仅 running 状态累计；离席 / 暂停不计）。
+  ///
+  /// F101（玄参 2026-10-08）：到时判定与剩余时长均改用**本口径**——
+  /// 「计划 15 分钟」的语义是**坐够 15 分钟**，中途离席（灭屏 / 离开）的
+  /// 时间**不吞掉**专注进度，回来后继续坐满为止（离席产出停止的 §4.1.5
+  /// 口径不变）。原墙钟口径的缺陷：任务行跳转 `planned = task.minFocusMin`，
+  /// 中途哪怕离席几十秒，墙钟到点结束时 `actualFocusMin < minFocusMin` →
+  /// 联动任务被静默判 rejected（不打勾、不发奖励）。
+  Duration get focusElapsed =>
+      Duration(microseconds: (_focusSeconds * 1e6).round());
+
+  /// 剩余专注时长（不小于 0）。**专注时长口径**（见 [focusElapsed]）。
   Duration get remaining {
-    final r = _planned - _sessionElapsed;
+    final Duration f = focusElapsed;
+    final Duration r = _planned - f;
     return r.isNegative ? Duration.zero : r;
   }
 
@@ -241,12 +253,16 @@ class FocusEngine {
     _lastTick = now;
 
     // 到时正常结束（PRD §4.1.2）。离席不冻结会话时钟（暂停会冻结，见 pause）。
+    // F101（玄参 2026-10-08）：到时判定改用**专注时长**口径（`_focusSeconds`，
+    // 仅 running 累计）——原墙钟口径（`_sessionElapsed`）会把离席窗口也计入，
+    // 到点结束时实际专注 < 计划；任务联动场次 planned = minFocusMin，任何一次
+    // 短离席都会让联动任务差一点不达标（静默 rejected，不打勾、不发奖励）。
     // 自由专注（_freeMode）**不自动到时结算**：孩子自己点结束才结算
     // （玄参 2026-09-30）；离席超时的「打断」在 _checkWake 内照常发生，不受本开关影响。
     if (!_freeMode &&
         (_state == FocusEngineState.running ||
             _state == FocusEngineState.absent) &&
-        _sessionElapsed >= _planned) {
+        _focusSeconds >= _planned.inMicroseconds / 1e6) {
       finish(FocusEndReason.timedOut);
     }
   }

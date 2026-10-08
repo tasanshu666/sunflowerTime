@@ -42,7 +42,6 @@ import 'package:sunflower_time/domain/services/presence_detector.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/platform/dnd_controller.dart';
-import 'package:sunflower_time/platform/system_tone.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
@@ -264,7 +263,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
     final double? remaining = _quotaRemainingMin;
     if (remaining == null) return;
     if (!focusQuotaExhausted(
-      elapsed: _engine.elapsed,
+      // F101：额度 1:1 于阳光产出（仅 running 累计），用专注时长口径判定，
+      // 避免离席窗口把墙钟撑过额度线导致提前误弹提示。
+      elapsed: _engine.focusElapsed,
       remainingMin: remaining,
     )) {
       return;
@@ -366,9 +367,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
   /// 走完由调用方接续护眼卡（同样横屏播放，护眼结束才转竖屏进结算）。
   Future<void> _runEndingBuffer() async {
     if (!mounted) return;
-    // 倒计时开始 → 一声系统「叮」提示（玄参 2026-10-08：先用系统音填充，
-    // 后续交付正式素材后替换）。fire-and-forget，失败静默不影响主流程。
-    const SystemTone().playDing();
+    // 倒计时开始 → 5 秒倒计时配音（玄参 2026-10-08 晚交付 `5s_countdown.mp3`，
+    // 替代此前的系统「叮」；fire-and-forget，受 soundOn 保护，失败静默不影响主流程）。
+    ref.read(audioServiceProvider).playSfx(AudioCue.focusEndCountdown);
     for (int i = kFocusEndBufferSeconds; i >= 1; i--) {
       if (!mounted) return;
       setState(() => _endingCountdown = i);
@@ -515,6 +516,10 @@ class _FocusPageState extends ConsumerState<FocusPage>
 
   void _resume() {
     _engine.resume();
+    // F97（玄参 2026-10-08）：「再坐一会」后重武装竖屏检测——娃点完继续坐、
+    // 却抱着竖屏手机走开的场景，1.5s 去抖后重新弹卡 + 暂停计时（此前必须先回
+    // 横屏才会再次触发，竖屏离场＝永不重弹、计时一直走）。
+    _presence?.rearmPortrait();
     if (mounted) setState(() => _paused = false);
   }
 
@@ -736,7 +741,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
 
   @override
   Widget build(BuildContext context) {
-    final Duration elapsed = _engine.elapsed;
+    // F101：正计时也切「专注时长」口径（离席时停走）——与引擎到时判定一致，
+    // 孩子直观看到「离席时间不算，回来继续坐满」，不会出现计时超过计划时长。
+    final Duration elapsed = _engine.focusElapsed;
     final Duration planned = _engine.planned;
 
     // 打盹屏经 go('/focus') 进入 = 路由栈底，不拦的话 Android 返回键会直接退出 App。

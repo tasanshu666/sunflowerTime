@@ -173,7 +173,7 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     }
   }
 
-  /// 点底部 tab：到顶则**只拦娱乐 tab**（不切换 + 温和提示），其余照常切换并启停计时。
+  /// 点底部 tab：到顶 / 单次锁定则**只拦娱乐 tab**（不切换 + 温和提示），其余照常切换并启停计时。
   void _onSelectTab(int i) {
     final AppUsageState usage = ref.read(appUsageControllerProvider);
     final AppUsageController ctrl = ref.read(appUsageControllerProvider.notifier);
@@ -186,9 +186,17 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     const bool defineBypass =
         bool.fromEnvironment('DISABLE_APP_CAP', defaultValue: false);
     final bool capEnforced = !kDebugMode || (!_debugCapBypass && !defineBypass);
-    if (capEnforced && ctrl.isEntertainmentTab(i) && usage.reached) {
-      unawaited(_showAppCapDialog(usage.capMinutes)); // 到顶：不切换索引，仅给引导。
-      return;
+    if (capEnforced && ctrl.isEntertainmentTab(i)) {
+      // F99：先判单次锁定（比「到顶」更早触发：玩满 10 分钟即锁，与日总量无关）。
+      final bool sessionLocked = usage.sessionLockedAt(DateTime.now());
+      if (sessionLocked) {
+        unawaited(_showSessionLockDialog()); // 单次到点：不切换索引，仅给引导。
+        return;
+      }
+      if (usage.reached) {
+        unawaited(_showAppCapDialog(usage.capMinutes)); // 到顶：不切换索引，仅给引导。
+        return;
+      }
     }
 
     setState(() => _index = i);
@@ -199,6 +207,41 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
       unawaited(ctrl.startCounting());
     } else {
       unawaited(ctrl.stopCounting());
+    }
+  }
+
+  /// F99：娱乐 tab 前台**中途**触发单次锁定 → 自动踢回「今日」tab 并给引导卡。
+  ///
+  /// 场景：孩子一直停在花园里玩，10 分钟单次计时在某个 tick 到点——若只在「点 tab」
+  /// 时拦截，人会继续留在花园（计时虽已停，页面照用）。监听状态变化即时收口。
+  /// 「日上限到顶」中途命中的旧缺口一并补上（reached 同样踢）。
+  void _onUsageStateChanged(AppUsageState usage) {
+    if (!mounted) return;
+    final AppUsageController ctrl = ref.read(appUsageControllerProvider.notifier);
+    if (!ctrl.isEntertainmentTab(_index)) return;
+    final bool sessionLocked = usage.sessionLockedAt(DateTime.now());
+    if (usage.reached || sessionLocked) {
+      unawaited(_usageCtrl?.stopCounting()); // 立即停表（锁定触发时控制器已停，幂等）。
+      unawaited(
+        sessionLocked ? _showSessionLockDialog() : _showAppCapDialog(usage.capMinutes),
+      );
+      setState(() => _index = 0);
+      ref.read(childShellTabIndexProvider.notifier).state = 0; // F71 同步。
+    }
+  }
+
+  /// 单次使用到点的**分因温和提示**（与 [AppCapDialog] 同视觉语言，文案区分）。
+  ///
+  /// 点「去今日开始专注」→ 关弹窗并直接切到「今日」tab（非娱乐 tab，随手停表）。
+  Future<void> _showSessionLockDialog() async {
+    final Object? result = await showDialog<Object>(
+      context: context,
+      builder: (BuildContext ctx) => const AppCapDialog.sessionLock(),
+    );
+    if (result == AppCapDialog.goFocus && mounted) {
+      unawaited(_usageCtrl?.stopCounting()); // 今日不计入娱乐时长。
+      setState(() => _index = 0);
+      ref.read(childShellTabIndexProvider.notifier).state = 0; // F71 同步。
     }
   }
 
@@ -360,6 +403,10 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     // 页面未重建则不弹的隐患。已读集合在仓库层去重，不会重复弹窗。
     ref.listen(economyRevisionProvider, (_, __) {
       if (mounted) _checkAllNotices();
+    });
+    // F99：使用时长状态变化（单次锁定触发 / 日上限到顶）→ 人在娱乐 tab 时即时收口。
+    ref.listen(appUsageControllerProvider, (_, AppUsageState next) {
+      _onUsageStateChanged(next);
     });
 
     return Scaffold(

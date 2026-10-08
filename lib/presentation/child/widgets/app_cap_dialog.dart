@@ -10,15 +10,30 @@ library app_cap_dialog;
 
 import 'package:flutter/material.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
+
 /// 到顶提示卡。`pop(AppCapDialog.goFocus)` 表示用户点了「去今日开始专注」。
 class AppCapDialog extends StatelessWidget {
-  const AppCapDialog({super.key, required this.capMinutes});
+  /// 日上限到顶（默认变体，文案与既有测试兼容）。
+  const AppCapDialog({super.key, required this.capMinutes})
+      : _sessionLock = false,
+        _lockMinutes = null;
+
+  /// F99（玄参 2026-10-08）：**单次使用到点**变体——「连续玩了 10 分钟 →
+  /// 休息 10 分钟再来」，与日上限到顶区分开。
+  const AppCapDialog.sessionLock({super.key})
+      : capMinutes = kSingleUseLockMinutes,
+        _sessionLock = true,
+        _lockMinutes = kSingleUseLockMinutes;
 
   /// 主按钮返回值：引导切到「今日」tab。
   static const String goFocus = 'go_focus';
 
-  /// 当日上限（分钟），展示在琥珀色模块里。
+  /// 当日上限（分钟），展示在琥珀色模块里（日上限变体用）。
   final int capMinutes;
+
+  final bool _sessionLock;
+  final int? _lockMinutes;
 
   @override
   Widget build(BuildContext context) {
@@ -83,9 +98,9 @@ class AppCapDialog extends StatelessWidget {
             child: const Center(child: Text('🌻', style: TextStyle(fontSize: 40))),
           ),
           const SizedBox(height: 12),
-          const Text(
-            '先歇一会儿吧',
-            style: TextStyle(
+          Text(
+            _sessionLock ? '休息一下，等会再来玩' : '先歇一会儿吧',
+            style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
               color: Color(0xFF1D4E89),
@@ -100,10 +115,12 @@ class AppCapDialog extends StatelessWidget {
   Widget _buildBody(BuildContext context) {
     return Column(
       children: <Widget>[
-        const Text(
-          '今天逛 App 的时间用完啦',
+        Text(
+          _sessionLock
+              ? '已经连续玩 $_lockMinutes 分钟啦，让眼睛休息一下'
+              : '今天逛 App 的时间用完啦',
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 15,
             height: 1.5,
             color: Color(0xFF5B6B7A),
@@ -115,8 +132,8 @@ class AppCapDialog extends StatelessWidget {
           children: <Widget>[
             _InfoChip(
               emoji: '⏰',
-              label: '今日上限',
-              value: '$capMinutes 分钟',
+              label: _sessionLock ? '休息一会' : '今日上限',
+              value: _sessionLock ? '$_lockMinutes 分钟后解锁' : '$capMinutes 分钟',
               bg: const Color(0xFFFFF3D6),
               fg: const Color(0xFFB25E00),
             ),

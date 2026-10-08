@@ -1408,18 +1408,34 @@ class PlantGrowthService {
   ) async {
     final DateTime bloomedAt = p.bloomedAt ?? now;
     final bool premium = sp.isPremium;
+    // B35 去重护栏（真机实证 2026-10-08：调试催熟 33 次开花 → 同一 8 点槽位重复
+    // 登记 33 条，8 点一到期头顶一次性堆 33 个产物图标）。**同一株 + 同一 dueAt +
+    // 同一 kind** 的未领取行只登记一次：先读该株全部未领取 pending（远未来 =
+    // 未领取全量，见 bloom_debug_panel 同款用法）建槽位指纹集，登记前 `add` 判重。
+    // 自然复开花的槽位必然跨天错开，不受影响；仅挡「同槽位重复登记」。
+    final Set<String> existingSlots = (await _bloomRewards.pendingBloomRewardsDue(
+      DateTime(9999),
+    ))
+        .where((PendingBloomReward r) => r.plantId == p.id)
+        .map((PendingBloomReward r) =>
+            '${r.dueAt.millisecondsSinceEpoch}|${r.rewardKind}')
+        .toSet();
     // 掉落即定奖：登记前先 roll 出奖励内容（消耗同一 _random 序列，与旧「结算时 roll」等价）。
-    final BloomRewardOutcome instant =
-        await _rollInstantReward(premium, species);
-    await _bloomRewards.insertPendingBloomReward(PendingBloomReward(
-      id: _uuid.v4(),
-      plantId: p.id,
-      dueAt: bloomedAt,
-      rewardKind: kBloomRewardPhaseInstant,
-      rewardSunlight: instant.sunlight,
-      rewardFragments: instant.fragments,
-      rewardSpeciesId: instant.seedSpeciesId,
-    ));
+    final String instantSlot =
+        '${bloomedAt.millisecondsSinceEpoch}|$kBloomRewardPhaseInstant';
+    if (existingSlots.add(instantSlot)) {
+      final BloomRewardOutcome instant =
+          await _rollInstantReward(premium, species);
+      await _bloomRewards.insertPendingBloomReward(PendingBloomReward(
+        id: _uuid.v4(),
+        plantId: p.id,
+        dueAt: bloomedAt,
+        rewardKind: kBloomRewardPhaseInstant,
+        rewardSunlight: instant.sunlight,
+        rewardFragments: instant.fragments,
+        rewardSpeciesId: instant.seedSpeciesId,
+      ));
+    }
     // 每日 8 点晨露奖励（玄参 2026-10-07「植物开花之后，每天早上 8 点产生一轮，直至花谢」，
     // 取代旧 48h 第二段单条）：花期内每个 08:00 一条，掉落即定奖。
     final double bloomDays = premium
@@ -1433,17 +1449,21 @@ class PlantGrowthService {
       day = day.add(const Duration(days: 1)); // 开花晚于当天 8 点 → 首轮明天
     }
     while (day.isBefore(bloomEnd)) {
-      final BloomRewardOutcome morning =
-          await _rollSecondPhaseReward(premium, species);
-      await _bloomRewards.insertPendingBloomReward(PendingBloomReward(
-        id: _uuid.v4(),
-        plantId: p.id,
-        dueAt: day,
-        rewardKind: premium ? kBloomRewardKindPremium : kBloomRewardKindNormal,
-        rewardSunlight: morning.sunlight,
-        rewardFragments: morning.fragments,
-        rewardSpeciesId: morning.seedSpeciesId,
-      ));
+      final String slot =
+          '${day.millisecondsSinceEpoch}|${premium ? kBloomRewardKindPremium : kBloomRewardKindNormal}';
+      if (existingSlots.add(slot)) {
+        final BloomRewardOutcome morning =
+            await _rollSecondPhaseReward(premium, species);
+        await _bloomRewards.insertPendingBloomReward(PendingBloomReward(
+          id: _uuid.v4(),
+          plantId: p.id,
+          dueAt: day,
+          rewardKind: premium ? kBloomRewardKindPremium : kBloomRewardKindNormal,
+          rewardSunlight: morning.sunlight,
+          rewardFragments: morning.fragments,
+          rewardSpeciesId: morning.seedSpeciesId,
+        ));
+      }
       day = day.add(const Duration(days: 1));
     }
   }

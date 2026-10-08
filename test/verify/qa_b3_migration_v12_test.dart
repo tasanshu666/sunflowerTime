@@ -192,7 +192,7 @@ void main() {
   group('F · 迁移 v11 → v12：pending 加 3 列', () {
     test('schemaVersion == 15；3 列出现', () async {
       final db.AppDatabase database = await _openMigratedMemory(_v11Ddl(), 11);
-      expect(database.schemaVersion, 16);
+      expect(database.schemaVersion, 17);
       expect(
           await _hasColumn(
               database, 'pending_bloom_rewards', 'reward_sunlight'),
@@ -345,7 +345,7 @@ void main() {
         },
       ));
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 16);
+      expect(first.schemaVersion, 17);
       await first.bloomRewardDao.updatePendingContent(
         id: 'pr_legacy',
         rewardSunlight: 5,
@@ -358,7 +358,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(second.close);
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 16);
+      expect(second.schemaVersion, 17);
       expect(await _count(second, 'pending_bloom_rewards'), 1,
           reason: '二次打开不得丢 pending 数据');
       final db.PendingBloomRewardRow row =

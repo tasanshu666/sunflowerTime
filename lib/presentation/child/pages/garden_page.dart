@@ -168,6 +168,14 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   /// 汇总提示兜底清除计时器（动画 onComplete 未触发时清理；dispose 必须取消）。
   Timer? _batchHintTimer;
 
+  /// 收集成功提示浮层（玄参 2026-10-08「点收集弹出的卡片应显示在屏幕中间，
+  /// 显示 1s 后淡出」）——同款根 Overlay 全屏浮层，`Positioned.fill + Center`
+  /// 确定性居中，替换原贴底 SnackBar。
+  OverlayEntry? _collectHintEntry;
+
+  /// 收集成功提示兜底清除计时器（dispose 必须取消）。
+  Timer? _collectHintTimer;
+
   /// 一键操作的每盆**轻量反馈**（不做 4s 完整动效）：potIndex → 动效类型，
   /// 短暂显示约 1.1s 后整批清除。
   final Map<int, CareEffectType> _batchPulse = <int, CareEffectType>{};
@@ -275,6 +283,9 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     _batchHintTimer?.cancel();
     _batchHintEntry?.remove(); // 汇总提示同为根 Overlay 浮层，必须显式移除。
     _batchHintEntry = null;
+    _collectHintTimer?.cancel();
+    _collectHintEntry?.remove(); // 收集成功提示同为根 Overlay 浮层，必须显式移除。
+    _collectHintEntry = null;
     unawaited(AudioService.instance.stopGardenAmbient(reason: 'dispose'));
     _gridScroll.dispose();
     super.dispose();
@@ -481,6 +492,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
               holdMs: kOneClickHintHoldMs,
               fadeOutMs: kOneClickHintFadeMs,
               riseDistance: 0, // 原地居中（玄参「要在中间显示」）
+              large: true, // 居中提示加大档（玄参 2026-10-08「文字和提示框有点小」）
               pillKey: kOneClickBatchHintPillKey,
               sunIconAsset:
                   _rewardAssets.contains('assets/rewards/sunlight.png')
@@ -510,6 +522,49 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     _batchHintEntry = null;
   }
 
+  /// 弹出「收集成功」**根 Overlay 居中卡片**（玄参 2026-10-08：显示在屏幕中间、
+  /// 1s 后淡出——替换原贴底 SnackBar）。
+  ///
+  /// 复用 [_showBatchHint] 同款浮层骨架 + [_RisingHint] 大档（`showSunlight: false`，
+  /// 完整文案已含数值）；节奏：淡入 [kHintFadeInMs] → 停留 [kOneClickHintHoldMs]
+  /// （= 1s）→ 淡出 [kOneClickHintFadeMs]，走完 onComplete 自清 + 定时器兜底。
+  void _showCollectHint(String text) {
+    _removeCollectHint();
+    final OverlayEntry entry = OverlayEntry(
+      builder: (BuildContext _) => Positioned.fill(
+        child: IgnorePointer(
+          child: Center(
+            child: _RisingHint(
+              label: text,
+              sunlight: 0,
+              showSunlight: false,
+              holdMs: kOneClickHintHoldMs,
+              fadeOutMs: kOneClickHintFadeMs,
+              riseDistance: 0, // 原地居中（玄参「显示在屏幕的中间」）
+              large: true,
+              onComplete: _removeCollectHint,
+            ),
+          ),
+        ),
+      ),
+    );
+    _collectHintEntry = entry;
+    Overlay.of(context, rootOverlay: true).insert(entry);
+    const int totalMs = kHintFadeInMs + kOneClickHintHoldMs + kOneClickHintFadeMs;
+    _collectHintTimer = Timer(
+      const Duration(milliseconds: totalMs + 300),
+      _removeCollectHint,
+    );
+  }
+
+  /// 移除收集成功提示浮层（幂等）。
+  void _removeCollectHint() {
+    _collectHintTimer?.cancel();
+    _collectHintTimer = null;
+    _collectHintEntry?.remove();
+    _collectHintEntry = null;
+  }
+
   /// 手动收集一条待收集奖励（变更 A/B + v12，花盆上方头顶图标点击）：调服务发放并刷新，
   /// 成功后按**实际发放结果**提示（数值从 [BloomRewardOutcome] 拼、不写死）。
   ///
@@ -535,7 +590,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     }
     if (outcome != null && mounted) {
       final String body = _outcomeParts(outcome);
-      _snack(outcome.isInstantPhase ? body : '盛开的礼物：$body');
+      // 玄参 2026-10-08：成功提示改为**屏幕居中卡片、1s 后淡出**（原贴底 SnackBar）。
+      _showCollectHint(outcome.isInstantPhase ? body : '盛开的礼物：$body');
     }
   }
 
@@ -1766,6 +1822,11 @@ class _RisingHint extends StatefulWidget {
   /// 胶囊本体的可选 Key（供 widget 测试**精确度量**其屏幕中心，验证「确定性居中」）。
   final Key? pillKey;
 
+  /// **加大档**（玄参 2026-10-08「没有需要护理和操作的提醒卡片文字和提示框有点小」）：
+  /// 居中的一键汇总/空提示用（文字 13→16、内边距与圆角同步放大）；
+  /// 除草/除虫小飘字维持紧凑档不变。
+  final bool large;
+
   const _RisingHint({
     required this.label,
     required this.sunlight,
@@ -1776,6 +1837,7 @@ class _RisingHint extends StatefulWidget {
     this.fadeOutMs,
     this.riseDistance = kClearHintRiseDistance,
     this.pillKey,
+    this.large = false,
   });
 
   @override
@@ -1861,13 +1923,14 @@ class _RisingHintState extends State<_RisingHint>
               fit: BoxFit.scaleDown,
             child: Container(
               key: widget.pillKey,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 4,
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.large ? 18 : 10,
+                vertical: widget.large ? 9 : 4,
               ),
                 decoration: BoxDecoration(
                   color: const Color(0xEFFFFFFF),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius:
+                      BorderRadius.circular(widget.large ? 16 : 12),
                   boxShadow: <BoxShadow>[
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.08),
@@ -1882,10 +1945,10 @@ class _RisingHintState extends State<_RisingHint>
                     Text(
                       widget.label,
                       maxLines: 1,
-                      style: const TextStyle(
-                        fontSize: 13,
+                      style: TextStyle(
+                        fontSize: widget.large ? 16 : 13,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF8D6E00),
+                        color: const Color(0xFF8D6E00),
                       ),
                     ),
                     // 无阳光数值的提示（计划为空 / 不可执行）只显示文案，不渲染尾段。
@@ -1898,10 +1961,10 @@ class _RisingHintState extends State<_RisingHint>
                         widget.sunlight >= 0
                             ? '+${widget.sunlight}'
                             : '${widget.sunlight}',
-                        style: const TextStyle(
-                          fontSize: 13,
+                        style: TextStyle(
+                          fontSize: widget.large ? 16 : 13,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFFE8A33D),
+                          color: const Color(0xFFE8A33D),
                         ),
                       ),
                     ],
@@ -1915,20 +1978,22 @@ class _RisingHintState extends State<_RisingHint>
     );
   }
 
-  /// 阳光图标：美术图（16×16，显式宽高）优先，缺失/失败回退内置 `Icons.wb_sunny`。
+  /// 阳光图标：美术图（16×16，显式宽高；加大档 20×20）优先，缺失/失败回退
+  /// 内置 `Icons.wb_sunny`。
   Widget _sunIcon() {
+    final double size = widget.large ? 20 : 16;
     final String? path = widget.sunIconAsset;
     if (path != null) {
       return Image.asset(
         path,
-        width: 16,
-        height: 16,
+        width: size,
+        height: size,
         fit: BoxFit.contain,
         errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
-            const Icon(Icons.wb_sunny, size: 16, color: Color(0xFFE8A33D)),
+            Icon(Icons.wb_sunny, size: size, color: const Color(0xFFE8A33D)),
       );
     }
-    return const Icon(Icons.wb_sunny, size: 16, color: Color(0xFFE8A33D));
+    return Icon(Icons.wb_sunny, size: size, color: const Color(0xFFE8A33D));
   }
 }
 

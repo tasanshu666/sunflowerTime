@@ -166,20 +166,55 @@ class PresenceDetector with WidgetsBindingObserver {
     if (presence == ScreenPresence.absent) {
       if (_lastPresent) {
         _lastPresent = false;
+        // B33：退后台（跳系统设置授权勿扰 / 灭屏）期间传感器值不可信——
+        // 清掉竖屏退出意图的挂起状态，避免回前台后残留的竖屏值反复弹确认框。
+        _cancelPortraitTimer();
+        _portraitFired = false;
         onAbsent?.call();
       }
     } else {
       if (!_lastPresent) {
         _lastPresent = true;
         onPresent?.call();
+        _resyncOrientationAfterResume(); // B33：回前台重新探测物理方向
       }
     }
+  }
+
+  /// B33（小米 14 实测：首次进专注跳系统设置授权勿扰 → 返回 App 后横屏下
+  /// 「确定结束吗？」反复弹出，只能杀进程恢复）：回前台瞬间——
+  ///  ① 开一个短宽限窗口，抑制退后台期间残留的竖屏事件；
+  ///  ② 清掉竖屏定时器与已触发标记；
+  ///  ③ **主动重探当前物理方向**（不依赖传感器静止后不再回调的特性）：
+  ///     真横屏 → 立即武装并复位竖屏判定，残留的竖屏状态彻底作废。
+  void _resyncOrientationAfterResume() {
+    _graceUntil = _clock().add(
+      const Duration(seconds: kResumeResyncGraceSeconds),
+    );
+    _cancelPortraitTimer();
+    _portraitFired = false;
+    NativeDeviceOrientationCommunicator()
+        .orientation(useSensor: true)
+        .then((NativeDeviceOrientation o) {
+      _lastOrientation = o;
+      if (_isLandscape(o)) {
+        _armed = true;
+        _cancelPortraitTimer();
+        _portraitFired = false;
+      }
+    }).catchError((Object _) {
+      /* 传感器不可用时忽略，武装逻辑不受影响 */
+    });
   }
 
   void _onOrientation(NativeDeviceOrientation orient) {
     // 记录最近一次物理方向（即便处于宽限期/设备静止也不再回调，也保留最近方向，
     // 供宽限期后 [_maybeArmAfterGrace] 判定武装）。
     _lastOrientation = orient;
+
+    // B33：App 处于后台（跳系统设置 / 灭屏）时不处理任何方向事件——
+    // 后台期间用户举姿与「专注中的退出意图」无关，且是弹框循环事故的源头。
+    if (!_lastPresent) return;
 
     // 宽限期一律忽略：抑制传感器订阅首帧回调与进场抖动（B18）。
     final DateTime now = _clock();

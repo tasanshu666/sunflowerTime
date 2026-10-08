@@ -43,7 +43,9 @@ class DndController {
     }
   }
 
-  /// 启用/恢复勿扰：[on]=true → INTERRUPTION_FILTER_NONE（屏蔽通知）；
+  /// 启用/恢复勿扰：[on]=true → INTERRUPTION_FILTER_PRIORITY（仅屏蔽通知，
+  /// **媒体照常出声**；原 NONE「完全静音」会把媒体音量一起静掉——玄参小米 14
+  /// 实测「专注中收集音效无声」的根因，2026-10-08 修复）；
   /// false → INTERRUPTION_FILTER_ALL（恢复）。
   ///
   /// 原生侧 `setDnd` 不再抛异常，而是返回「实际生效的过滤档位」（-1 表示未生效，

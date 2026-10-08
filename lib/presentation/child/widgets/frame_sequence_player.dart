@@ -21,6 +21,7 @@ library frame_sequence_player;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -139,6 +140,7 @@ class FrameSequencePlayer extends StatefulWidget {
     this.fadeOutMs = kFxDisplayFadeOutMs,
     this.loop = false,
     this.holdLastFrame = false,
+    this.playToken,
     this.onComplete,
   });
 
@@ -159,6 +161,13 @@ class FrameSequencePlayer extends StatefulWidget {
   /// 结算页庆祝帧专用（玄参 2026-09-30 拍板「结算动画帧播放一次就可以」——
   /// 与 `focus_settle` 音效同时开始、同时结束，播完定格末帧而不是渐隐消失）。
   final bool holdLastFrame;
+
+  /// 播放令牌（B34）：**变化即重播**——用于「同帧组连播」场景。
+  ///
+  /// 护眼卡段④⑤⑥是同一组 look 帧、同时长，槽位推进时 [frames] / [durationMs]
+  /// 均不变；若只按内容判重，控制器停在 completed 状态永不重播 → 卡死。调用方
+  /// 传入随播放轮次变化的值（如槽位号）即可强制重开。默认 null，其余调用方无感。
+  final Object? playToken;
 
   /// 整段（播放 + 渐隐）结束回调，供调用方移除本组件（循环模式不触发）。
   final VoidCallback? onComplete;
@@ -188,14 +197,50 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
     }
   }
 
-  bool _precached = false;
+  /// 已预热过的帧组（防止重复预热；同一帧组重复 [precacheFxFrames] 纯浪费）。
+  ///
+  /// B34：由「一次性 bool」改为**按帧组内容判定**——护眼卡槽位切换复用同一播放器
+  /// 实例（不再换 key 重建），[frames] 会整体更换，需对新组重新预热。
+  List<String>? _precachedFrames;
+
+  void _maybePrecache() {
+    if (_precachedFrames != null &&
+        listEquals<String>(_precachedFrames!, widget.frames)) {
+      return;
+    }
+    _precachedFrames = List<String>.of(widget.frames);
+    unawaited(precacheFxFrames(context, widget.frames));
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_precached) return;
-    _precached = true;
-    unawaited(precacheFxFrames(context, widget.frames));
+    _maybePrecache();
+  }
+
+  @override
+  void didUpdateWidget(covariant FrameSequencePlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // B34：护眼卡槽位切换（frames / durationMs 变化）不再换 key 重建，而是在同一
+    // 实例上**重启播放**——旧组末帧经 `gaplessPlayback` 保持可见，直到新组首帧解码
+    // 完成，消除「切换闪黑屏」。loop / holdLastFrame / fadeOutMs 变化同样兜底重启。
+    final bool restart = widget.playToken != oldWidget.playToken ||
+        widget.loop != oldWidget.loop ||
+        widget.durationMs != oldWidget.durationMs ||
+        widget.holdLastFrame != oldWidget.holdLastFrame ||
+        widget.fadeOutMs != oldWidget.fadeOutMs ||
+        !listEquals<String>(widget.frames, oldWidget.frames);
+    if (!restart) return;
+    _ctrl.duration = Duration(
+      milliseconds: widget.durationMs +
+          (widget.loop || widget.holdLastFrame ? 0 : widget.fadeOutMs),
+    );
+    _maybePrecache();
+    if (widget.loop) {
+      _ctrl.repeat();
+    } else {
+      _ctrl.forward(from: 0);
+    }
   }
 
   void _onStatus(AnimationStatus status) {

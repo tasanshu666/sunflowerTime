@@ -84,19 +84,19 @@ void main() {
       expect(e.elapsed, const Duration(seconds: 90));
     });
 
-    test('B3 离席跨越 1/3 边界仍会送光（随光报信按会话进度触发）', () {
+    test('B3 离席跨越 1/2 边界仍会送光（随光报信按会话进度触发）', () {
       // 口径待确认：lvl2 边界按「会话进度」判定，离席期间跨越边界也会触发。
-      final e = makeEngine(plannedMin: 20); // 1/3 = 400s
+      final e = makeEngine(plannedMin: 20); // 1/2 = 600s
       e.start(now);
       advance(const Duration(seconds: 100));
       e.tick(now);
       expect(countLevel(e, FeedbackLevel.lvl2), 0);
 
       e.onAbsent();
-      advance(const Duration(seconds: 400)); // 会话进度 500s ≥ 400s
+      advance(const Duration(seconds: 600)); // 会话进度 700s ≥ 600s
       e.tick(now);
       expect(countLevel(e, FeedbackLevel.lvl2), 1,
-          reason: '会话进度越过 1/3 → 即便此刻离席也发 lvl2');
+          reason: '会话进度越过 1/2 → 即便此刻离席也发 lvl2');
     });
   });
 
@@ -180,29 +180,26 @@ void main() {
   });
 
   // ─────────────────────────────────────────────────────────────
-  group('D 随光报信 1/3、2/3（PRD §4.1.3）', () {
-    test('D1 恰好各一次，共 2 次', () {
-      final e = makeEngine(plannedMin: 20); // 1200s：1/3=400，2/3=800
+  group('D 随光报信 1/2（玄参 2026-10-08 修订）', () {
+    test('D1 恰好一次，之后不追加', () {
+      final e = makeEngine(plannedMin: 20); // 1200s：1/2=600
       e.start(now);
-      advance(const Duration(seconds: 400));
+      advance(const Duration(seconds: 600));
       e.tick(now);
       expect(countLevel(e, FeedbackLevel.lvl2), 1);
-      advance(const Duration(seconds: 400));
+      advance(const Duration(seconds: 599));
       e.tick(now);
-      expect(countLevel(e, FeedbackLevel.lvl2), 2);
-      advance(const Duration(seconds: 399));
-      e.tick(now);
-      expect(countLevel(e, FeedbackLevel.lvl2), 2, reason: '天然 2 次，不追加');
+      expect(countLevel(e, FeedbackLevel.lvl2), 1, reason: '天然 1 次，不追加');
     });
 
-    test('D2 边界前 1 微秒不触发，恰好到点才触发', () {
+    test('D2 边界前 1 毫秒不触发，恰好到点才触发', () {
       final e = makeEngine(plannedMin: 20);
       e.start(now);
-      e.tick(now.add(const Duration(seconds: 400)));
+      e.tick(now.add(const Duration(seconds: 600)));
       expect(countLevel(e, FeedbackLevel.lvl2), 1);
       final e2 = makeEngine(plannedMin: 20);
       e2.start(now);
-      e2.tick(now.add(const Duration(milliseconds: 399999)));
+      e2.tick(now.add(const Duration(milliseconds: 599999)));
       expect(countLevel(e2, FeedbackLevel.lvl2), 0);
     });
   });

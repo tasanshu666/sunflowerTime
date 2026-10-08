@@ -41,10 +41,44 @@ class AntiAddictionService {
   double dailyFocusRemaining(AppSettings s, double todayFocusMin) =>
       max(0.0, s.dailyFocusCap - todayFocusMin);
 
-  /// 是否到了需要休息的节奏：每完成 [AppSettings.restSessions] 场后需要休息
-  /// （即 2/4/6… 场后触发，1/3/5… 场不触发）。
+  /// 是否到了需要休息的节奏：每**连续**完成 [AppSettings.restAfterSessions] 场后需要
+  /// 休息（即连续 2/4/6… 场后触发，1/3/5… 场不触发）。
+  ///
+  /// [todayValidSessions] 必须传 [consecutiveValidSessions] 的结果（**连续场数**，
+  /// 而非当日累计场数）——2026-10-08 真机实证：早上 08:34 与中午 12:44 各一场
+  /// （间隔 4h），旧口径按当日累计 2 场立刻触发休息，但间隔早已是充分休息，
+  /// 孩子体感是「我只专注了一场就被要求休息」。连续口径下两场间隔 ≥
+  /// [AppSettings.restMinutes] 即断连重置。
   bool restRequired(AppSettings s, int todayValidSessions) =>
       todayValidSessions > 0 && todayValidSessions % s.restAfterSessions == 0;
+
+  /// 今日**连续**完成场数（休息节奏的计数口径，2026-10-08 修订）。
+  ///
+  /// 从最近一场往前数，只要相邻两场之间的自然间隔 ≥ [restMinutes]（两场之间
+  /// 已经眼睛离开屏幕休息过了），就停止累计——休息的本质是离开屏幕（F66 同源），
+  /// 中间歇够 [restMinutes] 等价于完成了一次休息义务，连续计数清零重新起算。
+  ///
+  /// [sessions] 为当日会话（调用方已按日过滤），内部再按开始时间排序防御。
+  int consecutiveValidSessions(
+    Iterable<FocusSession> sessions,
+    int restMinutes,
+  ) {
+    final List<FocusSession> done = sessions
+        .where((FocusSession s) => s.status == FocusStatus.completed)
+        .toList()
+      ..sort((FocusSession a, FocusSession b) => a.start.compareTo(b.start));
+    if (done.isEmpty) return 0;
+    int count = 1; // 最近一场必计入
+    final Duration gapLimit = Duration(minutes: restMinutes);
+    for (int i = done.length - 1; i > 0; i--) {
+      final DateTime? prevEnd = done[i - 1].end; // 进行中/异常会话无 end → 断连
+      if (prevEnd == null) break;
+      final DateTime curStart = done[i].start;
+      if (curStart.difference(prevEnd) >= gapLimit) break; // 中间歇够了 → 断连
+      count++;
+    }
+    return count;
+  }
 
   /// 今日最后一场完成会话的结束时间（F66：休息义务的起始基准）。
   ///

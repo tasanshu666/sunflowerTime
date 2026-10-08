@@ -376,13 +376,17 @@ class _EntryPageState extends ConsumerState<EntryPage> {
         .focusEarnedToday(DateTime.now());
     if (!mounted) return;
 
+    final AntiAddictionService antiAddiction = AntiAddictionService();
+
     // F66：完成会话列表同时供场数统计与「休息义务起始基准」推导。
     final List<FocusSession> completed =
         sessions.where((s) => s.status == FocusStatus.completed).toList();
-    final int todayValid = completed.length;
+    // 休息节奏按**连续场数**计数（2026-10-08 修订）：两场间隔 ≥ restMinutes
+    // 即断连重置，避免「上午一场、中午一场（隔 4h）」被算成连续 2 场立刻触发休息。
+    final int todayValid =
+        antiAddiction.consecutiveValidSessions(completed, settings.restMinutes);
     final int cap = settings.dailyFocusCap;
 
-    final AntiAddictionService antiAddiction = AntiAddictionService();
     final double remaining =
         antiAddiction.dailyFocusRemaining(settings, usedToday);
 

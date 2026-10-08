@@ -332,9 +332,9 @@ void main() {
   });
 
   group('奖励（C28 §3）', () {
-    test('完整完成 = +2 阳光，且 refType 字符串值冻结为 eye_care_break', () {
+    test('完整完成 = +3 阳光，且 refType 字符串值冻结为 eye_care_break', () {
       expect(EyeCareService.rewardSunlight(), kEyeCareRewardSunlight);
-      expect(kEyeCareRewardSunlight, 2);
+      expect(kEyeCareRewardSunlight, 3);
       expect(kEyeCareRefType, 'eye_care_break');
       expect(kEyeCareRefLabel, '护眼',
           reason: '孩子端「阳光来源记录」的映射文案（口径冻结）');

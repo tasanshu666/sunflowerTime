@@ -1,14 +1,17 @@
 /// 少儿护眼休息卡 EyeCarePage 的 widget 测试（口径 C28 §7，玄参 2026-10-04 收口）。
 ///
-/// 钉住四条**出口口径**（这四条错了就是安全事故：孩子绕过护眼白拿奖励，或护眼永远出不去）：
+/// 钉住**出口口径**（这些错了就是安全事故：孩子绕过护眼白拿奖励，或护眼永远出不去）：
 ///  ① **允许跳过（默认）**：点「跳过」→ 先弹二次确认 → 确认才生效、确认后**不发奖励、
 ///     不写账本**；取消＝回护眼卡继续休息；
 ///  ② **家长关掉「允许跳过」**：「跳过」按钮**仍在**（口径：护眼卡恒有两个出口），
 ///     点了**无效**并弹「不可跳过，请爱护眼睛」，流程不推进；
 ///  ③ **返回键拦截**：护眼卡期间任何 pop（系统返回键/程序化 pop）都被拦下 → 同样弹
 ///     「不可跳过，请爱护眼睛」；
-///  ④ **完成休息**：账本 +2 阳光、`refType='eye_care_break'`（`String` 值冻结）、
-///     返回 `EyeCareResultType.completed`。
+///  ④ **主按钮「跳过护眼休息」**（玄参 2026-10-08 定名 + 新口径）：自然走完时系统
+///     自动收口，主按钮语义 = 提前结束 = 跳过——**未走完流程就手点＝视同跳过**：弹
+///     二次确认（明示无奖励 + 爱护眼睛提示），确认后不发奖励不写账本、返回 skipped；
+///     家长禁跳时弹「不可跳过」不推进。只有**自然走完**（播放列表收口）才返回
+///     completed 且账本 +3（`refType='eye_care_break'` 字符串值冻结）。
 ///
 /// 另加一条**播放列表推进**：段①播完自动切段②（帧速 = 帧数 ÷ 音频时长）、
 /// 末段收口自动 completed（2026-10-05 素材定稿后口令/画面由素材自带）。
@@ -21,7 +24,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
-import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
@@ -171,8 +173,8 @@ class _Harness {
 }
 
 void main() {
-  group('完成休息（C28 §3）', () {
-    testWidgets('点「完成休息」→ 账本 +2、refType 冻结为 eye_care_break、返回 completed',
+  group('主按钮「跳过护眼休息」（玄参 2026-10-08：未走完手点＝视同跳过）', () {
+    testWidgets('未走完就手点主按钮 → 弹二次确认（无奖励明示）；取消 → 回护眼卡',
         (WidgetTester tester) async {
       _usePhoneScreen(tester);
       final _Harness h = _Harness(skipAllowed: true);
@@ -183,28 +185,44 @@ void main() {
       await tester.tap(find.text(kEyeCareFinishLabel));
       await _settle(tester);
 
+      // 弹二次确认卡（标题 + 明示无奖励 + 爱护眼睛提示），且未写账本。
+      expect(find.text(kEyeCareEarlyFinishTitle), findsOneWidget);
+      expect(find.text(kEyeCareEarlyFinishConfirmText), findsOneWidget);
+      expect(h.ledger.appended, isEmpty, reason: '确认前绝不能写账本');
+
+      // 取消 → 回护眼卡继续休息，不出结果。
+      await tester.tap(find.text(kEyeCareEarlyFinishStayLabel));
+      await _settle(tester);
+
+      expect(find.text(kEyeCareEarlyFinishTitle), findsNothing);
+      expect(find.text(kEyeCareFinishLabel), findsOneWidget,
+          reason: '取消后还停在护眼卡');
+      expect(h.ledger.appended, isEmpty);
+    });
+
+    testWidgets('未走完手点主按钮 → 确认结束 → 返回 skipped 且**不发奖励不写账本**',
+        (WidgetTester tester) async {
+      _usePhoneScreen(tester);
+      final _Harness h = _Harness(skipAllowed: true);
+      await h.open(tester);
+
+      await tester.tap(find.text(kEyeCareFinishLabel));
+      await _settle(tester);
+      await tester.tap(find.text(kEyeCareEarlyFinishQuitLabel));
+      await _settle(tester);
+
       final Object? result = await h.pushed!;
       expect(
         result,
         isA<EyeCareResult>().having(
           (EyeCareResult r) => r.type,
           'type',
-          EyeCareResultType.completed,
+          EyeCareResultType.skipped,
         ),
       );
-
-      // 只写一行，且是护眼奖励。
-      expect(h.ledger.appended, hasLength(1));
-      final SunlightEntry entry = h.ledger.appended.single;
-      expect(entry.refType, kEyeCareRefType);
-      expect(entry.refType, 'eye_care_break');
-      expect(entry.type, SunlightType.earn);
-      expect(entry.net, kEyeCareRewardSunlight);
-      expect(entry.gross, kEyeCareRewardSunlight);
-      // 余额在「写入前」取后 +2（避免并发 / 重入把 balanceAfter 算错）。
-      expect(entry.balanceAfter, 100 + kEyeCareRewardSunlight);
-      // 护眼卡已退场。
-      expect(find.text(kEyeCareFinishLabel), findsNothing);
+      expect(h.ledger.appended, isEmpty,
+          reason: '确认结束＝按跳过处理：零账本变动');
+      expect(find.text(kEyeCareFinishLabel), findsNothing, reason: '已退场');
     });
   });
 
@@ -283,12 +301,16 @@ void main() {
       expect(find.text(kEyeCareFinishLabel), findsOneWidget,
           reason: '流程不推进：还停在护眼卡上');
 
-      // 且**依然可以正常完成休息**（另一条出口没被关掉）。
+      // 未走完手点主按钮（跳过护眼休息）同样被禁（视同跳过）→ 弹「不可跳过」、不推进。
       await tester.tap(find.text(kEyeCareFinishLabel));
       await _settle(tester);
-      final Object? result = await h.pushed!;
-      expect((result! as EyeCareResult).type, EyeCareResultType.completed);
-      expect(h.ledger.appended, hasLength(1));
+      expect(find.text(kEyeCareNotSkippableText), findsOneWidget,
+          reason: '家长禁跳时，未走完手点主按钮＝跳过 → 同一「不可跳过」提示');
+      expect(find.byType(AlertDialog), findsNothing,
+          reason: '禁跳时不弹二次确认卡（没有「无奖励结束」这条路）');
+      expect(h.ledger.appended, isEmpty);
+      expect(find.text(kEyeCareFinishLabel), findsOneWidget,
+          reason: '流程不推进：还停在护眼卡上');
     });
   });
 

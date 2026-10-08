@@ -941,8 +941,8 @@ const List<EyeCareSegment> kEyeCarePlaylist = <EyeCareSegment>[
 /// [kEyeCareDurationSeconds] = 63s，两者差 <1s，以播放列表收尾为准）。
 const int kEyeCarePlaylistTotalMs = 10162 + 10083 + 8098 + 10083 * 3 + 5094;
 
-/// 完整完成一次护眼的**奖励阳光**（玄参 2026-10-03 拍板：+2）。
-const int kEyeCareRewardSunlight = 2;
+/// 完整完成一次护眼的**奖励阳光**（玄参 2026-10-08 修订：+2 → **+3**）。
+const int kEyeCareRewardSunlight = 3;
 
 /// 场末（结算页之前）插入护眼卡的**本段注视门槛**（分钟）：≥ 该值才打断，
 /// 本段 < 该值不打断（交给「每 2 场休 10 分钟」大休息兜底）。
@@ -964,8 +964,26 @@ const String kEyeCareNotSkippableText = '不可跳过，请爱护眼睛';
 /// 允许跳过时点「跳过」的**二次确认**文案（确认才生效，取消＝回护眼卡继续休息）。
 const String kEyeCareSkipConfirmText = '跳过就没有小阳光啦，真的要跳过吗？';
 
-/// 护眼卡主按钮文案（完成的唯一入口，"不可跳过"时也是唯一出路）。
-const String kEyeCareFinishLabel = '完成休息';
+/// 护眼卡主按钮文案（玄参 2026-10-08 定名：**跳过护眼休息**）。
+///
+/// 自然走完时系统自动收口进下一界面，主按钮的实际语义 = 提前结束 = 跳过：
+/// 未走完手点它 → 二次确认（明示无奖励 + 爱护眼睛提示），确认后按跳过处理
+/// （无奖励、不写账本）；家长禁跳时点击无效并弹「不可跳过」。
+const String kEyeCareFinishLabel = '跳过护眼休息';
+
+/// 未走完护眼流程就手点「完成休息」的二次确认**标题**（玄参 2026-10-08：视同跳过
+/// 处理——需二次确认，确认后不发奖励；取消＝回护眼卡继续休息）。
+const String kEyeCareEarlyFinishTitle = '还没休息完就结束吗？';
+
+/// 未走完就手点「完成休息」的二次确认**正文**：明示「跳过后无奖励」+ 爱护眼睛提示。
+const String kEyeCareEarlyFinishConfirmText =
+    '护眼还没做完，现在结束就没有小阳光奖励哦。小眼睛要多休息才会亮晶晶，再坚持一下吧！';
+
+/// 未走完确认卡的**继续休息**按钮文案（取消，回护眼卡）。
+const String kEyeCareEarlyFinishStayLabel = '再休息一会儿';
+
+/// 未走完确认卡的**确定结束**按钮文案（确认 → 按跳过处理：无奖励、不写账本）。
+const String kEyeCareEarlyFinishQuitLabel = '确定结束';
 
 /// 护眼卡副按钮文案（**恒存在**——家长关「允许跳过」时点了无效并弹提示，而非隐藏）。
 const String kEyeCareSkipLabel = '跳过';

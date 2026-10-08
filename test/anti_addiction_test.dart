@@ -296,4 +296,78 @@ void main() {
       );
     });
   });
+
+  // 2026-10-08 修订（玄参真机实证：早上 08:34 与中午 12:44 各一场，间隔 4h，
+  // 旧口径按当日累计 2 场立刻触发休息）。休息节奏的计数改为「连续场数」：
+  // 两场之间自然间隔 ≥ restMinutes 即断连重置。
+  group('consecutiveValidSessions 连续场数（2026-10-08 修订）', () {
+    final service = AntiAddictionService();
+    const int restMinutes = 10;
+
+    FocusSession session(DateTime start, {DateTime? end, FocusStatus status = FocusStatus.completed}) =>
+        FocusSession(
+          id: 's-${start.millisecondsSinceEpoch}',
+          start: start,
+          end: end ?? start.add(const Duration(minutes: 20)),
+          plannedMin: 20,
+          actualFocusMin: 20,
+          status: status,
+          sunlightEarned: 20,
+          createdAt: start,
+        );
+
+    test('空列表 → 0', () {
+      expect(service.consecutiveValidSessions(const <FocusSession>[], restMinutes), 0);
+    });
+
+    test('仅 1 场 → 1', () {
+      final sessions = <FocusSession>[session(DateTime(2026, 10, 8, 12, 24))];
+      expect(service.consecutiveValidSessions(sessions, restMinutes), 1);
+    });
+
+    test('两场间隔 4h（≥ restMinutes）→ 只算最近 1 场（真机场景回归）', () {
+      final sessions = <FocusSession>[
+        session(DateTime(2026, 10, 8, 8, 14)), // 08:14–08:34（今早测试场）
+        session(DateTime(2026, 10, 8, 12, 24)), // 12:24–12:44（间隔 ~4h）
+      ];
+      expect(service.consecutiveValidSessions(sessions, restMinutes), 1);
+    });
+
+    test('两场背靠背（间隔 < restMinutes）→ 2（连续）', () {
+      final sessions = <FocusSession>[
+        session(DateTime(2026, 10, 8, 12, 0)), // 12:00–12:20
+        session(DateTime(2026, 10, 8, 12, 25)), // 12:25–12:45（间隔 5min）
+      ];
+      expect(service.consecutiveValidSessions(sessions, restMinutes), 2);
+    });
+
+    test('恰好间隔 restMinutes → 断连（≥ 边界归休息）', () {
+      final sessions = <FocusSession>[
+        session(DateTime(2026, 10, 8, 12, 0)), // 12:00–12:20
+        session(DateTime(2026, 10, 8, 12, 30)), // 12:30 起（间隔恰好 10min）
+      ];
+      expect(service.consecutiveValidSessions(sessions, restMinutes), 1);
+    });
+
+    test('三场连续 → 3；未完成会话不计数', () {
+      final sessions = <FocusSession>[
+        session(DateTime(2026, 10, 8, 11, 0)), // 11:00–11:20
+        session(DateTime(2026, 10, 8, 11, 25)), // 11:25–11:45
+        session(DateTime(2026, 10, 8, 11, 50)), // 11:50–12:10
+        session( // 未完成（进行中）→ 不计入
+          DateTime(2026, 10, 8, 12, 15),
+          status: FocusStatus.active,
+        ),
+      ];
+      expect(service.consecutiveValidSessions(sessions, restMinutes), 3);
+    });
+
+    test('传入乱序列表 → 内部按 start 排序后计数（防御）', () {
+      final sessions = <FocusSession>[
+        session(DateTime(2026, 10, 8, 12, 25)),
+        session(DateTime(2026, 10, 8, 12, 0)),
+      ];
+      expect(service.consecutiveValidSessions(sessions, restMinutes), 2);
+    });
+  });
 }

@@ -79,23 +79,23 @@ void main() {
     });
   });
 
-  group('四档反馈：随光报信（PRD §4.1.3 / §4.1.4）', () {
-    test('每完成 1/3 进度各送一次光（1/3 与 2/3 各一次）', () {
-      final e = makeEngine(plannedMin: 20); // 1200s；1/3=400s，2/3=800s
+  group('四档反馈：随光报信（玄参 2026-10-08 修订：1/2 一次）', () {
+    test('完成 1/2 进度送一次光（600s 恰好一次，之后不追加）', () {
+      final e = makeEngine(plannedMin: 20); // 1200s；1/2=600s
       e.start(now);
 
       advance(const Duration(seconds: 400));
       e.tick(now);
+      expect(countLevel(e, FeedbackLevel.lvl2), 0, reason: '尚未到 1/2');
+
+      advance(const Duration(seconds: 200)); // 累计 600s = 1/2
+      e.tick(now);
       expect(countLevel(e, FeedbackLevel.lvl2), 1);
 
-      advance(const Duration(seconds: 400));
-      e.tick(now);
-      expect(countLevel(e, FeedbackLevel.lvl2), 2);
-
-      // 再推进到结束前不应再触发（天然 2 次）
+      // 再推进到结束前不应再触发（天然 1 次）
       advance(const Duration(seconds: 300));
       e.tick(now);
-      expect(countLevel(e, FeedbackLevel.lvl2), 2);
+      expect(countLevel(e, FeedbackLevel.lvl2), 1);
     });
   });
 

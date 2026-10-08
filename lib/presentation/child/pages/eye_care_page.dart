@@ -11,15 +11,22 @@
 ///    确认才生效；确认后**不发奖励、不写账本**，直接继续专注 / 进结算页；
 ///    取消确认＝回护眼卡继续休息。
 ///  · **家长关掉「允许跳过」**：点「跳过」**无效**，弹 [kEyeCareNotSkippableText]，
-///    流程不推进，只有「完成休息」一条路。
+///    流程不推进，只有走完流程一条路。
 ///  · **返回键拦截**：整页 `PopScope(canPop: false)`，拦截时同样弹
 ///    [kEyeCareNotSkippableText]（防止孩子按返回绕过护眼）。
+///
+/// 第四条口径（玄参 2026-10-08）：**主按钮定名「跳过护眼休息」**——自然走完时系统
+/// 自动收口进下一界面，主按钮的实际语义就是提前结束＝跳过：没走完就手点＝视同跳过，
+/// 弹 [kEyeCareEarlyFinishTitle] 二次确认（明示无奖励 + 爱护眼睛提示），确认后按
+/// skipped 处理（不发奖励）；家长禁跳时同样弹 [kEyeCareNotSkippableText] 不推进。
+/// 只有自然走完（末槽播放回调 / 兜底保险丝）才是真正的 completed 发奖励。
 ///
 /// 无论跳过与否，护眼时长**都不回溯补算**为专注时长（专注页已用
 /// `FocusEngine.pause()` 冻结计时，本页不碰计时、也不「结算补减」）。
 library eye_care_page;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -83,6 +90,13 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
   /// 跳过二次确认弹窗是否已打开（防止连续点击叠出多个对话框）。
   bool _confirmOpen = false;
 
+  /// 护眼流程是否已**自然走完**（末槽播放回调触发收口前置位）。
+  ///
+  /// 玄参 2026-10-08 新口径：没走完就手点「完成休息」**不能**按完成发奖励——
+  /// 必须二次确认、确认后按跳过处理（无奖励）。只有自然走完的那条收口路径
+  /// （`_onSlotComplete` 末槽 / 兜底保险丝）才是真正的 completed。
+  bool _flowPlayedOut = false;
+
   /// 是否正在退场（弹完结果后短暂驻留，避免按钮点了画面瞬间消失）。
   bool _finishing = false;
 
@@ -94,8 +108,20 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
     super.initState();
     // 首槽配音（initState 里 ref 仍可用；dispose 里才禁用 ref——本项目 Riverpod 铁律）。
     _playSfxFor(_slot);
+    // B34 滚动预热：播第 0 组时就预解码第 1 组（第 0 组由播放器自身预热），
+    // 槽位切换时新组首帧已在 ImageCache → 消除「切换闪黑屏」。
+    _precacheNextSlot(_slot);
     // 1s tick：只刷新「还剩 N 秒」标签 + 兜底保险丝（播放器回调才是推进正源）。
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  /// 预解码下一槽位的整组帧（B34）：每组 ~10s，预热时间绰绰有余；
+  /// 预热失败静默（[precacheFxFrames] 内部自兜底），最坏退回现解码行为。
+  void _precacheNextSlot(int slot) {
+    final int next = slot + 1;
+    if (next >= kEyeCarePlaylist.length) return;
+    final EyeCareSegment seg = kEyeCarePlaylist[next];
+    unawaited(precacheFxFrames(context, fxFrameAssets(seg.dir, seg.frameCount)));
   }
 
   void _tick() {
@@ -124,6 +150,7 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
   void _onSlotComplete() {
     if (!mounted || _finishing) return;
     if (_slot >= kEyeCarePlaylist.length - 1) {
+      _flowPlayedOut = true; // 自然走完 → 「完成休息」按钮此后按 completed 处理
       unawaited(_finish(EyeCareResultType.completed));
       return;
     }
@@ -131,6 +158,8 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
       _slot += 1;
     });
     _playSfxFor(_slot);
+    // B34：进入第 _slot 组时预热下一组（当前组在切换前已预热完毕）。
+    _precacheNextSlot(_slot);
   }
 
   // ── 出口（完成 / 跳过）────────────────────────────────────────
@@ -226,6 +255,57 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
       );
   }
 
+  /// 点主按钮「跳过护眼休息」（玄参 2026-10-08 定名 + 新口径）：
+  ///
+  /// 自然走完时系统自动收口，主按钮的实际语义 = 提前结束 = 跳过：
+  /// · **流程已自然走完**（末槽回调收口，实际到不了这里，防御保留）→ 正常 completed；
+  /// · **没走完就手点** = 视同跳过，绝不能白拿奖励：
+  ///   - 家长关掉「允许跳过」→ 弹「不可跳过，请爱护眼睛」，流程不推进；
+  ///   - 允许跳过 → **二次确认**（明示无奖励 + 爱护眼睛提示），确认后按
+  ///     [EyeCareResultType.skipped] 退场（不发奖励、不写账本），取消＝继续休息。
+  void _onFinishPressed() {
+    if (_finishing) return; // 收口已在进行，幂等
+    if (_flowPlayedOut) {
+      unawaited(_finish(EyeCareResultType.completed));
+      return;
+    }
+    if (!widget.args.skipAllowed) {
+      _showNotSkippable();
+      return;
+    }
+    _showEarlyFinishConfirm();
+  }
+
+  /// 未走完就手点「完成休息」的二次确认卡（无奖励明示 + 爱护眼睛提示）。
+  void _showEarlyFinishConfirm() {
+    if (_confirmOpen) return;
+    setState(() => _confirmOpen = true);
+    showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text(kEyeCareEarlyFinishTitle),
+        content: const Text(kEyeCareEarlyFinishConfirmText),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(kEyeCareEarlyFinishStayLabel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(kEyeCareEarlyFinishQuitLabel),
+          ),
+        ],
+      ),
+    ).then((bool? ok) {
+      if (!mounted) return;
+      setState(() => _confirmOpen = false);
+      if (ok != true) return;
+      // 确认结束 = 按跳过处理：无奖励、不写账本。
+      unawaited(_finish(EyeCareResultType.skipped));
+    });
+  }
+
   // ── 构建 ──────────────────────────────────────────────────────
 
   @override
@@ -252,7 +332,15 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
       child: Scaffold(
         backgroundColor: const Color(0xFFFBF6EC), // 暖米白（孩子端基调）
         body: SafeArea(
-          child: SingleChildScrollView(
+          // B35（玄参 2026-10-08）：横屏竖向空间小，动画帧 340 底部快出屏。
+          // 用 LayoutBuilder 拿 SafeArea 内真实可用高度自适应画面边长：
+          // 竖屏（高 ≥ 600）维持 340 不变；矮横屏按可用高度的 45% 缩小（160~300 夹紧）。
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints c) {
+              final double frameSide = c.maxHeight < 600
+                  ? math.min(300.0, math.max(160.0, c.maxHeight * 0.45))
+                  : 340.0;
+              return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -277,19 +365,26 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // 整幅画面序列帧（素材 720×720 带背景；圆角白卡裁切，居中最大 340）。
+                // 整幅画面序列帧（素材 720×720 带背景；圆角白卡裁切，
+                // 边长自适应：竖屏最大 340，横屏按可用高度缩小——B35）。
                 Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 340),
+                    constraints: BoxConstraints(maxWidth: frameSide),
                     child: AspectRatio(
                       aspectRatio: 1,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(28),
                         child: FrameSequencePlayer(
-                          // ⚠️ key 按槽位换 → 槽位切换即整体重建（换帧组 + 换配音）。
-                          key: ValueKey<int>(_slot),
+                          // ⚠️ B34（2026-10-08）：**不再按槽位换 key**——换 key 会把
+                          // 播放器整体销毁重建，新组首帧异步解码期间画面空白 = 「切换
+                          // 闪黑屏」。改为同一实例复用：播放器 `didUpdateWidget` 感知
+                          // 帧组/时长变化后自行重启，旧组末帧经 `gaplessPlayback` 保持
+                          // 可见直到新组首帧就绪 + 滚动预热下一组，双保险消闪黑。
                           frames: fxFrameAssets(seg.dir, seg.frameCount),
                           durationMs: seg.durationMs,
+                          // B34：段④⑤⑥是同一组 look 帧同时长——用槽位号当播放令牌，
+                          // 保证同名帧组连播也会重开控制器（否则卡死在 completed）。
+                          playToken: _slot,
                           fadeOutMs: 0, // 槽位间硬切（下一段紧接着开始，不渐隐）
                           onComplete: _onSlotComplete,
                         ),
@@ -323,8 +418,7 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: () =>
-                        unawaited(_finish(EyeCareResultType.completed)),
+                    onPressed: _onFinishPressed,
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       textStyle: const TextStyle(fontSize: 18),
@@ -332,10 +426,10 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                     child: const Text(kEyeCareFinishLabel),
                   ),
                 ),
-                // 「跳过」按钮**恒存在**（口径 C28 §7：护眼卡恒有「跳过」与「完成
-                // 休息」两个出口）。家长关掉「允许跳过」时它只是**点了无效**（弹
-                // [kEyeCareNotSkippableText]、流程不推进），而**不是整块消失**——
-                // 消失的话孩子根本点不到、也就看不到「不可跳过」的提示，与口径相悖。
+                // 「跳过」按钮**恒存在**（口径 C28 §7：护眼卡恒有两个出口）。家长关掉
+                // 「允许跳过」时它只是**点了无效**（弹 [kEyeCareNotSkippableText]、
+                // 流程不推进），而**不是整块消失**——消失的话孩子根本点不到、也就
+                // 看不到「不可跳过」的提示，与口径相悖。
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
@@ -351,6 +445,8 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                 const SizedBox(height: 12),
               ],
             ),
+          ); // SingleChildScrollView（return 语句收口）
+            },
           ),
         ),
       ),

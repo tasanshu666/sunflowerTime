@@ -42,6 +42,7 @@ import 'package:sunflower_time/domain/services/presence_detector.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/platform/dnd_controller.dart';
+import 'package:sunflower_time/platform/system_tone.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
@@ -147,6 +148,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
 
   /// 护眼卡是否正在展示（展示期间：专注计时暂停、退出确认与场末判定都不再推进）。
   bool _eyeCareActive = false;
+
+  /// 到时结束后的过渡缓冲倒计时（0 = 未在缓冲；3→2→1 逐秒刷新，玄参 2026-10-08）。
+  int _endingCountdown = 0;
 
   /// 本次专注适用的**每日专注上限**（分钟）：进入时与 [_tier] 一起从设置读取，
   /// 结算时传给 `SunlightService.settle` 做额度截断（2026-09-23 日上限口径）。
@@ -326,16 +330,19 @@ class _FocusPageState extends ConsumerState<FocusPage>
   ///
   /// [focusSecondsAtTrigger] 是**触发当下**的累计注视秒数，护眼结束后用它回写基准，
   /// 保证「护眼这一段」被算进基准、不会被下一秒的 tick 当成「又积累了一秒」。
-  Future<void> _openEyeCare({required int focusSecondsAtTrigger}) async {
+  ///
+  /// 返回护眼卡 pop 出的结果（completed / skipped）；场末路径据此累计护眼奖励
+  /// （护眼卡内部已写阳光账本，这里只收结果、绝不重复入账）。
+  Future<EyeCareResult?> _openEyeCare({required int focusSecondsAtTrigger}) async {
     // 只有 `isEnabled` 判定通过的那条路径会走到这里，故设置必定已读到（非空）。
     final AppSettings settings = _eyeCareSettings!;
-    _engine.pause(); // 护眼期间计时暂停 → 不计入专注时长（C28 §1）
+    _engine.pause(); // 护眼期间计时暂停 → 不计入专注时长（C28 §1）；引擎已 finished 时为 no-op
     if (mounted) setState(() => _eyeCareActive = true);
 
     // 护眼奖励以**阳光账本为唯一真源**，在 EyeCarePage 内部就已入账，这里只收尾状态，
     // 绝不（也不允许）再写一次账本，否则一次护眼会变成 +4 阳光。
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+    final EyeCareResult? result = await Navigator.of(context).push<EyeCareResult>(
+      MaterialPageRoute<EyeCareResult>(
         builder: (_) => EyeCarePage(
           args: EyeCareArgs(
             skipAllowed: EyeCareService.isSkipAllowed(settings),
@@ -344,12 +351,30 @@ class _FocusPageState extends ConsumerState<FocusPage>
       ),
     );
 
-    if (!mounted) return;
+    if (!mounted) return result;
     setState(() => _eyeCareActive = false);
     // 幂等基准：下一个间隔从护眼当下重新累计（跳过也一样，避免立刻再弹卡）。
     _eyeCareBaselineFocusSeconds =
         EyeCareService.baselineAfterTrigger(focusSecondsAtTrigger);
     _engine.resume();
+    return result;
+  }
+
+  /// 到时结束 → 护眼卡之前的 **3s 过渡缓冲**（玄参 2026-10-08：直接切护眼太突兀）。
+  ///
+  /// 仍保持横屏，全屏文字提示「专注结束啦 / 让眼睛休息一下吧」+ 3-2-1 倒计时；
+  /// 走完由调用方接续护眼卡（同样横屏播放，护眼结束才转竖屏进结算）。
+  Future<void> _runEndingBuffer() async {
+    if (!mounted) return;
+    // 倒计时开始 → 一声系统「叮」提示（玄参 2026-10-08：先用系统音填充，
+    // 后续交付正式素材后替换）。fire-and-forget，失败静默不影响主流程。
+    const SystemTone().playDing();
+    for (int i = kFocusEndBufferSeconds; i >= 1; i--) {
+      if (!mounted) return;
+      setState(() => _endingCountdown = i);
+      await Future<void>.delayed(const Duration(seconds: 1));
+    }
+    if (mounted) setState(() => _endingCountdown = 0);
   }
 
   /// 本场结束时「距上次护眼后的本段注视」是否达到场末插入门槛（≥ [kEyeCareSessionEndMinutes]）。
@@ -504,7 +529,32 @@ class _FocusPageState extends ConsumerState<FocusPage>
     _quotaHintTimer?.cancel();
     _presence?.stop();
     await _dnd.setEnabled(false); // F01：退出专注恢复通知
-    await _restoreSystemChrome();
+
+    // C28 §1 场末 + 玄参 2026-10-08 流程修订（**仅到时结束**走新流程）：
+    //   旧流程「到时 → 转竖屏 → 结算页 → 护眼卡压在结算页上（竖屏）」有两处体验缺陷——
+    //   ① 直接切护眼太突兀（无过渡）；② 护眼在竖屏播、且把结算动画帧/音效盖住
+    //   （结算页 initState 即播动画+音效，播完时护眼还没结束，孩子永远看不到）。
+    //   新流程：到时 → **保持横屏** 3s 文字过渡 → 横屏播护眼卡 → 结束后才转竖屏，
+    //   带着护眼奖励进结算页（此时结算动画/音效不再被遮挡，玄参第 7/8 条一次修复）。
+    //   手动结束（竖持退出）与离席打断保持旧流程：手机已在孩子手里竖持，强行横屏反而怪异。
+    final bool eyeCareFirst =
+        outcome.endReason == FocusEndReason.timedOut &&
+            _shouldEyeCareAtSessionEnd();
+    int eyeCareReward = 0;
+    if (eyeCareFirst) {
+      await _runEndingBuffer(); // 3s 过渡（仍横屏）
+      if (!mounted) return;
+      final EyeCareResult? r = await _openEyeCare(
+        focusSecondsAtTrigger: (_engine.actualFocusMin * 60).round(),
+      );
+      if (!mounted) return;
+      if (r != null && r.completed) {
+        // 唯一真源：账本入账在护眼卡内部完成，这里只收结果用于结算页展示。
+        eyeCareReward = kEyeCareRewardSunlight;
+      }
+    }
+
+    await _restoreSystemChrome(); // 护眼结束后才复位方向（新流程）/ 立即复位（旧流程）
 
     final DateTime start = _engine.startedAt ?? DateTime.now();
     final FocusSettlement settlement =
@@ -574,8 +624,11 @@ class _FocusPageState extends ConsumerState<FocusPage>
     if (!mounted) return;
     // go 是替换路由栈（B20）；结算页经 go 进入，退出用 go('/')。
     //
-    // C28 §1 场末：若「距上次护眼之后的本段注视 ≥ [kEyeCareSessionEndMinutes] 分钟」，
-    // 结算页会**在显示任何奖励之前**先插一次护眼卡（先护眼、后领奖励）。
+    // C28 §1 场末两种接线方式：
+    //  · 到时结束 + 达门槛（[eyeCareFirst]）→ 护眼已在本页之上播完（横屏、含 3s
+    //    过渡），结算页**不再**插卡，只随 [SettleArgs.eyeCareReward] 带去奖励展示；
+    //  · 手动结束 / 离席打断 + 达门槛 → 仍走旧路径（[SettleArgs.eyeCarePending]，
+    //    结算页先插护眼卡、再领奖励），结算页既有护眼逻辑原样保留。
     context.go(
       '/settle',
       extra: SettleArgs(
@@ -583,7 +636,8 @@ class _FocusPageState extends ConsumerState<FocusPage>
         taskOutcome: taskOutcome,
         taskName: taskName,
         taskSettleSkipped: taskSettleSkipped,
-        eyeCarePending: _shouldEyeCareAtSessionEnd(),
+        eyeCarePending: !eyeCareFirst && _shouldEyeCareAtSessionEnd(),
+        eyeCareReward: eyeCareReward,
       ),
     );
   }
@@ -648,9 +702,10 @@ class _FocusPageState extends ConsumerState<FocusPage>
     _eventSub?.cancel();
     _presence?.stop();
     _engine.dispose();
-    // M2：退出专注释放音频播放器（下次使用懒加载重建）。专注中已不放 BGM
-    // （玄参 2026-09-30 拍板），这里只负责释放 SFX 播放器。
-    unawaited(ref.read(audioServiceProvider).dispose());
+    // 2026-10-08 修复（玄参第 8 条「没听到结算音效」根因之一）：**不再**在此释放
+    // 音频服务——go('/settle') 时结算页 initState 会立刻播 focus_settle，而本页
+    // dispose 晚于结算页 initState，此前这里的一句 dispose 会把刚起播的结算音效
+    // 拦腰杀掉。播放器为全局单例懒加载复用，保留不释放（资源开销可忽略）。
     // F01：万一 _handleOutcome 未跑（如进程被杀），退出时仍尝试恢复通知。
     unawaited(_dnd.setEnabled(false));
     _restoreSystemChrome();
@@ -898,6 +953,45 @@ class _FocusPageState extends ConsumerState<FocusPage>
                 child: const Center(
                   child: Text('已暂停',
                       style: TextStyle(color: Colors.white, fontSize: 28)),
+                ),
+              ),
+            // 到时结束 → 护眼卡之前的 3s 过渡缓冲（玄参 2026-10-08）：
+            // 全屏深色遮罩 + 文字提示 + 倒计时，保持横屏不切走（护眼接续在本页之上）。
+            if (_endingCountdown > 0)
+              Container(
+                color: Colors.black.withValues(alpha: 0.72),
+                alignment: Alignment.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Text(
+                      '🌻 专注结束啦',
+                      style: TextStyle(
+                        color: Color(0xFFFFE082),
+                        fontSize: 30,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '让眼睛休息一下吧',
+                      style: TextStyle(
+                        color: Color(0xFF9E9ECF),
+                        fontSize: 18,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      '$_endingCountdown',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 44,
+                        fontWeight: FontWeight.w300,
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],

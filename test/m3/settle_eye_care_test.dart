@@ -5,7 +5,7 @@
 ///     （未触发 / 跳过 → `0 ☀️`）。
 ///  ② **C28 §1 场末插入点接线**（修复交付遗漏：`eyeCarePending` 此前从未被
 ///     结算页消费）——带 `eyeCarePending: true` 进场时护眼卡压在结算页之上，
-///     结算数字以「···」占位不抢先露出；护眼**完成**后显示 `+2 ☀️` 且账本
+///     结算数字以「···」占位不抢先露出；护眼**完成**后显示 `+3 ☀️` 且账本
 ///     恰有一条 `eye_care_break`（唯一真源，护眼卡内部写入）。
 ///  ③ **跳过**：二次确认后回结算页，「护眼奖励」显示 `0 ☀️`，账本零写入。
 ///
@@ -186,7 +186,7 @@ void main() {
     expect(ledger.appended, isEmpty);
   });
 
-  testWidgets('eyeCarePending：先护眼后领奖励——占位「···」→ 完成 → +2 ☀️ 且账本一条', (tester) async {
+  testWidgets('eyeCarePending：先护眼后领奖励——占位「···」→ 完成 → +3 ☀️ 且账本一条', (tester) async {
     final _FakeSunlightRepository ledger = _FakeSunlightRepository(100);
     _usePhoneScreen(tester);
     await _pumpSettlePage(
@@ -197,7 +197,7 @@ void main() {
     );
     await _settle(tester);
 
-    // 护眼卡压在结算页之上：占位生效、护眼卡「完成休息」按钮可见。
+    // 护眼卡压在结算页之上：占位生效、护眼卡主按钮（kEyeCareFinishLabel）可见。
     // ⚠️ 全屏不透明路由入场后，下方结算页被 Navigator 标记 offstage，
     // find.text 默认 skipOffstage:true 会漏掉 → 必须显式 skipOffstage:false。
     expect(
@@ -205,16 +205,16 @@ void main() {
       findsWidgets,
       reason: '护眼未收口时结算数字不抢先露出',
     );
-    expect(find.text('完成休息'), findsOneWidget);
+    expect(find.text(kEyeCareFinishLabel), findsOneWidget);
 
     // 播放列表驱动（≈63.7s，槽位由播放器回调推进）：步进 pump 直到护眼卡退场
-    // （「完成休息」消失；skipOffstage:false 防入场过渡期误判提前 break）。
+    // （主按钮消失；skipOffstage:false 防入场过渡期误判提前 break）。
     // ⚠️ 不能一次 pump 大时长：入场过渡期页面 offstage、播放器实际 tick 起点偏移，
     // 一步 pump 的时长略短于段长 → onComplete 不触发 → 永不推进（137 实证）。
     for (int i = 0; i < 170; i++) {
       await tester.pump(const Duration(milliseconds: 500));
       if (find
-          .text('完成休息', skipOffstage: false)
+          .text(kEyeCareFinishLabel, skipOffstage: false)
           .evaluate()
           .isEmpty) {
         break;
@@ -223,7 +223,7 @@ void main() {
     await _settle(tester);
 
     expect(find.text('···'), findsNothing, reason: '护眼收口后占位应解除');
-    expect(_eyeCareRowValue(tester), '+2 ☀️');
+    expect(_eyeCareRowValue(tester), '+$kEyeCareRewardSunlight ☀️');
     expect(ledger.appended.length, 1, reason: '完成护眼恰写一条账本');
     expect(ledger.appended.single.refType, kEyeCareRefType);
     expect(ledger.appended.single.net, kEyeCareRewardSunlight.toDouble());

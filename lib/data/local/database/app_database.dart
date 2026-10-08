@@ -54,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -234,6 +234,28 @@ class AppDatabase extends _$AppDatabase {
           //    ⚠️ 版本变更（15 → 16），必须配迁移测试（见
           //       `test/m3/migration_v15_to_v16_test.dart`）。
           await _ensureColumn(m, plants, plants.shovelRefund);
+
+          // ⑰ v17（晨露奖励历史重复行清理，B35，真机实证 2026-10-08）：
+          //    `_enqueueBloomRewards` 旧版对「同株 + 同一 8 点槽位」不去重——调试催熟
+          //    N 次开花 → 同一槽位重复登记 N 条未领取行，8 点一到期头顶一次性堆 N 个
+          //    产物图标。领域层已加槽位指纹去重护栏（B35），本迁移一次性清理**存量**
+          //    重复行：每个 (plant_id, due_at, reward_kind) 槽位的未领取行只保留一条
+          //    （MIN(id)），其余删除。claimed 行是已发放的历史账（含调试期已收集的），
+          //    **一律不动**；阳光账本同样是只读事实，不动。
+          //    · 幂等：DELETE 按「非本组 MIN(id) 的未领取行」判定，重复执行第二次
+          //      已无匹配行 → 无副作用（v17+ 库根本不再进入本分支）。
+          //    ⚠️ 版本变更（16 → 17），必须配迁移测试（见
+          //       `test/m3/migration_v16_to_v17_test.dart`）。
+          if (from < 17) {
+            await customStatement(
+              'DELETE FROM pending_bloom_rewards '
+              'WHERE claimed = 0 AND id NOT IN ('
+              '  SELECT MIN(id) FROM pending_bloom_rewards'
+              '  WHERE claimed = 0'
+              '  GROUP BY plant_id, due_at, reward_kind'
+              ');',
+            );
+          }
         },
       );
 

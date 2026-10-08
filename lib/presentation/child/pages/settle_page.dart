@@ -69,7 +69,15 @@ class SettleArgs {
   ///
   /// 由专注页按「距上次护眼之后的本段注视 ≥ [kEyeCareSessionEndMinutes] 分钟」算出
   /// 后随 [SettleArgs] 传入；深链直入（本参数为默认 false）不插卡，行为与既往一致。
+  ///
+  /// 2026-10-08 修订：**到时结束**的场末护眼改由专注页在其之上播放（横屏 + 3s 过渡，
+  /// 修复「护眼竖屏播放 / 盖住结算动画」），本页插卡路径仅剩手动结束 / 离席打断场景。
   final bool eyeCarePending;
+
+  /// 本场**已完成**的护眼奖励（玄参 2026-10-08）：
+  /// 到时结束走专注页内护眼时随 args 传入（护眼卡内部已入账，本页只展示）；
+  /// 本页自带插卡路径（eyeCarePending）完成时同样按 [kEyeCareRewardSunlight] 显示。
+  final int eyeCareReward;
 
   const SettleArgs({
     this.settlement,
@@ -77,6 +85,7 @@ class SettleArgs {
     this.taskName,
     this.taskSettleSkipped = false,
     this.eyeCarePending = false,
+    this.eyeCareReward = 0,
   });
 }
 
@@ -110,6 +119,9 @@ class _SettlePageState extends ConsumerState<SettlePage>
 
   /// 本场结算的护眼奖励（玄参 2026-10-04 拍板口径）：完成护眼 = [kEyeCareRewardSunlight]
   /// （账本入账由护眼卡内部完成，本页只收结果显示）；跳过 / 未触发 = 0。
+  ///
+  /// 2026-10-08：初值改为读 [SettleArgs.eyeCareReward]——到时结束的场末护眼已在
+  /// 专注页播完（横屏 + 3s 过渡），奖励随 args 直达，本页不再插卡。
   int _eyeCareReward = 0;
 
   /// 结算前护眼卡是否仍在展示（带 [SettleArgs.eyeCarePending] 进场且结果未回）。
@@ -122,6 +134,8 @@ class _SettlePageState extends ConsumerState<SettlePage>
   @override
   void initState() {
     super.initState();
+    // 2026-10-08：到时结束的场末护眼已在专注页播完，奖励随 args 直达（只展示）。
+    _eyeCareReward = widget.args?.eyeCareReward ?? 0;
     // 玄参 2026-09-30 拍板：专注结束后**强制竖屏**进入结算页。
     // 专注页锁横屏，结束时手机常仍横持（专注页 dispose 只复位方向 = 跟随传感器，
     // 横持就保持横屏），竖版信息页在横屏下溢出（实测 BOTTOM OVERFLOWED BY 267
@@ -480,8 +494,9 @@ class _SettlePageState extends ConsumerState<SettlePage>
                       const SizedBox(height: 8),
                       _StatRow(
                         label: '护眼奖励',
-                        // 玄参 2026-10-04：本场结算前护眼的结果——完成 +2 ☀
-                        // （护眼卡内部已入账）；跳过 / 未触发显示 0。
+                        // 玄参 2026-10-08：本场护眼的结果——完成 +kEyeCareRewardSunlight ☀
+                        // （护眼卡内部已入账，到时结束随 args 直达 / 插卡路径完成后回填）；
+                        // 跳过 / 未触发显示 0。
                         value: _mask(
                           _eyeCareReward > 0 ? '+$_eyeCareReward ☀️' : '0 ☀️',
                         ),

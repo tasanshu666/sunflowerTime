@@ -121,48 +121,54 @@ void main() {
     });
   });
 
-  group('护眼卡序列帧契约（2026-10-05 玄参交付：5 套素材 7 槽位，整幅画面带背景）', () {
-    // 播放列表里 look 复用 3 次 → 按目录去重后校验（5 套）。
-    final Map<String, int> eyeDirs = <String, int>{
-      for (final EyeCareSegment seg in kEyeCarePlaylist) seg.dir: seg.frameCount,
-    };
-
-    test('去重后恰为 5 套素材（close / doitagain / lookTip / look / done）', () {
-      expect(eyeDirs, hasLength(5));
+  group('护眼卡序列帧契约（2026-10-09 C43 玄参交付改版：单段 640 帧 WebP q95）', () {
+    // C43：5 段素材已剪辑拼为 1 个视频再逐帧导出（过渡更丝滑），旧 5 套
+    // （close/doitagain/lookTip/look/done）全部弃用删除。帧走 WebP q95
+    // 压缩管线（284.4M PNG → 40.2M，PSNR≈44.8dB 视觉无损）。
+    test('单段 640 帧：目录、帧数、命名契约（三位零填充 frame001..640.webp）', () {
+      final Directory dir = Directory('$root/${kEyeCareSegment.dir}');
+      expect(dir.existsSync(), isTrue,
+          reason: '目录缺失：${kEyeCareSegment.dir}');
+      final List<String> files = dir
+          .listSync()
+          .whereType<File>()
+          .map((File f) => f.path.split(Platform.pathSeparator).last)
+          .where((String n) => n.endsWith('.${kEyeCareSegment.frameExt}'))
+          .toList()
+        ..sort();
+      expect(files.length, kEyeCareSegment.frameCount,
+          reason: '帧数应为 ${kEyeCareSegment.frameCount}，实际 ${files.length}');
+      final List<String> expected = fxFrameAssets(kEyeCareSegment.dir,
+              kEyeCareSegment.frameCount, ext: kEyeCareSegment.frameExt)
+          .map((String p) => p.split('/').last)
+          .toList();
+      expect(files, expected, reason: '文件名与契约不符（三位零填充 frame001..N.webp）');
+      // 整幅画面带背景：全部帧统一 720×720（直读 WebP 头，逐张校验）。
+      for (final String name in files) {
+        final int wh = _webpSize(File('$root/${kEyeCareSegment.dir}/$name'));
+        expect(wh, 720 * 720,
+            reason: '${kEyeCareSegment.dir}/$name 尺寸漂移（应统一 720×720）');
+      }
     });
 
-    eyeDirs.forEach((String dir, int count) {
-      test('$dir：恰有 $count 张、文件名与 fxFrameAssets 契约一致、720×720', () {
-        final List<String> files = pngsOf(dir);
-        expect(files.length, count,
-            reason: '$dir 帧数应为 $count，实际 ${files.length}');
-        final List<String> expected = fxFrameAssets(dir, count)
-            .map((String p) => p.split('/').last)
-            .toList();
-        expect(files, expected, reason: '$dir 文件名与契约不符（三位零填充 frame001..N）');
-        // 整幅画面带背景：全部帧统一 720×720（直读 PNG IHDR，抽样每张都查）。
-        for (final String name in files) {
-          final RandomAccessFile raf = File('$root/$dir/$name').openSync();
-          final PngHead head = _readHead(raf);
-          raf.closeSync();
-          expect('${head.w} x ${head.h}', '720 x 720',
-              reason: '$dir/$name 尺寸漂移（应统一 720×720）');
-        }
-      });
+    test('护眼单配音 eyecare.mp3 存在且 cue 映射齐全', () {
+      expect(AudioCue.eyeCare.assetPath, 'assets/audio/sfx/eyecare.mp3');
+      expect(File('$root/${AudioCue.eyeCare.assetPath}').existsSync(), isTrue,
+          reason: '缺护眼配音：${AudioCue.eyeCare.assetPath}');
     });
 
-    test('护眼配音 5 个 mp3 全部存在且 cue 映射齐全', () {
-      final List<AudioCue> eyeCues = <AudioCue>[
-        AudioCue.eyeCareClose,
-        AudioCue.eyeCareAgain,
-        AudioCue.eyeCareLookTip,
-        AudioCue.eyeCareLook,
-        AudioCue.eyeCareDone,
-      ];
-      for (final AudioCue cue in eyeCues) {
-        expect(cue.assetPath, startsWith('assets/audio/sfx/eyecare_'));
-        expect(File('$root/${cue.assetPath}').existsSync(), isTrue,
-            reason: '缺护眼配音：${cue.assetPath}');
+    test('旧 5 套素材目录与旧配音已删除（C43 弃用，防误回收）', () {
+      expect(Directory('$root/assets/fx/eyecare').existsSync(), isFalse,
+          reason: '旧 eyecare 目录应已删除');
+      for (final String name in <String>[
+        'eyecare_close.mp3',
+        'eyecare_doitagain.mp3',
+        'eyecare_lookTip.mp3',
+        'eyecare_look.mp3',
+        'eyecare_done.mp3',
+      ]) {
+        expect(File('$root/assets/audio/sfx/$name').existsSync(), isFalse,
+            reason: '旧配音 $name 应已删除');
       }
     });
   });
@@ -183,11 +189,7 @@ void main() {
         AudioCue.focusCollect,
         AudioCue.focusSettle,
         AudioCue.focusEndCountdown,
-        AudioCue.eyeCareClose,
-        AudioCue.eyeCareAgain,
-        AudioCue.eyeCareLookTip,
-        AudioCue.eyeCareLook,
-        AudioCue.eyeCareDone,
+        AudioCue.eyeCare,
       ];
       for (final AudioCue cue in newCues) {
         expect(cue.assetPath.endsWith('.mp3'), isTrue,
@@ -514,4 +516,43 @@ PngHead _readHead(RandomAccessFile raf) {
     bytes.add(raf.readByteSync());
   }
   return PngHead(bytes);
+}
+
+/// 直读 WebP 头 30 字节，解析画布宽高；返回 `w * h`（不匹配 720×720 即测试失败）。
+///
+/// 支持三种 chunk：`VP8 `（lossy 简单格式，C43 管线产物）、`VP8L`（无损）、
+/// `VP8X`（扩展）。格式不符抛 [FormatException]。
+int _webpSize(File f) {
+  final RandomAccessFile raf = f.openSync();
+  final List<int> b = <int>[];
+  for (int i = 0; i < 30; i++) {
+    b.add(raf.readByteSync());
+  }
+  raf.closeSync();
+  // RIFF....WEBP（12 字节容器头）
+  if (String.fromCharCodes(b.sublist(0, 4)) != 'RIFF' ||
+      String.fromCharCodes(b.sublist(8, 12)) != 'WEBP') {
+    throw const FormatException('非 WebP 容器（RIFF/WEBP 头缺失）');
+  }
+  final String fourcc = String.fromCharCodes(b.sublist(12, 16));
+  switch (fourcc) {
+    case 'VP8 ': // lossy：帧 tag 3B（20..22）+ 同步码 9D 01 2A（23..25）+ 宽高 LE 14bit
+      if (b[23] != 0x9D || b[24] != 0x01 || b[25] != 0x2A) {
+        throw const FormatException('VP8 同步码缺失');
+      }
+      final int w = (b[26] | (b[27] << 8)) & 0x3FFF;
+      final int h = (b[28] | (b[29] << 8)) & 0x3FFF;
+      return w * h;
+    case 'VP8L': // lossless：签名 0x2F（20）+ 14bit w-1 / 14bit h-1
+      if (b[20] != 0x2F) throw const FormatException('VP8L 签名缺失');
+      final int bits =
+          b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24);
+      return ((bits & 0x3FFF) + 1) * (((bits >> 14) & 0x3FFF) + 1);
+    case 'VP8X': // 扩展：canvas w-1 / h-1 各 24bit LE（24..26 / 27..29）
+      final int w = b[24] | (b[25] << 8) | (b[26] << 16);
+      final int h = b[27] | (b[28] << 8) | (b[29] << 16);
+      return (w + 1) * (h + 1);
+    default:
+      throw FormatException('未支持的 WebP chunk：$fourcc');
+  }
 }

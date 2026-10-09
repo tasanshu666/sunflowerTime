@@ -110,20 +110,9 @@ enum AudioCue {
   /// 实测 4.99s；替代此前的系统「叮」，倒计时缓冲由 3s 改 5s 同日拍板）。
   focusEndCountdown,
 
-  /// 护眼卡 · 段① 闭眼转眼球提示（配 `assets/fx/eyecare/close/`，2026-10-05 交付）。
-  eyeCareClose,
-
-  /// 护眼卡 · 段② 再来一次转眼球（配 `assets/fx/eyecare/doitagain/`）。
-  eyeCareAgain,
-
-  /// 护眼卡 · 段③ 远眺提示（配 `assets/fx/eyecare/lookTip/`）。
-  eyeCareLookTip,
-
-  /// 护眼卡 · 段④ 远眺（配 `assets/fx/eyecare/look/`，播放列表中复用 3 次）。
-  eyeCareLook,
-
-  /// 护眼卡 · 段⑤ 结束提示（配 `assets/fx/eyecare/done/`）。
-  eyeCareDone,
+  /// 护眼卡 · 全程单配音（`eyecare.mp3` 63.974s，2026-10-09 C43 玄参交付：
+  /// 5 段配音已剪辑拼为 1 段，与 640 帧动画同时长播放；旧 5 个 cue 弃用删除）。
+  eyeCare,
 }
 
 /// [AudioCue] 到 assets 音频文件路径的映射（相对工程根）。
@@ -165,16 +154,8 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/focus_settle.mp3';
       case AudioCue.focusEndCountdown:
         return 'assets/audio/sfx/5s_countdown.mp3';
-      case AudioCue.eyeCareClose:
-        return 'assets/audio/sfx/eyecare_close.mp3';
-      case AudioCue.eyeCareAgain:
-        return 'assets/audio/sfx/eyecare_doitagain.mp3';
-      case AudioCue.eyeCareLookTip:
-        return 'assets/audio/sfx/eyecare_lookTip.mp3';
-      case AudioCue.eyeCareLook:
-        return 'assets/audio/sfx/eyecare_look.mp3';
-      case AudioCue.eyeCareDone:
-        return 'assets/audio/sfx/eyecare_done.mp3';
+      case AudioCue.eyeCare:
+        return 'assets/audio/sfx/eyecare.mp3';
     }
   }
 }

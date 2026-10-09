@@ -20,6 +20,7 @@
 library frame_sequence_player;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -56,13 +57,14 @@ enum GrowTransition {
   }
 }
 
-/// 拼一组序列帧的 asset 路径列表（`{dir}/frame001.png` … 共 [count] 张）。
+/// 拼一组序列帧的 asset 路径列表（`{dir}/frame001.{ext}` … 共 [count] 张）。
 ///
-/// 纯函数（无 IO），命名契约唯一真源：三位零填充、从 [kFxFirstFrameNumber] 起。
-List<String> fxFrameAssets(String dir, int count) {
+/// 纯函数（无 IO），命名契约唯一真源：三位零填充、从 [kFxFirstFrameNumber] 起；
+/// [ext] 默认 `png`，护眼 640 帧（2026-10-09 WebP 压缩管线）传 `webp`。
+List<String> fxFrameAssets(String dir, int count, {String ext = 'png'}) {
   return List<String>.generate(count, (int i) {
     final int n = kFxFirstFrameNumber + i;
-    return '$dir/frame${n.toString().padLeft(kFxFrameDigits, '0')}.png';
+    return '$dir/frame${n.toString().padLeft(kFxFrameDigits, '0')}.$ext';
   });
 }
 
@@ -97,16 +99,24 @@ const String kFocusReturnFxDir = 'assets/fx/focus/sunflower/return';
 /// 预热一组序列帧到 ImageCache（消除「画面一闪一闪」的换帧白屏）。
 ///
 /// 逐帧 `Image.asset` 换帧时会重新解码 720×720 PNG（异步）→ 旧图已丢弃则白屏闪烁
-/// （玄参 2026-09-29 实测反馈）。播放前把整组帧解码进缓存即可消除。
+/// （玄参 2026-09-29 实测反馈）。播放前把帧解码进缓存即可消除。
+///
+/// [start] / [count]：只预热 `[start, start+count)` 子区间（C43 滑动窗口预热用；
+/// 默认整组）。失败一律静默：预热只是性能/观感优化，最坏退回原行为。
 ///
 /// ⚠️ **必须先用 `rootBundle.load` 试探**：对不存在的资源，`precacheImage` 会经
 /// image resource service **上报断言**（`try/catch` 与 `catchError` 都拦不住 →
 /// 测试直接变红）；而 `rootBundle.load` 的缺失错误是普通 Future error，可被捕获。
 /// 故这里「先探存在、再预解码」，缺失者静默跳过（显示侧由 errorBuilder 兜底）。
-///
-/// 失败一律静默：预热只是性能/观感优化，最坏退回原行为。
-Future<void> precacheFxFrames(BuildContext context, List<String> frames) async {
-  for (final String f in frames) {
+Future<void> precacheFxFrames(
+  BuildContext context,
+  List<String> frames, {
+  int start = 0,
+  int? count,
+}) async {
+  final int end =
+      count == null ? frames.length : math.min(start + count, frames.length);
+  for (final String f in frames.sublist(start, end)) {
     try {
       final ByteData data = await rootBundle.load(f);
       if (data.lengthInBytes == 0) continue;
@@ -203,13 +213,76 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
   /// 实例（不再换 key 重建），[frames] 会整体更换，需对新组重新预热。
   List<String>? _precachedFrames;
 
+  // ── C43 滑动窗口预热（2026-10-09）────────────────────────────────────────
+  //
+  // 护眼新素材 eyecare640 单组 640 帧，每帧解码位图 720×720×4B ≈ 2.07MB，
+  // 整组 ≈ 1.3GB —— 远超 ImageCache 默认 100MiB，**禁止整组预热**（内存爆炸 +
+  // 缓存必然互相逐出）。大帧组改走「滑动窗口」：只把**播放前沿之前若干帧**预热进
+  // ImageCache，随播放推进滚动补窗；小帧组（grow/care/focus，均 ≤40 帧）保持整组
+  // 预热旧行为不变。
+  static const int _wholeGroupMax = 40; // ≤ 此帧数整组预热（旧行为）
+  static const int _windowStep = 8; // 每批预热帧数（8 × 2.07MB ≈ 16.6MB）
+  static const int _aheadMin = 4; // 前沿至少领先当前帧 4 帧（10fps ≈ 400ms 缓冲）
+
+  /// 已预热覆盖到的帧下标（不含）；小组恒 = frames.length（整组，不滚动）。
+  int _windowFront = 0;
+
+  /// 是否有预热批在途（防重入；完成或换组后复位）。
+  bool _warming = false;
+
+  /// 预热代际号：换组/重启时 +1，旧批 future 完成后据此放弃写回（防污染新组）。
+  int _warmGen = 0;
+
+  /// 最近一次渲染的帧下标（供窗口推进判断；null = 尚未渲染）。
+  int? _lastIdx;
+
+  bool get _isLargeGroup => widget.frames.length > _wholeGroupMax;
+
   void _maybePrecache() {
     if (_precachedFrames != null &&
         listEquals<String>(_precachedFrames!, widget.frames)) {
       return;
     }
     _precachedFrames = List<String>.of(widget.frames);
-    unawaited(precacheFxFrames(context, widget.frames));
+    _warmGen++; // 作废在途旧批
+    _warming = false;
+    if (_isLargeGroup) {
+      _windowFront = 0;
+      _warmWindow();
+    } else {
+      _windowFront = widget.frames.length;
+      unawaited(precacheFxFrames(context, widget.frames));
+    }
+  }
+
+  /// 预热下一批窗口 `[ _windowFront, +_windowStep )`，完成后按需续批
+  /// （前沿落后当前帧超过 [_aheadMin] 时补批，覆盖快速推进/解码慢的场景）。
+  void _warmWindow() {
+    if (_warming || !mounted) return;
+    final int start = _windowFront;
+    if (start >= widget.frames.length) return;
+    _warming = true;
+    final int gen = _warmGen;
+    final int end = math.min(start + _windowStep, widget.frames.length);
+    unawaited(() async {
+      await precacheFxFrames(context, widget.frames,
+          start: start, count: end - start);
+      if (!mounted || gen != _warmGen) return; // 换组/已卸载：放弃写回
+      _windowFront = math.max(_windowFront, end);
+      _warming = false;
+      final int? idx = _lastIdx;
+      if (_isLargeGroup && idx != null && _windowFront - idx < _aheadMin) {
+        _warmWindow(); // 前沿仍不够领先：续批
+      }
+    }());
+  }
+
+  /// 渲染帧推进时调用：前沿领先量不足则触发下一批预热（防重入由 [_warming] 保证）。
+  void _ensureWindowAhead(int idx) {
+    _lastIdx = idx;
+    if (_isLargeGroup && !_warming && _windowFront - idx < _aheadMin) {
+      _warmWindow();
+    }
   }
 
   @override
@@ -283,6 +356,8 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
               widget.frames.length,
             );
           }
+          // C43：大帧组滑动窗口推进（前沿领先不足时预热下一批；小组 no-op）。
+          _ensureWindowAhead(idx);
           return SizedBox.expand(
             child: Opacity(
               opacity: opacity,
@@ -290,8 +365,7 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
                 widget.frames[idx],
                 fit: BoxFit.contain,
                 // ⚠️ 2026-09-29 玄参实测「一闪一闪」：换帧时旧图被立即丢弃、新图异步
-                // 解码 → 白屏闪烁。保留旧帧直到新帧就绪（另见 [didChangeDependencies]
-                // 的整组预解码）。
+                // 解码 → 白屏闪烁。保留旧帧直到新帧就绪（另见滑动窗口预热）。
                 gaplessPlayback: true,
                 errorBuilder: (_, __, ___) => const SizedBox.shrink(),
               ),

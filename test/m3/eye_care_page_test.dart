@@ -113,10 +113,10 @@ class _FakeEyeCareLogRepository implements EyeCareLogRepository {
 /// 默认 800×600 的测试画布会把「跳过」按钮顶到屏幕外 → tap 落空）。
 ///
 /// 同时**拦截 eyecare 资产加载**：护眼帧是真实 720×720 位图，在 flutter_tester 里
-/// 真解码（5 套 × 67 帧、峰值数百 MB）会把测试进程 OOM 杀死（exit 137，2026-10-05
-/// 实证；压图像缓存无效）。本文件只验证「播放列表推进 / 出口口径」，不验证位图——
-/// 拦截后 Image.errorBuilder 占位、precache 静默跳过，与项目「美术分支不入 widget
-/// 测试」的既有共识一致（位图正确性由玄参模拟器验收）。
+/// 真解码（C43 起 640 帧 WebP，解码位图 ≈1.3GB）会把测试进程 OOM 杀死（exit 137，
+/// 2026-10-05 实证；压图像缓存无效）。本文件只验证「播放收口 / 出口口径」，不验证
+/// 位图——拦截后 Image.errorBuilder 占位、precache 静默跳过，与项目「美术分支不入
+/// widget 测试」的既有共识一致（位图正确性由玄参模拟器验收）。
 void _usePhoneScreen(WidgetTester tester) {
   tester.view.physicalSize = const Size(390 * 3, 844 * 3);
   tester.view.devicePixelRatio = 3.0;
@@ -126,7 +126,7 @@ void _usePhoneScreen(WidgetTester tester) {
     assets,
     (MethodCall call) async {
       if (call.arguments is String &&
-          (call.arguments! as String).startsWith('assets/fx/eyecare/')) {
+          (call.arguments! as String).startsWith('assets/fx/eyecare640/')) {
         return null; // 视为加载失败 → errorBuilder / precache 跳过
       }
       return null; // 其余资产（字体等）同样走失败路径，用例不依赖位图
@@ -419,37 +419,20 @@ void main() {
       fail('等待「$label」超时（已 pump ${pumped.inMilliseconds}ms）');
     }
 
-    testWidgets('起手段① → 各槽播完自动推进 → 末段收口 = completed + 账本 +2',
+    testWidgets('起手 → 单段播完自动收口 = completed + 账本 + 护眼记录（C43 单段）',
         (WidgetTester tester) async {
       _usePhoneScreen(tester);
       final _Harness h = _Harness(skipAllowed: true);
       await h.open(tester);
 
-      // 起手段①（闭眼转眼球）。
-      await _pumpUntilText(tester, kEyeCareSegClose.label);
+      // 起手：单段字幕可见，账本未动。
+      await _pumpUntilText(tester, kEyeCareSegment.label);
       expect(h.ledger.appended, isEmpty, reason: '没休息完不写账本');
 
-      // 段①播完 → 自动切段②，不需要手点。
-      await _pumpUntilText(tester, kEyeCareSegAgain.label);
-      expect(find.text(kEyeCareSegClose.label), findsNothing);
-
-      // 段②播完 → 段③（远眺提示）。
-      await _pumpUntilText(tester, kEyeCareSegLookTip.label);
-
-      // 段③播完 → 段④首次（look）。
-      await _pumpUntilText(tester, kEyeCareSegLook.label);
-
-      // 段④三连是**同名标签**，无法用「等标签」区分三次播放 → 按「段④起至列表
-      // 末尾」的总时长步进推进，直到末段（done）标签出现（预算 = 总长 + 富余）。
-      await _pumpUntilText(
-        tester,
-        kEyeCareSegDone.label,
-        budget: Duration(
-            milliseconds: kEyeCarePlaylistTotalMs - 10162 - 10083 - 8098 + 8000),
-      );
-
-      // 末段播完自动退场：再步进 pump 过「done 段时长 + 富余」，让 _finish 跑完。
-      for (int i = 0; i < 16; i++) {
+      // 单段播完（63.974s）自动收口：预算 = 总长 + 富余，步进推进。
+      for (int i = 0;
+          i < (kEyeCarePlaylistTotalMs + 8000) ~/ 500;
+          i++) {
         await tester.pump(const Duration(milliseconds: 500));
       }
       final Object? result = await h.pushed!;
@@ -472,12 +455,13 @@ void main() {
       expect(h.eyeCareLog.appended.single.dayKey, isNotEmpty);
     });
 
-    test('页面配音 cue 表与播放列表按位对齐（7 槽位，防素材/配音错位）', () {
-      // _slotCues 是页面私有常量；此处按口径复述核心断言——长度一致 + 段④三连。
-      expect(kEyeCarePlaylist, hasLength(7));
-      expect(kEyeCarePlaylist.where((EyeCareSegment s) => s.dir.endsWith('/look')),
-          hasLength(3));
-      expect(kEyeCarePlaylist.last.dir, endsWith('/done'));
+    test('播放列表契约（C43：恒单段，帧/音频参数钉死防素材漂移）', () {
+      expect(kEyeCarePlaylist, hasLength(1));
+      expect(kEyeCareSegment.dir, 'assets/fx/eyecare640');
+      expect(kEyeCareSegment.frameCount, 640);
+      expect(kEyeCareSegment.frameExt, 'webp');
+      expect(kEyeCareSegment.sfxAsset, 'assets/audio/sfx/eyecare.mp3');
+      expect(kEyeCarePlaylistTotalMs, kEyeCareSegment.durationMs);
     });
   });
 

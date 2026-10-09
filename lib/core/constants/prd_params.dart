@@ -835,7 +835,7 @@ const String kGardenPestAsset = 'assets/garden/pest.png';
 //  · 场末「距上次护眼之后的本段注视 ≥ [kEyeCareSessionEndMinutes] 分钟」→ **结算页之前**
 //    插一次护眼卡（先护眼、后领奖励，防孩子为拿奖励跳过护眼）；
 //  · **单次护眼总时长固定，家长端不设、不可调**（玄参 2026-10-04 拍板砍掉设置项；
-//    2026-10-05 交付 5 段素材定稿节奏：10+10+8+10×3+5 = 63s，见 [kEyeCarePlaylist]）。
+//    2026-10-09 C43 素材改版：5 段拼 1 段 640 帧 + 单配音 63.97s，见 [kEyeCareSegment]）。
 // ───────────────────────────────────────────────────────────────────────────
 
 /// 护眼提醒**总开关**默认值（家长端默认开）。
@@ -857,20 +857,27 @@ const List<int> kEyeCareIntervalOptions = <int>[5, 10, 15, 20, 30];
 const bool kEyeCareSkipAllowedDefault = true;
 
 /// 单次护眼**总时长**（秒）——固定值，**家长端不设、不可调**（玄参 2026-10-04 拍板；
-/// 2026-10-05 素材定稿由 60 → **63**：5 段素材的排布 10+10+8+10×3+5 = 63s）。
+/// 2026-10-05 素材定稿由 60 → **63**；2026-10-09 C43 新素材配音实长 63.974s，
+/// 显示口径仍取 63，差 <1s 以播放收尾回调为准）。
 ///
-/// 显示倒计时用；真实播放总长 = [kEyeCarePlaylist] 各段 `durationMs` 之和（≈63.7s，
+/// 显示倒计时用；真实播放总长 = [kEyeCarePlaylist] 各段 `durationMs` 之和（≈63.97s，
 /// 以音频实长为准，见 [kEyeCarePlaylistTotalMs]）。
 const int kEyeCareDurationSeconds = 63;
 
-/// 护眼卡**播放列表**（2026-10-05 玄参交付素材定稿）：5 套素材按序排 7 个槽位——
-/// ①闭眼转眼球(10s) → ②再来一次(10s) → ③远眺提示(8s) → ④远眺×3(10s) → ⑤结束(5s)。
+/// 护眼卡**播放段**（单段）。
 ///
-/// 每段 = 一组序列帧（`assets/fx/eyecare/<dir>/frame001..N.png`，720×720 整幅画面
-/// 带背景、不归一化）+ 一段配音 mp3；**帧速 = 帧数 ÷ 音频时长**（项目既有契约）。
-/// ⚠️ 段④ `look` 在列表中出现 3 次（同一套素材连播，不是三份拷贝）。
+/// **C43（玄参 2026-10-09 交付定稿）**：5 段素材（close/doitagain/lookTip/look/done）
+/// 已由玄参剪辑拼为 **1 个完整视频**再逐帧导出——段间过渡更丝滑，旧 5 套帧与
+/// 5 段配音**全部弃用删除**。新契约：
+///  · 帧：`assets/fx/eyecare640/frame001..640.webp`（720×720，640 帧），
+///    **WebP q95 压缩**（284.4M PNG → 40.2M，-85.9%；PSNR≈44.8dB 视觉无损，
+///    转换脚本 `tools/convert_eyecare640.py`，A/B 拼板 build/eyecare640_ab.png）；
+///  · 配音：`assets/audio/sfx/eyecare.mp3`（63.974s @192kbps，afinfo 实测）；
+///  · **帧速 = 帧数 ÷ 音频时长**（项目既有契约）：640 ÷ 63.974s ≈ 10.0fps。
+/// ⚠️ 640 帧 × 2.07MB 解码位图 ≈ 1.3GB——**禁止整组预热**！[FrameSequencePlayer]
+/// 对大帧组走**滑动窗口预热**（见 frame_sequence_player.dart），本段帧组远超阈值。
 class EyeCareSegment {
-  /// 帧目录（`assets/fx/eyecare/` 下，禁止改动——与交付目录一一对应）。
+  /// 帧目录（`assets/fx/` 下，禁止改动——与交付目录一一对应）。
   final String dir;
 
   /// 配音 mp3 asset 路径。
@@ -885,74 +892,37 @@ class EyeCareSegment {
   /// 屏幕阶段标题（配音已含口令，这里只做简短同步字幕）。
   final String label;
 
+  /// 帧文件扩展名（默认 `png`；eyecare640 为 WebP 压缩管线产物 = `webp`）。
+  final String frameExt;
+
   const EyeCareSegment({
     required this.dir,
     required this.sfxAsset,
     required this.frameCount,
     required this.durationMs,
     required this.label,
+    this.frameExt = 'png',
   });
 }
 
-/// 段① 闭眼 + 转眼球提示（`eyecare_close.mp3` 10.16s，67 帧）。
-const EyeCareSegment kEyeCareSegClose = EyeCareSegment(
-  dir: 'assets/fx/eyecare/close',
-  sfxAsset: 'assets/audio/sfx/eyecare_close.mp3',
-  frameCount: 67,
-  durationMs: 10162,
-  label: '闭上眼睛，转动眼球',
+/// 护眼单段素材（C43，2026-10-09 玄参交付：5 段拼 1 段 + WebP q95）。
+const EyeCareSegment kEyeCareSegment = EyeCareSegment(
+  dir: 'assets/fx/eyecare640',
+  sfxAsset: 'assets/audio/sfx/eyecare.mp3',
+  frameCount: 640,
+  durationMs: 63974,
+  label: '跟着动画一起做，保护眼睛',
+  frameExt: 'webp',
 );
 
-/// 段② 再来一次转眼球（`eyecare_doitagain.mp3` 10.08s，67 帧）。
-const EyeCareSegment kEyeCareSegAgain = EyeCareSegment(
-  dir: 'assets/fx/eyecare/doitagain',
-  sfxAsset: 'assets/audio/sfx/eyecare_doitagain.mp3',
-  frameCount: 67,
-  durationMs: 10083,
-  label: '再来一次，转动眼球',
-);
-
-/// 段③ 远眺提示（`eyecare_lookTip.mp3` 8.10s，53 帧）。
-const EyeCareSegment kEyeCareSegLookTip = EyeCareSegment(
-  dir: 'assets/fx/eyecare/lookTip',
-  sfxAsset: 'assets/audio/sfx/eyecare_lookTip.mp3',
-  frameCount: 53,
-  durationMs: 8098,
-  label: '睁开眼睛，望向远处',
-);
-
-/// 段④ 远眺本体（`eyecare_look.mp3` 10.08s，67 帧）——播放列表复用 3 次。
-const EyeCareSegment kEyeCareSegLook = EyeCareSegment(
-  dir: 'assets/fx/eyecare/look',
-  sfxAsset: 'assets/audio/sfx/eyecare_look.mp3',
-  frameCount: 67,
-  durationMs: 10083,
-  label: '望着远处，放松眼睛',
-);
-
-/// 段⑤ 结束提示（`eyecare_done.mp3` 5.09s，33 帧）。
-const EyeCareSegment kEyeCareSegDone = EyeCareSegment(
-  dir: 'assets/fx/eyecare/done',
-  sfxAsset: 'assets/audio/sfx/eyecare_done.mp3',
-  frameCount: 33,
-  durationMs: 5094,
-  label: '眼睛休息好啦！',
-);
-
-/// 护眼 63s 播放列表（7 个槽位；顺序即播放顺序，玄参 2026-10-05 拍板）。
+/// 护眼播放列表（C43 起恒为**单段**——保留列表结构以最小化调用方改动）。
 const List<EyeCareSegment> kEyeCarePlaylist = <EyeCareSegment>[
-  kEyeCareSegClose,
-  kEyeCareSegAgain,
-  kEyeCareSegLookTip,
-  kEyeCareSegLook,
-  kEyeCareSegLook,
-  kEyeCareSegLook,
-  kEyeCareSegDone,
+  kEyeCareSegment,
 ];
 
-/// 播放列表真实总时长（毫秒）= 各段 `durationMs` 之和（63.7s；显示口径取
-/// [kEyeCareDurationSeconds] = 63s，两者差 <1s，以播放列表收尾为准）。
-const int kEyeCarePlaylistTotalMs = 10162 + 10083 + 8098 + 10083 * 3 + 5094;
+/// 播放真实总时长（毫秒）= 配音实长（63.974s；显示口径取
+/// [kEyeCareDurationSeconds] = 63s，两者差 <1s，以播放收尾回调为准）。
+const int kEyeCarePlaylistTotalMs = 63974;
 
 /// 完整完成一次护眼的**奖励阳光**（玄参 2026-10-08 修订：+2 → **+3**）。
 const int kEyeCareRewardSunlight = 3;

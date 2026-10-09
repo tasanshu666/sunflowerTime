@@ -1,10 +1,14 @@
 /// 少儿护眼休息卡（口径 C28，玄参 2026-10-03 初稿 / 2026-10-04 收口 /
-/// 2026-10-05 素材定稿接入）。
+/// 2026-10-05 素材定稿接入 / 2026-10-09 C43 单段素材改版）。
 ///
-/// 一张**全屏 modality 卡**：按 [kEyeCarePlaylist]（5 套素材排 7 个槽位，10+10+8+
-/// 10×3+5 = 63s）逐槽播放「序列帧 + 配音」——**帧速 = 帧数 ÷ 音频时长**（项目既有
-/// 契约），每槽音频经 [AudioService.playSfx]（受「音效」开关控制）。完整休息给
+/// 一张**全屏 modality 卡**：按 [kEyeCarePlaylist]（C43 起恒为**单段**：640 帧
+/// WebP + 单配音 63.974s，玄参把 5 段素材剪辑拼为 1 段、段间过渡更丝滑）播放
+/// 「序列帧 + 配音」——**帧速 = 帧数 ÷ 音频时长**（项目既有契约），音频经
+/// [AudioService.playSfx]（受「音效」开关控制）。完整休息给
 /// +[kEyeCareRewardSunlight] 阳光（`refType='eye_care_break'`）。
+///
+/// ⚠️ C43 播放器预热已改**滑动窗口**（640 帧 × 2.07MB ≈ 1.3GB 禁止整组预热），
+/// 页面侧的「预解码下一槽位」逻辑随 7 槽位播放列表一并移除（单段无下一槽）。
 ///
 /// 三条硬口径（C28 §7，勿改）：
 ///  · **允许跳过（默认）**：点「跳过」→ **先弹二次确认**（[kEyeCareSkipConfirmText]），
@@ -42,18 +46,6 @@ import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
-
-/// 各槽位对应的配音 cue（⚠️ 与 [kEyeCarePlaylist] **按位对齐**，槽位顺序变更必须
-/// 同步这里——护栏测试钉住两者长度相等）。
-const List<AudioCue> _slotCues = <AudioCue>[
-  AudioCue.eyeCareClose,
-  AudioCue.eyeCareAgain,
-  AudioCue.eyeCareLookTip,
-  AudioCue.eyeCareLook,
-  AudioCue.eyeCareLook,
-  AudioCue.eyeCareLook,
-  AudioCue.eyeCareDone,
-];
 
 /// 护眼卡入参。
 ///
@@ -116,22 +108,10 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
   @override
   void initState() {
     super.initState();
-    // 首槽配音（initState 里 ref 仍可用；dispose 里才禁用 ref——本项目 Riverpod 铁律）。
-    _playSfxFor(_slot);
-    // B34 滚动预热：播第 0 组时就预解码第 1 组（第 0 组由播放器自身预热），
-    // 槽位切换时新组首帧已在 ImageCache → 消除「切换闪黑屏」。
-    _precacheNextSlot(_slot);
+    // 单段配音（initState 里 ref 仍可用；dispose 里才禁用 ref——本项目 Riverpod 铁律）。
+    ref.read(audioServiceProvider).playSfx(AudioCue.eyeCare);
     // 1s tick：只刷新「还剩 N 秒」标签 + 兜底保险丝（播放器回调才是推进正源）。
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
-  }
-
-  /// 预解码下一槽位的整组帧（B34）：每组 ~10s，预热时间绰绰有余；
-  /// 预热失败静默（[precacheFxFrames] 内部自兜底），最坏退回现解码行为。
-  void _precacheNextSlot(int slot) {
-    final int next = slot + 1;
-    if (next >= kEyeCarePlaylist.length) return;
-    final EyeCareSegment seg = kEyeCarePlaylist[next];
-    unawaited(precacheFxFrames(context, fxFrameAssets(seg.dir, seg.frameCount)));
   }
 
   void _tick() {
@@ -150,26 +130,15 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
     super.dispose();
   }
 
-  // ── 槽位推进 ──────────────────────────────────────────────────
+  // ── 播放收口 ──────────────────────────────────────────────────
 
-  void _playSfxFor(int slot) {
-    ref.read(audioServiceProvider).playSfx(_slotCues[slot]);
-  }
-
-  /// 当前槽位播完（[FrameSequencePlayer.onComplete]，与音频同时长 → 天然同步）。
+  /// 播放完毕（[FrameSequencePlayer.onComplete]，与音频同时长 → 天然同步）。
+  ///
+  /// C43 起播放列表恒为单段：播完 = 自然走完，直接收口发奖励。
   void _onSlotComplete() {
     if (!mounted || _finishing) return;
-    if (_slot >= kEyeCarePlaylist.length - 1) {
-      _flowPlayedOut = true; // 自然走完 → 「完成休息」按钮此后按 completed 处理
-      unawaited(_finish(EyeCareResultType.completed));
-      return;
-    }
-    setState(() {
-      _slot += 1;
-    });
-    _playSfxFor(_slot);
-    // B34：进入第 _slot 组时预热下一组（当前组在切换前已预热完毕）。
-    _precacheNextSlot(_slot);
+    _flowPlayedOut = true; // 自然走完 → 「完成休息」按钮此后按 completed 处理
+    unawaited(_finish(EyeCareResultType.completed));
   }
 
   // ── 出口（完成 / 跳过）────────────────────────────────────────
@@ -343,7 +312,7 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
 
   @override
   Widget build(BuildContext context) {
-    final EyeCareSegment seg = kEyeCarePlaylist[_slot];
+    final EyeCareSegment seg = kEyeCarePlaylist[_slot]; // C43：恒为单段（_slot 恒 0）
     final double totalProgress =
         kEyeCarePlaylistTotalMs <= 0
             ? 1.0
@@ -408,17 +377,13 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(28),
                         child: FrameSequencePlayer(
-                          // ⚠️ B34（2026-10-08）：**不再按槽位换 key**——换 key 会把
-                          // 播放器整体销毁重建，新组首帧异步解码期间画面空白 = 「切换
-                          // 闪黑屏」。改为同一实例复用：播放器 `didUpdateWidget` 感知
-                          // 帧组/时长变化后自行重启，旧组末帧经 `gaplessPlayback` 保持
-                          // 可见直到新组首帧就绪 + 滚动预热下一组，双保险消闪黑。
-                          frames: fxFrameAssets(seg.dir, seg.frameCount),
+                          // C43（2026-10-09）：单段 640 帧一次播完（63.974s），
+                          // 无槽位切换 → 无需 playToken；整组预热已被播放器的
+                          // **滑动窗口预热**取代（640 帧 × 2.07MB ≈ 1.3GB 禁整组预热）。
+                          frames: fxFrameAssets(seg.dir, seg.frameCount,
+                              ext: seg.frameExt),
                           durationMs: seg.durationMs,
-                          // B34：段④⑤⑥是同一组 look 帧同时长——用槽位号当播放令牌，
-                          // 保证同名帧组连播也会重开控制器（否则卡死在 completed）。
-                          playToken: _slot,
-                          fadeOutMs: 0, // 槽位间硬切（下一段紧接着开始，不渐隐）
+                          fadeOutMs: 0, // 播完即收口（自然走完 = completed）
                           onComplete: _onSlotComplete,
                         ),
                       ),

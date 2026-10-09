@@ -292,42 +292,28 @@ void main() {
     });
   });
 
-  group('播放列表契约（2026-10-05 玄参素材定稿：5 套素材排 7 槽位）', () {
-    test('槽位顺序 = 玄参拍板：①close ②doitagain ③lookTip ④look×3 ⑤done', () {
-      expect(kEyeCarePlaylist, hasLength(7));
-      expect(kEyeCarePlaylist[0].dir, endsWith('/close'));
-      expect(kEyeCarePlaylist[1].dir, endsWith('/doitagain'));
-      expect(kEyeCarePlaylist[2].dir, endsWith('/lookTip'));
-      expect(kEyeCarePlaylist[3].dir, endsWith('/look'));
-      expect(kEyeCarePlaylist[4].dir, endsWith('/look'));
-      expect(kEyeCarePlaylist[5].dir, endsWith('/look'));
-      expect(kEyeCarePlaylist[6].dir, endsWith('/done'));
-      // 段④是同一套素材连播 3 次（不是三份拷贝）。
-      expect(identical(kEyeCarePlaylist[3], kEyeCarePlaylist[4]), isTrue);
-      expect(identical(kEyeCarePlaylist[3], kEyeCarePlaylist[5]), isTrue);
+  group('播放列表契约（2026-10-09 C43 单段改版：640 帧 WebP + 单配音）', () {
+    test('恒单段：eyecare640 / 640 帧 / webp / eyecare.mp3', () {
+      expect(kEyeCarePlaylist, hasLength(1));
+      expect(kEyeCareSegment.dir, 'assets/fx/eyecare640');
+      expect(kEyeCareSegment.frameCount, 640);
+      expect(kEyeCareSegment.frameExt, 'webp');
+      expect(kEyeCareSegment.sfxAsset, 'assets/audio/sfx/eyecare.mp3');
+      expect(kEyeCareSegment.label, isNotEmpty);
     });
 
-    test('每段帧数 > 0、时长 > 0；配音文件名与目录词干一一对应', () {
-      for (final EyeCareSegment seg in kEyeCarePlaylist) {
-        expect(seg.frameCount, greaterThan(0), reason: seg.dir);
-        expect(seg.durationMs, greaterThan(0), reason: seg.dir);
-        expect(
-          seg.sfxAsset,
-          endsWith('/eyecare_${seg.dir.split('/').last}.mp3'),
-          reason: '配音词干必须与目录名一致（音频防静默失效）',
-        );
-        expect(seg.label, isNotEmpty);
-      }
-    });
-
-    test('列表总长 ≈ 63.7s（音频实长），显示口径 63s 与之差 < 2s', () {
-      expect(kEyeCarePlaylistTotalMs, 10162 + 10083 + 8098 + 10083 * 3 + 5094);
-      expect(kEyeCarePlaylistTotalMs, closeTo(63700, 100));
+    test('帧数/时长与帧速契约：640 帧 ÷ 63.974s ≈ 10.0fps', () {
+      expect(kEyeCarePlaylistTotalMs, kEyeCareSegment.durationMs);
+      expect(kEyeCarePlaylistTotalMs, closeTo(63974, 100));
       expect(
         (kEyeCarePlaylistTotalMs / 1000 - kEyeCareDurationSeconds).abs(),
         lessThan(2.0),
         reason: '显示倒计时（63s）与真实播放总长差距过大会让孩子困惑',
       );
+      // 帧速契约：帧数 ÷ 音频时长（每帧 ~100ms，10fps）。
+      final double fps =
+          kEyeCareSegment.frameCount * 1000 / kEyeCarePlaylistTotalMs;
+      expect(fps, closeTo(10.0, 0.5));
     });
   });
 

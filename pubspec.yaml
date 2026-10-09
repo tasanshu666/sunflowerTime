@@ -90,14 +90,10 @@ flutter:
     - assets/fx/focus/sunflower/collect/
     - assets/fx/focus/sunflower/settle/
     - assets/fx/focus/sunflower/return/
-    # 护眼卡序列帧（2026-10-05 玄参交付）：整幅画面带背景（720×720，不归一化），
-    # 五段素材组成 63s 播放列表（close/doitagain/lookTip/look/done）——
-    # 「目录声明不递归」约束同上，五个叶子目录必须逐个列全。
-    - assets/fx/eyecare/close/
-    - assets/fx/eyecare/doitagain/
-    - assets/fx/eyecare/lookTip/
-    - assets/fx/eyecare/look/
-    - assets/fx/eyecare/done/
+    # 护眼卡序列帧（2026-10-09 C43 玄参交付改版）：单段 640 帧 720×720 整幅画面
+    # （5 段素材已拼为 1 段视频再逐帧导出，过渡更丝滑），WebP q95 压缩
+    # （284.4M PNG → 40.2M，PSNR≈44.8dB 视觉无损，转换 tools/convert_eyecare640.py）。
+    - assets/fx/eyecare640/
     # 奖励物美术资源（2026-09-27 奖励物图标化）：sunlight/fragment/seed[_物种id].png，
     # 命名见 `assets/rewards/README.txt`；缺失时头顶奖励图标回退内置 Icons。
     - assets/rewards/

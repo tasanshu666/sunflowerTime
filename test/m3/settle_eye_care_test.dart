@@ -22,7 +22,10 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/entities/eye_care_log.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
+import 'package:sunflower_time/domain/services/eye_care_service.dart';
+import 'package:sunflower_time/domain/repositories/eye_care_log_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
@@ -70,6 +73,9 @@ class _FakeSunlightRepository implements SunlightRepository {
   Future<int> countByRefTypeAndRefIdOnDay(
           String refType, String refId, String dayKey) async =>
       0;
+
+  @override
+  Future<int> countByRefType(String refType) async => 0;
 
   @override
   Future<int> countByRefTypeAndRefIdSince(
@@ -128,6 +134,26 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
+
+/// 假护眼记录仓储：只兜住 eyeCareLogRepositoryProvider（护眼卡退场会写一行，
+/// 测试环境无真实数据库；断言在 eye_care_page_test 里做，这里只防崩）。
+class _FakeEyeCareLogRepository implements EyeCareLogRepository {
+  final List<EyeCareLog> appended = <EyeCareLog>[];
+
+  @override
+  Future<void> append(EyeCareLog log) async => appended.add(log);
+
+  @override
+  Future<int> countByResult(EyeCareResultType type) async => appended
+      .where((EyeCareLog l) => l.result == type)
+      .length;
+
+  @override
+  Future<int> watchedSecondsByResult(EyeCareResultType type) async => appended
+      .where((EyeCareLog l) => l.result == type)
+      .fold<int>(0, (int sum, EyeCareLog l) => sum + l.watchedSeconds);
+}
+
 Future<void> _pumpSettlePage(
   WidgetTester tester, {
   required _FakeSunlightRepository ledger,
@@ -137,6 +163,8 @@ Future<void> _pumpSettlePage(
   await tester.pumpWidget(ProviderScope(
     overrides: <Override>[
       sunlightRepositoryProvider.overrideWithValue(ledger),
+      eyeCareLogRepositoryProvider
+          .overrideWithValue(_FakeEyeCareLogRepository()),
       settingsRepositoryProvider.overrideWithValue(
         _FakeSettingsRepository(settings),
       ),

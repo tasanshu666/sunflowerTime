@@ -135,6 +135,9 @@ class _MemLedger implements SunlightRepository {
               e.dayKey == key)
           .length;
   @override
+  Future<int> countByRefType(String refType) async => 0;
+
+  @override
   Future<int> countByRefTypeAndRefIdSince(
     String refType,
     String refId,
@@ -235,10 +238,9 @@ void main() {
       }
     });
 
-    t.test('精英档（4 种）→ 10 碎片', () async {
+    t.test('精英档（3 种）→ 10 碎片', () async {
       for (final String id in <String>[
-        'species_star_flower',
-        'species_rainbow_fern',
+        'species_moon_orchid',
         'species_coral_orchid',
         'species_jade_hydrangea',
       ]) {
@@ -256,8 +258,8 @@ void main() {
           reason: '月光兰为 rare（精英档），碎片价按档位派生为 10');
     });
 
-    t.test('物种表：恰 8 种、顺序 = 展示顺序、移除 daisy/cactus', () {
-      t.expect(kSeedPlantSpecies.length, 8);
+    t.test('物种表：恰 6 种、顺序 = 展示顺序、移除 daisy/cactus', () {
+      t.expect(kSeedPlantSpecies.length, 6);
       t.expect(
         kSeedPlantSpecies.map((PlantSpecies s) => s.id).toList(),
         <String>[
@@ -265,8 +267,6 @@ void main() {
           'species_moon_orchid',
           'species_tomato',
           'species_strawberry',
-          'species_star_flower',
-          'species_rainbow_fern',
           'species_coral_orchid',
           'species_jade_hydrangea',
         ],
@@ -302,7 +302,7 @@ void main() {
     t.test('精英物种扣 10 碎片', () async {
       final _Ctx ctx = _make();
       await ctx.bloomRewards.setPremiumFragmentBalance(20);
-      await ctx.svc.plant('species_star_flower', 0, now);
+      await ctx.svc.plant('species_jade_hydrangea', 0, now);
       t.expect(await ctx.bloomRewards.premiumFragmentBalance(), 10);
       t.expect(ctx.ledger.entriesOf('plant_plant'), t.isEmpty,
           reason: '碎片物种不扣阳光');
@@ -415,9 +415,9 @@ void main() {
 
     t.test('精英：碎片 + 种子两项；向日葵首株恒单一免费项不受券影响', () async {
       final _Ctx ctx = _make();
-      await ctx.bloomRewards.unlockSpecies('species_star_flower'); // 精英券
+      await ctx.bloomRewards.unlockSpecies('species_jade_hydrangea'); // 精英券
       final List<PlantPaymentOption> elite =
-          await ctx.svc.plantPaymentOptions(_sp('species_star_flower'));
+          await ctx.svc.plantPaymentOptions(_sp('species_jade_hydrangea'));
       t.expect(elite, t.hasLength(2), reason: '10 碎片 + 种子');
       t.expect(elite[0].kind, PlantCostKind.fragments);
       t.expect(elite[1].kind, PlantCostKind.seed);
@@ -487,7 +487,7 @@ void main() {
       await ctx.bloomRewards.setPremiumFragmentBalance(40);
       await ctx.svc.plant(kStarterSpeciesId, 0, now);
       await ctx.svc.plant('species_tomato', 1, now);
-      await ctx.svc.plant('species_star_flower', 2, now);
+      await ctx.svc.plant('species_jade_hydrangea', 2, now);
       t.expect(await ctx.plants.plants(), t.hasLength(3));
     });
 
@@ -555,9 +555,9 @@ void main() {
 
     t.test('券种株 → 铲除按档位 50% 返还（玄参「统一」口径；2026-10-07 显式种子支付）', () async {
       final _Ctx ctx = _make();
-      await ctx.bloomRewards.unlockSpecies('species_star_flower');
+      await ctx.bloomRewards.unlockSpecies('species_jade_hydrangea');
       final Plant p = await ctx.svc
-          .plant('species_star_flower', 0, now, payWith: PlantCostKind.seed);
+          .plant('species_jade_hydrangea', 0, now, payWith: PlantCostKind.seed);
       t.expect(p.shovelRefund, kShovelRefundPremium, reason: '精英券种株同样 250');
       t.expect(await ctx.svc.shovel(p.id, now), 250);
     });
@@ -915,6 +915,8 @@ class _FakeSunlightRepo implements SunlightRepository {
   Future<int> countByRefTypeAndRefIdOnDay(
           String refType, String refId, String dayKey) async =>
       0;
+  @override
+  Future<int> countByRefType(String refType) async => 0;
   @override
   Future<int> countByRefTypeAndRefIdSince(
           String refType, String refId, DateTime since) async =>

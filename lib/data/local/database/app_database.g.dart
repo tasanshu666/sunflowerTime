@@ -6703,6 +6703,352 @@ class TrackingEventsCompanion extends UpdateCompanion<TrackingEvent> {
   }
 }
 
+class $EyeCareLogsTable extends EyeCareLogs
+    with TableInfo<$EyeCareLogsTable, EyeCareLogRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EyeCareLogsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _tsMeta = const VerificationMeta('ts');
+  @override
+  late final GeneratedColumn<DateTime> ts = GeneratedColumn<DateTime>(
+      'ts', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _dayKeyMeta = const VerificationMeta('dayKey');
+  @override
+  late final GeneratedColumn<String> dayKey = GeneratedColumn<String>(
+      'day_key', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _resultMeta = const VerificationMeta('result');
+  @override
+  late final GeneratedColumn<String> result = GeneratedColumn<String>(
+      'result', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _watchedSecondsMeta =
+      const VerificationMeta('watchedSeconds');
+  @override
+  late final GeneratedColumn<int> watchedSeconds = GeneratedColumn<int>(
+      'watched_seconds', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+      'source', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, ts, dayKey, result, watchedSeconds, source];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'eye_care_logs';
+  @override
+  VerificationContext validateIntegrity(Insertable<EyeCareLogRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('ts')) {
+      context.handle(_tsMeta, ts.isAcceptableOrUnknown(data['ts']!, _tsMeta));
+    } else if (isInserting) {
+      context.missing(_tsMeta);
+    }
+    if (data.containsKey('day_key')) {
+      context.handle(_dayKeyMeta,
+          dayKey.isAcceptableOrUnknown(data['day_key']!, _dayKeyMeta));
+    } else if (isInserting) {
+      context.missing(_dayKeyMeta);
+    }
+    if (data.containsKey('result')) {
+      context.handle(_resultMeta,
+          result.isAcceptableOrUnknown(data['result']!, _resultMeta));
+    } else if (isInserting) {
+      context.missing(_resultMeta);
+    }
+    if (data.containsKey('watched_seconds')) {
+      context.handle(
+          _watchedSecondsMeta,
+          watchedSeconds.isAcceptableOrUnknown(
+              data['watched_seconds']!, _watchedSecondsMeta));
+    } else if (isInserting) {
+      context.missing(_watchedSecondsMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(_sourceMeta,
+          source.isAcceptableOrUnknown(data['source']!, _sourceMeta));
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EyeCareLogRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EyeCareLogRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      ts: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}ts'])!,
+      dayKey: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}day_key'])!,
+      result: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}result'])!,
+      watchedSeconds: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}watched_seconds'])!,
+      source: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}source'])!,
+    );
+  }
+
+  @override
+  $EyeCareLogsTable createAlias(String alias) {
+    return $EyeCareLogsTable(attachedDatabase, alias);
+  }
+}
+
+class EyeCareLogRow extends DataClass implements Insertable<EyeCareLogRow> {
+  final String id;
+  final DateTime ts;
+  final String dayKey;
+  final String result;
+  final int watchedSeconds;
+  final String source;
+  const EyeCareLogRow(
+      {required this.id,
+      required this.ts,
+      required this.dayKey,
+      required this.result,
+      required this.watchedSeconds,
+      required this.source});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['ts'] = Variable<DateTime>(ts);
+    map['day_key'] = Variable<String>(dayKey);
+    map['result'] = Variable<String>(result);
+    map['watched_seconds'] = Variable<int>(watchedSeconds);
+    map['source'] = Variable<String>(source);
+    return map;
+  }
+
+  EyeCareLogsCompanion toCompanion(bool nullToAbsent) {
+    return EyeCareLogsCompanion(
+      id: Value(id),
+      ts: Value(ts),
+      dayKey: Value(dayKey),
+      result: Value(result),
+      watchedSeconds: Value(watchedSeconds),
+      source: Value(source),
+    );
+  }
+
+  factory EyeCareLogRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EyeCareLogRow(
+      id: serializer.fromJson<String>(json['id']),
+      ts: serializer.fromJson<DateTime>(json['ts']),
+      dayKey: serializer.fromJson<String>(json['dayKey']),
+      result: serializer.fromJson<String>(json['result']),
+      watchedSeconds: serializer.fromJson<int>(json['watchedSeconds']),
+      source: serializer.fromJson<String>(json['source']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'ts': serializer.toJson<DateTime>(ts),
+      'dayKey': serializer.toJson<String>(dayKey),
+      'result': serializer.toJson<String>(result),
+      'watchedSeconds': serializer.toJson<int>(watchedSeconds),
+      'source': serializer.toJson<String>(source),
+    };
+  }
+
+  EyeCareLogRow copyWith(
+          {String? id,
+          DateTime? ts,
+          String? dayKey,
+          String? result,
+          int? watchedSeconds,
+          String? source}) =>
+      EyeCareLogRow(
+        id: id ?? this.id,
+        ts: ts ?? this.ts,
+        dayKey: dayKey ?? this.dayKey,
+        result: result ?? this.result,
+        watchedSeconds: watchedSeconds ?? this.watchedSeconds,
+        source: source ?? this.source,
+      );
+  EyeCareLogRow copyWithCompanion(EyeCareLogsCompanion data) {
+    return EyeCareLogRow(
+      id: data.id.present ? data.id.value : this.id,
+      ts: data.ts.present ? data.ts.value : this.ts,
+      dayKey: data.dayKey.present ? data.dayKey.value : this.dayKey,
+      result: data.result.present ? data.result.value : this.result,
+      watchedSeconds: data.watchedSeconds.present
+          ? data.watchedSeconds.value
+          : this.watchedSeconds,
+      source: data.source.present ? data.source.value : this.source,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EyeCareLogRow(')
+          ..write('id: $id, ')
+          ..write('ts: $ts, ')
+          ..write('dayKey: $dayKey, ')
+          ..write('result: $result, ')
+          ..write('watchedSeconds: $watchedSeconds, ')
+          ..write('source: $source')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, ts, dayKey, result, watchedSeconds, source);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EyeCareLogRow &&
+          other.id == this.id &&
+          other.ts == this.ts &&
+          other.dayKey == this.dayKey &&
+          other.result == this.result &&
+          other.watchedSeconds == this.watchedSeconds &&
+          other.source == this.source);
+}
+
+class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
+  final Value<String> id;
+  final Value<DateTime> ts;
+  final Value<String> dayKey;
+  final Value<String> result;
+  final Value<int> watchedSeconds;
+  final Value<String> source;
+  final Value<int> rowid;
+  const EyeCareLogsCompanion({
+    this.id = const Value.absent(),
+    this.ts = const Value.absent(),
+    this.dayKey = const Value.absent(),
+    this.result = const Value.absent(),
+    this.watchedSeconds = const Value.absent(),
+    this.source = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EyeCareLogsCompanion.insert({
+    required String id,
+    required DateTime ts,
+    required String dayKey,
+    required String result,
+    required int watchedSeconds,
+    required String source,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        ts = Value(ts),
+        dayKey = Value(dayKey),
+        result = Value(result),
+        watchedSeconds = Value(watchedSeconds),
+        source = Value(source);
+  static Insertable<EyeCareLogRow> custom({
+    Expression<String>? id,
+    Expression<DateTime>? ts,
+    Expression<String>? dayKey,
+    Expression<String>? result,
+    Expression<int>? watchedSeconds,
+    Expression<String>? source,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (ts != null) 'ts': ts,
+      if (dayKey != null) 'day_key': dayKey,
+      if (result != null) 'result': result,
+      if (watchedSeconds != null) 'watched_seconds': watchedSeconds,
+      if (source != null) 'source': source,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EyeCareLogsCompanion copyWith(
+      {Value<String>? id,
+      Value<DateTime>? ts,
+      Value<String>? dayKey,
+      Value<String>? result,
+      Value<int>? watchedSeconds,
+      Value<String>? source,
+      Value<int>? rowid}) {
+    return EyeCareLogsCompanion(
+      id: id ?? this.id,
+      ts: ts ?? this.ts,
+      dayKey: dayKey ?? this.dayKey,
+      result: result ?? this.result,
+      watchedSeconds: watchedSeconds ?? this.watchedSeconds,
+      source: source ?? this.source,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (ts.present) {
+      map['ts'] = Variable<DateTime>(ts.value);
+    }
+    if (dayKey.present) {
+      map['day_key'] = Variable<String>(dayKey.value);
+    }
+    if (result.present) {
+      map['result'] = Variable<String>(result.value);
+    }
+    if (watchedSeconds.present) {
+      map['watched_seconds'] = Variable<int>(watchedSeconds.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EyeCareLogsCompanion(')
+          ..write('id: $id, ')
+          ..write('ts: $ts, ')
+          ..write('dayKey: $dayKey, ')
+          ..write('result: $result, ')
+          ..write('watchedSeconds: $watchedSeconds, ')
+          ..write('source: $source, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6727,6 +7073,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CooldownCountersTable cooldownCounters =
       $CooldownCountersTable(this);
   late final $TrackingEventsTable trackingEvents = $TrackingEventsTable(this);
+  late final $EyeCareLogsTable eyeCareLogs = $EyeCareLogsTable(this);
   late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
   late final PlantDao plantDao = PlantDao(this as AppDatabase);
   late final BloomRewardDao bloomRewardDao =
@@ -6744,6 +7091,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       CooldownCounterDao(this as AppDatabase);
   late final TrackingEventDao trackingEventDao =
       TrackingEventDao(this as AppDatabase);
+  late final EyeCareLogDao eyeCareLogDao = EyeCareLogDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6762,7 +7110,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         tasks,
         checkIns,
         cooldownCounters,
-        trackingEvents
+        trackingEvents,
+        eyeCareLogs
       ];
 }
 
@@ -10045,6 +10394,196 @@ typedef $$TrackingEventsTableProcessedTableManager = ProcessedTableManager<
     ),
     TrackingEvent,
     PrefetchHooks Function()>;
+typedef $$EyeCareLogsTableCreateCompanionBuilder = EyeCareLogsCompanion
+    Function({
+  required String id,
+  required DateTime ts,
+  required String dayKey,
+  required String result,
+  required int watchedSeconds,
+  required String source,
+  Value<int> rowid,
+});
+typedef $$EyeCareLogsTableUpdateCompanionBuilder = EyeCareLogsCompanion
+    Function({
+  Value<String> id,
+  Value<DateTime> ts,
+  Value<String> dayKey,
+  Value<String> result,
+  Value<int> watchedSeconds,
+  Value<String> source,
+  Value<int> rowid,
+});
+
+class $$EyeCareLogsTableFilterComposer
+    extends Composer<_$AppDatabase, $EyeCareLogsTable> {
+  $$EyeCareLogsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get ts => $composableBuilder(
+      column: $table.ts, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get dayKey => $composableBuilder(
+      column: $table.dayKey, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get result => $composableBuilder(
+      column: $table.result, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get watchedSeconds => $composableBuilder(
+      column: $table.watchedSeconds,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get source => $composableBuilder(
+      column: $table.source, builder: (column) => ColumnFilters(column));
+}
+
+class $$EyeCareLogsTableOrderingComposer
+    extends Composer<_$AppDatabase, $EyeCareLogsTable> {
+  $$EyeCareLogsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get ts => $composableBuilder(
+      column: $table.ts, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get dayKey => $composableBuilder(
+      column: $table.dayKey, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get result => $composableBuilder(
+      column: $table.result, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get watchedSeconds => $composableBuilder(
+      column: $table.watchedSeconds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get source => $composableBuilder(
+      column: $table.source, builder: (column) => ColumnOrderings(column));
+}
+
+class $$EyeCareLogsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EyeCareLogsTable> {
+  $$EyeCareLogsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get ts =>
+      $composableBuilder(column: $table.ts, builder: (column) => column);
+
+  GeneratedColumn<String> get dayKey =>
+      $composableBuilder(column: $table.dayKey, builder: (column) => column);
+
+  GeneratedColumn<String> get result =>
+      $composableBuilder(column: $table.result, builder: (column) => column);
+
+  GeneratedColumn<int> get watchedSeconds => $composableBuilder(
+      column: $table.watchedSeconds, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+}
+
+class $$EyeCareLogsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $EyeCareLogsTable,
+    EyeCareLogRow,
+    $$EyeCareLogsTableFilterComposer,
+    $$EyeCareLogsTableOrderingComposer,
+    $$EyeCareLogsTableAnnotationComposer,
+    $$EyeCareLogsTableCreateCompanionBuilder,
+    $$EyeCareLogsTableUpdateCompanionBuilder,
+    (
+      EyeCareLogRow,
+      BaseReferences<_$AppDatabase, $EyeCareLogsTable, EyeCareLogRow>
+    ),
+    EyeCareLogRow,
+    PrefetchHooks Function()> {
+  $$EyeCareLogsTableTableManager(_$AppDatabase db, $EyeCareLogsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EyeCareLogsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EyeCareLogsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EyeCareLogsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<DateTime> ts = const Value.absent(),
+            Value<String> dayKey = const Value.absent(),
+            Value<String> result = const Value.absent(),
+            Value<int> watchedSeconds = const Value.absent(),
+            Value<String> source = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              EyeCareLogsCompanion(
+            id: id,
+            ts: ts,
+            dayKey: dayKey,
+            result: result,
+            watchedSeconds: watchedSeconds,
+            source: source,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required DateTime ts,
+            required String dayKey,
+            required String result,
+            required int watchedSeconds,
+            required String source,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              EyeCareLogsCompanion.insert(
+            id: id,
+            ts: ts,
+            dayKey: dayKey,
+            result: result,
+            watchedSeconds: watchedSeconds,
+            source: source,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$EyeCareLogsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $EyeCareLogsTable,
+    EyeCareLogRow,
+    $$EyeCareLogsTableFilterComposer,
+    $$EyeCareLogsTableOrderingComposer,
+    $$EyeCareLogsTableAnnotationComposer,
+    $$EyeCareLogsTableCreateCompanionBuilder,
+    $$EyeCareLogsTableUpdateCompanionBuilder,
+    (
+      EyeCareLogRow,
+      BaseReferences<_$AppDatabase, $EyeCareLogsTable, EyeCareLogRow>
+    ),
+    EyeCareLogRow,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -10077,4 +10616,6 @@ class $AppDatabaseManager {
       $$CooldownCountersTableTableManager(_db, _db.cooldownCounters);
   $$TrackingEventsTableTableManager get trackingEvents =>
       $$TrackingEventsTableTableManager(_db, _db.trackingEvents);
+  $$EyeCareLogsTableTableManager get eyeCareLogs =>
+      $$EyeCareLogsTableTableManager(_db, _db.eyeCareLogs);
 }

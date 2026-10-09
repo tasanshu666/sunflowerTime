@@ -143,3 +143,15 @@ class TrackingEventDaoManager {
       $$TrackingEventsTableTableManager(
           _db.attachedDatabase, _db.trackingEvents);
 }
+
+mixin _$EyeCareLogDaoMixin on DatabaseAccessor<AppDatabase> {
+  $EyeCareLogsTable get eyeCareLogs => attachedDatabase.eyeCareLogs;
+  EyeCareLogDaoManager get managers => EyeCareLogDaoManager(this);
+}
+
+class EyeCareLogDaoManager {
+  final _$EyeCareLogDaoMixin _db;
+  EyeCareLogDaoManager(this._db);
+  $$EyeCareLogsTableTableManager get eyeCareLogs =>
+      $$EyeCareLogsTableTableManager(_db.attachedDatabase, _db.eyeCareLogs);
+}

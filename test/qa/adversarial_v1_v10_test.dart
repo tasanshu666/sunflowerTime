@@ -189,6 +189,9 @@ class _MemSunlightRepo implements SunlightRepository {
           .length;
 
   @override
+  Future<int> countByRefType(String refType) async => 0;
+
+  @override
   Future<int> countByRefTypeAndRefIdSince(
     String refType,
     String refId,

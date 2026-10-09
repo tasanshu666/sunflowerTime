@@ -13,11 +13,13 @@
 /// ```
 ///
 /// ## 二次改造（2026-09-23）：只渲染一张图，不再叠花盆
-/// 美术资源已统一重排为 **1200×2000 画布**（重排脚本 `tools/normalize_plant_art.py`），
-/// 且**植物图本身自带花盆**（像素边界证实：盆宽 800 / 盆底贴画布底边 y=2000 /
-/// 盆心居中 x=600，与 `pot.png` 完全一致）。因此一格内**只渲染 [PlantArtwork] 一张图**，
-/// 不再叠 `assets/pots/pot.png` —— 否则一格会出现两个盆、边缘错位叠加
-/// （用户原话「第一个花盆有一个圆圈显示得不干净」就是这么来的）。
+/// 美术资源已统一重排为 **1720×2000 画布**（重排脚本 `tools/normalize_plant_art.py`，
+/// 2026-10-09 由 1200×2000 等高加宽：全局等盆宽 800，玄参口径「所有植物可能都会
+/// 种一遍，花盆大小必须一致」），且**植物图本身自带花盆**（像素边界证实：盆宽 800 /
+/// 盆底贴画布底边 y=2000 / 盆心居中 x=860；旧 sunflower/pot.png 为 1200×2000、
+/// 盆心 x=600，contain 按高度绑定缩放，盆显示大小与新图完全一致）。因此一格内**只渲染
+/// [PlantArtwork] 一张图**，不再叠 `assets/pots/pot.png` —— 否则一格会出现两个盆、
+/// 边缘错位叠加（用户原话「第一个花盆有一个圆圈显示得不干净」就是这么来的）。
 ///
 /// 口径（玄参大人已拍板）：「代码不要自动叠花盆了，只要植物自带的花盆就行了。
 /// 因为植物自带的花盆大小是可控的、是一样的。」
@@ -59,14 +61,15 @@ class _PotColors {
   static const Color rimDead = Color(0xFF757575);
 }
 
-/// 美术图统一画布宽高比（宽 : 高 = **1200 : 2000**）。
+/// 美术图统一画布宽高比（宽 : 高 = **1720 : 2000**）。
 ///
-/// 依据：美术图已被统一重排为 1200×2000 透明底画布，且植物图自带花盆
-/// （盆宽 800 / 盆底贴画布底边 y=2000 / 盆心居中 x=600）。代码只按此比例等比缩放，
-/// 即可保证各阶段各格子的盆自动等大。重排脚本见 `tools/normalize_plant_art.py`。
+/// 依据：美术图已被统一重排为 1720×2000 透明底画布，且植物图自带花盆
+/// （盆宽 800 / 盆底贴画布底边 y=2000 / 盆心居中 x=860）。代码只按此比例等比缩放，
+/// 即可保证各阶段各物种的盆自动等大（2026-10-09 全局等盆口径）。重排脚本见
+/// `tools/normalize_plant_art.py`。
 // 2026-09-29：收口到 `prd_params.dart`（养护效果帧要按同一套参数算「盆口 / 根部」
 // 落点，两份参数必然漂移）。值未变，仅改指向。
-const double _artAspectRatio = kGardenArtAspect; // = 5/3 ≈ 1.6667
+const double _artAspectRatio = kGardenArtAspect; // = 2000/1720 ≈ 1.1628
 
 /// 美术图宽占格宽比例（留出格子边距，避免相邻格视觉粘连）。
 const double _artWidthRatio = kGardenArtWidthRatio;
@@ -80,8 +83,11 @@ const double kPotBodyCenterYFraction = 0.8295;
 
 /// 加号格里的加号圆**外径占美术画布宽度的比例**（盆宽占画布宽比例）。
 ///
-/// 依据：pot.png 内容 bbox 宽度 = 1001 - 200 = 801 ≈ 画布宽 1200 的 66.75%。
-const double kPotBodyWidthFraction = 0.6675;
+/// 依据：`assets/pots/pot.png`（1200×2000）内容 bbox 宽 = 1001 − 200 = 801 ≈ 盆身。
+/// 2026-10-09 画布加宽到 1720×2000 后，pot.png 在图片框内按**高度绑定** contain
+/// 缩放（缩放系数 = artW/1720，与 1200 画布的植物图一致），故盆身显示宽占比 =
+/// 801 / 1720 —— 与植物图盆宽 800/1720 差 0.1%，加号圆与两侧花盆等大。
+const double kPotBodyWidthFraction = 801 / 1720;
 
 /// 加号圆外径相对于「盆宽」的系数（≈ 盆宽的 92%，视觉上略小于盆口）。
 const double kExpandIconDiameterRatio = 0.92;
@@ -140,10 +146,13 @@ class GardenGrid extends StatelessWidget {
   ///
   /// 每格内容高 = 图高 + 底部标签区 [`_footerHeight`]，再叠加上下内边距 8：
   ///   = (格宽-4) × [_artWidthRatio] × [_artAspectRatio] + [_footerHeight] + 8
-  ///   = 1.4333 × (格宽-4) + 40（取 320 屏：≈ 129.9 + 32 + 8 = 169.9）。
-  /// 取 **0.54** 使最紧的 320 屏（测试宿主格宽 ≈ 88）也不溢出：
-  ///   88 / 0.54 - 8 = 154.96 ≥ 150.4（见布局测试实测）。
-  static const double cellAspectRatio = 0.54;
+  ///   = 1.0698 × (格宽-4) + 40（2026-10-09 画布 1720×2000 + 宽比 0.92）。
+  /// 取 **0.64**：最紧的 320 屏（测试宿主格宽 ≈ 88）内容高 ≈ 129.9，
+  /// 格高 88/0.64 = 137.5，余量 ≈ 7.6px（见布局测试实测）。
+  ///
+  /// （2026-10-09 由 0.54 上调：画布等高加宽后图片框变矮，行高相应收紧，
+  /// 避免行间出现大片空洞；320 屏仍不溢出。）
+  static const double cellAspectRatio = 0.64;
 
   @override
   Widget build(BuildContext context) => GridView.count(
@@ -506,7 +515,8 @@ class EmptyPot extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: <Widget>[
                 // 与有植物盆**同尺寸、同底**：同比例算出的图片框，底部对齐。
-                // 图片框宽高与 pot.png 画布（1200×2000）同比例 → BoxFit.contain 不缩小。
+                // pot.png（1200×2000）在本框内按高度绑定 contain 缩放（系数 =
+                // artW/1720），盆身显示宽与植物图盆 800px 等大（差 0.1%）。
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: SizedBox(
@@ -778,7 +788,8 @@ class _PotRimPainter extends CustomPainter {
 /// 橙色提示圈（与 [_PotPainter] 高亮效果一致）。
 ///
 /// ⚠️ 传入的 [width] / [height] 必须与外部图片框（SizedBox）一致，且二者比例应等于
-/// `pot.png` 画布比例（1200×2000）—— 否则 `BoxFit.contain` 会把图画小，空盆又变小。
+/// 美术画布比例（1720×2000）—— pot.png（1200×2000）在框内按高度绑定 contain 缩放，
+/// 否则盆会被画小，空盆又变小。
 class _PotImage extends StatelessWidget {
   final bool dead;
   final bool highlighted;

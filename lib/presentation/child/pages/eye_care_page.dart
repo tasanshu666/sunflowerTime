@@ -36,6 +36,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/eye_care_log.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
@@ -59,11 +60,20 @@ const List<AudioCue> _slotCues = <AudioCue>[
 /// [skipAllowed] = 家长「是否允许孩子跳过」（`AppSettings.eyeCareSkipAllowed`，默认
 /// 允许）；false 时「跳过」按钮**仍在但点了无效**（弹 [kEyeCareNotSkippableText]、
 /// 流程不推进），拦截返回键同样走 [kEyeCareNotSkippableText]。
+///
+/// [source] = 触发来源（场内 / 场末，玄参 2026-10-09），随护眼记录落库，
+/// 供家长报告区分「场内护眼 / 场末护眼」。
 class EyeCareArgs {
   /// 是否允许孩子跳过（家长端配置，默认允许）。
   final bool skipAllowed;
 
-  const EyeCareArgs({this.skipAllowed = true});
+  /// 触发来源（默认场内；结算页调用必须显式传 [EyeCareSource.sessionEnd]）。
+  final EyeCareSource source;
+
+  const EyeCareArgs({
+    this.skipAllowed = true,
+    this.source = EyeCareSource.inSession,
+  });
 }
 
 /// 护眼卡（全屏、modality、不可被系统返回退出）。
@@ -101,7 +111,7 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
   bool _finishing = false;
 
   Timer? _timer;
-  static final Uuid _uuid = Uuid();
+  static const Uuid _uuid = Uuid();
 
   @override
   void initState() {
@@ -164,11 +174,15 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
 
   // ── 出口（完成 / 跳过）────────────────────────────────────────
 
-  /// 退场：写账本（仅 completed）+ 回结果。
+  /// 退场：写账本（仅 completed）+ 写护眼记录（完成 / 跳过都记）+ 回结果。
   ///
   /// ⚠️ 护眼奖励**以阳光账本为唯一真源**（不在 settings / 实体上另加计数列）：
   /// 余额在**写入前**取，income 用 `balanceBefore + amount` 算，避免并发 / 重入
   /// 造成 balanceAfter 对不上。
+  ///
+  /// 护眼记录（`eye_care_logs` 表，玄参 2026-10-09）：完成 / 跳过**都落一行**，
+  /// 记录实际观看秒数与触发来源 —— 补齐账本没有的「跳过」与「时长」两个维度，
+  /// 供家长报告统计；写失败与账本同纪律：不重试、不卡流程。
   Future<void> _finish(EyeCareResultType type) async {
     if (_finishing) return; // 幂等：完成与跳过只能各自生效一次
     setState(() => _finishing = true);
@@ -181,8 +195,27 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
       ref.read(economyRevisionProvider.notifier).state++;
     }
 
+    unawaited(_appendEyeCareLog(type));
+
     if (!mounted) return;
     Navigator.of(context).pop(EyeCareResult(type));
+  }
+
+  /// 落一行护眼记录（完成 / 跳过都记；失败静默，不打断孩子退场）。
+  Future<void> _appendEyeCareLog(EyeCareResultType type) async {
+    try {
+      final DateTime now = DateTime.now();
+      await ref.read(eyeCareLogRepositoryProvider).append(EyeCareLog(
+            id: _uuid.v4(),
+            ts: now,
+            dayKey: dayKey(now),
+            result: type,
+            watchedSeconds: math.max(0, _elapsedMs ~/ 1000),
+            source: widget.args.source,
+          ));
+    } catch (_) {
+      // 与账本同纪律：记录失败不重试（append 重复尝试只会产生重复行）、不卡退场。
+    }
   }
 
   /// 完整完成护眼 → 账本 +[kEyeCareRewardSunlight] 阳光，`refType = 'eye_care_break'`。

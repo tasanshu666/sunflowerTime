@@ -80,6 +80,9 @@ class _FakeSunlightRepository implements SunlightRepository {
           String refType, String refId, String dayKey) async =>
       0;
   @override
+  Future<int> countByRefType(String refType) async => 0;
+
+  @override
   Future<int> countByRefTypeAndRefIdSince(
     String refType,
     String refId,
@@ -405,6 +408,13 @@ void main() {
       await tester.pumpAndSettle();
 
       // debug 构建下入口可见（玄参 2026-09-24 要求加回）。
+      // 2026-10-09 新增「累计护眼」tile 后，调试区被顶出 800×600 默认
+      // 测试视口（ListView 懒构建）——必须先滚动到底才断言。
+      await tester.scrollUntilVisible(
+        find.text('DEBUG 加1000阳光'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
       expect(find.text('DEBUG 加1000阳光'), findsOneWidget);
 
       await tester.tap(find.text('DEBUG 加1000阳光'));

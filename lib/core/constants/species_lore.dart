@@ -46,16 +46,6 @@ const Map<String, SpeciesLore> kSpeciesLore = <String, SpeciesLore>{
     story: '月光兰白天呼呼大睡，月亮升起才轻轻张开花瓣，'
         '把月光酿成淡淡的香气，陪小朋友甜甜入睡。',
   ),
-  'species_star_flower': SpeciesLore(
-    intro: '把星星别在花瓣上',
-    story: '流星划过夜空时撒下了小星屑，星辰花用花瓣轻轻接住它们，'
-        '所以它的花心里总是一闪一闪的。',
-  ),
-  'species_rainbow_fern': SpeciesLore(
-    intro: '叶子会折出七彩光',
-    story: '虹影蕨住在彩虹落脚的森林里，雨点挂在叶尖时会折出小小的彩虹，'
-        '风一吹就满天飞舞。',
-  ),
   'species_coral_orchid': SpeciesLore(
     intro: '像海底珊瑚一样粉',
     story: '传说它是海里的珊瑚上岸做的梦，梦里开出了粉色的花，'

@@ -454,7 +454,7 @@ void main() {
     });
 
     test('C2 碎片物种（精英/普通）死亡：baseCost=0 → 实退 0 阳光（无账本行）', () async {
-      for (final String id in <String>['species_star_flower', 'species_tomato']) {
+      for (final String id in <String>['species_jade_hydrangea', 'species_tomato']) {
         final _Ctx ctx = await _make();
         final DateTime t0 = DateTime(2026, 9, 27, 8);
         final PlantSpecies sp = _sp(id);

@@ -106,6 +106,9 @@ class _MemLedger implements SunlightRepository {
   ) async =>
       0;
   @override
+  Future<int> countByRefType(String refType) async => 0;
+
+  @override
   Future<int> countByRefTypeAndRefIdSince(
     String refType,
     String refId,

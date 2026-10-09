@@ -160,7 +160,7 @@ void main() {
         _schemaDdl(withLegacyRows: true),
         8,
       );
-      expect(database.schemaVersion, 17);
+      expect(database.schemaVersion, 18);
     });
 
     test('迁移后 tasks 出现 category 列、reward_templates 出现 content_category 列',
@@ -235,7 +235,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 17);
+      expect(first.schemaVersion, 18);
       expect(await _columns(first, 'tasks'), contains('category'));
       await first.close();
 
@@ -256,7 +256,7 @@ void main() {
         _schemaDdl(withLegacyRows: true),
         6,
       );
-      expect(database.schemaVersion, 17);
+      expect(database.schemaVersion, 18);
       // v8→v9 补列分支执行：category / content_category 列存在。
       expect(await _columns(database, 'tasks'), contains('category'));
       expect(await _columns(database, 'reward_templates'),

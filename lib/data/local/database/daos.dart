@@ -147,6 +147,19 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
     return row.read(countExp) ?? 0;
   }
 
+  /// 指定 refType 的**全部记账条数**（孩子端「我的」累计护眼次数，2026-10-09）。
+  ///
+  /// 与 [countByRefTypeAndRefIdOnDay] 的区别：不按日、不按 refId，全表累计 ——
+  /// 「累计护眼」以账本 `refType='eye_care_break'` 为权威口径（含上线以来全部历史）。
+  Future<int> countByRefType(String refType) async {
+    final Expression<int> countExp = sunlightLedgers.id.count();
+    final row = await (selectOnly(sunlightLedgers)
+          ..where(sunlightLedgers.refType.equals(refType))
+          ..addColumns([countExp]))
+        .getSingle();
+    return row.read(countExp) ?? 0;
+  }
+
   /// 指定 refType + refId 的**最近一次记账时间**（浇水最小间隔核算，M3 修订）。
   ///
   /// 用账本时间而非 `Plants.lastWaterAt`：后者在施肥 / 救回时也会被刷新，
@@ -542,4 +555,38 @@ class TrackingEventDao extends DatabaseAccessor<AppDatabase>
       (select(trackingEvents)
             ..where((e) => e.ts.isBetweenValues(from, to)))
           .get();
+}
+
+/// 少儿护眼记录 DAO（玄参 2026-10-09：家长报告护眼统计）。
+///
+/// 只追加 + 聚合，不修改不删除；聚合口径见 [EyeCareLogRepository]。
+@DriftAccessor(tables: [EyeCareLogs])
+class EyeCareLogDao extends DatabaseAccessor<AppDatabase>
+    with _$EyeCareLogDaoMixin {
+  EyeCareLogDao(super.db);
+
+  /// 追加一条护眼记录（id 冲突时忽略 —— Uuid 碰撞即数据缺陷，不覆盖旧事实）。
+  Future<void> appendRow(EyeCareLogsCompanion row) =>
+      into(eyeCareLogs).insert(row, mode: InsertMode.insertOrIgnore);
+
+  /// 指定 result 的累计条数（result = EyeCareResultType.name）。
+  Future<int> countByResult(String result) async {
+    final Expression<int> cnt = eyeCareLogs.id.count();
+    final row = await (selectOnly(eyeCareLogs)
+          ..addColumns([cnt])
+          ..where(eyeCareLogs.result.equals(result)))
+        .getSingle();
+    return row.read(cnt) ?? 0;
+  }
+
+  /// 指定 result 的观看秒数合计（skipped 的部分观看时长；completed 恒为全片长，
+  /// 报告侧用「账本完成次数 × kEyeCareDurationSeconds」口径更准、防双重计数）。
+  Future<int> sumWatchedSecondsByResult(String result) async {
+    final Expression<int> sum = eyeCareLogs.watchedSeconds.sum();
+    final row = await (selectOnly(eyeCareLogs)
+          ..addColumns([sum])
+          ..where(eyeCareLogs.result.equals(result)))
+        .getSingle();
+    return row.read(sum) ?? 0;
+  }
 }

@@ -347,6 +347,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
         builder: (_) => EyeCarePage(
           args: EyeCareArgs(
             skipAllowed: EyeCareService.isSkipAllowed(settings),
+            source: EyeCareSource.inSession,
           ),
         ),
       ),

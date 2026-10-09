@@ -55,9 +55,17 @@ flutter:
     - assets/audio/sfx/
     - assets/audio/bgm/
     # 植物美术资源（2026-09-22 渲染抽象）：按「{speciesId}_{stage}_{status}.png」
-    # 命名丢进本目录即自动生效，缺失时回退内置自绘。命名规范见
-    # lib/presentation/child/widgets/plant_artwork.dart 顶部文档注释。
-    - assets/plants/
+    # 命名丢进对应**物种子目录**即自动生效，缺失时回退内置自绘。命名规范与
+    # 目录结构见 lib/presentation/child/widgets/plant_artwork.dart 顶部文档注释。
+    # 2026-10-08 目录重组：按物种分目录（6 物种 + shared 通用级）；⚠️ 目录声明
+    # **不递归**，必须把叶子目录逐个列全（漏一行 = 图静默不进包）。
+    - assets/plants/sunflower/
+    - assets/plants/tomato/
+    - assets/plants/strawberry/
+    - assets/plants/moon_orchid/
+    - assets/plants/coral_orchid/
+    - assets/plants/jade_hydrangea/
+    - assets/plants/shared/
     # 花盆美术资源（2026-09-23）：通用空花盆 pot.png，缺失时回退内置 CustomPaint 自绘。
     - assets/pots/
     # 花园背景图（2026-09-23）：background.png，缺失时回退绿色渐变+草叶纹理自绘。

@@ -192,8 +192,12 @@ class _SettlePageState extends ConsumerState<SettlePage>
     final Object? result = await Navigator.of(context).push<Object?>(
       MaterialPageRoute<Object?>(
         fullscreenDialog: true,
-        builder: (_) =>
-            EyeCarePage(args: EyeCareArgs(skipAllowed: skipAllowed)),
+        builder: (_) => EyeCarePage(
+          args: EyeCareArgs(
+            skipAllowed: skipAllowed,
+            source: EyeCareSource.sessionEnd,
+          ),
+        ),
       ),
     );
     if (!mounted) return;

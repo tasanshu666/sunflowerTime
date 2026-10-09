@@ -34,6 +34,15 @@ enum EyeCareResultType {
   skipped,
 }
 
+/// 护眼卡的触发来源（玄参 2026-10-09：家长报告要区分场内 / 场末护眼）。
+enum EyeCareSource {
+  /// 场内：单场专注「累计注视」满一个间隔触发（专注页弹出，结束后恢复计时）。
+  inSession,
+
+  /// 场末：单场结束、结算页之前插入（结算页弹出，结束后进结算）。
+  sessionEnd,
+}
+
 /// 护眼卡对外返回的结果（供专注页 / 结算页决定下一步）。
 class EyeCareResult {
   final EyeCareResultType type;

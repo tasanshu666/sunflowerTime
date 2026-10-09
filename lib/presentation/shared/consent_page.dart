@@ -32,7 +32,7 @@ const Color _kAmber = Color(0xFFF9A825);
 
 /// 向日葵吉祥物图资源（1200×2000，自带花盆，盆底贴底）。
 const String kConsentSunflowerAsset =
-    'assets/plants/species_sunflower_adult_bloomed.png';
+    'assets/plants/sunflower/species_sunflower_adult_bloomed.png';
 
 /// 向日葵吉祥物图片的公开 Key（供 widget 测试定位 / 度量）。
 const Key kConsentSunflowerKey = Key('consentSunflowerMascot');

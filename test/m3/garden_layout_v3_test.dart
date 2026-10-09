@@ -176,6 +176,9 @@ class _FakeSunlightRepository implements SunlightRepository {
           String refType, String refId, String dayKey) async =>
       0;
   @override
+  Future<int> countByRefType(String refType) async => 0;
+
+  @override
   Future<int> countByRefTypeAndRefIdSince(
           String refType, String refId, DateTime since) async =>
       0;
@@ -503,11 +506,11 @@ void main() {
     //
     // 背景：把 `garden_page._buildGardenBody` 里传给纯函数的 `firstRowTop`
     // （应为 `gardenPotAreaBottom(...) - c.maxHeight`）**改成 0** 时，原 360×780 用例
-    // 仍全绿 —— 因为 360×780 下 `rowsHeight(406) < available(525.27)`，两行高度本身就
+    // 仍全绿 —— 因为 360×780 下 `rowsHeight(343.5，2026-10-09 cellAspect 0.64) < available(525.27)`，两行高度本身就
     // 小于可用高度，`firstRowTop` 被 `min(...)` 掩盖、传错也不影响结果。
     //
     // 只有**屏高更短**、使 `available < rowsHeight` 时该参数才真正起作用。
-    // 选 360×380：可用高度 ≈ 325.27 < 两行 406（差 81px，余量充足），
+    // 选 360×380：可用高度 ≈ 325.27 < 两行 343.5（差 18px，余量仍正），
     // 而 firstRowTop 传错会带来 +12px 偏差 → 可被 settle 后的像素级断言捕获。
     testWidgets('矮屏 360×380（可摆区比两行更矮）：可视高被「底界−顶部−呼吸间距」钳制，钉住 firstRowTop',
         (WidgetTester tester) async {
@@ -536,7 +539,7 @@ void main() {
       const double gridInnerWidth = w - pageTopPad * 2; // 336
       const double cellWidth = (gridInnerWidth - 6 * 2) / 3; // 108
       final double twoRowsHeight =
-          cellWidth / GardenGrid.cellAspectRatio * 2 + 6; // 406
+          cellWidth / GardenGrid.cellAspectRatio * 2 + 6; // 343.5
 
       // 场景自检：必须「两行高度 > 可用高度」，否则 firstRowTop 依旧被 min() 掩盖，
       // 这条用例就退化回 QA N2 的无效覆盖 —— 显式断言挡住这种「假有效」。
@@ -558,21 +561,25 @@ void main() {
   // ── 改动 2：加号对齐盆心（期望值按 pot.png 像素 bbox 独立推导） ─────────────
   group('加号格 · 对齐花盆视觉中心', () {
     // pot.png：画布 1200×2000，内容 alpha bbox = (200, 1318, 1001, 2000)。
-    const double potCanvasW = 1200;
+    // 2026-10-09 画布加宽 1720×2000 后，pot.png 在图片框内**高度绑定** contain
+    // 缩放（系数 = artW/1720），故横向占比按**有效显示画布 1720** 折算：
+    // 盆身显示宽 = 801 × artW/1720；纵向映射不变（图高恰好填满框高）。
+    const double potCanvasW = 1720;
     const double potCanvasH = 2000;
     const double bboxTop = 1318;
     const double bboxBottom = 2000;
     const double bboxLeft = 200;
     const double bboxRight = 1001;
-    // 盆心 = 内容 bbox 的纵向中心；盆宽占比 = 内容 bbox 宽 / 画布宽（独立推导，非引用常量）。
+    const double potBodyPx = bboxRight - bboxLeft; // 801
+    // 盆心 = 内容 bbox 的纵向中心；盆宽占比 = 盆身宽 / 有效显示画布宽（独立推导）。
     const double expectedCenterYFraction =
         (bboxTop + (bboxBottom - bboxTop) / 2) / potCanvasH; // = 0.8295
-    const double expectedWidthFraction = (bboxRight - bboxLeft) / potCanvasW;
+    const double expectedWidthFraction = potBodyPx / potCanvasW;
     const double designIconRatio = 0.92; // 设计口径：加号外径 = 盆宽 × 0.92
 
-    test('独立推导自检：盆心比例 = 0.8295、盆宽占比 = 0.6675', () {
+    test('独立推导自检：盆心比例 = 0.8295、盆宽占比 = 801/1720', () {
       expect(expectedCenterYFraction, closeTo(0.8295, 1e-9));
-      expect(expectedWidthFraction, closeTo(0.6675, 1e-9));
+      expect(expectedWidthFraction, closeTo(801 / 1720, 1e-9));
     });
 
     testWidgets('圆心落在画框高的 82.95% 处、外径 ≈ 盆宽 × 92%', (WidgetTester tester) async {
@@ -605,8 +612,9 @@ void main() {
       final double expectedCenterY =
           artBox.top + artBox.height * expectedCenterYFraction;
       expect(icon.center.dy, closeTo(expectedCenterY, 0.5));
-      // ② 硬钉绝对坐标（本 harness：120×260 顶左对齐 → artBox.top ≈ 57.733）。
-      expect(icon.center.dy, closeTo(195.65, 1.5));
+      // ② 硬钉绝对坐标（本 harness：120×260 顶左对齐；2026-10-09 画布 1720×2000
+      //    + 宽比 0.92 → artH = 116×0.92×2000/1720 ≈ 124.09，artBox.top ≈ 99.91）。
+      expect(icon.center.dy, closeTo(202.84, 1.5));
       // ③ 不是画布正中（防回归成 50%）。
       expect(
         (icon.center.dy - (artBox.top + artBox.height / 2)).abs(),

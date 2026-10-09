@@ -36,6 +36,7 @@ part 'app_database.g.dart';
     CheckIns,
     CooldownCounters,
     TrackingEvents,
+    EyeCareLogs,
   ],
   daos: [
     SettingsDao,
@@ -48,13 +49,14 @@ part 'app_database.g.dart';
     MonthlyPoolDao,
     CooldownCounterDao,
     TrackingEventDao,
+    EyeCareLogDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -256,6 +258,18 @@ class AppDatabase extends _$AppDatabase {
               ');',
             );
           }
+
+          // ⑱ v18（护眼记录表，玄参 2026-10-09 拍板）：新增 `eye_care_logs` 表 ——
+          //    每次护眼卡退出落一行（完成 / 跳过都记），承载家长报告的护眼统计：
+          //    跳过次数（账本从无跳过记录）与实际观看时长；完成次数的权威口径仍在
+          //    阳光账本 `refType='eye_care_break'`（孩子端「我的」也走账本，历史全量）。
+          //    · 全新表、无历史数据迁移：`m.createTable` 幂等（v18+ 库不再进入本分支，
+          //      首次建库走 onCreate 同样建表）；
+          //    ⚠️ 版本变更（17 → 18），必须配迁移测试（见
+          //       `test/m3/migration_v17_to_v18_test.dart`）。
+          if (from < 18) {
+            await m.createTable(eyeCareLogs);
+          }
         },
       );
 
@@ -278,6 +292,7 @@ class AppDatabase extends _$AppDatabase {
         await delete(checkIns).go();
         await delete(cooldownCounters).go();
         await delete(trackingEvents).go();
+        await delete(eyeCareLogs).go();
       });
 
   /// 该表当前是否含某列（PRAGMA table_info）。

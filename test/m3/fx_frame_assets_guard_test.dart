@@ -256,16 +256,21 @@ void main() {
     });
   });
 
-  group('植物静态图画布护栏（C13：1200×2000）', () {
-    test('全部 species_*_adult_bloomed.png 均为 1200×2000（直读 PNG IHDR）', () {
+  group('植物静态图画布护栏（C13：1720×2000 全局等盆）', () {
+    test('全部 species_*_adult_bloomed.png 画布尺寸符合口径（直读 PNG IHDR）', () {
       final Directory plants = Directory('$root/assets/plants');
+      // 2026-10-08 目录重组：植物图按物种分目录存放，改**递归**扫描。
       final List<File> blooms = plants
-          .listSync()
+          .listSync(recursive: true)
           .whereType<File>()
           .where((File f) => f.path.endsWith('_adult_bloomed.png'))
           .toList();
-      expect(blooms.length, 8,
-          reason: '8 物种应各有 1 张盛开图（向日葵 + 7 新交付），实际 ${blooms.length}');
+      expect(blooms.length, 6,
+          reason: '6 物种应各有 1 张盛开图（2026-10-08 删星辰花/虹影蕨后余 6：'
+              '向日葵 + 番茄 + 草莓 + 月光兰 + 珊瑚岭兰 + 翡翠绣球），实际 ${blooms.length}');
+      // 2026-10-09 全局等盆：新五物种统一 1720×2000（盆 800、盆心居中）；向日葵
+      // 无 wilted/dead 原图备份、维持 1200×2000 定稿不动 —— contain 按高度绑定
+      // 缩放，两种画布的盆显示大小一致（比例同为 800/画布宽 × 高 2000）。
       for (final File f in blooms) {
         final RandomAccessFile raf = f.openSync();
         final PngHead head = _readHead(raf);
@@ -273,8 +278,12 @@ void main() {
         // PNG: 8 字节签名 + IHDR 长度/类型 8 字节 + 宽高各 4 字节（大端）。
         final int w = head.w;
         final int h = head.h;
-        expect('$w x $h', '1200 x 2000',
-            reason: '${f.path.split('/').last} 未归一化到 1200×2000');
+        final bool isLegacySunflower =
+            f.path.contains('sunflower') && w == 1200 && h == 2000;
+        final bool isNewUniform = w == 1720 && h == 2000;
+        expect(isLegacySunflower || isNewUniform, isTrue,
+            reason: '${f.path.split('/').last} 画布 $w×$h 不符合口径：'
+                '向日葵 1200×2000（legacy 定稿）/ 其它物种 1720×2000（全局等盆）');
       }
     });
   });

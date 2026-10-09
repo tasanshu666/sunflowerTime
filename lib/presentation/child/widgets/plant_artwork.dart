@@ -5,29 +5,42 @@
 /// 就能替换成正式插画。本组件把「植物长什么样」从 [PlantCard] 里彻底抽离。
 ///
 /// ## 美术资源命名规范（**五级**回退，美术只需按规范丢图，代码零改动）
-/// 资源根目录 `assets/plants/`，按「物种_阶段_状态」命名，从最精确往回找；
+/// 资源根目录 `assets/plants/`，**按物种分子目录存放**（2026-10-08 玄参拍板：
+/// 平铺后图一多没法区分），按「物种_阶段_状态」命名，从最精确往回找；
 /// **物种级（①–③）恒在通用级（④–⑤）之前**，故已交付的物种图始终优先命中、行为不变：
 /// ```
-/// ① assets/plants/{speciesId}_{stage}_{status}.png   物种·最精确，用于特殊状态
-/// ② assets/plants/{speciesId}_{stage}.png            物种·该阶段
-/// ③ assets/plants/{speciesId}.png                    物种·通用
-/// ④ assets/plants/shared_{stage}_{status}.png        通用·该阶段·该状态（跨物种兜底）
-/// ⑤ assets/plants/shared_{stage}.png                 通用·该阶段（跨物种兜底）
+/// ① assets/plants/{dir}/{speciesId}_{stage}_{status}.png   物种·最精确，用于特殊状态
+/// ② assets/plants/{dir}/{speciesId}_{stage}.png            物种·该阶段
+/// ③ assets/plants/{dir}/{speciesId}.png                    物种·通用
+/// ④ assets/plants/shared/shared_{stage}_{status}.png       通用·该阶段·该状态（跨物种兜底）
+/// ⑤ assets/plants/shared/shared_{stage}.png                通用·该阶段（跨物种兜底）
 /// ⑥ 以上都没有 → 回退到内置自绘简笔（[PlantPlaceholderArt]）
 /// ```
 /// 其中：
-/// - `{speciesId}` = `PlantSpecies.id`（现为 `species_sunflower` 等 8 种，见 `plant_seed.dart`）
+/// - `{speciesId}` = `PlantSpecies.id`（现为 `species_sunflower` 等 6 种，见 `plant_seed.dart`）
+/// - `{dir}` = 物种子目录 = `{speciesId}` 去掉 `species_` 前缀（如 `species_sunflower` → `sunflower`）
 /// - `{stage}` = `seed` / `sprout` / `adult`
 /// - `{status}` = `growing` / `bloomed` / `wilting` / `dead`
 ///
+/// ## 物种中文名 ↔ 子目录对照（2026-10-08，与 `docs/美术资源清单_花园植物.md` §0.8 同步）
+///
+/// | 中文名 | speciesId | 子目录 |
+/// |---|---|---|
+/// | 向日葵 | `species_sunflower` | `sunflower/` |
+/// | 番茄 | `species_tomato` | `tomato/` |
+/// | 草莓 | `species_strawberry` | `strawberry/` |
+/// | 月光兰 | `species_moon_orchid` | `moon_orchid/` |
+/// | 珊瑚岭兰 | `species_coral_orchid` | `coral_orchid/` |
+/// | 翡翠绣球 | `species_jade_hydrangea` | `jade_hydrangea/` |
+///
 /// 说明：④/⑤ 的「通用级」（`shared_*`）供**跨物种共用的阶段图**使用 —— 种子期各物种
 /// 形态相近，**全物种只出 3 张通用图**即可覆盖所有物种的种子期：
-/// `shared_seed.png`（健康）/ `shared_seed_wilting.png`（枯萎）/ `shared_seed_dead.png`（死亡），
+/// `shared/shared_seed.png`（健康）/ `shared/shared_seed_wilting.png`（枯萎）/ `shared/shared_seed_dead.png`（死亡），
 /// 无需任何 `species_*_seed*.png`（见宪法 C20：种子阶段一律通用、禁止物种专属种子图）。
 /// 物种级（①–③）仅用于幼苗 / 成株 / 开花，一旦存在优先命中、通用级仅兜底。
 ///
-/// 例：`assets/plants/species_sunflower_adult_bloomed.png`
-/// 只要文件名对上就会自动生效，新增植物/阶段都不需要改本文件。
+/// 例：`assets/plants/sunflower/species_sunflower_adult_bloomed.png`
+/// 只要目录和文件名对上就会自动生效，新增植物/阶段都不需要改本文件。
 ///
 /// 资源是否存在的判定走 [AssetManifest.loadFromAssetBundle]（读的是编译期生成的
 /// `AssetManifest.bin`），结果按「物种_阶段_状态」缓存，整个进程只解析一次清单。
@@ -58,20 +71,27 @@ class PlantArtCandidates {
   PlantArtCandidates._();
 
   /// 候选路径（顺序即回退优先级，共 5 条；**物种级恒在通用级之前**）：
+  /// 物种级在 `assets/plants/{dir}/`（dir = speciesId 去 `species_` 前缀），
+  /// 通用级在 `assets/plants/shared/`：
   /// `{物种}_{阶段}_{状态}` → `{物种}_{阶段}` → `{物种}`
   /// → `shared_{阶段}_{状态}` → `shared_{阶段}`，全不中则走自绘占位。
   static List<String> forPlant({
     required String speciesId,
     required String stage,
     required String status,
-  }) =>
-      <String>[
-        'assets/plants/${speciesId}_${stage}_$status.png',
-        'assets/plants/${speciesId}_$stage.png',
-        'assets/plants/$speciesId.png',
-        'assets/plants/shared_${stage}_$status.png',
-        'assets/plants/shared_$stage.png',
-      ];
+  }) {
+    // 目录名 = speciesId 去掉 `species_` 前缀（2026-10-08 目录重组，见类顶文档）。
+    final String dir = speciesId.startsWith('species_')
+        ? speciesId.substring('species_'.length)
+        : speciesId;
+    return <String>[
+      'assets/plants/$dir/${speciesId}_${stage}_$status.png',
+      'assets/plants/$dir/${speciesId}_$stage.png',
+      'assets/plants/$dir/$speciesId.png',
+      'assets/plants/shared/shared_${stage}_$status.png',
+      'assets/plants/shared/shared_$stage.png',
+    ];
+  }
 
   /// 在 [assets]（资产清单里的全部资源路径）中按优先级找命中项；无命中返回 null。
   static String? resolve(

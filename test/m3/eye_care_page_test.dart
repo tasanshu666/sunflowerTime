@@ -24,7 +24,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/entities/eye_care_log.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
+import 'package:sunflower_time/domain/repositories/eye_care_log_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
 import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
@@ -76,6 +78,9 @@ class _FakeSunlightRepository implements SunlightRepository {
       0;
 
   @override
+  Future<int> countByRefType(String refType) async => 0;
+
+  @override
   Future<int> countByRefTypeAndRefIdSince(
           String refType, String refId, DateTime since) async =>
       0;
@@ -83,6 +88,25 @@ class _FakeSunlightRepository implements SunlightRepository {
   @override
   Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async =>
       null;
+}
+
+/// 只记录 `append` 的假护眼记录仓储（断言「完成 / 跳过都落一行」）。
+class _FakeEyeCareLogRepository implements EyeCareLogRepository {
+  /// 被写进去的护眼记录。
+  final List<EyeCareLog> appended = <EyeCareLog>[];
+
+  @override
+  Future<void> append(EyeCareLog log) async => appended.add(log);
+
+  @override
+  Future<int> countByResult(EyeCareResultType type) async => appended
+      .where((EyeCareLog l) => l.result == type)
+      .length;
+
+  @override
+  Future<int> watchedSecondsByResult(EyeCareResultType type) async => appended
+      .where((EyeCareLog l) => l.result == type)
+      .fold<int>(0, (int sum, EyeCareLog l) => sum + l.watchedSeconds);
 }
 
 /// 固定为手机尺寸（护眼卡内容较高：帧舞台 + 两个出口按钮，
@@ -133,15 +157,21 @@ class _Harness {
 
   final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
   late final _FakeSunlightRepository ledger;
+  late final _FakeEyeCareLogRepository eyeCareLog;
 
   _Harness({required this.skipAllowed, double startBalance = 100})
-      : ledger = _FakeSunlightRepository(startBalance);
+      : ledger = _FakeSunlightRepository(startBalance),
+        eyeCareLog = _FakeEyeCareLogRepository();
 
   /// 压入护眼卡（`pushed` 在结果产出后即完成）。
-  Future<void> open(WidgetTester tester) async {
+  Future<void> open(
+    WidgetTester tester, {
+    EyeCareSource source = EyeCareSource.inSession,
+  }) async {
     await tester.pumpWidget(ProviderScope(
       overrides: <Override>[
         sunlightRepositoryProvider.overrideWithValue(ledger),
+        eyeCareLogRepositoryProvider.overrideWithValue(eyeCareLog),
       ],
       child: MaterialApp(
         navigatorKey: navKey,
@@ -152,8 +182,9 @@ class _Harness {
 
     pushed = navKey.currentState!.push<Object?>(
       MaterialPageRoute<Object?>(
-        builder: (_) =>
-            EyeCarePage(args: EyeCareArgs(skipAllowed: skipAllowed)),
+        builder: (_) => EyeCarePage(
+          args: EyeCareArgs(skipAllowed: skipAllowed, source: source),
+        ),
       ),
     );
     await _settle(tester);
@@ -272,7 +303,28 @@ void main() {
       );
       // 跳过＝零账本变动（护眼时长也不回溯补算成专注时长）。
       expect(h.ledger.appended, isEmpty);
+      // 护眼记录：跳过**也落一行**（家长报告的跳过次数 / 部分观看时长数据源）。
+      expect(h.eyeCareLog.appended, hasLength(1));
+      expect(h.eyeCareLog.appended.single.result, EyeCareResultType.skipped);
+      expect(h.eyeCareLog.appended.single.watchedSeconds, greaterThanOrEqualTo(0));
       expect(find.text(kEyeCareFinishLabel), findsNothing, reason: '已退场');
+    });
+
+    testWidgets('场末触发（source=sessionEnd）→ 护眼记录如实记录来源',
+        (WidgetTester tester) async {
+      _usePhoneScreen(tester);
+      final _Harness h = _Harness(skipAllowed: true);
+      await h.open(tester, source: EyeCareSource.sessionEnd);
+
+      await tester.tap(find.text(kEyeCareSkipLabel));
+      await _settle(tester);
+      await tester.tap(find.text('确定跳过'));
+      await _settle(tester);
+
+      await h.pushed!;
+      expect(h.eyeCareLog.appended, hasLength(1));
+      expect(h.eyeCareLog.appended.single.source, EyeCareSource.sessionEnd);
+      expect(h.eyeCareLog.appended.single.result, EyeCareResultType.skipped);
     });
   });
 
@@ -412,6 +464,12 @@ void main() {
       expect(h.ledger.appended, hasLength(1));
       expect(h.ledger.appended.single.refType, kEyeCareRefType);
       expect(h.ledger.appended.single.net, kEyeCareRewardSunlight);
+      // 护眼记录（玄参 2026-10-09）：完成也落一行（家长报告的时长 / 来源统计）。
+      expect(h.eyeCareLog.appended, hasLength(1));
+      expect(h.eyeCareLog.appended.single.result, EyeCareResultType.completed);
+      expect(h.eyeCareLog.appended.single.source, EyeCareSource.inSession);
+      expect(h.eyeCareLog.appended.single.watchedSeconds, greaterThan(0));
+      expect(h.eyeCareLog.appended.single.dayKey, isNotEmpty);
     });
 
     test('页面配音 cue 表与播放列表按位对齐（7 槽位，防素材/配音错位）', () {

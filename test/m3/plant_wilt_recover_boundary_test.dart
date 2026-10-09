@@ -89,6 +89,9 @@ class _MemoryLedger implements SunlightRepository {
 
   /// 真实计数：自 [since]（含）起、指定 refType+refId 的记账条数。
   @override
+  Future<int> countByRefType(String refType) async => 0;
+
+  @override
   Future<int> countByRefTypeAndRefIdSince(
     String refType,
     String refId,

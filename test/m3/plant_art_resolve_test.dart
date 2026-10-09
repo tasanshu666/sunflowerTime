@@ -25,7 +25,7 @@ import 'package:sunflower_time/presentation/child/widgets/plant_artwork.dart';
 const List<String> _speciesIds = <String>[
   'species_sunflower',
   'species_tomato',
-  'species_star_flower',
+  'species_coral_orchid',
 ];
 
 void main() {
@@ -38,20 +38,20 @@ void main() {
           status: 'bloomed',
         ),
         <String>[
-          'assets/plants/species_sunflower_adult_bloomed.png',
-          'assets/plants/species_sunflower_adult.png',
-          'assets/plants/species_sunflower.png',
-          'assets/plants/shared_adult_bloomed.png',
-          'assets/plants/shared_adult.png',
+          'assets/plants/sunflower/species_sunflower_adult_bloomed.png',
+          'assets/plants/sunflower/species_sunflower_adult.png',
+          'assets/plants/sunflower/species_sunflower.png',
+          'assets/plants/shared/shared_adult_bloomed.png',
+          'assets/plants/shared/shared_adult.png',
         ],
       );
     });
 
     test('A2 三者都存在时命中「最精确」那条（不能被粗粒度抢先）', () {
       final Set<String> assets = <String>{
-        'assets/plants/species_sunflower.png',
-        'assets/plants/species_sunflower_adult.png',
-        'assets/plants/species_sunflower_adult_bloomed.png',
+        'assets/plants/sunflower/species_sunflower.png',
+        'assets/plants/sunflower/species_sunflower_adult.png',
+        'assets/plants/sunflower/species_sunflower_adult_bloomed.png',
       };
       expect(
         PlantArtCandidates.resolve(
@@ -60,13 +60,13 @@ void main() {
           stage: 'adult',
           status: 'bloomed',
         ),
-        'assets/plants/species_sunflower_adult_bloomed.png',
+        'assets/plants/sunflower/species_sunflower_adult_bloomed.png',
       );
     });
 
     test('A3 缺精确图 → 回退到「物种_阶段」', () {
       final Set<String> assets = <String>{
-        'assets/plants/species_tomato_sprout.png',
+        'assets/plants/tomato/species_tomato_sprout.png',
       };
       expect(
         PlantArtCandidates.resolve(
@@ -75,20 +75,22 @@ void main() {
           stage: 'sprout',
           status: 'wilting',
         ),
-        'assets/plants/species_tomato_sprout.png',
+        'assets/plants/tomato/species_tomato_sprout.png',
       );
     });
 
     test('A4 只有物种总图 → 回退到「物种」', () {
-      final Set<String> assets = <String>{'assets/plants/species_star_flower.png'};
+      final Set<String> assets = <String>{
+        'assets/plants/coral_orchid/species_coral_orchid.png',
+      };
       expect(
         PlantArtCandidates.resolve(
           assets,
-          speciesId: 'species_star_flower',
+          speciesId: 'species_coral_orchid',
           stage: 'adult',
           status: 'dead',
         ),
-        'assets/plants/species_star_flower.png',
+        'assets/plants/coral_orchid/species_coral_orchid.png',
       );
     });
 
@@ -115,7 +117,7 @@ void main() {
         c.take(3).every((String p) => p.contains('species_tomato')),
         isTrue,
       );
-      expect(c.any((String p) => p.contains('species_star_flower')), isFalse);
+      expect(c.any((String p) => p.contains('species_coral_orchid')), isFalse);
       // 后 2 条 = 通用级：`shared_` 前缀，且不含任何物种名。
       expect(
         c.skip(3).every(
@@ -126,10 +128,10 @@ void main() {
       );
     });
 
-    test('A7 物种图全缺 → 回退到「通用_阶段_状态」(shared_{stage}_{status})', () {
+    test('A7 物种图全缺 → 回退到「通用_阶段_状态」(shared/{stage}_{status})', () {
       final Set<String> assets = <String>{
-        'assets/plants/shared_seed_growing.png',
-        'assets/plants/shared_seed.png',
+        'assets/plants/shared/shared_seed_growing.png',
+        'assets/plants/shared/shared_seed.png',
       };
       expect(
         PlantArtCandidates.resolve(
@@ -138,30 +140,32 @@ void main() {
           stage: 'seed',
           status: 'growing',
         ),
-        'assets/plants/shared_seed_growing.png',
+        'assets/plants/shared/shared_seed_growing.png',
       );
     });
 
-    test('A8 通用阶段状态图也缺 → 回退到「通用_阶段」(shared_{stage})', () {
-      final Set<String> assets = <String>{'assets/plants/shared_seed.png'};
+    test('A8 通用阶段状态图也缺 → 回退到「通用_阶段」(shared/{stage})', () {
+      final Set<String> assets = <String>{
+        'assets/plants/shared/shared_seed.png',
+      };
       expect(
         PlantArtCandidates.resolve(
           assets,
-          speciesId: 'species_star_flower',
+          speciesId: 'species_coral_orchid',
           stage: 'seed',
           status: 'wilting',
         ),
-        'assets/plants/shared_seed.png',
+        'assets/plants/shared/shared_seed.png',
       );
     });
 
     test('A9 物种级与通用级同时存在 → 必须命中物种级（顺序护栏）', () {
       final Set<String> assets = <String>{
         // 通用级齐备。
-        'assets/plants/shared_sprout_growing.png',
-        'assets/plants/shared_sprout.png',
+        'assets/plants/shared/shared_sprout_growing.png',
+        'assets/plants/shared/shared_sprout.png',
         // 仅物种级「阶段图」存在（最精确图缺）。
-        'assets/plants/species_sunflower_sprout.png',
+        'assets/plants/sunflower/species_sunflower_sprout.png',
       };
       expect(
         PlantArtCandidates.resolve(
@@ -170,7 +174,7 @@ void main() {
           stage: 'sprout',
           status: 'growing',
         ),
-        'assets/plants/species_sunflower_sprout.png',
+        'assets/plants/sunflower/species_sunflower_sprout.png',
         reason: '物种级必须优先于通用级，否则已交付的物种图会被通用图覆盖（行为回归）',
       );
     });
@@ -194,6 +198,8 @@ void main() {
     test('B3 全部 3 物种 × 3 阶段 × 4 状态 = 36 组合的候选路径格式正确', () {
       int checked = 0;
       for (final String id in _speciesIds) {
+        // 目录名 = speciesId 去 `species_` 前缀（2026-10-08 目录重组）。
+        final String dir = id.substring('species_'.length);
         for (final PlantStage stage in PlantStage.values) {
           for (final PlantStatus status in PlantStatus.values) {
             final List<String> c = PlantArtCandidates.forPlant(
@@ -202,11 +208,17 @@ void main() {
               status: status.name,
             );
             expect(c, hasLength(5));
-            expect(c[0], 'assets/plants/${id}_${stage.name}_${status.name}.png');
-            expect(c[1], 'assets/plants/${id}_${stage.name}.png');
-            expect(c[2], 'assets/plants/$id.png');
-            expect(c[3], 'assets/plants/shared_${stage.name}_${status.name}.png');
-            expect(c[4], 'assets/plants/shared_${stage.name}.png');
+            expect(
+              c[0],
+              'assets/plants/$dir/${id}_${stage.name}_${status.name}.png',
+            );
+            expect(c[1], 'assets/plants/$dir/${id}_${stage.name}.png');
+            expect(c[2], 'assets/plants/$dir/$id.png');
+            expect(
+              c[3],
+              'assets/plants/shared/shared_${stage.name}_${status.name}.png',
+            );
+            expect(c[4], 'assets/plants/shared/shared_${stage.name}.png');
             expect(c.every((String p) => p.endsWith('.png')), isTrue);
             checked++;
           }

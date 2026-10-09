@@ -15,6 +15,7 @@ import 'package:sunflower_time/data/local/repositories/sunlight_local_repository
 import 'package:sunflower_time/data/local/repositories/tracking_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/plant_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/task_local_repository.dart';
+import 'package:sunflower_time/data/local/repositories/eye_care_log_local_repository.dart';
 import 'package:sunflower_time/data/local/secure_store.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
@@ -25,6 +26,7 @@ import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
+import 'package:sunflower_time/domain/repositories/eye_care_log_repository.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
@@ -68,6 +70,11 @@ final focusRepositoryProvider = Provider<FocusRepository>(
 );
 final taskRepositoryProvider = Provider<TaskRepository>(
   (ref) => TaskLocalRepository(ref.watch(appDatabaseProvider)),
+);
+
+/// 护眼记录仓储（玄参 2026-10-09：家长报告护眼统计）。
+final eyeCareLogRepositoryProvider = Provider<EyeCareLogRepository>(
+  (ref) => EyeCareLogLocalRepository(ref.watch(appDatabaseProvider)),
 );
 /// 本地植物仓储单例（同时实现 [PlantRepository] 与 [BloomRewardRepository]，
 /// 共用同一 [AppDatabase]）；两个接口各暴露一个 Provider 供不同消费方注入。

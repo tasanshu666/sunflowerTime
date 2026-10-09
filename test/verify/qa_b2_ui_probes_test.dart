@@ -61,6 +61,9 @@ class _FakeSunlightRepo implements SunlightRepository {
           String refType, String refId, String dayKey) async =>
       0;
   @override
+  Future<int> countByRefType(String refType) async => 0;
+
+  @override
   Future<int> countByRefTypeAndRefIdSince(
           String refType, String refId, DateTime since) async =>
       0;
@@ -148,10 +151,10 @@ Future<void> _pumpCard(WidgetTester tester, Plant plant, PlantSpecies sp) async 
 void main() {
   // ── 稀有度两档 + 价格文案 ────────────────────────────────────────────────
   group('F1 · 花园页选种弹窗：稀有度两档（普通 / 精英）', () {
-    testWidgets('8 物种稀有度标签 + 价格文案全部按两档渲染',
+    testWidgets('6 物种稀有度标签 + 价格文案全部按两档渲染',
         (WidgetTester tester) async {
-      // 逻辑视口加高，使 modal bottom sheet（默认限高 ~9/16 屏高）能一次容纳 8 个物种项，
-      // 避免懒加载把后 4 个精英项留在树外导致误判。
+      // 逻辑视口加高，使 modal bottom sheet（默认限高 ~9/16 屏高）能一次容纳 6 个物种项，
+      // 避免懒加载把后 2 个精英项留在树外导致误判。
       tester.view.physicalSize = const Size(360, 2000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -185,13 +188,13 @@ void main() {
       // 2026-10-05 玄参美化口径：阳光/碎片价格=「素材图标 + 数字」，不再写「N 阳光」文字。
       // 普通档 3 种：向日葵=免费（C29：无存活株时首株免费）；番茄 / 草莓 各「300」「6」两档可选（C29 修订 400→300）。
       expect(find.text('普通'), findsNWidgets(3), reason: '向日葵/番茄/草莓=普通档');
-      expect(find.text('精英'), findsNWidgets(5), reason: '月光兰+4精英=精英档');
+      expect(find.text('精英'), findsNWidgets(3), reason: '月光兰+珊瑚岭兰+翡翠绣球=精英档');
       expect(find.text('免费'), findsOneWidget, reason: '向日葵=免费');
       expect(find.text('300'), findsNWidgets(2), reason: '番茄/草莓=各 300 阳光档（C29）');
       expect(find.text('6'), findsNWidgets(2), reason: '番茄/草莓=各 6 植物碎片档');
       // 精英档（含月光兰，新计价仅碎片）各 10 植物碎片。
-      expect(find.text('10'), findsNWidgets(5),
-          reason: '5 精英（含月光兰）=各 10 植物碎片');
+      expect(find.text('10'), findsNWidgets(3),
+          reason: '3 精英（含月光兰）=各 10 植物碎片（2026-10-08 删星辰花/虹影蕨后 6 物种）');
 
       // 不得再出现旧的稀有度词。
       for (final String old in <String>['优良', '稀有', '传奇', '史诗']) {
@@ -217,8 +220,8 @@ void main() {
       final DateTime now = DateTime.now();
       await _pumpCard(
         tester,
-        _plant(speciesId: 'species_star_flower', status: PlantStatus.bloomed, bloomedAt: now),
-        _sp('species_star_flower'),
+        _plant(speciesId: 'species_jade_hydrangea', status: PlantStatus.bloomed, bloomedAt: now),
+        _sp('species_jade_hydrangea'),
       );
       expect(find.text('花期剩余 4.5 天'), findsOneWidget);
       expect(find.textContaining('花期剩余 3 '), findsNothing);

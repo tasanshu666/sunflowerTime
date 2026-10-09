@@ -287,3 +287,26 @@ class TrackingEvents extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+/// 少儿护眼记录（玄参 2026-10-09 拍板：家长报告需要护眼次数 / 时长 / 跳过统计）。
+///
+/// 每次**护眼卡退出**落一行，完成与跳过都记（写入点 `eye_care_page._finish`）：
+///  · `result`：'completed'（自然走完，有奖励）/ 'skipped'（二次确认跳过，无奖励）；
+///  · `watched_seconds`：实际观看秒数（completed 恒为 kEyeCareDurationSeconds；
+///    skipped = 点跳过那一刻已看的秒数）；
+///  · `source`：'inSession'（场内触发）/ 'sessionEnd'（场末结算前触发）。
+/// 口径：完成的「累计护眼次数」以**阳光账本** `refType='eye_care_break'` 为权威
+/// （含上线以来全部历史）；本表补齐账本没有的**跳过**与**实际观看时长**两个维度。
+// Drift 行数据类命名避开领域实体 `EyeCareLog`（domain/entities/eye_care_log.dart）。
+@DataClassName('EyeCareLogRow')
+class EyeCareLogs extends Table {
+  TextColumn get id => text()();
+  DateTimeColumn get ts => dateTime()();
+  TextColumn get dayKey => text()(); // 与账本同口径，便于按日聚合
+  TextColumn get result => text()(); // EyeCareResultType.name
+  IntColumn get watchedSeconds => integer()();
+  TextColumn get source => text()(); // EyeCareSource.name
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

@@ -12,7 +12,8 @@
 ///  4. 「加盆」格的三态文案正确（够钱带价 / 不够钱写还差多少）。
 ///
 /// ## 二次改造（2026-09-23）后的新口径
-/// 美术图统一为 1200×2000 画布且**植物图自带花盆** → 代码只渲染一张图、不再叠花盆。
+/// 美术图统一为 1720×2000 画布（2026-10-09 全局等盆加宽）且**植物图自带花盆** →
+/// 代码只渲染一张图、不再叠花盆。
 /// 布局度量据此改为：空盆与有植物盆的**图片框尺寸一致、底部对齐、不被改小**；
 /// 有植物格内**只有一个 Image**（不再叠第二个盆）。
 ///
@@ -185,10 +186,10 @@ void main() {
       // ③ 盆真的够大：图片框宽 ≥ 格宽 × 0.8（锁住「不许再被改小」）。
       expect(filled.width, greaterThanOrEqualTo(cell.width * 0.8));
       expect(empty.width, greaterThanOrEqualTo(cell.width * 0.8));
-      // ④ 图片框宽 = 格内宽 × 0.86（格内宽 = 格宽 - 2 × 横向内边距 2）。
-      expect(filled.width, closeTo((cell.width - 4) * 0.86, 0.5));
-      // ⑤ 画布宽高比锁死 1200:2000 = 5/3（美术图统一画布）。
-      expect(filled.height / filled.width, closeTo(5 / 3, 0.002));
+      // ④ 图片框宽 = 格内宽 × 0.92（格内宽 = 格宽 - 2 × 横向内边距 2）。
+      expect(filled.width, closeTo((cell.width - 4) * 0.92, 0.5));
+      // ⑤ 画布宽高比锁死 1720:2000（美术图统一画布，2026-10-09 全局等盆加宽）。
+      expect(filled.height / filled.width, closeTo(2000 / 1720, 0.002));
     });
 
     testWidgets('有植物格内只有 1 个 Image（不再叠第二个花盆）', (WidgetTester tester) async {

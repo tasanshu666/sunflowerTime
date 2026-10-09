@@ -19,6 +19,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/domain/services/eye_care_service.dart';
 import 'package:sunflower_time/domain/services/focus_report_service.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/shared/theme.dart';
@@ -105,6 +107,14 @@ class _ParentReportPageState extends ConsumerState<ParentReportPage> {
   bool _loading = true;
   String? _error;
 
+  // ── 护眼统计（玄参 2026-10-09）────────────────────────────────────────
+  // 完成次数走**阳光账本**（refType='eye_care_break'，含上线以来全部历史，与
+  // 孩子端「我的」同源）；跳过次数 / 跳过观看秒数走 `eye_care_logs` 表
+  // （账本从无跳过记录，自 v18 起才有数）。
+  int _eyeCareCompleted = 0;
+  int _eyeCareSkipped = 0;
+  int _eyeCareSkippedWatchedSeconds = 0;
+
   @override
   void initState() {
     super.initState();
@@ -121,6 +131,25 @@ class _ParentReportPageState extends ConsumerState<ParentReportPage> {
     } catch (e) {
       _error = e.toString();
     }
+    // 护眼统计独立取数：失败不阻塞专注报告（卡片显示 0 + 兜底文案）。
+    try {
+      final int completed = await ref
+          .read(sunlightRepositoryProvider)
+          .countByRefType(kEyeCareRefType);
+      final int skipped = await ref
+          .read(eyeCareLogRepositoryProvider)
+          .countByResult(EyeCareResultType.skipped);
+      final int skippedWatched = await ref
+          .read(eyeCareLogRepositoryProvider)
+          .watchedSecondsByResult(EyeCareResultType.skipped);
+      if (mounted) {
+        setState(() {
+          _eyeCareCompleted = completed;
+          _eyeCareSkipped = skipped;
+          _eyeCareSkippedWatchedSeconds = skippedWatched;
+        });
+      }
+    } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
 
@@ -177,6 +206,148 @@ class _ParentReportPageState extends ConsumerState<ParentReportPage> {
         const SizedBox(height: 20),
         _SectionTitle('专注稳定性 · 近 4 周', palette: p),
         _StabilityCard(report: r, palette: p),
+        const SizedBox(height: 20),
+        _SectionTitle('护眼统计', palette: p),
+        _EyeCareCard(
+          completed: _eyeCareCompleted,
+          skipped: _eyeCareSkipped,
+          skippedWatchedSeconds: _eyeCareSkippedWatchedSeconds,
+          palette: p,
+        ),
+      ],
+    );
+  }
+}
+
+/// 护眼统计卡（玄参 2026-10-09）。
+///
+/// 四项指标：
+///  · **完成次数**：账本 `refType='eye_care_break'` 全量计数（与孩子端「我的」同源）；
+///  · **跳过次数**：`eye_care_logs` 表 skipped 计数（自 v18 起有数，历史跳过无从补记）；
+///  · **累计护眼时长**：完成次数 × 全片长（kEyeCareDurationSeconds，完成即看满）
+///    + 跳过那几次的实际观看秒数（部分观看也算了护眼，如实计入）；
+///  · **跳过率**：跳过 /（完成 + 跳过）—— 衡量孩子对护眼提醒的配合度。
+class _EyeCareCard extends StatelessWidget {
+  final int completed;
+  final int skipped;
+  final int skippedWatchedSeconds;
+  final _ReportPalette palette;
+
+  const _EyeCareCard({
+    required this.completed,
+    required this.skipped,
+    required this.skippedWatchedSeconds,
+    required this.palette,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final int totalSeconds =
+        completed * kEyeCareDurationSeconds + skippedWatchedSeconds;
+    final String durationText = totalSeconds <= 0
+        ? '—'
+        : totalSeconds < 60
+            ? '$totalSeconds 秒'
+            : '${(totalSeconds / 60).toStringAsFixed(1)} 分钟';
+    final int totalEvents = completed + skipped;
+    final String skipRateText = totalEvents <= 0
+        ? '—'
+        : '${(skipped * 100 / totalEvents).toStringAsFixed(0)}%';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      decoration: BoxDecoration(
+        color: palette.softBg,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _EyeCareMetric(
+                  label: '完成护眼',
+                  value: '$completed 次',
+                  palette: palette,
+                ),
+              ),
+              Expanded(
+                child: _EyeCareMetric(
+                  label: '跳过护眼',
+                  value: '$skipped 次',
+                  palette: palette,
+                  highlight: skipped > 0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _EyeCareMetric(
+                  label: '累计护眼时长',
+                  value: durationText,
+                  palette: palette,
+                ),
+              ),
+              Expanded(
+                child: _EyeCareMetric(
+                  label: '跳过率',
+                  value: skipRateText,
+                  palette: palette,
+                ),
+              ),
+            ],
+          ),
+          if (skipped > 0) ...<Widget>[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '有 $skipped 次护眼被跳过（跳过的观看时长已如实计入）。',
+                style: TextStyle(fontSize: 12, color: palette.inkAt(0.65)),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 护眼统计单格。
+class _EyeCareMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final _ReportPalette palette;
+
+  /// true 时数值用 warn 色（跳过 > 0 提示家长关注）。
+  final bool highlight;
+
+  const _EyeCareMetric({
+    required this.label,
+    required this.value,
+    required this.palette,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(label,
+            style: TextStyle(fontSize: 12, color: palette.inkAt(0.65))),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: highlight ? palette.warn : palette.ink,
+          ),
+        ),
       ],
     );
   }

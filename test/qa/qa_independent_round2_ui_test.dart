@@ -216,6 +216,9 @@ class _FakeLedger implements SunlightRepository {
   Future<double> netByRefTypeInMonth(String refType, String monthKey) async =>
       0;
   @override
+  Future<int> countByRefType(String refType) async => 0;
+
+  @override
   Future<int> countByRefTypeAndRefIdSince(
           String refType, String refId, DateTime since) async =>
       0;

@@ -103,22 +103,20 @@ Future<int> _plantCount(db.AppDatabase database) async {
 PlantSpecies _sp(String id) =>
     kSeedPlantSpecies.firstWhere((PlantSpecies s) => s.id == id);
 
-// 8 物种 id（顺序 = 展示顺序）。
+// 6 物种 id（顺序 = 展示顺序；2026-10-08 删星辰花/虹影蕨）。
 const List<String> _kAllIds = <String>[
   'species_sunflower',
   'species_moon_orchid',
   'species_tomato',
   'species_strawberry',
-  'species_star_flower',
-  'species_rainbow_fern',
   'species_coral_orchid',
   'species_jade_hydrangea',
 ];
 
 void main() {
   // ── 计价矩阵 ────────────────────────────────────────────────────────────
-  group('D1 · plantCost / fragmentCostOf 8 物种矩阵（与口径逐条对齐）', () {
-    test('物种表恰 8 种、顺序 = 展示顺序、无 daisy/cactus', () {
+  group('D1 · plantCost / fragmentCostOf 6 物种矩阵（与口径逐条对齐）', () {
+    test('物种表恰 6 种、顺序 = 展示顺序、无 daisy/cactus', () {
       expect(kSeedPlantSpecies.map((PlantSpecies s) => s.id).toList(), _kAllIds);
       final Set<String> ids =
           kSeedPlantSpecies.map((PlantSpecies s) => s.id).toSet();
@@ -135,8 +133,6 @@ void main() {
         'species_moon_orchid': (PlantCostKind.fragments, kSpeciesFragmentCostPremium),
         'species_tomato': (PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
         'species_strawberry': (PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
-        'species_star_flower': (PlantCostKind.fragments, 10),
-        'species_rainbow_fern': (PlantCostKind.fragments, 10),
         'species_coral_orchid': (PlantCostKind.fragments, 10),
         'species_jade_hydrangea': (PlantCostKind.fragments, 10),
       };
@@ -157,8 +153,6 @@ void main() {
       expect(ctx.svc.fragmentCostOf(_sp('species_strawberry')), 6);
       for (final String id in <String>[
         'species_moon_orchid',
-        'species_star_flower',
-        'species_rainbow_fern',
         'species_coral_orchid',
         'species_jade_hydrangea',
       ]) {
@@ -201,26 +195,26 @@ void main() {
     test('种子支付（2026-10-07）：不扣碎片 / 不扣阳光、同档位一张券被消耗（表里该行消失）', () async {
       final _Ctx ctx = await _make();
       await ctx.plants.setPremiumFragmentBalance(0);
-      await ctx.plants.unlockSpecies('species_star_flower'); // 发精英券
-      expect(await ctx.plants.unlockedSpeciesIds(), contains('species_star_flower'));
+      await ctx.plants.unlockSpecies('species_jade_hydrangea'); // 发精英券
+      expect(await ctx.plants.unlockedSpeciesIds(), contains('species_jade_hydrangea'));
 
-      await ctx.svc.plant('species_star_flower', 0, DateTime(2026, 9, 27, 8),
+      await ctx.svc.plant('species_jade_hydrangea', 0, DateTime(2026, 9, 27, 8),
           payWith: PlantCostKind.seed);
 
       expect(await ctx.plants.premiumFragmentBalance(), 0, reason: '种子支付不扣碎片');
-      expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_star_flower'), 0,
+      expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_jade_hydrangea'), 0,
           reason: '种子支付不扣阳光');
-      expect(await ctx.plants.unlockedSpeciesIds(), isNot(contains('species_star_flower')),
+      expect(await ctx.plants.unlockedSpeciesIds(), isNot(contains('species_jade_hydrangea')),
           reason: '券被消耗 → 行消失');
       expect(await _plantCount(ctx.database), 1);
     });
 
-    test('种子支付对同档位跨物种生效（月光兰券种星辰花，不扣阳光）', () async {
+    test('种子支付对同档位跨物种生效（月光兰券种翡翠绣球，不扣阳光）', () async {
       final _Ctx ctx = await _make();
       await ctx.plants.unlockSpecies('species_moon_orchid'); // 精英券
-      await ctx.svc.plant('species_star_flower', 0, DateTime(2026, 9, 27, 8),
+      await ctx.svc.plant('species_jade_hydrangea', 0, DateTime(2026, 9, 27, 8),
           payWith: PlantCostKind.seed);
-      expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_star_flower'), 0);
+      expect(await _ledgerCountByRef(ctx.database, 'plant_plant', 'species_jade_hydrangea'), 0);
       expect(await ctx.plants.unlockedSpeciesIds(), isEmpty);
     });
 
@@ -254,11 +248,11 @@ void main() {
       expect(await ctx.plants.premiumFragmentBalance(), 0);
     });
 
-    test('精英 9/10：余额 9 种星辰花被拒，余额仍 9', () async {
+    test('精英 9/10：余额 9 种翡翠绣球被拒，余额仍 9', () async {
       final _Ctx ctx = await _make();
       await ctx.plants.setPremiumFragmentBalance(9);
       await expectLater(
-        () => ctx.svc.plant('species_star_flower', 0, DateTime(2026, 9, 27, 8)),
+        () => ctx.svc.plant('species_jade_hydrangea', 0, DateTime(2026, 9, 27, 8)),
         throwsA(isA<PlantOperationException>()),
       );
       expect(await ctx.plants.premiumFragmentBalance(), 9);
@@ -268,7 +262,7 @@ void main() {
     test('精英 10/10：余额 10 成功，余额归 0', () async {
       final _Ctx ctx = await _make();
       await ctx.plants.setPremiumFragmentBalance(10);
-      await ctx.svc.plant('species_star_flower', 0, DateTime(2026, 9, 27, 8));
+      await ctx.svc.plant('species_jade_hydrangea', 0, DateTime(2026, 9, 27, 8));
       expect(await ctx.plants.premiumFragmentBalance(), 0);
     });
 
@@ -276,7 +270,7 @@ void main() {
       final _Ctx ctx = await _make();
       await ctx.plants.setPremiumFragmentBalance(0);
       await expectLater(
-        () => ctx.svc.plant('species_star_flower', 0, DateTime(2026, 9, 27, 8)),
+        () => ctx.svc.plant('species_jade_hydrangea', 0, DateTime(2026, 9, 27, 8)),
         throwsA(isA<PlantOperationException>()),
       );
       expect(await ctx.plants.premiumFragmentBalance(), 0);
@@ -353,7 +347,7 @@ void main() {
       await ctx.plants.setPremiumFragmentBalance(40);
       await ctx.svc.plant('species_sunflower', 0, now);
       await ctx.svc.plant('species_tomato', 1, now);
-      await ctx.svc.plant('species_star_flower', 2, now);
+      await ctx.svc.plant('species_jade_hydrangea', 2, now);
       expect(await _plantCount(ctx.database), 3);
     });
   });

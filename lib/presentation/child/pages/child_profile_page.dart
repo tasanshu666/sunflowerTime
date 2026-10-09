@@ -16,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -37,6 +38,7 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
   int _totalValidDays = 0;
   int _totalCheckIns = 0;
   int _bloomedPlants = 0;
+  int _totalEyeCares = 0;
   double _balance = 0;
   bool _loading = true;
 
@@ -95,6 +97,11 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
           await ref.read(plantRepositoryProvider).plants();
       final double balance =
           await ref.read(sunlightRepositoryProvider).balance();
+      // 累计护眼次数（玄参 2026-10-09）：以**阳光账本**为权威口径
+      // （`refType='eye_care_break'`，含上线以来全部历史；跳过不发奖励、天然不计数）。
+      final int eyeCares = await ref
+          .read(sunlightRepositoryProvider)
+          .countByRefType(kEyeCareRefType);
       if (!mounted) return;
       setState(() {
         _totalFocusMinutes = stats.totalFocusMinutes.toDouble();
@@ -103,6 +110,7 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
         _totalCheckIns = checkIns;
         _bloomedPlants =
             plants.where((Plant p) => p.status == PlantStatus.bloomed).length;
+        _totalEyeCares = eyeCares;
         _balance = balance;
         _loading = false;
       });
@@ -198,6 +206,13 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
           label: '累计开花植物',
           value: '$_bloomedPlants 株',
           accent: const Color(0xFFE8628C),
+        ),
+        // 累计护眼（玄参 2026-10-09）：账本 refType='eye_care_break' 全量计数。
+        _AchievementTile(
+          icon: Icons.visibility,
+          label: '累计护眼',
+          value: '$_totalEyeCares 次',
+          accent: const Color(0xFF2FA8B8),
           isLast: true,
         ),
         // ── 调试区（玄参 2026-09-24 要求加回，供调试验收）────────────────────

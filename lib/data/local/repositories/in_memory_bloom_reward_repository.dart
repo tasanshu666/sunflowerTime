@@ -55,6 +55,11 @@ class InMemoryBloomRewardRepository implements BloomRewardRepository {
   }
 
   @override
+  Future<void> deletePendingBloomReward(String id) async {
+    _pending.removeWhere((PendingBloomReward r) => r.id == id);
+  }
+
+  @override
   Future<void> updatePendingRewardContent({
     required String id,
     required int rewardSunlight,

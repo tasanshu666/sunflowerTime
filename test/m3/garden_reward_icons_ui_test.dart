@@ -242,7 +242,7 @@ void main() {
     final DateTime now = DateTime.now();
     final _FakeSunlightRepository ledger = _FakeSunlightRepository();
     final InMemoryBloomRewardRepository bloom = InMemoryBloomRewardRepository();
-    // 开花瞬间：阳光 10 + 植物碎片 1（2 个图标）；第二段：阳光 12（1 个图标）。
+    // 开花瞬间：阳光 10 + 植物碎片 1；晨露：阳光 12（C45 聚合后阳光合计 +22）。
     await bloom.insertPendingBloomReward(_pending(
       id: 'pr_instant',
       dueAt: now.subtract(const Duration(hours: 1)),
@@ -265,13 +265,13 @@ void main() {
     );
     expect(appeared, isTrue, reason: '应出现阳光图标');
 
-    expect(_iconCount(Icons.wb_sunny), 2, reason: '两条 pending 各含阳光 → 2 个阳光图标');
+    // C45 聚合口径：两条 pending 的阳光合并为一个图标（+22），碎片独立一个（×1）。
+    expect(_iconCount(Icons.wb_sunny), 1, reason: '两条 pending 的阳光聚合为一个图标');
     expect(_iconCount(Icons.auto_awesome), 1, reason: '一条含植物碎片 → 1 个碎片图标');
     expect(_iconCount(Icons.eco), 0, reason: '无种子 → 无种子图标');
     expect(_iconCount(Icons.card_giftcard), 0, reason: '均已预先定奖 → 无礼包图标');
-    // 角标数值来自真实数据。
-    expect(find.text('+10'), findsOneWidget);
-    expect(find.text('+12'), findsOneWidget);
+    // 角标数值来自真实数据（阳光合计 10+12=22）。
+    expect(find.text('+22'), findsOneWidget);
     expect(find.text('×1'), findsOneWidget);
   });
 
@@ -383,11 +383,11 @@ void main() {
   });
 
   // ── ④ 窄屏不 overflow ────────────────────────────────────────────────────
-  testWidgets('窄屏 + 最坏 4 图标 → 不 overflow', (WidgetTester tester) async {
+  testWidgets('窄屏 + 多条目聚合 3 图标 → 不 overflow', (WidgetTester tester) async {
     final DateTime now = DateTime.now();
     final _FakeSunlightRepository ledger = _FakeSunlightRepository();
     final InMemoryBloomRewardRepository bloom = InMemoryBloomRewardRepository();
-    // 开花瞬间：阳光 + 碎片（2）；第二段：阳光 + 种子（2）→ 共 4 个图标。
+    // 开花瞬间：阳光 + 碎片；晨露：阳光 + 种子（C45 聚合 → 阳光 +19 / 碎片 / 种子）。
     await bloom.insertPendingBloomReward(_pending(
       id: 'pr_instant',
       dueAt: now.subtract(const Duration(hours: 1)),
@@ -403,7 +403,7 @@ void main() {
       speciesId: 'species_tomato',
     ));
 
-    // 窄屏（320 宽 3 列 → 单格 ~94px；4 图标 ×42 ≈ 168 → 需缩放防溢出）。
+    // 窄屏（320 宽 3 列 → 单格 ~94px；聚合后 3 图标 ×42 ≈ 126 → 仍需缩放防溢出）。
     await _pumpGarden(
       tester,
       plant: _bloomedPlant(now),
@@ -415,8 +415,8 @@ void main() {
     expect(await _pumpUntil(tester, () => _iconCount(Icons.wb_sunny) >= 1), isTrue);
     await tester.pump(const Duration(milliseconds: 400));
     expect(tester.takeException(), isNull, reason: '窄屏不得 overflow（FittedBox 缩放）');
-    // 4 个图标都在（缩放而非丢弃）。
-    expect(_iconCount(Icons.wb_sunny), 2);
+    // 聚合后 3 个图标（阳光合计 / 碎片 / 种子），缩放而非丢弃。
+    expect(_iconCount(Icons.wb_sunny), 1);
     expect(_iconCount(Icons.auto_awesome), 1);
     expect(_iconCount(Icons.eco), 1);
   });

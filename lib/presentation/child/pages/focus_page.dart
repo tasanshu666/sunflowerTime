@@ -653,7 +653,12 @@ class _FocusPageState extends ConsumerState<FocusPage>
       await WakelockPlus.disable();
     } catch (_) {}
     try {
-      await SystemChrome.setPreferredOrientations([]); // 复位方向
+      // C44：退场恢复**竖屏**（原 `[]` 是跟随系统旋转——全 App 已默认锁竖屏，
+      // 这里显式锁回竖屏，防止专注结束后留在横屏态）。
+      await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
       await SystemChrome.setEnabledSystemUIMode(
         SystemUiMode.manual,
         overlays: SystemUiOverlay.values,

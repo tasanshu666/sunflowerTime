@@ -18,6 +18,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -409,9 +410,37 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
       _onUsageStateChanged(next);
     });
 
+    // C44（玄参 2026-10-09 拍板沉浸式）：今日(0)/成长(1)/商店(3) 三个 tab 用
+    // 整页背景图（「上半场景+下半留白」设计）→ AppBar 透明 + body 延伸到 AppBar
+    // 底下，背景得以铺到状态栏顶。花园(2)自带整页草地、我的(4)纯色底，维持原样。
+    final bool immersive = _index == 0 || _index == 1 || _index == 3;
+
     return Scaffold(
+      extendBodyBehindAppBar: immersive,
       appBar: AppBar(
-        title: Text(_titles[_index]),
+        // C44e 二轮反馈（玄参 2026-10-09）：深棕字仍被亮背景吃掉 → 标题垫
+        // **半透白胶囊**，任何场景底上都清晰（成长/商店 tab 同款，风格统一）。
+        title: immersive
+            ? Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.78),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(_titles[_index]),
+              )
+            : Text(_titles[_index]),
+        // 沉浸式三连：透明底 + 无阴影 + 滚动也不浮起阴影（否则透明底上出现色带）。
+        backgroundColor: immersive ? Colors.transparent : null,
+        elevation: immersive ? 0 : null,
+        scrolledUnderElevation: immersive ? 0 : null,
+        // C44 验收反馈（玄参 2026-10-09）：沉浸式背景是亮色场景，默认前景色
+        // （白）的标题和右上家长图标「看不清」→ 换深暖棕，对比度足够且不抢戏。
+        foregroundColor: immersive ? const Color(0xFF6B4A2B) : null,
+        // 状态栏（时间/电量）同理：亮背景上白图标看不清 → 深色系统栏图标。
+        systemOverlayStyle:
+            immersive ? SystemUiOverlayStyle.dark : null,
         // 仅「花园」tab（index 2）在左上角展示阳光余额胶囊；其余 tab 外观完全不变
         // （不给它们留空 leading）。胶囊数据来自 sunlightBalanceProvider。
         // 112：容纳「☀ + 6 位数余额」胶囊（配合胶囊内 FittedBox 兜底任意位数）。
@@ -423,11 +452,26 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
               )
             : null,
         actions: <Widget>[
-          IconButton(
-            icon: const Icon(Icons.family_restroom),
-            tooltip: '家长天地',
-            onPressed: () => context.go('/parent'),
-          ),
+          // C44e 二轮反馈：家长入口图标同理垫白胶囊（沉浸式 tab），看不清问题
+          // 一并解决；非沉浸 tab 保持原样。
+          immersive
+              ? Container(
+                  margin: const EdgeInsets.only(right: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.78),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.family_restroom),
+                    tooltip: '家长天地',
+                    onPressed: () => context.go('/parent'),
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.family_restroom),
+                  tooltip: '家长天地',
+                  onPressed: () => context.go('/parent'),
+                ),
         ],
       ),
       body: IndexedStack(

@@ -25,7 +25,9 @@ import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
+import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/reward_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 
 /// 商店数据载荷：当前档位 + 模板列表 + 逐模板冷却态 + 各模板待核销笔数。
 class _StoreLoad {
@@ -134,13 +136,17 @@ class _StorePageState extends ConsumerState<StorePage> {
     );
 
     // 内嵌（商店 tab）时无 AppBar：把余额展示以内联 chip 形式移到 body 顶部，
-    // 避免「余额看不见」（玄参大人反馈过一次）。背景改暖奶油底（与养护面板一致）。
+    // 避免「余额看不见」（玄参大人反馈过一次）。C44：改整页背景 store02
+    //（玄参拍板先用 02 试用）+ 让出外壳透明 AppBar 高度（沉浸式，
+    // extendBodyBehindAppBar 下 body 顶到屏幕顶，需自行下推 kToolbarHeight）。
     if (widget.embedded) {
-      return ColoredBox(
-        color: const Color(0xFFFBF4E4),
+      return TabBackground(
+        asset: kStoreBgAsset,
+        fallbackColor: const Color(0xFFFBF4E4),
         child: SafeArea(
           child: Column(
             children: <Widget>[
+              const SizedBox(height: kToolbarHeight), // 外壳透明 AppBar 占位
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 child: Align(
@@ -291,7 +297,7 @@ class _StorePageState extends ConsumerState<StorePage> {
               style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: Colors.blueGrey,
+                color: Color(0xFF8A7A66), // C45：暖棕，与今日页标签色统一。
               ),
             ),
           ],

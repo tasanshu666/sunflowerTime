@@ -18,6 +18,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
+import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
@@ -55,34 +57,6 @@ const List<Color> _macaronFg = <Color>[
   Color(0xFF2E7D32),
   Color(0xFF1565C0),
 ];
-
-/// 橙色进度环 + 中央百分比（有限、静态绘制，不引入动画）。
-Widget _progressRing(double value) {
-  final int pct = (value.clamp(0.0, 1.0) * 100).round();
-  return SizedBox(
-    width: 56,
-    height: 56,
-    child: Stack(
-      alignment: Alignment.center,
-      children: <Widget>[
-        CircularProgressIndicator(
-          value: value.clamp(0.0, 1.0),
-          strokeWidth: 6,
-          backgroundColor: const Color(0xFFFFE0B2),
-          color: _kProgressOrange,
-        ),
-        Text(
-          '$pct%',
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: _kProgressOrange,
-          ),
-        ),
-      ],
-    ),
-  );
-}
 
 /// 胶囊状态块（可点 / 只读均可）：圆角胶囊 + 图标 + 文案，颜色由调用方按状态给。
 ///
@@ -255,16 +229,19 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 暖奶油底（与养护面板 / 商店一致，所有状态都铺底）。
+    // 暖奶油底 + 整页背景（C44：上半场景 + 下半留白，白卡浮在留白区上）。
+    // 图片失败回退纯色（TabBackground.fallbackColor），所有状态都铺底。
     if (_loading) {
-      return const ColoredBox(
-        color: _kCream,
+      return const TabBackground(
+        asset: kGrowthBgAsset,
+        fallbackColor: _kCream,
         child: Center(child: CircularProgressIndicator()),
       );
     }
     if (_error != null) {
-      return ColoredBox(
-        color: _kCream,
+      return TabBackground(
+        asset: kGrowthBgAsset,
+        fallbackColor: _kCream,
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -279,74 +256,108 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
     }
     final TodayTaskBoard board = _board!;
     if (board.items.isEmpty) {
-      return const ColoredBox(
-        color: _kCream,
+      return const TabBackground(
+        asset: kGrowthBgAsset,
+        fallbackColor: _kCream,
         child: Center(
           child: Text('今天没有成长项，去玩吧 🌻', style: TextStyle(fontSize: 16)),
         ),
       );
     }
 
-    return ColoredBox(
-      color: _kCream,
-      child: Column(
-        children: <Widget>[
-          _header(board),
-          Expanded(child: _taskList(board)),
-        ],
-      ),
+    return TabBackground(
+      asset: kGrowthBgAsset,
+      fallbackColor: _kCream,
+      // C46d（玄参 2026-10-09 四轮反馈）：取消悬浮胶囊（盖住插画且观感差），
+      // 进度条并入列表首行、落在奶油面板顶部（深棕字在面板上 100% 清晰，
+      // 不遮任何场景元素），随列表滚动。
+      child: _taskList(board),
     );
   }
 
-  /// 顶部「今日成长 x/y + 橙色进度环」头部：白卡 + 左侧进度环 + 右侧大号完成数。
+  /// 「今日成长 x/y」百分比进度条（C46d）：奶油面板顶部第一行，随列表滚动。
+  ///
+  /// 演进口径：悬浮场景区白字不显眼（C46c）→ 半透明胶囊盖插画被否（C46d）
+  /// → 定稿「面板顶部内嵌行」：无底色容器，深棕文字直接落在奶油面板上
+  ///（面板色取样 #FDF5DC），每周提示内联进标题行，整块更矮更轻。
   ///
   /// 完成度数据来自现成 [TodayTaskBoard]（doneCount/total 仅统计 isDaily 项），
-  /// **不新增任何领域查询**。文案沿用，未改写。
-  Widget _header(TodayTaskBoard board) {
-    final double ratio = board.total > 0 ? board.doneCount / board.total : 0.0;
+  /// **不新增任何领域查询**。
+  Widget _progressHeader(TodayTaskBoard board) {
+    final double ratio =
+        board.total > 0 ? (board.doneCount / board.total).clamp(0.0, 1.0) : 0.0;
+    final int pct = (ratio * 100).round();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 18,
-              offset: Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          children: <Widget>[
-            // 橙色进度环 + 中央百分比。
-            _progressRing(ratio),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  // 完成数用大号粗体强调。
-                  Text(
-                    '今日成长 ${board.doneCount}/${board.total}',
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700),
+      padding: const EdgeInsets.only(top: 4, bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: <Widget>[
+              const Text(
+                '今日成长',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF6B4A2B),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${board.doneCount}/${board.total}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF8A7A66),
+                ),
+              ),
+              // 每周提示内联到标题行（不再单独占一行）。
+              if (board.weeklyCount > 0) ...<Widget>[
+                const SizedBox(width: 8),
+                Text(
+                  '· 另有每周 ${board.weeklyCount} 项',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF8A7A66),
                   ),
-                  // 若不与每周成长项同屏，用一行小字补充说明，避免孩子误以为漏做。
-                  if (board.weeklyCount > 0) ...<Widget>[
-                    const SizedBox(height: 2),
-                    Text(
-                      '另有每周成长 ${board.weeklyCount} 项',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                  ],
-                ],
+                ),
+              ],
+              const Spacer(),
+              Text(
+                '$pct%',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: _kProgressOrange,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // 细进度条：淡暖轨道 + 暖橙填充（奶油底上对比清晰）。
+          Container(
+            height: 8,
+            decoration: BoxDecoration(
+              color: const Color(0x1F8A5A00),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: ratio,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _kProgressOrange,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -360,14 +371,21 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
   Widget _taskList(TodayTaskBoard board) {
     final List<TaskCheckInItem> items = board.items;
 
-    final List<Widget> children = <Widget>[];
+    // C46d：进度条为面板顶部第一行（见 _progressHeader）。列表从面板上缘
+    // 起——growth.webp 奶油面板上缘实测 ≈0.336 屏高（cover 缩放 @iPhone17），
+    // 取 0.34 留 3~10pt 余量防机型差异露出；深棕字直接落在面板上。
+    final double sceneGap = MediaQuery.sizeOf(context).height * 0.34;
+
+    final List<Widget> children = <Widget>[
+      _progressHeader(board),
+    ];
     int index = 0; // 跨分区递增，保证彩色图标块稳定轮换且不重复。
     for (final TaskCategory cat in kTaskCategoryOrder) {
       final List<TaskCheckInItem> group = items
           .where((TaskCheckInItem i) => i.task.category == cat)
           .toList(growable: false);
       if (group.isEmpty) continue; // 空分类整体不渲染（含标题）
-      if (children.isNotEmpty) children.add(const SizedBox(height: 16));
+      if (children.length > 1) children.add(const SizedBox(height: 16));
       children.add(_sectionHeader(cat.label, cat.icon));
       for (final TaskCheckInItem item in group) {
         children.add(const SizedBox(height: 10));
@@ -376,7 +394,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      padding: EdgeInsets.fromLTRB(16, sceneGap, 16, 16),
       children: children,
     );
   }
@@ -393,7 +411,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: Colors.blueGrey,
+                color: Color(0xFF8A7A66), // C45：暖棕，与今日页标签色统一。
               ),
             ),
           ],
@@ -426,13 +444,19 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        // C45 与今日页卡片语言统一：暖白渐变 + 淡金描边 + 柔和暖影。
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Colors.white, Color(0xFFFDF3DD)],
+        ),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x26E8A600)),
         boxShadow: const <BoxShadow>[
           BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 16,
-            offset: Offset(0, 5),
+            color: Color(0x1F8A5A00),
+            blurRadius: 10,
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -440,15 +464,27 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          // 左侧彩色圆角图标块（马卡龙色底 + 状态图标），与商店卡 56 对齐。
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: blockBg,
-              borderRadius: BorderRadius.circular(16),
+          // 左侧图标（C46d）：素材 v2 已紧裁（仅四角圆角透明、无大留边），
+          // 64px 满幅直出——可见卡底即 64px > 原 56px 色块，且无假边距；
+          // 加载失败回退马卡龙色块 + 状态图标（美术永不阻塞业务）。
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: Image.asset(
+              growthIconAssetFor(item.task),
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Center(
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: blockBg,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(statusIcon, color: blockFg, size: 28),
+                ),
+              ),
             ),
-            child: Icon(statusIcon, color: blockFg, size: 28),
           ),
           const SizedBox(width: 12),
           Expanded(

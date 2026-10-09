@@ -279,6 +279,10 @@ class BloomRewardDao extends DatabaseAccessor<AppDatabase>
       (update(pendingBloomRewards)..where((t) => t.id.equals(id)))
           .write(const PendingBloomRewardsCompanion(claimed: Value(true)));
 
+  /// 物理删除一条待发奖励（C45 历史重复行去重；幂等，删不存在 id 无副作用）。
+  Future<void> deletePendingById(String id) =>
+      (delete(pendingBloomRewards)..where((t) => t.id.equals(id))).go();
+
   /// 回写某条待发奖励的「奖励内容」（v12 掉落即定奖）。
   ///
   /// 用途：历史行（三列零值哨兵 `0/0/null` = 未预先定奖）在**首次结算**时退回「现场 roll」，

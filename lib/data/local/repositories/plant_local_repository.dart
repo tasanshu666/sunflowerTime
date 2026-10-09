@@ -99,6 +99,10 @@ class PlantLocalRepository implements PlantRepository, BloomRewardRepository {
       _db.bloomRewardDao.markClaimed(id);
 
   @override
+  Future<void> deletePendingBloomReward(String id) =>
+      _db.bloomRewardDao.deletePendingById(id);
+
+  @override
   Future<void> updatePendingRewardContent({
     required String id,
     required int rewardSunlight,

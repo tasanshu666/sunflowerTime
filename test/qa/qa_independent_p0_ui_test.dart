@@ -272,7 +272,7 @@ void main() {
               ),
             ],
             availableAssets: const <String>{}, // 冷启动：素材集合为空
-            onCollect: (PendingBloomReward _, RewardIconSpec __) {},
+            onCollect: (List<PendingBloomReward> _, RewardIconSpec __) {},
           ),
         ),
       ));

@@ -6,6 +6,7 @@ library main;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -68,6 +69,16 @@ Future<void> main() async {
       debugPrint('[memoir] 花园周快照写入失败：$e\n$st');
     }),
   );
+
+  // C44（玄参 2026-10-09）：全 App **默认锁竖屏**——除专注链路（专注页/护眼卡
+  // 临时切横屏，退场各自恢复竖屏）外，任何页面不随物理旋转。
+  // 各页面自己的锁是叠加态：专注页进场改横、退场改回竖；此处只是全局初值。
+  try {
+    await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  } catch (_) {} // 方向锁失败静默：体验优化，不阻塞启动。
 
   runApp(
     UncontrolledProviderScope(

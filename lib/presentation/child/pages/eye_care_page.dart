@@ -33,6 +33,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -108,6 +109,15 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
   @override
   void initState() {
     super.initState();
+    // C44（玄参 2026-10-09）：护眼卡**强制横屏**——无论从专注页（已是横屏）还是
+    // 结算页（竖屏）进入，都切到横屏；退场方向由调用方恢复（focus 保持横、
+    // settle 回竖，见两处 push 返回后的处理），本页不越权接管。
+    try {
+      unawaited(SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]));
+    } catch (_) {} // 方向锁失败静默：体验优化，不阻塞护眼流程。
     // 单段配音（initState 里 ref 仍可用；dispose 里才禁用 ref——本项目 Riverpod 铁律）。
     ref.read(audioServiceProvider).playSfx(AudioCue.eyeCare);
     // 1s tick：只刷新「还剩 N 秒」标签 + 兜底保险丝（播放器回调才是推进正源）。

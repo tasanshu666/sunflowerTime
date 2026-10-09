@@ -1321,6 +1321,35 @@ class PlantGrowthService {
     return result;
   }
 
+  /// 历史重复 pending 行去重（C45，玄参 2026-10-09 截图反馈「一株头顶堆 20+ 图标」）。
+  ///
+  /// 根因：B35 去重护栏（2026-10-08，同株同 dueAt 同 kind 只登记一次）只挡**新增**，
+  /// 护栏上线前调试催熟已写入的重复行仍在库里且全部「可收集」→ 头顶图标挤爆。
+  ///
+  /// 规则：未领取 pending 按 `plantId | dueAt | rewardKind` 分组，组内保留一条
+  /// （[pendingBloomRewardsDue] 的返回序，先到者），**其余物理删除**——重复行是
+  /// 同一槽位的重复登记，属于同一份奖励，删多余份不构成多发；已领取行不参与。
+  /// 幂等：无重复时零删除。花园页 `_reload` 时调用（与哨兵升级同节奏）。
+  Future<int> dedupePendingBloomRewards() async {
+    final List<PendingBloomReward> all =
+        await _bloomRewards.pendingBloomRewardsDue(DateTime(9999));
+    final Map<String, PendingBloomReward> keep = <String, PendingBloomReward>{};
+    final List<String> removeIds = <String>[];
+    for (final PendingBloomReward r in all) {
+      final String key =
+          '${r.plantId}|${r.dueAt.millisecondsSinceEpoch}|${r.rewardKind}';
+      if (keep.containsKey(key)) {
+        removeIds.add(r.id);
+      } else {
+        keep[key] = r;
+      }
+    }
+    for (final String id in removeIds) {
+      await _bloomRewards.deletePendingBloomReward(id);
+    }
+    return removeIds.length;
+  }
+
   /// 把「零值哨兵」待收集奖励（v12 之前登记的旧行，三列 0/0/null）按当前档位回写内容，
   /// 使其头顶图标直接显示明细（不再礼物盒）。仅对「仍可收集」（植物仍盛开）的哨兵行生效；
   /// 不可收集者由 [tickAll] 兜底自动结算负责。一次性历史数据升级，幂等（已定奖行跳过）。

@@ -43,6 +43,16 @@ import 'package:sunflower_time/domain/repositories/weekly_pool_repository.dart';
 import 'package:sunflower_time/presentation/child/pages/child_profile_page.dart';
 import 'package:sunflower_time/presentation/child/pages/child_shell_page.dart';
 
+/// 有界 pump（C44e：今日 tab 悬浮阳光气泡为无限漂动动画，pumpAndSettle
+/// 永不 settle —— 与花园木牌呼吸动画同一纪律，shell 测试一律用有界 pump）。
+Future<void> _pumpFrames(WidgetTester tester,
+    {int frames = 12, int stepMs = 100}) async {
+  for (int i = 0; i < frames; i++) {
+    await tester.pump(Duration(milliseconds: stepMs));
+  }
+}
+
+
 // ── 假仓储（与 nav_structure_test 同款最小实现，返回安全空值）──────────────
 
 const AppSettings _settings = AppSettings(
@@ -255,7 +265,7 @@ void main() {
         child: const MaterialApp(home: ChildShellPage()),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpFrames(tester);
   }
 
   group('ChildShellPage · App 总时长到顶拦截', () {
@@ -268,7 +278,7 @@ void main() {
 
       for (final String label in <String>['花园', '商店', '我的']) {
         await tester.tap(_navTab(label));
-        await tester.pumpAndSettle();
+        await _pumpFrames(tester);
 
         expect(_stackIndex(tester), 0, reason: '到顶时点「$label」不应切换 tab');
         expect(
@@ -279,16 +289,16 @@ void main() {
 
         // 关掉提示框，避免模态遮挡后续点击。
         await tester.tap(find.text('知道啦'));
-        await tester.pumpAndSettle();
+        await _pumpFrames(tester);
       }
 
       // 今日 / 成长 永远可用（专注入口绝不挡）。
       await tester.tap(_navTab('成长'));
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
       expect(_stackIndex(tester), 1, reason: '成长 tab 应正常切换');
 
       await tester.tap(_navTab('今日'));
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
       expect(_stackIndex(tester), 0, reason: '今日 tab 应正常切换');
     });
 
@@ -299,7 +309,7 @@ void main() {
       expect(_stackIndex(tester), 0);
 
       await tester.tap(_navTab('商店'));
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       expect(_stackIndex(tester), 3);
       expect(find.textContaining('今天逛 App 的时间用完啦'), findsNothing);
@@ -316,7 +326,7 @@ void main() {
       await pumpShell(tester, prefs);
 
       await tester.tap(_navTab('商店'));
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       expect(_stackIndex(tester), 3,
           reason: '未来日期 != 今天 → 当日按 0 秒计 → 娱乐 tab 不应被拦');
@@ -335,7 +345,7 @@ void main() {
 
       // 注：勿用「花园」做断言 tab —— 花园木牌有无限呼吸动画，pumpAndSettle 会超时。
       await tester.tap(_navTab('商店'));
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       expect(_stackIndex(tester), 3,
           reason: '调试默认绕过 → 到顶也不拦，娱乐 tab 正常切换');
@@ -376,11 +386,11 @@ void main() {
           child: const MaterialApp(home: ChildShellPage()),
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       // 进入娱乐 tab → startCounting（ticker 进入运行态）。
       await tester.tap(_navTab('商店'));
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       // 卸载外壳（容器刻意不释放）——模拟 push 进 /entry 独立路由、shell 被 dispose。
       await tester.pumpWidget(
@@ -405,7 +415,7 @@ void main() {
           child: const MaterialApp(home: Scaffold(body: ChildProfilePage())),
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       // debug 构建下入口可见（玄参 2026-09-24 要求加回）。
       // 2026-10-09 新增「累计护眼」tile 后，调试区被顶出 800×600 默认
@@ -418,7 +428,7 @@ void main() {
       expect(find.text('DEBUG 加1000阳光'), findsOneWidget);
 
       await tester.tap(find.text('DEBUG 加1000阳光'));
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       expect(ledger.lastGross, 1000.0,
           reason: '调试入口必须真的追加一条 +1000 账本流水（并自增经济修订号）');

@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
+import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
 class RewardCard extends StatelessWidget {
@@ -45,16 +46,22 @@ class RewardCard extends StatelessWidget {
     // 每行条目左侧彩色圆角图标块（马卡龙色底 + emoji 占位图标），按模板稳定轮换。
     final Color iconBg = macaronColorById(template.id).bg;
 
-    // 暖色儿童风：纯白大圆角卡 + 极柔和阴影；左图标 + 中段文案 + 右价格/兑换。
+    // 暖色儿童风（C45 与今日页卡片语言统一）：暖白渐变 + 淡金描边 + 柔和暖影；
+    // 左图标 + 中段文案 + 右价格/兑换。
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Colors.white, Color(0xFFFDF3DD)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x26E8A600)),
         boxShadow: const <BoxShadow>[
           BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 18,
-            offset: Offset(0, 6),
+            color: Color(0x1F8A5A00),
+            blurRadius: 10,
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -62,7 +69,8 @@ class RewardCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          // 左侧彩色圆角图标块（马卡龙色底 + emoji 占位图标），与成长卡 56 对齐。
+          // 左侧图标块（C44）：优先美术图标（按奖励名关键词映射，见 growth_icons），
+          // 加载失败回退马卡龙色块 + emoji 占位（与成长卡 56 对齐）。
           Container(
             width: 56,
             height: 56,
@@ -70,9 +78,17 @@ class RewardCard extends StatelessWidget {
               color: iconBg,
               borderRadius: BorderRadius.circular(18),
             ),
-            child: Center(
-              child: Text(template.contentCategory.icon,
-                  style: const TextStyle(fontSize: 32)),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              // 素材自带圆角卡底（512² 方形），cover 满铺圆角块。
+              child: Image.asset(
+                rewardIconAssetFor(template),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Center(
+                  child: Text(template.contentCategory.icon,
+                      style: const TextStyle(fontSize: 32)),
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 12),

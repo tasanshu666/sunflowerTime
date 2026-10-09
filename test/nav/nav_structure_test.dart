@@ -45,6 +45,16 @@ import 'package:sunflower_time/presentation/child/pages/child_shell_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_home_page.dart';
 import 'package:sunflower_time/shared/theme.dart';
 
+/// 有界 pump（C44e：今日 tab 悬浮阳光气泡为无限漂动动画，pumpAndSettle
+/// 永不 settle —— 与花园木牌呼吸动画同一纪律，shell 测试一律用有界 pump）。
+Future<void> _pumpFrames(WidgetTester tester,
+    {int frames = 12, int stepMs = 100}) async {
+  for (int i = 0; i < frames; i++) {
+    await tester.pump(Duration(milliseconds: stepMs));
+  }
+}
+
+
 // ───────────────────────────────────────────────────────────────────────────
 // 假仓储 / 假设置
 // ───────────────────────────────────────────────────────────────────────────
@@ -268,7 +278,7 @@ void main() {
           child: const MaterialApp(home: ChildShellPage()),
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       // 底部导航恰好 5 项 + 严格顺序。
       final NavigationBar nav =
@@ -283,7 +293,8 @@ void main() {
       expect(find.byType(IndexedStack), findsWidgets);
 
       // AppBar 标题随当前 tab（初始 = 今日）且 actions 有「家长天地」入口。
-      expect((tester.widget<AppBar>(find.byType(AppBar)).title as Text).data, '今日');
+      // C44e：沉浸式 tab 标题包了白胶囊 Container，改按「AppBar 内有该文本」断言。
+      expect(find.descendant(of: find.byType(AppBar), matching: find.text('今日')), findsOneWidget);
       expect(find.byTooltip('家长天地'), findsOneWidget);
 
       // 孩子端首页不暴露「四档反馈预览」。
@@ -300,18 +311,18 @@ void main() {
           child: const MaterialApp(home: ChildShellPage()),
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       final Finder stackFinder = find.byType(IndexedStack);
       expect(tester.widget<IndexedStack>(stackFinder.first).index, 0);
 
       // 点「商店」（第 4 项，index 3）。
       await tester.tap(find.text('商店'));
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       expect(tester.widget<IndexedStack>(stackFinder.first).index, 3);
       // 标题跟随当前 tab（AppBar 标题 = '商店'）。
-      expect((tester.widget<AppBar>(find.byType(AppBar)).title as Text).data, '商店');
+      expect(find.descendant(of: find.byType(AppBar), matching: find.text('商店')), findsOneWidget);
     });
 
     testWidgets('B4/B5 承重：家长「已核销」通知进入孩子端即弹窗（证明逻辑已迁移）',
@@ -337,7 +348,7 @@ void main() {
           child: const MaterialApp(home: ChildShellPage()),
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       expect(find.text('🎉 家长已确认你的兑换'), findsOneWidget);
     });
@@ -365,7 +376,7 @@ void main() {
           child: const MaterialApp(home: ChildShellPage()),
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       expect(find.text('🚫 兑换未被通过'), findsOneWidget);
     });
@@ -382,7 +393,7 @@ void main() {
           child: const MaterialApp(home: ParentHomePage()),
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       final NavigationBar nav =
           tester.widget<NavigationBar>(find.byType(NavigationBar));
@@ -407,7 +418,7 @@ void main() {
           child: const MaterialApp(home: ParentHomePage()),
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       // PopScope 拦截系统返回键（canPop=false）。
       final PopScope popScope = tester.widget<PopScope>(

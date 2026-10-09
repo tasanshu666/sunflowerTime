@@ -97,6 +97,17 @@ flutter:
     # 奖励物美术资源（2026-09-27 奖励物图标化）：sunlight/fragment/seed[_物种id].png，
     # 命名见 `assets/rewards/README.txt`；缺失时头顶奖励图标回退内置 Icons。
     - assets/rewards/
+    # Tab 整页背景（2026-10-09 玄参交付，C44）：今日/成长/商店沉浸式底图，
+    # 「上半场景 + 下半留白」设计，BoxFit.cover topCenter 铺满。
+    # ⚠️ store01/store03 已入库备选但**不登记**（玄参拍板先用 store02 试用；
+    #    换背景 = 改 kStoreBgAsset 常量 + 在此登记对应文件）。
+    - assets/backgrounds/today.webp
+    - assets/backgrounds/growth.webp
+    - assets/backgrounds/store02.webp
+    # 成长项/奖励 卡片图标（2026-10-09 玄参交付，C44）：512×512 透明 WebP，
+    # 按名称关键词映射（单点收口见 growth_icons.dart），缺失/失败回退马卡龙色块+图标。
+    - assets/ui/growth/
+    - assets/ui/store/
 
 # ── 原生资产（native assets / hooks）配置 ────────────────────────────
 # sqlite3 包默认会从 GitHub Releases 下载预编译库（libsqlite3.arm.android.so 等）。

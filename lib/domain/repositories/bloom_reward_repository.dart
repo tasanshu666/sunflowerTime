@@ -37,6 +37,13 @@ abstract class BloomRewardRepository {
   /// 标记某条待发奖励为已发放（幂等：已发放再标记无副作用）。
   Future<void> markPendingBloomRewardClaimed(String id);
 
+  /// 物理删除一条未发放的待收集奖励（C45 历史重复行去重用）。
+  ///
+  /// 背景：B35 去重护栏（2026-10-08）只挡**新增**重复登记，修复前已入库的重复行
+  /// 仍在库里（玄参截图实证：同一株头顶堆 20+ 图标）。去重只删未领取重复行，
+  /// 不涉及账本；幂等：删除不存在的 id 无副作用。
+  Future<void> deletePendingBloomReward(String id);
+
   /// 回写某条待发奖励的「奖励内容」（v12 掉落即定奖）。
   ///
   /// 用途：历史行（三列零值哨兵 `0/0/null` = 未预先定奖）在**首次结算**时退回「现场 roll」，

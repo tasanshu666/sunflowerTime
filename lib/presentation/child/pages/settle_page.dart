@@ -201,6 +201,9 @@ class _SettlePageState extends ConsumerState<SettlePage>
       ),
     );
     if (!mounted) return;
+    // C44：护眼卡进场时锁了横屏（含本页是竖屏进场的 sessionEnd 路径）→
+    // 退场后本页重新锁回竖屏，防止横屏态残留到结算页。
+    unawaited(_lockPortrait());
     setState(() {
       _eyeCareDone = true;
       _eyeCareReward =

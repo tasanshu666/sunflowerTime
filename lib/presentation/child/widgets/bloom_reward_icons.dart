@@ -126,6 +126,85 @@ List<RewardIconSpec> rewardIconSpecsFor(
   return specs;
 }
 
+/// 聚合展示组（C45，玄参 2026-10-09）：一个图标 + 它覆盖的 pending 条目。
+///
+/// 背景：晨露玩法每花期每天 08:00 登记一条 pending，加上开花瞬间奖励，一株
+/// 最多 5~6 条 × 每条 1~3 列 = 最多 ~18 个图标一排，FittedBox 缩到没法看
+/// （玄参截图「密密麻麻排不下」）。按**列合并**后每株最多 3~4 个图标。
+@immutable
+class AggregatedRewardIcon {
+  const AggregatedRewardIcon({required this.spec, required this.rewards});
+
+  /// 展示规格（角标 = 覆盖条目的合计）。
+  final RewardIconSpec spec;
+
+  /// 本图标覆盖的待收集条目（点击 → 全部收下）。
+  final List<PendingBloomReward> rewards;
+}
+
+/// 把一株植物的全部待收集条目**按列合并**为最多 3~4 个图标：
+///
+/// · 阳光：所有条目 `rewardSunlight` 求和 > 0 → 一个阳光图标，角标 `+合计`；
+/// · 碎片：求和 > 0 → 一个碎片图标，角标 `×合计`；
+/// · 种子：按**首次出现顺序**去重 → 每个物种一个种子图标（无角标）；
+/// · 历史哨兵行（三列全零）：汇总为一个礼包图标（覆盖全部哨兵行）。
+///
+/// 点击任一图标 = 收下其覆盖的**全部** pending（见 [BloomRewardIconsBar.onCollect]）。
+List<AggregatedRewardIcon> aggregateRewardIcons(
+  List<PendingBloomReward> rewards, {
+  bool Function(String speciesId)? isPremiumOf,
+}) {
+  final List<AggregatedRewardIcon> groups = <AggregatedRewardIcon>[];
+  if (rewards.isEmpty) return groups;
+
+  final int sunlight = rewards.fold(0, (int a, PendingBloomReward r) => a + r.rewardSunlight);
+  final int fragments = rewards.fold(0, (int a, PendingBloomReward r) => a + r.rewardFragments);
+  final List<PendingBloomReward> sentinelRows = rewards
+      .where((PendingBloomReward r) => !r.hasPreAssignedReward)
+      .toList();
+
+  if (sunlight > 0) {
+    groups.add(AggregatedRewardIcon(
+      spec: RewardIconSpec(kind: RewardIconKind.sunlight, badge: '+$sunlight'),
+      rewards: rewards
+          .where((PendingBloomReward r) => r.rewardSunlight > 0)
+          .toList(),
+    ));
+  }
+  if (fragments > 0) {
+    groups.add(AggregatedRewardIcon(
+      spec: RewardIconSpec(kind: RewardIconKind.fragment, badge: '×$fragments'),
+      rewards: rewards
+          .where((PendingBloomReward r) => r.rewardFragments > 0)
+          .toList(),
+    ));
+  }
+  // 种子按首次出现顺序去重（同物种合并成一个图标；不同物种各占一个）。
+  final List<String> seedIds = <String>[];
+  for (final PendingBloomReward r in rewards) {
+    final String? id = r.rewardSpeciesId;
+    if (id != null && !seedIds.contains(id)) seedIds.add(id);
+  }
+  for (final String id in seedIds) {
+    groups.add(AggregatedRewardIcon(
+      spec: RewardIconSpec(
+        kind: RewardIconKind.seed,
+        seedSpeciesId: id,
+        seedIsPremium: isPremiumOf?.call(id),
+      ),
+      rewards:
+          rewards.where((PendingBloomReward r) => r.rewardSpeciesId == id).toList(),
+    ));
+  }
+  if (sentinelRows.isNotEmpty) {
+    groups.add(AggregatedRewardIcon(
+      spec: const RewardIconSpec(kind: RewardIconKind.gift),
+      rewards: sentinelRows,
+    ));
+  }
+  return groups;
+}
+
 /// 内置 `Icons` 回退（资源缺失时）。
 IconData rewardFallbackIcon(RewardIconKind kind) {
   switch (kind) {
@@ -187,8 +266,10 @@ String? resolveRewardAsset(RewardIconSpec spec, Set<String> availableAssets) {
 
 /// 花朵「头顶奖励图标」一排（横向、居中）。
 ///
-/// 每条 [rewards] 派生 1..N 个图标；**点击任一图标 = 收下其所属 pending 的全部奖励**
-/// （按条收集，见 [onCollect] 回调）。整体宽度超出可用宽度时用 [FittedBox] 缩放（窄屏不溢出）。
+/// **C45 聚合口径（玄参 2026-10-09）**：全部 pending 先按列合并（见
+/// [aggregateRewardIcons]）——阳光合计一图标、碎片合计一图标、种子按物种去重、
+/// 哨兵行合并为礼包；**点击任一图标 = 收下它覆盖的全部 pending**（原「按条收集」
+/// 在晨露多槽位场景会把图标排挤爆，见截图反馈）。
 ///
 /// [bob] = true 时整排做**上下轻漂浮**（±3px、约 1.4s 往返，玄参 2026-10-05「悬浮
 /// 状态更有效果」）。⚠️ 无限动画 → 仅限**已用有界 pump 的调用方**开启（花园页木牌
@@ -203,16 +284,17 @@ class BloomRewardIconsBar extends StatelessWidget {
     this.bob = false,
   });
 
-  /// 当前可收集的待收集奖励（一条 pending = 一「条」，点击收下整条）。
+  /// 当前可收集的待收集奖励（全部条目，聚合后展示）。
   final List<PendingBloomReward> rewards;
 
   /// 可用美术资源集合（来自 `rewardAssetsProvider`；空集 → 全回退内置 Icons）。
   final Set<String> availableAssets;
 
-  /// 收集回调：点击某图标 → 收下其**所属 pending 整条**奖励，并带上**被点的那个
-  /// 图标规格**（2026-10-06 玄参「点哪个图标播哪个收集音效」——调用方按
-  /// `spec.kind` 选 cue；点击任一图标仍收下整条）。
-  final void Function(PendingBloomReward reward, RewardIconSpec spec) onCollect;
+  /// 收集回调：点击某图标 → 收下其覆盖的**全部 pending**（按列聚合，见
+  /// [aggregateRewardIcons]），并带上被点的图标规格（供音效分型）。
+  final void Function(
+          List<PendingBloomReward> rewards, RewardIconSpec spec)
+      onCollect;
 
   /// 物种档位查询（speciesId → 是否精英）；种子图标据此选分档图，不给则走通用图。
   final bool Function(String speciesId)? isPremiumOf;
@@ -223,17 +305,15 @@ class BloomRewardIconsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<Widget> icons = <Widget>[];
-    for (final PendingBloomReward reward in rewards) {
-      for (final RewardIconSpec spec
-          in rewardIconSpecsFor(reward, isPremiumOf: isPremiumOf)) {
-        icons.add(BloomRewardIcon(
-          spec: spec,
-          assetPath: resolveRewardAsset(spec, availableAssets),
-          // 点击任一图标 → 收下「该条 pending」全部奖励（按条收集，非按图标）；
-          // 回调带上被点 spec（收集音效按被点图标类型选 cue）。
-          onTap: () => onCollect(reward, spec),
-        ));
-      }
+    for (final AggregatedRewardIcon group
+        in aggregateRewardIcons(rewards, isPremiumOf: isPremiumOf)) {
+      icons.add(BloomRewardIcon(
+        spec: group.spec,
+        assetPath: resolveRewardAsset(group.spec, availableAssets),
+        // 点击任一图标 → 收下该图标覆盖的**全部** pending（聚合口径 C45）；
+        // 回调带上被点 spec（收集音效按被点图标类型选 cue）。
+        onTap: () => onCollect(group.rewards, group.spec),
+      ));
     }
     final Widget row = FittedBox(
       fit: BoxFit.scaleDown,

@@ -1,8 +1,9 @@
 /// 独立复验探针 #6（qa-verify3）：**头顶奖励图标**（`bloom_reward_icons.dart`）。
 ///
-/// 覆盖任务 #31 第 5 条：
-///  · 图标数量与类型（阳光 / 碎片 / 种子 / 礼包）与库中三列**严格对应**；
-///  · 点击任一图标 → 收下该条 pending 的**全部**奖励（按条收集）→ 该条全部图标消失；
+/// 覆盖任务 #31 第 5 条（**C45 聚合口径修订 2026-10-09**：多条 pending 按列合并
+/// 展示，点击 = 收下覆盖的全部条目）：
+///  · 图标数量与类型（阳光 / 碎片 / 种子 / 礼包）与库中三列**严格对应**（聚合后按列合并）；
+///  · 点击任一图标 → 收下其覆盖的全部 pending → 对应图标消失；
 ///  · 点击经**真实服务**入账 → 账本**恰入账一次**（重复收集同一 id 不重复入账）；
 ///  · 窄屏不 overflow。
 ///
@@ -104,13 +105,13 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════
-  // B · 渲染：图标数量/类型与库中三列一致（回退内置 Icons）
+  // B · 渲染：图标数量/类型与库中三列一致（回退内置 Icons；C45 聚合口径）
   // ══════════════════════════════════════════════════════════════════════
-  testWidgets('B · 多条目图标数量/类型严格对应三列', (WidgetTester tester) async {
+  testWidgets('B · 多条目按列聚合：阳光/碎片/种子/礼包各一图标', (WidgetTester tester) async {
     final List<PendingBloomReward> rewards = <PendingBloomReward>[
-      _r('a', sunlight: 10, fragments: 1), // 2 图标：阳光 + 碎片
-      _r('b', seed: 'species_tomato'), // 1 图标：种子
-      _r('c'), // 1 图标：礼包
+      _r('a', sunlight: 10, fragments: 1), // → 阳光 +10 / 碎片 ×1
+      _r('b', seed: 'species_tomato'), // → 种子
+      _r('c'), // → 礼包（哨兵）
     ];
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -118,7 +119,7 @@ void main() {
           child: BloomRewardIconsBar(
             rewards: rewards,
             availableAssets: const <String>{}, // 空集 → 全回退内置 Icons
-            onCollect: (PendingBloomReward _, RewardIconSpec __) {},
+            onCollect: (List<PendingBloomReward> _, RewardIconSpec __) {},
           ),
         ),
       ),
@@ -126,7 +127,7 @@ void main() {
     await _settle(tester);
 
     expect(find.byType(BloomRewardIcon), findsNWidgets(4),
-        reason: '2（a）+ 1（b）+ 1（c）= 4');
+        reason: '聚合后：阳光 + 碎片 + 种子 + 礼包 = 4');
     expect(find.byIcon(Icons.wb_sunny), findsOneWidget, reason: '阳光图标');
     expect(find.byIcon(Icons.auto_awesome), findsOneWidget, reason: '碎片图标');
     expect(find.byIcon(Icons.eco), findsOneWidget, reason: '种子图标');
@@ -136,8 +137,34 @@ void main() {
     expect(find.text('×1'), findsOneWidget);
   });
 
+  testWidgets('B2 · 聚合合计：多条阳光合并为一个图标 + 总额角标（C45 核心）',
+      (WidgetTester tester) async {
+    final List<PendingBloomReward> rewards = <PendingBloomReward>[
+      _r('a', sunlight: 10),
+      _r('b', sunlight: 5),
+      _r('c', fragments: 2),
+    ];
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: BloomRewardIconsBar(
+            rewards: rewards,
+            availableAssets: const <String>{},
+            onCollect: (List<PendingBloomReward> _, RewardIconSpec __) {},
+          ),
+        ),
+      ),
+    ));
+    await _settle(tester);
+
+    expect(find.byType(BloomRewardIcon), findsNWidgets(2),
+        reason: '两条阳光合并 + 碎片一图标 = 2（原口径会是 4 个图标挤一排）');
+    expect(find.text('+15'), findsOneWidget, reason: '阳光合计 10+5');
+    expect(find.text('×2'), findsOneWidget);
+  });
+
   // ══════════════════════════════════════════════════════════════════════
-  // C · 点击按条回收：点任一图标 → 该条全部图标消失
+  // C · 点击聚合回收：点任一图标 → 其覆盖的全部 pending 图标消失
   // ══════════════════════════════════════════════════════════════════════
   testWidgets('C · 点击阳光图标 → 该条（阳光+碎片）两图标一并消失，其它条不受影响',
       (WidgetTester tester) async {
@@ -146,7 +173,7 @@ void main() {
         body: Center(
           child: _Host(
             initial: <PendingBloomReward>[
-              _r('a', sunlight: 10, fragments: 1), // 该条 2 图标
+              _r('a', sunlight: 10, fragments: 1), // → 阳光 + 碎片（同一聚合覆盖）
               _r('b'), // 礼包 1 图标
             ],
           ),
@@ -157,7 +184,7 @@ void main() {
 
     expect(find.byType(BloomRewardIcon), findsNWidgets(3));
 
-    // 点「阳光」图标（属于条 a，含阳光 + 碎片）。
+    // 点「阳光」图标（覆盖条 a）。
     await tester.tap(find.byIcon(Icons.wb_sunny));
     await _settle(tester);
 
@@ -169,16 +196,21 @@ void main() {
     expect(find.byType(BloomRewardIcon), findsNWidgets(1));
   });
 
-  testWidgets('C2 · 点击碎片图标同样收下整条（回调收到该条 pending）',
+  testWidgets('C2 · 点击碎片图标 → 回调收到其覆盖的全部 pending（含跨条合并）',
       (WidgetTester tester) async {
-    PendingBloomReward? got;
+    List<PendingBloomReward> got = <PendingBloomReward>[];
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: Center(
           child: BloomRewardIconsBar(
-            rewards: <PendingBloomReward>[_r('a', sunlight: 10, fragments: 2)],
+            rewards: <PendingBloomReward>[
+              _r('a', fragments: 2),
+              _r('b', fragments: 3),
+              _r('c', sunlight: 7),
+            ],
             availableAssets: const <String>{},
-            onCollect: (PendingBloomReward r, RewardIconSpec _) => got = r,
+            onCollect: (List<PendingBloomReward> r, RewardIconSpec _) =>
+                got = r,
           ),
         ),
       ),
@@ -187,8 +219,8 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.auto_awesome));
     await _settle(tester);
-    expect(got, isNotNull);
-    expect(got!.id, 'a', reason: '点任一图标 → 收下该条全部奖励');
+    expect(got.map((PendingBloomReward r) => r.id).toSet(), <String>{'a', 'b'},
+        reason: '碎片图标覆盖 a+b 两条（合计 ×5）；阳光条 c 不在内');
   });
 
   // ══════════════════════════════════════════════════════════════════════
@@ -251,9 +283,11 @@ void main() {
         body: Center(
           child: _Host(
             initial: seeded,
-            onCollect: (PendingBloomReward r, RewardIconSpec _) async {
-              pendingCollect = svc.collectBloomReward(r.id, now);
-              await pendingCollect;
+            onCollect: (List<PendingBloomReward> r, RewardIconSpec _) async {
+              for (final PendingBloomReward x in r) {
+                pendingCollect = svc.collectBloomReward(x.id, now);
+                await pendingCollect;
+              }
             },
           ),
         ),
@@ -308,7 +342,7 @@ void main() {
             child: BloomRewardIconsBar(
               rewards: rewards,
               availableAssets: const <String>{},
-              onCollect: (PendingBloomReward _, RewardIconSpec __) {},
+              onCollect: (List<PendingBloomReward> _, RewardIconSpec __) {},
             ),
           ),
         ),
@@ -316,18 +350,20 @@ void main() {
     ));
     await _settle(tester);
 
-    // 12 个图标（每条 3 个）仍在；无布局溢出异常。
-    expect(find.byType(BloomRewardIcon), findsNWidgets(12));
+    // 4 条晨露奖励聚合后只剩 3 个图标（阳光合计 +46 / 碎片 ×4 / 种子 ×1），
+    // 无布局溢出异常。
+    expect(find.byType(BloomRewardIcon), findsNWidgets(3));
     expect(tester.takeException(), isNull, reason: '窄屏不得 overflow');
   });
 }
 
-/// 有状态宿主：收集后移除该条 pending 并重建（模拟「点击任一图标 → 该条消失」）。
+/// 有状态宿主：收集后移除覆盖的 pending 并重建（模拟「点击任一图标 → 全部消失」）。
 class _Host extends StatefulWidget {
   const _Host({required this.initial, this.onCollect});
 
   final List<PendingBloomReward> initial;
-  final Future<void> Function(PendingBloomReward r, RewardIconSpec _)? onCollect;
+  final Future<void> Function(List<PendingBloomReward> r, RewardIconSpec _)?
+      onCollect;
 
   @override
   State<_Host> createState() => _HostState();
@@ -341,13 +377,16 @@ class _HostState extends State<_Host> {
     return BloomRewardIconsBar(
       rewards: _rewards,
       availableAssets: const <String>{},
-      onCollect: (PendingBloomReward r, RewardIconSpec _) async {
-        await widget.onCollect
-            ?.call(r, const RewardIconSpec(kind: RewardIconKind.gift));
+      onCollect: (List<PendingBloomReward> covered, RewardIconSpec _) async {
+        await widget.onCollect?.call(
+            covered, const RewardIconSpec(kind: RewardIconKind.gift));
         if (mounted) {
           setState(() {
-            _rewards =
-                _rewards.where((PendingBloomReward x) => x.id != r.id).toList();
+            final Set<String> ids =
+                covered.map((PendingBloomReward x) => x.id).toSet();
+            _rewards = _rewards
+                .where((PendingBloomReward x) => !ids.contains(x.id))
+                .toList();
           });
         }
       },

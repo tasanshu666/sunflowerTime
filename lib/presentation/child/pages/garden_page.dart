@@ -205,7 +205,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
 
   /// 当前「可收集」的待收集奖励（`plantId → 待收集奖励列表`，变更 A/B）。
   /// 到期后在该花盆**上方**掉落「头顶奖励图标」（玄参 2026-09-27 图标化），点击收集
-  /// （见 [_collectReward]）。
+  /// （见 [_collectRewards]）。
   ///
   /// 变更 B 后同一株可能**同时**有两条：开花瞬间（`due = bloomedAt`，即刻可收集）+ 第二段
   /// （`due = bloomedAt + 48h`），故为列表；列表按 `dueAt` 升序（瞬间的更早）。
@@ -313,6 +313,9 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       // 任务 A（玄参 2026-09-28）：刷新时把「v12 之前登记的零值哨兵旧 pending 行」
       // 按当前档位回写为明细，使旧数据头顶图标直接显示阳光/碎片/种子（不再礼物盒）。
       await svc.materializeLegacyBloomRewards(now);
+      // C45（玄参 2026-10-09「一株头顶堆 20+ 图标」）：物理删除 B35 护栏上线前的
+      // 历史重复登记行（同株同 dueAt 同 kind 只留一条），幂等无重复零删除。
+      await svc.dedupePendingBloomRewards();
       final AppSettings settings =
           await ref.read(settingsRepositoryProvider).getSettings();
       _tier = settings.ageTier;
@@ -324,8 +327,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
             bgmOn: settings.bgmOn,
           );
       _species = await ref.read(plantRepositoryProvider).species();
-      // 变更 A/B：读取当前「可收集」的待收集奖励（开花瞬间 + 第二段）→ 花盆上方头顶图标，
-      // 手动点击收集；同一株最多 2 条。
+      // 变更 A/B：读取当前「可收集」的待收集奖励（开花瞬间 + 每日晨露）→ 花盆上方
+      // 头顶图标（C45 聚合展示），点击聚合收集；同株最多 ~6 条。
       _collectibles = await svc.collectibleBloomRewards(now);
       // 头顶图标美术资源集合（缺失回退内置 Icons）。
       _rewardAssets = await ref.read(rewardAssetsProvider.future);
@@ -418,15 +421,30 @@ class _GardenPageState extends ConsumerState<GardenPage> {
 
   /// 点击头顶奖励图标（玄参 2026-10-05 动效口径）：先捕获本条图标规格并**就地起
   /// 「向上飘动 + 淡出」幽灵**（约 0.9s，纯视觉、不挡数据），随后**立即**走既有
-  /// 收集流程（[_collectReward]：写库 → 刷新 → 分因提示）。
+  /// 收集流程（[_collectRewards]：写库 → 刷新 → 合并提示）。
   ///
   /// 2026-10-06 玄参加收集音效（**统一一个**，不按图标分类——阳光 / 碎片 / 种子
   /// 共用 `collect_reward.mp3`，素材待交付缺失时静默跳过）；点击仍收下整条 pending。
-  void _onCollectIconTap(int potIndex, PendingBloomReward reward, RewardIconSpec spec) {
-    if (_busy) return; // 收集流程自带 _busy 闸门；动效期防重复点。
+  /// 头顶奖励图标点击（C45 聚合口径）：点击任一聚合图标 = 收下它覆盖的**全部**
+  /// pending 条目（晨露多槽位下同列多归并，见 [aggregateRewardIcons]）。
+  ///
+  /// [allInPlant] = 该株当前全部可收集条目（幽灵动效展示合并后的完整奖励清单用）。
+  void _onCollectIconsTap(
+    int potIndex,
+    List<PendingBloomReward> covered,
+    RewardIconSpec spec,
+    List<PendingBloomReward> allInPlant,
+  ) {
+    if (_busy || covered.isEmpty) return; // 收集流程自带 _busy 闸门；动效期防重复点。
     AudioService.instance.playSfx(AudioCue.collectReward);
-    _showCollectGhost(potIndex, rewardIconSpecsFor(reward, isPremiumOf: _isPremiumSpecies));
-    unawaited(_collectReward(reward));
+    // 幽灵展示该株**全部聚合后**的图标规格（点一下全飞走，与收集范围一致）。
+    _showCollectGhost(
+      potIndex,
+      aggregateRewardIcons(allInPlant, isPremiumOf: _isPremiumSpecies)
+          .map((AggregatedRewardIcon g) => g.spec)
+          .toList(),
+    );
+    unawaited(_collectRewards(covered));
   }
 
   /// 在指定花盆格位置起「收集幽灵」根 Overlay 浮层（见 [_collectGhostEntry] 注释）。
@@ -565,33 +583,42 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     _collectHintEntry = null;
   }
 
-  /// 手动收集一条待收集奖励（变更 A/B + v12，花盆上方头顶图标点击）：调服务发放并刷新，
-  /// 成功后按**实际发放结果**提示（数值从 [BloomRewardOutcome] 拼、不写死）。
+  /// 批量收集（C45 聚合口径）：一次 _busy 闸门内逐条结算，**合并为一条提示**；
+  /// 逐条失败互不阻塞（如重复收集抛错只跳过该条），最后一次刷新 + 修订号自增。
   ///
-  /// 点击任一图标 = 收下该条 pending 的**全部**奖励（按条收集）；文案区分「开花瞬间」
-  /// （`+10 ☀ 阳光` / `+10 ☀ 阳光 · +1 植物碎片` / `+10 ☀ 阳光 · 掉落「番茄」种子`）与
-  /// 「第二段」（前缀「盛开的礼物：」）。
-  Future<void> _collectReward(PendingBloomReward reward) async {
-    if (_busy) return;
+  /// 成功后按**实际发放结果合计**提示（数值从 [BloomRewardOutcome] 拼、不写死）；
+  /// 文案按阶段前缀（全部为开花瞬间 → 裸正文，否则前缀「盛开的礼物：」），多段
+  /// 正文用「 · 」拼接（如 `+10 ☀ 阳光 · +1 植物碎片 · +5 ☀ 阳光`）。
+  Future<void> _collectRewards(List<PendingBloomReward> rewards) async {
+    if (_busy || rewards.isEmpty) return;
     setState(() => _busy = true);
-    BloomRewardOutcome? outcome;
+    final List<BloomRewardOutcome> outcomes = <BloomRewardOutcome>[];
     try {
-      outcome = await ref
-          .read(plantGrowthServiceProvider)
-          .collectBloomReward(reward.id, DateTime.now());
-      ref.read(economyRevisionProvider.notifier).state++;
-      await _reload(silent: true);
-    } on PlantOperationException catch (e) {
-      _snack(e.message);
+      for (final PendingBloomReward reward in rewards) {
+        try {
+          final BloomRewardOutcome outcome = await ref
+              .read(plantGrowthServiceProvider)
+              .collectBloomReward(reward.id, DateTime.now());
+          outcomes.add(outcome);
+        } on PlantOperationException {
+          // 单条失败（如已收过）跳过继续，不中断整批。
+        }
+      }
+      if (outcomes.isNotEmpty) {
+        ref.read(economyRevisionProvider.notifier).state++;
+        await _reload(silent: true);
+      }
     } catch (e) {
       _snack('操作失败：$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-    if (outcome != null && mounted) {
-      final String body = _outcomeParts(outcome);
-      // 玄参 2026-10-08：成功提示改为**屏幕居中卡片、1s 后淡出**（原贴底 SnackBar）。
-      _showCollectHint(outcome.isInstantPhase ? body : '盛开的礼物：$body');
+    if (outcomes.isNotEmpty && mounted) {
+      // 合并提示：多段正文用「 + 」拼接（如「+10 ☀ 阳光 + +1 植物碎片」读起来怪，
+      // 用「 · 」分隔）；阶段前缀按首条判定（instant / 晨露）。
+      final String body = outcomes.map(_outcomeParts).join(' · ');
+      final bool allInstant = outcomes.every((BloomRewardOutcome o) => o.isInstantPhase);
+      _showCollectHint(allInstant ? body : '盛开的礼物：$body');
     }
   }
 
@@ -1441,13 +1468,15 @@ class _GardenPageState extends ConsumerState<GardenPage> {
               // 一排」上移感太强）、整排**上下轻漂浮**（bob，±3px，有界 pump 纪律见
               // 组件注释）；`Positioned.fill` 叠加**不占布局高度**，其余区域命中穿透
               // 到花盆（只有图标 42×42 是 opaque 热区）。
+              // C45：组件内部按列聚合（最多 3~4 图标），点击聚合收集。
               Positioned.fill(
                 child: Center(
                   child: BloomRewardIconsBar(
                     rewards: rewards,
                     availableAssets: _rewardAssets,
-                    onCollect: (PendingBloomReward r, RewardIconSpec spec) =>
-                        _onCollectIconTap(i, r, spec),
+                    onCollect: (List<PendingBloomReward> covered,
+                            RewardIconSpec spec) =>
+                        _onCollectIconsTap(i, covered, spec, rewards),
                     isPremiumOf: _isPremiumSpecies,
                     bob: true,
                   ),

@@ -56,7 +56,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -269,6 +269,49 @@ class AppDatabase extends _$AppDatabase {
           //       `test/m3/migration_v17_to_v18_test.dart`）。
           if (from < 18) {
             await m.createTable(eyeCareLogs);
+          }
+
+          // ⑲ v19（旧「48h 第二段」遗留行清理，F104，玄参 2026-10-09 实证）：
+          //    模拟器库实锤——向日葵头顶聚合出 **+165 阳光 / ×2 碎片**。根因两层：
+          //    ① 调试催熟 23 次开花（10/5~10/7，旧口径代码期）各登记一条
+          //      「48h 第二段」行（due = 开花时刻 + 48h，时间点为 21:36/22:32 等
+          //      非整点），全部未领取；② F78「同轮」判定只看 `dueAt >= bloomedAt`，
+          //      这些行的到期时间恰好都晚于最后一次开花 → 被误判为本轮可收集，
+          //      头顶图标聚合出一笔 165 的横财。
+          //    新口径（2026-10-07 每日 8 点修订）晨露行恒为**本地 08:00:00 整**，
+          //    与遗留行（非整点）可精确区分：本迁移删除「**盛开中植物的**未领取
+          //    normal/premium 行且 due_at 时间非 08:00:00」——即恰好是被 F78 误判
+          //    为本轮可收集、正堆在头顶图标里的那批（**直接删除、不发放**——调试
+          //    产生的横财不应入账）。非盛开植物的遗留行不删（无误判问题，且保留
+          //    其 F78 自动结算语义）；claimed 历史账与阳光账本一律不动；instant 行
+          //    （due=开花时刻、正常口径）不受影响。旧库迁移测试的历史 pending 行
+          //    均挂在 growing 植物上 → 不受影响。
+          //    · 幂等：清理后库中不再有「盛开植物的非整点未领取行」，重复执行无副作用。
+          //    · 防复发：新口径 + B35 槽位指纹去重下，单株同屏可收集 ≤ 瞬间 1 条
+          //      + 花期内 3 个 8 点槽位 ≈ 24 阳光，不会再堆出大额聚合。
+          //    ⚠️ 版本变更（18 → 19），必须配迁移测试（见
+          //       `test/m3/migration_v18_to_v19_test.dart`）。
+          if (from < 19) {
+            final List<QueryRow> legacyRows = await customSelect(
+              'SELECT r.id, r.due_at FROM pending_bloom_rewards r '
+              'JOIN plants p ON p.id = r.plant_id '
+              "WHERE r.claimed = 0 AND r.reward_kind != 'instant' "
+              'AND p.status = 1 AND p.bloomed_at IS NOT NULL '
+              'AND r.due_at >= p.bloomed_at;',
+            ).get();
+            for (final QueryRow row in legacyRows) {
+              final DateTime due = DateTime.fromMillisecondsSinceEpoch(
+                (row.data['due_at'] as int) * 1000,
+              );
+              final bool isMorningSlot =
+                  due.hour == 8 && due.minute == 0 && due.second == 0;
+              if (!isMorningSlot) {
+                await customStatement(
+                  'DELETE FROM pending_bloom_rewards WHERE id = ?;',
+                  <Object>[row.data['id']],
+                );
+              }
+            }
           }
         },
       );

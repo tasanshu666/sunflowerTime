@@ -23,6 +23,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -273,7 +274,7 @@ class _FloatingSunBubble extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              '${balance.toInt()}',
+              '${sunlightDisplayInt(balance)}',
               style:
                   const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),

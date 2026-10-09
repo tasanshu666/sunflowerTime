@@ -3,8 +3,8 @@
 /// ## 覆盖范围（对应 v3 四项改动）
 ///  1. 背景图 `BoxFit.cover` 映射 + 木牌屏幕矩形（纯函数，纯 dart test）；
 ///  2. 花盆区底界落在背景菜地上沿之上；
-///  3. 网格**锁 2 行**（可视高度来自生产纯函数 [gardenGridVisibleHeight]）+
-///     **真实 `GardenPage`** 用例断言第 3 行在视口外、滚动条可见、`maxScrollExtent > 0`；
+///  3. 网格**锁 3 行**（可视高度来自生产纯函数 [gardenGridVisibleHeight]）+
+///     **真实 `GardenPage`** 用例断言第 4 行在视口外、滚动条可见、`maxScrollExtent > 0`；
 ///  4. 加号圆**对齐花盆视觉中心**（圆心 y、外径均按 pot.png 像素 bbox 独立推导）；
 ///  5. 三类格子底部文案底边对齐 + 五态字色 WCAG 对比度 ≥ 4.5:1；
 ///  6. 木牌热区可点 / 呼吸动画可关停 / 打开「玩法说明」。
@@ -12,7 +12,7 @@
 /// ## 防自指纪律（QA 复核重点）
 ///  · 木牌屏幕矩形、加号圆心/外径的**期望值一律独立推导**（源图像素 / bbox 像素），
 ///    **不得引用被测常量** —— 否则改常量测试不变红，等于没有断言；
-///  · 「锁 2 行」必须由**真实页面**覆盖（不能只在测试里复刻算式）。
+///  · 「锁 3 行」必须由**真实页面**覆盖（不能只在测试里复刻算式）。
 ///
 /// ## 其它
 ///  · 呼吸动画是无限循环 → 涉及 `GardenPage` / `GardenSignHotspot(animate:true)` 处
@@ -345,9 +345,11 @@ void main() {
     });
   });
 
-  // ── 改动 1：网格可视高度纯函数（「锁 2 行」的唯一真源） ─────────────────────
-  group('gardenGridVisibleHeight · 锁 2 行（纯函数）', () {
-    test('高屏：等于「两行高度」', () {
+  // ── 改动 1：网格可视高度纯函数（「锁 3 行」的唯一真源） ─────────────────────
+  // C47e（2026-10-09）：行数由 2 放宽到 3（一屏可见 3×3=9 格）——本 group 是
+  // 「改行数 → 测试必红」的锚点，改回 2 行必在这里失败。
+  group('gardenGridVisibleHeight · 锁 3 行（纯函数）', () {
+    test('高屏：等于「三行高度」', () {
       final double h = gardenGridVisibleHeight(
         box: const Size(360, 780),
         gridInnerWidth: 336, // 360 - 12*2
@@ -358,11 +360,11 @@ void main() {
       );
       const double cellWidth = (336 - 12) / 3;
       const double rowHeight = cellWidth / GardenGrid.cellAspectRatio;
-      const double twoRows = rowHeight * 2 + 6;
-      expect(h, closeTo(twoRows, 0.01));
-      // 自检：若被改成 3 行，此值必不同（防「改行数不变红」）。
       const double threeRows = rowHeight * 3 + 6 * 2;
-      expect(h, isNot(closeTo(threeRows, 0.5)));
+      expect(h, closeTo(threeRows, 0.01));
+      // 自检：若被改回 2 行，此值必不同（防「改行数不变红」）。
+      const double twoRows = rowHeight * 2 + 6;
+      expect(h, isNot(closeTo(twoRows, 0.5)));
     });
 
     test('矮屏：受「花盆区底界 - 顶部 - bottomInset」钳制', () {
@@ -379,14 +381,16 @@ void main() {
     });
 
     test('统一使用 spacing=6、列数=3（与 GardenGrid 对齐）', () {
+      // 用 400×880：三行高度（574.96）仍小于该屏可用高度（≈616.9），
+      // 才能走到「几何公式」分支而不是被 available 钳制。
       final double h = gardenGridVisibleHeight(
-        box: const Size(360, 780),
+        box: const Size(400, 880),
         gridInnerWidth: (360 - 44), // 旧测试 harness 宽，仅验证几何一致
         firstRowTop: 0,
         cellAspectRatio: 0.54,
       );
       const double cellWidth = (316 - 12) / 3;
-      expect(h, closeTo(cellWidth / 0.54 * 2 + 6, 0.01));
+      expect(h, closeTo(cellWidth / 0.54 * 3 + 6 * 2, 0.01));
     });
   });
 
@@ -447,9 +451,11 @@ void main() {
     });
   });
 
-  // ── 改动 1：真实 GardenPage 锁 2 行 + 区域内滚动（防「测试复刻算式」） ──────
-  group('真实 GardenPage · 锁 2 行 + 区域内滚动', () {
-    testWidgets('容量 12（12 格，4 行）：第 3 行在视口外 + 滚动条可见 + 可滚',
+  // ── 改动 1：真实 GardenPage 锁 3 行 + 区域内滚动（防「测试复刻算式」） ──────
+  // C47e（2026-10-09）：行数 2 → 3，故本组锚点由「第 3 行在视口外」上移到
+  // 「第 4 行在视口外」——改回 2 行时第 4 行会落进视口，本组必红。
+  group('真实 GardenPage · 锁 3 行 + 区域内滚动', () {
+    testWidgets('容量 12（12 格，4 行）：第 4 行在视口外 + 滚动条可见 + 可滚',
         (WidgetTester tester) async {
       _setScreen(tester, 360, 780);
       await tester.pumpWidget(_realGarden(capacity: 12));
@@ -464,15 +470,15 @@ void main() {
       expect(find.byType(EmptyPot), findsNWidgets(12));
 
       final Rect viewport = tester.getRect(find.byType(SingleChildScrollView));
-      // 前两行（索引 0/3/5）在视口内。
-      for (final int i in <int>[0, 3, 5]) {
+      // 前三行（索引 0/3/5/6/8）在视口内。
+      for (final int i in <int>[0, 3, 5, 6, 8]) {
         final Rect cell = tester.getRect(find.byType(EmptyPot).at(i));
         expect(cell.top, greaterThanOrEqualTo(viewport.top - 0.5));
         expect(cell.bottom, lessThanOrEqualTo(viewport.bottom + 0.5));
       }
-      // 第 3 行（索引 6）顶边在视口下沿之外 —— 证明确实锁 2 行。
-      final Rect row3 = tester.getRect(find.byType(EmptyPot).at(6));
-      expect(row3.top, greaterThanOrEqualTo(viewport.bottom - 0.5));
+      // 第 4 行（索引 9）顶边在视口下沿之外 —— 证明确实锁 3 行。
+      final Rect row4 = tester.getRect(find.byType(EmptyPot).at(9));
+      expect(row4.top, greaterThanOrEqualTo(viewport.bottom - 0.5));
 
       // 滚动条可见 + 确实可滚。
       expect(
@@ -483,6 +489,7 @@ void main() {
     });
 
     testWidgets('容量 4（5 格，2 行内）：不滚动 + 无滚动条', (WidgetTester tester) async {
+      // C47e：视口放宽到 3 行后，5 格（2 行）内容更不可能溢出 —— 本用例语义不变。
       _setScreen(tester, 360, 780);
       await tester.pumpWidget(_realGarden(capacity: 4));
       // 条件收敛：等「无滚动条 且 maxScrollExtent 归零」成立即停。
@@ -506,13 +513,13 @@ void main() {
     //
     // 背景：把 `garden_page._buildGardenBody` 里传给纯函数的 `firstRowTop`
     // （应为 `gardenPotAreaBottom(...) - c.maxHeight`）**改成 0** 时，原 360×780 用例
-    // 仍全绿 —— 因为 360×780 下 `rowsHeight(343.5，2026-10-09 cellAspect 0.64) < available(525.27)`，两行高度本身就
-    // 小于可用高度，`firstRowTop` 被 `min(...)` 掩盖、传错也不影响结果。
+    // 仍全绿 —— 因为 360×780 下 `rowsHeight(三行 518.25，2026-10-09 cellAspect 0.64) < available(525.27)`，行高
+    // 本身就小于可用高度，`firstRowTop` 被 `min(...)` 掩盖、传错也不影响结果。
     //
     // 只有**屏高更短**、使 `available < rowsHeight` 时该参数才真正起作用。
-    // 选 360×380：可用高度 ≈ 325.27 < 两行 343.5（差 18px，余量仍正），
+    // 选 360×380：可用高度 ≈ 325.27 < 三行 518.25，
     // 而 firstRowTop 传错会带来 +12px 偏差 → 可被 settle 后的像素级断言捕获。
-    testWidgets('矮屏 360×380（可摆区比两行更矮）：可视高被「底界−顶部−呼吸间距」钳制，钉住 firstRowTop',
+    testWidgets('矮屏 360×380（可摆区比三行更矮）：可视高被「底界−顶部−呼吸间距」钳制，钉住 firstRowTop',
         (WidgetTester tester) async {
       const double w = 360, h = 380;
       _setScreen(tester, w, h);
@@ -535,16 +542,16 @@ void main() {
       final double expectedViewport =
           gardenPotAreaBottom(box) - pageTopPad - bottomInset;
 
-      // 独立推导「两行高度」（格宽来自 3 列 + 间距 6 + 页面水平 padding 12×2）：
+      // 独立推导「三行高度」（格宽来自 3 列 + 间距 6 + 页面水平 padding 12×2）：
       const double gridInnerWidth = w - pageTopPad * 2; // 336
       const double cellWidth = (gridInnerWidth - 6 * 2) / 3; // 108
-      final double twoRowsHeight =
-          cellWidth / GardenGrid.cellAspectRatio * 2 + 6; // 343.5
+      final double threeRowsHeight =
+          cellWidth / GardenGrid.cellAspectRatio * 3 + 6 * 2; // 518.25
 
-      // 场景自检：必须「两行高度 > 可用高度」，否则 firstRowTop 依旧被 min() 掩盖，
+      // 场景自检：必须「三行高度 > 可用高度」，否则 firstRowTop 依旧被 min() 掩盖，
       // 这条用例就退化回 QA N2 的无效覆盖 —— 显式断言挡住这种「假有效」。
-      expect(twoRowsHeight, greaterThan(expectedViewport),
-          reason: '所选矮屏必须让两行高度 > 可用高度，测试才有意义');
+      expect(threeRowsHeight, greaterThan(expectedViewport),
+          reason: '所选矮屏必须让三行高度 > 可用高度，测试才有意义');
 
       final double viewportHeight =
           tester.getRect(find.byType(SingleChildScrollView)).height;

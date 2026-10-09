@@ -180,7 +180,7 @@ void main() {
   group('迁移 v13->v14：花园干扰物杂草 / 害虫三列（C26）', () {
     test('schemaVersion 必须为最新 14（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(13);
-      expect(database.schemaVersion, 18);
+      expect(database.schemaVersion, 19);
     });
 
     test('三列补出来且历史行为 NULL（= 无杂草 / 无害虫 / 当日未 roll）', () async {
@@ -238,13 +238,13 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 18);
+      expect(first.schemaVersion, 19);
       await first.close();
 
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 18);
+      expect(second.schemaVersion, 19);
       expect(await _count(second, 'plants'), 1);
       final Map<String, Object?> row = await _weedPestRow(second);
       expect(row['weed_at'], equals(null));

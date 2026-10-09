@@ -19,6 +19,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
@@ -28,6 +29,16 @@ import 'package:sunflower_time/domain/services/redemption_orchestration_service.
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/reward_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
+
+/// 商店 tab 列表内容起点（占屏高比例）——C47d 实测标定值。
+///
+/// 背景商店图（assets/images/backgrounds/store02.webp）中货架板底缘实测 ≈40.5% 屏高。
+/// 取 0.41 后：分区头文字落在 ≈42.6%、首卡顶 ≈44.6%，与货架留 ≈18pt 呼吸（玄参
+/// 2026-10-09 反馈「第一张卡片离货架还是有些远」，由上一版 0.45 收紧到 0.41）。
+///
+/// 同一数值同时充当**列表裁剪上沿**：滚动时卡片在面板上沿被 [ClipRect] 裁掉，
+/// 不再覆盖上方背景的遮阳棚 / 货架插画。
+const double kStoreListTopRatio = 0.41;
 
 /// 商店数据载荷：当前档位 + 模板列表 + 逐模板冷却态 + 各模板待核销笔数。
 class _StoreLoad {
@@ -120,14 +131,9 @@ class StorePage extends ConsumerStatefulWidget {
 class _StorePageState extends ConsumerState<StorePage> {
   @override
   Widget build(BuildContext context) {
-    final AsyncValue<double> balanceAsync = ref.watch(_balanceProvider);
+    // 余额与待核销总额已在 [StoreBalancePill] 内部自取（AppBar 位置展示），
+    // 本处只需取商店数据载荷渲染列表。
     final AsyncValue<_StoreLoad> loadAsync = ref.watch(_storeLoadProvider);
-    // 待核销阳光总额（pending + queued，均未扣账本），用于右上角灰色小字。
-    final int pendingTotal = loadAsync.maybeWhen(
-      data: (load) =>
-          load.pending.fold(0, (int s, RedemptionRequest r) => s + r.cost),
-      orElse: () => 0,
-    );
 
     final Widget body = loadAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -135,31 +141,15 @@ class _StorePageState extends ConsumerState<StorePage> {
       data: (load) => _buildBody(load),
     );
 
-    // 内嵌（商店 tab）时无 AppBar：把余额展示以内联 chip 形式移到 body 顶部，
-    // 避免「余额看不见」（玄参大人反馈过一次）。C44：改整页背景 store02
-    //（玄参拍板先用 02 试用）+ 让出外壳透明 AppBar 高度（沉浸式，
-    // extendBodyBehindAppBar 下 body 顶到屏幕顶，需自行下推 kToolbarHeight）。
+    // 内嵌（商店 tab）时无 AppBar：整页铺背景，「商店」标题与**余额胶囊**
+    // 由外壳 AppBar 渲染（余额见 [StoreBalancePill]，挂 leading 保证与标题同行）。
+    // C47c（玄参 2026-10-09）：body 内不再自排余额，列表起点按屏高比例恒定，
+    // 背景商店全景（遮阳棚 + 货架）完整露出、不被卡片压住。
     if (widget.embedded) {
       return TabBackground(
         asset: kStoreBgAsset,
         fallbackColor: const Color(0xFFFBF4E4),
-        child: SafeArea(
-          child: Column(
-            children: <Widget>[
-              const SizedBox(height: kToolbarHeight), // 外壳透明 AppBar 占位
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: _BalanceChip(
-                    child: _balanceInline(balanceAsync, pendingTotal),
-                  ),
-                ),
-              ),
-              Expanded(child: body),
-            ],
-          ),
-        ),
+        child: SafeArea(child: body),
       );
     }
 
@@ -173,60 +163,16 @@ class _StorePageState extends ConsumerState<StorePage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
-        actions: <Widget>[
+        actions: const <Widget>[
           Padding(
-            padding: const EdgeInsets.only(right: 16),
+            padding: EdgeInsets.only(right: 16),
             child: Center(
-              child: _balanceInline(balanceAsync, pendingTotal),
+              child: StoreBalancePill(chip: false),
             ),
           ),
         ],
       ),
       body: body,
-    );
-  }
-
-  /// 余额展示（金色可用余额 + 灰色待核销）。AppBar（独立页）与内嵌 chip 复用。
-  Widget _balanceInline(AsyncValue<double> balanceAsync, int pendingTotal) {
-    return balanceAsync.when(
-      data: (double b) {
-        // 金色 = 可用余额（账本余额 − 已兑换未扣的阳光）。
-        // 注意：pending / queued 按 §7.4 不变式 **不扣账本/不扣池**，
-        // 此处仅在展示口径上做减法，绝不真去扣账本或扣池（否则违反项目不变式）。
-        final int available = (b - pendingTotal).round();
-        final int golden = available < 0 ? 0 : available;
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: <Widget>[
-            Text(
-              '☀ $golden',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.brown.shade700,
-              ),
-            ),
-            if (pendingTotal > 0) ...<Widget>[
-              const SizedBox(width: 6),
-              Text(
-                '待核销 $pendingTotal',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-            ],
-          ],
-        );
-      },
-      loading: () => const SizedBox(
-        width: 16,
-        height: 16,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
-      error: (_, __) => const SizedBox.shrink(),
     );
   }
 
@@ -282,7 +228,39 @@ class _StorePageState extends ConsumerState<StorePage> {
       }
     }
 
-    return ListView(padding: const EdgeInsets.all(16), children: children);
+    // 独立路由页（有 AppBar）不需要顶部留白，普通列表即可。
+    if (!widget.embedded) {
+      return ListView(padding: const EdgeInsets.all(16), children: children);
+    }
+
+    // C47d（玄参 2026-10-09）两处收敛：
+    //  ① 起点由 45% 上移到 41% 屏高（见 [kStoreListTopRatio]）——「第一张卡片离
+    //     货架还是有些远」，收紧后分区头 ≈42.6%、首卡顶 ≈44.6%，紧贴货架下沿；
+    //  ② 列表整体套 [ClipRect]，**裁剪上沿 = 列表起点**：手指拖动时卡片在面板
+    //     上沿被裁掉，不会压到背景的遮阳棚 / 货架插画。
+    //
+    // 关键：用「屏高比例 − 已消费的安全区顶部」而非固定值——实测 iOS 模拟器
+    // SafeArea 顶部 ≈118pt（双倍状态栏），直接写 0.41×H 会被安全区再叠加一次
+    // → 内容掉到 ~55% 屏高（上一版就是这个毛病）。这样写任何设备都是 41%。
+    final double safeTop = MediaQuery.paddingOf(context).top;
+    final double listTop =
+        (MediaQuery.sizeOf(context).height * kStoreListTopRatio - safeTop)
+            .clamp(0.0, double.infinity);
+    return Column(
+      children: <Widget>[
+        // 顶部留白：露出背景商店全景（遮阳棚 + 货架），高度随屏高比例恒定。
+        SizedBox(height: listTop),
+        // 裁剪区：滚动中的卡片在面板上沿被裁，不覆盖背景插画。
+        Expanded(
+          child: ClipRect(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              children: children,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   /// 商店分区标题（左侧占位图标 emoji + 内容分类名）。
@@ -446,20 +424,87 @@ class _StorePageState extends ConsumerState<StorePage> {
   }
 }
 
-/// 内嵌模式下的余额 chip（无 AppBar 时展示余额，避免「余额看不见」）。
-class _BalanceChip extends StatelessWidget {
-  final Widget child;
-  const _BalanceChip({required this.child});
+/// 商店余额胶囊（C47c，玄参 2026-10-09）：**与外壳「商店」标题同一行**的左上角余额。
+///
+/// 内嵌 tab 时由 `ChildShellPage` 作为 AppBar `leading` 渲染（与「花园」tab 的
+/// [SunlightPill] 同款做法——那是唯一能保证「与标题严格同一水平线」的挂法：
+/// body 内自算偏移会被 Scaffold/SafeArea 的 padding 差异带偏，实测差 ≈40pt）；
+/// 独立路由页（无外壳 AppBar）则在 AppBar `actions` 里以裸内容形态展示。
+///
+/// 展示口径（沿用原 `_balanceInline`，不改语义）：
+///  · 金色数字 = 可用余额（账本余额 − 已兑换未核销的阳光，仅展示口径做减法，
+///    **绝不真扣账本/扣池**，见 §7.4 不变式）；
+///  · pendingTotal > 0 时附灰色小字「待核销 N」。
+class StoreBalancePill extends ConsumerWidget {
+  const StoreBalancePill({super.key, this.chip = true});
+
+  /// true = 垫白色半透明胶囊（沉浸式 AppBar 上与标题/家长按钮同语言）；
+  /// false = 裸内容（独立路由页 AppBar actions 直接摆放）。
+  final bool chip;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF6DC),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: child,
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<double> balanceAsync = ref.watch(_balanceProvider);
+    final int pendingTotal = ref.watch(_storeLoadProvider).maybeWhen(
+          data: (load) =>
+              load.pending.fold(0, (int s, RedemptionRequest r) => s + r.cost),
+          orElse: () => 0,
+        );
+
+    final Widget content = balanceAsync.when(
+      data: (double b) {
+        // F105：取整口径统一为*向下*（见 [sunlightDisplayInt]）——此前本处用
+        // `.round()`，与花园/今日/我的三处的 `.toInt()` 差 1
+        //（余额 389.913 → 商店 390 / 他处 389，玄参 2026-10-09 发现）。
+        final int golden = sunlightDisplayInt(b - pendingTotal);
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: <Widget>[
+            Text(
+              '☀ $golden',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: chip ? const Color(0xFFD98F00) : Colors.brown.shade700,
+              ),
+            ),
+            if (pendingTotal > 0) ...<Widget>[
+              const SizedBox(width: 6),
+              Text(
+                '待核销 $pendingTotal',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: chip ? const Color(0xFF9A8A72) : Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+      loading: () => const SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+      error: (_, __) => const Text(
+        '— ☀',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+      ),
+    );
+
+    if (!chip) return content;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      // FittedBox(scaleDown)：AppBar leading 宽度有限，余额位数多时不溢出换行。
+      child: FittedBox(fit: BoxFit.scaleDown, child: content),
+    );
+  }
 }
 
 /// 庆祝弹窗装饰星星的位置与文案描述（供 [_VerifiedCelebration] 错峰淡入使用）。

@@ -27,6 +27,16 @@ import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 /// 暖奶油底（与养护面板 / 商店一致，形成分层暖色风格）。
 const Color _kCream = Color(0xFFFBF4E4);
 
+/// 成长 tab 列表内容起点（占屏高比例）——C46d 实测标定值。
+///
+/// growth.webp 奶油面板上缘实测 ≈0.336 屏高（cover 缩放 @iPhone17），取 0.34
+/// 留 3~10pt 余量防机型差异露出；深棕字直接落在面板上。
+///
+/// C47e（玄参 2026-10-09）：本值同时充当**列表裁剪上沿**——卡片向上推时在面板
+/// 上缘被 [ClipRect] 裁掉，不覆盖上方成长场景（向日葵 / 书桌插画）。与商店页
+/// `kStoreListTopRatio` 同款做法。
+const double kGrowthListTopRatio = 0.34;
+
 /// 完成进度环的橙色。
 const Color _kProgressOrange = Color(0xFFFF8A3D);
 
@@ -374,7 +384,12 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
     // C46d：进度条为面板顶部第一行（见 _progressHeader）。列表从面板上缘
     // 起——growth.webp 奶油面板上缘实测 ≈0.336 屏高（cover 缩放 @iPhone17），
     // 取 0.34 留 3~10pt 余量防机型差异露出；深棕字直接落在面板上。
-    final double sceneGap = MediaQuery.sizeOf(context).height * 0.34;
+    //
+    // C47e（玄参 2026-10-09）：列表整体套 [ClipRect]，**裁剪上沿 = 列表起点**——
+    // 手指拖动时卡片在面板上沿被裁掉，不会压到上方向日葵 / 书桌场景
+    //（与商店页 kStoreListTopRatio 同款处理）。
+    final double sceneGap =
+        MediaQuery.sizeOf(context).height * kGrowthListTopRatio;
 
     final List<Widget> children = <Widget>[
       _progressHeader(board),
@@ -393,9 +408,20 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
       }
     }
 
-    return ListView(
-      padding: EdgeInsets.fromLTRB(16, sceneGap, 16, 16),
-      children: children,
+    return Column(
+      children: <Widget>[
+        // 顶部留白：露出成长场景（向日葵 + 书桌），高度随屏高比例恒定。
+        SizedBox(height: sceneGap),
+        // 裁剪区：滚动中的卡片在面板上沿被裁，不覆盖背景插画。
+        Expanded(
+          child: ClipRect(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              children: children,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

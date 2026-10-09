@@ -1527,7 +1527,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     return cells;
   }
 
-  /// 正常态花盆区：**锁 2 行高度 + 溢出时区域内纵向滚动**。
+  /// 正常态花盆区：**锁 3 行高度 + 溢出时区域内纵向滚动**（C47e：2 行 → 3 行，
+  /// 一屏可见 3×3 = 9 格，填满草地空白；行数仍由纯函数统一决定）。
   ///
   /// 可视高度的**唯一真源**是纯函数 [gardenGridVisibleHeight]（页面不再自己内联算行高/行数，
   /// 「改行数 → 测试必红」）。网格区顶部取自 `LayoutBuilder` 的剩余高度，底界取自背景图映射
@@ -1563,7 +1564,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
                 const SizedBox(height: 10),
               ],
               // Flexible（loose）：网格区占据「网格顶部 → 底界」的剩余高度；用 LayoutBuilder
-              // 量出该剩余高度 → 还原网格区顶部 y → 交给纯函数算「锁 2 行 + 不越菜地上沿」。
+              // 量出该剩余高度 → 还原网格区顶部 y → 交给纯函数算「锁 3 行 + 不越菜地上沿」。
               Flexible(
                 child: LayoutBuilder(
                   builder: (BuildContext context, BoxConstraints c) {

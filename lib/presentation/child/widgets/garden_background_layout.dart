@@ -77,15 +77,20 @@ double gardenPotAreaBottom(Size box) {
   return cover.top + kGardenPotAreaBottomFraction * cover.height;
 }
 
-/// 花盆网格的**可视高度**（容器坐标像素）——v3「锁死两行」的**唯一真源**。
+/// 花盆网格的**可视高度**（容器坐标像素）——「锁死三行」的**唯一真源**。
 ///
 /// 页面只调用本函数、不再自己内联算行高/行数，从而「改行数 → 测试必红」
 /// （QA 缺陷 1：原实现把算式复刻在测试里，改生产代码测试不变红）。
 ///
-/// 规则：`可视高度 = min(两行高度, 花盆区底界 - 网格区顶部 - bottomInset)`，负值钳到 0：
-///  · 两行高度 = 行高 × [visibleRows] + 行间距 × ([visibleRows] - 1)；
+/// 规则：`可视高度 = min([visibleRows] 行高度, 花盆区底界 - 网格区顶部 - bottomInset)`，负值钳到 0：
+///  · N 行高度 = 行高 × [visibleRows] + 行间距 × ([visibleRows] - 1)；
 ///  · 行高 = 格宽 / [cellAspectRatio]，格宽 = (gridInnerWidth - 2 × [spacing]) / 3；
 ///  · 底界 = [gardenPotAreaBottom]（背景菜地上沿之上），再退 [bottomInset] 作呼吸间距。
+///
+/// C47e（玄参 2026-10-09）：`visibleRows` 由 2 放宽到 3——花盆尺寸统一后，网格区
+/// 「锁 2 行」在草地上留出大片空白（实测 iPhone 17 上可用高度 590.8pt，2 行仅用
+/// 387.2pt）。改为 3 行后一屏可见 **3×3 = 9 格**（容量上限 kGardenPotCapacityMax=12
+/// 本就够），草地空白被填满；矮屏仍由 `min(...)` 钳制 + 网格区纵向滚动兜底。
 ///
 /// ⚠️ [cellAspectRatio] **必须由调用方传入**：本文件不得 import flutter（保持纯 dart），
 /// 故不能引用 `GardenGrid.cellAspectRatio`。页面传 `GardenGrid.cellAspectRatio`，二者恒等。
@@ -96,7 +101,7 @@ double gardenGridVisibleHeight({
   required double cellAspectRatio,
   double spacing = 6,
   double bottomInset = 0,
-  int visibleRows = 2,
+  int visibleRows = 3,
 }) {
   final double cellWidth = (gridInnerWidth - spacing * 2) / 3;
   final double rowHeight = cellWidth / cellAspectRatio;

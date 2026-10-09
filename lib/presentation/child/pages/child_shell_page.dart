@@ -218,6 +218,12 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   /// 「日上限到顶」中途命中的旧缺口一并补上（reached 同样踢）。
   void _onUsageStateChanged(AppUsageState usage) {
     if (!mounted) return;
+    // 调试期绕过（C47c 补齐，与 [_onSelectTab] 同口径）：开关开启时**自动踢人**同样
+    // 不生效。此前只有「点 tab」路径读 [_debugCapBypass]，自动分支照踢 → 模拟器上
+    // 娱乐时长到顶后点进商店会被立刻弹窗踢回今日（调试期自相矛盾）。release 不受影响。
+    const bool defineBypass =
+        bool.fromEnvironment('DISABLE_APP_CAP', defaultValue: false);
+    if (kDebugMode && (_debugCapBypass || defineBypass)) return;
     final AppUsageController ctrl = ref.read(appUsageControllerProvider.notifier);
     if (!ctrl.isEntertainmentTab(_index)) return;
     final bool sessionLocked = usage.sessionLockedAt(DateTime.now());
@@ -441,16 +447,29 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
         // 状态栏（时间/电量）同理：亮背景上白图标看不清 → 深色系统栏图标。
         systemOverlayStyle:
             immersive ? SystemUiOverlayStyle.dark : null,
-        // 仅「花园」tab（index 2）在左上角展示阳光余额胶囊；其余 tab 外观完全不变
-        // （不给它们留空 leading）。胶囊数据来自 sunlightBalanceProvider。
-        // 112：容纳「☀ + 6 位数余额」胶囊（配合胶囊内 FittedBox 兜底任意位数）。
-        leadingWidth: _index == 2 ? 112.0 : null,
-        leading: _index == 2
-            ? const Padding(
-                padding: EdgeInsets.only(left: 12),
-                child: Center(child: SunlightPill()),
-              )
-            : null,
+        // 左上角余额胶囊：花园 tab（index 2）用 [SunlightPill]；商店 tab（index 3）
+        // 用 [StoreBalancePill]（C47c 玄参 2026-10-09：「余额要在左上角跟『商店』
+        // 一个水平位置」）。挂 AppBar `leading` 是唯一能保证与标题**严格同一行**的
+        // 挂法——body 内自算偏移会被 Scaffold/SafeArea 的 padding 差异带偏（实测
+        // iOS 模拟器 body 侧安全区 ≈118pt，比 AppBar 侧多 ≈39pt，导致余额被压低）。
+        // 宽度：容纳「☀ + 6 位数余额（+ 待核销 N）」，配胶囊内 FittedBox 兜底。
+        leadingWidth: _index == 2
+            ? 112.0
+            : (_index == 3 ? 160.0 : null),
+        leading: switch (_index) {
+          2 => const Padding(
+              padding: EdgeInsets.only(left: 12),
+              child: Center(child: SunlightPill()),
+            ),
+          3 => const Padding(
+              padding: EdgeInsets.only(left: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: StoreBalancePill(),
+              ),
+            ),
+          _ => null,
+        },
         actions: <Widget>[
           // C44e 二轮反馈：家长入口图标同理垫白胶囊（沉浸式 tab），看不清问题
           // 一并解决；非沉浸 tab 保持原样。

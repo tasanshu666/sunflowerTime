@@ -192,7 +192,7 @@ void main() {
         _v9Ddl(withLegacyPlants: true),
         9,
       );
-      expect(database.schemaVersion, 18);
+      expect(database.schemaVersion, 19);
     });
 
     test('迁移后 plants 出现 bloom_count 列，且 3 张新表存在', () async {
@@ -371,7 +371,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 18);
+      expect(first.schemaVersion, 19);
       // 首次迁移：bloomed_at 非空的行被回填为 1。
       expect((await first.plantDao.byId('p_bloomed'))!.bloomCount, 1);
       // 模拟该株之后又盛开若干次（写一个 ≠1 的值，验证二次打开不会被回填覆盖/叠加）。
@@ -424,7 +424,7 @@ void main() {
       );
 
       final db.AppDatabase database = await _openMigrated(v7Ddl, 7);
-      expect(database.schemaVersion, 18);
+      expect(database.schemaVersion, 19);
 
       // ① v7 的清零分支（from<7 不成立，from==7），故 growing 不被清零——但这里模拟
       //    的是 from==7，v7 的清零分支只在 from<7 才执行。数据应保持。
@@ -500,7 +500,7 @@ void main() {
       ];
 
       final db.AppDatabase database = await _openMigrated(v3Ddl, 3);
-      expect(database.schemaVersion, 18);
+      expect(database.schemaVersion, 19);
       expect(await _tableExists(database, 'plants'), isTrue);
       expect(await _columns(database, 'plants'), contains('bloom_count'));
       expect(await _tableExists(database, 'premium_fragments'), isTrue);

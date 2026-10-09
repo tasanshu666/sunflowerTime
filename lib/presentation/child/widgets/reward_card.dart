@@ -46,8 +46,9 @@ class RewardCard extends StatelessWidget {
     // 每行条目左侧彩色圆角图标块（马卡龙色底 + emoji 占位图标），按模板稳定轮换。
     final Color iconBg = macaronColorById(template.id).bg;
 
-    // 暖色儿童风（C45 与今日页卡片语言统一）：暖白渐变 + 淡金描边 + 柔和暖影；
-    // 左图标 + 中段文案 + 右价格/兑换。
+    // C47（玄参 2026-10-09）：卡片高度与成长页任务卡对齐（≈88pt）——
+    // padding 14→12、图标 56→64（与成长页一致）、右列两行收紧
+    //（价格胶囊 v6→4 / 兑换按钮压到 32pt 高 / 行距 8→6）。
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -65,21 +66,21 @@ class RewardCard extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          // 左侧图标块（C44）：优先美术图标（按奖励名关键词映射，见 growth_icons），
-          // 加载失败回退马卡龙色块 + emoji 占位（与成长卡 56 对齐）。
+          // 左侧图标块：优先美术图标（按奖励名关键词映射，见 growth_icons），
+          // 加载失败回退马卡龙色块 + emoji 占位。
           Container(
-            width: 56,
-            height: 56,
+            width: 64,
+            height: 64,
             decoration: BoxDecoration(
               color: iconBg,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
               // 素材自带圆角卡底（512² 方形），cover 满铺圆角块。
               child: Image.asset(
                 rewardIconAssetFor(template),
@@ -108,42 +109,68 @@ class RewardCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // 右侧：价格胶囊 + 兑换按钮（垂直堆叠，mainAxisSize.min 不撑高卡片）。
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              // 价格胶囊标签（暖黄底深字）。
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1C2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '$costForTier 阳光',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF8D6E00),
-                  ),
+          // 兑换按钮（C47d，玄参 2026-10-09：「再大一些，可以跟左边的图标大小保持一致」）
+          // 定为 **64×64 方正按钮**（= 左侧图标块尺寸），按钮内上下两行：
+          // 上排「☀ 图标 + 价格」、下排「兑换」。高度与图标一致 → 卡片总高仍 ≈88pt
+          //（与成长页任务卡对齐），只是按钮更饱满好点。
+          // 保持 ElevatedButton + 文案「兑换」不变（既有测试按类型/文案断言可点性）。
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: ElevatedButton(
+              onPressed: submitting ? null : onRedeem,
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              const SizedBox(height: 8),
-              // 明显的「兑换」按钮：主色填充、圆角、加宽，带 ⚡ 图标。
-              // 保持 ElevatedButton + 文案「兑换」不变（既有测试按类型/文案断言可点性）。
-              ElevatedButton.icon(
-                onPressed: submitting ? null : onRedeem,
-                icon: submitting
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.bolt, size: 16),
-                label: const Text('兑换'),
-              ),
-            ],
+              child: submitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            // 阳光素材图标 + 价格数字（C47：价格文字换阳光 UI 图标）。
+                            Image.asset(
+                              'assets/rewards/sunlight.png',
+                              width: 17,
+                              height: 17,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.wb_sunny,
+                                  color: Color(0xFFE8A600),
+                                  size: 17),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '$costForTier',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF8D6E00),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          '兑换',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
           ),
         ],
       ),

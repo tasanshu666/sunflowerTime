@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/utils/sunlight_display.dart';
 
 /// 阳光余额小胶囊 —— 花园页左上角展示（替代原整宽横幅）。
 class SunlightPill extends ConsumerWidget {
@@ -27,7 +28,9 @@ class SunlightPill extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<double> snap = ref.watch(sunlightBalanceProvider);
     // hasValue 为 false（加载中 / 出错）时显示 '— ☀'，不显示 0（避免误导孩子）。
-    final String text = snap.hasValue ? '${snap.requireValue.toInt()} ☀' : '— ☀';
+    // 取整口径统一走 [sunlightDisplayInt]（F105：此前各页 round/toInt 混用导致差 1）。
+    final String text =
+        snap.hasValue ? '${sunlightDisplayInt(snap.requireValue)} ☀' : '— ☀';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(

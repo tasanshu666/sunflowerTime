@@ -18,6 +18,7 @@ import 'package:uuid/uuid.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -153,7 +154,7 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        '我的阳光：${_balance.toInt()} ☀',
+                        '我的阳光：${sunlightDisplayInt(_balance)} ☀',
                         style: const TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold),
                       ),

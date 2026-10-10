@@ -144,14 +144,18 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                 children: <Widget>[
                   _StatCard(
                     icon: Icons.trending_up,
+                    // C48：玄参 2026-10-10 —— 三卡图标用 UI 素材。
+                    assetIcon: 'assets/rewards/sunlight.png',
                     color: const Color(0xFFE8890C),
                     label: '今日获取阳光',
-                    value: '+${_todayEarn.round()}',
+                    // F105 口径：展示一律 sunlightDisplayInt（向下取整）。
+                    value: '+${sunlightDisplayInt(_todayEarn)}',
                     unit: '☀',
                   ),
                   const SizedBox(height: 10),
                   _StatCard(
                     icon: Icons.timer,
+                    assetIcon: 'assets/ui/growth/focus.webp',
                     color: Colors.teal,
                     label: '今日专注',
                     value: '${_focusMinutes.round()} 分钟',
@@ -160,6 +164,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                   const SizedBox(height: 10),
                   _StatCard(
                     icon: Icons.checklist,
+                    assetIcon: 'assets/ui/growth/habit.webp',
                     color: Colors.indigo,
                     // 口径与「任务」tab 一致：仅「今日必做（isDaily）」。
                     // doneCount/total 由 [TodayTaskBoard] 保证只统计 isDaily 项。
@@ -291,8 +296,13 @@ class _FloatingSunBubble extends StatelessWidget {
 ///
 /// C44e 二轮反馈（玄参 2026-10-09）：纯白太呆 → 暖色渐变底 + 淡金描边 +
 /// 柔和投影；整体收窄（纵向 padding 18→11，label/value 字号微降）。
+/// C48（玄参 2026-10-10）：图标改用 UI 素材（阳光/专注闹钟/习惯），
+/// 加载失败回退原内置图标。
 class _StatCard extends StatelessWidget {
   final IconData icon;
+
+  /// UI 素材路径（非 null 时优先显示素材图，失败回退 [icon]）。
+  final String? assetIcon;
   final Color color;
   final String label;
   final String value;
@@ -300,6 +310,7 @@ class _StatCard extends StatelessWidget {
 
   const _StatCard({
     required this.icon,
+    this.assetIcon,
     required this.color,
     required this.label,
     required this.value,
@@ -331,7 +342,20 @@ class _StatCard extends StatelessWidget {
               CircleAvatar(
                 radius: 21,
                 backgroundColor: color.withValues(alpha: 0.15),
-                child: Icon(icon, color: color, size: 24),
+                // C48：优先 UI 素材图（方形图直接铺满圆形底内），失败回退内置图标。
+                child: assetIcon == null
+                    ? Icon(icon, color: color, size: 24)
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(21),
+                        child: Image.asset(
+                          assetIcon!,
+                          width: 42,
+                          height: 42,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              Icon(icon, color: color, size: 24),
+                        ),
+                      ),
               ),
               const SizedBox(width: 14),
               Expanded(

@@ -56,7 +56,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -312,6 +312,18 @@ class AppDatabase extends _$AppDatabase {
                 );
               }
             }
+          }
+
+          // ⑳ C48（玄参 2026-10-10 拍板）：「允许孩子跳过护眼」默认口径
+          //    true → false。历史库在 v15 补列时按旧默认落了 true（家长未显式
+          //    动过也是 true），此处无条件翻为 false，让新默认对既有设备立即生效。
+          //    ⚠️ 口径变更语义：家长此前**显式开启**过的设置同样被重置（当前
+          //    验收阶段仅玄参一台设备，接受重置；正式发布后不得再做同类重置）。
+          //    幂等：已为 false 的行 UPDATE 无变化。
+          if (from < 20) {
+            await customStatement(
+              'UPDATE settings SET eye_care_skip_allowed = 0;',
+            );
           }
         },
       );

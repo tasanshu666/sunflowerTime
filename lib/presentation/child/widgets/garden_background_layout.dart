@@ -65,11 +65,14 @@ Rect gardenSignScreenRect(Size box) {
   );
 }
 
-/// 草地「可摆花盆区」底界的**归一化 y**（源图 y≈1635 → 1635/2336 = 0.70）。
+/// 草地「可摆花盆区」底界的**归一化 y**。
 ///
 /// 依据：新图（1056×2336）菜地土块上沿约 0.725，花盆区底界必须落在此之上，
-/// 保证滚动时花盆永不遮挡背景植物。取 0.70 仍留余量。
-const double kGardenPotAreaBottomFraction = 0.70;
+/// 保证滚动时花盆永不遮挡背景植物。
+/// C48（玄参 2026-10-10）：0.70 → **0.64** —— 木牌牌面顶在 0.6451（源图 y 1507），
+/// 0.70 时网格内容截断线落在木牌中下部，滚动中第 3 行会盖住「玩法」木牌；
+/// 收到 0.64 在木牌顶之上留 ~5px 余量。
+const double kGardenPotAreaBottomFraction = 0.64;
 
 /// 花盆网格区底界的**屏幕 y**（容器坐标）。
 double gardenPotAreaBottom(Size box) {
@@ -99,7 +102,7 @@ double gardenGridVisibleHeight({
   required double gridInnerWidth,
   required double firstRowTop,
   required double cellAspectRatio,
-  double spacing = 6,
+  double spacing = 4, // C48：与 GardenGrid.mainAxisSpacing 同步（6 → 4）
   double bottomInset = 0,
   int visibleRows = 3,
 }) {

@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
@@ -18,7 +19,12 @@ import 'package:sunflower_time/presentation/shared/cream_card.dart';
 /// 注：`bloom_reward` / `bloom_reward_24h` 为成株后循环玩法 Batch 1 的开花奖励
 /// refType（后者字符串值仍是历史遗留的 `'..._24h'`，见 `prd_params.dart` 中的冻结说明）。
 const Map<String, String> _refLabels = <String, String>{
+  // C48（玄参 2026-10-10）：专注入账的真实 refType 是 `focus_session` /
+  // `focus_task_reward`（见 sunlight_service.dart），此前映射表只有 'focus'，
+  // 专注记录全部落空显示「其他」—— 补齐（旧 'focus' 键保留作历史兼容）。
   'focus': '专注产出',
+  'focus_session': '专注',
+  'focus_task_reward': '专注任务奖励',
   'task_checkin': '成长项奖励',
   'plant_plant': '种植植物',
   'plant_water': '浇水',
@@ -39,7 +45,10 @@ const Map<String, String> _refLabels = <String, String>{
   'plant_shovel_refund': '铲除返还',
   'bloom_reward': '开花奖励',
   'bloom_reward_24h': '花开回访奖励',
+  // 兑换入账真实 refType（redemption_orchestration_service.dart 写 'redemption'），
+  // 旧 'redeem' 键保留作历史兼容 —— 漏配时同样显示「其他」。
   'redeem': '兑换奖励',
+  'redemption': '兑换奖励',
   'queueRelease': '阳光池释放',
   'parent_gift': '家长赠予',
   'debug_grant': '调试发放',
@@ -145,7 +154,8 @@ class _BalanceBanner extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.w600)),
             ),
             Text(
-              '${balance.toInt()} ☀',
+              // F105 口径：展示一律向下取整。
+              '${sunlightDisplayInt(balance)} ☀',
               style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,

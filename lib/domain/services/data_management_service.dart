@@ -1,7 +1,8 @@
 /// 数据管理服务（M3 T03，§10.4 C5 合规删除入口）。
 ///
 /// 一键删除全部本地数据：清空 Drift 全表（含 settings 单行）+ 系统安全区 PIN +
-/// SharedPreferences（夸夸语录 `praise_notes_v1`、核销回执 ack id 等）。
+/// SharedPreferences（核销回执 ack id 等；夸夸语录 `praise_notes_v1` 为 C49 裁撤的
+/// 历史遗留键，清空逻辑不变、旧安装残留一并清掉）。
 /// 导出成册（§10.4 先导后清）留 V2，本服务只负责「清」。
 library data_management_service;
 

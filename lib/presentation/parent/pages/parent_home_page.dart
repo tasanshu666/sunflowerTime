@@ -1,4 +1,4 @@
-/// 家长端首页（M3 导航重构）：底部导航壳，承载「今日 / 奖励 / 任务 / 夸夸台 / 设置」五页。
+/// 家长端首页（M3 导航重构）：底部导航壳，承载「今日 / 奖励 / 任务 / 设置」四页。
 ///
 /// 纪律（§7.8 / 任务约束）：**原样保留** B19/B20 返回栈行为——
 ///  · Scaffold + AppBar(title '家长天地')；
@@ -9,7 +9,9 @@
 /// 深色开关打开时自动切到 [parentDarkTheme]（M3 修订）。
 ///
 /// M3 导航重构：tab 由 AppBar 顶部 [TabBar] 挪到屏幕**底部** [NavigationBar]；
-/// 用 [IndexedStack] 保活各页（夸夸台等页有输入/滚动状态，切走不应丢）。
+/// 用 [IndexedStack] 保活各页（页面有输入/滚动状态，切走不应丢）。
+/// C49（玄参 2026-10-10）：夸夸台 tab 裁撤（纯本地备忘壳、孩子端不可见、实用价值低），
+/// 5 tab 收敛为 4 tab。
 library parent_home_page;
 
 import 'package:flutter/material.dart';
@@ -18,11 +20,10 @@ import 'package:go_router/go_router.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_today_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_reward_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page.dart';
-import 'package:sunflower_time/presentation/parent/pages/parent_praise_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_settings_page.dart';
 import 'package:sunflower_time/shared/theme.dart';
 
-/// 家长端首页：底部导航壳（5 tab：今日 / 奖励 / 任务 / 夸夸台 / 设置）。
+/// 家长端首页：底部导航壳（4 tab：今日 / 奖励 / 任务 / 设置）。
 class ParentHomePage extends StatefulWidget {
   const ParentHomePage({super.key});
 
@@ -67,7 +68,6 @@ class _ParentHomePageState extends State<ParentHomePage> {
               // 任务 tab 复用任务配置页的 embedded 形态（不叠加第二层 AppBar；
               // 返回栈仍由本页 AppBar / 系统返回键统一处理）。
               ParentTaskConfigPage(embedded: true),
-              ParentPraisePage(),
               ParentSettingsPage(),
             ],
           ),
@@ -89,11 +89,6 @@ class _ParentHomePageState extends State<ParentHomePage> {
                 icon: Icon(Icons.checklist_outlined),
                 selectedIcon: Icon(Icons.checklist),
                 label: '成长',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.favorite_outline),
-                selectedIcon: Icon(Icons.favorite),
-                label: '夸夸台',
               ),
               NavigationDestination(
                 icon: Icon(Icons.settings_outlined),

@@ -166,10 +166,10 @@ Future<db.AppDatabase> _openV18() async {
 
 void main() {
   group('迁移 v18->v19：旧 48h 第二段遗留行清理（F104）', () {
-    test('schemaVersion 必须为最新 19（版本号与迁移改动不许脱节）', () async {
+    test('schemaVersion 必须为最新 20（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openV18();
       addTearDown(database.close);
-      expect(database.schemaVersion, 19);
+      expect(database.schemaVersion, 20);
     });
 
     test('遗留 48h 行（非 08:00 整、未领取）升级后被删除', () async {
@@ -242,7 +242,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(second.close);
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 19);
+      expect(second.schemaVersion, 20);
       final List<String> idsAfterSecond = (await second.customSelect(
         'SELECT id FROM pending_bloom_rewards ORDER BY id;',
       ).get())

@@ -138,7 +138,17 @@ class RewardCard extends StatelessWidget {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
-                            // 阳光素材图标 + 价格数字（C47：价格文字换阳光 UI 图标）。
+                            // 价格数字 + 阳光素材图标（C48，玄参 2026-10-10：
+                            // 「将数字放在阳光UI的前面」→「20 ☀」）。
+                            Text(
+                              '$costForTier',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF8D6E00),
+                              ),
+                            ),
+                            const SizedBox(width: 3),
                             Image.asset(
                               'assets/rewards/sunlight.png',
                               width: 17,
@@ -148,15 +158,6 @@ class RewardCard extends StatelessWidget {
                                   Icons.wb_sunny,
                                   color: Color(0xFFE8A600),
                                   size: 17),
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '$costForTier',
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF8D6E00),
-                              ),
                             ),
                           ],
                         ),

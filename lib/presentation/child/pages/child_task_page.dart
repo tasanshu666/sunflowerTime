@@ -80,13 +80,18 @@ Widget _statusCapsule({
   Widget? leading,
   VoidCallback? onTap,
   bool fullWidth = false,
+  // C48：圆角可调 —— 「我做到了」与「去专注」方盒一致用 12；其余胶囊保持 20。
+  double borderRadius = 20,
+  // C48（玄参 2026-10-10）：两行文案 —— 非空时文案拆两行（如「我做」/「到了」），
+  // 压窄方盒宽度，与「去专注」两行盒视觉对齐。
+  String? textLine2,
 }) {
   final Widget inner = Container(
     width: fullWidth ? double.infinity : null,
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
     decoration: BoxDecoration(
       color: bg,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(borderRadius),
     ),
     child: Row(
       mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
@@ -98,17 +103,35 @@ Widget _statusCapsule({
         else
           Icon(icon, size: 16, color: fg),
         const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg),
-        ),
+        if (textLine2 != null)
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                text,
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w700, color: fg),
+              ),
+              Text(
+                textLine2,
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w700, color: fg),
+              ),
+            ],
+          )
+        else
+          Text(
+            text,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg),
+          ),
       ],
     ),
   );
   if (onTap == null) return inner;
   return InkWell(
     onTap: onTap,
-    borderRadius: BorderRadius.circular(20),
+    borderRadius: BorderRadius.circular(borderRadius),
     child: inner,
   );
 }
@@ -562,9 +585,11 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
     }
 
     // ② 已提交（verified）→ 只读态。
+    // C48（玄参 2026-10-10）：文字里的「✓」去掉 —— 图标已是 check，
+    // 两个对勾重复（用户截图实证）。
     if (item.done) {
       return _statusCapsule(
-        text: item.task.requiresFocus ? '已完成 ✓' : '已做到 ✓',
+        text: item.task.requiresFocus ? '已完成' : '已做到',
         icon: Icons.check,
         bg: _kDoneBg,
         fg: _kDoneFg,
@@ -573,14 +598,17 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
 
     // ③ 未提交 → 联动项只给「去专注」两行方盒（达标自动结算，孩子无可点打卡按钮）；
     //    非联动项只给「我做到了」（落待家长确认，家长核销后才发阳光）。
+    //    C48（玄参 2026-10-10）：「我做到了」也改方盒（圆角 12，与「去专注」一致）。
     if (item.task.requiresFocus) {
       return _focusBox(item.task);
     }
     return _statusCapsule(
-      text: '我做到了',
+      text: '我做',
+      textLine2: '到了',
       icon: Icons.check_circle,
       bg: _kTodoBg,
       fg: _kTodoFg,
+      borderRadius: 12,
       // 提交中：用转圈占位、不可点（防连点重复打卡）。
       leading: busy
           ? const SizedBox(

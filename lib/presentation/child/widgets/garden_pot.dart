@@ -147,17 +147,17 @@ class GardenGrid extends StatelessWidget {
   /// 每格内容高 = 图高 + 底部标签区 [`_footerHeight`]，再叠加上下内边距 8：
   ///   = (格宽-4) × [_artWidthRatio] × [_artAspectRatio] + [_footerHeight] + 8
   ///   = 1.0698 × (格宽-4) + 40（2026-10-09 画布 1720×2000 + 宽比 0.92）。
-  /// 取 **0.64**：最紧的 320 屏（测试宿主格宽 ≈ 88）内容高 ≈ 129.9，
-  /// 格高 88/0.64 = 137.5，余量 ≈ 7.6px（见布局测试实测）。
-  ///
-  /// （2026-10-09 由 0.54 上调：画布等高加宽后图片框变矮，行高相应收紧，
-  /// 避免行间出现大片空洞；320 屏仍不溢出。）
-  static const double cellAspectRatio = 0.64;
+  /// 取 **0.62**（C48 玄参 2026-10-10 由 0.64 微调）：美术宽比同步放年夜到 1.0
+  /// 后格内容变高，行高相应加高；同时收拢行间富余（用户反馈两排间隔偏大）。
+  /// 最紧的 320 屏（测试宿主格宽 ≈ 96）内容高 ≈ 147，格高 96/0.62 ≈ 154.8，
+  /// 余量 ≈ 7.8px，不溢出。
+  static const double cellAspectRatio = 0.62;
 
   @override
   Widget build(BuildContext context) => GridView.count(
         crossAxisCount: columns,
-        mainAxisSpacing: 6,
+        // C48：行间距 6 → 4（玄参反馈两排间隔偏大，配合行高收紧）。
+        mainAxisSpacing: 4,
         crossAxisSpacing: 6,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),

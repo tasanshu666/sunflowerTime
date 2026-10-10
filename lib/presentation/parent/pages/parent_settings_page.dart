@@ -288,7 +288,9 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           onChanged: (v) => _update(s.copyWith(dailyFocusCap: v)),
         ),
         _IntTile(
-          title: '每日 App 使用时长（分钟）',
+          // C48（玄参 2026-10-10）：原「每日 App 使用时长」有歧义（看似整个 App，
+          // 实际只限花园/商店等娱乐 tab 的累计时长）→ 文案写准。
+          title: '每日花园、商店使用时长（分钟）',
           value: s.dailyAppCapMinutes,
           options: kDailyAppCapOptions,
           onChanged: (v) => _update(s.copyWith(dailyAppCapMinutes: v)),

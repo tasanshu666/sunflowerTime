@@ -40,16 +40,16 @@ AppSettings _eyeSettings({
 }
 
 void main() {
-  group('家长端三项默认值（C28 §4，玄参 2026-10-04 拍板）', () {
-    test('默认：总开关开 / 间隔 20 分钟 / 允许跳过', () {
+  group('家长端三项默认值（C28 §4；C48 跳过默认改关，玄参 2026-10-10 拍板）', () {
+    test('默认：总开关开 / 间隔 20 分钟 / 不允许跳过', () {
       expect(kEyeCareEnabledDefault, isTrue);
       expect(kEyeCareIntervalMinDefault, 20);
-      expect(kEyeCareSkipAllowedDefault, isTrue);
+      expect(kEyeCareSkipAllowedDefault, isFalse);
 
       final AppSettings s = _eyeSettings();
       expect(EyeCareService.isEnabled(s), isTrue);
       expect(EyeCareService.intervalSeconds(s), 20 * 60);
-      expect(EyeCareService.isSkipAllowed(s), isTrue);
+      expect(EyeCareService.isSkipAllowed(s), isFalse);
     });
 
     test('家长关掉总开关 → 场内 / 场末都不再插入护眼卡', () {

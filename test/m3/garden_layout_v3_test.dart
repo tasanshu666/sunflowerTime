@@ -340,8 +340,8 @@ void main() {
       expect(bottom, greaterThan(gardenCoverRect(box).top));
     });
 
-    test('比例常量 = 0.70（留出背景菜地上沿）', () {
-      expect(kGardenPotAreaBottomFraction, closeTo(0.70, 1e-9));
+    test('比例常量 = 0.64（C48：上移避开木牌牌面顶 0.6451）', () {
+      expect(kGardenPotAreaBottomFraction, closeTo(0.64, 1e-9));
     });
   });
 
@@ -350,20 +350,22 @@ void main() {
   // 「改行数 → 测试必红」的锚点，改回 2 行必在这里失败。
   group('gardenGridVisibleHeight · 锁 3 行（纯函数）', () {
     test('高屏：等于「三行高度」', () {
+      // C48：底界 0.70 → 0.64 后 360×780 的可用高（≈477.5）已装不下三行（≈537），
+      // 会走钳制分支 —— 抬高 harness 到 360×900（可用 ≈552 > 537）保住「公式分支」语义。
       final double h = gardenGridVisibleHeight(
-        box: const Size(360, 780),
+        box: const Size(360, 900),
         gridInnerWidth: 336, // 360 - 12*2
         firstRowTop: 12,
         cellAspectRatio: GardenGrid.cellAspectRatio,
-        spacing: 6,
+        spacing: 4, // C48：与 GardenGrid.mainAxisSpacing 同步（6 → 4）
         bottomInset: 12,
       );
-      const double cellWidth = (336 - 12) / 3;
+      const double cellWidth = (336 - 8) / 3;
       const double rowHeight = cellWidth / GardenGrid.cellAspectRatio;
-      const double threeRows = rowHeight * 3 + 6 * 2;
+      const double threeRows = rowHeight * 3 + 4 * 2;
       expect(h, closeTo(threeRows, 0.01));
       // 自检：若被改回 2 行，此值必不同（防「改行数不变红」）。
-      const double twoRows = rowHeight * 2 + 6;
+      const double twoRows = rowHeight * 2 + 4;
       expect(h, isNot(closeTo(twoRows, 0.5)));
     });
 
@@ -374,23 +376,23 @@ void main() {
         gridInnerWidth: 336,
         firstRowTop: 12,
         cellAspectRatio: GardenGrid.cellAspectRatio,
-        spacing: 6,
+        spacing: 4, // C48：与 GardenGrid.mainAxisSpacing 同步
         bottomInset: 12,
       );
       expect(h, closeTo(gardenPotAreaBottom(box) - 12 - 12, 0.01));
     });
 
-    test('统一使用 spacing=6、列数=3（与 GardenGrid 对齐）', () {
-      // 用 400×880：三行高度（574.96）仍小于该屏可用高度（≈616.9），
-      // 才能走到「几何公式」分支而不是被 available 钳制。
+    test('统一使用 spacing=4、列数=3（与 GardenGrid 对齐；C48 6 → 4）', () {
+      // 用 400×960：可用高（≈614.4）> 三行高度（≈578.4），
+      // 才能走到「几何公式」分支而不是被 available 钳制（C48 底界上移后 880 不够高）。
       final double h = gardenGridVisibleHeight(
-        box: const Size(400, 880),
+        box: const Size(400, 960),
         gridInnerWidth: (360 - 44), // 旧测试 harness 宽，仅验证几何一致
         firstRowTop: 0,
         cellAspectRatio: 0.54,
       );
-      const double cellWidth = (316 - 12) / 3;
-      expect(h, closeTo(cellWidth / 0.54 * 3 + 6 * 2, 0.01));
+      const double cellWidth = (316 - 8) / 3;
+      expect(h, closeTo(cellWidth / 0.54 * 3 + 4 * 2, 0.01));
     });
   });
 
@@ -470,11 +472,19 @@ void main() {
       expect(find.byType(EmptyPot), findsNWidgets(12));
 
       final Rect viewport = tester.getRect(find.byType(SingleChildScrollView));
-      // 前三行（索引 0/3/5/6/8）在视口内。
-      for (final int i in <int>[0, 3, 5, 6, 8]) {
+      // 前两行（索引 0/3/5）完整在视口内。
+      // C48：底界 0.64 上移 + 行高加大后，360×780 下第三行只能露出约 2/3
+      //（可用高 ≈477.5 < 三行 ≈536.6），故第三行只断言「至少露出顶部」。
+      for (final int i in <int>[0, 3, 5]) {
         final Rect cell = tester.getRect(find.byType(EmptyPot).at(i));
         expect(cell.top, greaterThanOrEqualTo(viewport.top - 0.5));
         expect(cell.bottom, lessThanOrEqualTo(viewport.bottom + 0.5));
+      }
+      for (final int i in <int>[6, 8]) {
+        final Rect cell = tester.getRect(find.byType(EmptyPot).at(i));
+        expect(cell.top, greaterThanOrEqualTo(viewport.top - 0.5));
+        expect(cell.top, lessThan(viewport.bottom - 0.5),
+            reason: '第三行至少部分露出（区域内滚动兄底）');
       }
       // 第 4 行（索引 9）顶边在视口下沿之外 —— 证明确实锁 3 行。
       final Rect row4 = tester.getRect(find.byType(EmptyPot).at(9));
@@ -542,11 +552,11 @@ void main() {
       final double expectedViewport =
           gardenPotAreaBottom(box) - pageTopPad - bottomInset;
 
-      // 独立推导「三行高度」（格宽来自 3 列 + 间距 6 + 页面水平 padding 12×2）：
+      // 独立推导「三行高度」（格宽来自 3 列 + 间距 4 + 页面水平 padding 12×2）：
       const double gridInnerWidth = w - pageTopPad * 2; // 336
-      const double cellWidth = (gridInnerWidth - 6 * 2) / 3; // 108
+      const double cellWidth = (gridInnerWidth - 4 * 2) / 3; // 109.33
       final double threeRowsHeight =
-          cellWidth / GardenGrid.cellAspectRatio * 3 + 6 * 2; // 518.25
+          cellWidth / GardenGrid.cellAspectRatio * 3 + 4 * 2; // ≈536.6
 
       // 场景自检：必须「三行高度 > 可用高度」，否则 firstRowTop 依旧被 min() 掩盖，
       // 这条用例就退化回 QA N2 的无效覆盖 —— 显式断言挡住这种「假有效」。
@@ -619,9 +629,10 @@ void main() {
       final double expectedCenterY =
           artBox.top + artBox.height * expectedCenterYFraction;
       expect(icon.center.dy, closeTo(expectedCenterY, 0.5));
-      // ② 硬钉绝对坐标（本 harness：120×260 顶左对齐；2026-10-09 画布 1720×2000
-      //    + 宽比 0.92 → artH = 116×0.92×2000/1720 ≈ 124.09，artBox.top ≈ 99.91）。
-      expect(icon.center.dy, closeTo(202.84, 1.5));
+      // ② 硬钉绝对坐标（本 harness：120×260 顶左对齐；C48 宽比 1.0 →
+      //    artH = 116×2000/1720 ≈ 134.88，图顶 = 260-4-32-134.88 ≈ 89.12，
+      //    圆心 = 89.12 + 134.88×0.8295 ≈ 201.0）。
+      expect(icon.center.dy, closeTo(201.0, 1.5));
       // ③ 不是画布正中（防回归成 50%）。
       expect(
         (icon.center.dy - (artBox.top + artBox.height / 2)).abs(),

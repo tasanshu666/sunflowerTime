@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/parent/widgets/task_editor_dialog.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
@@ -127,9 +128,26 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: <Widget>[
-                          macaronIconBlock(
-                            emoji: t.category.icon,
-                            bg: cat.bg,
+                          // C48（玄参 2026-10-10）：图标与孩子端成长页同款 UI 素材
+                          //（联动项一律 focus 闹钟，见 growth_icons），失败回退色块 + emoji。
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: cat.bg,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: Image.asset(
+                                growthIconAssetFor(t),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Center(
+                                  child: Text(t.category.icon,
+                                      style: const TextStyle(fontSize: 28)),
+                                ),
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -158,10 +176,40 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                                       bg: Colors.grey.shade100,
                                       fg: Colors.grey.shade700,
                                     ),
-                                    pillLabel(
-                                      text: '${t.effectiveSunlightReward} 阳光',
-                                      bg: const Color(0xFFFFF1C2),
-                                      fg: const Color(0xFF8D6E00),
+                                    // C48：「N 阳光」→ 数字 + 阳光 UI 图标。
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF1C2),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: <Widget>[
+                                          Text(
+                                            '${t.effectiveSunlightReward}',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF8D6E00),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Image.asset(
+                                            'assets/rewards/sunlight.png',
+                                            width: 13,
+                                            height: 13,
+                                            fit: BoxFit.contain,
+                                            errorBuilder: (_, __, ___) =>
+                                                const Icon(
+                                              Icons.wb_sunny,
+                                              color: Color(0xFFE8A600),
+                                              size: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                     if (t.requiresFocus)
                                       pillLabel(

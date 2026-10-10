@@ -4,6 +4,7 @@
 /// 账同步上涨；本次专注时长、产出阳光数、当日累计、向日葵醒着庆祝）。
 ///
 /// 预留「家长转述表扬」占位区（M2 夸夸台接入，PRD §4.9）：M1 先留空位。
+/// （C49 / 玄参 2026-10-10：夸夸台裁撤，占位框改为**随机系统夸奖卡**）
 library settle_page;
 
 import 'dart:async';
@@ -15,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/constants/praise_phrases.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
@@ -127,6 +129,9 @@ class _SettlePageState extends ConsumerState<SettlePage>
   /// 结算前护眼卡是否仍在展示（带 [SettleArgs.eyeCarePending] 进场且结果未回）。
   bool get _eyeCareBlocking =>
       (widget.args?.eyeCarePending ?? false) && !_eyeCareDone;
+
+  /// 本场随机夸奖语（C49）：进入结算页时抽一次，动画重建不换句。
+  late final String _praisePhrase = randomPraisePhrase();
 
   /// 数字占位：护眼卡未收口时全部以「···」遮住。
   String _mask(String value) => _eyeCareBlocking ? '···' : value;
@@ -597,8 +602,8 @@ class _SettlePageState extends ConsumerState<SettlePage>
                   ),
                 ),
                 const SizedBox(height: 16),
-                // 预留：家长转述表扬占位区（M2 夸夸台接入，PRD §4.9）
-                _PraisePlaceholder(),
+                // 随机系统夸奖卡（C49：原「家长留言区」占位框，夸夸台裁撤后改随机话术）
+                _PraiseCard(phrase: _praisePhrase),
                 const SizedBox(height: 16),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -661,26 +666,37 @@ class _StatRow extends StatelessWidget {
   }
 }
 
-/// 家长转述表扬占位区（M2 夸夸台接入，PRD §4.9）。
-class _PraisePlaceholder extends StatelessWidget {
+/// 随机系统夸奖卡（C49 / 玄参 2026-10-10）：原「家长留言区（夸夸台接入后显示）」
+/// 占位框改为随机夸奖话术——结算页是孩子的正反馈高光时刻，保留鼓励位；
+/// 纯本地话术池（[kPraisePhrases]），无网络无依赖。句子由页面 State 抽定后传入，
+/// 动画重建不换句。
+class _PraiseCard extends StatelessWidget {
+  final String phrase;
+
+  const _PraiseCard({required this.phrase});
+
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: Colors.white24),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.forum_outlined, color: Color(0xFF757575), size: 20),
-          SizedBox(width: 10),
+          const Icon(Icons.auto_awesome, color: Color(0xFFFFE082), size: 20),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '家长留言区（夸夸台接入后显示）',
-              style: TextStyle(color: Color(0xFF757575), fontSize: 13),
+              phrase,
+              style: const TextStyle(
+                color: Color(0xFFFFF3D6),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

@@ -186,8 +186,8 @@ void main() {
       // ③ 盆真的够大：图片框宽 ≥ 格宽 × 0.8（锁住「不许再被改小」）。
       expect(filled.width, greaterThanOrEqualTo(cell.width * 0.8));
       expect(empty.width, greaterThanOrEqualTo(cell.width * 0.8));
-      // ④ 图片框宽 = 格内宽 × 0.92（格内宽 = 格宽 - 2 × 横向内边距 2）。
-      expect(filled.width, closeTo((cell.width - 4) * 0.92, 0.5));
+      // ④ 图片框宽 = 格内宽 × 1.0（C48：宽比 0.92 → 1.0，格内宽 = 格宽 - 2 × 横向内边距 2）。
+      expect(filled.width, closeTo((cell.width - 4) * 1.0, 0.5));
       // ⑤ 画布宽高比锁死 1720:2000（美术图统一画布，2026-10-09 全局等盆加宽）。
       expect(filled.height / filled.width, closeTo(2000 / 1720, 0.002));
     });

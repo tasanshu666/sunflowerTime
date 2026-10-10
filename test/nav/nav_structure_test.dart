@@ -383,7 +383,7 @@ void main() {
   });
 
   group('家长端 ParentHomePage · 底部导航结构', () {
-    testWidgets('恰好 5 项，顺序 今日/奖励/任务/夸夸台/设置，且无 AppBar 顶部 TabBar',
+    testWidgets('恰好 4 项，顺序 今日/奖励/成长/设置，且无 AppBar 顶部 TabBar（C49 裁撤夸夸台）',
         (WidgetTester tester) async {
       final SharedPreferences prefs = await _mockPrefs();
 
@@ -397,8 +397,8 @@ void main() {
 
       final NavigationBar nav =
           tester.widget<NavigationBar>(find.byType(NavigationBar));
-      expect(nav.destinations, hasLength(5));
-      expect(_navLabels(nav), <String>['今日', '奖励', '成长', '夸夸台', '设置']);
+      expect(nav.destinations, hasLength(4));
+      expect(_navLabels(nav), <String>['今日', '奖励', '成长', '设置']);
       expect(nav.selectedIndex, 0);
 
       // 不得再是 AppBar 顶部 TabBar。

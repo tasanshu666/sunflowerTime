@@ -4,7 +4,8 @@
 /// v15 变更：`settings` 新增 3 列 ——
 ///  · `eye_care_enabled`：护眼提醒总开关（默认 1 = 开）；
 ///  · `eye_care_interval_min`：场内护眼触发间隔（分钟，默认 20）；
-///  · `eye_care_skip_allowed`：是否允许孩子跳过护眼卡（默认 1 = 允许）。
+///  · `eye_care_skip_allowed`：是否允许孩子跳过护眼卡（C48 起默认 0 = 不允许，
+///    玄参 2026-10-10 拍板；v20 迁移还会把历史 true 统一翻 false）。
 ///
 /// 为什么必须迁移（光靠列默认值救不了存量库）：
 ///  · SQLite 的 `ALTER TABLE ADD COLUMN` 已由 `_ensureColumn` 幂等补列，新装库的
@@ -177,17 +178,18 @@ void main() {
   group('迁移 v14->v15：少儿护眼休息三列（C28）', () {
     test('schemaVersion 必须为最新 15（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(14);
-      expect(database.schemaVersion, 19);
+      expect(database.schemaVersion, 20);
     });
 
-    test('三列补出来且历史行为默认值（开 / 20 分钟 / 允许跳过）', () async {
+    test('三列补出来且历史行为默认值（开 / 20 分钟 / 不允许跳过）', () async {
       final db.AppDatabase database = await _openMigrated(14);
       final Map<String, Object?> row = await _eyeCareRow(database);
       // 存量老库没有「护眼」概念 → 必须落到默认口径，不能是 0/占位值。
       expect(row['eye_care_enabled'], 1,
           reason: '护眼提醒对老用户必须默认开启（玄参拍板默认开）');
       expect(row['eye_care_interval_min'], kEyeCareIntervalMinDefault);
-      expect(row['eye_care_skip_allowed'], 1);
+      // C48（玄参 2026-10-10）：跳过默认改关，补列落的就是新默认。
+      expect(row['eye_care_skip_allowed'], 0);
     });
 
     test('读回的 AppSettings：护眼三项为默认值，且老行原有字段一条不丢', () async {
@@ -196,7 +198,7 @@ void main() {
           await SettingsLocalRepository(database).getSettings();
       expect(s.eyeCareEnabled, isTrue);
       expect(s.eyeCareIntervalMin, kEyeCareIntervalMinDefault);
-      expect(s.eyeCareSkipAllowed, isTrue);
+      expect(s.eyeCareSkipAllowed, isFalse);
       // 老行历史值完整性（迁移只补列、不许顺手改数据）
       expect(s.restAfterSessions, 3, reason: '家长调过的「每 3 场休息」不能被洗成默认 2');
       expect(s.restMinutes, 15);
@@ -235,19 +237,19 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 19);
+      expect(first.schemaVersion, 20);
       await first.close();
 
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 19);
+      expect(second.schemaVersion, 20);
       expect(await _count(second, 'settings'), 1);
 
       final Map<String, Object?> row = await _eyeCareRow(second);
       expect(row['eye_care_enabled'], 1);
       expect(row['eye_care_interval_min'], kEyeCareIntervalMinDefault);
-      expect(row['eye_care_skip_allowed'], 1);
+      expect(row['eye_care_skip_allowed'], 0);
       // 二次打开不覆盖家长既有配置（即使老行被改过也别回退默认值）
       await SettingsLocalRepository(second).saveSettings(
         const AppSettings(

@@ -15,6 +15,7 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
+import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/parent/widgets/pool_indicator.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
@@ -185,9 +186,26 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
-                    macaronIconBlock(
-                      emoji: t.contentCategory.icon,
-                      bg: macaronColorById(t.id).bg,
+                    // C48（玄参 2026-10-10）：图标与孩子端商店同款 UI 素材
+                    // （按奖励名关键词映射，见 growth_icons），失败回退马卡龙色块 + emoji。
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: macaronColorById(t.id).bg,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.asset(
+                          rewardIconAssetFor(t),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Center(
+                            child: Text(t.contentCategory.icon,
+                                style: const TextStyle(fontSize: 28)),
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -237,13 +255,30 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                             color: const Color(0xFFFFF1C2),
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: Text(
-                            '${t.baseCost} 阳光',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF8D6E00),
-                            ),
+                          // C48：「N 阳光」→ 数字 + 阳光 UI 图标（与孩子端同款）。
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                '${t.baseCost}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF8D6E00),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Image.asset(
+                                'assets/rewards/sunlight.png',
+                                width: 16,
+                                height: 16,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.wb_sunny,
+                                    color: Color(0xFFE8A600),
+                                    size: 16),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 8),

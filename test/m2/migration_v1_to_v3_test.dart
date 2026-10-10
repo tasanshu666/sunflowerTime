@@ -175,7 +175,7 @@ Future<db.AppDatabase> _openMigrated(List<String> legacyDdl, int userVersion) as
 
 void main() {
   group('迁移 v1->v3：reward_templates 列修复（场景 A）', () {
-    test('v1 老库迁移后列正确、INSERT 成功、播种 5 条', () async {
+    test('v1 老库迁移后列正确、INSERT 成功、播种 6 条', () async {
       final db.AppDatabase database = await _openMigrated(_v1SchemaDdl(), 1);
 
       // ① 列补齐断言：reward_templates 含 base_cost / cooldown_rule，
@@ -197,22 +197,23 @@ void main() {
           await _columns(database, 'tracking_events');
       expect(teCols, contains('name'));
 
-      // ④ ensureRewardSeed 先跑（此时表为空才会播种），跑完 all() 返回 5 条。
+      // ④ ensureRewardSeed 先跑（此时表为空才会播种），跑完 all() 返回 6 条。
       //    这一步是端到端验收：修复前因迁移失败，reward_templates 始终为空、
       //    ensureRewardSeed 被 unawaited 静默吞掉异常，旭日商店纯黑页。
       final RewardLocalRepository repo = RewardLocalRepository(database);
       await ensureRewardSeed(repo);
       final List<db.RewardTemplate> all =
           await database.rewardTemplateDao.all();
-      expect(all, hasLength(5));
+      expect(all, hasLength(6));
       expect(
         all.map((db.RewardTemplate t) => t.id).toSet(),
         <String>{
           'seed_snack',
-          'seed_cartoon_tonight',
-          'seed_extra_10min',
+          'seed_cartoon',
+          'seed_extra_play',
           'seed_weekend_outing',
-          'seed_extra_episode',
+          'seed_toy',
+          'seed_story',
         },
       );
 
@@ -229,7 +230,7 @@ void main() {
       );
       final List<db.RewardTemplate> allWithProbe =
           await database.rewardTemplateDao.all();
-      expect(allWithProbe, hasLength(6));
+      expect(allWithProbe, hasLength(7));
       final db.RewardTemplate probe = allWithProbe.firstWhere(
         (db.RewardTemplate t) => t.id == 'tpl_probe',
       );
@@ -239,7 +240,7 @@ void main() {
   });
 
   group('迁移 v2->v3：修复被 v2 破坏的库（场景 B，复现玄参大人真机状态）', () {
-    test('v2 半截迁移库迁移后列正确、INSERT 成功、播种 5 条', () async {
+    test('v2 半截迁移库迁移后列正确、INSERT 成功、播种 6 条', () async {
       // 模拟跑过「半截」v2 迁移：补上 base_cost 与 tracking_events.name，
       // 但仍缺 cooldown_rule、且残留 base_cost_high/base_cost_low。
       final List<String> legacy = <String>[
@@ -268,10 +269,10 @@ void main() {
           await _columns(database, 'tracking_events');
       expect(teCols, contains('name'));
 
-      // ② ensureRewardSeed 先跑（表为空才会播种），跑完 all() 返回 5 条。
+      // ② ensureRewardSeed 先跑（表为空才会播种），跑完 all() 返回 6 条。
       final RewardLocalRepository repo = RewardLocalRepository(database);
       await ensureRewardSeed(repo);
-      expect(await database.rewardTemplateDao.all(), hasLength(5));
+      expect(await database.rewardTemplateDao.all(), hasLength(6));
 
       // ③ INSERT 成功（旧代码必炸）。
       await database.rewardTemplateDao.upsert(
@@ -284,7 +285,7 @@ void main() {
           cooldownRule: const Value(1),
         ),
       );
-      expect(await database.rewardTemplateDao.all(), hasLength(6));
+      expect(await database.rewardTemplateDao.all(), hasLength(7));
     });
   });
 }

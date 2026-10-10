@@ -121,13 +121,13 @@ List<String> _seedSqls() => <String>[
 
 void main() {
   group('迁移 v17->v18：新增护眼记录表 eye_care_logs', () {
-    test('schemaVersion 必须为最新 20（版本号与迁移改动不许脱节）', () async {
+    test('schemaVersion 必须为最新 21（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = db.AppDatabase(
         NativeDatabase.memory(),
       );
       addTearDown(database.close);
       await database.customSelect('SELECT 1').get();
-      expect(database.schemaVersion, 20);
+      expect(database.schemaVersion, 24);
     });
 
     test('v17 老库升级后 eye_care_logs 存在、可写入、可聚合', () async {
@@ -240,7 +240,7 @@ void main() {
       }
 
       final db.AppDatabase first = await openLegacy();
-      expect(first.schemaVersion, 20);
+      expect(first.schemaVersion, 24);
       await first.eyeCareLogDao.appendRow(
         db.EyeCareLogsCompanion.insert(
           id: 'log-1',
@@ -258,7 +258,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(second.close);
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 20);
+      expect(second.schemaVersion, 24);
       expect(await second.eyeCareLogDao.countByResult('skipped'),
           countAfterFirst, reason: '二次打开行集合稳定不变（不重复建表 / 不丢行）');
     });

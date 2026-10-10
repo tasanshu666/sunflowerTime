@@ -56,7 +56,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 20;
+  int get schemaVersion => 24;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -324,6 +324,365 @@ class AppDatabase extends _$AppDatabase {
             await customStatement(
               'UPDATE settings SET eye_care_skip_allowed = 0;',
             );
+          }
+
+          // ㉑ C52（玄参 2026-10-10 截图拍板）：默认种子数据替换——成长任务
+          //    3 条 → 9 条、奖励模板 5 条 → 6 条（价格/科目/分类/联动专注/周限
+          //    全按玄参默认版）。纯数据迁移（枚举追加分类值无需改表结构）。
+          //    规则：
+          //     · 旧种子行若被打卡（check_ins.task_id）/ 兑换（redemption_requests
+          //       .template_id）历史引用 → **保留不删**（两表存 id 引用、无外键，
+          //       删了会让历史行变孤儿）；无引用 → 删除；
+          //     · 新 9+6 默认行 INSERT OR REPLACE（REPLACE 只会覆盖同 id 的
+          //       旧种子行——它们是内置模板、非用户自建）；
+          //     · 用户自建项（is_custom=1 / 其他 id）一律不动。
+          if (from < 21) {
+            const List<String> kOldSeedTaskIds = <String>[
+              'seed_task_homework',
+              'seed_task_read',
+              'seed_task_math',
+            ];
+            const List<String> kOldSeedRewardIds = <String>[
+              'seed_snack',
+              'seed_cartoon_tonight',
+              'seed_extra_10min',
+              'seed_weekend_outing',
+              'seed_extra_episode',
+            ];
+            final Set<String> referencedTaskIds =
+                (await customSelect('SELECT DISTINCT task_id FROM check_ins;')
+                        .get())
+                    .map((QueryRow r) => r.data['task_id'] as String)
+                    .toSet();
+            final Set<String> referencedTemplateIds =
+                (await customSelect(
+              'SELECT DISTINCT template_id FROM redemption_requests;',
+            ).get())
+                    .map((QueryRow r) => r.data['template_id'] as String)
+                    .toSet();
+            for (final String id in kOldSeedTaskIds) {
+              if (!referencedTaskIds.contains(id)) {
+                await customStatement(
+                  'DELETE FROM tasks WHERE id = ?;',
+                  <Object>[id],
+                );
+              }
+            }
+            for (final String id in kOldSeedRewardIds) {
+              if (!referencedTemplateIds.contains(id)) {
+                await customStatement(
+                  'DELETE FROM reward_templates WHERE id = ?;',
+                  <Object>[id],
+                );
+              }
+            }
+            // 新默认 9 条成长任务。列序：[id, name, subject, requiresFocus,
+            // minFocusMin, sunlightReward, category]；subject 取 enum index
+            // （chinese=0 math=1 english=2 general=3），category 同
+            // （learning=1 sports=2 life=3）。custom_subject=NULL、
+            // repeat_rule='daily'、is_custom=0。
+            const List<List<Object>> kV21SeedTasks = <List<Object>>[
+              <Object>['seed_task_homework', '完成学校作业', 3, 1, 20, 8, 1],
+              <Object>['seed_task_read', '阅读 20 分钟', 0, 0, 15, 8, 1],
+              <Object>['seed_task_math', '练习数学口算', 1, 1, 15, 6, 1],
+              <Object>['seed_task_english_read', '指读英语20分钟', 2, 0, 15, 8, 1],
+              <Object>[
+                'seed_task_english_listen',
+                '早上听英语听力15分钟',
+                2,
+                0,
+                15,
+                6,
+                1,
+              ],
+              <Object>['seed_task_rope_skip', '1分钟跳绳170个以上', 3, 0, 15, 10, 2],
+              <Object>[
+                'seed_task_homework_first',
+                '放学后优先完成作业',
+                3,
+                0,
+                15,
+                5,
+                1,
+              ],
+              <Object>[
+                'seed_task_pushup',
+                '10个俯卧撑+10个仰卧起坐',
+                3,
+                0,
+                15,
+                5,
+                2,
+              ],
+              <Object>['seed_task_chores', '帮助家长打扫卫生', 3, 0, 15, 5, 3],
+            ];
+            for (final List<Object> t in kV21SeedTasks) {
+              await customStatement(
+                'INSERT OR REPLACE INTO tasks '
+                '(id, name, subject, custom_subject, requires_focus, '
+                'min_focus_min, sunlight_reward, repeat_rule, is_custom, '
+                'category) VALUES (?, ?, ?, NULL, ?, ?, ?, \'daily\', 0, ?);',
+                t,
+              );
+            }
+            // 新默认 6 条奖励模板。列序：[id, name, baseCost, freqLimit,
+            // contentCategory]；category=1（parentHandled 家长经手）、
+            // cooldown_rule=1（weekly 每周限领）、enabled=1。
+            // content_category：snacks=1 play=2 entertainment=3。
+            const List<List<Object>> kV21SeedRewards = <List<Object>>[
+              <Object>['seed_snack', '小零食', 30, 3, 1],
+              <Object>['seed_cartoon', '看一集动画片', 100, 1, 3],
+              <Object>['seed_extra_play', '睡前多玩10分钟', 20, 3, 3],
+              <Object>['seed_weekend_outing', '周末出去玩', 200, 1, 2],
+              <Object>['seed_toy', '买一个小玩具', 100, 1, 3],
+              <Object>['seed_story', '睡前多听1个故事', 30, 3, 3],
+            ];
+            for (final List<Object> r in kV21SeedRewards) {
+              await customStatement(
+                'INSERT OR REPLACE INTO reward_templates '
+                '(id, name, category, base_cost, freq_limit, cooldown_rule, '
+                'enabled, content_category) '
+                'VALUES (?, ?, 1, ?, ?, 1, 1, ?);',
+                r,
+              );
+            }
+          }
+
+          // ㉒ v22（C53，玄参 2026-10-10 真机实证「家长天地默认条目重复」）：
+          //    v21 换默认种子时，对「被 check_ins / redemption_requests 引用过的
+          //    旧种子」采取**保留不断链**策略 —— 于是 3 条旧奖励残留（选今晚动画片 /
+          //    多看一集动画片 / 多玩10分钟），与新种子（看一集动画片 / 睡前多玩10
+          //    分钟）语义重复。本迁移把「内置种子」集合**强制对齐**到新 9 任务 +
+          //    6 奖励：
+          //     ① 先把引用旧奖励 id 的兑换历史**重定向**到对应新奖励 id（历史不断
+          //        链）：选今晚动画片 / 多看一集动画片 → 看一集动画片；
+          //        多玩10分钟 → 睡前多玩10分钟；
+          //     ② 删除 3 条旧奖励残留行（**显式 id 白名单**，绝不误伤 UUID 自建项）；
+          //     ③ 任务侧防御性清理：删 `is_custom = 0` 且不在新 9 id 集合内的行
+          //        （正常库无残留 —— 任务种子 id 从未变过、同 id 已被 v21 覆盖；
+          //        仅防历史脏数据。用户自建任务 `is_custom = 1` → 一律不动）。
+          //    幂等：重定向后旧 id 已无引用、删除后行已不存在，重复执行无副作用。
+          //    ⚠️ 版本变更（21 → 22），必须配迁移测试（见
+          //       `test/m3/migration_v21_to_v22_test.dart`）。
+          if (from < 22) {
+            // ① 兑换历史重定向（旧奖励 id → 新奖励 id，语义等价映射）。
+            await customStatement(
+              "UPDATE redemption_requests SET template_id = 'seed_cartoon' "
+              "WHERE template_id IN ('seed_cartoon_tonight', "
+              "'seed_extra_episode');",
+            );
+            await customStatement(
+              "UPDATE redemption_requests SET template_id = 'seed_extra_play' "
+              "WHERE template_id = 'seed_extra_10min';",
+            );
+            // ② 删除 3 条旧奖励残留（显式白名单，不动自建项）。
+            await customStatement(
+              'DELETE FROM reward_templates WHERE id IN '
+              "('seed_cartoon_tonight', 'seed_extra_10min', "
+              "'seed_extra_episode');",
+            );
+            // ③ 任务侧防御性清理（is_custom = 0 且非新 9 条 id）。
+            await customStatement(
+              'DELETE FROM tasks WHERE is_custom = 0 AND id NOT IN ('
+              "'seed_task_homework','seed_task_read','seed_task_math',"
+              "'seed_task_english_read','seed_task_english_listen',"
+              "'seed_task_rope_skip','seed_task_homework_first',"
+              "'seed_task_pushup','seed_task_chores');",
+            );
+          }
+
+          // ㉓ v23（C54，玄参 2026-10-10 真机实证「家长天地成长任务默认条目重复」）：
+          //    把内置种子集合**强制定死**为 9 成长任务 + 6 奖励模板，并清掉任何
+          //    「与内置种子**同名**、但 id 不是内置 id」的重复行（历史引用先重定向，
+          //    不断链）。
+          //    背景：v21 / v22 只按**固定 id** 识别内置行。若库里存在一条「名字与
+          //    内置种子完全一致、id 却是别的」的行（用户按同名自建、或历史脏数据），
+          //    v22 的 `is_custom = 0` 白名单清理**碰不到它**（它是 is_custom = 1）
+          //    → 家长天地里同一个名字出现两条（玄参截图实证：帮助家长打扫卫生 ×2）。
+          //    口径（幂等）：
+          //     ① 成长任务：同名重复行 → 把它的打卡历史改挂到内置 id，再删该行；
+          //     ② 奖励模板：同名重复行 → 把兑换历史改挂到内置 id，再删该行；
+          //     ③ 兜底再删一次「is_custom = 0 且不在 9 条 id 白名单内」的脏行
+          //        （与 v22③ 同口径，重复执行无副作用）；
+          //     ④ **只删不补**：家长主动删掉的内置项不会被本迁移复活
+          //        （验收口径：以「删除多余内容」为准）。
+          //    幂等：重复行删除后不再匹配；UPDATE 命中 0 行无副作用。
+          //    ⚠️ 版本变更（22 → 23），必须配迁移测试（见
+          //       `test/m3/migration_v23_test.dart`）。
+          if (from < 23) {
+            // SQL 字面量（只用编译期常量，无用户输入）。
+            String q(String s) => "'${s.replaceAll("'", "''")}'";
+            const List<String> seedTaskIds = <String>[
+              'seed_task_homework',
+              'seed_task_read',
+              'seed_task_math',
+              'seed_task_english_read',
+              'seed_task_english_listen',
+              'seed_task_rope_skip',
+              'seed_task_homework_first',
+              'seed_task_pushup',
+              'seed_task_chores',
+            ];
+            const Map<String, String> seedTaskIdByName = <String, String>{
+              '完成学校作业': 'seed_task_homework',
+              '阅读 20 分钟': 'seed_task_read',
+              '练习数学口算': 'seed_task_math',
+              '指读英语20分钟': 'seed_task_english_read',
+              '早上听英语听力15分钟': 'seed_task_english_listen',
+              '1分钟跳绳170个以上': 'seed_task_rope_skip',
+              '放学后优先完成作业': 'seed_task_homework_first',
+              '10个俯卧撑+10个仰卧起坐': 'seed_task_pushup',
+              '帮助家长打扫卫生': 'seed_task_chores',
+            };
+            const List<String> seedRewardIds = <String>[
+              'seed_snack',
+              'seed_cartoon',
+              'seed_extra_play',
+              'seed_weekend_outing',
+              'seed_toy',
+              'seed_story',
+            ];
+            const Map<String, String> seedRewardIdByName = <String, String>{
+              '小零食': 'seed_snack',
+              '看一集动画片': 'seed_cartoon',
+              '睡前多玩10分钟': 'seed_extra_play',
+              '周末出去玩': 'seed_weekend_outing',
+              '买一个小玩具': 'seed_toy',
+              '睡前多听1个故事': 'seed_story',
+            };
+            final String taskIdList = seedTaskIds.map(q).join(',');
+            final String taskNameList = seedTaskIdByName.keys.map(q).join(',');
+            final String rewardIdList = seedRewardIds.map(q).join(',');
+            final String rewardNameList = seedRewardIdByName.keys.map(q).join(',');
+
+            // ① 成长任务同名重复行：打卡历史重定向 → 删行。
+            final List<QueryRow> dupTasks = await customSelect(
+              'SELECT id, name FROM tasks '
+              'WHERE name IN ($taskNameList) AND id NOT IN ($taskIdList);',
+            ).get();
+            for (final QueryRow row in dupTasks) {
+              final String dupId = row.read<String>('id');
+              final String? seedId = seedTaskIdByName[row.read<String>('name')];
+              if (seedId == null) continue;
+              await customStatement(
+                'UPDATE check_ins SET task_id = ? WHERE task_id = ?;',
+                <Object>[seedId, dupId],
+              );
+              await customStatement(
+                'DELETE FROM tasks WHERE id = ?;',
+                <Object>[dupId],
+              );
+            }
+            // ③ 兜底：非自建脏行（is_custom = 0 且不在 9 条白名单）。
+            await customStatement(
+              'DELETE FROM tasks WHERE is_custom = 0 AND id NOT IN ($taskIdList);',
+            );
+
+            // ② 奖励模板同名重复行：兑换历史重定向 → 删行。
+            final List<QueryRow> dupRewards = await customSelect(
+              'SELECT id, name FROM reward_templates '
+              'WHERE name IN ($rewardNameList) AND id NOT IN ($rewardIdList);',
+            ).get();
+            for (final QueryRow row in dupRewards) {
+              final String dupId = row.read<String>('id');
+              final String? seedId =
+                  seedRewardIdByName[row.read<String>('name')];
+              if (seedId == null) continue;
+              await customStatement(
+                'UPDATE redemption_requests SET template_id = ? '
+                'WHERE template_id = ?;',
+                <Object>[seedId, dupId],
+              );
+              await customStatement(
+                'DELETE FROM reward_templates WHERE id = ?;',
+                <Object>[dupId],
+              );
+            }
+            // 旧 v21 三条奖励残留 id（幂等兜底，v22 已删过）。
+            await customStatement(
+              'DELETE FROM reward_templates WHERE id IN '
+              "('seed_cartoon_tonight','seed_extra_10min','seed_extra_episode');",
+            );
+          }
+
+          // ㉔ v24（C55，玄参 2026-10-10 真机实证「成长任务只剩 3 条 / 奖励只剩 4 条」）：
+          //    **补齐内置种子**（修复 v23 同名去重引发的数据丢失）。
+          //    背景（真机库离线解密实证，非推测）：C52 的 9 任务 + 6 奖励新增项在
+          //    该设备上**从未落库**（其内置集合仍是早期 3 任务 + 4 奖励，字段值与新默认
+          //    一字不差、仅缺行）；玄参为凑齐手动补了同名条目，而 v23 的「同名去重」
+          //    假设「同名内置行一定存在」→ 删掉手动条目后只剩内置那 3 + 4。
+          //    口径：**只补不删、不覆盖、不复活**。对 9 条成长任务 / 6 条奖励逐条
+          //    `INSERT OR IGNORE`：id 已存在则整行跳过（家长对内置项的改价 / 改名 /
+          //    删除一律尊重），id 缺失才补一条默认行。
+          //    幂等：第二次执行全部命中 IGNORE，0 行写入。
+          //    ⚠️ 版本变更（23 → 24），必须配迁移测试（见
+          //       `test/m3/migration_v24_test.dart`）。
+          if (from < 24) {
+            // 9 条成长任务。列序：[id, name, subject, requiresFocus, minFocusMin,
+            // sunlightReward, category]；subject enum（chinese=0 math=1 english=2
+            // general=3）、category enum（learning=1 sports=2 life=3）。
+            const List<List<Object>> kSeedTasksV24 = <List<Object>>[
+              <Object>['seed_task_homework', '完成学校作业', 3, 1, 20, 8, 1],
+              <Object>['seed_task_read', '阅读 20 分钟', 0, 0, 15, 8, 1],
+              <Object>['seed_task_math', '练习数学口算', 1, 1, 15, 6, 1],
+              <Object>['seed_task_english_read', '指读英语20分钟', 2, 0, 15, 8, 1],
+              <Object>[
+                'seed_task_english_listen',
+                '早上听英语听力15分钟',
+                2,
+                0,
+                15,
+                6,
+                1,
+              ],
+              <Object>['seed_task_rope_skip', '1分钟跳绳170个以上', 3, 0, 15, 10, 2],
+              <Object>[
+                'seed_task_homework_first',
+                '放学后优先完成作业',
+                3,
+                0,
+                15,
+                5,
+                1,
+              ],
+              <Object>[
+                'seed_task_pushup',
+                '10个俯卧撑+10个仰卧起坐',
+                3,
+                0,
+                15,
+                5,
+                2,
+              ],
+              <Object>['seed_task_chores', '帮助家长打扫卫生', 3, 0, 15, 5, 3],
+            ];
+            for (final List<Object> t in kSeedTasksV24) {
+              await customStatement(
+                'INSERT OR IGNORE INTO tasks '
+                '(id, name, subject, custom_subject, requires_focus, '
+                'min_focus_min, sunlight_reward, repeat_rule, is_custom, '
+                'category) VALUES (?, ?, ?, NULL, ?, ?, ?, \'daily\', 0, ?);',
+                t,
+              );
+            }
+            // 6 条奖励模板。列序：[id, name, baseCost, freqLimit, contentCategory]。
+            const List<List<Object>> kSeedRewardsV24 = <List<Object>>[
+              <Object>['seed_snack', '小零食', 30, 3, 1],
+              <Object>['seed_cartoon', '看一集动画片', 100, 1, 3],
+              <Object>['seed_extra_play', '睡前多玩10分钟', 20, 3, 3],
+              <Object>['seed_weekend_outing', '周末出去玩', 200, 1, 2],
+              <Object>['seed_toy', '买一个小玩具', 100, 1, 3],
+              <Object>['seed_story', '睡前多听1个故事', 30, 3, 3],
+            ];
+            for (final List<Object> r in kSeedRewardsV24) {
+              await customStatement(
+                'INSERT OR IGNORE INTO reward_templates '
+                '(id, name, category, base_cost, freq_limit, cooldown_rule, '
+                'enabled, content_category) '
+                'VALUES (?, ?, 1, ?, ?, 1, 1, ?);',
+                r,
+              );
+            }
           }
         },
       );

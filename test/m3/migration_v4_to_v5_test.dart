@@ -208,7 +208,7 @@ void main() {
       //（见 test/m4/migration_v5_to_v6_test.dart）；植物成长 V2（v7，玄参大人
       // 2026-09-22）给成长中植物做重置清零后上移到 7
       //（见 test/m3/migration_v6_to_v7_test.dart），本护栏随之跟进。
-      expect(database.schemaVersion, 20);
+      expect(database.schemaVersion, 24);
     });
 
     test('v4 老库迁移后 tasks 含 custom_subject，历史行取 NULL 且数据不丢', () async {
@@ -221,10 +221,12 @@ void main() {
       expect(cols, contains('is_custom'));
 
       final List<db.Task> all = await database.taskDao.allTasks();
-      expect(all, hasLength(1));
-      expect(all.single.id, 'legacy_task');
-      expect(all.single.name, '背诵古诗');
-      expect(all.single.customSubject, isNull);
+      // C52（v21）：迁移会补播 9 条默认成长任务（历史行 legacy_task 不丢）。
+      expect(all, hasLength(10));
+      final db.Task legacy =
+          all.firstWhere((db.Task t) => t.id == 'legacy_task');
+      expect(legacy.name, '背诵古诗');
+      expect(legacy.customSubject, isNull);
     });
 
     test('迁移后可写入 / 读回自定义科目（复现真机报错的验收点）', () async {
@@ -246,7 +248,8 @@ void main() {
       );
 
       final List<db.Task> all = await database.taskDao.allTasks();
-      expect(all, hasLength(2));
+      expect(all, hasLength(11),
+          reason: 'C52 v21 补播 9 条默认种子 + legacy_task + t_custom');
       final db.Task custom = all.firstWhere((db.Task t) => t.id == 't_custom');
       expect(custom.customSubject, '科学');
       expect(custom.subject, 4);

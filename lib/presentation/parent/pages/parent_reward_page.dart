@@ -350,6 +350,32 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
     super.dispose();
   }
 
+  /// 内容分类下拉项（C52 / 玄参 2026-10-10）：换「UI 图标 + 文字」渲染，
+  /// 并纳入新增「玩具 / 阅读」分类；图标加载失败回退 emoji（美术永不阻塞）。
+  DropdownMenuItem<RewardContentCategory> _contentCategoryDropdownItem(
+      RewardContentCategory c) {
+    return DropdownMenuItem<RewardContentCategory>(
+      value: c,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.asset(
+              rewardCategoryIconAsset(c),
+              width: 22,
+              height: 22,
+              errorBuilder: (_, Object __, StackTrace? ___) =>
+                  Text(c.icon, style: const TextStyle(fontSize: 16)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(c.label),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -387,17 +413,9 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
               DropdownButtonFormField<RewardContentCategory>(
                 initialValue: _contentCategory,
                 decoration: const InputDecoration(labelText: '内容分类'),
-                items: const <DropdownMenuItem<RewardContentCategory>>[
-                  DropdownMenuItem(
-                      value: RewardContentCategory.snacks, child: Text('零食')),
-                  DropdownMenuItem(
-                      value: RewardContentCategory.play, child: Text('游玩')),
-                  DropdownMenuItem(
-                      value: RewardContentCategory.entertainment,
-                      child: Text('娱乐')),
-                  DropdownMenuItem(
-                      value: RewardContentCategory.other, child: Text('其他')),
-                ],
+                items: RewardContentCategory.values
+                    .map(_contentCategoryDropdownItem)
+                    .toList(),
                 onChanged: (RewardContentCategory? v) =>
                     setState(() => _contentCategory = v!),
               ),

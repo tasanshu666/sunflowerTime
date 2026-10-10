@@ -56,16 +56,34 @@ String growthIconAssetFor(Task task) {
   }
   if (task.category == TaskCategory.sports) return 'assets/ui/growth/sports.webp';
   if (task.category == TaskCategory.life) return 'assets/ui/growth/life.webp';
+  if (task.category == TaskCategory.habit) return 'assets/ui/growth/habit.webp';
   return 'assets/ui/growth/default_ui.webp';
+}
+
+/// 成长项**内容分类** → 图标（C52 / 玄参 2026-10-10：编辑器下拉与分类徽章
+/// 用「图标+文字」渲染，与卡片图标同一素材池，视觉语言统一）。
+String taskCategoryIconAsset(TaskCategory category) {
+  switch (category) {
+    case TaskCategory.learning:
+      return 'assets/ui/growth/homework.webp';
+    case TaskCategory.sports:
+      return 'assets/ui/growth/sports.webp';
+    case TaskCategory.life:
+      return 'assets/ui/growth/life.webp';
+    case TaskCategory.habit:
+      return 'assets/ui/growth/habit.webp';
+    case TaskCategory.other:
+      return 'assets/ui/growth/default_ui.webp';
+  }
 }
 
 // ── 奖励图标（assets/ui/store/，7 张全用上）──────────────────────────
 
 const List<(String, List<String>)> _rewardKeywordIcons = <(String, List<String>)>[
-  ('store_book', <String>['书', '阅读', '绘本']),
+  ('store_book', <String>['书', '阅读', '绘本', '故事']), // C52 补「故事」
   ('store_sports', <String>['运动', '球']),
   ('store_toys', <String>['玩具', '积木', '乐高']),
-  ('store_game', <String>['游戏', '电玩']),
+  ('store_game', <String>['游戏', '电玩', '动画']), // C52 补「动画」
   ('store_snack', <String>['零食', '糖', '冰淇淋', '蛋糕', '薯片', '饮料']),
   ('store_play', <String>['游玩', '公园', '电影', '动物园', '游乐']),
 ];
@@ -87,6 +105,28 @@ String rewardIconAssetFor(RewardTemplate tpl) {
       return 'assets/ui/store/store_play.webp';
     case RewardContentCategory.entertainment:
       return 'assets/ui/store/store_game.webp';
+    case RewardContentCategory.toys: // C52 新增分类
+      return 'assets/ui/store/store_toys.webp';
+    case RewardContentCategory.books: // C52 新增分类
+      return 'assets/ui/store/store_book.webp';
+    case RewardContentCategory.other:
+      return 'assets/ui/store/store_default.webp';
+  }
+}
+
+/// 奖励**内容分类** → 图标（C52 / 玄参 2026-10-10：编辑器下拉「图标+文字」渲染）。
+String rewardCategoryIconAsset(RewardContentCategory category) {
+  switch (category) {
+    case RewardContentCategory.snacks:
+      return 'assets/ui/store/store_snack.webp';
+    case RewardContentCategory.play:
+      return 'assets/ui/store/store_play.webp';
+    case RewardContentCategory.entertainment:
+      return 'assets/ui/store/store_game.webp';
+    case RewardContentCategory.toys:
+      return 'assets/ui/store/store_toys.webp';
+    case RewardContentCategory.books:
+      return 'assets/ui/store/store_book.webp';
     case RewardContentCategory.other:
       return 'assets/ui/store/store_default.webp';
   }

@@ -94,6 +94,11 @@ class EyeCareService {
   /// [settings] 为 null 时按 [kEyeCareIntervalMinDefault] 兜底（未读到家长配置的默认
   /// 口径）；正常调用方（专注页）一律传真实设置，家长改间隔后当场生效。
   ///
+  /// [secondsRemainingInSession]（C51 / 玄参 2026-10-10）：距本场计划结束的剩余秒数，
+  /// 非空时**剩余不足 [kEyeCareInSessionMinRemainingSeconds] 不触发**——场长与触发
+  /// 间隔重合时（如 20 分钟场 + 20 分钟间隔）护眼恰落场尾，做完护眼几秒后就到时
+  /// 结算，节奏割裂；此时不弹卡，留给场末流程（预告 + 护眼 + 奖励）接管。
+  ///
   /// ⚠️ 幂等约定：本函数只回答「此刻是否已达阈值」，调用方在触发后**必须**把
   /// `lastEyeCareAtSecond` 回写为当前 [focusElapsedSeconds]（即「从 0 重新累计」），
   /// 否则下一秒仍然满足阈值、会连续弹卡。回写助手见 [baselineAfterTrigger]。
@@ -101,12 +106,19 @@ class EyeCareService {
     required int focusElapsedSeconds,
     required int? lastEyeCareAtSecond,
     AppSettings? settings,
+    int? secondsRemainingInSession,
   }) {
     final int intervalSec = settings == null
         ? kEyeCareIntervalMinDefault * 60
         : intervalSeconds(settings);
     final int span = focusElapsedSeconds - (lastEyeCareAtSecond ?? 0);
-    return span >= intervalSec;
+    if (span < intervalSec) return false;
+    // C51：临近场末不触发（护眼 60+ 秒 + 弹卡收尾本身就需要一分钟量级的窗口）。
+    if (secondsRemainingInSession != null &&
+        secondsRemainingInSession < kEyeCareInSessionMinRemainingSeconds) {
+      return false;
+    }
+    return true;
   }
 
   /// 触发后应回写的「下次累计注视基准」（= 触发当下的累计注视秒数）。

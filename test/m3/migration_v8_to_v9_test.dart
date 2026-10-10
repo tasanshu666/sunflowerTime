@@ -100,9 +100,11 @@ List<String> _schemaDdl({required bool withLegacyRows}) {
         'id TEXT NOT NULL, name TEXT NOT NULL DEFAULT \'\', type INTEGER NOT NULL, '
         'ts INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY (id));',
     if (withLegacyRows) ...<String>[
+      // 历史行取 is_custom=1（用户自建）：后置迁移 v22 只清理 is_custom=0 且非新
+      // 种子的「内置种子脏行」，自建行一律保留 —— 故用 1 代表真实历史数据。
       'INSERT INTO tasks (id, name, subject, requires_focus, min_focus_min, '
           'sunlight_reward, repeat_rule, is_custom) '
-          'VALUES (\'t_old\', \'老成长项\', ${TaskSubject.math.index}, 0, 15, 12, \'daily\', 0);',
+          'VALUES (\'t_old\', \'老成长项\', ${TaskSubject.math.index}, 0, 15, 12, \'daily\', 1);',
       'INSERT INTO reward_templates (id, name, category, base_cost, cooldown_rule, enabled) '
           'VALUES (\'r_old\', \'老奖励\', ${RewardCategory.parentHandled.index}, 30, 1, 1);',
     ],
@@ -160,7 +162,7 @@ void main() {
         _schemaDdl(withLegacyRows: true),
         8,
       );
-      expect(database.schemaVersion, 20);
+      expect(database.schemaVersion, 24);
     });
 
     test('迁移后 tasks 出现 category 列、reward_templates 出现 content_category 列',
@@ -235,7 +237,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 20);
+      expect(first.schemaVersion, 24);
       expect(await _columns(first, 'tasks'), contains('category'));
       await first.close();
 
@@ -256,7 +258,7 @@ void main() {
         _schemaDdl(withLegacyRows: true),
         6,
       );
-      expect(database.schemaVersion, 20);
+      expect(database.schemaVersion, 24);
       // v8→v9 补列分支执行：category / content_category 列存在。
       expect(await _columns(database, 'tasks'), contains('category'));
       expect(await _columns(database, 'reward_templates'),

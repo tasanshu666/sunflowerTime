@@ -1,8 +1,10 @@
-/// 奖励模板种子（D3/D4）：5 条占位模板，首次启动若无模板则写入。
+/// 奖励模板种子（D3/D4 占位版 → C52 默认版重写，玄参 2026-10-10 截图拍板）。
 ///
-/// 口径（§0 D3 / D4）：
-///  · 每奖励每周限领 1 次 → `frequencyLimitPerWeek=1` + `cooldownRule=CooldownRule.weekly`；
-///  · parentHandled 类小额可走免确认；selfService 类（多看一集动画片）不自动放行（C5③）。
+/// 口径（§0 D3 / D4 + C52 默认版）：
+///  · 全部 `parentHandled`（家长经手兑现）；
+///  · 高频小额（周限 3 次）走 `frequencyLimitPerWeek=3` + `cooldownRule=weekly`，
+///    大奖（周限 1 次）同规则限 1；
+///  · parentHandled 类小额可走免确认；不设 selfService 种子（C5③ 已有测试覆盖）。
 ///
 /// 注意：`RewardTemplate` 实体无 `enabled` 字段（enabled 仅存在于 DB 列，由
 /// `RewardLocalRepository.saveTemplate` 固定写 `true`），故此处构造不传 enabled。
@@ -12,33 +14,34 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 
-/// 5 条占位奖励模板（D3）。baseCost 为家长设定单价，显示价 = 扣费价（不再叠加分龄系数 K）。
+/// 6 条默认奖励模板（C52 默认版，玄参 2026-10-10 截图拍板）。
+/// baseCost 为家长设定单价，显示价 = 扣费价（不再叠加分龄系数 K）。
 const List<RewardTemplate> kSeedRewardTemplates = [
   RewardTemplate(
     id: 'seed_snack',
     name: '小零食',
     category: RewardCategory.parentHandled,
     contentCategory: RewardContentCategory.snacks, // 小零食 → 零食
+    baseCost: 30,
+    frequencyLimitPerWeek: 3,
+    cooldownRule: CooldownRule.weekly,
+  ),
+  RewardTemplate(
+    id: 'seed_cartoon',
+    name: '看一集动画片',
+    category: RewardCategory.parentHandled,
+    contentCategory: RewardContentCategory.entertainment, // 看动画片 → 娱乐
+    baseCost: 100,
+    frequencyLimitPerWeek: 1,
+    cooldownRule: CooldownRule.weekly,
+  ),
+  RewardTemplate(
+    id: 'seed_extra_play',
+    name: '睡前多玩10分钟',
+    category: RewardCategory.parentHandled,
+    contentCategory: RewardContentCategory.entertainment, // 截图口径：娱乐
     baseCost: 20,
-    frequencyLimitPerWeek: 1,
-    cooldownRule: CooldownRule.weekly,
-  ),
-  RewardTemplate(
-    id: 'seed_cartoon_tonight',
-    name: '选今晚动画片',
-    category: RewardCategory.parentHandled,
-    contentCategory: RewardContentCategory.entertainment, // 选今晚动画片 → 娱乐
-    baseCost: 40,
-    frequencyLimitPerWeek: 1,
-    cooldownRule: CooldownRule.weekly,
-  ),
-  RewardTemplate(
-    id: 'seed_extra_10min',
-    name: '多玩10分钟',
-    category: RewardCategory.parentHandled,
-    contentCategory: RewardContentCategory.play, // 多玩10分钟 → 游玩
-    baseCost: 60,
-    frequencyLimitPerWeek: 1,
+    frequencyLimitPerWeek: 3,
     cooldownRule: CooldownRule.weekly,
   ),
   RewardTemplate(
@@ -46,18 +49,26 @@ const List<RewardTemplate> kSeedRewardTemplates = [
     name: '周末出去玩',
     category: RewardCategory.parentHandled,
     contentCategory: RewardContentCategory.play, // 周末出去玩 → 游玩
-    baseCost: 120,
+    baseCost: 200,
     frequencyLimitPerWeek: 1,
     cooldownRule: CooldownRule.weekly,
   ),
-  // C5③ 验证：selfService 类不自动放行，须家长核销。
   RewardTemplate(
-    id: 'seed_extra_episode',
-    name: '多看一集动画片',
-    category: RewardCategory.selfService,
-    contentCategory: RewardContentCategory.entertainment, // 多看一集动画片 → 娱乐
-    baseCost: 50,
+    id: 'seed_toy',
+    name: '买一个小玩具',
+    category: RewardCategory.parentHandled,
+    contentCategory: RewardContentCategory.entertainment, // 截图口径：娱乐
+    baseCost: 100,
     frequencyLimitPerWeek: 1,
+    cooldownRule: CooldownRule.weekly,
+  ),
+  RewardTemplate(
+    id: 'seed_story',
+    name: '睡前多听1个故事',
+    category: RewardCategory.parentHandled,
+    contentCategory: RewardContentCategory.entertainment, // 截图口径：娱乐
+    baseCost: 30,
+    frequencyLimitPerWeek: 3,
     cooldownRule: CooldownRule.weekly,
   ),
 ];

@@ -1,4 +1,4 @@
-/// 家长端首页（M3 导航重构）：底部导航壳，承载「今日 / 奖励 / 任务 / 设置」四页。
+/// 家长端首页（M3 导航重构）：底部导航壳，承载「今日 / 奖励 / 成长 / 记录 / 设置」五页。
 ///
 /// 纪律（§7.8 / 任务约束）：**原样保留** B19/B20 返回栈行为——
 ///  · Scaffold + AppBar(title '家长天地')；
@@ -12,6 +12,8 @@
 /// 用 [IndexedStack] 保活各页（页面有输入/滚动状态，切走不应丢）。
 /// C49（玄参 2026-10-10）：夸夸台 tab 裁撤（纯本地备忘壳、孩子端不可见、实用价值低），
 /// 5 tab 收敛为 4 tab。
+/// C54（玄参 2026-10-10）：新增「记录」tab（成长任务完成 / 奖励兑换历史，按内容统计次数），
+/// 4 tab 扩为 5 tab：今日 / 奖励 / 成长 / 记录 / 设置。
 library parent_home_page;
 
 import 'package:flutter/material.dart';
@@ -20,10 +22,11 @@ import 'package:go_router/go_router.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_today_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_reward_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page.dart';
+import 'package:sunflower_time/presentation/parent/pages/parent_history_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_settings_page.dart';
 import 'package:sunflower_time/shared/theme.dart';
 
-/// 家长端首页：底部导航壳（4 tab：今日 / 奖励 / 任务 / 设置）。
+/// 家长端首页：底部导航壳（5 tab：今日 / 奖励 / 成长 / 记录 / 设置）。
 class ParentHomePage extends StatefulWidget {
   const ParentHomePage({super.key});
 
@@ -68,6 +71,8 @@ class _ParentHomePageState extends State<ParentHomePage> {
               // 任务 tab 复用任务配置页的 embedded 形态（不叠加第二层 AppBar；
               // 返回栈仍由本页 AppBar / 系统返回键统一处理）。
               ParentTaskConfigPage(embedded: true),
+              // C54：记录 tab（成长任务完成 / 奖励兑换历史，按内容统计次数）。
+              ParentHistoryPage(),
               ParentSettingsPage(),
             ],
           ),
@@ -89,6 +94,11 @@ class _ParentHomePageState extends State<ParentHomePage> {
                 icon: Icon(Icons.checklist_outlined),
                 selectedIcon: Icon(Icons.checklist),
                 label: '成长',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.history_outlined),
+                selectedIcon: Icon(Icons.history),
+                label: '记录',
               ),
               NavigationDestination(
                 icon: Icon(Icons.settings_outlined),

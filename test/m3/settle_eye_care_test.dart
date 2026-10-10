@@ -268,9 +268,10 @@ void main() {
     );
     await _settle(tester);
 
-    await tester.tap(find.text('跳过'));
+    // C50（2026-10-10）按钮合并：主按钮「跳过护眼休息」为唯一出口。
+    await tester.tap(find.text(kEyeCareFinishLabel));
     await _settle(tester);
-    await tester.tap(find.text('确定跳过')); // 二次确认
+    await tester.tap(find.text(kEyeCareEarlyFinishQuitLabel)); // 二次确认
     await _settle(tester);
 
     expect(find.text('···'), findsNothing);

@@ -72,7 +72,7 @@ class SettleArgs {
   /// 由专注页按「距上次护眼之后的本段注视 ≥ [kEyeCareSessionEndMinutes] 分钟」算出
   /// 后随 [SettleArgs] 传入；深链直入（本参数为默认 false）不插卡，行为与既往一致。
   ///
-  /// 2026-10-08 修订：**到时结束**的场末护眼改由专注页在其之上播放（横屏 + 3s 过渡，
+  /// 2026-10-08 修订：**到时结束**的场末护眼改由专注页在其之上播放（横屏 + 5s 过渡，
   /// 修复「护眼竖屏播放 / 盖住结算动画」），本页插卡路径仅剩手动结束 / 离席打断场景。
   final bool eyeCarePending;
 
@@ -123,7 +123,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
   /// （账本入账由护眼卡内部完成，本页只收结果显示）；跳过 / 未触发 = 0。
   ///
   /// 2026-10-08：初值改为读 [SettleArgs.eyeCareReward]——到时结束的场末护眼已在
-  /// 专注页播完（横屏 + 3s 过渡），奖励随 args 直达，本页不再插卡。
+  /// 专注页播完（横屏 + 5s 过渡），奖励随 args 直达，本页不再插卡。
   int _eyeCareReward = 0;
 
   /// 结算前护眼卡是否仍在展示（带 [SettleArgs.eyeCarePending] 进场且结果未回）。

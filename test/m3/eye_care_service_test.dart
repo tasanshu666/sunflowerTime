@@ -188,6 +188,54 @@ void main() {
       );
     });
 
+    group('临近场末不触发（C51 / 玄参 2026-10-10：剩余 < 60s 留给场末流程接管）', () {
+      test('剩余 60s 及以上、间隔已满 → 正常触发', () {
+        expect(
+          EyeCareService.shouldTriggerInSession(
+            focusElapsedSeconds: 20 * 60,
+            lastEyeCareAtSecond: null,
+            secondsRemainingInSession: 60,
+          ),
+          isTrue,
+        );
+      });
+
+      test('剩余不足 60s → 不触发（哪怕间隔已满）', () {
+        // 20 分钟场 + 20 分钟间隔：19:58（剩余 2s）不再弹卡——
+        // 旧实现恰在此时触发，护眼做完 2 秒后就到时结算，节奏割裂。
+        expect(
+          EyeCareService.shouldTriggerInSession(
+            focusElapsedSeconds: 20 * 60 - 2,
+            lastEyeCareAtSecond: null,
+            secondsRemainingInSession: 2,
+          ),
+          isFalse,
+        );
+      });
+
+      test('剩余充足 → 间隔满即触发（约束不影响正常节奏）', () {
+        // 45 分钟场 + 20 分钟间隔：40:00 触发时剩余 5 分钟，正常弹卡。
+        expect(
+          EyeCareService.shouldTriggerInSession(
+            focusElapsedSeconds: 40 * 60,
+            lastEyeCareAtSecond: 20 * 60,
+            secondsRemainingInSession: 5 * 60,
+          ),
+          isTrue,
+        );
+      });
+
+      test('不传剩余秒（null）→ 维持旧行为（兼容既有调用与测试）', () {
+        expect(
+          EyeCareService.shouldTriggerInSession(
+            focusElapsedSeconds: 20 * 60,
+            lastEyeCareAtSecond: null,
+          ),
+          isTrue,
+        );
+      });
+    });
+
     test('幂等契约：触发后回写基准 → 同一间隔内只弹一次（绝不连弹）', () {
       final AppSettings s = _eyeSettings(intervalMin: 20);
       final int interval = EyeCareService.intervalSeconds(s);

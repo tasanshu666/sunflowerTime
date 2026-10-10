@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 
 /// 任务模板编辑对话框。
 ///
@@ -101,6 +102,30 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
     }
   }
 
+  /// 分类下拉项（C52）：UI 图标 + 文字；图标加载失败回退 emoji（美术永不阻塞）。
+  DropdownMenuItem<TaskCategory> _categoryDropdownItem(TaskCategory c) {
+    return DropdownMenuItem<TaskCategory>(
+      value: c,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.asset(
+              taskCategoryIconAsset(c),
+              width: 22,
+              height: 22,
+              errorBuilder: (_, Object __, StackTrace? ___) =>
+                  Text(c.icon, style: const TextStyle(fontSize: 16)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(c.label),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     final String name = _nameCtrl.text.trim();
     if (name.isEmpty) {
@@ -184,18 +209,14 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
               ),
             ],
             const SizedBox(height: 8),
+            // 分类下拉（C52 / 玄参 2026-10-10：换「UI 图标 + 文字」渲染，并新增
+            // 「习惯」分类；图标与孩子端卡片同一素材池，视觉语言统一）。
             DropdownButtonFormField<TaskCategory>(
               value: _category,
               decoration: const InputDecoration(labelText: '分类'),
-              items: const <DropdownMenuItem<TaskCategory>>[
-                DropdownMenuItem(
-                    value: TaskCategory.learning, child: Text('学习')),
-                DropdownMenuItem(
-                    value: TaskCategory.sports, child: Text('运动')),
-                DropdownMenuItem(value: TaskCategory.life, child: Text('生活')),
-                DropdownMenuItem(
-                    value: TaskCategory.other, child: Text('其他')),
-              ],
+              items: TaskCategory.values
+                  .map(_categoryDropdownItem)
+                  .toList(),
               onChanged: (TaskCategory? v) =>
                   v == null ? null : setState(() => _category = v),
             ),

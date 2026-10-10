@@ -148,8 +148,19 @@ class _FocusPageState extends ConsumerState<FocusPage>
   /// 护眼卡是否正在展示（展示期间：专注计时暂停、退出确认与场末判定都不再推进）。
   bool _eyeCareActive = false;
 
-  /// 到时结束后的过渡缓冲倒计时（0 = 未在缓冲；3→2→1 逐秒刷新，玄参 2026-10-08）。
+  /// 本场**已完成**护眼的累计奖励（C51 / 玄参 2026-10-10）：场内 + 场末每次完成
+  /// 都累加 [kEyeCareRewardSunlight]。账本入账以护眼卡内部为唯一真源，这里只累计
+  /// **展示数**，随 [SettleArgs.eyeCareReward] 带给结算页——修复「20 分钟场场内
+  /// 护眼完成但结算页护眼奖励显示 0」的展示口径缺陷（此前只统计场末那次）。
+  int _sessionEyeCareReward = 0;
+
+  /// 到时结束后的过渡缓冲倒计时（0 = 未在缓冲；5→4→3→2→1 逐秒刷新。
+  /// 玄参 2026-10-08 定 3s，同日晚 F100 改 **5s** 配 `5s_countdown.mp3`）。
   int _endingCountdown = 0;
+
+  /// 过渡缓冲是否为**场内触发**（C51）：true = 场内护眼前的预告（文案「让眼睛
+  /// 休息一下吧」），false = 场末（「专注结束啦」）。随 [_runEndingBuffer] 写入。
+  bool _endingInSession = false;
 
   /// 本次专注适用的**每日专注上限**（分钟）：进入时与 [_tier] 一起从设置读取，
   /// 结算时传给 `SunlightService.settle` 做额度截断（2026-09-23 日上限口径）。
@@ -321,10 +332,28 @@ class _FocusPageState extends ConsumerState<FocusPage>
       focusElapsedSeconds: presentSeconds,
       lastEyeCareAtSecond: _eyeCareBaselineFocusSeconds,
       settings: s,
+      // C51：临近场末不触发（剩余 < 60s），留给场末流程接管，避免
+      // 「20 分钟场 19:58 护眼完 → 20:00 马上结算」的割裂节奏。
+      secondsRemainingInSession: widget.plannedMinutes * 60 - presentSeconds,
     )) {
       return;
     }
-    unawaited(_openEyeCare(focusSecondsAtTrigger: presentSeconds));
+    unawaited(_runInSessionEyeCareBreak(presentSeconds));
+  }
+
+  /// 场内护眼完整流程（C51 / 玄参 2026-10-10）：**先预告再弹卡**。
+  ///
+  /// 旧实现（C28 初版）场内触发直接弹卡，真机反馈「没有预告太突兀」：
+  /// 现在 = 暂停计时 → 5s 过渡（倒计时数字 + 提示音，文案与场末区分）→
+  /// 弹护眼卡。预告与护眼全程引擎 paused，专注时长 / 阳光产出都不累计；
+  /// 护眼卡内部负责入账与护眼记录，本方法只收结果累计展示数。
+  Future<void> _runInSessionEyeCareBreak(int focusSecondsAtTrigger) async {
+    // 幂等：预告/护眼期间 tick 的后续判定被 _eyeCareActive + 引擎 paused 双重挡住。
+    _engine.pause();
+    if (mounted) setState(() => _eyeCareActive = true);
+    await _runEndingBuffer(inSession: true);
+    if (!mounted) return;
+    await _openEyeCare(focusSecondsAtTrigger: focusSecondsAtTrigger);
   }
 
   /// 弹出护眼卡并等它结束。
@@ -332,8 +361,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
   /// [focusSecondsAtTrigger] 是**触发当下**的累计注视秒数，护眼结束后用它回写基准，
   /// 保证「护眼这一段」被算进基准、不会被下一秒的 tick 当成「又积累了一秒」。
   ///
-  /// 返回护眼卡 pop 出的结果（completed / skipped）；场末路径据此累计护眼奖励
-  /// （护眼卡内部已写阳光账本，这里只收结果、绝不重复入账）。
+  /// 返回护眼卡 pop 出的结果；完成（completed）时把 [kEyeCareRewardSunlight] 累加进
+  /// [_sessionEyeCareReward]（C51：场内 + 场末统一在此累计，结算页展示不再漏场内那次；
+  /// 护眼卡内部已写阳光账本，这里只收结果、绝不重复入账）。
   Future<EyeCareResult?> _openEyeCare({required int focusSecondsAtTrigger}) async {
     // 只有 `isEnabled` 判定通过的那条路径会走到这里，故设置必定已读到（非空）。
     final AppSettings settings = _eyeCareSettings!;
@@ -359,15 +389,26 @@ class _FocusPageState extends ConsumerState<FocusPage>
     _eyeCareBaselineFocusSeconds =
         EyeCareService.baselineAfterTrigger(focusSecondsAtTrigger);
     _engine.resume();
+    // C51：完成护眼 → 累计本场展示数（场内 / 场末统一口径；跳过不累计）。
+    if (result != null && result.completed) {
+      _sessionEyeCareReward += kEyeCareRewardSunlight;
+    }
     return result;
   }
 
-  /// 到时结束 → 护眼卡之前的 **3s 过渡缓冲**（玄参 2026-10-08：直接切护眼太突兀）。
+  /// 到时结束 → 护眼卡之前的 **5s 过渡缓冲**（玄参 2026-10-08：直接切护眼太突兀；
+  /// 同日晚 F100 由 3s 改 5s）。
   ///
-  /// 仍保持横屏，全屏文字提示「专注结束啦 / 让眼睛休息一下吧」+ 3-2-1 倒计时；
-  /// 走完由调用方接续护眼卡（同样横屏播放，护眼结束才转竖屏进结算）。
-  Future<void> _runEndingBuffer() async {
+  /// 仍保持横屏，全屏文字提示 + 5-4-3-2-1 倒计时 + 5 秒倒计时配音（fire-and-forget，
+  /// 受 soundOn 保护，失败静默不影响主流程）；走完由调用方接续护眼卡（同样横屏
+  /// 播放，护眼结束才转竖屏进结算）。
+  ///
+  /// C51：场内触发（[inSession] = true）也复用本缓冲——文案区分：场末「🌻 专注
+  /// 结束啦 / 让眼睛休息一下吧」、场内「🌻 让眼睛休息一下吧 / 休息完继续加油哦」。
+  /// 场内调用前调用方必须已 `_engine.pause()`（场末时引擎已 finished，无需暂停）。
+  Future<void> _runEndingBuffer({bool inSession = false}) async {
     if (!mounted) return;
+    if (mounted) setState(() => _endingInSession = inSession);
     // 倒计时开始 → 5 秒倒计时配音（玄参 2026-10-08 晚交付 `5s_countdown.mp3`，
     // 替代此前的系统「叮」；fire-and-forget，受 soundOn 保护，失败静默不影响主流程）。
     ref.read(audioServiceProvider).playSfx(AudioCue.focusEndCountdown);
@@ -376,7 +417,12 @@ class _FocusPageState extends ConsumerState<FocusPage>
       setState(() => _endingCountdown = i);
       await Future<void>.delayed(const Duration(seconds: 1));
     }
-    if (mounted) setState(() => _endingCountdown = 0);
+    if (mounted) {
+      setState(() {
+        _endingCountdown = 0;
+        _endingInSession = false;
+      });
+    }
   }
 
   /// 本场结束时「距上次护眼后的本段注视」是否达到场末插入门槛（≥ [kEyeCareSessionEndMinutes]）。
@@ -540,25 +586,23 @@ class _FocusPageState extends ConsumerState<FocusPage>
     //   旧流程「到时 → 转竖屏 → 结算页 → 护眼卡压在结算页上（竖屏）」有两处体验缺陷——
     //   ① 直接切护眼太突兀（无过渡）；② 护眼在竖屏播、且把结算动画帧/音效盖住
     //   （结算页 initState 即播动画+音效，播完时护眼还没结束，孩子永远看不到）。
-    //   新流程：到时 → **保持横屏** 3s 文字过渡 → 横屏播护眼卡 → 结束后才转竖屏，
+    //   新流程：到时 → **保持横屏** 5s 文字过渡 → 横屏播护眼卡 → 结束后才转竖屏，
     //   带着护眼奖励进结算页（此时结算动画/音效不再被遮挡，玄参第 7/8 条一次修复）。
     //   手动结束（竖持退出）与离席打断保持旧流程：手机已在孩子手里竖持，强行横屏反而怪异。
     final bool eyeCareFirst =
         outcome.endReason == FocusEndReason.timedOut &&
             _shouldEyeCareAtSessionEnd();
-    int eyeCareReward = 0;
     if (eyeCareFirst) {
-      await _runEndingBuffer(); // 3s 过渡（仍横屏）
+      await _runEndingBuffer(); // 5s 过渡（仍横屏，场末文案）
       if (!mounted) return;
-      final EyeCareResult? r = await _openEyeCare(
+      await _openEyeCare(
         focusSecondsAtTrigger: (_engine.actualFocusMin * 60).round(),
       );
       if (!mounted) return;
-      if (r != null && r.completed) {
-        // 唯一真源：账本入账在护眼卡内部完成，这里只收结果用于结算页展示。
-        eyeCareReward = kEyeCareRewardSunlight;
-      }
     }
+    // C51：护眼奖励展示数 = 本场**全部**完成护眼（场内 + 场末）——账本唯一真源
+    // 在护眼卡内部，这里只收累计的展示数，修复「场内护眼完成但结算页显示 0」。
+    final int eyeCareReward = _sessionEyeCareReward;
 
     await _restoreSystemChrome(); // 护眼结束后才复位方向（新流程）/ 立即复位（旧流程）
 
@@ -631,7 +675,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
     // go 是替换路由栈（B20）；结算页经 go 进入，退出用 go('/')。
     //
     // C28 §1 场末两种接线方式：
-    //  · 到时结束 + 达门槛（[eyeCareFirst]）→ 护眼已在本页之上播完（横屏、含 3s
+    //  · 到时结束 + 达门槛（[eyeCareFirst]）→ 护眼已在本页之上播完（横屏、含 5s
     //    过渡），结算页**不再**插卡，只随 [SettleArgs.eyeCareReward] 带去奖励展示；
     //  · 手动结束 / 离席打断 + 达门槛 → 仍走旧路径（[SettleArgs.eyeCarePending]，
     //    结算页先插护眼卡、再领奖励），结算页既有护眼逻辑原样保留。
@@ -968,8 +1012,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
                       style: TextStyle(color: Colors.white, fontSize: 28)),
                 ),
               ),
-            // 到时结束 → 护眼卡之前的 3s 过渡缓冲（玄参 2026-10-08）：
-            // 全屏深色遮罩 + 文字提示 + 倒计时，保持横屏不切走（护眼接续在本页之上）。
+            // 到时结束 / 场内触发 → 护眼卡之前的 5s 过渡缓冲（玄参 2026-10-08；
+            // C51 场内也复用，文案区分）：全屏深色遮罩 + 文字提示 + 倒计时，
+            // 保持横屏不切走（护眼接续在本页之上）。
             if (_endingCountdown > 0)
               Container(
                 color: Colors.black.withValues(alpha: 0.72),
@@ -977,9 +1022,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    const Text(
-                      '🌻 专注结束啦',
-                      style: TextStyle(
+                    Text(
+                      _endingInSession ? '🌻 让眼睛休息一下吧' : '🌻 专注结束啦',
+                      style: const TextStyle(
                         color: Color(0xFFFFE082),
                         fontSize: 30,
                         fontWeight: FontWeight.w600,
@@ -987,9 +1032,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      '让眼睛休息一下吧',
-                      style: TextStyle(
+                    Text(
+                      _endingInSession ? '休息完继续加油哦' : '让眼睛休息一下吧',
+                      style: const TextStyle(
                         color: Color(0xFF9E9ECF),
                         fontSize: 18,
                         letterSpacing: 1,

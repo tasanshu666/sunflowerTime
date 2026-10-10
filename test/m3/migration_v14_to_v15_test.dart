@@ -178,7 +178,7 @@ void main() {
   group('迁移 v14->v15：少儿护眼休息三列（C28）', () {
     test('schemaVersion 必须为最新 15（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(14);
-      expect(database.schemaVersion, 20);
+      expect(database.schemaVersion, 24);
     });
 
     test('三列补出来且历史行为默认值（开 / 20 分钟 / 不允许跳过）', () async {
@@ -215,7 +215,8 @@ void main() {
       expect(await _count(database, 'settings'), 1);
       expect(await _count(database, 'plants'), 0);
       expect(await _count(database, 'sunlight_ledgers'), 0);
-      expect(await _count(database, 'tasks'), 0);
+      expect(await _count(database, 'tasks'), 9,
+          reason: 'C52 v21：空任务表由迁移补播 9 条默认成长任务');
     });
 
     test('幂等：已迁移到 v15 的库二次打开不报错、默认值稳定不变', () async {
@@ -237,13 +238,13 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 20);
+      expect(first.schemaVersion, 24);
       await first.close();
 
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 20);
+      expect(second.schemaVersion, 24);
       expect(await _count(second, 'settings'), 1);
 
       final Map<String, Object?> row = await _eyeCareRow(second);

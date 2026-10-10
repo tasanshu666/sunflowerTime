@@ -459,6 +459,17 @@ class TaskCheckInService {
         .toList();
   }
 
+  /// 家长端「记录」页：全部**已核销**打卡（不限日期），供历史聚合统计（C54）。
+  ///
+  /// 口径：只取 `status == verified` —— 联动项自动结算与家长核销通过都落 verified，
+  /// 即「真正完成的成长项」；pending（待家长确认）与 rejected（已驳回）不计入历史。
+  /// 只读入口，**不加**串行化闸门。
+  ///
+  /// 走能力接口 [CheckInAdminRepository] 而非 [TaskRepository]：与 [pendingCheckIns]
+  /// 同源，避免给 [TaskRepository] 加方法牵动所有既有实现（含测试 Fake）。
+  Future<List<CheckIn>> verifiedCheckIns() =>
+      _admin.checkInsByStatus(CheckInStatus.verified);
+
   /// 家长端：核销通过（冻结契约）。
   ///
   /// **只对 `pending` 生效**（对 verified / rejected 抛错，防止重复入账——这是钱）。

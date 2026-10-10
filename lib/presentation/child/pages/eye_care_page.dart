@@ -1,5 +1,12 @@
 /// 少儿护眼休息卡（口径 C28，玄参 2026-10-03 初稿 / 2026-10-04 收口 /
-/// 2026-10-05 素材定稿接入 / 2026-10-09 C43 单段素材改版）。
+/// 2026-10-05 素材定稿接入 / 2026-10-09 C43 单段素材改版 / 2026-10-10 C50 布局改版）。
+///
+/// **C50 布局改版（玄参 2026-10-10 拍板方案 A + 按钮合并）**：
+///  · **横屏左右双栏**：动画占左侧（可用高 ~85%，原 45% → 放大约 1.9 倍），
+///    标题 / 段标题 / 倒计时 / 进度条 / 按钮移到右栏竖排；竖屏兜底维持原竖排。
+///  · **按钮合并**：原主按钮「跳过护眼休息」与次按钮「跳过」走同一套二次确认流，
+///    功能重复 → 合并为**单个主按钮**（原「恒有两个出口」口径由主按钮独立承担：
+///    禁跳时点了无效弹提示、允许时二次确认，语义完全覆盖）。
 ///
 /// 一张**全屏 modality 卡**：按 [kEyeCarePlaylist]（C43 起恒为**单段**：640 帧
 /// WebP + 单配音 63.974s，玄参把 5 段素材剪辑拼为 1 段、段间过渡更丝滑）播放
@@ -10,11 +17,12 @@
 /// ⚠️ C43 播放器预热已改**滑动窗口**（640 帧 × 2.07MB ≈ 1.3GB 禁止整组预热），
 /// 页面侧的「预解码下一槽位」逻辑随 7 槽位播放列表一并移除（单段无下一槽）。
 ///
-/// 三条硬口径（C28 §7，勿改）：
-///  · **允许跳过（默认）**：点「跳过」→ **先弹二次确认**（[kEyeCareSkipConfirmText]），
-///    确认才生效；确认后**不发奖励、不写账本**，直接继续专注 / 进结算页；
+/// 三条硬口径（C28 §7，勿改；C50 按钮合并后由主按钮独立承担）：
+///  · **允许跳过（默认）**：点主按钮「跳过护眼休息」→ **先弹二次确认**
+///    （[kEyeCareEarlyFinishConfirmText]，明示无奖励），确认才生效；
+///    确认后**不发奖励、不写账本**，直接继续专注 / 进结算页；
 ///    取消确认＝回护眼卡继续休息。
-///  · **家长关掉「允许跳过」**：点「跳过」**无效**，弹 [kEyeCareNotSkippableText]，
+///  · **家长关掉「允许跳过」**：点主按钮**无效**，弹 [kEyeCareNotSkippableText]，
 ///    流程不推进，只有走完流程一条路。
 ///  · **返回键拦截**：整页 `PopScope(canPop: false)`，拦截时同样弹
 ///    [kEyeCareNotSkippableText]（防止孩子按返回绕过护眼）。
@@ -222,39 +230,6 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
     }
   }
 
-  /// 点「跳过」：允许 → 二次确认；不可跳过 → 只弹提示，流程不推进。
-  void _onSkipPressed() {
-    if (!widget.args.skipAllowed) {
-      _showNotSkippable();
-      return;
-    }
-    if (_confirmOpen) return;
-    setState(() => _confirmOpen = true);
-    showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('要跳过护眼吗？'),
-        content: const Text(kEyeCareSkipConfirmText),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('再休息一会儿'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('确定跳过'),
-          ),
-        ],
-      ),
-    ).then((bool? ok) {
-      if (!mounted) return;
-      setState(() => _confirmOpen = false);
-      if (ok != true) return;
-      unawaited(_finish(EyeCareResultType.skipped));
-    });
-  }
-
   /// 「不可跳过，请爱护眼睛」提示（不可跳过 / 拦截返回键共用，文案单点收口）。
   void _showNotSkippable() {
     ScaffoldMessenger.of(context)
@@ -267,7 +242,7 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
       );
   }
 
-  /// 点主按钮「跳过护眼休息」（玄参 2026-10-08 定名 + 新口径）：
+  /// 点主按钮「跳过护眼休息」（玄参 2026-10-08 定名；C50 合并后为**唯一出口**）：
   ///
   /// 自然走完时系统自动收口，主按钮的实际语义 = 提前结束 = 跳过：
   /// · **流程已自然走完**（末槽回调收口，实际到不了这里，防御保留）→ 正常 completed；
@@ -344,116 +319,161 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
       child: Scaffold(
         backgroundColor: const Color(0xFFFBF6EC), // 暖米白（孩子端基调）
         body: SafeArea(
-          // B35（玄参 2026-10-08）：横屏竖向空间小，动画帧 340 底部快出屏。
-          // 用 LayoutBuilder 拿 SafeArea 内真实可用高度自适应画面边长：
-          // 竖屏（高 ≥ 600）维持 340 不变；矮横屏按可用高度的 45% 缩小（160~300 夹紧）。
+          // B35（玄参 2026-10-08）+ C50（玄参 2026-10-10 方案 A）：
+          // 横屏（本页强制方向，SafeArea 高 ~350-400）用**左右双栏**——动画占
+          // 可用高的 ~85%（原 45% → 放大约 1.9 倍），标题 / 倒计时 / 进度条 /
+          // 按钮移到右栏竖排；竖屏兜底（宽度 ≤ 高度，理论上不出现）维持原竖排。
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints c) {
-              final double frameSide = c.maxHeight < 600
-                  ? math.min(300.0, math.max(160.0, c.maxHeight * 0.45))
+              final bool landscape = c.maxWidth >= c.maxHeight;
+              final double frameSide = landscape
+                  ? math.min(360.0, math.max(160.0, c.maxHeight * 0.85))
                   : 340.0;
-              return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                const SizedBox(height: 12),
-                const Text(
-                  '眼睛休息一下吧',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF5A4A2F),
+
+              // 动画画面（素材 720×720 带背景；圆角卡裁切）——两布局共用。
+              final Widget player = ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: frameSide),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: FrameSequencePlayer(
+                      // C43（2026-10-09）：单段 640 帧一次播完（63.974s），
+                      // 无槽位切换 → 无需 playToken；整组预热已被播放器的
+                      // **滑动窗口预热**取代（640 帧 × 2.07MB ≈ 1.3GB 禁整组预热）。
+                      frames: fxFrameAssets(seg.dir, seg.frameCount,
+                          ext: seg.frameExt),
+                      durationMs: seg.durationMs,
+                      fadeOutMs: 0, // 播完即收口（自然走完 = completed）
+                      onComplete: _onSlotComplete,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
-                // 段标题（配音已含口令，这里只做同步字幕）。
-                Text(
-                  seg.label,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    color: Color(0xFF8A7A5F),
+              );
+
+              // 倒计时 + 进度条 + 主按钮（C50 合并后唯一出口）——两布局共用。
+              final Widget countdownAndProgress = Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    '还剩 $remainingSeconds 秒',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF5A4A2F),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                // 整幅画面序列帧（素材 720×720 带背景；圆角白卡裁切，
-                // 边长自适应：竖屏最大 340，横屏按可用高度缩小——B35）。
-                Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: frameSide),
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(28),
-                        child: FrameSequencePlayer(
-                          // C43（2026-10-09）：单段 640 帧一次播完（63.974s），
-                          // 无槽位切换 → 无需 playToken；整组预热已被播放器的
-                          // **滑动窗口预热**取代（640 帧 × 2.07MB ≈ 1.3GB 禁整组预热）。
-                          frames: fxFrameAssets(seg.dir, seg.frameCount,
-                              ext: seg.frameExt),
-                          durationMs: seg.durationMs,
-                          fadeOutMs: 0, // 播完即收口（自然走完 = completed）
-                          onComplete: _onSlotComplete,
-                        ),
+                  const SizedBox(height: 8),
+                  // 整体进度条（圆角细条，暖色）。
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: totalProgress,
+                      minHeight: 8,
+                      backgroundColor: const Color(0xFFFFF1C2),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFFFFB4C4),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '还剩 $remainingSeconds 秒',
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF5A4A2F),
+                ],
+              );
+              final Widget finishButton = SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _onFinishPressed,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    textStyle: const TextStyle(fontSize: 18),
                   ),
+                  child: const Text(kEyeCareFinishLabel),
                 ),
-                const SizedBox(height: 8),
-                // 整体进度条（圆角细条，暖色）。
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: totalProgress,
-                    minHeight: 8,
-                    backgroundColor: const Color(0xFFFFF1C2),
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFFFFB4C4),
+              );
+
+              if (landscape) {
+                // C50 方案 A：左右双栏（动画左，控件右）。
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Row(
+                    children: <Widget>[
+                      player,
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: Column(
+                          // C51（玄参 2026-10-10）：右栏上下居中——Expanded 的交叉轴
+                          // 是 tight 约束，Column 实际占满全高，不加 center 时内容
+                          // 顶对齐、底部留一大块空白（真机反馈「整体偏上」的根因）。
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Text(
+                              '眼睛休息一下吧',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF5A4A2F),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            // 段标题（配音已含口令，这里只做同步字幕）。
+                            Text(
+                              seg.label,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF8A7A5F),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            countdownAndProgress,
+                            const SizedBox(height: 16),
+                            finishButton,
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              // 竖屏兜底：原竖排（C50 起单按钮）。
+              return SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const SizedBox(height: 12),
+                    const Text(
+                      '眼睛休息一下吧',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF5A4A2F),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _onFinishPressed,
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      textStyle: const TextStyle(fontSize: 18),
+                    const SizedBox(height: 4),
+                    // 段标题（配音已含口令，这里只做同步字幕）。
+                    Text(
+                      seg.label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Color(0xFF8A7A5F),
+                      ),
                     ),
-                    child: const Text(kEyeCareFinishLabel),
-                  ),
+                    const SizedBox(height: 16),
+                    Center(child: player),
+                    const SizedBox(height: 16),
+                    countdownAndProgress,
+                    const SizedBox(height: 16),
+                    finishButton,
+                    const SizedBox(height: 12),
+                  ],
                 ),
-                // 「跳过」按钮**恒存在**（口径 C28 §7：护眼卡恒有两个出口）。家长关掉
-                // 「允许跳过」时它只是**点了无效**（弹 [kEyeCareNotSkippableText]、
-                // 流程不推进），而**不是整块消失**——消失的话孩子根本点不到、也就
-                // 看不到「不可跳过」的提示，与口径相悖。
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: _onSkipPressed,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      textStyle: const TextStyle(fontSize: 16),
-                    ),
-                    child: const Text(kEyeCareSkipLabel),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
-          ); // SingleChildScrollView（return 语句收口）
+              );
             },
           ),
         ),

@@ -937,6 +937,14 @@ const int kEyeCareRewardSunlight = 3;
 /// 本段 < 该值不打断（交给「每 2 场休 10 分钟」大休息兜底）。
 const int kEyeCareSessionEndMinutes = 10;
 
+/// 场内护眼触发需要的**距计划结束最小剩余秒数**（C51 / 玄参 2026-10-10）。
+///
+/// 场长与触发间隔重合时（如 20 分钟场 + 20 分钟间隔），场内护眼恰好落在场尾：
+/// 19:58 弹卡、护眼 63 秒做完回专注页、2 秒后就到时结算——节奏割裂且结算页
+/// 「护眼奖励」行展示为 0（奖励统计此前只覆盖场末那次）。约束：剩余不足该值
+/// **不再触发场内护眼**，留给场末流程（5s 预告 + 护眼 + 奖励随结算展示）接管。
+const int kEyeCareInSessionMinRemainingSeconds = 60;
+
 /// 账本 `refType`：护眼完成。
 /// ⚠️ 字符串值**一经写入即冻结**（append-only 对账源）：改名只能改常量名，不改本值，
 /// 否则历史行与新行的 tag 分裂。新增 refType 必须同步 `child_sunlight_history_page.dart`
@@ -950,10 +958,8 @@ const String kEyeCareRefLabel = '护眼';
 /// 以及护眼卡期间按系统返回键被拦截时，都弹这一句。
 const String kEyeCareNotSkippableText = '不可跳过，请爱护眼睛';
 
-/// 允许跳过时点「跳过」的**二次确认**文案（确认才生效，取消＝回护眼卡继续休息）。
-const String kEyeCareSkipConfirmText = '跳过就没有小阳光啦，真的要跳过吗？';
-
-/// 护眼卡主按钮文案（玄参 2026-10-08 定名：**跳过护眼休息**）。
+/// 护眼卡主按钮文案（玄参 2026-10-08 定名：**跳过护眼休息**；C50 / 2026-10-10
+/// 按钮合并后为**唯一出口**——原次按钮「跳过」与主按钮走同一套二次确认流，功能重复移除）。
 ///
 /// 自然走完时系统自动收口进下一界面，主按钮的实际语义 = 提前结束 = 跳过：
 /// 未走完手点它 → 二次确认（明示无奖励 + 爱护眼睛提示），确认后按跳过处理
@@ -973,6 +979,3 @@ const String kEyeCareEarlyFinishStayLabel = '再休息一会儿';
 
 /// 未走完确认卡的**确定结束**按钮文案（确认 → 按跳过处理：无奖励、不写账本）。
 const String kEyeCareEarlyFinishQuitLabel = '确定结束';
-
-/// 护眼卡副按钮文案（**恒存在**——家长关「允许跳过」时点了无效并弹提示，而非隐藏）。
-const String kEyeCareSkipLabel = '跳过';

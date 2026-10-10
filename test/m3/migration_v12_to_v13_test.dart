@@ -158,7 +158,7 @@ void main() {
   group('迁移 v12->v13：花园氛围音默认开启（bgm_on → 1）', () {
     test('schemaVersion 必须为最新 14（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(12);
-      expect(database.schemaVersion, 20);
+      expect(database.schemaVersion, 24);
     });
 
     test('老库 bgm_on = 0 的历史行 → 迁移后读回 true（默认开启）', () async {
@@ -198,13 +198,13 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 20);
+      expect(first.schemaVersion, 24);
       await first.close();
 
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 20);
+      expect(second.schemaVersion, 24);
       expect((await SettingsLocalRepository(second).getSettings()).bgmOn, isTrue,
           reason: '二次打开不得把 bgm_on 又翻回去');
       expect(await _count(second, 'plants'), 1);

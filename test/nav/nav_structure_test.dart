@@ -1,7 +1,7 @@
 /// 导航重构 · 结构独立验证（QA / Edward）。
 ///
 /// 验收基准（本轮任务）：
-///  · 家长端 `ParentHomePage`：底部 5 tab（今日/奖励/任务/夸夸台/设置），非 AppBar 顶部 TabBar；
+///  · 家长端 `ParentHomePage`：底部 5 tab（今日/奖励/成长/记录/设置），非 AppBar 顶部 TabBar；
 ///  · 孩子端 `ChildShellPage`：底部 5 tab，顺序严格 今日/任务/花园/商店/我的；
 ///  · 孩子端首页不出现「四档反馈预览」；
 ///  · 切换 tab 用 IndexedStack（保活，非重建）。
@@ -133,7 +133,9 @@ class _FakeFocusRepository implements FocusRepository {
       );
 }
 
-class _FakeTaskRepository implements TaskRepository {
+/// 假任务仓储：同时实现 [CheckInAdminRepository]（C54「记录」tab 需要能力探测
+/// `verifiedCheckIns()`，否则该 tab 会走 FutureBuilder 的错误分支）。
+class _FakeTaskRepository implements TaskRepository, CheckInAdminRepository {
   @override
   Future<List<Task>> tasks() async => <Task>[];
   @override
@@ -146,6 +148,25 @@ class _FakeTaskRepository implements TaskRepository {
   Future<List<CheckIn>> checkInsOfDay(String dayKey) async => <CheckIn>[];
   @override
   Future<int> totalCheckInCount() async => 0;
+
+  // ── CheckInAdminRepository ────────────────────────────────────────
+  @override
+  Future<CheckIn?> checkInById(String id) async => null;
+  @override
+  Future<List<CheckIn>> checkInsByStatus(CheckInStatus status) async =>
+      <CheckIn>[];
+  @override
+  Future<void> updateCheckIn(CheckIn checkIn) async {}
+  @override
+  Future<bool> resolveCheckInIfStatus({
+    required String id,
+    required CheckInStatus from,
+    required CheckInStatus to,
+    required double sunlightGranted,
+    required DateTime resolvedAt,
+    String? parentNote,
+  }) async =>
+      false;
 }
 
 class _FakePlantRepository implements PlantRepository {
@@ -383,7 +404,7 @@ void main() {
   });
 
   group('家长端 ParentHomePage · 底部导航结构', () {
-    testWidgets('恰好 4 项，顺序 今日/奖励/成长/设置，且无 AppBar 顶部 TabBar（C49 裁撤夸夸台）',
+    testWidgets('恰好 5 项，顺序 今日/奖励/成长/记录/设置，且无 AppBar 顶部 TabBar（C54 新增记录 tab）',
         (WidgetTester tester) async {
       final SharedPreferences prefs = await _mockPrefs();
 
@@ -397,8 +418,8 @@ void main() {
 
       final NavigationBar nav =
           tester.widget<NavigationBar>(find.byType(NavigationBar));
-      expect(nav.destinations, hasLength(4));
-      expect(_navLabels(nav), <String>['今日', '奖励', '成长', '设置']);
+      expect(nav.destinations, hasLength(5));
+      expect(_navLabels(nav), <String>['今日', '奖励', '成长', '记录', '设置']);
       expect(nav.selectedIndex, 0);
 
       // 不得再是 AppBar 顶部 TabBar。

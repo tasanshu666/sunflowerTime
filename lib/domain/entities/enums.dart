@@ -123,6 +123,7 @@ enum TaskCategory {
   learning, // 学习
   sports, // 运动
   life, // 生活
+  habit, // 习惯（C52 / 玄参 2026-10-10 追加；枚举追加向后兼容，历史行不受影响）
 }
 
 /// [TaskCategory] 展示扩展（中文标签 + 占位图标，真实角色立绘后续由玄参大人提供）。
@@ -138,6 +139,8 @@ extension TaskCategoryX on TaskCategory {
         return '运动';
       case TaskCategory.life:
         return '生活';
+      case TaskCategory.habit:
+        return '习惯';
     }
   }
 
@@ -152,6 +155,8 @@ extension TaskCategoryX on TaskCategory {
         return '🏃';
       case TaskCategory.life:
         return '🪥';
+      case TaskCategory.habit:
+        return '🌟';
     }
   }
 }
@@ -169,6 +174,8 @@ enum RewardContentCategory {
   snacks, // 零食
   play, // 游玩
   entertainment, // 娱乐
+  toys, // 玩具（C52 / 玄参 2026-10-10 追加）
+  books, // 阅读（C52 / 玄参 2026-10-10 追加）
 }
 
 /// [RewardContentCategory] 展示扩展（中文标签 + 占位图标）。
@@ -184,6 +191,10 @@ extension RewardContentCategoryX on RewardContentCategory {
         return '游玩';
       case RewardContentCategory.entertainment:
         return '娱乐';
+      case RewardContentCategory.toys:
+        return '玩具';
+      case RewardContentCategory.books:
+        return '阅读';
     }
   }
 
@@ -198,11 +209,15 @@ extension RewardContentCategoryX on RewardContentCategory {
         return '🎡';
       case RewardContentCategory.entertainment:
         return '🎮';
+      case RewardContentCategory.toys:
+        return '🧸';
+      case RewardContentCategory.books:
+        return '📖';
     }
   }
 }
 
-/// 孩子端成长页分组展示顺序（FIRST-LEVEL 分区头）：学习/运动/生活/其他（其他置后）。
+/// 孩子端成长页分组展示顺序（FIRST-LEVEL 分区头）：学习/运动/生活/习惯/其他（其他置后）。
 ///
 /// 注意顺序与 [TaskCategory] 的 index 顺序不同（枚举 index 0 必须是 other 作安全默认），
 /// 这里按人类可读的展示顺序排列，避免孩子端把「其他」顶在最前。
@@ -210,13 +225,16 @@ const List<TaskCategory> kTaskCategoryOrder = <TaskCategory>[
   TaskCategory.learning,
   TaskCategory.sports,
   TaskCategory.life,
+  TaskCategory.habit,
   TaskCategory.other,
 ];
 
-/// 孩子端商店页分组展示顺序（FIRST-LEVEL 分区头）：零食/游玩/娱乐/其他（其他置后）。
+/// 孩子端商店页分组展示顺序（FIRST-LEVEL 分区头）：零食/玩具/阅读/游玩/娱乐/其他（其他置后）。
 const List<RewardContentCategory> kRewardContentCategoryOrder =
     <RewardContentCategory>[
   RewardContentCategory.snacks,
+  RewardContentCategory.toys,
+  RewardContentCategory.books,
   RewardContentCategory.play,
   RewardContentCategory.entertainment,
   RewardContentCategory.other,

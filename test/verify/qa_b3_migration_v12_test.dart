@@ -122,8 +122,9 @@ List<String> _v11Ddl() => <String>[
           'VALUES (\'p_sf\', \'species_sunflower\', 0, ${PlantStage.adult.index}, '
           '${_secs(_t)}, 0.6, 1.0, 1, 1, ${PlantStatus.growing.index}, ${_secs(_t)}, '
           '${_secs(_t)}, NULL, NULL, NULL, 0, ${PlantMood.calm.index});',
+      // is_custom=1（用户自建历史行）：后置迁移 v22 只清 is_custom=0 的内置种子脏行。
       'INSERT INTO tasks (id, name, subject, requires_focus, is_custom) '
-          'VALUES (\'t1\', \'读书\', ${TaskSubject.chinese.index}, 1, 0);',
+          'VALUES (\'t1\', \'读书\', ${TaskSubject.chinese.index}, 1, 1);',
       'INSERT INTO check_ins (id, task_id, date, completed_at, is_perfect_day) '
           'VALUES (\'ci1\', \'t1\', ${_secs(_t)}, ${_secs(_t)}, 0);',
       'INSERT INTO tracking_events (id, name, type, ts, payload) '
@@ -192,7 +193,7 @@ void main() {
   group('F · 迁移 v11 → v12：pending 加 3 列', () {
     test('schemaVersion == 15；3 列出现', () async {
       final db.AppDatabase database = await _openMigratedMemory(_v11Ddl(), 11);
-      expect(database.schemaVersion, 20);
+      expect(database.schemaVersion, 24);
       expect(
           await _hasColumn(
               database, 'pending_bloom_rewards', 'reward_sunlight'),
@@ -229,14 +230,16 @@ void main() {
       expect(await _count(database, 'plants'), 1);
       expect(await _count(database, 'premium_fragments'), 1);
       expect(await _count(database, 'unlocked_species'), 1);
-      expect(await _count(database, 'tasks'), 1);
+      // C52（v21）：任务/奖励种子被替换为默认版（无引用旧种子删除、播 9+6 新默认），
+      // 原种子 1+1 行 → 9+7（含本库自带的 1 条自定义任务 / 1 条自定义奖励）。
+      expect(await _count(database, 'tasks'), 10);
       expect(await _count(database, 'check_ins'), 1);
       expect(await _count(database, 'tracking_events'), 1);
       expect(await _count(database, 'sunlight_ledgers'), 1);
       expect(await _count(database, 'monthly_pools'), 1);
       expect(await _count(database, 'cooldown_counters'), 1);
       expect(await _count(database, 'redemption_requests'), 1);
-      expect(await _count(database, 'reward_templates'), 1);
+      expect(await _count(database, 'reward_templates'), 7);
       expect(await _count(database, 'focus_sessions'), 1);
 
       // 关键字段值抽查（证明「读回仍正确」而非仅张数）。
@@ -345,7 +348,7 @@ void main() {
         },
       ));
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 20);
+      expect(first.schemaVersion, 24);
       await first.bloomRewardDao.updatePendingContent(
         id: 'pr_legacy',
         rewardSunlight: 5,
@@ -358,7 +361,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(second.close);
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 20);
+      expect(second.schemaVersion, 24);
       expect(await _count(second, 'pending_bloom_rewards'), 1,
           reason: '二次打开不得丢 pending 数据');
       final db.PendingBloomRewardRow row =
@@ -366,7 +369,8 @@ void main() {
       expect(row.rewardSunlight, 5, reason: '新列内容不得丢失');
       expect(row.rewardFragments, 4);
       expect(row.rewardSpeciesId, 'species_tomato');
-      expect(await _count(second, 'tasks'), 1);
+      expect(await _count(second, 'tasks'), 10,
+          reason: 'v21 补播 9 条默认种子 + 原有 1 条');
       expect(await second.bloomRewardDao.fragmentBalance(), 7);
       // 三列仍在。
       expect(

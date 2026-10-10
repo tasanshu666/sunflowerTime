@@ -176,7 +176,7 @@ void main() {
   group('迁移 v16->v17：晨露奖励历史重复行清理（B35）', () {
     test('schemaVersion 必须为最新 17（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(16);
-      expect(database.schemaVersion, 20);
+      expect(database.schemaVersion, 24);
     });
 
     test('同槽位未领取重复行塌缩为 1 条（保留行金额原样，不合并求和）', () async {
@@ -250,14 +250,14 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 20);
+      expect(first.schemaVersion, 24);
       final List<String> idsAfterFirst = await _unclaimedIds(first);
       await first.close();
 
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 20);
+      expect(second.schemaVersion, 24);
       final List<String> idsAfterSecond = await _unclaimedIds(second);
       expect(idsAfterSecond, idsAfterFirst, reason: '二次打开行集合稳定不变');
     });

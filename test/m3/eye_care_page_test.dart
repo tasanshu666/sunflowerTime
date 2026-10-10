@@ -1,17 +1,18 @@
-/// 少儿护眼休息卡 EyeCarePage 的 widget 测试（口径 C28 §7，玄参 2026-10-04 收口）。
+/// 少儿护眼休息卡 EyeCarePage 的 widget 测试（口径 C28 §7，玄参 2026-10-04 收口；
+/// C50 / 2026-10-10 按钮合并后主按钮为**唯一出口**）。
 ///
 /// 钉住**出口口径**（这些错了就是安全事故：孩子绕过护眼白拿奖励，或护眼永远出不去）：
-///  ① **允许跳过（默认）**：点「跳过」→ 先弹二次确认 → 确认才生效、确认后**不发奖励、
-///     不写账本**；取消＝回护眼卡继续休息；
-///  ② **家长关掉「允许跳过」**：「跳过」按钮**仍在**（口径：护眼卡恒有两个出口），
-///     点了**无效**并弹「不可跳过，请爱护眼睛」，流程不推进；
+///  ① **允许跳过（默认）**：点主按钮「跳过护眼休息」→ 先弹二次确认 → 确认才生效、
+///     确认后**不发奖励、不写账本**；取消＝回护眼卡继续休息；
+///  ② **家长关掉「允许跳过」**：主按钮点了**无效**并弹「不可跳过，请爱护眼睛」，
+///     流程不推进；
 ///  ③ **返回键拦截**：护眼卡期间任何 pop（系统返回键/程序化 pop）都被拦下 → 同样弹
 ///     「不可跳过，请爱护眼睛」；
-///  ④ **主按钮「跳过护眼休息」**（玄参 2026-10-08 定名 + 新口径）：自然走完时系统
-///     自动收口，主按钮语义 = 提前结束 = 跳过——**未走完流程就手点＝视同跳过**：弹
-///     二次确认（明示无奖励 + 爱护眼睛提示），确认后不发奖励不写账本、返回 skipped；
-///     家长禁跳时弹「不可跳过」不推进。只有**自然走完**（播放列表收口）才返回
-///     completed 且账本 +3（`refType='eye_care_break'` 字符串值冻结）。
+///  ④ **主按钮「跳过护眼休息」**（玄参 2026-10-08 定名；C50 合并后为唯一出口）：
+///     自然走完时系统自动收口，主按钮语义 = 提前结束 = 跳过——**未走完流程就手点＝
+///     视同跳过**：弹二次确认（明示无奖励 + 爱护眼睛提示），确认后不发奖励不写账本、
+///     返回 skipped；家长禁跳时弹「不可跳过」不推进。只有**自然走完**（播放列表收口）
+///     才返回 completed 且账本 +3（`refType='eye_care_break'` 字符串值冻结）。
 ///
 /// 另加一条**播放列表推进**：段①播完自动切段②（帧速 = 帧数 ÷ 音频时长）、
 /// 末段收口自动 completed（2026-10-05 素材定稿后口令/画面由素材自带）。
@@ -109,7 +110,7 @@ class _FakeEyeCareLogRepository implements EyeCareLogRepository {
       .fold<int>(0, (int sum, EyeCareLog l) => sum + l.watchedSeconds);
 }
 
-/// 固定为手机尺寸（护眼卡内容较高：帧舞台 + 两个出口按钮，
+/// 固定为手机尺寸（护眼卡内容较高：帧舞台 + 出口按钮，
 /// 默认 800×600 的测试画布会把「跳过」按钮顶到屏幕外 → tap 落空）。
 ///
 /// 同时**拦截 eyecare 资产加载**：护眼帧是真实 720×720 位图，在 flutter_tester 里
@@ -257,57 +258,24 @@ void main() {
     });
   });
 
-  group('允许跳过（默认，C28 §7 第 1 条）', () {
-    testWidgets('点跳过 → 弹二次确认；取消 → 回护眼卡继续（不写账本）',
+  group('允许跳过（默认，C28 §7 第 1 条；C50 合并后走主按钮）', () {
+    testWidgets('确认结束 → 护眼记录 skipped 落一行（家长报告跳过次数数据源）',
         (WidgetTester tester) async {
       _usePhoneScreen(tester);
       final _Harness h = _Harness(skipAllowed: true);
       await h.open(tester);
 
-      await tester.tap(find.text(kEyeCareSkipLabel));
+      await tester.tap(find.text(kEyeCareFinishLabel));
+      await _settle(tester);
+      await tester.tap(find.text(kEyeCareEarlyFinishQuitLabel));
       await _settle(tester);
 
-      expect(find.text(kEyeCareSkipConfirmText), findsOneWidget);
-      expect(find.text('再休息一会儿'), findsOneWidget);
-      expect(find.text('确定跳过'), findsOneWidget);
-      expect(h.ledger.appended, isEmpty, reason: '还没确认，绝不能写账本');
-
-      // 取消确认 → 回到护眼卡，倒计时继续。
-      await tester.tap(find.text('再休息一会儿'));
-      await _settle(tester);
-
-      expect(find.text(kEyeCareSkipConfirmText), findsNothing);
-      expect(find.text(kEyeCareFinishLabel), findsOneWidget);
-      expect(h.ledger.appended, isEmpty);
-    });
-
-    testWidgets('确认跳过 → 返回 skipped 且**不发奖励不写账本**',
-        (WidgetTester tester) async {
-      _usePhoneScreen(tester);
-      final _Harness h = _Harness(skipAllowed: true);
-      await h.open(tester);
-
-      await tester.tap(find.text(kEyeCareSkipLabel));
-      await _settle(tester);
-      await tester.tap(find.text('确定跳过'));
-      await _settle(tester);
-
-      final Object? result = await h.pushed!;
-      expect(
-        result,
-        isA<EyeCareResult>().having(
-          (EyeCareResult r) => r.type,
-          'type',
-          EyeCareResultType.skipped,
-        ),
-      );
-      // 跳过＝零账本变动（护眼时长也不回溯补算成专注时长）。
-      expect(h.ledger.appended, isEmpty);
+      await h.pushed!;
       // 护眼记录：跳过**也落一行**（家长报告的跳过次数 / 部分观看时长数据源）。
       expect(h.eyeCareLog.appended, hasLength(1));
       expect(h.eyeCareLog.appended.single.result, EyeCareResultType.skipped);
-      expect(h.eyeCareLog.appended.single.watchedSeconds, greaterThanOrEqualTo(0));
-      expect(find.text(kEyeCareFinishLabel), findsNothing, reason: '已退场');
+      expect(
+          h.eyeCareLog.appended.single.watchedSeconds, greaterThanOrEqualTo(0));
     });
 
     testWidgets('场末触发（source=sessionEnd）→ 护眼记录如实记录来源',
@@ -316,9 +284,9 @@ void main() {
       final _Harness h = _Harness(skipAllowed: true);
       await h.open(tester, source: EyeCareSource.sessionEnd);
 
-      await tester.tap(find.text(kEyeCareSkipLabel));
+      await tester.tap(find.text(kEyeCareFinishLabel));
       await _settle(tester);
-      await tester.tap(find.text('确定跳过'));
+      await tester.tap(find.text(kEyeCareEarlyFinishQuitLabel));
       await _settle(tester);
 
       await h.pushed!;
@@ -328,17 +296,15 @@ void main() {
     });
   });
 
-  group('家长关掉「允许跳过」（默认允许，可关，C28 §7 第 2 条）', () {
-    testWidgets('「跳过」按钮仍在但点了无效 → 弹「不可跳过，请爱护眼睛」、流程不推进',
+  group('家长关掉「允许跳过」（默认允许，可关，C28 §7 第 2 条；C50 合并后走主按钮）', () {
+    testWidgets('主按钮点击无效 → 弹「不可跳过，请爱护眼睛」、流程不推进',
         (WidgetTester tester) async {
       _usePhoneScreen(tester);
       final _Harness h = _Harness(skipAllowed: false);
       await h.open(tester);
 
-      // 口径：护眼卡恒有「跳过」与「完成休息」两个出口 —— 不是把按钮藏掉。
-      expect(find.text(kEyeCareSkipLabel), findsOneWidget);
-
-      await tester.tap(find.text(kEyeCareSkipLabel));
+      // 口径（C50 合并）：主按钮是唯一出口；禁跳时点了无效弹提示、不藏按钮。
+      await tester.tap(find.text(kEyeCareFinishLabel));
       await _settle(tester);
 
       expect(
@@ -348,18 +314,6 @@ void main() {
       );
       // 关键：不弹二次确认、不写账本、护眼卡原地不动。
       expect(find.byType(AlertDialog), findsNothing);
-      expect(find.text(kEyeCareSkipConfirmText), findsNothing);
-      expect(h.ledger.appended, isEmpty);
-      expect(find.text(kEyeCareFinishLabel), findsOneWidget,
-          reason: '流程不推进：还停在护眼卡上');
-
-      // 未走完手点主按钮（跳过护眼休息）同样被禁（视同跳过）→ 弹「不可跳过」、不推进。
-      await tester.tap(find.text(kEyeCareFinishLabel));
-      await _settle(tester);
-      expect(find.text(kEyeCareNotSkippableText), findsOneWidget,
-          reason: '家长禁跳时，未走完手点主按钮＝跳过 → 同一「不可跳过」提示');
-      expect(find.byType(AlertDialog), findsNothing,
-          reason: '禁跳时不弹二次确认卡（没有「无奖励结束」这条路）');
       expect(h.ledger.appended, isEmpty);
       expect(find.text(kEyeCareFinishLabel), findsOneWidget,
           reason: '流程不推进：还停在护眼卡上');
@@ -471,7 +425,6 @@ void main() {
       _usePhoneScreen(tester);
       final _Harness h = _Harness(skipAllowed: true);
       await h.open(tester);
-      expect(find.text(kEyeCareSkipLabel), findsOneWidget);
       expect(find.text(kEyeCareFinishLabel), findsOneWidget);
     });
 

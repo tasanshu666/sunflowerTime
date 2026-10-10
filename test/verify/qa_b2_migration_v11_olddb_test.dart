@@ -91,8 +91,9 @@ List<String> _v10Ddl({required bool withLegacyPlants}) => <String>[
           'VALUES (\'pr_x\', \'p_sunflower\', ${_secs(_bloomAt)}, \'normal\', 0);',
       'INSERT INTO sunlight_ledgers (id, ts, type, gross, net, balance_after, ref_type, ref_id, day_key) '
           'VALUES (\'led_x\', ${_secs(_stageAt)}, ${SunlightType.earn.index}, 10, 10, 10, \'seed\', NULL, \'2026-09-01\');',
+      // is_custom=1（用户自建历史行）：后置迁移 v22 只清 is_custom=0 的内置种子脏行。
       'INSERT INTO tasks (id, name, subject, requires_focus, is_custom) '
-          'VALUES (\'t_x\', \'读书\', ${TaskSubject.chinese.index}, 1, 0);',
+          'VALUES (\'t_x\', \'读书\', ${TaskSubject.chinese.index}, 1, 1);',
       'INSERT INTO check_ins (id, task_id, date, completed_at, is_perfect_day) '
           'VALUES (\'ci_x\', \'t_x\', ${_secs(_stageAt)}, ${_secs(_stageAt)}, 0);',
       'INSERT INTO tracking_events (id, name, type, ts, payload) '
@@ -151,7 +152,7 @@ void main() {
     test('schemaVersion == 13（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database =
           await _openMigrated(_v10Ddl(withLegacyPlants: true), 10);
-      expect(database.schemaVersion, 20);
+      expect(database.schemaVersion, 24);
     });
 
     test('daisy / cactus 行被删除；向日葵行完好保留（含各字段）', () async {
@@ -188,7 +189,8 @@ void main() {
           <String>['species_rainbow_fern']);
       expect(await _count(database, 'pending_bloom_rewards'), 1);
       expect(await _count(database, 'sunlight_ledgers'), 1);
-      expect(await _count(database, 'tasks'), 1);
+      expect(await _count(database, 'tasks'), 10,
+          reason: 'C52 v21 补播 9 条默认种子 + 原有 1 条，历史行不丢');
       expect(await _count(database, 'check_ins'), 1);
       expect(await _count(database, 'tracking_events'), 1);
     });
@@ -230,7 +232,7 @@ void main() {
         },
       ));
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 20);
+      expect(first.schemaVersion, 24);
       expect(await first.plantDao.byId('p_daisy'), isNull);
       expect(await first.plantDao.byId('p_sunflower'), isNotNull);
 
@@ -249,7 +251,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 20);
+      expect(second.schemaVersion, 24);
       expect(await second.plantDao.byId('p_sunflower'), isNotNull);
       expect(await second.plantDao.byId('p_daisy_after'), isNotNull,
           reason: 'from<11 守卫 → from==11 不再执行删除（幂等/守卫验证）');

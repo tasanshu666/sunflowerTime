@@ -221,17 +221,25 @@ class _DebugCapSwitchCardState extends ConsumerState<_DebugCapSwitchCard> {
       padding: const EdgeInsets.only(top: 24),
       child: Container(
         decoration: creamCardDecoration(),
-        child: SwitchListTile(
-          value: _bypass,
-          onChanged: _toggle,
-          activeThumbColor: const Color(0xFF64B5F6),
-          title: const Text(
-            '🧪 调试：跳过 30 分钟限时',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-          ),
-          subtitle: const Text(
-            '调试期间默认开启（不进限时状态）；关闭后恢复防沉迷拦截。仅调试包可见。',
-            style: TextStyle(fontSize: 12),
+        // C54（玄参 2026-10-10 测试暴露）：`SwitchListTile` 内含 `ListTile`，而
+        // `ListTile` 要求**最近的 Material 祖先**承载其背景/水波纹；此处外层是
+        // `creamCardDecoration()` 的带色 `DecoratedBox`，Flutter 会断言
+        // 「ListTile background color or ink splashes may be invisible」。
+        // 垫一层透明 Material 即可让水波正确落在卡片内（视觉零变化）。
+        child: Material(
+          type: MaterialType.transparency,
+          child: SwitchListTile(
+            value: _bypass,
+            onChanged: _toggle,
+            activeThumbColor: const Color(0xFF64B5F6),
+            title: const Text(
+              '🧪 调试：跳过 30 分钟限时',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+            subtitle: const Text(
+              '调试期间默认开启（不进限时状态）；关闭后恢复防沉迷拦截。仅调试包可见。',
+              style: TextStyle(fontSize: 12),
+            ),
           ),
         ),
       ),

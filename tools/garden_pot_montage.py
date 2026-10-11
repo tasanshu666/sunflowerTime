@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets" / "plants"
 
 CELL_W = 280
-CANVAS_ASPECT = 2000 / 1720  # 与 kGardenArtAspect 一致
+CANVAS_ASPECT = 2000 / 1440  # 与 kGardenArtAspect 一致（2026-10-11 画布 1440）
 CELL_H = round(CELL_W * CANVAS_ASPECT)
 BG = (250, 247, 240)
 GRID = (225, 220, 210)

@@ -258,7 +258,7 @@ void main() {
     });
   });
 
-  group('植物静态图画布护栏（C13：1720×2000 全局等盆）', () {
+  group('植物静态图画布护栏（C13：1440×2000 全局等盆）', () {
     test('全部 species_*_adult_bloomed.png 画布尺寸符合口径（直读 PNG IHDR）', () {
       final Directory plants = Directory('$root/assets/plants');
       // 2026-10-08 目录重组：植物图按物种分目录存放，改**递归**扫描。
@@ -273,6 +273,8 @@ void main() {
       // 2026-10-09 全局等盆：新五物种统一 1720×2000（盆 800、盆心居中）；向日葵
       // 无 wilted/dead 原图备份、维持 1200×2000 定稿不动 —— contain 按高度绑定
       // 缩放，两种画布的盆显示大小一致（比例同为 800/画布宽 × 高 2000）。
+      // 2026-10-11 画布收窄到 1440×2000（玄参 B 档：moon×3/coral×3 超宽垂叶
+      // 真裁、其余无损收框，tools/trim_canvas_1440.py），盆占比升到 0.556。
       for (final File f in blooms) {
         final RandomAccessFile raf = f.openSync();
         final PngHead head = _readHead(raf);
@@ -282,10 +284,10 @@ void main() {
         final int h = head.h;
         final bool isLegacySunflower =
             f.path.contains('sunflower') && w == 1200 && h == 2000;
-        final bool isNewUniform = w == 1720 && h == 2000;
+        final bool isNewUniform = w == 1440 && h == 2000;
         expect(isLegacySunflower || isNewUniform, isTrue,
             reason: '${f.path.split('/').last} 画布 $w×$h 不符合口径：'
-                '向日葵 1200×2000（legacy 定稿）/ 其它物种 1720×2000（全局等盆）');
+                '向日葵 1200×2000（legacy 定稿）/ 其它物种 1440×2000（全局等盆）');
       }
     });
   });

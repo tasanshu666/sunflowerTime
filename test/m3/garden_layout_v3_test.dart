@@ -352,8 +352,10 @@ void main() {
     test('高屏：等于「三行高度」', () {
       // C48：底界 0.70 → 0.64 后 360×780 的可用高（≈477.5）已装不下三行（≈537），
       // 会走钳制分支 —— 抬高 harness 到 360×900（可用 ≈552 > 537）保住「公式分支」语义。
+      // 2026-10-11 画布 1440（cellAspectRatio 0.62→0.55）后三行高 ≈604.4，
+      // 360×900 的可用高（≈552）又装不下了 → 再抬到 360×1000（可用 ≈616 > 604.4）。
       final double h = gardenGridVisibleHeight(
-        box: const Size(360, 900),
+        box: const Size(360, 1000),
         gridInnerWidth: 336, // 360 - 12*2
         firstRowTop: 12,
         cellAspectRatio: GardenGrid.cellAspectRatio,
@@ -556,7 +558,7 @@ void main() {
       const double gridInnerWidth = w - pageTopPad * 2; // 336
       const double cellWidth = (gridInnerWidth - 4 * 2) / 3; // 109.33
       final double threeRowsHeight =
-          cellWidth / GardenGrid.cellAspectRatio * 3 + 4 * 2; // ≈536.6
+          cellWidth / GardenGrid.cellAspectRatio * 3 + 4 * 2; // ≈604.4（0.55）
 
       // 场景自检：必须「三行高度 > 可用高度」，否则 firstRowTop 依旧被 min() 掩盖，
       // 这条用例就退化回 QA N2 的无效覆盖 —— 显式断言挡住这种「假有效」。
@@ -578,10 +580,11 @@ void main() {
   // ── 改动 2：加号对齐盆心（期望值按 pot.png 像素 bbox 独立推导） ─────────────
   group('加号格 · 对齐花盆视觉中心', () {
     // pot.png：画布 1200×2000，内容 alpha bbox = (200, 1318, 1001, 2000)。
-    // 2026-10-09 画布加宽 1720×2000 后，pot.png 在图片框内**高度绑定** contain
-    // 缩放（系数 = artW/1720），故横向占比按**有效显示画布 1720** 折算：
-    // 盆身显示宽 = 801 × artW/1720；纵向映射不变（图高恰好填满框高）。
-    const double potCanvasW = 1720;
+    // 2026-10-09 画布加宽 1720×2000、2026-10-11 收窄 1440×2000 后，pot.png 在
+    // 图片框内**高度绑定** contain 缩放（系数 = artW/1440），故横向占比按
+    // **有效显示画布 1440** 折算：盆身显示宽 = 801 × artW/1440；
+    // 纵向映射不变（图高恰好填满框高）。
+    const double potCanvasW = 1440;
     const double potCanvasH = 2000;
     const double bboxTop = 1318;
     const double bboxBottom = 2000;
@@ -594,9 +597,9 @@ void main() {
     const double expectedWidthFraction = potBodyPx / potCanvasW;
     const double designIconRatio = 0.92; // 设计口径：加号外径 = 盆宽 × 0.92
 
-    test('独立推导自检：盆心比例 = 0.8295、盆宽占比 = 801/1720', () {
+    test('独立推导自检：盆心比例 = 0.8295、盆宽占比 = 801/1440', () {
       expect(expectedCenterYFraction, closeTo(0.8295, 1e-9));
-      expect(expectedWidthFraction, closeTo(801 / 1720, 1e-9));
+      expect(expectedWidthFraction, closeTo(801 / 1440, 1e-9));
     });
 
     testWidgets('圆心落在画框高的 82.95% 处、外径 ≈ 盆宽 × 92%', (WidgetTester tester) async {
@@ -630,9 +633,9 @@ void main() {
           artBox.top + artBox.height * expectedCenterYFraction;
       expect(icon.center.dy, closeTo(expectedCenterY, 0.5));
       // ② 硬钉绝对坐标（本 harness：120×260 顶左对齐；C48 宽比 1.0 →
-      //    artH = 116×2000/1720 ≈ 134.88，图顶 = 260-4-32-134.88 ≈ 89.12，
-      //    圆心 = 89.12 + 134.88×0.8295 ≈ 201.0）。
-      expect(icon.center.dy, closeTo(201.0, 1.5));
+      //    artH = 116×2000/1440 ≈ 161.11，图顶 = 260-4-32-161.11 ≈ 62.89，
+      //    圆心 = 62.89 + 161.11×0.8295 ≈ 196.5；2026-10-11 随画布 1440 重算）。
+      expect(icon.center.dy, closeTo(196.5, 1.5));
       // ③ 不是画布正中（防回归成 50%）。
       expect(
         (icon.center.dy - (artBox.top + artBox.height / 2)).abs(),

@@ -13,11 +13,13 @@
 /// ```
 ///
 /// ## 二次改造（2026-09-23）：只渲染一张图，不再叠花盆
-/// 美术资源已统一重排为 **1720×2000 画布**（重排脚本 `tools/normalize_plant_art.py`，
-/// 2026-10-09 由 1200×2000 等高加宽：全局等盆宽 800，玄参口径「所有植物可能都会
-/// 种一遍，花盆大小必须一致」），且**植物图本身自带花盆**（像素边界证实：盆宽 800 /
-/// 盆底贴画布底边 y=2000 / 盆心居中 x=860；旧 sunflower/pot.png 为 1200×2000、
-/// 盆心 x=600，contain 按高度绑定缩放，盆显示大小与新图完全一致）。因此一格内**只渲染
+/// 美术资源已统一重排为 **1440×2000 画布**（重排脚本 `tools/normalize_plant_art.py`，
+/// 2026-10-09 由 1200×2000 等高加宽到 1720：全局等盆宽 800；2026-10-11 玄参拍板
+/// 收窄到 1440——「不常用素材不能影响整个画面」，超宽垂叶真裁 6 张、其余无损收框，
+/// 裁切脚本 `tools/trim_canvas_1440.py`），且**植物图本身自带花盆**（像素边界证实：
+/// 盆宽 800 / 盆底贴画布底边 y=2000 / 盆心居中 x=720；旧 sunflower/pot.png 为
+/// 1200×2000、盆心 x=600，contain 按高度绑定缩放，盆显示大小与新图完全一致）。
+/// 因此一格内**只渲染
 /// [PlantArtwork] 一张图**，不再叠 `assets/pots/pot.png` —— 否则一格会出现两个盆、
 /// 边缘错位叠加（用户原话「第一个花盆有一个圆圈显示得不干净」就是这么来的）。
 ///
@@ -61,15 +63,15 @@ class _PotColors {
   static const Color rimDead = Color(0xFF757575);
 }
 
-/// 美术图统一画布宽高比（宽 : 高 = **1720 : 2000**）。
+/// 美术图统一画布宽高比（宽 : 高 = **1440 : 2000**）。
 ///
-/// 依据：美术图已被统一重排为 1720×2000 透明底画布，且植物图自带花盆
-/// （盆宽 800 / 盆底贴画布底边 y=2000 / 盆心居中 x=860）。代码只按此比例等比缩放，
-/// 即可保证各阶段各物种的盆自动等大（2026-10-09 全局等盆口径）。重排脚本见
-/// `tools/normalize_plant_art.py`。
+/// 依据：美术图已被统一重排为 1440×2000 透明底画布（2026-10-11 由 1720 收窄），
+/// 且植物图自带花盆（盆宽 800 / 盆底贴画布底边 y=2000 / 盆心居中 x=720）。
+/// 代码只按此比例等比缩放，即可保证各阶段各物种的盆自动等大（2026-10-09 全局
+/// 等盆口径）。重排脚本见 `tools/normalize_plant_art.py`。
 // 2026-09-29：收口到 `prd_params.dart`（养护效果帧要按同一套参数算「盆口 / 根部」
 // 落点，两份参数必然漂移）。值未变，仅改指向。
-const double _artAspectRatio = kGardenArtAspect; // = 2000/1720 ≈ 1.1628
+const double _artAspectRatio = kGardenArtAspect; // = 2000/1440 ≈ 1.3889
 
 /// 美术图宽占格宽比例（留出格子边距，避免相邻格视觉粘连）。
 const double _artWidthRatio = kGardenArtWidthRatio;
@@ -84,10 +86,11 @@ const double kPotBodyCenterYFraction = 0.8295;
 /// 加号格里的加号圆**外径占美术画布宽度的比例**（盆宽占画布宽比例）。
 ///
 /// 依据：`assets/pots/pot.png`（1200×2000）内容 bbox 宽 = 1001 − 200 = 801 ≈ 盆身。
-/// 2026-10-09 画布加宽到 1720×2000 后，pot.png 在图片框内按**高度绑定** contain
-/// 缩放（缩放系数 = artW/1720，与 1200 画布的植物图一致），故盆身显示宽占比 =
-/// 801 / 1720 —— 与植物图盆宽 800/1720 差 0.1%，加号圆与两侧花盆等大。
-const double kPotBodyWidthFraction = 801 / 1720;
+/// 2026-10-09 画布加宽到 1720×2000、2026-10-11 收窄到 1440×2000 后，pot.png 在
+/// 图片框内始终按**高度绑定** contain 缩放（缩放系数 = artW/1440，与 1440 画布的
+/// 植物图一致），故盆身显示宽占比 = 801 / 1440 —— 与植物图盆宽 800/1440 差
+/// 0.1%，加号圆与两侧花盆等大。
+const double kPotBodyWidthFraction = 801 / 1440;
 
 /// 加号圆外径相对于「盆宽」的系数（≈ 盆宽的 92%，视觉上略小于盆口）。
 const double kExpandIconDiameterRatio = 0.92;
@@ -146,12 +149,11 @@ class GardenGrid extends StatelessWidget {
   ///
   /// 每格内容高 = 图高 + 底部标签区 [`_footerHeight`]，再叠加上下内边距 8：
   ///   = (格宽-4) × [_artWidthRatio] × [_artAspectRatio] + [_footerHeight] + 8
-  ///   = 1.0698 × (格宽-4) + 40（2026-10-09 画布 1720×2000 + 宽比 0.92）。
-  /// 取 **0.62**（C48 玄参 2026-10-10 由 0.64 微调）：美术宽比同步放年夜到 1.0
-  /// 后格内容变高，行高相应加高；同时收拢行间富余（用户反馈两排间隔偏大）。
-  /// 最紧的 320 屏（测试宿主格宽 ≈ 96）内容高 ≈ 147，格高 96/0.62 ≈ 154.8，
-  /// 余量 ≈ 7.8px，不溢出。
-  static const double cellAspectRatio = 0.62;
+  ///   = 1.3889 × (格宽-4) + 40（2026-10-11 画布 1440×2000 + 宽比 1.0）。
+  /// 取 **0.55**（2026-10-11 随画布 1720→1440 收窄由 0.62 重算）：图片框变高
+  /// （aspect 1.1628→1.3889），行高相应加高。最紧的 320 屏（测试宿主格宽 ≈ 96）
+  /// 内容高 ≈ 167.8，格高 96/0.55 ≈ 174.5，余量 ≈ 6.8px，不溢出。
+  static const double cellAspectRatio = 0.55;
 
   @override
   Widget build(BuildContext context) => GridView.count(
@@ -281,17 +283,17 @@ class GardenPot extends StatelessWidget {
                             growthScale: 0,
                           ),
                         ),
-                        // 花园干扰物（杂草 / 害虫，口径 C26 + 2026-10-03 位置/样式口径）：
-                        //  · 杂草**长在花盆里面** → 盆口土面上、略偏左（玄参 2026-10-03
-                        //    多轮反馈：放大 44 → 60 → 左移 left 0.26 → 0.17 →
-                        //    top 0.575 → 0.50 → 0.44 → **0.47 定稿**）；
-                        //  · 蝗虫**趴在花盆沿上** → 盆口右沿（玄参 2026-10-03 反馈上移：
-                        //    top 0.71 → 0.53，脚踩盆沿、身体在盆口上方，不再垂到盆身下缘）；
-                        //  · 均**裸图直贴**（素材透明背景，无白圆底衬）。
-                        // 点一下即清除 + 奖励阳光。
+                        // 花园干扰物（杂草 / 害虫，口径 C26；2026-10-11 随画布 1720 重标定）：
+                        //  · 尺寸与横向锚点一律**相对盆身**表达（常量在 prd_params.dart
+                        //    「花园格几何」段）——修「盆缩小后杂草跑到盆外、比盆还大」；
+                        //  · 杂草：左缘贴盆左缘、长在盆口内略偏左，宽 = 盆宽 × 0.83；
+                        //  · 害虫：右缘越出盆右缘 0.205 盆宽、趴在盆沿上，宽 = 盆宽 × 0.72；
+                        //  · 纵向锚点（0.47 / 0.53）沿用 2026-10-03 定稿——两代画布都是
+                        //    2000 高、盆口比例不变（0.659），纵向关系天然成立；
+                        //  · 均**裸图直贴**（素材透明背景，无白圆底衬）。点一下即清除 + 奖励阳光。
                         if (plant.hasWeed)
                           Positioned(
-                            left: artW * 0.17,
+                            left: artW * kWeedLeftFraction,
                             top: artH * 0.47,
                             // 「播放完杂草渐变消失」（2026-10-03 玄参口径）：
                             // 动画播完先透明度淡出，数据刷新后整支移除。
@@ -303,8 +305,10 @@ class GardenPot extends StatelessWidget {
                               child: _PestChip(
                                 assetPath: kGardenWeedAsset,
                                 emoji: kGardenWeedEmoji,
-                                glyphWidth: 60,
-                                glyphHeight: 60,
+                                glyphWidth:
+                                    artW * kPlantPotWidthFraction * kWeedSizeToPotRatio,
+                                glyphHeight:
+                                    artW * kPlantPotWidthFraction * kWeedSizeToPotRatio,
                                 tooltip:
                                     '有杂草，点我拔掉 +${kGardenWeedReward.toInt()} ☀',
                                 onTap: onClearWeed,
@@ -313,7 +317,7 @@ class GardenPot extends StatelessWidget {
                           ),
                         if (plant.hasPest)
                           Positioned(
-                            right: artW * 0.03,
+                            right: artW * kPestRightFraction,
                             top: artH * 0.53,
                             child: AnimatedOpacity(
                               opacity: pestFading ? 0.0 : 1.0,
@@ -323,8 +327,12 @@ class GardenPot extends StatelessWidget {
                               child: _PestChip(
                                 assetPath: kGardenPestAsset,
                                 emoji: kGardenPestEmoji,
-                                glyphWidth: 52,
-                                glyphHeight: 30,
+                                glyphWidth:
+                                    artW * kPlantPotWidthFraction * kPestSizeToPotRatio,
+                                glyphHeight: artW *
+                                    kPlantPotWidthFraction *
+                                    kPestSizeToPotRatio *
+                                    (30 / 52),
                                 tooltip:
                                     '有害虫，点我除掉 +${kGardenPestReward.toInt()} ☀',
                                 onTap: onClearPest,
@@ -516,7 +524,7 @@ class EmptyPot extends StatelessWidget {
               children: <Widget>[
                 // 与有植物盆**同尺寸、同底**：同比例算出的图片框，底部对齐。
                 // pot.png（1200×2000）在本框内按高度绑定 contain 缩放（系数 =
-                // artW/1720），盆身显示宽与植物图盆 800px 等大（差 0.1%）。
+                // artW/1440），盆身显示宽与植物图盆 800px 等大（差 0.1%）。
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: SizedBox(
@@ -788,7 +796,7 @@ class _PotRimPainter extends CustomPainter {
 /// 橙色提示圈（与 [_PotPainter] 高亮效果一致）。
 ///
 /// ⚠️ 传入的 [width] / [height] 必须与外部图片框（SizedBox）一致，且二者比例应等于
-/// 美术画布比例（1720×2000）—— pot.png（1200×2000）在框内按高度绑定 contain 缩放，
+/// 美术画布比例（1440×2000）—— pot.png（1200×2000）在框内按高度绑定 contain 缩放，
 /// 否则盆会被画小，空盆又变小。
 class _PotImage extends StatelessWidget {
   final bool dead;

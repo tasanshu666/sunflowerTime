@@ -45,7 +45,11 @@ from PIL import Image
 ROOT = "/Users/wangjunchao/WorkBuddy/sunflowerTime/"
 ORIGIN = ROOT + "assets/_originals/"
 
-CANVAS_W, CANVAS_H = 1720, 2000
+CANVAS_W, CANVAS_H = 1440, 2000
+# 2026-10-11 玄参拍板 B 档：画布 1720→1440（盆占比 0.465→0.556）。
+# moon×3 / coral×3 的成品已由 tools/trim_canvas_1440.py 真裁到 1440——本脚本
+# 重跑时这 6 张会因「放不下」警告跳过（成品已是定稿，属预期行为，不会改盘）；
+# 其余新图按 1440 画布正常排版。
 TARGET_POT = 800.0        # 全局统一盆沿宽（画布像素）
 REF_W = 2048.0             # 模板基准画布
 PLANTER_W_REF = 706.0      # 模板盆沿宽（2048 基准 px）

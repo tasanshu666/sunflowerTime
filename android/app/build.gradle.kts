@@ -50,6 +50,19 @@ android {
 
     buildTypes {
         release {
+            // ── 防逆向加固（2026-10-11 玄参拍板）──────────────────────────────
+            // ① R8 代码缩减 + 混淆（Java/Kotlin 层：MainActivity 的 MethodChannel、插件胶水层）
+            isMinifyEnabled = true
+            // ② 资源收缩（清掉 androidx 冗余资源；pubspec assets 走 flutter_assets，不受影响）
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            // ③ Dart AOT 符号混淆由构建命令参数提供（不在 gradle 配）：
+            //    flutter build apk --release --obfuscate --split-debug-info=build/symbols
+            //    ⚠️ 每次发版把 build/symbols 下的符号文件备份留存（解混淆崩溃栈必需，勿入库）。
+            // ─────────────────────────────────────────────────────────────
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {

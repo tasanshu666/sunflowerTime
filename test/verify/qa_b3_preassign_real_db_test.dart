@@ -20,6 +20,7 @@ import 'dart:math';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart' as db;
 import 'package:sunflower_time/data/local/repositories/plant_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/settings_local_repository.dart';
@@ -207,6 +208,21 @@ Future<BloomRewardOutcome> _settleAndAssert(
   PendingBloomReward row,
   DateTime at,
 ) async {
+  // F111 隔离：晨露阳光按「dueAt 前一天是否养护」折损（未养护 ×0.5）；本文件断言
+  // 「登记值 == 实发」，故补一条前一日养护账本行（net=0，不影响余额断言）。
+  final DateTime careDay = row.dueAt.subtract(const Duration(days: 1));
+  await ctx.ledger.append(SunlightEntry(
+    id: 'seed_care_${row.id}',
+    ts: careDay,
+    type: SunlightType.plant,
+    gross: 0,
+    net: 0,
+    balanceAfter: 0,
+    refType: 'plant_water',
+    refId: row.plantId,
+    dayKey: dayKey(careDay),
+  ));
+
   final double balBefore = await ctx.ledger.balance();
   final int fragBefore = await ctx.plants.premiumFragmentBalance();
   final Set<String> unlockedBefore = await ctx.plants.unlockedSpeciesIds();
@@ -469,6 +485,24 @@ void main() {
           .where((PendingBloomReward r) => r.rewardKind != kBloomRewardPhaseInstant)
           .toList();
       expect(mornings, hasLength(2), reason: '花期两轮晨露');
+
+      // F111 隔离：晨露阳光按「dueAt 前一天是否养护」折损（未养护 ×0.5）；本用例断言
+      // 「兜底内容 == 登记定奖内容」→ 给花期窗口逐日补养护账本行（net=0，不影响余额）。
+      for (int i = 0; i < 4; i++) {
+        final DateTime d =
+            bloomAt.subtract(const Duration(days: 1)).add(Duration(days: i));
+        await ctx.ledger.append(SunlightEntry(
+          id: 'seed_care_$i',
+          ts: d,
+          type: SunlightType.plant,
+          gross: 0,
+          net: 0,
+          balanceAfter: 0,
+          refType: 'plant_water',
+          refId: _pid,
+          dayKey: dayKey(d),
+        ));
+      }
 
       final double balBefore = await ctx.ledger.balance();
       final int fragBefore = await ctx.plants.premiumFragmentBalance();

@@ -290,7 +290,8 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
                   padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
                     '植物也会随时间自然生长，按时养护才能早点开花 🌻\n'
-                    '成株盛开后，每周浇 3 次水 + 施 1 次肥才能继续开花 🌻',
+                    '盛开后每天浇 1 次水或施 1 次肥，第二天晨露阳光才是满额 🌻\n'
+                    '（忘了也会掉落，只是阳光减半 —— 不会一点都没有）',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),

@@ -81,6 +81,36 @@ void main() {
     });
   });
 
+  group('五物种开花序列帧契约（2026-10-12 玄参交付，各 25~27 张 ≠ kFxFrameCount）', () {
+    // 帧数各不同（25/26/27），代码侧由 resolveGrowFxAssets 从 AssetManifest 实测；
+    // 本护栏只锁文件名契约：从 frame001 起、三位零填充、连续无空洞。
+    const List<String> bloomDirs = <String>[
+      'assets/fx/grow/tomato/adult_to_bloomed',
+      'assets/fx/grow/strawberry/adult_to_bloomed',
+      'assets/fx/grow/moon_orchid/adult_to_bloomed',
+      'assets/fx/grow/coral_orchid/adult_to_bloomed',
+      'assets/fx/grow/jade_hydrangea/adult_to_bloomed',
+    ];
+
+    for (final String dir in bloomDirs) {
+      test('$dir：从 frame001 连续编号、三位零填充', () {
+        final List<String> files = pngsOf(dir);
+        expect(files.length, greaterThanOrEqualTo(1),
+            reason: '$dir 至少应有 1 帧');
+        for (int i = 0; i < files.length; i++) {
+          expect(files[i], 'frame${(i + 1).toString().padLeft(3, '0')}.png',
+              reason: '$dir 第 ${i + 1} 张文件名与契约不符（须连续、三位零填充）');
+        }
+      });
+    }
+
+    test('growSpeciesDir：speciesId → 目录名（与静态美术同约定）', () {
+      expect(growSpeciesDir('species_tomato'), 'tomato');
+      expect(growSpeciesDir('species_moon_orchid'), 'moon_orchid');
+      expect(growSpeciesDir('tomato'), 'tomato'); // 无前缀原样返回
+    });
+  });
+
   group('除草 / 除虫序列帧契约（2026-10-03 玄参交付，各 27 帧 ≠ kFxFrameCount）', () {
     final Map<String, int> clearDirs = <String, int>{
       kCareWeedFxDir: kCareWeedFrameCount,

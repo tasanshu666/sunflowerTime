@@ -18,6 +18,7 @@ import 'dart:math';
 import 'package:test/test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -621,7 +622,11 @@ void main() {
 
   // ── ③ 第二段奖励（花开 48h 后掉落，手动收集）──────────────────────────────
   group('第二段奖励（花开 48h 后手动收集）', () {
-    Future<_Ctx> withPending(Random random, {required String kind}) async {
+    Future<_Ctx> withPending(
+      Random random, {
+      required String kind,
+      bool cared = true,
+    }) async {
       final _Ctx ctx = _make(random: random);
       final DateTime bloom = DateTime(2026, 9, 25, 8, 0);
       await ctx.bloomRewards.insertPendingBloomReward(PendingBloomReward(
@@ -630,6 +635,24 @@ void main() {
         dueAt: bloom.add(const Duration(hours: kBloomRewardDelayHours)),
         rewardKind: kind,
       ));
+      // F111：晨露阳光按「dueAt 前一天是否养护」折损。本组断言的是**满额档位表**，
+      // 故默认补一条前一日养护账本行（cared=false 用于折损回归）。
+      if (cared) {
+        final DateTime careDay =
+            bloom.add(const Duration(hours: kBloomRewardDelayHours))
+                .subtract(const Duration(days: 1));
+        await ctx.ledger.append(SunlightEntry(
+          id: 'seed_care',
+          ts: careDay,
+          type: SunlightType.plant,
+          gross: 0,
+          net: 0,
+          balanceAfter: 0,
+          refType: 'plant_water',
+          refId: 'p1',
+          dayKey: dayKey(careDay),
+        ));
+      }
       return ctx;
     }
 

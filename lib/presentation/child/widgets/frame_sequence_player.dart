@@ -72,6 +72,74 @@ List<String> fxFrameAssets(String dir, int count, {String ext = 'png'}) {
 String growFxDir(String speciesDir, GrowTransition t) =>
     'assets/fx/grow/$speciesDir/${t.dirName}';
 
+/// speciesId → 成长帧目录名（去 `species_` 前缀）。
+///
+/// 与静态美术的目录约定一致（见 `plant_artwork.dart` 的 `PlantArtCandidates`）：
+/// `species_tomato` → `tomato`，即 `assets/fx/grow/{dir}/`。纯函数、可单测。
+String growSpeciesDir(String speciesId) => speciesId.startsWith('species_')
+    ? speciesId.substring('species_'.length)
+    : speciesId;
+
+/// 「物种×过渡 → 实际帧列表」进程级缓存（key = `$speciesDir:${t.dirName}`）。
+final Map<String, List<String>> _growFxResolved = <String, List<String>>{};
+
+/// 资产清单缓存（懒加载；读不到 = 空集合，全部回退契约推导）。
+Set<String>? _growFxManifestAssets;
+
+Future<Set<String>> _loadGrowFxManifest() async {
+  final Set<String>? cached = _growFxManifestAssets;
+  if (cached != null) return cached;
+  try {
+    final AssetManifest manifest =
+        await AssetManifest.loadFromAssetBundle(rootBundle);
+    return _growFxManifestAssets = manifest.listAssets().toSet();
+  } catch (_) {
+    // 清单读不到不崩（与 PlantArtwork 同口径）：回退 sunflower 契约推导。
+    return _growFxManifestAssets = const <String>{};
+  }
+}
+
+/// 解析「物种×过渡」的**实际帧列表**（2026-10-12 五物种开花帧接入）。
+///
+/// 帧数**从 AssetManifest 实测**、不再写死 [kFxFrameCount]——五物种开花帧为
+/// 25~27 张各不同，且后续还会补 seed_to_sprout / sprout_to_adult 各物种组。
+///
+/// 三级回退：① `assets/fx/grow/{speciesDir}/{过渡}/` 实测帧（按文件名排序）；
+/// ② 缺失/为空 → 回退 `sunflower` 同名目录实测；③ 清单不可用 → 契约推导
+/// [fxFrameAssets]（sunflower + [kFxFrameCount]，即旧硬编码行为）。
+/// 结果进程级缓存（同一组只解析一次）。
+Future<List<String>> resolveGrowFxAssets(
+  String speciesDir,
+  GrowTransition t,
+) async {
+  final String key = '$speciesDir:${t.dirName}';
+  final List<String>? cached = _growFxResolved[key];
+  if (cached != null) return cached;
+
+  final Set<String> assets = await _loadGrowFxManifest();
+  List<String> pick(String dir) {
+    final String prefix = '${growFxDir(dir, t)}/frame';
+    final List<String> hit = assets
+        .where((String p) =>
+            p.startsWith(prefix) &&
+            p.endsWith('.png') &&
+            p.length > prefix.length &&
+            int.tryParse(
+                    p.substring(prefix.length, p.length - '.png'.length)) !=
+                null)
+        .toList()
+      ..sort();
+    return hit;
+  }
+
+  List<String> frames = pick(speciesDir);
+  if (frames.isEmpty && speciesDir != 'sunflower') frames = pick('sunflower');
+  if (frames.isEmpty) {
+    frames = fxFrameAssets(growFxDir('sunflower', t), kFxFrameCount);
+  }
+  return _growFxResolved[key] = List<String>.unmodifiable(frames);
+}
+
 /// 浇水效果帧目录。
 const String kCareWaterFxDir = 'assets/fx/care/water';
 

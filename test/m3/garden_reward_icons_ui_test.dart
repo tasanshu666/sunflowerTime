@@ -118,7 +118,11 @@ class _FakeSunlightRepository implements SunlightRepository {
   @override
   Future<int> countByRefTypeAndRefIdOnDay(
           String refType, String refId, String dayKey) async =>
-      0;
+      // F111 隔离：晨露阳光按「前一天是否养护」折损 —— 本文件断言的是**满额**角标，
+      // 故浇水计数恒返回 1（视为已养护）。折损口径由 bloom_care_dew_test 专项覆盖。
+      refType == 'plant_water'
+          ? 1
+          : 0;
   @override
   Future<int> countByRefType(String refType) async => 0;
 

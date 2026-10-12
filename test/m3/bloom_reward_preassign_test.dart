@@ -17,6 +17,7 @@ import 'dart:math';
 import 'package:test/test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/bloom_reward_outcome.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -313,6 +314,28 @@ PendingBloomReward _instantOf(List<PendingBloomReward> list) => list.firstWhere(
       (PendingBloomReward r) => r.rewardKind == kBloomRewardPhaseInstant,
     );
 
+/// F111 隔离辅助：给 [plantId] 在 [day] 补一条养护账本行（net=0，不影响余额断言）。
+///
+/// 晨露阳光按「dueAt 前一天是否养护」折损（未养护 ×0.5）；本文件断言的是
+/// **定奖 / 照单发放**口径，故补养护使其按满额发放。
+Future<void> _seedCare(
+  SunlightRepository ledger,
+  String plantId,
+  DateTime day,
+) async {
+  await ledger.append(SunlightEntry(
+    id: 'seed_care_${plantId}_${day.millisecondsSinceEpoch}',
+    ts: day,
+    type: SunlightType.plant,
+    gross: 0,
+    net: 0,
+    balanceAfter: 0,
+    refType: 'plant_water',
+    refId: plantId,
+    dayKey: dayKey(day),
+  ));
+}
+
 void main() {
   final DateTime bloomAt = DateTime(2026, 9, 25, 8, 0);
   final DateTime due48h =
@@ -419,6 +442,7 @@ void main() {
         dueAt: bloomAt,
         rewardKind: kBloomRewardKindNormal,
       ));
+      await _seedCare(ledger, _kPlantId, bloomAt.subtract(const Duration(days: 1)));
 
       final BloomRewardOutcome s =
           await svc.collectBloomReward('legacy_1', due48h);
@@ -449,6 +473,7 @@ void main() {
         dueAt: bloomAt,
         rewardKind: kBloomRewardKindNormal,
       ));
+      await _seedCare(ledger, _kPlantId, bloomAt.subtract(const Duration(days: 1)));
 
       await svc.collectBloomReward('legacy_2', due48h);
       // r=0.21 → 大额阳光 10–20（nextInt=0 → 10）。

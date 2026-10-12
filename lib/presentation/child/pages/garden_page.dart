@@ -120,9 +120,14 @@ class _GrowthFxSpec {
   /// 卡片标题文案（如「长大啦！」/「开花啦！」）。
   final String title;
 
+  /// 实际帧列表（2026-10-12 五物种接入：按物种目录从 AssetManifest 实测，
+  /// 帧数 25~27 各不同；解析失败回退 sunflower，见 `resolveGrowFxAssets`）。
+  final List<String> frames;
+
   _GrowthFxSpec({
     required this.transition,
     required this.title,
+    required this.frames,
   });
 }
 
@@ -329,7 +334,9 @@ class _GardenPageState extends ConsumerState<GardenPage> {
       _species = await ref.read(plantRepositoryProvider).species();
       // 变更 A/B：读取当前「可收集」的待收集奖励（开花瞬间 + 每日晨露）→ 花盆上方
       // 头顶图标（C45 聚合展示），点击聚合收集；同株最多 ~6 条。
-      _collectibles = await svc.collectibleBloomRewards(now);
+      // F111：晨露阳光按「前一日是否养护」折损后再展示（与发放同源，数字 = 实际到手）。
+      _collectibles =
+          await svc.withBloomDewDiscount(await svc.collectibleBloomRewards(now));
       // 头顶图标美术资源集合（缺失回退内置 Icons）。
       _rewardAssets = await ref.read(rewardAssetsProvider.future);
       // 变更 B：碎片入口余额。
@@ -843,7 +850,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
         t = GrowTransition.adultToBloomed;
       }
       if (t != null) {
-        _playGrowthFx(t);
+        _playGrowthFx(t, growSpeciesDir(p.speciesId));
         return; // 一帧只播一场演出
       }
     }
@@ -853,13 +860,22 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   ///
   /// 不再按花盆格定位（旧口径格子太小、与底层重叠显得乱）：卡片由
   /// [GrowthFxOverlay] 自己在屏幕正中渲染，播完整卡淡出后由 [onComplete] 移除。
-  void _playGrowthFx(GrowTransition transition) {
+  ///
+  /// 2026-10-12 五物种接入：帧列表按 [speciesDir] 从 AssetManifest 异步实测
+  /// （各组帧数 25~27 不同；缺失回退 sunflower），解析完再上屏。
+  void _playGrowthFx(GrowTransition transition, String speciesDir) {
     if (!mounted) return;
     AudioService.instance.playSfx(_growthCue(transition));
-    setState(() => _activeGrowth = _GrowthFxSpec(
-          transition: transition,
-          title: _growthTitle(transition),
-        ));
+    unawaited(() async {
+      final List<String> frames =
+          await resolveGrowFxAssets(speciesDir, transition);
+      if (!mounted) return; // 异步间隙页面已卸载：不再上屏
+      setState(() => _activeGrowth = _GrowthFxSpec(
+            transition: transition,
+            title: _growthTitle(transition),
+            frames: frames,
+          ));
+    }());
   }
 
   /// 成长演出卡片标题文案（单一真源，勿散在 build 里）。
@@ -1767,10 +1783,7 @@ class _GardenPageState extends ConsumerState<GardenPage> {
             if (_activeGrowth != null)
               Positioned.fill(
                 child: GrowthFxOverlay(
-                  frames: fxFrameAssets(
-                    growFxDir('sunflower', _activeGrowth!.transition),
-                    kFxFrameCount,
-                  ),
+                  frames: _activeGrowth!.frames,
                   durationMs: _activeGrowth!.transition.durationMs,
                   title: _activeGrowth!.title,
                   onComplete: () {

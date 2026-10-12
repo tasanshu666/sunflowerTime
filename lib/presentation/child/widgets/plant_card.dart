@@ -128,7 +128,8 @@ class PlantCard extends StatelessWidget {
   /// 口径只用于卡片展示，不写回任何数据；常量变了文案自动跟随，无裸字面量。
   String get _nextStageHint {
     if (plant.status == PlantStatus.bloomed) {
-      return '已开花 🌻 持续养护可保持';
+      // F111：盛开期可养护（防枯萎 + 保次日晨露满额），不再暗示「养护能延长花期」。
+      return '已开花 🌻 每天养护，明天晨露阳光满额';
     }
     final double remaining = (1.0 - plant.growthProgress).clamp(0.0, 1.0);
     if (remaining <= 0.001) return '即将进入下一阶段…';

@@ -77,6 +77,13 @@ flutter:
     - assets/fx/grow/sunflower/seed_to_sprout/
     - assets/fx/grow/sunflower/sprout_to_adult/
     - assets/fx/grow/sunflower/adult_to_bloomed/
+    # 五物种开花过渡帧（2026-10-12 玄参交付，各 25~27 张 ≠ kFxFrameCount）：
+    # seed_to_sprout / sprout_to_adult 两段物种级帧尚未交付（目录已留空位），到货后再登记。
+    - assets/fx/grow/tomato/adult_to_bloomed/
+    - assets/fx/grow/strawberry/adult_to_bloomed/
+    - assets/fx/grow/moon_orchid/adult_to_bloomed/
+    - assets/fx/grow/coral_orchid/adult_to_bloomed/
+    - assets/fx/grow/jade_hydrangea/adult_to_bloomed/
     - assets/fx/care/water/
     - assets/fx/care/fertilize/
     # 除草 / 除虫效果帧（2026-10-03 玄参交付，各 27 帧）：点干扰物播放，禁止归一化。

@@ -23,6 +23,7 @@ import 'dart:math';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart' as db;
 import 'package:sunflower_time/data/local/repositories/plant_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/settings_local_repository.dart';
@@ -260,6 +261,20 @@ void main() {
         // r=0.21 → 第二段大额阳光 10–20（nextInt=0 → 10）。
         random: _SeqRandom(doubles: <double>[0.21], ints: <int>[0]),
       );
+
+      // F111 隔离：晨露阳光按「dueAt 前一天是否养护」折损（未养护 ×0.5）。
+      // 本用例断言的是「历史行能正常结算 + 回写」，补一条前一日养护 → 满额发放。
+      await ledger.append(SunlightEntry(
+        id: 'seed_care_legacy',
+        ts: _legacyDue.subtract(const Duration(days: 1)),
+        type: SunlightType.plant,
+        gross: 0,
+        net: 0,
+        balanceAfter: 0,
+        refType: 'plant_water',
+        refId: 'p_sunflower',
+        dayKey: dayKey(_legacyDue.subtract(const Duration(days: 1))),
+      ));
 
       await svc.collectBloomReward('pr_legacy', DateTime(2026, 9, 30));
       final List<SunlightEntry> earns = (await ledger.all())

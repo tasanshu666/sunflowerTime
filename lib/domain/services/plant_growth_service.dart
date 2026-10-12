@@ -865,9 +865,15 @@ class PlantGrowthService {
 
   /// 读取单株养护额度（M3 修订口径）。
   ///
-  /// 规则：① 成长中 / 枯萎态可养护（dead 态不可养护）；② 浇水每天 ≤
+  /// 规则：① 成长中 / **盛开** / 枯萎态可养护（dead 态不可养护）；② 浇水每天 ≤
   /// [kPlantWaterMaxPerDay] 次、施肥每天 ≤ [kPlantFertilizeMaxPerDay] 次；③ 两次浇水间隔 ≥
   /// [kPlantWaterIntervalMinutes] 分钟（「不能连续浇水」）。wilting 态浇水 / 施肥用于养护恢复。
+  ///
+  /// ⚠️ **盛开态可养护（2026-10-12 玄参拍板，F111）**：此前 active 只认 growing / wilting，
+  /// 但枯萎状态机（[_applyWiltAndDeath]）对 **bloomed 一视同仁**（≥ [kPlantWiltDays]
+  /// 天不浇水同样枯萎）→ 开花植物「显示口渴却浇不了水、只能看着它枯」的死锁。
+  /// 放行后：盛开期浇水 / 施肥**不加成长进度**（进度已 1.0，见 [water] / [fertilize]），
+  /// 意义 = 重置枯萎计时 + 保住次日晨露满额（见 [bloomDewSunlightOf]）。
   Future<PlantCareQuota> careQuota(Plant p, DateTime now) async {
     final String today = dayKey(now);
     final int waterUsed = await _ledger.countByRefTypeAndRefIdOnDay(
@@ -884,17 +890,18 @@ class PlantGrowthService {
         await _ledger.lastTsByRefTypeAndRefId('plant_water', p.id);
     final int minutesUntilNextWater = _minutesUntilNextWater(lastWater, now);
 
-    final bool actionable =
-        p.status == PlantStatus.growing || p.status == PlantStatus.wilting;
+    final bool actionable = p.status == PlantStatus.growing ||
+        p.status == PlantStatus.wilting ||
+        p.status == PlantStatus.bloomed; // F111：盛开态放行（防枯萎 + 保晨露）
     final String? waterBlock = !actionable
-        ? '仅成长中/枯萎植物可养护'
+        ? '仅成长中/开花/枯萎植物可养护'
         : waterUsed >= kPlantWaterMaxPerDay
             ? '今日浇水已达 $kPlantWaterMaxPerDay 次上限'
             : minutesUntilNextWater > 0
                 ? '浇水间隔需 $kPlantWaterIntervalMinutes 分钟，还需 $minutesUntilNextWater 分钟'
                 : null;
     final String? fertilizeBlock = !actionable
-        ? '仅成长中/枯萎植物可养护'
+        ? '仅成长中/开花/枯萎植物可养护'
         : fertilizeUsed >= kPlantFertilizeMaxPerDay
             ? '今日施肥已达 $kPlantFertilizeMaxPerDay 次上限'
             : null;
@@ -1497,6 +1504,61 @@ class PlantGrowthService {
     }
   }
 
+  /// 晨露阳光的「养护折损」实发值（**纯函数**，便于单测）。
+  ///
+  /// 口径（玄参 2026-10-12 拍板）：前一天养护达标 → 满额；未达标 → ×
+  /// [kBloomDewNeglectFactor]（向上取整）并由 [kBloomDewMinSunlight] 保底
+  /// ——**变少而不是没有**。
+  static int bloomDewSunlight(int base, bool cared) {
+    if (cared || base <= 0) return base < 0 ? 0 : base;
+    final int cut = (base * kBloomDewNeglectFactor).ceil();
+    return cut < kBloomDewMinSunlight ? kBloomDewMinSunlight : cut;
+  }
+
+  /// 该条晨露（[dueAt]）的**前一天**该株是否养护达标（账本为事实源，**不加列**）。
+  ///
+  /// 达标 = `plant_water` + `plant_fertilize` 账本条数 ≥ [kBloomDewCarePerDayRequired]。
+  /// 「前一天」而非「当天」：晨露在 08:00 掉落，昨天养没养才是既成事实
+  /// （玄参口径「浇水施肥是为了保证**第二天**能正常产生奖励和阳光」）。
+  Future<bool> bloomDewCaredBefore(String plantId, DateTime dueAt) async {
+    final String day = dayKey(dueAt.subtract(const Duration(days: 1)));
+    final int water =
+        await _ledger.countByRefTypeAndRefIdOnDay('plant_water', plantId, day);
+    final int fertilizer = await _ledger
+        .countByRefTypeAndRefIdOnDay('plant_fertilize', plantId, day);
+    return water + fertilizer >= kBloomDewCarePerDayRequired;
+  }
+
+  /// 该条 pending 的**实发阳光**：开花瞬间不折损；每日晨露按前一日养护折损。
+  Future<int> bloomDewSunlightOf(PendingBloomReward reward) async {
+    if (reward.rewardKind == kBloomRewardPhaseInstant) {
+      return reward.rewardSunlight;
+    }
+    return bloomDewSunlight(
+      reward.rewardSunlight,
+      await bloomDewCaredBefore(reward.plantId, reward.dueAt),
+    );
+  }
+
+  /// 展示用：把「可收集奖励」映射（plantId → 列表）里的阳光换成折损后数值
+  /// ——**与发放同源**（都走 [bloomDewSunlightOf]），保证头顶图标数字 = 实际到手。
+  Future<Map<String, List<PendingBloomReward>>> withBloomDewDiscount(
+    Map<String, List<PendingBloomReward>> byPlant,
+  ) async {
+    final Map<String, List<PendingBloomReward>> out =
+        <String, List<PendingBloomReward>>{};
+    for (final MapEntry<String, List<PendingBloomReward>> e
+        in byPlant.entries) {
+      final List<PendingBloomReward> list = <PendingBloomReward>[];
+      for (final PendingBloomReward r in e.value) {
+        final int v = await bloomDewSunlightOf(r);
+        list.add(v == r.rewardSunlight ? r : r.copyWith(rewardSunlight: v));
+      }
+      out[e.key] = list;
+    }
+    return out;
+  }
+
   /// 结算一条待收集奖励（头顶图标点击 / 花谢兜底共用），**照单发放**库中已定好的奖励。
   ///
   /// · 命中「零值哨兵」`0/0/null`（历史行 = 未预先定奖）→ 退回**现场 roll** 路径，并把
@@ -1534,21 +1596,41 @@ class PlantGrowthService {
         isInstantPhase: instant,
       );
     } else {
-      // 历史行哨兵：现场 roll + 回写该行（不改 claimed）。
+      // 历史行哨兵：现场 roll（回写在折损之后，见下）。
       outcome = instant
           ? await _rollInstantReward(premium, species)
           : await _rollSecondPhaseReward(premium, species);
+    }
+
+    // F111（玄参 2026-10-12）：每日晨露按「前一日是否养护」折损阳光（开花瞬间不折）。
+    // 只减不加 —— 花园定位是消耗阳光，延长花期 = 多给奖励，玄参明确不要。
+    //
+    // ⚠️ 折的是 [outcome]（**实际要发的金额**）而不是 [reward.rewardSunlight]：
+    // 历史哨兵行的内容是**本次现场 roll** 出来的、库里仍是 0，拿库里的 0 去折会
+    // 折成 0 → 阳光一条都不发（2026-10-12 回归实测踩到）。
+    BloomRewardOutcome settled = outcome;
+    if (!instant && settled.sunlight > 0) {
+      final int discounted = bloomDewSunlight(
+        settled.sunlight,
+        await bloomDewCaredBefore(reward.plantId, reward.dueAt),
+      );
+      if (discounted != settled.sunlight) {
+        settled = settled.copyWith(sunlight: discounted);
+      }
+    }
+    if (!reward.hasPreAssignedReward) {
+      // 哨兵行回写**折损后**的内容：库内金额 == 实际发放，UI 再读到的是同一个数。
       await _bloomRewards.updatePendingRewardContent(
         id: reward.id,
-        rewardSunlight: outcome.sunlight,
-        rewardFragments: outcome.fragments,
-        rewardSpeciesId: outcome.seedSpeciesId,
+        rewardSunlight: settled.sunlight,
+        rewardFragments: settled.fragments,
+        rewardSpeciesId: settled.seedSpeciesId,
       );
     }
 
     // 重复种子 → 自动分解为碎片（玄参 2026-09-29）：
     // 用「重写后的有效结果」发放与回传；种子分支因此不再走到 unlockSpecies。
-    BloomRewardOutcome effective = outcome;
+    BloomRewardOutcome effective = settled;
     if (outcome.seedSpeciesId != null) {
       final Set<String> coupons = await _bloomRewards.unlockedSpeciesIds();
       if (coupons.contains(outcome.seedSpeciesId)) {

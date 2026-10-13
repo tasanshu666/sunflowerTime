@@ -419,12 +419,20 @@ class AudioService {
   /// 播放一次性音效（fire-and-forget，非阻塞）。
   ///
   /// 受 [_soundOn] 保护；内部异步加载与播放，任何失败均静默忽略。
-  void playSfx(AudioCue cue) {
-    if (!_soundOn) return;
-    unawaited(_playSfx(cue));
+  void playSfx(AudioCue cue) => playSfxPaths(<String>[cue.assetPath]);
+
+  /// 播放一次性音效，**按 [paths] 顺序依次回退**（fire-and-forget，非阻塞）。
+  ///
+  /// 用于「物种专属 → 通用兜底」这类多候选场景（成长过渡音，口径 C59；候选由
+  /// `growSfxAssetCandidates` 生成）：前一个候选资源缺失 / 加载失败 → 试下一个；
+  /// 全部失败 → 静默（与「素材缺失」的既有降级口径一致：不崩、不刷日志）。
+  /// 受 [_soundOn] 保护；[paths] 为空直接返回。
+  void playSfxPaths(List<String> paths) {
+    if (!_soundOn || paths.isEmpty) return;
+    unawaited(_playSfxPaths(paths));
   }
 
-  Future<void> _playSfx(AudioCue cue) async {
+  Future<void> _playSfxPaths(List<String> paths) async {
     final AudioPlayer? player = await _sfx;
     if (player == null) return; // 播放器构造失败：静默降级
     // A 项（玄参 2026-10-07）：播放 SFX 前把花园氛围音**压低**（ducking），播完恢复；
@@ -434,19 +442,22 @@ class AudioService {
     final bool ducked = _duckAmbientForSfx();
     if (ducked) _armDuckRestore(player);
     // 真机修复（玄参 2026-09-30 反馈「离席回来欢迎音无声」）：app 刚从后台恢复时
-    // 音频会话可能尚未就绪，首次播放被系统静默吞掉 → 首败后延迟 600ms 重试一次。
-    for (int attempt = 0; attempt < 2; attempt++) {
-      try {
-        if (attempt > 0) {
-          await Future<void>.delayed(const Duration(milliseconds: 600));
+    // 音频会话可能尚未就绪，首次播放被系统静默吞掉 → 整轮延迟 600ms 重试一次。
+    // 外层 = 重试轮次；内层 = 候选回退（C59：物种专属 → 通用兜底）。
+    for (int round = 0; round < 2; round++) {
+      if (round > 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+      }
+      for (final String path in paths) {
+        try {
+          await player.stop();
+          await player.setAsset(path);
+          await player.seek(Duration.zero);
+          await player.play();
+          return; // 启动成功即返回（播放中失败不在本层感知）
+        } catch (_) {
+          // 该候选缺失 / 播放启动失败：试下一个候选（本轮全碰壁则下一轮再试一遍）。
         }
-        await player.stop();
-        await player.setAsset(cue.assetPath);
-        await player.seek(Duration.zero);
-        await player.play();
-        return; // 启动成功即返回（播放中失败不在本层感知）
-      } catch (_) {
-        // 资源缺失或播放启动失败：重试一次后静默降级。
       }
     }
   }
@@ -512,7 +523,7 @@ class AudioService {
     //     BehaviorSubject<PlayerState>()`；`:452` `playerStateStream => _playerStateSubject.stream`）
     //     → 订阅瞬间**重放当前值**；若 SFX 播放器此刻已是 completed（上一支 SFX 播完的残留态），
     //     `.skip(1)` 能挡掉这一次重放。
-    //  ② 但本方法随后由 [_playSfx] 立即 `player.stop()`，而 just_audio 的 `stop()` 只
+    //  ② 但本方法随后由 [_playSfxPaths] 立即 `player.stop()`，而 just_audio 的 `stop()` 只
     //     `_playingSubject.add(false)`（`just_audio.dart:1023`）**不改 processingState**
     //     → 组合出的新 playerState 仍是 `(playing=false, completed)`（且与上一个 distinct）
     //     → 还是被 `.where(completed)` 命中 → 依旧秒恢复（本护栏测试实测：arm 后 1ms 即 restore）。

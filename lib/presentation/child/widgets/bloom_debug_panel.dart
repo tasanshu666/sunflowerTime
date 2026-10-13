@@ -31,6 +31,7 @@ import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
 
 /// 花园页右上角「花期调试」浮层入口（**紧凑圆形按钮**）。
@@ -72,6 +73,7 @@ class BloomDebugEntry extends StatelessWidget {
 Future<void> showBloomDebugPanel(
   BuildContext context, {
   VoidCallback? onChanged,
+  void Function(GrowTransition transition, String speciesDir)? onPreviewGrowth,
 }) {
   // 面板高度取自**调用方**（花园页）的 MediaQuery（可靠）；面板自身不再依赖
   // sheet 内 MediaQuery，避免底部弹窗上下文中尺寸读取异常导致内容被布局到屏幕外。
@@ -80,8 +82,11 @@ Future<void> showBloomDebugPanel(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    builder: (BuildContext _) =>
-        BloomDebugSheet(maxHeight: maxHeight, onChanged: onChanged),
+    builder: (BuildContext _) => BloomDebugSheet(
+      maxHeight: maxHeight,
+      onChanged: onChanged,
+      onPreviewGrowth: onPreviewGrowth,
+    ),
   );
 }
 
@@ -90,13 +95,23 @@ Future<void> showBloomDebugPanel(
 /// 直接读 / 写 Provider 暴露的仓储与服务；所有动作后都调 [PlantGrowthService.tickAll]
 /// 走真实结算，再回调 [onChanged] 让花园页刷新。
 class BloomDebugSheet extends ConsumerStatefulWidget {
-  const BloomDebugSheet({super.key, this.maxHeight = 560, this.onChanged});
+  const BloomDebugSheet({
+    super.key,
+    this.maxHeight = 560,
+    this.onChanged,
+    this.onPreviewGrowth,
+  });
 
   /// 面板内容高度（由 [showBloomDebugPanel] 依调用方屏幕算出）。
   final double maxHeight;
 
   /// 动作完成后的回调（花园页据此刷新）。
   final VoidCallback? onChanged;
+
+  /// 分段成长**演出预览**回调（玄参 2026-10-13）：由花园页真正播该段过渡的
+  /// 成长演出 + 该物种音效（口径 C59）；本面板不复制播放/资产逻辑。
+  final void Function(GrowTransition transition, String speciesDir)?
+      onPreviewGrowth;
 
   @override
   ConsumerState<BloomDebugSheet> createState() => _BloomDebugSheetState();
@@ -326,6 +341,17 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
         await _svc.tickAll(DateTime.now());
       });
 
+  /// 分段成长**演出预览**（玄参 2026-10-13 拍板）：只播选定过渡的成长演出 + 该物种
+  /// 音效，**不改植物状态**（纯预览，方便逐个物种验收 C59 的 15 段音效）。
+  ///
+  /// 播放/资产解析单点在花园页（[onPreviewGrowth] 回调），本面板只负责转发选中株的
+  /// 物种目录 —— 不复制任何序列帧/音效逻辑。
+  void _previewGrowth(GrowTransition t) {
+    final Plant? p = _selected;
+    if (p == null) return;
+    widget.onPreviewGrowth?.call(t, growSpeciesDir(p.speciesId));
+  }
+
   /// 目标档位的花期时长（普通 [kBloomDurationDays] / 精品 [kBloomDurationDaysPremium]）。
   Duration _bloomDurationOf(PlantSpecies? sp) {
     final double days = (sp?.isPremium ?? false)
@@ -553,6 +579,41 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
                             ));
                           },
                     child: const Text('预览首启欢迎页'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '分段成长演出预览（不改植物状态）',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 6),
+              // 玄参 2026-10-13：成长音效已按物种（C59），加 3 个纯预览按钮，
+              // 点一下即播该段成长演出 + 该物种音效，便于逐个物种验收 15 段音效。
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  FilledButton.tonal(
+                    onPressed: (sel == null || _busy)
+                        ? null
+                        : () => _previewGrowth(GrowTransition.seedToSprout),
+                    child: const Text('发芽（种→苗）'),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: (sel == null || _busy)
+                        ? null
+                        : () => _previewGrowth(GrowTransition.sproutToAdult),
+                    child: const Text('长大（苗→株）'),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: (sel == null || _busy)
+                        ? null
+                        : () => _previewGrowth(GrowTransition.adultToBloomed),
+                    child: const Text('开花（株→花）'),
                   ),
                 ],
               ),

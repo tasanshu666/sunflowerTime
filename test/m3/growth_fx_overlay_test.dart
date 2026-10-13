@@ -18,8 +18,8 @@ import 'package:sunflower_time/presentation/child/widgets/growth_fx_overlay.dart
 
 /// 测试用帧列表（测试环境无真实资源，走 errorBuilder 兜底）。
 const List<String> _frames = <String>[
-  'assets/fx/grow/sunflower/seed_to_sprout/frame001.png',
-  'assets/fx/grow/sunflower/seed_to_sprout/frame002.png',
+  'assets/fx/grow/sunflower/seed_to_sprout/frame001.webp',
+  'assets/fx/grow/sunflower/seed_to_sprout/frame002.webp',
 ];
 
 Future<void> _pump(

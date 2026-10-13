@@ -539,7 +539,8 @@ const int kMilestoneFirstBloomCount = 1;
 // 序列帧动效与花园氛围音（玄参 2026-09-28 素材落地）。禁止裸字面量。
 //
 // 素材契约（`docs/美术资源_序列帧与音频命名规范_v1.md` + 交付实况）：
-//   · 序列帧目录 `assets/fx/grow/{物种}/{过渡名}/frame001..N.png`（三位零填充）与
+//   · 序列帧目录 `assets/fx/grow/{物种}/{过渡名}/frame001..N.webp`（三位零填充；
+//     2026-10-13 起成长帧走 WebP q95 压缩管线 `tools/convert_grow_fx.py`）与
 //     `assets/fx/care/{water|fertilize}/frame001..N.png`；
 //   · **每帧时长 = 音频时长 / 帧数**（玄参口径：「动画帧的播放速度与对应的音频时间
 //     保持一致」）——下列时长常量来自对交付 mp3 的 ffprobe 实测（192kbps）；

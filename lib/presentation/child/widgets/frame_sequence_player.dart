@@ -1,7 +1,7 @@
 /// 序列帧资产契约与通用播放器（2026-09-28 玄参素材落地）。
 ///
 /// ## 资产契约（目录即接口，详见 `docs/美术资源_序列帧与音频命名规范_v1.md`）
-///  · 成长过渡帧：`assets/fx/grow/{物种}/{过渡名}/frame001..N.png`（**三位零填充**，
+///  · 成长过渡帧：`assets/fx/grow/{物种}/{过渡名}/frame001..N.webp`（**三位零填充**，
 ///    从 001 起，播放顺序 = 文件名字典序）；
 ///  · 养护效果帧：`assets/fx/care/{water|fertilize}/frame001..N.png`（纯效果层，
 ///    透明底、不含盆与植物 —— 播放时叠加在植物静态图**之上**，植物本体保持可见）；
@@ -60,7 +60,8 @@ enum GrowTransition {
 /// 拼一组序列帧的 asset 路径列表（`{dir}/frame001.{ext}` … 共 [count] 张）。
 ///
 /// 纯函数（无 IO），命名契约唯一真源：三位零填充、从 [kFxFirstFrameNumber] 起；
-/// [ext] 默认 `png`，护眼 640 帧（2026-10-09 WebP 压缩管线）传 `webp`。
+/// [ext] 默认 `png`；护眼 640 帧（2026-10-09）与成长帧（2026-10-13）均走 WebP
+/// 压缩管线（`tools/convert_eyecare640.py` / `tools/convert_grow_fx.py`），传 `webp`。
 List<String> fxFrameAssets(String dir, int count, {String ext = 'png'}) {
   return List<String>.generate(count, (int i) {
     final int n = kFxFirstFrameNumber + i;
@@ -72,6 +73,12 @@ List<String> fxFrameAssets(String dir, int count, {String ext = 'png'}) {
 String growFxDir(String speciesDir, GrowTransition t) =>
     'assets/fx/grow/$speciesDir/${t.dirName}';
 
+/// 成长帧文件扩展名 = **WebP**（2026-10-13 压缩管线，对齐护眼帧 `convert_eyecare640.py`）。
+///
+/// 97.2M PNG → 27.0M（−72.2%，q95，PSNR≈46dB 视觉无损）；转换工具 `tools/convert_grow_fx.py`，
+/// 原 PNG 备份在 `build/grow_fx_png_backup/`（不入包）。读取侧按扩展名实测，不再假定 png。
+const String kGrowFxFrameExt = 'webp';
+
 /// speciesId → 成长帧目录名（去 `species_` 前缀）。
 ///
 /// 与静态美术的目录约定一致（见 `plant_artwork.dart` 的 `PlantArtCandidates`）：
@@ -79,6 +86,22 @@ String growFxDir(String speciesDir, GrowTransition t) =>
 String growSpeciesDir(String speciesId) => speciesId.startsWith('species_')
     ? speciesId.substring('species_'.length)
     : speciesId;
+
+/// 成长过渡音效的**两级候选路径**（口径 C59，2026-10-13；规范 §4.5「播放查找链」）：
+/// ① 物种专属 `assets/audio/sfx/grow_{物种目录}_{过渡}.mp3`（本轮新增）
+/// ② 通用兜底 [fallbackAssetPath]（现有 `grow_{过渡}.mp3`，即向日葵那套）
+///
+/// 播放层按顺序试：① 缺失 / 加载失败 → 自动落到 ②（见 `AudioService.playSfxPaths`）。
+/// 物种目录约定与帧目录 [growFxDir] / [growSpeciesDir] 一致。纯函数、可单测。
+List<String> growSfxAssetCandidates(
+  GrowTransition t,
+  String speciesDir,
+  String fallbackAssetPath,
+) =>
+    <String>[
+      'assets/audio/sfx/grow_${speciesDir}_${t.dirName}.mp3',
+      fallbackAssetPath,
+    ];
 
 /// 「物种×过渡 → 实际帧列表」进程级缓存（key = `$speciesDir:${t.dirName}`）。
 final Map<String, List<String>> _growFxResolved = <String, List<String>>{};
@@ -119,13 +142,14 @@ Future<List<String>> resolveGrowFxAssets(
   final Set<String> assets = await _loadGrowFxManifest();
   List<String> pick(String dir) {
     final String prefix = '${growFxDir(dir, t)}/frame';
+    const String ext = '.$kGrowFxFrameExt';
     final List<String> hit = assets
         .where((String p) =>
             p.startsWith(prefix) &&
-            p.endsWith('.png') &&
-            p.length > prefix.length &&
+            p.endsWith(ext) &&
+            p.length > prefix.length + ext.length &&
             int.tryParse(
-                    p.substring(prefix.length, p.length - '.png'.length)) !=
+                    p.substring(prefix.length, p.length - ext.length)) !=
                 null)
         .toList()
       ..sort();
@@ -135,7 +159,8 @@ Future<List<String>> resolveGrowFxAssets(
   List<String> frames = pick(speciesDir);
   if (frames.isEmpty && speciesDir != 'sunflower') frames = pick('sunflower');
   if (frames.isEmpty) {
-    frames = fxFrameAssets(growFxDir('sunflower', t), kFxFrameCount);
+    frames = fxFrameAssets(growFxDir('sunflower', t), kFxFrameCount,
+        ext: kGrowFxFrameExt);
   }
   return _growFxResolved[key] = List<String>.unmodifiable(frames);
 }

@@ -27,38 +27,44 @@ String _projectRoot() {
 void main() {
   final String root = _projectRoot();
 
-  List<String> pngsOf(String relDir) {
+  /// 目录下指定扩展名的帧文件名（升序）。[ext] 不含点。
+  List<String> framesOf(String relDir, String ext) {
     final Directory dir = Directory('$root/$relDir');
     expect(dir.existsSync(), isTrue, reason: '目录缺失：$relDir');
+    final String suffix = '.$ext';
     return dir
         .listSync()
         .whereType<File>()
         .map((File f) => f.path.split(Platform.pathSeparator).last)
-        .where((String n) => n.endsWith('.png'))
+        .where((String n) => n.endsWith(suffix))
         .toList()
       ..sort();
   }
 
-  group('序列帧目录契约（frame001..N，三位零填充）', () {
-    final List<String> dirs = <String>[
-      growFxDir('sunflower', GrowTransition.seedToSprout),
-      growFxDir('sunflower', GrowTransition.sproutToAdult),
-      growFxDir('sunflower', GrowTransition.adultToBloomed),
-      kCareWaterFxDir,
-      kCareFertilizeFxDir,
-    ];
+  List<String> pngsOf(String relDir) => framesOf(relDir, 'png');
 
-    for (final String dir in dirs) {
+  group('序列帧目录契约（frame001..N，三位零填充）', () {
+    // 生长帧已走 WebP 压缩管线（2026-10-13 `convert_grow_fx.py`），养护帧仍为 PNG
+    // —— 按目录登记期望扩展名。
+    final Map<String, String> dirs = <String, String>{
+      growFxDir('sunflower', GrowTransition.seedToSprout): kGrowFxFrameExt,
+      growFxDir('sunflower', GrowTransition.sproutToAdult): kGrowFxFrameExt,
+      growFxDir('sunflower', GrowTransition.adultToBloomed): kGrowFxFrameExt,
+      kCareWaterFxDir: 'png',
+      kCareFertilizeFxDir: 'png',
+    };
+
+    dirs.forEach((String dir, String ext) {
       test('$dir：恰有 kFxFrameCount 张、文件名与 fxFrameAssets 契约一致', () {
-        final List<String> files = pngsOf(dir);
+        final List<String> files = framesOf(dir, ext);
         expect(files.length, kFxFrameCount,
             reason: '$dir 帧数应为 $kFxFrameCount，实际 ${files.length}');
-        final List<String> expected = fxFrameAssets(dir, kFxFrameCount)
+        final List<String> expected = fxFrameAssets(dir, kFxFrameCount, ext: ext)
             .map((String p) => p.split('/').last)
             .toList();
         expect(files, expected, reason: '$dir 文件名与契约不符');
       });
-    }
+    });
 
     test('fxFrameAssets：纯函数命名契约（三位零填充、从 001 起）', () {
       final List<String> got = fxFrameAssets('assets/fx/care/water', 3);
@@ -81,33 +87,99 @@ void main() {
     });
   });
 
-  group('五物种开花序列帧契约（2026-10-12 玄参交付，各 25~27 张 ≠ kFxFrameCount）', () {
-    // 帧数各不同（25/26/27），代码侧由 resolveGrowFxAssets 从 AssetManifest 实测；
-    // 本护栏只锁文件名契约：从 frame001 起、三位零填充、连续无空洞。
-    const List<String> bloomDirs = <String>[
-      'assets/fx/grow/tomato/adult_to_bloomed',
-      'assets/fx/grow/strawberry/adult_to_bloomed',
-      'assets/fx/grow/moon_orchid/adult_to_bloomed',
-      'assets/fx/grow/coral_orchid/adult_to_bloomed',
-      'assets/fx/grow/jade_hydrangea/adult_to_bloomed',
+  group('成长序列帧契约（6 物种 × 3 过渡，WebP q95 压缩管线）', () {
+    // 帧数各不同（25~27 ≠ kFxFrameCount），代码侧由 resolveGrowFxAssets 从 AssetManifest
+    // 实测；本护栏锁：目录存在、从 frame001 连续编号、三位零填充、且每帧 720×720
+    // （直读 WebP 头）。2026-10-13 起全部走 WebP（tools/convert_grow_fx.py）。
+    const List<String> speciesDirs = <String>[
+      'sunflower',
+      'tomato',
+      'strawberry',
+      'moon_orchid',
+      'coral_orchid',
+      'jade_hydrangea',
     ];
 
-    for (final String dir in bloomDirs) {
-      test('$dir：从 frame001 连续编号、三位零填充', () {
-        final List<String> files = pngsOf(dir);
-        expect(files.length, greaterThanOrEqualTo(1),
-            reason: '$dir 至少应有 1 帧');
-        for (int i = 0; i < files.length; i++) {
-          expect(files[i], 'frame${(i + 1).toString().padLeft(3, '0')}.png',
-              reason: '$dir 第 ${i + 1} 张文件名与契约不符（须连续、三位零填充）');
-        }
-      });
+    for (final String species in speciesDirs) {
+      for (final GrowTransition t in GrowTransition.values) {
+        final String dir = growFxDir(species, t);
+        test('$dir：从 frame001 连续编号、三位零填充、720×720', () {
+          final List<String> files = framesOf(dir, kGrowFxFrameExt);
+          expect(files.length, greaterThanOrEqualTo(1), reason: '$dir 至少应有 1 帧');
+          for (int i = 0; i < files.length; i++) {
+            expect(
+                files[i],
+                'frame${(i + 1).toString().padLeft(3, '0')}.$kGrowFxFrameExt',
+                reason: '$dir 第 ${i + 1} 张文件名与契约不符（须连续、三位零填充）');
+          }
+          for (final String name in files) {
+            expect(_webpSize(File('$root/$dir/$name')), 720 * 720,
+                reason: '$dir/$name 尺寸漂移（应统一 720×720）');
+          }
+        });
+      }
     }
 
     test('growSpeciesDir：speciesId → 目录名（与静态美术同约定）', () {
       expect(growSpeciesDir('species_tomato'), 'tomato');
       expect(growSpeciesDir('species_moon_orchid'), 'moon_orchid');
       expect(growSpeciesDir('tomato'), 'tomato'); // 无前缀原样返回
+    });
+  });
+
+  group('成长音效（物种 × 过渡）契约（C59，2026-10-13 玄参交付）', () {
+    // 5 物种 × 3 过渡 = 15 段**物种专属**音效（向日葵仍走通用兜底，不在本表内）。
+    // 硬规格（规范 §4.5）：时长必须 = kGrow*DurationMs（4100ms）——三段帧速由该常量
+    // 驱动，音效不等长即音画不同步；且必须 ≥3s（iOS CoreAudio -11849 红线）。
+    const List<String> speciesDirs = <String>[
+      'tomato',
+      'strawberry',
+      'moon_orchid',
+      'coral_orchid',
+      'jade_hydrangea',
+    ];
+
+    for (final String dir in speciesDirs) {
+      for (final GrowTransition t in GrowTransition.values) {
+        final String rel = 'assets/audio/sfx/grow_${dir}_${t.dirName}.mp3';
+        test('$rel：存在且实测时长 ≈ ${t.durationMs / 1000}s', () {
+          final File f = File('$root/$rel');
+          expect(f.existsSync(), isTrue, reason: '缺成长音效：$rel');
+          final double seconds = _mp3DurationSeconds(f.readAsBytesSync());
+          // ⚠️ 容差 0.10s（不是 0.01s）：本组用**逐帧累计**读数，含 LAME 写入的编码器
+          // 延迟 / 尾部补齐帧（全库一致偏大约 53ms；规范 §4.4 已记录「容器时长 vs 逐帧
+          // 累计」两种读数差异）。容差只要紧到能抓住「时长明显不对」（如误用 3s 素材），
+          // 不必与容器读数逐毫秒对齐。
+          expect(
+            (seconds - t.durationMs / 1000).abs(),
+            lessThan(0.10),
+            reason: '$rel 实测 ${seconds.toStringAsFixed(3)}s ≠ '
+                '${t.durationMs / 1000}s（kGrow 时长常量）—— 音画会不同步',
+          );
+        });
+      }
+    }
+
+    test('growSfxAssetCandidates：两级回退「物种专属 → 通用兜底」且两个候选真实存在', () {
+      for (final String dir in speciesDirs) {
+        for (final GrowTransition t in GrowTransition.values) {
+          final AudioCue fallback = switch (t) {
+            GrowTransition.seedToSprout => AudioCue.growthSeedToSprout,
+            GrowTransition.sproutToAdult => AudioCue.growthSproutToAdult,
+            GrowTransition.adultToBloomed => AudioCue.growthAdultToBloomed,
+          };
+          final List<String> got =
+              growSfxAssetCandidates(t, dir, fallback.assetPath);
+          expect(got, <String>[
+            'assets/audio/sfx/grow_${dir}_${t.dirName}.mp3',
+            fallback.assetPath,
+          ], reason: '候选链顺序/命名不符（C59）');
+          for (final String p in got) {
+            expect(File('$root/$p').existsSync(), isTrue,
+                reason: '候选文件不存在（会导致静默回退/静默无声）：$p');
+          }
+        }
+      }
     });
   });
 
@@ -267,9 +339,16 @@ void main() {
     test('fx 全部叶子目录都在 pubspec.yaml 的 assets 里登记', () {
       final String pubspec = File('$root/pubspec.yaml').readAsStringSync();
       final List<String> dirs = <String>[
-        growFxDir('sunflower', GrowTransition.seedToSprout),
-        growFxDir('sunflower', GrowTransition.sproutToAdult),
-        growFxDir('sunflower', GrowTransition.adultToBloomed),
+        for (final String sp in <String>[
+          'sunflower',
+          'tomato',
+          'strawberry',
+          'moon_orchid',
+          'coral_orchid',
+          'jade_hydrangea',
+        ])
+          for (final GrowTransition t in GrowTransition.values)
+            growFxDir(sp, t),
         kCareWaterFxDir,
         kCareFertilizeFxDir,
         kCareWeedFxDir,

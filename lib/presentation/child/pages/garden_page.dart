@@ -733,11 +733,17 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   ///
   /// 面板内所有动作都「写字段 + tickAll」走真实领域结算；动作后回调静默刷新草地
   /// （进度 / 可收集气泡 / 余额）。release 构建下入口不渲染，本方法不会被触达。
+  ///
+  /// [onPreviewGrowth]（玄参 2026-10-13）：分段成长**演出预览**——面板选中的物种 + 指定
+  /// 过渡，直接播该段成长演出 + 物种音效（复用 [_playGrowthFx] 单点），**不改植物状态**。
   Future<void> _openDebugPanel() {
     return showBloomDebugPanel(
       context,
       onChanged: () {
         if (mounted) _reload(silent: true);
+      },
+      onPreviewGrowth: (GrowTransition t, String speciesDir) {
+        _playGrowthFx(t, speciesDir);
       },
     );
   }
@@ -863,9 +869,14 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   ///
   /// 2026-10-12 五物种接入：帧列表按 [speciesDir] 从 AssetManifest 异步实测
   /// （各组帧数 25~27 不同；缺失回退 sunflower），解析完再上屏。
+  /// 2026-10-13 音效按物种（口径 C59）：两级回退「物种专属 → 通用兜底」（[_growthCue] 给兜底路径）。
   void _playGrowthFx(GrowTransition transition, String speciesDir) {
     if (!mounted) return;
-    AudioService.instance.playSfx(_growthCue(transition));
+    AudioService.instance.playSfxPaths(growSfxAssetCandidates(
+      transition,
+      speciesDir,
+      _growthCue(transition).assetPath,
+    ));
     unawaited(() async {
       final List<String> frames =
           await resolveGrowFxAssets(speciesDir, transition);
@@ -890,7 +901,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     }
   }
 
-  /// 成长过渡对应的音频 cue。
+  /// 成长过渡对应的**通用兜底**音频 cue（物种专属音效缺失时的回退路径来源；
+  /// 候选链见 `growSfxAssetCandidates`，口径 C59）。
   AudioCue _growthCue(GrowTransition t) {
     switch (t) {
       case GrowTransition.seedToSprout:

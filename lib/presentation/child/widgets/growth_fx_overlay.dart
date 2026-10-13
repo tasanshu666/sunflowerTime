@@ -13,7 +13,8 @@
 ///  · 入场：轻微弹入（缩放 + 淡入，[Curves.easeOutBack]），退场：淡出并轻微收拢。
 ///
 /// ## 行为
-///  · 卡片宽 = 屏幕短边 × [kGrowFxCardWidthRatio]，圆角 [kGrowFxCardRadius]；
+///  · 卡片宽 = 屏幕短边 × [kGrowFxCardWidthRatio]，**平板钳到 [kGrowFxCardMaxWidth]**
+///    （见 [growFxCardWidthOf]；C61 平板适配），圆角 [kGrowFxCardRadius]；
 ///  · 卡内正方形区域播放 [frames]（每帧时长 = 音频时长 / 帧数，见
 ///    [FrameSequencePlayer]），播放**不遮挡花园**（无遮罩层）；
 ///  · 播完 → 整张卡 [kFxDisplayFadeOutMs] 淡出 → [onComplete]；
@@ -26,6 +27,7 @@ import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 // —— 奶油阳光风视觉常量（仅本组件使用，故就近定义；与 App 马卡龙/奶油风同源） ——
 
@@ -141,8 +143,10 @@ class _GrowthFxOverlayState extends State<GrowthFxOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final double screenW = MediaQuery.of(context).size.shortestSide;
-    final double cardW = screenW * kGrowFxCardWidthRatio;
+    // C61 平板适配：手机 = 原值（390 → 304.2），平板钳到 kGrowFxCardMaxWidth
+    // （800 → 360；原 624 会让卡内播放区 596² 糊满整屏）。
+    final double screenW = MediaQuery.sizeOf(context).shortestSide;
+    final double cardW = growFxCardWidthOf(screenW);
     final double inner = cardW - kGrowFxCardPadding * 2;
     return IgnorePointer(
       child: Center(

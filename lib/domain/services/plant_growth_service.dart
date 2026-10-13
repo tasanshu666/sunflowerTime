@@ -1152,6 +1152,13 @@ class PlantGrowthService {
     if (!ok) return p;
     // 注意：[Plant.copyWith] 对 nullable 字段用 `?? this.xxx`，显式 null 不会清空；
     // 恢复需显式清空 [Plant.wiltedAt]，故用构造器重建（2026-09-23）。
+    //
+    // 🔴 **构造器重建 = 必须把每个字段都列全**，漏一个就会被静默重置成默认值。
+    //   本处已两次踩坑：① DEF-1 漏 `bloomCount`（浇活后退回首花速率）；
+    //   ② 2026-10-13 漏 `shovelRefund` / `weedAt` / `pestAt` / `weedPestRollDay`
+    //      → 浇活后 `plants.shovel_refund` 被写成 0，**铲除时提示「本次铲除不返还阳光」**
+    //      （玄参实测：铲除已浇活的草莓/番茄不返还），且杂草害虫标记与当日 roll 幂等位
+    //      一起被清。**给 [Plant] 新增字段时必须同步此处**（或改用 copyWith 哨兵清空）。
     return Plant(
       id: p.id,
       speciesId: p.speciesId,
@@ -1170,6 +1177,10 @@ class PlantGrowthService {
       bloomedAt: p.bloomedAt,
       bloomCount: p.bloomCount, // 修复 DEF-1：重建时须保留盛开次数，否则枯萎浇活后退回首花速率
       mood: p.mood,
+      weedAt: p.weedAt, // 修复 2026-10-13：保留杂草标记
+      pestAt: p.pestAt, // 修复 2026-10-13：保留害虫标记
+      weedPestRollDay: p.weedPestRollDay, // 修复 2026-10-13：保留每日 roll 幂等位
+      shovelRefund: p.shovelRefund, // 修复 2026-10-13：保留铲除返还额（否则铲除不返还）
     );
   }
 

@@ -3,6 +3,7 @@
 /// 纯 Dart：所有仓储以 Fake 实现，不依赖 Drift / Flutter。
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/weekly_pool.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
@@ -350,6 +351,50 @@ void main() {
       expect(res.outcome, SubmitOutcome.rejectedBalance);
       expect(reward.requests, isEmpty);
       expect(ledger.entries, isEmpty);
+      expect(
+        tracking.events.any((e) => e.name == TrackingEventNames.rewardRedeemRequest),
+        isFalse,
+      );
+    });
+
+    test('(d2) C62 超周池 → rejectedPool：不生成申请、不扣账本、不再写 reward_queue 埋点',
+        () async {
+      final reward = FakeRewardRepository();
+      reward.addTemplate(const RewardTemplate(
+        id: 'seed_big',
+        name: '大件奖励',
+        category: RewardCategory.selfService,
+        baseCost: 300,
+        frequencyLimitPerWeek: 1,
+      ));
+      // 关键：余额充足（500 ≥ 300），**只因周池放不下**而被拒。
+      final ledger = FakeSunlightRepository()..balance_ = 500;
+      final DateTime now = DateTime(2026, 9, 15, 10, 0);
+      final poolRepo = FakeWeeklyPoolRepository();
+      poolRepo.store[weekKey(now)] = WeeklyPool(
+        weekKey: weekKey(now),
+        budget: 160,
+        used: 160, // 当周池已满 → projected(160+0+300) > 160
+      );
+      final tracking = FakeTrackingRepository();
+      final svc = build(
+        reward: reward,
+        poolRepo: poolRepo,
+        ledger: ledger,
+        tracking: tracking,
+        settings: FakeSettingsRepository(lowSettings),
+      );
+
+      final res = await svc.submit('seed_big', AgeTier.low, now);
+
+      expect(res.outcome, SubmitOutcome.rejectedPool);
+      expect(reward.requests, isEmpty, reason: 'C62：超池不生成任何申请（不再排队）');
+      expect(ledger.entries, isEmpty, reason: '被拒不写账本');
+      expect(
+        tracking.events.any((e) => e.name == TrackingEventNames.rewardQueue),
+        isFalse,
+        reason: 'C62：不再产生 reward_queue 埋点',
+      );
       expect(
         tracking.events.any((e) => e.name == TrackingEventNames.rewardRedeemRequest),
         isFalse,

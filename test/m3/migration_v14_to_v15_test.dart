@@ -39,9 +39,6 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:test/test.dart';
 
-/// unix 秒（drift DateTime 默认落库格式）。
-int _secs(DateTime d) => d.millisecondsSinceEpoch ~/ 1000;
-
 /// v14 线上 schema（**不含** v15 的三个新列 —— 缺列正是本测试要修的状态）。
 ///
 /// 列类型必须与 drift 定义一致（`boolean()` → `INTEGER NOT NULL DEFAULT x`，SQLCipher

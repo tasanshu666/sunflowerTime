@@ -4,7 +4,7 @@
 ///  ① 单笔价 ≤ 高 130 / 低 50
 ///  ② 当周累计自动放行 ≤ min(固定天花板 100/40, 周池 × 25%)，且整体池余量充足
 ///  ③ 自服务类一律不自动放行
-///  满足双条件 → verified；不满足且池未满 → pending；超池 → queued。
+///  满足双条件 → verified；不满足且池未满 → pending；超池 → rejected（C62：不再排队）。
 library c5_boundary_test;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -45,7 +45,7 @@ void main() {
       );
     });
 
-    test('低档：cost == 周池上限 + 1 → queued（超池下周释放）', () {
+    test('低档：cost == 周池上限 + 1 → rejected（C62：超池直接拒绝，不再排队）', () {
       const int budget = 160;
       final WeeklyPool pool = WeeklyPool(
         weekKey: '2026-09-07',
@@ -61,7 +61,7 @@ void main() {
           ageTier: AgeTier.low,
           pool: pool,
         ).status,
-        RequestStatus.queued,
+        RequestStatus.rejected,
       );
     });
 

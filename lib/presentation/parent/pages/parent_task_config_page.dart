@@ -94,17 +94,6 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
     }
   }
 
-  String _repeatLabel(String? rule) {
-    switch (rule) {
-      case 'daily':
-        return '每天';
-      case 'weekly':
-        return '每周';
-      default:
-        return '不重复';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

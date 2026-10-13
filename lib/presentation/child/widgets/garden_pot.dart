@@ -51,6 +51,8 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
+import 'package:sunflower_time/shared/plant_rarity_style.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 import 'plant_artwork.dart';
 
@@ -95,7 +97,7 @@ const double kPotBodyWidthFraction = 801 / 1440;
 /// 加号圆外径相对于「盆宽」的系数（≈ 盆宽的 92%，视觉上略小于盆口）。
 const double kExpandIconDiameterRatio = 0.92;
 
-/// 花盆图下方「进度条 + 标签」区的固定高度（三类格子共用）。
+/// 花盆图下方「进度条 + 标签」区高度（三类格子共用）。
 ///
 /// 三类格子共用同一底部高度，才能保证**同一行内所有花盆底边横向对齐**：
 /// 有植物盆的底边被进度条 + 标签顶起，空盆 / 加盆格若不留等高空位，就会比邻居低
@@ -104,7 +106,9 @@ const double kExpandIconDiameterRatio = 0.92;
 /// v3 改造：标签外包了一层半透明白胶囊（上下各 1px 内边距），故由 30 上调到 **32**，
 /// 容纳 `4(间距) + 5(进度条) + 3(间距) + 胶囊(文字行高 + 上下各 1)`；同时保证最紧的
 /// 320 屏仍不溢出：格内高 ≈ (94.67-4)×0.86×5/3 + 32 ≈ 162 ≤ 167（见 v3 布局测试实测）。
-const double _footerHeight = kGardenPotFooterHeight;
+///
+/// ⚠️ C65：标签是**文字**，平板会被放大 1.3× → 底栏必须同步长高，故此处不再用常量，
+/// 一律走 [gardenPotFooterHeightOf]（三类格子 + 养护动效同源；手机返回 32 = 零回归）。
 
 /// 三类格子统一的横向内边距：让「空盆 / 有植物 / 加盆」可用宽一致 → 盆等大。
 const double _horizontalPad = kGardenCellHorizontalPad;
@@ -147,8 +151,8 @@ class GardenGrid extends StatelessWidget {
 
   /// 格子宽高比 = 宽 / 高。
   ///
-  /// 每格内容高 = 图高 + 底部标签区 [`_footerHeight`]，再叠加上下内边距 8：
-  ///   = (格宽-4) × [_artWidthRatio] × [_artAspectRatio] + [_footerHeight] + 8
+  /// 每格内容高 = 图高 + 底部标签区 [gardenPotFooterHeightOf]，再叠加上下内边距 8：
+  ///   = (格宽-4) × [_artWidthRatio] × [_artAspectRatio] + 底栏高 + 8
   ///   = 1.3889 × (格宽-4) + 40（2026-10-11 画布 1440×2000 + 宽比 1.0）。
   /// 取 **0.55**（2026-10-11 随画布 1720→1440 收窄由 0.62 重算）：图片框变高
   /// （aspect 1.1628→1.3889），行高相应加高。最紧的 320 屏（测试宿主格宽 ≈ 96）
@@ -346,7 +350,7 @@ class GardenPot extends StatelessWidget {
                 // 固定高度的底部区（进度条 + 标签）：供空盆 / 加盆格留等高空位对齐。
                 // MainAxisAlignment.end：让胶囊贴底 → 三类格子的文案底边严格齐平。
                 SizedBox(
-                  height: _footerHeight,
+                  height: gardenPotFooterHeightOf(context),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: <Widget>[
@@ -365,7 +369,12 @@ class GardenPot extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 3),
-                      // 标签：半透明白胶囊底 + 加深字色（压在草地上也看得清）。
+                      // 标签：胶囊底 + 加深字色（压在草地上也看得清）。
+                      // C63（2026-10-13 玄参）：精英植物做档位区分。
+                      // C64 修订（同日 iPad 实测）：「只增加紫色描边就行了，底还用半透明白底
+                      // 就行」—— 淡紫底在满屏绿色草地上反而显脏，描边已足够区分档位；
+                      // 故**两档共用半透明白底 [_labelPillColor]**，仅精英多一圈紫描边。
+                      // 描边色与属性卡 / 选种卡同源（`kRarity*`，「防孪生」）。
                       ConstrainedBox(
                         constraints: BoxConstraints(maxWidth: w),
                         child: Container(
@@ -377,6 +386,12 @@ class GardenPot extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: _labelPillColor,
                             borderRadius: BorderRadius.circular(8),
+                            border: species.isPremium
+                                ? Border.all(
+                                    color:
+                                        kRarityEliteAccent.withValues(alpha: 0.55),
+                                  )
+                                : null,
                           ),
                           child: Text(
                             _label,
@@ -496,7 +511,7 @@ class _PestChip extends StatelessWidget {
 /// 玄参大人要求：空格只显示陶盆（去掉「+」圆圈与「点击种植」标签），并放大显示
 /// 比例，让空盆在草地上更醒目、更易点。点击行为不变（[onTap] 透传给页面弹种植选择）。
 ///
-/// 与 [GardenPot] 共用 [_artWidthRatio] / [_artAspectRatio] / [_footerHeight]：
+/// 与 [GardenPot] 共用 [_artWidthRatio] / [_artAspectRatio] / [gardenPotFooterHeightOf]：
 /// 空盆与有植物盆**等大、同底**（否则空盆会比邻居低，看起来「没对齐」）。
 class EmptyPot extends StatelessWidget {
   final int potIndex;
@@ -540,9 +555,9 @@ class EmptyPot extends StatelessWidget {
                 ),
                 // 等高空位（空盆无进度条 / 标签）：保证空盆底边与有植物盆底边齐平。
                 // 带 Key：供 v3 布局测试度量「底部区底边」是否与两类文字胶囊齐平。
-                const SizedBox(
-                  key: Key('empty_pot_footer'),
-                  height: _footerHeight,
+                SizedBox(
+                  key: const Key('empty_pot_footer'),
+                  height: gardenPotFooterHeightOf(context),
                 ),
               ],
             );
@@ -649,7 +664,7 @@ class ExpandPotSlot extends StatelessWidget {
                 // 底部区等高位 + 文案（与有植物盆的「进度条 + 标签」同区）。
                 // MainAxisAlignment.end：让胶囊贴底 → 三类格子的文案底边严格齐平。
                 SizedBox(
-                  height: _footerHeight,
+                  height: gardenPotFooterHeightOf(context),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: <Widget>[

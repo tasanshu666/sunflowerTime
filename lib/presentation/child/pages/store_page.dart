@@ -19,11 +19,13 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/entities/weekly_pool.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
@@ -49,8 +51,13 @@ class _StoreLoad {
   final List<RedemptionRequest> pending; // pending + queued（待家长处理）
   final Map<String, bool> hasActive; // templateId -> 存在未核销申请
   final Map<String, int> pendingCount; // templateId -> 待核销笔数
-  final Map<String, bool> hasQueued; // templateId -> 存在排队中申请（次月释放）
-  final Map<String, String> queuedId; // templateId -> 排队申请 id（供撤销）
+  final Map<String, bool> hasQueued; // templateId -> 存在排队中申请（存量 legacy，C62 起不再产生）
+  /// 可用阳光（= 金色数字口径，见 [StoreBalancePill]）：账本余额 − 待核销/排队中总额。
+  /// 卡片据此置灰 + 内联「阳光不足」（C62）。
+  final int availableSunlight;
+  /// 当周池余量 = budget − used − autoReleased（**只读**口径，不触发周重置）。
+  /// 卡片据此置灰 + 内联「本周额度已满」（C62：超池不再排队）。
+  final int weeklyPoolRoom;
 
   const _StoreLoad({
     required this.tier,
@@ -60,8 +67,9 @@ class _StoreLoad {
     required this.pending,
     required this.hasActive,
     required this.pendingCount,
+    required this.availableSunlight,
+    required this.weeklyPoolRoom,
     this.hasQueued = const <String, bool>{},
-    this.queuedId = const <String, String>{},
   });
 }
 
@@ -79,16 +87,21 @@ final _storeLoadProvider = FutureProvider<_StoreLoad>((ref) async {
   final Map<String, bool> hasActive = <String, bool>{};
   final Map<String, int> pendingCount = <String, int>{};
   final Map<String, bool> hasQueued = <String, bool>{};
-  final Map<String, String> queuedId = <String, String>{};
   for (final RedemptionRequest r in pending) {
     pendingCount[r.templateId] = (pendingCount[r.templateId] ?? 0) + 1;
     if (r.status == RequestStatus.queued) {
-      hasQueued[r.templateId] = true; // 排队中 → 次月释放
-      queuedId[r.templateId] = r.id;
+      hasQueued[r.templateId] = true; // 存量排队行（C62 起不再产生新行，仍可能被跨周释放）
     } else {
       hasActive[r.templateId] = true; // 待核销（pending）→ 该模板卡显示待核销提示
     }
   }
+  // C62：卡片置灰口径 ——① 可用阳光（与 [StoreBalancePill] 的金色数字**同源**）；
+  //  ② 当周池余量（只读 `pool()`，**不**调 ensureAndReset，避免读路径触发周重置写）。
+  final double balance = await ref.watch(sunlightRepositoryProvider).balance();
+  final int pendingTotal =
+      pending.fold(0, (int s, RedemptionRequest r) => s + r.cost);
+  final WeeklyPool pool =
+      await ref.watch(weeklyPoolServiceProvider).pool(weekKey(DateTime.now()));
     for (final RewardTemplate t in templates) {
       final int count =
           await rewardRepo.cooldownCount(t.id, CooldownPeriod.weekly);
@@ -104,8 +117,9 @@ final _storeLoadProvider = FutureProvider<_StoreLoad>((ref) async {
     pending: pending,
     hasActive: hasActive,
     pendingCount: pendingCount,
+    availableSunlight: sunlightDisplayInt(balance - pendingTotal),
+    weeklyPoolRoom: pool.budget - pool.used - pool.autoReleased,
     hasQueued: hasQueued,
-    queuedId: queuedId,
   );
 });
 
@@ -148,6 +162,8 @@ class _StorePageState extends ConsumerState<StorePage> {
     if (widget.embedded) {
       return TabBackground(
         asset: kStoreBgAsset,
+        // C64：底图「货架 ↔ 奶油面板」分界线对齐到列表起点（仅平板生效）。
+        panelTargetRatio: kStoreListTopRatio,
         fallbackColor: const Color(0xFFFBF4E4),
         child: SafeArea(child: body),
       );
@@ -214,13 +230,25 @@ class _StorePageState extends ConsumerState<StorePage> {
         final bool active = load.hasActive[tpl.id] ?? false;
         final bool queued = load.hasQueued[tpl.id] ?? false;
         final bool submitting = submittingId == tpl.id;
+        // C62：买不起就**直接置灰 + 卡内说明**，不再让孩子点进去被拒。
+        // ① 可用阳光不足（与金色数字同源）；② 当周池已放不下这笔。
+        final bool sunlightShort = load.availableSunlight < cost;
+        final bool weeklyQuotaFull =
+            !sunlightShort && load.weeklyPoolRoom < cost;
         children.add(RewardCard(
           template: tpl,
           costForTier: cost,
           weeklyLimit: tpl.frequencyLimitPerWeek,
           weeklyUsed: load.weeklyUsed[tpl.id] ?? 0,
           submitting: submitting,
-          onRedeem: (onCd || active || queued || submitting)
+          sunlightShort: sunlightShort,
+          weeklyQuotaFull: weeklyQuotaFull,
+          onRedeem: (onCd ||
+                  active ||
+                  queued ||
+                  submitting ||
+                  sunlightShort ||
+                  weeklyQuotaFull)
               ? null
               : () => _onRedeem(tpl, cost, load.tier),
         ));
@@ -319,67 +347,31 @@ class _StorePageState extends ConsumerState<StorePage> {
     }
   }
 
-  /// 孩子撤销一笔排队中的兑换（A3）：二次确认 → reject（不扣账本）→ 自增修订号 → 刷新。
-  Future<void> _onCancelQueue(RewardTemplate tpl, String? requestId) async {
-    if (requestId == null || !mounted) return;
-    final bool? ok = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('撤销排队？'),
-        content: Text(
-          '确定要撤销「${tpl.name}」的排队吗？\n'
-          '撤销后该奖励将不再次月自动释放，可重新兑换。',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('再想想'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('撤销排队'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    try {
-      await ref
-          .read(redemptionOrchestrationServiceProvider)
-          .reject(requestId, DateTime.now(), note: '孩子撤销排队');
-      if (!mounted) return;
-      _toast('已撤销排队');
-      // 经济已变更 → 递增修订号，令本页 provider 重算（排队提示消失、兑换恢复可用）。
-      ref.read(economyRevisionProvider.notifier).state++;
-    } catch (e) {
-      if (!mounted) return;
-      _toast('撤销失败：$e');
-    }
-  }
-
   /// 按 SubmitOutcome 给出反馈文案，并刷新商店数据。
   Future<void> _handleResult(SubmitResult result) async {
     final String message;
+    // C62：买不起的两条路（可用阳光不足 / 超周池）都给 1s 轻提示 —— 卡片已置灰，
+    // 这里只是兜底说明（正常路径点不到）。
+    int seconds = 2;
     switch (result.outcome) {
       case SubmitOutcome.verified:
         message = '兑换成功！阳光已扣除';
       case SubmitOutcome.pending:
         message = await _pendingFeedback(result.requestId);
-      case SubmitOutcome.queued:
-        final int rank = result.queueRank ?? 0;
-        message = '排队中：第 $rank 位，下月1日释放';
       case SubmitOutcome.rejectedCooldown:
         message = '本周已领过啦';
       case SubmitOutcome.rejectedBalance:
-        message = result.cost != null
-            ? '阳光不够啦，再去专注赚一些吧（需要 ${result.cost} 阳光）'
-            : '阳光不够啦，再去专注赚一些吧';
+        message = '阳光不足，再去专注赚一些吧';
+        seconds = 1;
+      case SubmitOutcome.rejectedPool:
+        message = '本周额度已满，下周再来吧';
+        seconds = 1;
     }
     if (!mounted) return;
     if (result.outcome == SubmitOutcome.verified) {
       await _showCelebration(context);
     } else {
-      _toast(message);
+      _toast(message, seconds: seconds);
     }
     // 经济已变更 → 递增修订号，令本页 provider 重算（与家长端「核销/拒绝」共用同一机制）。
     ref.read(economyRevisionProvider.notifier).state++;
@@ -402,11 +394,11 @@ class _StorePageState extends ConsumerState<StorePage> {
     return '已提交，等家长确认哦～';
   }
 
-  void _toast(String message) {
+  void _toast(String message, {int seconds = 2}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: seconds),
       ),
     );
   }

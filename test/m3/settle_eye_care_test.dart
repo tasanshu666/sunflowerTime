@@ -25,11 +25,14 @@ import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/eye_care_log.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
+import 'package:sunflower_time/domain/services/focus_engine.dart';
+import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/repositories/eye_care_log_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
+import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 
 /// 记录 append 的假账本（与 eye_care_page_test 同款）。
 class _FakeSunlightRepository implements SunlightRepository {
@@ -154,11 +157,35 @@ class _FakeEyeCareLogRepository implements EyeCareLogRepository {
       .fold<int>(0, (int sum, EyeCareLog l) => sum + l.watchedSeconds);
 }
 
+/// 最小可用结算结果（F115 用例需要 `settlement != null` 才会挂庆祝序列帧）。
+FocusSettlement _settlement() => const FocusSettlement(
+      sessionId: 's-f115',
+      actualFocusMin: 14.0,
+      rawS: 14.0,
+      net: 14.0,
+      balanceAfter: 114,
+      todayNet: 14.0,
+      plannedMin: 15,
+      status: FocusStatus.completed,
+      endReason: FocusEndReason.manual,
+    );
+
+/// 结算页**自身**的庆祝序列帧。
+///
+/// ⚠️ 护眼卡内部也用 [FrameSequencePlayer]（其分段播放器）→ 必须按 [SettlePage]
+/// 子树收窄，否则会把护眼卡那个也算进来，断言失真。
+Finder _settleCelebration() => find.descendant(
+      of: find.byType(SettlePage, skipOffstage: false),
+      matching: find.byType(FrameSequencePlayer, skipOffstage: false),
+      skipOffstage: false,
+    );
+
 Future<void> _pumpSettlePage(
   WidgetTester tester, {
   required _FakeSunlightRepository ledger,
   required AppSettings settings,
   required bool eyeCarePending,
+  FocusSettlement? settlement,
 }) async {
   await tester.pumpWidget(ProviderScope(
     overrides: <Override>[
@@ -174,7 +201,10 @@ Future<void> _pumpSettlePage(
     ],
     child: MaterialApp(
       home: SettlePage(
-        args: SettleArgs(eyeCarePending: eyeCarePending),
+        args: SettleArgs(
+          settlement: settlement,
+          eyeCarePending: eyeCarePending,
+        ),
       ),
     ),
   ));
@@ -277,5 +307,58 @@ void main() {
     expect(find.text('···'), findsNothing);
     expect(_eyeCareRowValue(tester), '0 ☀️', reason: '跳过护眼 → 护眼奖励显示 0');
     expect(ledger.appended, isEmpty, reason: '跳过不写账本');
+  });
+
+  testWidgets('F115：护眼卡展示期间不得启动结算庆祝（否则在卡背后播完只剩定格末帧）',
+      (tester) async {
+    final _FakeSunlightRepository ledger = _FakeSunlightRepository(100);
+    _usePhoneScreen(tester);
+    await _pumpSettlePage(
+      tester,
+      ledger: ledger,
+      settings: _defaultSettings(),
+      eyeCarePending: true,
+      settlement: _settlement(),
+    );
+    await _settle(tester);
+
+    expect(find.text(kEyeCareFinishLabel), findsOneWidget,
+        reason: '前置条件：护眼卡确已压在结算页之上');
+    // 核心断言（F115）：护眼未收口前，结算页**不得**挂庆祝序列帧 —— 挂上就会在
+    // 护眼卡背后把 6.09s 的庆祝播完，孩子回到结算页只见定格末帧（真机反馈现象）。
+    expect(_settleCelebration(), findsNothing,
+        reason: 'F115：护眼未收口前不得启动结算庆祝序列帧');
+
+    // 走完护眼卡（播放列表驱动，同上一用例的有界 pump 纪律）。
+    for (int i = 0; i < 170; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+      if (find
+          .text(kEyeCareFinishLabel, skipOffstage: false)
+          .evaluate()
+          .isEmpty) {
+        break;
+      }
+    }
+    await _settle(tester);
+
+    // 护眼收口 → 此刻才挂上庆祝序列帧（新 State 从第 1 帧起播，孩子看到完整动画）。
+    expect(_settleCelebration(), findsOneWidget,
+        reason: 'F115：护眼收口后应挂上庆祝序列帧');
+  });
+
+  testWidgets('F115 反向护栏：无护眼卡时结算庆祝照旧立即启动', (tester) async {
+    final _FakeSunlightRepository ledger = _FakeSunlightRepository(100);
+    _usePhoneScreen(tester);
+    await _pumpSettlePage(
+      tester,
+      ledger: ledger,
+      settings: _defaultSettings(),
+      eyeCarePending: false,
+      settlement: _settlement(),
+    );
+    await _settle(tester);
+
+    expect(_settleCelebration(), findsOneWidget,
+        reason: 'eyeCarePending=false 时必须与既往一致：立即挂庆祝序列帧');
   });
 }

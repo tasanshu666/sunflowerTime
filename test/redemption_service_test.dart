@@ -141,7 +141,7 @@ void main() {
   });
 
   group('整体池余量：used 占满时不得自动放行（防超额）', () {
-    test('池=100, used=90, cost=20 → 超整体池 → 排队', () {
+    test('池=100, used=90, cost=20 → 超整体池 → 直接拒绝（C62 起不再排队）', () {
       final pool = WeeklyPool(weekKey: '2026-09-07', budget: 100, used: 90);
       final d = RedemptionService.decide(
         template: tpl(RewardCategory.parentHandled),
@@ -149,7 +149,9 @@ void main() {
         ageTier: AgeTier.high,
         pool: pool,
       );
-      expect(d.status, RequestStatus.queued);
+      // C62：超周池 = 拒绝（调用方不得落库）；RequestStatus.queued 仅存量 legacy。
+      expect(d.status, RequestStatus.rejected);
+      expect(d.autoApproved, isFalse);
     });
 
     test('池未满但累计自动已达 25% 上限 → 待核销', () {

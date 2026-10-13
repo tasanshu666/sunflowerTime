@@ -9,6 +9,10 @@
 ///   · remaining>=1          → 「周限 N 次」（N = 剩余可兑换次数）；
 ///   · remaining==0（领完）  → 隐藏（由卡片禁用态 / 「本周已领」承载）。
 /// 注意：冷却放行逻辑在 StorePage / RedemptionOrchestrationService 侧，本卡只负责展示文案。
+///
+/// **C62（2026-10-13）**：新增 [sunlightShort] / [weeklyQuotaFull] 两个只读标记，
+/// 买不起时由 StorePage 传 `onRedeem: null` 置灰，并在此**内联显示原因**
+/// （「阳光不足」/「本周额度已满」）—— 避免「按钮灰了但不说为何」的静默失败。
 library reward_card;
 
 import 'package:flutter/material.dart';
@@ -24,6 +28,10 @@ class RewardCard extends StatelessWidget {
   final int weeklyLimit; // 该模板每周可兑换次数上限（frequencyLimitPerWeek；<=0 不限）
   final int weeklyUsed; // 本周已领次数（cooldownCount）；卡片展示 = limit - used 的剩余次数
   final bool submitting;
+  /// C62：可用阳光（账本余额 − 待核销/排队中）不足本笔价格 → 内联「阳光不足」。
+  final bool sunlightShort;
+  /// C62：当周池已放不下本笔 → 内联「本周额度已满」（超池不再排队）。
+  final bool weeklyQuotaFull;
   final VoidCallback? onRedeem;
 
   const RewardCard({
@@ -33,6 +41,8 @@ class RewardCard extends StatelessWidget {
     this.weeklyLimit = 0,
     this.weeklyUsed = 0,
     this.submitting = false,
+    this.sunlightShort = false,
+    this.weeklyQuotaFull = false,
     this.onRedeem,
   });
 
@@ -42,6 +52,12 @@ class RewardCard extends StatelessWidget {
 
     // 每周可兑换次数提示：按「剩余次数」（limit - used）动态渲染，领完则隐藏。
     final Widget? weeklyHint = _weeklyLimitHint();
+
+    // C62：买不起的内联原因（与置灰按钮配对）。与限次提示**共用同一行位**，
+    // 保持卡片高度不变（不因多一行把 88pt 的卡撑高）。余额不足优先于超池。
+    final String? blockLabel = sunlightShort
+        ? '阳光不足'
+        : (weeklyQuotaFull ? '本周额度已满' : null);
 
     // 每行条目左侧彩色圆角图标块（马卡龙色底 + emoji 占位图标），按模板稳定轮换。
     final Color iconBg = macaronColorById(template.id).bg;
@@ -104,7 +120,18 @@ class RewardCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 // 限次提示（领完即 null → 隐藏）；纯文字小字，无图标。
-                if (weeklyHint != null) weeklyHint,
+                // C62：买不起时改显内联原因（同一位，不增行高）。
+                if (blockLabel != null)
+                  Text(
+                    blockLabel,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFD14343),
+                    ),
+                  )
+                else if (weeklyHint != null)
+                  weeklyHint,
               ],
             ),
           ),

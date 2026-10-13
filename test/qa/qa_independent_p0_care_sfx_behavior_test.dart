@@ -31,6 +31,7 @@ import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart';
 
@@ -312,6 +313,14 @@ Widget _host(PlantRepository plants) => ProviderScope(
 int _countLoads(String substr) =>
     _fake.log.where((String e) => e.startsWith('load:') && e.contains(substr)).length;
 
+/// 假平台记录到的 `play()` 次数。
+///
+/// ⚠️ 为什么「加载」断言不够（F116 收尾实测）：`load:` 是在 `setAsset` **内部同步**记录的，
+/// 而 `play` 是它**之后**的环节 —— 一旦 `setAsset` 挂死（例如跨 FakeAsync Zone 复用旧
+/// 播放器、永远等不到 `ready`），`load:` 照样会记录、断言依旧通过 = **假绿**。故本组用例
+/// 一律「等到 `play` 真发生」才收尾，并断言恰好一次。
+int _countPlays() => _fake.log.where((String e) => e == 'play').length;
+
 /// 自适应排空：交替 `runAsync`（真实异步窗口）+ `pump`（假时钟微任务排空），
 /// 直到 [ready] 为真（或达 [maxRounds] 上限）——替代**定长窗口**，避免并行全量
 /// 高负载下真实 `setAsset` I/O 未跑完而误判（QA 2026-10-07 修：消除偶发红）。
@@ -343,6 +352,11 @@ void main() {
   });
 
   setUp(() async {
+    // ⚠️ **必须**：`AudioService.instance` 跨用例复用，而每个 `testWidgets` 一套独立
+    // FakeAsync Zone —— 不清就会把上一个用例 Zone 的 `_sfxPlayer` 带进来，本用例的
+    // `setAsset` 内部永远等不到 `ready` 事件（`play` 从未发生），而 `load:` 已同步记录
+    // → 断言侥幸通过 = **假绿**。花园页音效是直接调单例（绕过 provider），只能用本钩子。
+    AudioService.instance.resetForTest();
     _fake.log.clear();
     // path_provider：just_audio 的 setAsset 会把资产拷到临时缓存目录。
     const MethodChannel pathProvider =
@@ -382,12 +396,16 @@ void main() {
     // (runAsync) + 假时钟微任务排空 (pump)」把整条异步链跑完。**自适应**：轮询到
     // care_weed 真加载（防并行全量高负载下定长窗口跑不完 → 偶发红）。
     await _drainUntil(
-        tester, () => _countLoads('audio/sfx/care_weed.mp3') >= 1);
+        tester,
+        () =>
+            _countLoads('audio/sfx/care_weed.mp3') >= 1 && _countPlays() >= 1);
 
     expect(_countLoads('audio/sfx/care_weed.mp3'), 1,
         reason: '一键护理（**仅杂草**）→ 按实际内容恰好播一次除草音效 care_weed.mp3（整批一次）');
     expect(_countLoads('audio/sfx/care_pest.mp3'), 0,
         reason: '仅杂草不应播除虫音效（玄参 2026-10-07 口径修订：按实际护理内容选音效）');
+    expect(_countPlays(), 1,
+        reason: '音效必须**真的起播**（恰好一次）—— 钉死「`load:` 已记录但 `setAsset` 挂死」的假绿');
   });
 
   testWidgets('D2 种植成功 → 恰好加载一次 cultivate.mp3', (WidgetTester tester) async {
@@ -414,10 +432,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('确定种植'));
     await _drainUntil(
-        tester, () => _countLoads('audio/sfx/cultivate.mp3') >= 1);
+        tester,
+        () => _countLoads('audio/sfx/cultivate.mp3') >= 1 && _countPlays() >= 1);
 
     expect(_countLoads('audio/sfx/cultivate.mp3'), 1,
         reason: '种植成功后应恰好加载一次 cultivate.mp3');
+    expect(_countPlays(), 1,
+        reason: '音效必须**真的起播**（恰好一次）—— 钉死「`load:` 已记录但 `setAsset` 挂死」的假绿');
   });
 
   testWidgets('D3 种植「取消」→ 不加载 cultivate.mp3', (WidgetTester tester) async {

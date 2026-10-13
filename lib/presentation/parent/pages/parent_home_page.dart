@@ -24,6 +24,7 @@ import 'package:sunflower_time/presentation/parent/pages/parent_reward_page.dart
 import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_history_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_settings_page.dart';
+import 'package:sunflower_time/shared/adaptive_nav_bar.dart';
 import 'package:sunflower_time/shared/theme.dart';
 
 /// 家长端首页：底部导航壳（5 tab：今日 / 奖励 / 成长 / 记录 / 设置）。
@@ -76,36 +77,39 @@ class _ParentHomePageState extends State<ParentHomePage> {
               ParentSettingsPage(),
             ],
           ),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _index,
-            onDestinationSelected: (int i) => setState(() => _index = i),
-            destinations: const <NavigationDestination>[
-              NavigationDestination(
-                icon: Icon(Icons.today_outlined),
-                selectedIcon: Icon(Icons.today),
-                label: '今日',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.card_giftcard_outlined),
-                selectedIcon: Icon(Icons.card_giftcard),
-                label: '奖励',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.checklist_outlined),
-                selectedIcon: Icon(Icons.checklist),
-                label: '成长',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.history_outlined),
-                selectedIcon: Icon(Icons.history),
-                label: '记录',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: '设置',
-              ),
-            ],
+          // C61 平板适配：限宽居中（同孩子端）；手机端原样（零变化）。
+          bottomNavigationBar: AdaptiveNavBarHost(
+            child: NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (int i) => setState(() => _index = i),
+              destinations: const <NavigationDestination>[
+                NavigationDestination(
+                  icon: Icon(Icons.today_outlined),
+                  selectedIcon: Icon(Icons.today),
+                  label: '今日',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.card_giftcard_outlined),
+                  selectedIcon: Icon(Icons.card_giftcard),
+                  label: '奖励',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.checklist_outlined),
+                  selectedIcon: Icon(Icons.checklist),
+                  label: '成长',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.history_outlined),
+                  selectedIcon: Icon(Icons.history),
+                  label: '记录',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
+                  label: '设置',
+                ),
+              ],
+            ),
           ),
         ),
       ),

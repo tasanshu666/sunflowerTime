@@ -28,6 +28,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 养护动效类型（2026-10-03 扩展：除草 / 除虫沿用同一套效果帧播放管线）。
 enum CareEffectType { water, fertilize, weed, pest }
@@ -202,7 +203,9 @@ class _CareEffectOverlayState extends State<CareEffectOverlay>
               clipBehavior: Clip.none,
               children: <Widget>[
                 if (widget.frames != null && widget.frames!.isNotEmpty)
-                  _frameLayer(w, h) // 效果帧叠加层
+                  // C65：底栏高随文字缩放（与 garden_pot 同源），否则平板上
+                  // 效果帧落点会比盆口低一个放大增量（≈4.8pt）。
+                  _frameLayer(w, h, gardenPotFooterHeightOf(context))
                 else
                   _particleLayer(w, h), // 代码粒子
               ],
@@ -222,7 +225,7 @@ class _CareEffectOverlayState extends State<CareEffectOverlay>
   ///    纵向 `[kCareFxAnchorY]`（= 画布底边），实测自 `assets/fx/care/*`；
   ///  · 盆口 y：植物图底边 - 图高 × (1 - [kPotRimYFraction])。
   /// 末 10% 进度整体渐隐，避免「壶/袋」瞬间消失的跳变；资源缺失不崩。
-  Widget _frameLayer(double w, double h) {
+  Widget _frameLayer(double w, double h, double footerHeight) {
     final List<String> frames = widget.frames!;
     // 落点横向锚点：四类效果帧各取常量（water 0.21 / fertilize 0.31 实测自素材；
     // weed / pest 居中于盆口 0.5，2026-10-03 玄参真机验收后可微调）。
@@ -245,7 +248,9 @@ class _CareEffectOverlayState extends State<CareEffectOverlay>
     final double artW = innerW * kGardenArtWidthRatio;
     final double artH = artW * kGardenArtAspect;
     // 植物图底边（Column 贴底 + 底部文案区）→ 盆口（根部）y。
-    final double artBottom = kGardenCellVerticalPad + innerH - kGardenPotFooterHeight;
+    // footerHeight 由调用方传入（= `gardenPotFooterHeightOf`，平板随字号放大）。
+    final double artBottom =
+        kGardenCellVerticalPad + innerH - footerHeight;
     final double rootY = artBottom - artH * (1 - kPotRimYFraction);
     final double rootX = w / 2;
     final double f = innerW * kCareFxWidthRatio;

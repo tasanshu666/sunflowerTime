@@ -33,12 +33,15 @@ import 'package:sunflower_time/domain/services/weekly_pool_service.dart';
 import 'package:sunflower_time/domain/services/redemption_service.dart';
 
 /// submit() 的结果类别。
+///
+/// **C62（2026-10-13）**：删除 `queued`（不再产生排队），新增 `rejectedPool`
+/// （超周池直接拒绝）。本枚举**不落库**，故可安全增删。
 enum SubmitOutcome {
   verified, // 免确认自动放行
   pending, // 待家长核销
-  queued, // 超池排队（次周释放）
   rejectedCooldown, // 冷却中（每周限领 1 次）
   rejectedBalance, // 阳光余额不足
+  rejectedPool, // C62：超周池，直接拒绝（不再排队）
 }
 
 /// submit() 返回值（不可变）。
@@ -47,14 +50,12 @@ class SubmitResult {
   final String? requestId;
   final int? cost;
   final bool autoApproved;
-  final int? queueRank;
 
   const SubmitResult({
     required this.outcome,
     this.requestId,
     this.cost,
     this.autoApproved = false,
-    this.queueRank,
   });
 }
 
@@ -140,6 +141,13 @@ class RedemptionOrchestrationService {
       pool: pool,
     );
 
+    // C62：超周池不再排队 → **不生成任何申请**，直接拒绝。
+    // （C62 前此处会产生 queued 请求并写 reward_queue 埋点；判定由
+    //  [RedemptionService.decide] 的超池分支给出。）
+    if (decision.status == RequestStatus.rejected) {
+      return SubmitResult(outcome: SubmitOutcome.rejectedPool, cost: cost);
+    }
+
     // 孩子端发起：即使是「免确认双条件」满足的便宜奖励，也强制进入 pending，
     // 由家长在「今日」里显式确认后才扣阳光（C5 自动放行不再对孩子端生效）。
     RequestStatus finalStatus = decision.status;
@@ -150,9 +158,6 @@ class RedemptionOrchestrationService {
     }
 
     final String childId = _account.currentChildId();
-    final int? queueRank = decision.status == RequestStatus.queued
-        ? (await _reward.queuedOfWeek(weekKey(now))).length + 1
-        : null;
 
     final String id = _uuid.v4();
     final RedemptionRequest req = RedemptionRequest(
@@ -163,7 +168,6 @@ class RedemptionOrchestrationService {
       cost: cost,
       status: finalStatus,
       autoApproved: finalAuto,
-      queuePosition: queueRank,
     );
     await _reward.createRequest(req);
 
@@ -198,26 +202,10 @@ class RedemptionOrchestrationService {
           cost: cost,
         );
       case RequestStatus.queued:
-        await _tracking.track(TrackingEvent(
-          id: _uuid.v4(),
-          name: TrackingEventNames.rewardQueue,
-          type: TrackingType.metric,
-          ts: now,
-          payload: {
-            'request_id': req.id,
-            'queue_rank': queueRank,
-            'week': weekKey(now),
-          },
-        ));
-        return SubmitResult(
-          outcome: SubmitOutcome.queued,
-          requestId: req.id,
-          cost: cost,
-          queueRank: queueRank,
-        );
       case RequestStatus.rejected:
-        // submit() 永远不会产出 rejected（rejected 仅由显式 reject() 产生）
-        throw StateError('submit() 不应产生 rejected 状态');
+        // C62：queued 不再产生（超池已在上方早退）；rejected 仍只由显式 reject() 产生。
+        // 二者若走到这里 = submit 的前置判定被绕过 → 直接抛错（不静默失败）。
+        throw StateError('submit() 不应产生 $finalStatus 状态（C62 起超池直接拒绝）');
     }
   }
 

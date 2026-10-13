@@ -6,6 +6,8 @@ import 'package:sunflower_time/domain/entities/reward_template.dart';
 
 /// 兑换申请的判定结果（S2 纯逻辑，不落库）。
 class RedemptionDecision {
+  /// 判定走向。C62 起只会是 verified / pending / rejected；末者 = **超周池拒绝**，
+  /// 调用方**不得把它落库**（见 [RedemptionService.decide] 与 orchestration.submit）。
   final RequestStatus status;
   final bool autoApproved;
   final String reason;
@@ -24,10 +26,15 @@ class RedemptionDecision {
 ///  ② 当月累计自动放行 ≤ 月池 × 25%，且上限 = min(固定天花板 100/40, 月池 × 25%)
 ///  ③ 自服务类一律 0（不自动放行，走家长放行）
 ///
-/// 状态机：
+/// 状态机（**C62，2026-10-13 起停用排队**）：
 ///  满足双条件        → verified（autoApproved = true）
 ///  不满足 且 池未满  → pending（待家长显式核销）
-///  不满足 且 池已满  → queued（下月 1 日按申请先后自动放行，不拒绝、不失效）
+///  不满足 且 池已满  → **rejected**（超周池**直接拒绝**：不生成申请、不扣账本/不扣池）
+///
+/// ⚠️ `RequestStatus.queued` 成员**保留不动**：它是**按 index 落库**的持久化枚举
+/// （pending=0 / queued=1 / verified=2 / rejected=3），删成员会让 verified/rejected
+/// 位移 → 存量数据全部错读。C62 只停用「产生新排队」；存量 queued 行仍由
+/// [RedemptionOrchestrationService.releaseQueue] 跨周释放。
 class RedemptionService {
   RedemptionService._();
 
@@ -66,7 +73,7 @@ class RedemptionService {
       );
     }
 
-    // 不满足自动放行 → 判断是否超池（池满则排队，不拒绝、不失效）
+    // 不满足自动放行 → 判断是否超池（**C62：池满直接拒绝，不再排队**）
     final int projected = pool.used + pool.autoReleased + cost;
     if (projected <= pool.budget) {
       return const RedemptionDecision(
@@ -76,9 +83,9 @@ class RedemptionService {
       );
     }
     return const RedemptionDecision(
-      status: RequestStatus.queued,
+      status: RequestStatus.rejected,
       autoApproved: false,
-      reason: '超池，状态改排队中，下月 1 日按申请先后自动放行',
+      reason: '超周池：C62 起不再排队，直接拒绝（不生成申请）',
     );
   }
 }

@@ -6,7 +6,9 @@
 /// 「今日」能看到最新进度（否则 IndexedStack 保活导致数值不刷新）。
 ///
 /// C44e 版式（玄参 2026-10-09 期望图 + 二轮反馈）：
-///  · 上半 ~42% 屏高是背景插画场景，标题浮在场景上（shell 透明 AppBar）；
+///  · 上半场景为背景插画（**底图锚点**见 [kTodayBgPanelTargetRatio]，当前 37%），
+///    标题浮在场景上（shell 透明 AppBar）；三张卡自 **[kTodayCardTopRatio]**（当前 40%，
+///    C67）起 —— 二者之间是有意留出的奶油「呼吸带」；
 ///  · 「我的阳光」做成**悬浮气泡**，在向日葵右半侧无规律小范围飘动；
 ///  · 中间三张状态卡可滚动，「开始专注」按钮钉在底部。
 ///
@@ -28,7 +30,41 @@ import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
+
+/// 本页卡片（状态卡）起点占**屏高**的比例。
+///
+/// 沿革：C44e 实测标定 0.42 → C65（2026-10-13 玄参 iPad 实测）下调到 0.37 →
+/// **C67（2026-10-13 晚 玄参 iPad 实测）上调到 0.40**。
+///
+/// ## C67 依据（玄参交付「现状 vs 期望」两张同屏截图）
+/// 两张图做垂直互相关：**底图像素完全一致**（最佳偏移处 MEA = 0.17，即背景没动），
+/// 而三张卡的图标圆心一律下移 **39px**。按本机标定（截图 907px 宽 ↔ iPad 834pt 宽，
+/// 1.088 px/pt）换算 ≈ **36pt ≈ 屏高 3%** → 0.37 + 0.03 = **0.40**。
+/// 视觉效果 = 底图场景与第一张卡之间留出一条奶油色「呼吸带」（玄参期望图形态）。
+///
+/// ## ⚠️ 与底图锚点**解耦**（C67 关键）
+/// C64 起底图分界线锚在「卡片起点」；但本次玄参要求**卡片下移、底图不动**
+/// （原话：「背景图片的位置已经比较合适了」）→ 底图锚点改用独立的
+/// [kTodayBgPanelTargetRatio]（冻结在 0.37）。**改本常量不再牵动底图**。
+///
+/// ⚠️ 本值下边界：底图里向日葵花头顶距分界线仅 0.2115 图高 → 花头顶屏幕位置
+/// `= r × 屏高 − 0.2115 × 绘制高`（iPad 11″ ≈ 1210r − 392）：
+///   r=0.42 → 116pt、r=0.40 → 92pt、r=0.37 → 56pt、r=0.35 → 32pt、r≤0.324 → 花头被切掉。
+/// 本值**不可低于 ~0.35**，否则向日葵会被裁。
+///
+/// 手机端底图恒 `topCenter`（不跟随任何比例）→ 本值只影响卡片位置：0.40 时
+/// 分界线（0.399×893.3 = 356.4pt）与卡片起点（0.40×874 = 349.6pt）仅差 ≈7pt
+/// （0.37 时差 ≈33pt）→ 手机端同样受益，无回归。
+const double kTodayCardTopRatio = 0.40;
+
+/// 「今日」底图「场景 ↔ 留白」分界线要对齐到的**屏高比例**（仅平板生效）。
+///
+/// 恒 = 0.37 —— C65 玄参 iPad 实测认可的位置。C67 把卡片下移到 [kTodayCardTopRatio]
+/// 时玄参明确「背景图片的位置已经比较合适了」→ **底图保持不动**，故此处独立成常量。
+/// ⚠️ 只有「今日」页有这个双常量结构（成长/商店两页的底图锚点仍 = 卡片起点）。
+const double kTodayBgPanelTargetRatio = 0.37;
 
 /// 孩子端「今日」状态卡。
 class ChildTodayPage extends ConsumerStatefulWidget {
@@ -107,7 +143,8 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
     });
 
     // C44 验收反馈（玄参 2026-10-09，参照期望图重排）：
-    // ①上半场景（向日葵+积木插画）完整露出，卡片从 ~42% 屏高开始；
+    // ①上半场景（向日葵+积木插画）完整露出，卡片从 [kTodayCardTopRatio] 屏高开始
+    //   （0.42 → C65 0.37 → C67 **0.40**）；
     // ②「我的阳光」改悬浮气泡飘在向日葵右半侧；
     // ③「开始专注」按钮钉在底部；④只有中间状态卡可滚动。
     final Widget body = _loading
@@ -117,6 +154,9 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
     // C44：整页背景（上半场景 + 下半留白，白卡浮在留白区上）。
     return TabBackground(
       asset: kTodayBgAsset,
+      // C67：底图锚点**冻结**在 [kTodayBgPanelTargetRatio]（=0.37），**不跟**卡片下移
+      // —— 玄参明确「背景图片的位置已经比较合适了」（互相关实证背景像素零变化）。
+      panelTargetRatio: kTodayBgPanelTargetRatio,
       fallbackColor: const Color(0xFFFBF4E4),
       child: body,
     );
@@ -126,10 +166,10 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   Widget _buildLayout() {
     final double screenH = MediaQuery.sizeOf(context).height;
     final double screenW = MediaQuery.sizeOf(context).width;
-    // 第一张卡起点 ≈ 42% 屏高（玄参期望图 2026-10-09 实测 ~43%）：上半向日葵+
-    // 积木插画完整露出。直接用屏高比例定位（实测模拟器 padding.top ≈118pt
+    // 第一张卡起点 = [kTodayCardTopRatio] × 屏高（C67 = **0.40**）：上半向日葵 +
+    // 积木插画完整露出，下方再留 3% 屏高的奶油呼吸带。直接用屏高比例定位（实测模拟器 padding.top ≈118pt
     // 双倍计入，减 topInset 反而会把卡片顶回 20%，故与 topInset 解耦）。
-    final double sceneGap = screenH * 0.42;
+    final double sceneGap = screenH * kTodayCardTopRatio;
 
     return Stack(
       children: <Widget>[
@@ -224,6 +264,13 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
 /// 无规律小范围飘动（x 振幅 ~11pt / y ~10pt，7s 一圈，玄参 2026-10-09）。
 /// C44g 三轮反馈：锚点移到向日葵右侧书架前空地（蓝框标注实测 x65%/y25%），
 /// 删尾部「☀」双太阳重复。
+///
+/// **C67（2026-10-13 晚 玄参 iPad 实测）——整体放大**：玄参「飘动的阳光胶囊
+/// 可以适当放大一些，把里面的阳光图标变大一些」。胶囊 12/6 → **13/7** 内边距、
+/// 圆角 24 → **26**、图标 22 → **30**（+36%，主导放大）、文字 18 → **19**、
+/// 图标与数字间距 6 → **7**。胶囊高 36.3 → **44pt**（+21%）。
+/// ⚠️ 手机端（402pt 宽）右侧边界复核：锚点左缘 0.65×402 = 261.3pt，胶囊宽
+/// ≈ 13+30+7+42+13 = 105pt，加最大水平漂移 31.9pt → 右缘 ≈ **398pt < 402pt**（不越屏）。
 class _FloatingSunBubble extends StatelessWidget {
   final double balance;
   final Animation<double> drift;
@@ -232,6 +279,9 @@ class _FloatingSunBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // C65：气泡内素材图**不随 textScaler 缩放**（图片不吃 textScaler），
+    // 故与旁边已放大的数字相比会显小 —— 显式乘 uiScaleOf 补平（手机 = 1.0，零回归）。
+    final double s = uiScaleOf(context);
     return AnimatedBuilder(
       animation: drift,
       builder: (BuildContext context, Widget? child) {
@@ -253,10 +303,11 @@ class _FloatingSunBubble extends StatelessWidget {
         return Transform.translate(offset: Offset(dx, dy), child: child);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        // C67：胶囊整体放大（见类文档的尺寸表）。
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(26),
           border: Border.all(color: const Color(0x33E8A600)),
           boxShadow: const <BoxShadow>[
             BoxShadow(
@@ -269,19 +320,22 @@ class _FloatingSunBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             // 阳光素材（2026-10-06 玄参交付），缺失回退内置图标。
+            // C65：随平板 UI 倍率放大（见 build 内 s 的说明）。
+            // C67：22 → **30**（玄参要求「把里面的阳光图标变大一些」，主导放大）。
             Image.asset(
               'assets/rewards/sunlight.png',
-              width: 22,
-              height: 22,
+              width: 30 * s,
+              height: 30 * s,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(Icons.wb_sunny,
-                  color: Color(0xFFE8A600), size: 22),
+              errorBuilder: (_, __, ___) => Icon(Icons.wb_sunny,
+                  color: const Color(0xFFE8A600), size: 30 * s),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 7), // C67：6 → 7
             Text(
               '${sunlightDisplayInt(balance)}',
+              // C67：18 → 19（数字只微幅跟进，把放大余量让给图标）。
               style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
             ),
             // C44g（玄参 2026-10-09）：删掉尾部小太阳「☀」——阳光素材图标已
             // 表意，双太阳重复（用户截图实证）。仅保留素材图标 + 数字。
@@ -339,21 +393,24 @@ class _StatCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
           child: Row(
             children: <Widget>[
+              // C65：图标底圆与素材同步乘 UI 倍率 —— 否则数字放大 1.3× 后
+              // 圆头像（42/21）相对变小，卡片左右重心失衡（手机 = 1.0，零回归）。
               CircleAvatar(
-                radius: 21,
+                radius: 21 * uiScaleOf(context),
                 backgroundColor: color.withValues(alpha: 0.15),
                 // C48：优先 UI 素材图（方形图直接铺满圆形底内），失败回退内置图标。
                 child: assetIcon == null
-                    ? Icon(icon, color: color, size: 24)
+                    ? Icon(icon, color: color, size: 24 * uiScaleOf(context))
                     : ClipRRect(
-                        borderRadius: BorderRadius.circular(21),
+                        borderRadius:
+                            BorderRadius.circular(21 * uiScaleOf(context)),
                         child: Image.asset(
                           assetIcon!,
-                          width: 42,
-                          height: 42,
+                          width: 42 * uiScaleOf(context),
+                          height: 42 * uiScaleOf(context),
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              Icon(icon, color: color, size: 24),
+                          errorBuilder: (_, __, ___) => Icon(icon,
+                              color: color, size: 24 * uiScaleOf(context)),
                         ),
                       ),
               ),

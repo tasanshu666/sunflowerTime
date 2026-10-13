@@ -33,6 +33,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/domain/entities/pending_bloom_reward.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 奖励图标类型（决定内置 `Icons` 回退与资源文件名）。
 enum RewardIconKind {
@@ -404,15 +405,20 @@ class BloomRewardIcon extends StatelessWidget {
   /// 点击回调（收集该条奖励）；null = 纯展示，不响应点击。
   final VoidCallback? onTap;
 
-  /// 命中区边长（≥40×40，满足触控目标下限）。
+  /// 命中区边长（≥40×40，满足触控目标下限）。**手机基准值**，平板按
+  /// `uiScaleOf(context)` 等比放大（C65：产物徽标在 iPad 上偏小）。
   static const double hitSize = 42;
 
-  /// 图标视觉直径（~34）。
+  /// 图标视觉直径（~34）。手机基准值（见 [hitSize] 的缩放说明）。
   static const double visualSize = 34;
 
   @override
   Widget build(BuildContext context) {
     final Color color = rewardIconColor(spec.kind);
+    // C65：平板按同一倍率放大徽标（文字由 textScaler 自动放大，图片必须显式乘）。
+    final double s = uiScaleOf(context);
+    final double hit = hitSize * s;
+    final double vis = visualSize * s;
     // 有限时长入场动画（弹性回弹，只跑一遍；≤400ms）——避免无限动画卡死 pumpAndSettle。
     final Widget disc = TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),
@@ -425,15 +431,15 @@ class BloomRewardIcon extends StatelessWidget {
         );
       },
       child: SizedBox(
-        width: hitSize,
-        height: hitSize,
+        width: hit,
+        height: hit,
         child: Stack(
           clipBehavior: Clip.none,
           alignment: Alignment.center,
           children: <Widget>[
-            _buildDisc(color),
+            _buildDisc(color, vis),
             if (spec.badge != null)
-              Positioned(bottom: 0, right: 0, child: _badge(color)),
+              Positioned(bottom: 0, right: 0, child: _badge(color, s)),
           ],
         ),
       ),
@@ -448,10 +454,10 @@ class BloomRewardIcon extends StatelessWidget {
   }
 
   /// 圆形底盘 + 图标 / 图片。
-  Widget _buildDisc(Color color) {
+  Widget _buildDisc(Color color, double vis) {
     return Container(
-      width: visualSize,
-      height: visualSize,
+      width: vis,
+      height: vis,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: Colors.white,
@@ -464,13 +470,13 @@ class BloomRewardIcon extends StatelessWidget {
           ),
         ],
       ),
-      child: Center(child: _buildGlyph(color)),
+      child: Center(child: _buildGlyph(color, vis)),
     );
   }
 
   /// 图标本体：有美术资源用 `Image.asset`（**显式宽高**，避免布局异常），否则回退 `Icons`。
-  Widget _buildGlyph(Color color) {
-    const double glyph = 20;
+  Widget _buildGlyph(Color color, double vis) {
+    final double glyph = vis * (20 / visualSize); // 保持 20/34 的原比例
     final String? path = assetPath;
     if (path != null) {
       return Image.asset(
@@ -485,13 +491,13 @@ class BloomRewardIcon extends StatelessWidget {
     return Icon(rewardFallbackIcon(spec.kind), size: glyph, color: color);
   }
 
-  /// 角标（如 `+10` / `×1`）。
-  Widget _badge(Color color) {
+  /// 角标（如 `+10` / `×1`）。文字由 textScaler 自动放大；内边距按同一倍率 [s] 跟上。
+  Widget _badge(Color color, double s) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      padding: EdgeInsets.symmetric(horizontal: 4 * s, vertical: 1 * s),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(8 * s),
         border: Border.all(color: Colors.white, width: 1),
       ),
       child: Text(

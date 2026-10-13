@@ -12,7 +12,6 @@ library adversarial_v1_v10_test;
 
 import 'package:test/test.dart';
 
-import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';

@@ -25,6 +25,8 @@ import 'package:sunflower_time/domain/entities/plant_perk.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk_registry.dart';
+import 'package:sunflower_time/shared/plant_rarity_style.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 import 'plant_artwork.dart';
 
@@ -236,10 +238,19 @@ class PlantCard extends StatelessWidget {
     // ── 分层设计（玄参 2026-09-25：不要通底白，要有层次）──────────────────
     // 白色圆角大卡为底 → 进度/心情各自成「浅色分区」→ 动作按钮双行式。
     // 旧版是一条 Column 通到底 + 全灰小字，信息层级糊在一起。
+    // C63（2026-10-13 玄参）：精英植物属性卡加配色区分 —— 淡紫底 + 紫描边，
+    // 与花园页文字胶囊 / 选种卡同源（`kRarity*` 单点收口）；普通档维持纯白。
+    final bool elite = species.isPremium;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: elite ? kRarityEliteCardTint : Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: elite
+            ? Border.all(
+                color: kRarityEliteAccent.withValues(alpha: 0.45),
+                width: 1.5,
+              )
+            : null,
         boxShadow: <BoxShadow>[
           BoxShadow(
             color: Colors.black.withOpacity(0.06),
@@ -260,7 +271,9 @@ class PlantCard extends StatelessWidget {
               PlantArtwork(
                 plant: plant,
                 species: species,
-                size: 48,
+                // C65：随平板 UI 倍率放大 —— 名称/属性字号已 1.3×，盆栽图不动
+                // 会让卡片头部左锚点相对缩水（手机 = 1.0，零回归）。
+                size: 48 * uiScaleOf(context),
                 tint: _statusColor,
               ),
               const SizedBox(width: 12),
@@ -268,10 +281,36 @@ class PlantCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
-                      species.name,
-                      style: const TextStyle(
-                          fontSize: 17, fontWeight: FontWeight.bold),
+                    Row(
+                      children: <Widget>[
+                        Flexible(
+                          child: Text(
+                            species.name,
+                            style: const TextStyle(
+                                fontSize: 17, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        // C63：精英档名称旁挂「精英」徽标（与选种卡稀有度徽章同色）。
+                        if (elite) ...<Widget>[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: kRarityEliteTint,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text(
+                              '精英',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: kRarityEliteAccent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Container(
@@ -497,7 +536,8 @@ class PlantCard extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(icon, size: 18, color: mainColor),
+              // C65：跟随注入后的 textScaler，与右侧按钮文案同步缩放。
+              Icon(icon, size: 18, color: mainColor, applyTextScaling: true),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(

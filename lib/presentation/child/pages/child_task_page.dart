@@ -23,6 +23,7 @@ import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 暖奶油底（与养护面板 / 商店一致，形成分层暖色风格）。
 const Color _kCream = Color(0xFFFBF4E4);
@@ -101,7 +102,10 @@ Widget _statusCapsule({
         if (leading != null)
           leading
         else
-          Icon(icon, size: 16, color: fg),
+          // C65：本函数是顶层函数、拿不到 context，故用 Icon 自带的
+          // `applyTextScaling` 跟随注入后的 textScaler（平板 1.3×，手机 1.0×），
+          // 与紧邻的胶囊文案同步缩放，避免「字大了图标没大」。
+          Icon(icon, size: 16, color: fg, applyTextScaling: true),
         const SizedBox(width: 4),
         if (textLine2 != null)
           Column(
@@ -267,6 +271,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
     if (_loading) {
       return const TabBackground(
         asset: kGrowthBgAsset,
+        panelTargetRatio: kGrowthListTopRatio,
         fallbackColor: _kCream,
         child: Center(child: CircularProgressIndicator()),
       );
@@ -274,6 +279,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
     if (_error != null) {
       return TabBackground(
         asset: kGrowthBgAsset,
+        panelTargetRatio: kGrowthListTopRatio,
         fallbackColor: _kCream,
         child: Center(
           child: Column(
@@ -291,6 +297,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
     if (board.items.isEmpty) {
       return const TabBackground(
         asset: kGrowthBgAsset,
+        panelTargetRatio: kGrowthListTopRatio,
         fallbackColor: _kCream,
         child: Center(
           child: Text('今天没有成长项，去玩吧 🌻', style: TextStyle(fontSize: 16)),
@@ -300,6 +307,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
 
     return TabBackground(
       asset: kGrowthBgAsset,
+      panelTargetRatio: kGrowthListTopRatio,
       fallbackColor: _kCream,
       // C46d（玄参 2026-10-09 四轮反馈）：取消悬浮胶囊（盖住插画且观感差），
       // 进度条并入列表首行、落在奶油面板顶部（深棕字在面板上 100% 清晰，
@@ -516,21 +524,24 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
           // 左侧图标（C46d）：素材 v2 已紧裁（仅四角圆角透明、无大留边），
           // 64px 满幅直出——可见卡底即 64px > 原 56px 色块，且无假边距；
           // 加载失败回退马卡龙色块 + 状态图标（美术永不阻塞业务）。
+          // C65：整组随平板 UI 倍率放大 —— 文字已放大 1.3×，图标不动会让
+          // 卡片左锚点相对缩水（手机 = 1.0，零回归）。
           SizedBox(
-            width: 64,
-            height: 64,
+            width: 64 * uiScaleOf(context),
+            height: 64 * uiScaleOf(context),
             child: Image.asset(
               growthIconAssetFor(item.task),
               fit: BoxFit.contain,
               errorBuilder: (_, __, ___) => Center(
                 child: Container(
-                  width: 56,
-                  height: 56,
+                  width: 56 * uiScaleOf(context),
+                  height: 56 * uiScaleOf(context),
                   decoration: BoxDecoration(
                     color: blockBg,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(statusIcon, color: blockFg, size: 28),
+                  child: Icon(statusIcon,
+                      color: blockFg, size: 28 * uiScaleOf(context)),
                 ),
               ),
             ),
@@ -609,12 +620,12 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
       bg: _kTodoBg,
       fg: _kTodoFg,
       borderRadius: 12,
-      // 提交中：用转圈占位、不可点（防连点重复打卡）。
+      // 提交中：用转圈占位、不可点（防连点重复打卡）。C65：随 UI 倍率放大。
       leading: busy
-          ? const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
+          ? SizedBox(
+              width: 14 * uiScaleOf(context),
+              height: 14 * uiScaleOf(context),
+              child: const CircularProgressIndicator(strokeWidth: 2),
             )
           : null,
       onTap: busy ? null : () => _checkIn(item.task),

@@ -23,7 +23,6 @@ library adversarial_task_checkin_test;
 
 import 'package:test/test.dart';
 
-import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
@@ -333,7 +332,7 @@ Task _task({
 }
 
 /// 联动项有效奖励：`min(reward, round(minFocus×0.4 且 ≥1))`（固定值，不再乘完美日系数）。
-double _linkedReward(int reward, int minFocus, {bool perfectDay = false}) {
+double _linkedReward(int reward, int minFocus) {
   final double base = Task.rewardCapFor(minFocus) < reward
       ? Task.rewardCapFor(minFocus).toDouble()
       : reward.toDouble();

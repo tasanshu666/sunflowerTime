@@ -98,10 +98,15 @@ class _FakeSettingsRepository implements SettingsRepository {
 }
 
 class _FakeSunlightRepository implements SunlightRepository {
+  _FakeSunlightRepository({this.balanceValue = 999.0});
+
+  /// 账本余额（C62 卡片置灰用例用；默认 999 与既有断言一致）。
+  final double balanceValue;
+
   @override
   Future<double> append(SunlightEntry entry) async => 999.0;
   @override
-  Future<double> balance() async => 999.0;
+  Future<double> balance() async => balanceValue;
   @override
   Future<double> dayNet(String dayKey) async => 0;
   @override
@@ -153,10 +158,15 @@ class _FakeTrackingRepository implements TrackingRepository {
 }
 
 class _FakeWeeklyPoolRepository implements WeeklyPoolRepository {
+  _FakeWeeklyPoolRepository({this.pool});
+
+  /// 当周池（null = 无行 → `pool()` 返回默认预算占位池，room = poolBudget）。
+  final WeeklyPool? pool;
+
   @override
-  Future<WeeklyPool?> get(String weekKey) async => null;
+  Future<WeeklyPool?> get(String weekKey) async => pool;
   @override
-  Future<void> upsert(WeeklyPool pool) async {}
+  Future<void> upsert(WeeklyPool value) async {}
   @override
   List<String> weeksBetween(String fromKey, String toKey) => <String>[
     fromKey,
@@ -250,6 +260,10 @@ void main() {
           rewardRepositoryProvider.overrideWithValue(reward),
           settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
           sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
+          // C62：商店页需读当周池余量（只读 pool()）→ 必须注入假池仓储与假埋点仓储。
+          weeklyPoolRepositoryProvider
+              .overrideWithValue(_FakeWeeklyPoolRepository()),
+          trackingRepositoryProvider.overrideWithValue(_FakeTrackingRepository()),
         ],
         child: MaterialApp(home: const StorePage()),
       ),
@@ -282,6 +296,10 @@ void main() {
         rewardRepositoryProvider.overrideWithValue(reward),
         settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
         sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
+        // C62：商店页需读当周池余量（只读 pool()）→ 必须注入假池仓储与假埋点仓储。
+        weeklyPoolRepositoryProvider
+            .overrideWithValue(_FakeWeeklyPoolRepository()),
+        trackingRepositoryProvider.overrideWithValue(_FakeTrackingRepository()),
       ],
     );
     addTearDown(container.dispose);
@@ -315,6 +333,68 @@ void main() {
           .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '兑换'))
           .onPressed,
       isNotNull,
+    );
+  });
+
+  testWidgets('C62：可用阳光不足 → 卡片置灰 + 内联「阳光不足」', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          redemptionOrchestrationServiceProvider
+              .overrideWithValue(_FakeRedemptionOrchestrationService()),
+          rewardRepositoryProvider.overrideWithValue(_MutableRewardRepository()),
+          settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
+          // 余额 30 < 卡片价 60 → 可用阳光不足
+          sunlightRepositoryProvider
+              .overrideWithValue(_FakeSunlightRepository(balanceValue: 30)),
+          weeklyPoolRepositoryProvider
+              .overrideWithValue(_FakeWeeklyPoolRepository()),
+          trackingRepositoryProvider.overrideWithValue(_FakeTrackingRepository()),
+        ],
+        child: const MaterialApp(home: StorePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('阳光不足'), findsOneWidget);
+    expect(
+      tester
+          .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '兑换'))
+          .onPressed,
+      isNull,
+      reason: 'C62：买不起必须置灰（且已内联说明原因，非静默失败）',
+    );
+  });
+
+  testWidgets('C62：当周池已满（余额充足）→ 卡片置灰 + 内联「本周额度已满」',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          redemptionOrchestrationServiceProvider
+              .overrideWithValue(_FakeRedemptionOrchestrationService()),
+          rewardRepositoryProvider.overrideWithValue(_MutableRewardRepository()),
+          settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
+          // 余额充足（999），但周池余量 0 < 卡片价 60 → 超池
+          sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
+          weeklyPoolRepositoryProvider.overrideWithValue(
+            _FakeWeeklyPoolRepository(
+              pool: const WeeklyPool(weekKey: '2026-09-14', budget: 160, used: 160),
+            ),
+          ),
+          trackingRepositoryProvider.overrideWithValue(_FakeTrackingRepository()),
+        ],
+        child: const MaterialApp(home: StorePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('本周额度已满'), findsOneWidget);
+    expect(
+      tester
+          .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '兑换'))
+          .onPressed,
+      isNull,
     );
   });
 }

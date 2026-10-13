@@ -63,6 +63,8 @@ import 'package:sunflower_time/presentation/child/widgets/growth_fx_overlay.dart
 import 'package:sunflower_time/presentation/child/widgets/garden_sign_hotspot.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_care_sheet.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
+import 'package:sunflower_time/shared/plant_rarity_style.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 孩子端花园：植物养成主界面。
 ///
@@ -202,11 +204,20 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   Timer? _collectGhostTimer;
 
   /// 刷新抑制闸门（2026-10-03 除草/除虫动效回归修复）：清除干扰物**已写库但动画
-  /// 未播完**期间置 true，挡住 [_run] 内部的 `_reload(silent)` 与
+  /// 未播完**期间置闸，挡住 [_run] 内部的 `_reload(silent)` 与
   /// `economyRevisionProvider` 监听触发的静默刷新 —— 否则草/虫在动画播完前就
   /// 从草地消失（玄参真机反馈「点击草之后，草直接消失了」的根因）。
-  /// 动画收尾（[_onClearAnimated]）复位并统一补一次刷新。
-  bool _suppressReload = false;
+  /// 动画收尾（[_onClearAnimated]）按**自己的票据**释放并统一补一次刷新。
+  ///
+  /// ⚠️ **票据制而非单个 bool**（2026-10-13 修复）：原为 `bool _suppressReload`，
+  /// 两次清除动画（先除虫、未等淡出完就除草）**计时器重叠**时，前一次的收尾会把
+  /// 闸门提前打开，放行本应被抑制的 `_reload` → 同一动作被重复结算（成长演出
+  /// 「播两次」的结构性诱因之一）。改为「每动作一张票据，播完按各自的票据释放」。
+  final Set<int> _suppressTickets = <int>{};
+  int _suppressTicketSeq = 0;
+
+  /// 是否处于刷新抑制期（任一清除动画未播完 → true）。
+  bool get _suppressReload => _suppressTickets.isNotEmpty;
 
   /// 当前「可收集」的待收集奖励（`plantId → 待收集奖励列表`，变更 A/B）。
   /// 到期后在该花盆**上方**掉落「头顶奖励图标」（玄参 2026-09-27 图标化），点击收集
@@ -249,6 +260,14 @@ class _GardenPageState extends ConsumerState<GardenPage> {
 
   /// 当前正在播放的「成长过渡」演出（null = 无）。播完渐隐后由播放器回调移除。
   _GrowthFxSpec? _activeGrowth;
+
+  /// 成长演出**在飞/在屏**闸门（2026-10-13 玄参实测「开花动画播了两次」）。
+  ///
+  /// 演出是幂等的：同一阶段跃迁可能被多条刷新路径各观测一次（一次养护动作会
+  /// 触发 ≥2 次 `_reload`），若两次都上屏就会「重播」。故本闸门在
+  /// [_playGrowthFx] 入口同步置位、演出结束（[GrowthFxOverlay.onComplete]）复位，
+  /// 期间的后续请求一律忽略 —— 口径「一帧只播一场演出」。
+  bool _growthFxInFlight = false;
 
   /// 上一轮快照：`plantId → 'stage.name:status.name'`，用于在 [_reload] 后 diff 出
   /// 「升级」（种子→幼苗 / 幼苗→成株 / 成株→盛开）并触发生长演出。首次加载为空表
@@ -641,14 +660,16 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   Future<void> _clearPest(String plantId, int potIndex, {required bool weed}) async {
     // 先上抑制闸门再写库：[_run] 内部的 `_reload(silent)` 与 economyRevision 监听
     // 触发的刷新都必须被挡住，否则动画还没播草/虫就没了（玄参真机实证）。
-    _suppressReload = true;
+    // 票据制：本动作持有自己的票据，收尾时只释放“自己这张”。
+    final int ticket = ++_suppressTicketSeq;
+    _suppressTickets.add(ticket);
     final bool ok = await _run(() {
       final PlantGrowthService svc = ref.read(plantGrowthServiceProvider);
       final DateTime now = DateTime.now();
       return weed ? svc.clearWeed(plantId, now) : svc.clearPest(plantId, now);
     });
     if (!ok) {
-      _suppressReload = false; // 写库失败（无草可除等）：恢复刷新，SnackBar 已给分因。
+      _suppressTickets.remove(ticket); // 写库失败（无草可除等）：释放刷新，SnackBar 已给分因。
       return;
     }
     if (!mounted) return;
@@ -658,7 +679,8 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     _playCareEffect(
       potIndex,
       weed ? CareEffectType.weed : CareEffectType.pest,
-      onFinished: () => _onClearAnimated(plantId, potIndex, weed: weed),
+      onFinished: () =>
+          _onClearAnimated(plantId, potIndex, weed: weed, ticket: ticket),
     );
   }
 
@@ -666,7 +688,12 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   /// 1) 干扰物渐变消失：置 [_fadingClear] → 浮标透明度动画淡出（数据尚未刷新）；
   /// 2) 淡出结束 → 刷新草地（干扰物从数据层移除）+ 解锁整页；
   /// 3) 花盆上方弹「XX成功，阳光+N」飘字（[_RisingHint] 自下而上飘动淡出，走完自清）。
-  void _onClearAnimated(String plantId, int potIndex, {required bool weed}) {
+  void _onClearAnimated(
+    String plantId,
+    int potIndex, {
+    required bool weed,
+    required int ticket,
+  }) {
     if (!mounted) return;
     setState(() {
       _fadingClear = (plantId: plantId, weed: weed);
@@ -675,8 +702,9 @@ class _GardenPageState extends ConsumerState<GardenPage> {
     _clearSeqTimer?.cancel();
     _clearSeqTimer = Timer(const Duration(milliseconds: kPestFadeOutMs), () {
       if (!mounted) return;
-      // 淡出结束：复位抑制闸门 → 刷新草地（草/虫此时才从数据层消失）→ 弹飘字。
-      _suppressReload = false;
+      // 淡出结束：释放**本动作自己的票据**（其余在播动作的票据不受影响）
+      // → 不再抑制时才刷新草地（草/虫此时才从数据层消失）→ 弹飘字。
+      _suppressTickets.remove(ticket);
       setState(() {
         _fadingClear = null;
         _clearHint = (
@@ -872,20 +900,31 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   /// 2026-10-13 音效按物种（口径 C59）：两级回退「物种专属 → 通用兜底」（[_growthCue] 给兜底路径）。
   void _playGrowthFx(GrowTransition transition, String speciesDir) {
     if (!mounted) return;
+    // ⚠️ 去重闸门（2026-10-13 玄参实测「开花动画播了两次」）：同一个阶段跃迁可能被
+    // 多条刷新路径各观测一次，若两次都上屏就会重播。演出是幂等的 → 在飞/在屏期间
+    // 一律忽略后续请求（口径「一帧只播一场演出」）。
+    if (_growthFxInFlight) return;
+    _growthFxInFlight = true;
     AudioService.instance.playSfxPaths(growSfxAssetCandidates(
       transition,
       speciesDir,
       _growthCue(transition).assetPath,
     ));
     unawaited(() async {
-      final List<String> frames =
-          await resolveGrowFxAssets(speciesDir, transition);
-      if (!mounted) return; // 异步间隙页面已卸载：不再上屏
-      setState(() => _activeGrowth = _GrowthFxSpec(
-            transition: transition,
-            title: _growthTitle(transition),
-            frames: frames,
-          ));
+      try {
+        final List<String> frames =
+            await resolveGrowFxAssets(speciesDir, transition);
+        if (!mounted) return; // 异步间隙页面已卸载：不再上屏
+        setState(() => _activeGrowth = _GrowthFxSpec(
+              transition: transition,
+              title: _growthTitle(transition),
+              frames: frames,
+            ));
+      } catch (_) {
+        // 帧解析异常（资源缺失等）：解除闸门，避免后续演出被永久挡住。
+        _growthFxInFlight = false;
+        rethrow;
+      }
     }());
   }
 
@@ -1561,11 +1600,19 @@ class _GardenPageState extends ConsumerState<GardenPage> {
   /// 可视高度的**唯一真源**是纯函数 [gardenGridVisibleHeight]（页面不再自己内联算行高/行数，
   /// 「改行数 → 测试必红」）。网格区顶部取自 `LayoutBuilder` 的剩余高度，底界取自背景图映射
   /// [gardenPotAreaBottom]，保证滚动时花盆永不压到背景植物。
+  ///
+  /// **C61 平板适配**：网格净宽改走 [gardenGridNetWidthOf]（平板钳到
+  /// [kGardenGridMaxWidth] 并居中，两侧露出草地）；手机宽度下钳制不生效，**零变化**。
   Widget _buildGardenBody(Size size) {
     final double potAreaBottom = gardenPotAreaBottom(size);
     const double pagePadH = 12;
     const double gridSpacing = 6;
-    final double gridInnerWidth = size.width - pagePadH * 2;
+    // C61 平板适配：手机 = size.width − 24（不变）；平板钳到 kGardenGridMaxWidth
+    // （800 → 480），网格水平居中、两侧露出草地。
+    // ⚠️ 该值必须**同源**喂给 ① GardenGrid 的渲染宽度 ② 纯函数的 gridInnerWidth，
+    // 否则「量出来的行高」与「画出来的行高」不一致 → 溢出或大片空白。
+    final double gridInnerWidth =
+        gardenGridNetWidthOf(size.width, pagePadH: pagePadH);
 
     return Align(
       alignment: Alignment.topCenter,
@@ -1613,9 +1660,11 @@ class _GardenPageState extends ConsumerState<GardenPage> {
                     WidgetsBinding.instance
                         .addPostFrameCallback((_) => _syncScrollable());
                     return Align(
+                      // 平板下限宽（gridInnerWidth ≤ size.width − 2×pagePadH，不会溢出）；
+                      // topCenter 同时完成**水平居中**，两侧自然露出草地背景。
                       alignment: Alignment.topCenter,
                       child: SizedBox(
-                        width: double.infinity,
+                        width: gridInnerWidth,
                         height: viewport,
                         child: Scrollbar(
                           controller: _gridScroll,
@@ -1799,7 +1848,15 @@ class _GardenPageState extends ConsumerState<GardenPage> {
                   durationMs: _activeGrowth!.transition.durationMs,
                   title: _activeGrowth!.title,
                   onComplete: () {
-                    if (mounted) setState(() => _activeGrowth = null);
+                    // 演出收尾：移除卡片 + 解除去重闸门（允许下一次跃迁演出）。
+                    if (mounted) {
+                      setState(() {
+                        _activeGrowth = null;
+                        _growthFxInFlight = false;
+                      });
+                    } else {
+                      _growthFxInFlight = false;
+                    }
                   },
                 ),
               ),
@@ -2165,26 +2222,31 @@ class _AssetGlyph extends StatelessWidget {
   final IconData fallbackIcon;
   final Color fallbackColor;
 
-  /// 视觉边长。
+  /// 视觉边长（**手机基准**；C65 平板由 [uiScaleOf] 等比放大）。
   final double size;
 
   @override
   Widget build(BuildContext context) {
+    // C65：素材图不会跟 textScaler 走，必须显式乘倍率，否则「字大了图标还小」。
+    final double s = size * uiScaleOf(context);
     if (asset == null) {
-      return Icon(fallbackIcon, size: size, color: fallbackColor);
+      return Icon(fallbackIcon, size: s, color: fallbackColor);
     }
     return Image.asset(
       asset!,
-      width: size,
-      height: size,
+      width: s,
+      height: s,
       fit: BoxFit.contain,
       errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
-          Icon(fallbackIcon, size: size, color: fallbackColor),
+          Icon(fallbackIcon, size: s, color: fallbackColor),
     );
   }
 }
 
 /// 选种卡固定高度（玄参 2026-10-05「植物卡片的高度最好是统一一个固定的高度」）。
+///
+/// ⚠️ C65：这是**手机基准值**。卡内文字会被 textScaler 放大 1.3× → 高度必须同步
+/// 放大（`kPlantCardHeight * uiScaleOf(context)`），否则固定高会撑破。
 const double kPlantCardHeight = 116;
 
 /// 单个物种的选种卡片（2026-10-05 三修，玄参口径）：
@@ -2244,9 +2306,8 @@ class _PlantTileState extends State<_PlantTile>
   }
 
   /// 档位强调色（普通绿 / 精英紫，卡片描边同色区分）。
-  Color get _accent => widget.species.isPremium
-      ? const Color(0xFF7E57C2)
-      : const Color(0xFF5FA854);
+  /// C63：色值已收口到 [rarityAccent]（单点），本处只做取用。
+  Color get _accent => rarityAccent(widget.species.rarity);
 
   BoxDecoration _faceDecoration({required Color fill}) => BoxDecoration(
         color: fill,
@@ -2305,14 +2366,14 @@ class _PlantTileState extends State<_PlantTile>
         .map((_PlantPaymentButton b) => b.disabledReason!)
         .join(' · ');
     return Container(
-      height: kPlantCardHeight,
+      height: kPlantCardHeight * uiScaleOf(context),
       padding: const EdgeInsets.all(10),
       decoration: _faceDecoration(fill: Colors.white),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          // 物种成株/开花美术图（玄参「左边植物放大一些」→ 60 → 80）。
-          SpeciesPreviewArt(species: species, size: 80),
+          // 物种成株/开花美术图（玄参「左边植物放大一些」→ 60 → 80；C65 随卡片同比放大）。
+          SpeciesPreviewArt(species: species, size: 80 * uiScaleOf(context)),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -2332,9 +2393,7 @@ class _PlantTileState extends State<_PlantTile>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: premium
-                            ? const Color(0xFFF3E5F5)
-                            : const Color(0xFFE8F5E9),
+                        color: rarityTint(species.rarity),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(_rarityLabel(species.rarity),
@@ -2346,11 +2405,11 @@ class _PlantTileState extends State<_PlantTile>
                     if (widget.hasSeed) ...<Widget>[
                       const SizedBox(width: 6),
                       // 种子徽章（玄参「掉落了种子也要显示种子图标」）：分档种子图，
-                      // 缺失回退 🌰 emoji。
+                      // 缺失回退 🌰 emoji。C65：素材图显式乘平板倍率。
                       Image.asset(
                         seedAsset,
-                        width: 16,
-                        height: 16,
+                        width: 16 * uiScaleOf(context),
+                        height: 16 * uiScaleOf(context),
                         fit: BoxFit.contain,
                         errorBuilder:
                             (BuildContext _, Object __, StackTrace? ___) =>
@@ -2408,7 +2467,7 @@ class _PlantTileState extends State<_PlantTile>
     final PlantSpecies species = widget.species;
     final SpeciesLore lore = speciesLoreOf(species.id);
     return Container(
-      height: kPlantCardHeight,
+      height: kPlantCardHeight * uiScaleOf(context),
       padding: const EdgeInsets.all(12),
       decoration: _faceDecoration(fill: const Color(0xFFFFF9EC)),
       child: Column(
@@ -2488,8 +2547,8 @@ class _PayButtonWidget extends StatelessWidget {
                 false => seedAsset ?? 'assets/rewards/seed_common.png',
                 null => seedAsset ?? 'assets/rewards/seed.png',
               },
-              width: 16,
-              height: 16,
+              width: 16 * uiScaleOf(context),
+              height: 16 * uiScaleOf(context),
               fit: BoxFit.contain,
               errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
                   const Text('🌰', style: TextStyle(fontSize: 12)),
@@ -2585,10 +2644,10 @@ class _OneClickFabState extends State<_OneClickFab> {
     );
   }
 
-  /// 展开卡：三行操作项，与胶囊同宽（[_width]）。
+  /// 展开卡：三行操作项，与胶囊同宽（[_width]；C65 平板随字号同比放大）。
   Widget _buildActionCard() {
     return SizedBox(
-      width: _width,
+      width: _width * uiScaleOf(context),
       child: Material(
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(16),
@@ -2629,11 +2688,11 @@ class _OneClickFabState extends State<_OneClickFab> {
         widget.onSelected(item.kind);
       },
       child: Container(
-        height: 36,
+        height: 36 * uiScaleOf(context),
         padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Row(
           children: <Widget>[
-            Icon(item.icon, size: 16, color: item.color),
+            Icon(item.icon, size: 16 * uiScaleOf(context), color: item.color),
             const SizedBox(width: 6),
             Text(
               item.label,
@@ -2649,10 +2708,10 @@ class _OneClickFabState extends State<_OneClickFab> {
     );
   }
 
-  /// 收拢态胶囊（固定宽 [_width]）。
+  /// 收拢态胶囊（固定宽 [_width]；C65 随字号同比放大）。
   Widget _buildCapsule() {
     return SizedBox(
-      width: _width,
+      width: _width * uiScaleOf(context),
       child: Material(
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(20),
@@ -2665,10 +2724,14 @@ class _OneClickFabState extends State<_OneClickFab> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
-              children: const <Widget>[
-                Icon(Icons.touch_app, size: 16, color: Color(0xFF7CB342)),
-                SizedBox(width: 4),
-                Text(
+              children: <Widget>[
+                Icon(
+                  Icons.touch_app,
+                  size: 16 * uiScaleOf(context),
+                  color: const Color(0xFF7CB342),
+                ),
+                const SizedBox(width: 4),
+                const Text(
                   '一键操作',
                   style: TextStyle(
                     fontSize: 13,
@@ -2794,10 +2857,12 @@ class _SeedCountChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
+              // 种子计数：素材图 + 「×N」（C65：素材图显式乘平板倍率，
+              // 文字由 textScaler 自动放大）。
               Image.asset(
                 asset,
-                width: 16,
-                height: 16,
+                width: 16 * uiScaleOf(context),
+                height: 16 * uiScaleOf(context),
                 fit: BoxFit.contain,
                 errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
                     const Text('🌰', style: TextStyle(fontSize: 12)),
@@ -2851,16 +2916,17 @@ class _FragmentEntry extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               // 碎片美术图（2026-10-03 玄参提供）；缺失回退拼图 Icon。
+              // C65：素材图与兜底 Icon 都显式乘平板倍率。
               Image.asset(
                 'assets/rewards/fragment.png',
-                width: 16,
-                height: 16,
+                width: 16 * uiScaleOf(context),
+                height: 16 * uiScaleOf(context),
                 fit: BoxFit.contain,
                 errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
-                    const Icon(
+                    Icon(
                   Icons.extension,
-                  size: 16,
-                  color: Color(0xFF9C917C),
+                  size: 16 * uiScaleOf(context),
+                  color: const Color(0xFF9C917C),
                 ),
               ),
               const SizedBox(width: 3),
@@ -2943,22 +3009,24 @@ class _RewardCurrencyDialog extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   SizedBox(
-                    width: 30,
-                    height: 30,
+                    width: 30 * uiScaleOf(context),
+                    height: 30 * uiScaleOf(context),
                     child: Center(
                       child: _items[i].asset != null
                           ? Image.asset(
                               _items[i].asset!,
-                              width: 24,
-                              height: 24,
+                              width: 24 * uiScaleOf(context),
+                              height: 24 * uiScaleOf(context),
                               fit: BoxFit.contain,
                               errorBuilder:
                                   (BuildContext _, Object __, StackTrace? ___) =>
                                       Icon(_items[i].fallbackIcon,
-                                          size: 22, color: _items[i].color),
+                                          size: 22 * uiScaleOf(context),
+                                          color: _items[i].color),
                             )
                           : Icon(_items[i].fallbackIcon,
-                              size: 22, color: _items[i].color),
+                              size: 22 * uiScaleOf(context),
+                              color: _items[i].color),
                     ),
                   ),
                   const SizedBox(width: 10),

@@ -236,6 +236,10 @@ Plant _wiltingPlant(
   String speciesId = 'species_sunflower',
   PlantStage stage = PlantStage.seed,
   double growthProgress = 0.0,
+  int shovelRefund = 0,
+  DateTime? weedAt,
+  DateTime? pestAt,
+  DateTime? weedPestRollDay,
 }) =>
     Plant(
       id: id,
@@ -253,6 +257,10 @@ Plant _wiltingPlant(
       wiltedAt: wiltedAt,
       deadAt: null,
       mood: PlantMood.thirsty,
+      weedAt: weedAt,
+      pestAt: pestAt,
+      weedPestRollDay: weedPestRollDay,
+      shovelRefund: shovelRefund,
     );
 
 void main() {
@@ -554,6 +562,60 @@ void main() {
       expect(ctx.ledger.entriesOf('plant_death_refund'), isEmpty,
           reason: '死亡全损 → 重复 tick 亦不得产生退款行');
       expect((await ctx.plants.plant(id))!.status, PlantStatus.dead);
+    });
+  });
+
+  group('G. 浇活（_maybeRecover）必须保留铲除返还额等字段（2026-10-13 回归）', () {
+    test('G1：wilting 株浇水复活后，shovelRefund / 杂草 / 害虫 全部保留', () async {
+      final ctx = _make();
+      // 番茄 = 普通档 → 铲除返还 kShovelRefundCommon（150）。
+      final String id = await _seed(ctx.svc, 'species_tomato', t0,
+          payWith: PlantCostKind.sunlight);
+      final DateTime weedDay = DateTime(t0.year, t0.month, t0.day);
+      await ctx.plants.savePlant(_wiltingPlant(
+        id,
+        t0,
+        speciesId: 'species_tomato',
+        wiltedAt: t0.subtract(const Duration(days: 1)),
+        shovelRefund: kShovelRefundCommon,
+        weedAt: weedDay,
+        pestAt: weedDay,
+        weedPestRollDay: weedDay,
+      ));
+
+      await ctx.svc.water(id, t0);
+      final Plant after = (await ctx.plants.plant(id))!;
+      expect(after.status, PlantStatus.growing, reason: '轻度枯萎浇水 1 次应复活');
+      expect(after.wiltedAt, isNull);
+      // 🔴 回归点：浇活走「构造器重建」，曾漏字段 → shovel_refund 被重置为 0
+      // （玄参实测「铲除已浇活的番茄/草莓不返还阳光」的根因）。
+      expect(after.shovelRefund, kShovelRefundCommon,
+          reason: '浇活不得清掉铲除返还额');
+      expect(after.weedAt, weedDay, reason: '浇活不得清掉杂草标记');
+      expect(after.pestAt, weedDay, reason: '浇活不得清掉害虫标记');
+      expect(after.weedPestRollDay, weedDay, reason: '浇活不得清掉每日 roll 幂等位');
+    });
+
+    test('G2：浇活后铲除 → 仍按档位返还 150 并写 plant_shovel_refund 账本', () async {
+      final ctx = _make();
+      final String id = await _seed(ctx.svc, 'species_tomato', t0,
+          payWith: PlantCostKind.sunlight);
+      await ctx.plants.savePlant(_wiltingPlant(
+        id,
+        t0,
+        speciesId: 'species_tomato',
+        wiltedAt: t0.subtract(const Duration(days: 1)),
+        shovelRefund: kShovelRefundCommon,
+      ));
+      await ctx.svc.water(id, t0);
+
+      final int refund = await ctx.svc.shovel(id, t0);
+      expect(refund, kShovelRefundCommon,
+          reason: '浇活后的普通档植物铲除应返还 150');
+      final List<SunlightEntry> rows =
+          ctx.ledger.entriesOf(kPlantShovelRefundRefType);
+      expect(rows.length, 1);
+      expect(rows.single.net, kShovelRefundCommon.toDouble());
     });
   });
 }

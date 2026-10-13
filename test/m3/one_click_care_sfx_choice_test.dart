@@ -35,6 +35,7 @@ import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 
 import '../helpers/no_hit_random.dart';
@@ -334,6 +335,14 @@ int _countLoads(String substr) => _fake.log
     .where((String e) => e.startsWith('load:') && e.contains(substr))
     .length;
 
+/// 假平台记录到的 `play()` 次数。
+///
+/// ⚠️ 为什么「加载」断言不够（F116 收尾实测）：`load:` 是在 `setAsset` **内部同步**记录的，
+/// 而 `play` 是它**之后**的环节 —— 一旦 `setAsset` 挂死（例如跨 FakeAsync Zone 复用旧
+/// 播放器、永远等不到 `ready`），`load:` 照样会记录、断言依旧通过 = **假绿**。故本文件
+/// 一律「等到 `play` 真发生」才收尾，并断言恰好一次。
+int _countPlays() => _fake.log.where((String e) => e == 'play').length;
+
 /// 走完整「点 FAB → 一键护理 → 确认」链路，并把音频异步链跑完。
 ///
 /// [expectLoad] = 本用例预期被加载的音效子串（如 `audio/sfx/care_pest.mp3`）。
@@ -341,7 +350,8 @@ int _countLoads(String substr) => _fake.log
 /// ⚠️ **自适应收尾（防并行全量下的时序 flake）**：`setAsset` 是多次真实文件 I/O
 /// （rootBundle→临时目录），FakeAsync 下不推进；并行跑全量时机器负载高、I/O 变慢，
 /// **固定轮数**会偶发不够（曾实测复现：`care_pest` 加载计数 0、断言 `1 != 0`）。故：
-///   ① 交替「真实异步窗口 `runAsync` + 假时钟排空 `pump`」，**直到目标音效确实加载**（达上限退出，交由断言判失败）；
+///   ① 交替「真实异步窗口 `runAsync` + 假时钟排空 `pump`」，**直到目标音效确实加载并起播**
+///      （`load:` **且** `play` —— 只等 `load:` 会在 `setAsset` 挂死时判「已完成」= 假绿，F116 收尾修正）（达上限退出，交由断言判失败）；
 ///   ② 命中后再**多排空若干轮**，仍能捕获任何多余的第 2 次加载 → 保住「整批恰好一次」的钉法（不因自适应而放松）。
 Future<void> _oneClickCare(
   WidgetTester tester, {
@@ -366,9 +376,9 @@ Future<void> _oneClickCare(
   await tester.pump(const Duration(milliseconds: 300));
   await tester.tap(find.text('确定'));
 
-  // ① 自适应等待：目标音效真正被加载出来（上限 200 轮 × 20ms，常态数轮即命中）。
+  // ① 自适应等待：目标音效真正被加载**并起播**（上限 200 轮 × 20ms，常态数轮即命中）。
   int guard = 0;
-  while (guard < 200 && _countLoads(expectLoad) < 1) {
+  while (guard < 200 && !(_countLoads(expectLoad) >= 1 && _countPlays() >= 1)) {
     await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 20)));
     await tester.pump();
@@ -380,6 +390,11 @@ Future<void> _oneClickCare(
         () => Future<void>.delayed(const Duration(milliseconds: 20)));
     await tester.pump();
   }
+  // ③ 音频链必须**真的跑到起播**：`play` 在 `setAsset` 之后 —— 一旦 `setAsset` 内部挂死
+  //（跨 Zone 复用旧播放器、永远等不到 `ready`），`load:` 仍会记录但 `play` 永不发生。
+  // 本断言直接把这类「假绿」钉死（F116 收尾）。
+  expect(_countPlays(), 1,
+      reason: '音效必须**真的起播**（恰好一次）—— 钉死「`load:` 已记录但 `setAsset` 挂死」的假绿');
 }
 
 void main() {
@@ -391,6 +406,11 @@ void main() {
   });
 
   setUp(() async {
+    // ⚠️ **必须**：`AudioService.instance` 跨用例复用，而每个 `testWidgets` 一套独立
+    // FakeAsync Zone —— 不清就会把上一个用例 Zone 的 `_sfxPlayer` 带进来，本用例的
+    // `setAsset` 内部永远等不到 `ready` 事件（`play` 从未发生），而 `load:` 已同步记录
+    // → 断言侥幸通过 = **假绿**。花园页音效是直接调单例（绕过 provider），只能用本钩子。
+    AudioService.instance.resetForTest();
     _fake.log.clear();
     const MethodChannel pathProvider =
         MethodChannel('plugins.flutter.io/path_provider');

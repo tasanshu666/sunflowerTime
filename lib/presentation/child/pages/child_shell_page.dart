@@ -38,6 +38,7 @@ import 'package:sunflower_time/presentation/child/pages/store_page.dart';
 import 'package:sunflower_time/presentation/child/state/app_usage_controller.dart';
 import 'package:sunflower_time/presentation/child/widgets/app_cap_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
+import 'package:sunflower_time/shared/adaptive_nav_bar.dart';
 
 /// 孩子端外壳：底部导航 + 5 个 tab。
 class ChildShellPage extends ConsumerStatefulWidget {
@@ -501,36 +502,39 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
             TickerMode(enabled: i == _index, child: _tabs[i]),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _onSelectTab,
-        destinations: const <NavigationDestination>[
-          NavigationDestination(
-            icon: Icon(Icons.today_outlined),
-            selectedIcon: Icon(Icons.today),
-            label: '今日',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.checklist_outlined),
-            selectedIcon: Icon(Icons.checklist),
-            label: '成长',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.yard_outlined),
-            selectedIcon: Icon(Icons.yard),
-            label: '花园',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.storefront_outlined),
-            selectedIcon: Icon(Icons.storefront),
-            label: '商店',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: '我的',
-          ),
-        ],
+      // C61 平板适配：平板下限宽居中，避免 5 个 destination 被拉散；手机端原样（零变化）。
+      bottomNavigationBar: AdaptiveNavBarHost(
+        child: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: _onSelectTab,
+          destinations: const <NavigationDestination>[
+            NavigationDestination(
+              icon: Icon(Icons.today_outlined),
+              selectedIcon: Icon(Icons.today),
+              label: '今日',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.checklist_outlined),
+              selectedIcon: Icon(Icons.checklist),
+              label: '成长',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.yard_outlined),
+              selectedIcon: Icon(Icons.yard),
+              label: '花园',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.storefront_outlined),
+              selectedIcon: Icon(Icons.storefront),
+              label: '商店',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: '我的',
+            ),
+          ],
+        ),
       ),
     );
   }

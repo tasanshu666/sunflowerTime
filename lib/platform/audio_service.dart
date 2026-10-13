@@ -204,6 +204,23 @@ class AudioService {
   bool _soundOn = true;
   bool _bgmOn = false;
   bool _bgmPlaying = false;
+
+  // ── SFX「代际」闸门（F116；玄参 2026-10-13 转来孩子真机反馈）─────────────────
+  /// SFX 播放**代际计数器**：每次 [playSfxPaths] **同步**递增一次（先于一切 `await`）。
+  ///
+  /// 语义 = 「谁号大谁说话」：[playSfxPaths] 起手记住自己的号，之后**每个 `await` 间隙**
+  /// 都比对一次，一旦过期（已有更新的请求发起过）立刻**让位退出**——尤其**绝不**在
+  /// 过期后还去 `player.stop()`，否则会把别人刚起播的音频掐断。
+  ///
+  /// ⚠️ 回放真实事故（玄参 2026-10-13 孩子真机反馈「专注中手动结束 → 护眼只有动画没声音」，
+  /// 出现 3 次）：SFX 全局只有**一个共享播放器**，而首次 `_sfx` 要连做三步平台调用
+  /// （配音频会话 / 建播放器 / 清资产缓存，几百 ms 级）。手动结束路径上
+  /// 「结算页 focus_settle」先发起、卡在首次初始化；「护眼卡 eyecare」后发起却**抢先起播**
+  /// → 前者醒来后照旧 `stop()`，把护眼配音掐断；护眼动画由 `FrameSequencePlayer` 的 Ticker
+  /// 独立驱动，不受影响 → 孩子看到「有动画、没声音」。胜负取决于两边首次平台调用的快慢
+  /// → 概率性偶发（约一半）。详见 bug 记录表 F116。
+  int _sfxGeneration = 0;
+
   /// ⚠️ 语义 = 氛围音**正在加载 / 起播**的窗口标记（[_playGardenAmbient] 起播前置 true、
   /// `finally` 置 false），**非**「稳态在播」。判「是否在播」请用 [_ambientAudible]。
   bool _ambientPlaying = false;
@@ -285,9 +302,24 @@ class AudioService {
   /// 氛围音播放器状态订阅（自愈监听），[dispose] 时取消。
   StreamSubscription<PlayerState>? _ambientStateSub;
 
-  /// [AudioSession] 是否已配置过（D1-v2 根因修复；幂等守卫，见
-  /// [_ensureAudioSessionConfigured]）。
-  bool _audioSessionConfigured = false;
+  /// 音频会话**是否已配置成功**（D1-v2 根因修复的幂等守卫；F116-C）。
+  ///
+  /// ⚠️ 只在**成功**后置 true；失败保持 false → 下次调用会重新尝试（原实现把置位写在
+  /// `try` **之前**，一次冷启动失败 = 本进程此后所有播放都可能「哑起播」且永不重试，
+  /// 而「会话未声明 → 冷启动首次 `play()` 卡 ready 不渲染」正是 F86 的真机根因）。
+  bool _sessionConfigured = false;
+
+  /// **正在进行中**的会话配置（null = 无在途）——仅用于让**并发**调用共享同一次配置。
+  ///
+  /// ⚠️ **为什么「已完成」用布尔、而不是把这个 Future 当最终状态留着**（F116 收尾实测）：
+  /// 把已完成的 Future 长期留在字段里，会让**后续**调用直接 `await` 一个属于**旧 Zone**
+  /// 的已完成 Future——监听回调按 Future **创建时**的 Zone 排进微任务队列，而那个 Zone
+  /// 在 `flutter_test` 里每个 `testWidgets` 一个 FakeAsync Zone（本单例 [instance] 跨用例
+  /// 复用），早已销毁 → 回调永不执行 → **整个 `_sfx` 永久挂起**（实测：同文件第 2/3 个
+  /// 用例音效零加载、`setAsset` 一次未发生）。改用「在途共享 Future + 完成即清空」后，
+  /// 已完成路径现场生成新 Future（Zone 安全），而并发语义（共享同一次配置）与
+  /// 「失败可重试」语义**完全保留**。
+  Future<void>? _sessionConfigFuture;
 
   // ── SFX ducking（A 项，玄参 2026-10-07「音效打断背景音；背景音正常播放，或降低音量」）──
   //
@@ -395,8 +427,21 @@ class AudioService {
     return _ambientPlayer;
   }
 
-  /// 是否已在本次启动内清理过 just_audio 资产拷贝缓存。
+  /// 资产拷贝缓存**是否已清过**（一次即可；失败也置 true——清不掉只是可能命中陈旧拷贝，
+  /// 不是致命故障，沿用既有「一次即可、失败静默」口径，避免反复删目录）。
   static bool _assetCacheCleared = false;
+
+  /// **正在进行中**的清理（null = 无在途）——仅用于让**并发**调用等待同一次清理。
+  ///
+  /// ⚠️ 为什么需要「在途共享」（F116 修）：`bool` 版「先置位、再清」会让**并发**的两路
+  /// SFX 产生顺序竞态——A 置位后开始删目录（慢），B 见已置位直接跳过并 `setAsset` 拷入新
+  /// 文件，A 的删除**随后**落地 → 把 B 刚拷的资产删掉 → iOS AudioFileStream 报 −11849
+  /// → 被静默 catch 吞 → **无声无日志**（与 F77 同款症状，只是触发路径不同）。改成
+  /// 「在途共享」后，B 会**等 A 删完再拷**。
+  ///
+  /// ⚠️ 与 [_sessionConfigFuture] 同理：**已完成**状态由 [_assetCacheCleared] 布尔承载，
+  /// 绝不把这个已完成的 Future 留在字段里给后续调用 `await`（跨 Zone → 回调永不执行）。
+  static Future<void>? _assetCacheClearFuture;
 
   /// 每次冷启动清理一次 just_audio 的资产拷贝缓存（tmp/just_audio_cache）。
   ///
@@ -406,19 +451,31 @@ class AudioService {
   /// AudioFileStream 报 -11849 → 被静默 catch 吞 → 无声无日志）。iOS/Android 的
   /// tmp 在 App 更新后不保证清空 → 冷启动清一次，保证素材永远取自当前包；
   /// 缓存拷贝是懒加载按需进行，开销可忽略。
-  Future<void> _clearStaleAssetCacheOnce() async {
-    if (_assetCacheCleared) return;
-    _assetCacheCleared = true;
+  Future<void> _clearStaleAssetCacheOnce() => _assetCacheCleared
+      ? Future<void>.value() // 已完成：现场生成新 Future（**绝不**复用旧的已完成 Future）
+      : (_assetCacheClearFuture ??= _doClearAssetCache());
+
+  /// [AudioPlayer.clearAssetCache] 的实际执行体（在途共享 Future 的目标）。
+  ///
+  /// 清缓存失败**不作废缓存**（与「会话配置失败」不同）：清不掉只是可能命中陈旧拷贝，
+  /// 不是致命故障，沿用既有的「一次即可、失败静默」口径，避免反复删目录。
+  static Future<void> _doClearAssetCache() async {
     try {
       await AudioPlayer.clearAssetCache();
     } catch (_) {
       // headless 测试环境无 path_provider 插件：静默降级。
+    } finally {
+      // 在途标记用完即清：后续调用走 [_assetCacheCleared] 短路（**不在**字段里留已完成
+      // Future——那会让跨 Zone 的后续调用永远等不到回调）。
+      _assetCacheCleared = true;
+      _assetCacheClearFuture = null;
     }
   }
 
   /// 播放一次性音效（fire-and-forget，非阻塞）。
   ///
   /// 受 [_soundOn] 保护；内部异步加载与播放，任何失败均静默忽略。
+  /// ⚠️ 多路并发时的胜负由 [_sfxGeneration] 决定（F116：**后发起者赢**，先发起者过期即让位）。
   void playSfx(AudioCue cue) => playSfxPaths(<String>[cue.assetPath]);
 
   /// 播放一次性音效，**按 [paths] 顺序依次回退**（fire-and-forget，非阻塞）。
@@ -427,14 +484,30 @@ class AudioService {
   /// `growSfxAssetCandidates` 生成）：前一个候选资源缺失 / 加载失败 → 试下一个；
   /// 全部失败 → 静默（与「素材缺失」的既有降级口径一致：不崩、不刷日志）。
   /// 受 [_soundOn] 保护；[paths] 为空直接返回。
+  ///
+  /// ⚠️ **F116（玄参 2026-10-13）**：SFX 只有一个共享播放器，两路请求**相距极近**地发起时
+  /// （真机事故：手动结束 → 结算页 `focus_settle` 与护眼卡 `eyecare`）会互相 `stop()`。
+  /// 由 [_sfxGeneration] 保证「**后发起者赢**；先发起者过期即让位，**绝不回头停别人**」。
   void playSfxPaths(List<String> paths) {
     if (!_soundOn || paths.isEmpty) return;
     unawaited(_playSfxPaths(paths));
   }
 
   Future<void> _playSfxPaths(List<String> paths) async {
+    // F116 排号：**同步**递增（先于本函数内一切 `await`）→ 后发起者号更大，天然「后到者赢」。
+    final int gen = ++_sfxGeneration;
+    // 本次请求是否已过期（已有更新的请求发起过）——过期一律让位，**绝不**再碰播放器。
+    bool stale() => gen != _sfxGeneration;
+
     final AudioPlayer? player = await _sfx;
     if (player == null) return; // 播放器构造失败：静默降级
+    // 🔴 F116 核心（真机事故点）：`_sfx` 首次要连做三步平台调用（配会话 / 建播放器 / 清资产
+    // 缓存，几百 ms 级）。若在这期间有更新的 SFX **抢先起播**，本协程醒来后**必须让位**——
+    // 否则下面那句 `player.stop()` 会把对方刚起播的音频掐断（= 护眼卡「有动画没声音」）。
+    if (stale()) {
+      _adbg('sfx', 'abandon gen=$gen（取播放器期间已有更新的 SFX）now=$_sfxGeneration');
+      return;
+    }
     // A 项（玄参 2026-10-07）：播放 SFX 前把花园氛围音**压低**（ducking），播完恢复；
     // 与「背景类播放器 handleInterruptions:false」双管齐下，避免「背景音断掉、重头开始」。
     // ⚠️ 仅当确实压低了氛围音才挂「恢复」定时器/监听：否则会凭空留下一个 5s 的兜底
@@ -446,15 +519,31 @@ class AudioService {
     // 外层 = 重试轮次；内层 = 候选回退（C59：物种专属 → 通用兜底）。
     for (int round = 0; round < 2; round++) {
       if (round > 0) {
+        if (stale()) return;
         await Future<void>.delayed(const Duration(milliseconds: 600));
+        if (stale()) return;
       }
       for (final String path in paths) {
+        if (stale()) return;
         try {
+          // 每个 `await` 之后都重新比对代际：中途被更新的请求超越 → 立刻让位退出，
+          // 既不把对方掐断，也不白播（F116）。
           await player.stop();
+          if (stale()) return;
           await player.setAsset(path);
+          if (stale()) return;
           await player.seek(Duration.zero);
-          await player.play();
-          return; // 启动成功即返回（播放中失败不在本层感知）
+          if (stale()) return;
+          // D1 同款（玄参 2026-10-07 真机日志锁定）：**绝不 await `player.play()`**——
+          // just_audio 0.9.46 的 `play()` 返回的 Future 只在 pause / stop / 播完时才完成，
+          // `await` 它会挂到**整段播完**（护眼配音 63.97s 就挂 64 秒）。改为「发起播放
+          // （不 await）」+ **有限轮询**判定是否真的起播（[_pollPlaybackStarted]，
+          // 正常起播时**首次检查即命中、零延迟**；未起播才轮到 20ms × ≤10 的轮询）。
+          unawaited(player.play());
+          final bool started = await _pollPlaybackStarted(player);
+          if (stale()) return;
+          if (started) return; // 确已起播 → 成功返回（F116-C：不再「发起即认为成功」）
+          _adbg('sfx', 'not started（有限轮询未起播）→ 试下一候选 / 下一轮: $path');
         } catch (_) {
           // 该候选缺失 / 播放启动失败：试下一个候选（本轮全碰壁则下一轮再试一遍）。
         }
@@ -678,17 +767,33 @@ class AudioService {
   /// iOS 用 `AVAudioSessionCategory.playback` 以便与静音键共存——本 App 的 BGM 应在静音模式下
   /// 仍可听见，这正是 just_audio 官方 `music()` 配置的语义）。
   ///
-  /// 幂等：`_audioSessionConfigured` 守卫，只真正配置一次；任何失败静默（缺插件的 headless
-  /// 测试环境 `AudioSession.instance` 已由 audio_session 内部 try/catch 处理）。
-  Future<void> _ensureAudioSessionConfigured() async {
-    if (_audioSessionConfigured) return;
-    _audioSessionConfigured = true; // 先置位：并发调用只真正配置一次，且失败不反复重试
+  /// 幂等：由 [_sessionConfigured]（成功态）+ [_sessionConfigFuture]（在途共享）共同守卫——
+  /// **成功只配置一次**（并发调用共享同一在途 Future，见 [_configureAudioSession]）；
+  /// **失败保持未配置态 → 下次调用自动重试**；任何失败静默（缺插件的 headless 测试环境
+  /// `AudioSession.instance` 已由 audio_session 内部 try/catch 处理）。
+  ///
+  /// ⚠️ 已完成路径必须**现场生成新 Future**（`Future.value()`），**不能**把旧的已完成
+  /// Future 直接返回给调用方 `await`——跨 Zone 会导致回调永不执行（见 [_sessionConfigFuture]）。
+  Future<void> _ensureAudioSessionConfigured() => _sessionConfigured
+      ? Future<void>.value()
+      : (_sessionConfigFuture ??= _configureAudioSession());
+
+  Future<void> _configureAudioSession() async {
     try {
       final AudioSession session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
+      _sessionConfigured = true; // 成功才置位（幂等：并发/后续调用都不会重复配置）
       _adbg('session', 'AudioSession configured（music）——冷启动首次 play() 不再卡 ready');
     } catch (e) {
-      _adbg('session', 'configure failed（静默继续）: $e');
+      // 🔴 F116-C：失败**不置位**。原实现把 `_audioSessionConfigured = true` 写在 try
+      // **之前**（「先置位：并发调用只真正配置一次，且失败不反复重试」），代价是**一次冷启动
+      // 失败 = 本进程此后所有播放都可能「哑起播」且永不重试**——而「会话未声明 → 冷启动首次
+      // `play()` 卡 ready 不渲染」正是 F86 的真机根因。改为：失败即保持未配置态（下次调用
+      // 重新尝试），成功才置位（仍只配置一次）。
+      _adbg('session', 'configure failed（下次调用重试）: $e');
+    } finally {
+      // 在途标记用完即清：后续路径一律由 [_sessionConfigured] 决定（成功短路 / 失败重试）。
+      _sessionConfigFuture = null;
     }
   }
 
@@ -810,11 +915,15 @@ class AudioService {
     return false;
   }
 
-  /// 有限轮询判定「氛围音 `play()` 是否真的起播」（D1 修复，玄参 2026-10-07 真机日志锁定）。
+  /// 有限轮询判定「`play()` 是否真的起播」（D1 修复，玄参 2026-10-07 真机日志锁定）。
+  ///
+  /// **两处共用**：① 花园氛围音 [_playGardenAmbientGuarded]（D1）；② 一次性音效
+  /// [_playSfxPaths]（**F116-C**：由「`await play()` 返回即认为成功」改成「起播确认」——
+  /// 原来遇到静默哑起播就彻底无声，既不重试、也无任何日志）。
   ///
   /// 背景：just_audio 0.9.46 的 `AudioPlayer.play()` 返回的 Future **只在 pause / stop /
   /// 播放完成时才完成**（`just_audio.dart:975` `await playCompleter.future`）——`await play()`
-  /// 会**阻塞整首歌**（真机日志实测：单曲 10.3s，冷启动甚至 67s）。故改为
+  /// 会**阻塞整首歌**（真机日志实测：单曲 10.3s，冷启动甚至 67s）。故一律改为
   /// `unawaited(play())` 发起播放，再用本方法**有限轮询**判定是否真的起播。
   ///
   /// 🔴 **`playing` 是乐观置位、不能当「已发声」的判据**（D1-v2，真机日志实锤）：
@@ -824,8 +933,9 @@ class AudioService {
   /// ✗ 卡死轮 `22:52:36.620 playing=true ready` → 之后 **29.5 秒零事件、无 completed**；
   ///   ✓ 正常轮 `22:53:06.219` → `22:53:16.536 completed`（实播 10.32s）。
   /// 症状 = 玄参真机反馈「首进花园不响，约 30s 后才响」。
+  /// 故本方法判据取 `playing && processingState != idle`（**不单独信 `playing`**）。
   ///
-  /// ⚠️ **本方法无法区分「哑起播」与「正常起播」，只能如实汇报；真正的修复在
+  /// ⚠️ **本方法无法区分「哑起播」与「正常起播」，只能如实汇报；氛围音的真正修复在
   /// [_ensureAudioSessionConfigured]**（Android 音频会话未声明 → 冷启动首次 `play()` 卡在
   /// `ready` 不渲染；一旦有 SFX 播过，会话被激活，后续氛围音即正常）。
   ///
@@ -834,7 +944,8 @@ class AudioService {
   /// `position` 照样 > 0 → 判据形同虚设（本轮实测确认）。
   ///
   /// 轮询窗口 20ms × 最多 10 次 ≈ 200ms（真机实测起播 40~250ms 内完成），**绝不等于整首歌**。
-  static Future<bool> _pollAmbientStarted(
+  /// ✅ 正常起播时**首次检查即命中、零延迟返回**（不产生任何 `Future.delayed`）。
+  static Future<bool> _pollPlaybackStarted(
     AudioPlayer player, {
     Duration pollInterval = const Duration(milliseconds: 20),
     int pollMaxCount = 10,
@@ -926,10 +1037,10 @@ class AudioService {
           // [_ambientPlaying] 加载窗口一直开着（直到 finally 才复位），使 30s 定时器 / 切 tab
           // 回花园的再次起播被 [playGardenAmbient] 的 `skip: _ambientPlaying` 静默吞掉 →
           // 「首进花园不响」。改为「发起播放（不 await）」+ **有限轮询**判定是否真的起播
-          // （[_pollAmbientStarted]，约 20ms × ≤10 ≈ 200ms 内返回）。
+          // （[_pollPlaybackStarted]，约 20ms × ≤10 ≈ 200ms 内返回）。
           unawaited(player.play());
           _adbg('ambientStart', 'attempt #$startCalls: play() 已发起（不 await）');
-          polledStarted = await _pollAmbientStarted(player);
+          polledStarted = await _pollPlaybackStarted(player);
           _adbg('ambientStart',
               'attempt #$startCalls: poll→started=$polledStarted');
         },
@@ -1085,6 +1196,73 @@ class AudioService {
     _suspendedForBackground = false;
     _bgmWasPlayingBeforeBackground = false;
     _ambientShouldPlayBeforeBackground = false;
+  }
+
+  /// 仅供测试：把单例恢复到「接近全新构造」的状态。
+  ///
+  /// ⚠️ **每个 `testWidgets` 之间必须调用一次**（放在这些测试文件的 `setUp` 里）。
+  ///
+  /// 为什么必须：[instance] 是**跨用例复用**的全局单例，而 `flutter_test` 给每个
+  /// `testWidgets` 一套**独立的 FakeAsync Zone**。上一个用例创建的 [AudioPlayer] 及其平台侧
+  /// 事件流属于**已销毁的 Zone** → 本用例 `setAsset` 内部**永远等不到 `ready` 事件**
+  /// （`play` 从未发生），而 `load:` 已**同步**记录 → 断言仍然通过 = **假绿**（F116 收尾实测
+  /// 发现，属**改动前既存**）。⚠️ 只能用本钩子：`garden_page.dart` 的音效是**直接调
+  /// [instance]**（绕过 `audioServiceProvider`），`overrideWithValue` 无效。
+  ///
+  /// ⚠️ 本方法**同步**、**绝不 `await`** 任何来自旧 Zone 的 Future —— [dispose] 会 `await`
+  /// 播放器的 `dispose()`，跨 Zone 时可能**永不返回**（与 §5.20 记录的「已完成 Future 跨
+  /// Zone」同源）。释放动作一律 fire-and-forget。
+  ///
+  /// ⚠️ 维护约定：**将来新增「跨用例会残留」的状态字段，必须同步补到这里**（字段清单与
+  /// [dispose] 对齐，避免漂移）。
+  @visibleForTesting
+  void resetForTest() {
+    // 1) 释放并解引用三个播放器（**不 await**）。
+    for (final AudioPlayer? p in <AudioPlayer?>[
+      _sfxPlayer,
+      _bgmPlayer,
+      _ambientPlayer,
+    ]) {
+      unawaited(_disposeQuietly(p));
+    }
+    _sfxPlayer = null;
+    _bgmPlayer = null;
+    _ambientPlayer = null;
+    // 2) 与播放器绑定的定时器 / 订阅一并作废（否则它们仍引用旧播放器）。
+    _ambientRetryTimer?.cancel();
+    _ambientRetryTimer = null;
+    _ambientRetryCount = 0;
+    _duckRestoreTimer?.cancel();
+    _duckRestoreTimer = null;
+    unawaited(_ambientStateSub?.cancel() ?? Future<void>.value());
+    _ambientStateSub = null;
+    unawaited(_sfxDuckSub?.cancel() ?? Future<void>.value());
+    _sfxDuckSub = null;
+    // 3) 播放器 / 会话 / 缓存相关的幂等位与代际全部归零。
+    _sfxGeneration = 0;
+    _bgmPlaying = false;
+    _ambientPlaying = false;
+    _ambientDucked = false;
+    _ambientShouldPlay = false;
+    _ambientReloading = false;
+    _ambientStarting = false;
+    _ambientGeneration++;
+    _sessionConfigured = false;
+    _sessionConfigFuture = null;
+    _assetCacheCleared = false;
+    _assetCacheClearFuture = null;
+    // 4) 刻意**不**动：`_soundOn` / `_bgmOn`（各用例自己用 `applySettings` 驱动）、
+    //    `_suspendedForBackground` 等生命周期态（测试不涉及后台切换）。
+  }
+
+  /// 静默释放单个播放器（[resetForTest] 专用；失败无意义、不刷日志）。
+  static Future<void> _disposeQuietly(AudioPlayer? player) async {
+    if (player == null) return;
+    try {
+      await player.dispose();
+    } catch (_) {
+      // 静默降级。
+    }
   }
 
   // ── 后台/锁屏暂停与恢复（F70，玄参 2026-10-05 反馈）─────────────────────

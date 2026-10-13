@@ -25,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -859,6 +860,89 @@ void main() {
       expect(find.text('4 / 12 盆'), findsOneWidget);
       // 缺陷 5：不得再出现对精品植物不成立的「每阶段约 10 天」。
       expect(find.textContaining('10 天'), findsNothing);
+    });
+  });
+
+  // ── C61 平板适配（2026-10-13 玄参拍板）：真实页面在平板视口下的护栏 ────────────
+  //
+  // 手机端（360×780 / 390×844）的既有断言在本文件上半部分，**一行未改** ——
+  // 这是「手机零回归」的另一半证据（限宽常量在手机侧 min 不生效，派生值逐位相等）。
+  group('C61 平板视口 · 真实花园页（限宽居中）', () {
+    testWidgets('800×1280：网格净宽钳到 kGardenGridMaxWidth、水平居中、不溢出',
+        (WidgetTester tester) async {
+      _setScreen(tester, 800, 1280);
+      await tester.pumpWidget(_realGarden(capacity: 12));
+
+      final bool appeared = await _pumpUntil(
+        tester,
+        () => find.byType(GardenGrid).evaluate().isNotEmpty,
+      );
+      expect(appeared, isTrue, reason: '网格未在限定帧内出现（异步数据未就绪？）');
+      await tester.pump();
+
+      expect(tester.takeException(), isNull, reason: '平板视口下不得溢出');
+
+      final Rect grid = tester.getRect(find.byType(GardenGrid));
+      expect(grid.width, kGardenGridMaxWidth, reason: '平板网格净宽应钳到上限');
+      expect(
+        grid.left,
+        closeTo(800 - grid.right, 0.01),
+        reason: '网格必须水平居中（左右留白相等）',
+      );
+    });
+
+    testWidgets('800×1280：网格可视高度 ≥ 2 行且下缘余白 < 1 行（C64 新口径）',
+        (WidgetTester tester) async {
+      _setScreen(tester, 800, 1280);
+      await tester.pumpWidget(_realGarden(capacity: 12));
+
+      final bool appeared = await _pumpUntil(
+        tester,
+        () => find.byType(SingleChildScrollView).evaluate().isNotEmpty,
+      );
+      expect(appeared, isTrue);
+      await tester.pump();
+
+      final double viewport =
+          tester.getSize(find.byType(SingleChildScrollView)).height;
+      const double spacing = 6; // = garden_page 的 gridSpacing（横向间距 ×2）
+      final double cellW = (kGardenGridMaxWidth - spacing * 2) / 3;
+      final double rowH = cellW / GardenGrid.cellAspectRatio;
+      final double twoRows = rowH * 2 + 4; // GardenGrid.mainAxisSpacing = 4
+
+      // ① 至少一屏看见 2 行 = 6 个默认盆（C64 由 3 行放宽为 2 行，换盆栽放大 30%）。
+      expect(
+        viewport,
+        greaterThanOrEqualTo(twoRows - 0.5),
+        reason: '平板下应至少一屏看见 2 行（不满足则应调小 kGardenGridMaxWidth）',
+      );
+      // ② 反向护栏（玄参 2026-10-13 报的正是这个）：网格下缘余白必须 < 1 行，
+      //    否则就是「盆栽只占上半段、下半草地空一大块」。旧值 480 在此视口下必红。
+      expect(
+        viewport - twoRows,
+        lessThan(rowH),
+        reason: '网格下缘不得空出一整行草地（否则盆栽显得偏小、草地大片留白）',
+      );
+    });
+
+    testWidgets('600×960（最小平板档）：同样限宽到上限且不溢出',
+        (WidgetTester tester) async {
+      _setScreen(tester, 600, 960);
+      await tester.pumpWidget(_realGarden(capacity: 12));
+
+      final bool appeared = await _pumpUntil(
+        tester,
+        () => find.byType(GardenGrid).evaluate().isNotEmpty,
+      );
+      expect(appeared, isTrue);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      // 600 宽下 min(600 − 24, 620) = 576 < 620 → **没到上限**，如实断言。
+      expect(
+        tester.getRect(find.byType(GardenGrid)).width,
+        math.min(600 - 24, kGardenGridMaxWidth),
+      );
     });
   });
 }

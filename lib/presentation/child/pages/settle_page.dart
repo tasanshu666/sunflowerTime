@@ -136,6 +136,30 @@ class _SettlePageState extends ConsumerState<SettlePage>
   /// 数字占位：护眼卡未收口时全部以「···」遮住。
   String _mask(String value) => _eyeCareBlocking ? '···' : value;
 
+  /// 结算庆祝是否已启动（幂等闸门，F115）。
+  bool _celebrationStarted = false;
+
+  /// 启动结算庆祝：数字上涨动画 + 向日葵庆祝配音（**幂等**，只起一次）。
+  ///
+  /// F95（玄参 2026-10-08）：口径与 B32 动画对齐——只要带结算数据进场就配音
+  /// （含短专注 net==0），不再「画面庆祝、声音静音」。静音开关仍由 `playSfx`
+  /// 内部的 soundOn 统一拦截，缺素材静默降级。
+  ///
+  /// F115（2026-10-13）：由「initState 无条件启动」改为**可延后启动**——带
+  /// [SettleArgs.eyeCarePending] 进场时，护眼卡会压在本页之上且**被覆盖路由的
+  /// Ticker 仍在跑**，若 initState 就 forward，6.09s 的庆祝会在卡背后播完，孩子
+  /// 等护眼结束回来只看到定格末帧（真机反馈「没有播放结算动画，只有一个静态图片」）。
+  /// 故：无护眼卡 → initState 立即起；有护眼卡 → 由 [_openEyeCareIfPending]
+  /// 在卡收口后调用。
+  void _startCelebration() {
+    if (_celebrationStarted) return;
+    _celebrationStarted = true;
+    _anim.forward(from: 0);
+    if (widget.args?.settlement != null) {
+      ref.read(audioServiceProvider).playSfx(AudioCue.focusSettle);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -149,16 +173,12 @@ class _SettlePageState extends ConsumerState<SettlePage>
     _anim = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
-    )..forward();
+    );
+    // F115：庆祝动画 / 音效**不在 initState 无条件启动**（理由见 [_startCelebration]）。
+    // 无护眼卡时与既往完全一致；带 eyeCarePending 时等护眼卡收口再起。
+    if (!_eyeCareBlocking) _startCelebration();
     // 显示口径修正：本栏只统计「获得」，单独读一次账本（不改动任何写入逻辑）。
     unawaited(_loadTodayEarned());
-    // 结算页向日葵庆祝序列帧（settle）配音；受 soundOn 保护，缺素材静默降级。
-    // F95（玄参 2026-10-08）：口径与 B32 动画对齐——只要带结算数据进场就配音
-    // （含短专注 net==0），不再「画面庆祝、声音静音」。静音开关仍由 playSfx
-    // 内部 [_soundOn] 统一拦截。
-    if (widget.args?.settlement != null) {
-      ref.read(audioServiceProvider).playSfx(AudioCue.focusSettle);
-    }
     // T-B：结算后注入 sun_earned / valid_focus_day 埋点（settlement 非空时）。
     final FocusSettlement? settlement = widget.args?.settlement;
     if (settlement != null) {
@@ -216,6 +236,9 @@ class _SettlePageState extends ConsumerState<SettlePage>
               ? kEyeCareRewardSunlight
               : 0;
     });
+    // F115：护眼收口 → 此刻才起结算庆祝（此前 2026-10-08 已记录过该缺陷，但当时
+    // 只修了「到时结束」路径，本页插卡路径漏修 → 本次补齐）。
+    _startCelebration();
   }
 
   /// 强制竖屏（portraitUp/Down；失败静默 —— 方向锁定只是体验优化，不阻塞结算）。
@@ -449,9 +472,12 @@ class _SettlePageState extends ConsumerState<SettlePage>
                     // 方案 A（玄参 2026-09-30）：有结算数据（settlement 非空）就**始终**播 settle
                     // 序列帧（含 <5 分钟短专注 net==0），画面与庆祝态统一，不回退默认矢量花；
                     // F95（玄参 2026-10-08）：音效口径同步对齐——settlement 非空即播
-                    // （initState 控制），不再短专注静音。
-                    // 仅 settlement 为 null（深链直入、无专注数据）才回退默认静态呼吸花。
-                    child: settlement != null
+                    // （由 [_startCelebration] 控制），不再短专注静音。
+                    // F115（2026-10-13）：两处才回退默认静态呼吸花——① settlement 为 null
+                    // （深链直入、无专注数据）；② [_eyeCareBlocking]（护眼卡未收口）——
+                    // 后者防序列帧在护眼卡背后播完：卡收口后本处重建为 FrameSequencePlayer，
+                    // 新 State 从第 1 帧起播，孩子回来即可看到完整庆祝。
+                    child: settlement != null && !_eyeCareBlocking
                         ? Stack(
                             alignment: Alignment.center,
                             children: [

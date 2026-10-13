@@ -134,7 +134,7 @@ flowchart TB
   · 成长奖励：独立上限 `kTaskCheckinDailyCap = 79`，只按 `refType='task_checkin'` 聚合，与前一条互不挤占。
   账本每条 earn 同时记 `gross=原始` 与 `net=有效`，`day_key` 可日聚合，审计可还原「原始 S=162 → 实得 120（年段额度用完）」。
 - **月度池（每月兑换预算）**：`monthly_pool.used` 仅记录**家长显式核销 + 免确认自动放行**的扣减；与账本相互独立但**必须一致**（账本 sunlight ≥ 0，池 used ≤ budget）。
-- **排队放行**：超池时 `redemption_request.status=queued`，**不立即扣账本也不扣池**；每月 1 日 0 点 `RedemptionService.releaseQueue()` 按 `requested_at` 升序释放，写入 ledger(`net=-cost`) + 新月份 `used+=cost`。
+- **排队放行**（⚠️ **C62（2026-10-13）起超池不再新产生 `queued`**，改为**直接拒绝**；本条仅服务**存量** queued 行）：超池时 `redemption_request.status=queued`，**不立即扣账本也不扣池**；每月 1 日 0 点 `RedemptionService.releaseQueue()` 按 `requested_at` 升序释放，写入 ledger(`net=-cost`) + 新月份 `used+=cost`。
 - **对账 SQL 示例**（DAO 内）：`SELECT SUM(net) FROM sunlight_ledger WHERE day_key=? AND ref_type='focus_session'`（专注日额度校验）；`SELECT SUM(net) FROM sunlight_ledger WHERE type='redeem' AND ref_id IN (SELECT id FROM redemption_request WHERE status='verified')`（核销总额对账）。
 
 ---

@@ -26,6 +26,8 @@ import 'package:go_router/go_router.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
+import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
+import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -75,7 +77,7 @@ class ChildTodayPage extends ConsumerStatefulWidget {
 }
 
 class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, ChildTabAutoRefresh<ChildTodayPage> {
   double _balance = 0;
   double _todayEarn = 0;
   double _focusMinutes = 0;
@@ -102,8 +104,17 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
     super.dispose();
   }
 
-  Future<void> _reload() async {
-    if (mounted) setState(() => _loading = true);
+  // ── C68：自动刷新接线（切回本 tab / 回前台 / 跨 08:00 或跨天）───────────────
+  @override
+  int? get refreshTabIndex => kChildTabIndexOfToday;
+
+  @override
+  Future<void> onTabRefreshRequested() => _reload(silent: true);
+
+  /// [silent] = true 时不整页转圈（C68 自动刷新用）——切 tab / 回前台是高频动作，
+  /// 闪一下加载圈会让孩子以为「页面重载了」。
+  Future<void> _reload({bool silent = false}) async {
+    if (!silent && mounted) setState(() => _loading = true);
     try {
       final DateTime now = DateTime.now();
       final String today = dayKey(now);

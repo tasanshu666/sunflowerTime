@@ -30,6 +30,8 @@ import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/reward_card.dart';
+import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
+import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 
 /// 商店 tab 列表内容起点（占屏高比例）——C47d 实测标定值。
@@ -142,7 +144,26 @@ class StorePage extends ConsumerStatefulWidget {
   ConsumerState<StorePage> createState() => _StorePageState();
 }
 
-class _StorePageState extends ConsumerState<StorePage> {
+class _StorePageState extends ConsumerState<StorePage>
+    with ChildTabAutoRefresh<StorePage> {
+  // ── C68：自动刷新接线（切回本 tab / 回前台 / 跨 08:00 或跨天）───────────────
+  //
+  // ⚠️ 本页**不用** `_reload`：数据全在 [_storeLoadProvider] / [_balanceProvider] 两个
+  // `FutureProvider` 里，刷新 = 让它们重算。
+  //  · `ref.invalidate` 走「refresh」语义（非首次加载）→ `AsyncValue.when` 默认
+  //    `skipLoadingOnRefresh: true` → **保留旧数据、不闪加载圈**（切 tab 高频动作不能闪）；
+  //  · 时间边界（跨天）尤其重要：当周池余量按周滚动，而 [_storeLoadProvider] 只调只读的
+  //    `pool()`（**有意不触发**周重置写）→ 不重算就会一直拿着上周的快照。
+  @override
+  int? get refreshTabIndex => kChildTabIndexOfStore;
+
+  @override
+  Future<void> onTabRefreshRequested() {
+    ref.invalidate(_storeLoadProvider);
+    ref.invalidate(_balanceProvider);
+    return Future<void>.value();
+  }
+
   @override
   Widget build(BuildContext context) {
     // 余额与待核销总额已在 [StoreBalancePill] 内部自取（AppBar 位置展示），

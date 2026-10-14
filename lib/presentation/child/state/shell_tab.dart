@@ -17,3 +17,13 @@ final StateProvider<int> childShellTabIndexProvider = StateProvider<int>((_) => 
 
 /// 花园 tab 在外壳 `_tabs` 中的下标（与 `child_shell_page._tabs` 顺序一致）。
 const int kChildTabIndexOfGarden = 2;
+
+/// 其余各 tab 下标（C68 补齐：`ChildTabAutoRefresh` 需要每页声明自己的下标）。
+/// ⚠️ 必须与 `child_shell_page._tabs` 的 **顺序/长度**一致；增删 tab 时同步改这里。
+const int kChildTabIndexOfToday = 0;
+const int kChildTabIndexOfGrowth = 1;
+const int kChildTabIndexOfStore = 3;
+const int kChildTabIndexOfProfile = 4;
+
+/// 外壳 tab 总数（C68：`_tabs` 长度，供一致性断言用）。
+const int kChildTabCount = 5;

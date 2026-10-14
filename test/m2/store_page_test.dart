@@ -33,6 +33,7 @@ import 'package:sunflower_time/domain/services/account_service.dart';
 import 'package:sunflower_time/domain/services/weekly_pool_service.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
 import 'package:sunflower_time/presentation/child/pages/store_page.dart';
+import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 
 /// 低年段默认设置（AppSettings 部分字段为 required，集中提供）。
 const _lowSettings = AppSettings(
@@ -334,6 +335,63 @@ void main() {
           .onPressed,
       isNotNull,
     );
+  });
+
+  testWidgets('C68：切回商店 tab → 自动重算（**无**任何页面内动作、**无**经济号自增）',
+      (tester) async {
+    // 本用例是 C68 的**真实页面端到端**接线验证（机制本身见
+    // test/m3/child_tab_refresh_test.dart）：数据在背面变了，但页面收不到任何
+    // 经济信号 —— 这正是玄参 2026-10-14 反馈的场景（08:00 晨露到期 / 家长端改了
+    // 数据），修复前必须靠「点开花盆再关掉」之类的页面内动作才被动刷新。
+    final reward = _MutableRewardRepository()
+      ..pending.add(RedemptionRequest(
+        id: 'r1',
+        childId: 'c1',
+        templateId: 'tpl_extra_episode',
+        requestedAt: DateTime(2026, 9, 20, 22, 50),
+        cost: 60,
+        status: RequestStatus.pending,
+      ));
+
+    final container = ProviderContainer(
+      overrides: <Override>[
+        redemptionOrchestrationServiceProvider
+            .overrideWithValue(_FakeRedemptionOrchestrationService()),
+        rewardRepositoryProvider.overrideWithValue(reward),
+        settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
+        sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
+        weeklyPoolRepositoryProvider
+            .overrideWithValue(_FakeWeeklyPoolRepository()),
+        trackingRepositoryProvider.overrideWithValue(_FakeTrackingRepository()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: StorePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('待核销 60'), findsOneWidget);
+
+    // 外壳当前停在「今日」→ 商店不可见（默认 tab 索引 0）。
+    expect(container.read(childShellTabIndexProvider), kChildTabIndexOfToday);
+
+    // 背面数据变化，但**不**自增 economyRevision（模拟「无经济信号的陈旧」）。
+    reward.pending.clear();
+    await tester.pumpAndSettle();
+    expect(find.text('待核销 60'), findsOneWidget,
+        reason: '没有任何刷新触发 → 仍是旧快照（这就是修复前的真实表现）');
+
+    // 切走再切回 → 外壳 tab 索引变化 → C68 方案 A 自动重算。
+    container.read(childShellTabIndexProvider.notifier).state =
+        kChildTabIndexOfStore;
+    await tester.pumpAndSettle();
+
+    expect(find.text('待核销 60'), findsNothing,
+        reason: 'C68：切回商店 tab 必须自动重算，不依赖任何页面内动作');
   });
 
   testWidgets('C62：可用阳光不足 → 卡片置灰 + 内联「阳光不足」', (tester) async {

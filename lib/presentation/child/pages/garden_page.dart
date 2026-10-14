@@ -49,6 +49,7 @@ import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
+import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_reward_icons.dart';
@@ -133,7 +134,22 @@ class _GrowthFxSpec {
   });
 }
 
-class _GardenPageState extends ConsumerState<GardenPage> {
+class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefresh<GardenPage> {
+  // ── C68：自动刷新接线（切回本 tab / 回前台 / 跨 08:00 或跨天）───────────────
+  //
+  // ⚠️ 本页就是 C68 的**事故现场**：盛开植物的「08:00 晨露」在库里到期了，但页面只在
+  // 首次挂载 / 经济修订号变化 / 养护卡片关闭时重读 → 切回花园 tab 看不到头顶气泡，
+  // 直到随手点开花盆再关掉（触发「卡片关闭」那条）才「突然看到阳光」。
+  //
+  // 内嵌（外壳 tab）时下标 = [kChildTabIndexOfGarden]；路由直推的 `GardenPage()`
+  // 不在外壳里 → 返回 `null`（恒视为可见，只吃「回前台 + 时间边界」两条触发）。
+  @override
+  int? get refreshTabIndex =>
+      widget.embedded ? kChildTabIndexOfGarden : null;
+
+  @override
+  Future<void> onTabRefreshRequested() => _reload(silent: true);
+
   List<Plant> _plants = <Plant>[];
   List<PlantSpecies> _species = <PlantSpecies>[];
   AgeTier _tier = AgeTier.low;

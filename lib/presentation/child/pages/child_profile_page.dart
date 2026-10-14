@@ -19,6 +19,8 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
+import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
+import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -33,7 +35,8 @@ class ChildProfilePage extends ConsumerStatefulWidget {
   ConsumerState<ChildProfilePage> createState() => _ChildProfilePageState();
 }
 
-class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
+class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
+    with ChildTabAutoRefresh<ChildProfilePage> {
   double _totalFocusMinutes = 0;
   int _totalSessions = 0;
   int _totalValidDays = 0;
@@ -85,7 +88,14 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage> {
     await _reload(silent: true);
   }
 
-  /// [silent] = true 时不整页转圈（经济修订号触发的后台刷新），
+  // ── C68：自动刷新接线（切回本 tab / 回前台 / 跨 08:00 或跨天）───────────────
+  @override
+  int? get refreshTabIndex => kChildTabIndexOfProfile;
+
+  @override
+  Future<void> onTabRefreshRequested() => _reload(silent: true);
+
+  /// [silent] = true 时不整页转圈（经济修订号 / C68 自动刷新后台刷新），
   /// 避免每次消费后切回本 tab 都闪一次全屏 loading。
   Future<void> _reload({bool silent = false}) async {
     if (!silent && mounted) setState(() => _loading = true);

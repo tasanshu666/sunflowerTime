@@ -18,6 +18,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
+import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -156,7 +158,8 @@ class ChildTaskPage extends ConsumerStatefulWidget {
   ConsumerState<ChildTaskPage> createState() => _ChildTaskPageState();
 }
 
-class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
+class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
+    with ChildTabAutoRefresh<ChildTaskPage> {
   TodayTaskBoard? _board;
   bool _loading = true;
   String? _error;
@@ -168,8 +171,16 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage> {
     _reload();
   }
 
-  Future<void> _reload() async {
-    if (mounted) setState(() => _loading = true);
+  // ── C68：自动刷新接线（切回本 tab / 回前台 / 跨 08:00 或跨天）───────────────
+  @override
+  int? get refreshTabIndex => kChildTabIndexOfGrowth;
+
+  @override
+  Future<void> onTabRefreshRequested() => _reload(silent: true);
+
+  /// [silent] = true 时不整页转圈（C68 自动刷新用，见今日页同款说明）。
+  Future<void> _reload({bool silent = false}) async {
+    if (!silent && mounted) setState(() => _loading = true);
     try {
       final TodayTaskBoard board =
           await ref.read(taskCheckInServiceProvider).board(DateTime.now());

@@ -77,16 +77,20 @@ void main() {
   });
 
   group('MatrixEntitlementService：判定', () {
-    test('未 load：内存态默认 free；阶段 1 矩阵全放开 → can 全 true', () {
+    test('未 load：内存态默认 free；判定读矩阵（未收紧放行 / 收紧项拦截）', () {
       final MatrixEntitlementService svc = MatrixEntitlementService(
         repository: _FakeEntitlementRepository(),
       );
       expect(svc.current.tier, EntitlementTier.free);
-      for (final FeatureKey f in FeatureKey.values) {
-        expect(svc.can(f), isTrue,
-            reason: '阶段 1 free 也应放行 $f（行为零变化）');
-        expect(svc.quotaOf(f), kUnlimitedQuota);
-      }
+      // 未收紧能力：free 放行且不限。
+      expect(svc.can(FeatureKey.parentReport), isTrue);
+      expect(svc.quotaOf(FeatureKey.parentReport), kUnlimitedQuota);
+      // 阶段 4 收紧能力：free 关闭 / 有额度。
+      expect(svc.can(FeatureKey.oneClickCare), isFalse);
+      expect(svc.can(FeatureKey.deepReport), isFalse);
+      expect(svc.quotaOf(FeatureKey.gardenPotCapacity), kFreeGardenPotQuota);
+      expect(svc.quotaOf(FeatureKey.taskTemplateCount), kFreeTaskQuota);
+      expect(svc.quotaOf(FeatureKey.rewardTemplateCount), kFreeRewardQuota);
     });
 
     test('load 空仓储 → free', () async {
@@ -180,26 +184,80 @@ void main() {
     });
   });
 
-  group('门控矩阵阶段 1：免费行为 = 现状（全放开）', () {
+  group('门控矩阵阶段 4：免费边界（收紧 5 项 / 其余放开）', () {
+    const Set<FeatureKey> tightened = <FeatureKey>{
+      FeatureKey.oneClickCare,
+      FeatureKey.gardenPotCapacity,
+      FeatureKey.taskTemplateCount,
+      FeatureKey.rewardTemplateCount,
+      FeatureKey.deepReport,
+    };
+
     test('矩阵覆盖全部 FeatureKey', () {
       expect(kEntitlementMatrix.keys.toSet(), FeatureKey.values.toSet());
     });
 
-    test('每个能力点 free 与 premium 判定/额度等价', () {
-      for (final FeatureKey f in FeatureKey.values) {
+    test('未收紧能力 free 与 premium 判定 / 额度仍等价且放行', () {
+      for (final FeatureKey f in FeatureKey.values
+          .where((FeatureKey f) => !tightened.contains(f))) {
         expect(featureAllowedFor(f, EntitlementTier.free), isTrue,
-            reason: '$f 阶段 1 免费应放行');
+            reason: '$f 未被阶段 4 收紧，免费应放行');
         expect(
           featureAllowedFor(f, EntitlementTier.free),
           featureAllowedFor(f, EntitlementTier.premium),
-          reason: '$f free/premium 判定应等价（阶段 1 未启用门控）',
+          reason: '$f free/premium 判定应等价',
         );
         expect(
           featureQuotaFor(f, EntitlementTier.free),
           featureQuotaFor(f, EntitlementTier.premium),
-          reason: '$f free/premium 额度应等价（阶段 1 未启用门控）',
+          reason: '$f free/premium 额度应等价',
         );
       }
+    });
+
+    test('收紧能力：free 关闭或有额度上限（买断更宽）', () {
+      expect(featureAllowedFor(FeatureKey.oneClickCare, EntitlementTier.free),
+          isFalse);
+      expect(featureAllowedFor(FeatureKey.deepReport, EntitlementTier.free),
+          isFalse);
+      // 花盆：free=4 / premium=12（皆有限，买断更宽）。
+      expect(featureQuotaFor(FeatureKey.gardenPotCapacity, EntitlementTier.free),
+          kFreeGardenPotQuota);
+      expect(
+          featureQuotaFor(FeatureKey.gardenPotCapacity, EntitlementTier.premium),
+          kPremiumGardenPotQuota);
+      // 任务 / 奖励：free 有限额度 / premium 不限（哨兵 -1）。
+      expect(featureQuotaFor(FeatureKey.taskTemplateCount, EntitlementTier.free),
+          kFreeTaskQuota);
+      expect(
+          featureQuotaFor(FeatureKey.taskTemplateCount, EntitlementTier.premium),
+          kUnlimitedQuota);
+      expect(
+          featureQuotaFor(FeatureKey.rewardTemplateCount, EntitlementTier.free),
+          kFreeRewardQuota);
+      expect(
+          featureQuotaFor(
+              FeatureKey.rewardTemplateCount, EntitlementTier.premium),
+          kUnlimitedQuota);
+    });
+
+    test('quotaAllowsAdd：达到 / 超过额度一律拦新增', () {
+      expect(
+        quotaAllowsAdd(FeatureKey.taskTemplateCount, EntitlementTier.free, 4),
+        isTrue,
+      );
+      expect(
+        quotaAllowsAdd(FeatureKey.taskTemplateCount, EntitlementTier.free, 5),
+        isFalse,
+      );
+      expect(
+        quotaAllowsAdd(FeatureKey.taskTemplateCount, EntitlementTier.premium, 99),
+        isTrue,
+      );
+      expect(
+        quotaAllowsAdd(FeatureKey.oneClickCare, EntitlementTier.free, 0),
+        isFalse,
+      );
     });
   });
 }

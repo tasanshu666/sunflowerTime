@@ -1,0 +1,70 @@
+sequenceDiagram
+    %% 阶段 4 · 付费门控接线 —— 关键调用流（时序图）
+    %% 覆盖：启动加载 · 孩子端花盆扩容拦截 · 家长端任务新增拦截 · 购买后解锁 · 不删数据证明
+
+    actor User as 用户
+    participant Main as main.dart ★
+    participant Prov as entitlementProvider / Service
+    participant Garden as GardenPage ★
+    participant PGS as PlantGrowthService ★
+    participant Settings as SettingsRepo(settings)
+    participant TaskPage as ParentTaskConfigPage ★
+    participant TaskRepo as TaskRepository
+    participant Quota as quotaAllowsAdd ★
+    participant Premium as ParentPremiumPage
+
+    %% ── 1. 启动加载（P1 修复）────────────────────────────
+    Note over Main,Prov: ① 冷启动加载权益（否则已购用户被误判 free）
+    Main->>Prov: entitlementService.load()
+    Prov->>Prov: 读 SecureEntitlementStore → Entitlement(tier)
+    Prov-->>Main: Entitlement
+    Main->>Prov: entitlementProvider.state = e
+    Note right of Main: 全 App 门控自此读到正确档位
+
+    %% ── 2. 孩子端花盆扩容（free 拦截，只拦新增）──────────
+    Note over Garden,PGS: ② 孩子扩容——按档位上限，只拦扩容动作，不删已有盆
+    User->>Garden: 进入花园
+    Garden->>Settings: getSettings().gardenPotCapacity (=_capacity)
+    Garden->>Prov: watch entitlementProvider → tier
+    Garden->>Quota: featureQuotaFor(gardenPotCapacity, tier)
+    Quota-->>Garden: free=4 / premium=12
+    alt _capacity >= 上限（free 新装=4 即命中）
+        Garden-->>User: 不显示「+」扩容格（已有盆位照常可用）
+    else _capacity < 上限
+        User->>Garden: 点「+」→ _confirmAndExpand()
+        Garden->>PGS: expandPot(now)
+        PGS->>Prov: quotaOf(gardenPotCapacity)
+        alt 已到档位上限
+            PGS-->>Garden: throw PlantOperationException(需解锁/已达上限)
+            Garden-->>User: 分因提示（不扣阳光、不改容量）
+        else 未到上限
+            PGS->>Settings: gardenPotCapacity + 1（扣阳光走既有 plant_expand）
+        end
+    end
+
+    %% ── 3. 家长端任务新增（达上限拦截，只拦新增）────────
+    Note over TaskPage,TaskRepo: ③ 家长新增成长项——达上限只拦 create，不删已有
+    User->>TaskPage: 点「新增成长项」
+    TaskPage->>TaskRepo: tasks() → _tasks
+    TaskPage->>Prov: watch entitlementProvider → tier
+    TaskPage->>Quota: quotaAllowsAdd(taskTemplateCount, tier, _tasks.length)
+    alt false（已达/超出免费上限）
+        TaskPage-->>User: 按钮置灰 + 内联「免费上限 N（当前 M）」+ 1s SnackBar
+        Note right of TaskPage: 绝不调用 deleteTaskById / 不裁剪 _tasks
+        opt 家长端可引导
+            TaskPage-->>User: 「了解会员」→ /parent/premium
+        end
+    else true
+        TaskPage->>TaskPage: _openEditor() → saveTask()
+    end
+
+    %% ── 4. 购买后解锁 ───────────────────────────────────
+    Note over Premium,Prov: ④ 买断成功后即时解锁，已存数据不动
+    User->>Premium: 点「一次买断」
+    Premium->>Prov: purchaseLifetime()
+    Prov->>Prov: 商店成功 → 写票据 → _current=premium
+    Premium->>Prov: load(); entitlementProvider.state = e
+    Note right of Prov: 门控自动放行：扩容格/新增按钮恢复；已存 9 条任务/12 盆保留
+
+    %% ── 5. 不删数据证明（测试断言）───────────────────────
+    Note over TaskRepo: ⑤ 证据性测试断言：free + 9 条 → 新增被拦后<br/>tasks().length 仍=9；deleteTaskById 调用次数 == 0

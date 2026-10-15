@@ -38,10 +38,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/species_lore.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/bloom_reward_outcome.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/pending_bloom_reward.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
@@ -1011,7 +1013,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 在阳光不足时不再拦点击（旧口径 onTap: null → 孩子点了毫无反馈，被玄参
   /// 判定为缺陷），落到这里的兜底提示成了唯一反馈路径，文案要可执行。
   Future<void> _confirmAndExpand() async {
-    if (_capacity >= kGardenPotCapacityMax || _busy) return;
+    if (_capacity >= _potCapLimit || _busy) return;
     final int cost = _expandCost;
     // 阳光不足：不给确认卡，直接分因提示（此时格子虽可点，但绝不扣费）。
     if (_balance < cost) {
@@ -1046,11 +1048,31 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
 
   // ── 一键操作（口径 C29，玄参 2026-10-05 拍板）────────────────────────────
 
+  /// 当前**权益**档位（阶段 4 门控判定；build 期与回调期读取一致）。
+  ///
+  /// ⚠️ 命名带 `Ent` 前缀以区别于本页既有的 **[AgeTier] 年龄段字段 `_tier`**
+  /// （用于扩容定价，见 [`_expandCost`]）——两者语义不同（年龄段 vs 权益档），
+  /// 若同名会编译冲突。
+  ///
+  /// 用 `read` 而非 `watch`：本页会因 tab 刷新 / 经济修订号 / 时间边界频繁重建，
+  /// 购买发生在家长端，孩子回到花园 tab 即重读，足以拿到最新档位。
+  EntitlementTier get _entTier => ref.read(entitlementProvider).tier;
+
+  /// 当前档位的花盆容量上限（阶段 4：免费 [kFreeGardenPotQuota]=4 / 买断
+  /// [kPremiumGardenPotQuota]=12）。**只用于「扩容」闸门，绝不压低已有盆位**（C69）。
+  int get _potCapLimit =>
+      featureQuotaFor(FeatureKey.gardenPotCapacity, _entTier);
+
+  /// 免费档是否允许「一键操作」（D3：free 隐藏一键 FAB，单株动作不退化）。
+  bool get _oneClickUnlocked =>
+      featureAllowedFor(FeatureKey.oneClickCare, _entTier);
+
   /// 悬浮按钮出现条件：**存活株 ≥ [kOneClickMinPlants]**（「花园植物大于 3 盆」；
-  /// 死亡残株不算）。订阅门控后补（当前所有孩子可用，玄参拍板）。
+  /// 死亡残株不算）**且当前档位已解锁一键操作**（阶段 4：free 隐藏）。
   bool get _showOneClickFab =>
+      _oneClickUnlocked &&
       _plants.where((Plant p) => p.status != PlantStatus.dead).length >=
-      kOneClickMinPlants;
+          kOneClickMinPlants;
 
   /// 一键操作入口（悬浮按钮下拉菜单选中后）：
   ///  1. [PlantGrowthService.oneClickPlan] 纯读计划（跳过已达上限 / 间隔中的株）；
@@ -1599,7 +1621,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         ));
       }
     }
-    if (_capacity < kGardenPotCapacityMax) {
+    if (_capacity < _potCapLimit) {
       cells.add(ExpandPotSlot(
         cost: _expandCost,
         shortfall: (_expandCost - _balance).ceil(),

@@ -1,0 +1,165 @@
+classDiagram
+    %% 阶段 4 · 付费门控接线 —— 类图（数据模型 + 服务 + 门控组件）
+    %% 说明：★ = 本阶段新增 / 改动；其余为既有（阶段 1/3 底座）。
+
+    class EntitlementTier {
+        <<enum>>
+        free
+        premium
+    }
+
+    class Entitlement {
+        +EntitlementTier tier
+        +DateTime? acquiredAt
+        +String? productId
+        +bool isPremium
+        +Entitlement lifetime()$
+        +Entitlement copyWith()$
+    }
+
+    class FeatureKey {
+        <<enum>>
+        oneClickCare
+        gardenPotCapacity
+        parentReport
+        taskTemplateCount
+        rewardTemplateCount
+        multiChildProfile
+        deepReport
+        exportShare
+        memoirExport
+        familySharing
+    }
+
+    class FeatureRule {
+        +FeatureKey key
+        +bool freeEnabled
+        +int freeQuota
+        +bool premiumEnabled
+        +int premiumQuota
+        +bool isEnabledFor(tier)
+        +int quotaFor(tier)
+    }
+
+    class EntitlementMatrix {
+        <<library entitlement_matrix.dart>>
+        +int kUnlimitedQuota$
+        +int kFreeTaskQuota$
+        +int kFreeRewardQuota$
+        +int kFreeChildProfileCount$
+        +int kFreeGardenPotQuota$
+        +int kPremiumGardenPotQuota$
+        +Map~FeatureKey,FeatureRule~ kEntitlementMatrix$
+        +bool featureAllowedFor(f,tier) ★
+        +int featureQuotaFor(f,tier) ★
+        +bool quotaAllowsAdd(f,tier,count) ★新增
+    }
+
+    class EntitlementService {
+        <<abstract>>
+        +Future~Entitlement~ load()
+        +Future~void~ refresh()
+        +Future~void~ purchaseLifetime()
+        +Future~RestoreResult~ restore()
+        +bool can(FeatureKey)
+        +int quotaOf(FeatureKey)
+    }
+    class MatrixEntitlementService {
+        -Map~FeatureKey,FeatureRule~ _matrix
+        -Entitlement _current
+    }
+    class IapClient {
+        <<abstract>>
+        +Stream~IapEvent~ events
+        +Future~List~IapProduct~~ loadProducts()
+        +Future~IapPurchaseResult~ buyLifetime()
+        +Future~IapRestoreResult~ restore()
+    }
+
+    class PremiumGate {
+        <<widget>>
+        +FeatureKey feature
+        +Widget child
+        +void onTap(context,feature,onAllowed)$
+        +bool _allows(e,feature)$
+    }
+    class PremiumQuotaGate ★ {
+        <<新增·widget/util>>
+        +void onTap(context,feature,currentCount,onAllowed)$
+    }
+    class PremiumUpsellCard {
+        <<widget>>
+        +FeatureKey feature
+    }
+    class PremiumStatusText {
+        <<widget>>
+    }
+
+    %% 表现层消费方（本阶段接线点）
+    class GardenPage ★ {
+        +bool _showOneClickFab
+        +Future _onOneClick(kind)
+        +Future _confirmAndExpand()
+    }
+    class ExpandPotSlot {
+        <<widget>>
+        +bool unlockable ★
+    }
+    class ParentTaskConfigPage ★ {
+        +Future _openEditor({initial})
+    }
+    class ParentRewardPage ★ {
+        +Future _addTemplate()
+    }
+    class ParentReportPage ★ {
+        +_StabilityCard(deepReport)
+    }
+    class ParentPremiumPage {
+        +Future _buy()
+        +Future _restore()
+    }
+    class Main ★ {
+        +Future main()  %% 新增：启动加载 entitlement
+    }
+
+    %% 域层防线
+    class PlantGrowthService ★ {
+        +EntitlementService? entitlement
+        +Future expandPot(now)  %% 按档位上限
+    }
+
+    class EntitlementRepository {
+        <<abstract>>
+        +Future~Entitlement~ read()
+        +Future~void~ write(e,jws)
+        +Future~void~ clear()
+    }
+
+    EntitlementMatrix ..> FeatureRule : 声明
+    FeatureRule ..> FeatureKey : key
+    FeatureRule ..> EntitlementTier : 判定
+    EntitlementMatrix ..> EntitlementService : 被 can/quotaOf 委托
+    EntitlementService <|.. MatrixEntitlementService
+    MatrixEntitlementService --> EntitlementRepository : 读票据
+    MatrixEntitlementService --> IapClient : 购买/恢复
+    Entitlement ..> EntitlementTier
+    EntitlementRepository ..> Entitlement
+
+    PremiumGate --> EntitlementMatrix : featureAllowedFor 单点
+    PremiumGate ..> Entitlement : 读 entitlementProvider
+    PremiumQuotaGate --> EntitlementMatrix : quotaAllowsAdd 单点
+    PremiumGate ..> PremiumUpsellCard
+    ParentPremiumPage --> EntitlementService : 购买/恢复
+    ParentPremiumPage --> PremiumStatusText
+
+    GardenPage ..> PremiumQuotaGate : 花盆容量
+    GardenPage ..> PremiumGate : 一键操作(布尔)
+    GardenPage --> ExpandPotSlot
+    GardenPage --> PlantGrowthService : expandPot
+    ParentTaskConfigPage ..> PremiumQuotaGate : taskTemplateCount
+    ParentRewardPage ..> PremiumQuotaGate : rewardTemplateCount
+    ParentReportPage ..> PremiumGate : deepReport
+    Main ..> EntitlementService : 启动 load()
+    Main ..> PremiumGate : 写 entitlementProvider
+
+    PlantGrowthService --> EntitlementService : quotaOf(gardenPotCapacity)

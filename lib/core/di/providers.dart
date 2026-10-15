@@ -199,6 +199,8 @@ final plantGrowthServiceProvider = Provider<PlantGrowthService>(
     ledger: ref.watch(sunlightRepositoryProvider),
     settings: ref.watch(settingsRepositoryProvider),
     bloomRewards: ref.watch(bloomRewardRepositoryProvider),
+    // 阶段 4 域层防线：花盆扩容按档位上限（免费 4 / 买断 12），防绕过 UI 顶满。
+    entitlement: ref.watch(entitlementServiceProvider),
     onEconomyChanged: () =>
         ref.read(economyRevisionProvider.notifier).state++,
   ),

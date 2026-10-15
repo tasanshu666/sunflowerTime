@@ -588,19 +588,31 @@ class ExpandPotSlot extends StatelessWidget {
   final bool busy;
   final VoidCallback onTap;
 
+  /// 是否可扩容（阶段 4）。
+  ///
+  /// - `true`（默认）：常规可点加号格，**旧行为逐像素不变**；
+  /// - `false`：**锁定态**——渲染中性灰「需解锁」样式，点击仍走 [onTap] 给分因提示
+  ///   （对齐 C62：不可点 ≠ `onTap:null`）。
+  ///
+  /// 注（D4）：孩子端 free 档**直接不渲染本格**（`garden_page` 按档位上限决定是否加格），
+  /// 故 `false` 主要保留给 legacy / 未来需要展示锁定入口的场景。
+  final bool unlockable;
+
   const ExpandPotSlot({
     super.key,
     required this.cost,
     required this.shortfall,
     required this.busy,
     required this.onTap,
+    this.unlockable = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final bool affordable = shortfall <= 0;
+    final bool active = affordable && unlockable;
     return InkWell(
-      // ⚠️ 只有 busy 拦点击；阳光不足**不再拦**（分因提示由页面层兜底给）。
+      // ⚠️ 只有 busy 拦点击；阳光不足 / 锁定态**不再拦**（分因提示由页面层兜底给）。
       onTap: busy ? null : onTap,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
@@ -614,9 +626,9 @@ class ExpandPotSlot extends StatelessWidget {
             final double artW = w * _artWidthRatio;
             final double artH = artW * _artAspectRatio;
             // 环 / 图标用 [ring]；文案用加深的 [label]（白胶囊底上对比度够）。
-            final Color ring = affordable ? Colors.green.shade700 : Colors.grey;
+            final Color ring = active ? Colors.green.shade700 : Colors.grey;
             final Color label =
-                affordable ? Colors.green.shade800 : Colors.grey.shade700;
+                active ? Colors.green.shade800 : Colors.grey.shade700;
 
             // 加号圆：圆心落在盆心线（artH × kPotBodyCenterYFraction），
             // 外径 = 盆宽 × kExpandIconDiameterRatio。用 Positioned 精确定位，
@@ -685,7 +697,11 @@ class ExpandPotSlot extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            affordable ? '加盆 · $cost☀' : '还差 $shortfall☀',
+                            !unlockable
+                                ? '需解锁'
+                                : affordable
+                                    ? '加盆 · $cost☀'
+                                    : '还差 $shortfall☀',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.center,

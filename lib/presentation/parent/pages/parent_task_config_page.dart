@@ -12,11 +12,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/parent/widgets/task_editor_dialog.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
+import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 
 /// 任务配置页：家长管理学习任务模板。
 ///
@@ -96,6 +98,14 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 阶段 4 门控：新增成长项受 `taskTemplateCount` 配额约束（免费 5 条）。
+    // 🔴 C69：只拦「新增」，编辑 / 删除照常；存量超额（如 9 条）可编辑 / 可删、不能新增。
+    final EntitlementTier tier = ref.watch(entitlementProvider).tier;
+    final bool canAdd = PremiumQuotaGate.allows(
+      tier,
+      FeatureKey.taskTemplateCount,
+      _tasks.length,
+    );
     return Scaffold(
       // 内嵌（任务 tab）时不叠加第二层 AppBar：外层家长端 AppBar 已在顶部。
       // 独立路由形态下，把「新增」放到 AppBar 右上角（内嵌形态则用列表内工具条）。
@@ -107,7 +117,14 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                 IconButton(
                   icon: const Icon(Icons.add),
                   tooltip: '新增成长项',
-                  onPressed: () => _openEditor(),
+                  // 达上限 → 置灰；但仍可点（走分因提示，C62：不可点 ≠ onTap:null）。
+                  color: canAdd ? null : Colors.grey,
+                  onPressed: () => PremiumQuotaGate.onTap(
+                    context: context,
+                    feature: FeatureKey.taskTemplateCount,
+                    currentCount: _tasks.length,
+                    onAllowed: () => _openEditor(),
+                  ),
                 ),
               ],
             ),
@@ -116,7 +133,7 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
           : ListView(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
               children: <Widget>[
-                _headerBar(),
+                _headerBar(canAdd, tier),
                 if (_tasks.isEmpty)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 32),
@@ -135,26 +152,52 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
   }
 
   /// 列表顶部工具条：标题 + 条数 + 「新增成长项」（替代原右下角悬浮加号）。
-  Widget _headerBar() {
+  ///
+  /// 阶段 4：达免费上限时按钮**置灰 + 内联原因**，点击走 [PremiumQuotaGate.onTap]
+  /// （1s 轻提示 + 「了解会员」），**不置空回调**（C62）。
+  Widget _headerBar(bool canAdd, EntitlementTier tier) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const Text(
-            '成长任务',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          Row(
+            children: <Widget>[
+              const Text(
+                '成长任务',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${_tasks.length} 项',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: () => PremiumQuotaGate.onTap(
+                  context: context,
+                  feature: FeatureKey.taskTemplateCount,
+                  currentCount: _tasks.length,
+                  onAllowed: () => _openEditor(),
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                // 达上限 → 置灰（视觉）；仍可点 → 走分因提示（C62）。
+                style: canAdd
+                    ? null
+                    : OutlinedButton.styleFrom(foregroundColor: Colors.grey),
+                label: const Text('新增成长项'),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Text(
-            '${_tasks.length} 项',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-          ),
-          const Spacer(),
-          OutlinedButton.icon(
-            onPressed: () => _openEditor(),
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('新增成长项'),
-          ),
+          if (!canAdd)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '${PremiumQuotaGate.inlineReason(tier, FeatureKey.taskTemplateCount, _tasks.length)}'
+                '，删除多余条目后即可新增',
+                style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+              ),
+            ),
         ],
       ),
     );

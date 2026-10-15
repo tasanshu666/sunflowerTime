@@ -28,6 +28,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -79,6 +80,10 @@ const PlantSpecies _sunflower = PlantSpecies(
   baseCostLow: 20,
   growthHoursPerStage: 240,
 );
+
+/// 造 [n] 株存活向日葵（potIndex 0..n-1），供「存活株数」相关用例。
+List<Plant> _sprouts(int n) =>
+    List<Plant>.generate(n, (int i) => _plant(id: 'p$i', potIndex: i));
 
 /// 模拟手机屏（逻辑像素）。
 void _setScreen(WidgetTester tester, double width, double height) {
@@ -212,8 +217,10 @@ class _FakeFocusRepository implements FocusRepository {
 }
 
 class _FakePlantRepository implements PlantRepository {
+  _FakePlantRepository([this._plants = const <Plant>[]]);
+  final List<Plant> _plants;
   @override
-  Future<List<Plant>> plants() async => <Plant>[];
+  Future<List<Plant>> plants() async => List<Plant>.of(_plants);
   @override
   Future<Plant?> plant(String id) async => null;
   @override
@@ -227,11 +234,38 @@ class _FakePlantRepository implements PlantRepository {
 /// 渲染**真实** `GardenPage(embedded: true)`，容量由假设置决定。
 Widget _realGarden({required int capacity}) => ProviderScope(
       overrides: <Override>[
+        // 阶段 4：扩容格 / 花盆容量按档位门控 → 本布局用例按**买断档**渲染，
+        // 保留「容量 4 时出现第 5 格（扩容位）」的既有版式场景。
+        entitlementProvider.overrideWith((Ref ref) => Entitlement.lifetime()),
         settingsRepositoryProvider
             .overrideWithValue(_FakeSettingsRepository(capacity)),
         sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
         focusRepositoryProvider.overrideWithValue(_FakeFocusRepository()),
         plantRepositoryProvider.overrideWithValue(_FakePlantRepository()),
+        bloomRewardRepositoryProvider
+            .overrideWithValue(InMemoryBloomRewardRepository()),
+      ],
+      child:
+          const MaterialApp(home: Scaffold(body: GardenPage(embedded: true))),
+    );
+
+/// 渲染真实 `GardenPage(embedded: true)`，并指定**权益档位**与**植物列表**
+///（阶段 4 档位门控 UI 用例专用；[_realGarden] 固定买断档、空植物）。
+Widget _realGardenTier({
+  required int capacity,
+  required EntitlementTier tier,
+  List<Plant> plants = const <Plant>[],
+}) =>
+    ProviderScope(
+      overrides: <Override>[
+        entitlementProvider.overrideWith((Ref ref) => tier == EntitlementTier.premium
+            ? Entitlement.lifetime()
+            : Entitlement.free),
+        settingsRepositoryProvider
+            .overrideWithValue(_FakeSettingsRepository(capacity)),
+        sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
+        focusRepositoryProvider.overrideWithValue(_FakeFocusRepository()),
+        plantRepositoryProvider.overrideWithValue(_FakePlantRepository(plants)),
         bloomRewardRepositoryProvider
             .overrideWithValue(InMemoryBloomRewardRepository()),
       ],
@@ -943,6 +977,77 @@ void main() {
         tester.getRect(find.byType(GardenGrid)).width,
         math.min(600 - 24, kGardenGridMaxWidth),
       );
+    });
+  });
+
+  // ── 阶段 4 档位门控：孩子端 UI 接线常驻回归保护 ──────────────────────────
+  //
+  // 此前「free 隐藏一键 FAB / 隐藏扩容格」只在**矩阵层**被覆盖
+  //（`featureAllowedFor(oneClickCare, free) == false`），**页面接线无保护** ——
+  // 若 `garden_page._showOneClickFab` 或 `_buildCells` 的扩容格条件被改坏，旧测试仍绿。
+  // 本组直接渲染真实 `GardenPage`，按档位断言 FAB / 扩容格的**出现与否**。
+  group('阶段 4 档位门控 · 孩子端 UI（一键 FAB / 扩容格）', () {
+    testWidgets('free + cap4 + 存活 5 株 → 一键 FAB 不出现、扩容格不出现',
+        (WidgetTester tester) async {
+      _setScreen(tester, 360, 780);
+      await tester.pumpWidget(_realGardenTier(
+        capacity: 4,
+        tier: EntitlementTier.free,
+        plants: _sprouts(5),
+      ));
+      final bool appeared = await _pumpUntil(
+        tester,
+        () => find.byType(GardenGrid).evaluate().isNotEmpty,
+      );
+      expect(appeared, isTrue, reason: '网格应在数据就绪后出现');
+      await tester.pump();
+
+      expect(find.byType(GardenPot), findsNWidgets(4),
+          reason: '4 个盆位被 5 株中的 4 株占据');
+      expect(find.byType(ExpandPotSlot), findsNothing,
+          reason: 'free 档 D4：免费上限 = 基础容量 4，已满 → 不出现扩容格');
+      expect(find.byIcon(Icons.touch_app), findsNothing,
+          reason: 'free 档 D3：隐藏一键操作 FAB（即使存活 ≥4）');
+    });
+
+    testWidgets('premium(lifetime) + cap4 + 存活 5 株 → 一键 FAB 出现、扩容格出现',
+        (WidgetTester tester) async {
+      _setScreen(tester, 360, 780);
+      await tester.pumpWidget(_realGardenTier(
+        capacity: 4,
+        tier: EntitlementTier.premium,
+        plants: _sprouts(5),
+      ));
+      final bool fabShown = await _pumpUntil(
+        tester,
+        () => find.byIcon(Icons.touch_app).evaluate().isNotEmpty,
+      );
+
+      expect(fabShown, isTrue,
+          reason: 'premium 档解锁一键操作 → 存活≥4 应出现 FAB');
+      expect(find.byType(ExpandPotSlot), findsOneWidget,
+          reason: 'premium 档可扩容到 12 → cap4 时出现扩容格');
+    });
+
+    testWidgets('free + cap3 → 扩容格出现（免费不退化，仅满 4 才拦）',
+        (WidgetTester tester) async {
+      _setScreen(tester, 360, 780);
+      await tester.pumpWidget(_realGardenTier(
+        capacity: 3,
+        tier: EntitlementTier.free,
+        plants: _sprouts(3),
+      ));
+      final bool appeared = await _pumpUntil(
+        tester,
+        () => find.byType(GardenGrid).evaluate().isNotEmpty,
+      );
+      expect(appeared, isTrue, reason: '网格应在数据就绪后出现');
+      await tester.pump();
+
+      expect(find.byType(ExpandPotSlot), findsOneWidget,
+          reason: 'free 档 cap3 < 免费上限 4 → 仍可扩容到 4（免费不退化）');
+      expect(find.byIcon(Icons.touch_app), findsNothing,
+          reason: 'free 档仍隐藏一键 FAB');
     });
   });
 }

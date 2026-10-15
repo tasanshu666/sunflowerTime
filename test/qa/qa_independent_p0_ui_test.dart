@@ -16,6 +16,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -363,8 +364,10 @@ void main() {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
 
       await tester.pumpWidget(ProviderScope(
-        overrides: <Override>[
-          sharedPreferencesProvider.overrideWithValue(prefs),
+      overrides: <Override>[
+        // 阶段 4：一键操作按档位门控（free 隐藏 FAB）→ 本外壳用例按**买断档**运行。
+        entitlementProvider.overrideWith((Ref ref) => Entitlement.lifetime()),
+        sharedPreferencesProvider.overrideWithValue(prefs),
           settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
           sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
           focusRepositoryProvider.overrideWithValue(_FakeFocusRepository()),

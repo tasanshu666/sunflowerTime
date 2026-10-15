@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
@@ -19,6 +20,7 @@ import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/parent/widgets/pool_indicator.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
+import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 
 /// 「奖励」页：每周阳光池指示（含预算设定）+ 可编辑模板列表。
 class ParentRewardPage extends ConsumerStatefulWidget {
@@ -118,6 +120,14 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 阶段 4 门控：新增奖励受 `rewardTemplateCount` 配额约束（免费 5 条）。
+    // 🔴 C69：只拦「新增」，编辑 / 删除照常（存量超额可编辑 / 可删、不能新增）。
+    final EntitlementTier tier = ref.watch(entitlementProvider).tier;
+    final bool canAdd = PremiumQuotaGate.allows(
+      tier,
+      FeatureKey.rewardTemplateCount,
+      _templates.length,
+    );
     return ListView(
       padding: EdgeInsets.zero,
       children: <Widget>[
@@ -135,18 +145,43 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              const Text(
-                '奖励模板',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Row(
+                children: <Widget>[
+                  const Text(
+                    '奖励模板',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  OutlinedButton.icon(
+                    onPressed: () => PremiumQuotaGate.onTap(
+                      context: context,
+                      feature: FeatureKey.rewardTemplateCount,
+                      currentCount: _templates.length,
+                      onAllowed: _addTemplate,
+                    ),
+                    icon: const Icon(Icons.add, size: 18),
+                    // 达上限 → 置灰（视觉）；仍可点 → 走分因提示（C62）。
+                    style: canAdd
+                        ? null
+                        : OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey,
+                          ),
+                    label: const Text('新增奖励'),
+                  ),
+                ],
               ),
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: _addTemplate,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('新增奖励'),
-              ),
+              if (!canAdd)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '${PremiumQuotaGate.inlineReason(tier, FeatureKey.rewardTemplateCount, _templates.length)}'
+                    '，删除多余条目后即可新增',
+                    style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                  ),
+                ),
             ],
           ),
         ),

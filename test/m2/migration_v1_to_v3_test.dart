@@ -175,7 +175,8 @@ Future<db.AppDatabase> _openMigrated(List<String> legacyDdl, int userVersion) as
 
 void main() {
   group('迁移 v1->v3：reward_templates 列修复（场景 A）', () {
-    test('v1 老库迁移后列正确、INSERT 成功、播种 6 条', () async {
+    test('v1 老库迁移到 v24 后：列正确、INSERT 成功、内置奖励种子 6 条（来自 v24 迁移）',
+        () async {
       final db.AppDatabase database = await _openMigrated(_v1SchemaDdl(), 1);
 
       // ① 列补齐断言：reward_templates 含 base_cost / cooldown_rule，
@@ -197,8 +198,10 @@ void main() {
           await _columns(database, 'tracking_events');
       expect(teCols, contains('name'));
 
-      // ④ ensureRewardSeed 先跑（此时表为空才会播种），跑完 all() 返回 6 条。
-      //    这一步是端到端验收：修复前因迁移失败，reward_templates 始终为空、
+      // ④ 本库在 v24 迁移中已写入 6 条内置奖励（**迁移内联清单**：含 seed_story，
+      //    与运行时 `kSeedRewardTemplates`（阶段 4 已精简为 5）是两套独立来源）。
+      //    此处再调用 ensureRewardSeed：表非空 → no-op（不覆盖既有行），all() 仍为 6 条。
+      //    本步是端到端验收：修复前因迁移失败，reward_templates 始终为空、
       //    ensureRewardSeed 被 unawaited 静默吞掉异常，旭日商店纯黑页。
       final RewardLocalRepository repo = RewardLocalRepository(database);
       await ensureRewardSeed(repo);
@@ -240,7 +243,8 @@ void main() {
   });
 
   group('迁移 v2->v3：修复被 v2 破坏的库（场景 B，复现玄参大人真机状态）', () {
-    test('v2 半截迁移库迁移后列正确、INSERT 成功、播种 6 条', () async {
+    test('v2 半截迁移库迁移到 v24 后：列正确、INSERT 成功、内置奖励种子 6 条（来自 v24 迁移）',
+        () async {
       // 模拟跑过「半截」v2 迁移：补上 base_cost 与 tracking_events.name，
       // 但仍缺 cooldown_rule、且残留 base_cost_high/base_cost_low。
       final List<String> legacy = <String>[
@@ -269,7 +273,8 @@ void main() {
           await _columns(database, 'tracking_events');
       expect(teCols, contains('name'));
 
-      // ② ensureRewardSeed 先跑（表为空才会播种），跑完 all() 返回 6 条。
+      // ② 库在 v24 迁移中已写入 6 条内置奖励（迁移内联清单，含 seed_story）；
+      //    ensureRewardSeed 因表非空为 no-op，all() 仍为 6 条。
       final RewardLocalRepository repo = RewardLocalRepository(database);
       await ensureRewardSeed(repo);
       expect(await database.rewardTemplateDao.all(), hasLength(6));

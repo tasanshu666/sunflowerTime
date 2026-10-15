@@ -18,9 +18,11 @@ import 'dart:math';
 
 import 'package:uuid/uuid.dart';
 
+import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/bloom_reward_outcome.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/pending_bloom_reward.dart';
@@ -33,6 +35,7 @@ import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/domain/services/entitlement_service.dart';
 
 /// 植物养成业务异常（余额不足 / 状态非法 / 花盆占用等）。
 class PlantOperationException implements Exception {
@@ -191,12 +194,20 @@ class PlantGrowthService {
   /// 生产环境由 DI 装配自增 `economyRevisionProvider` 刷新 UI；域层保持零 Flutter 依赖。
   final void Function()? _onEconomyChanged;
 
+  /// 权益服务（可选，阶段 4 域层防线）。
+  ///
+  /// 仅用于给「花盆扩容」按**档位上限**判定（免费 4 / 买断 12），替代原先写死的
+  /// [kGardenPotCapacityMax]。**默认 null = 旧行为**（上限恒为 [kGardenPotCapacityMax]），
+  /// 以保既有域单测逐字节不变。域层**不** import Riverpod / 门控 UI，只依赖域服务接口。
+  final EntitlementService? _entitlement;
+
   PlantGrowthService({
     required PlantRepository plants,
     required FocusRepository focus,
     required SunlightRepository ledger,
     required SettingsRepository settings,
     required BloomRewardRepository bloomRewards,
+    EntitlementService? entitlement,
     Uuid? uuid,
     Random? random,
     Random? weedRandom,
@@ -206,6 +217,7 @@ class PlantGrowthService {
         _ledger = ledger,
         _settings = settings,
         _bloomRewards = bloomRewards,
+        _entitlement = entitlement,
         _uuid = uuid ?? const Uuid(),
         _random = random ?? Random(),
         _weedRandom = weedRandom ?? random ?? Random(),
@@ -1184,11 +1196,26 @@ class PlantGrowthService {
     );
   }
 
-  /// 花盆扩容：capacity<max → 扣扩容价(refType='plant_expand') → gardenPotCapacity+1。
+  /// 当前档位的花盆容量上限（阶段 4 域层防线）。
+  ///
+  /// 注入 [EntitlementService] 时按 `quotaOf(gardenPotCapacity)`（免费 4 / 买断 12）；
+  /// **未注入（默认 null）→ 旧行为 = [kGardenPotCapacityMax]**（保既有域单测逐字节不变）。
+  int get _potCapacityLimit {
+    final EntitlementService? ent = _entitlement;
+    if (ent == null) return kGardenPotCapacityMax;
+    final int quota = ent.quotaOf(FeatureKey.gardenPotCapacity);
+    return quota == kUnlimitedQuota ? kGardenPotCapacityMax : quota;
+  }
+
+  /// 花盆扩容：capacity<档位上限 → 扣扩容价(refType='plant_expand') → gardenPotCapacity+1。
+  ///
+  /// 🔴 阶段 4：上限改为**按档位**（域层防线，防绕过 UI 一次性顶到满格）；**只拦扩容**，
+  /// 绝不压低 / 删除任何已有盆位（C69 红线：达上限时已有盆位照常可用）。
   Future<void> expandPot(DateTime now) async {
     final AppSettings settings = await _settings.getSettings();
-    if (settings.gardenPotCapacity >= kGardenPotCapacityMax) {
-      throw const PlantOperationException('花园已达最大容量');
+    final int limit = _potCapacityLimit;
+    if (settings.gardenPotCapacity >= limit) {
+      throw PlantOperationException('花园已达当前档位容量上限（$limit 盆），解锁可扩容');
     }
     final int cost = _price(
       kPlantPotExpandCostLow,

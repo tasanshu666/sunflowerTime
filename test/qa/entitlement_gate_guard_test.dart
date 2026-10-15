@@ -38,6 +38,17 @@ final Set<String> _whitelist = <String>{
   // 非门控点；门控仍只经 PremiumGate / 门控矩阵）。设置页复用本页导出的
   // PremiumStatusText 副标题组件，故设置页自身不出现权益标识符（守卫仍紧）。
   'lib/presentation/parent/pages/parent_premium_page.dart',
+  // 阶段 4 付费门控接线：
+  //  · main.dart：冷启动 P1 修复（读取 entitlementService/Provider 加载票据）——合法用途；
+  //  · 4 个门控接线页/服务：孩子端花园页（一键 FAB / 花盆容量判定）、家长端任务配置页、
+  //    家长端奖励页（新增配额判定）、域层植物养成服务（expandPot 上限域层防线）。
+  //    这些文件均**只读矩阵单点**（featureAllowedFor / featureQuotaFor / quotaAllowsAdd），
+  //    不散落 `isPremium` 判定，故纳入白名单。
+  'lib/main.dart',
+  'lib/presentation/child/pages/garden_page.dart',
+  'lib/presentation/parent/pages/parent_task_config_page.dart',
+  'lib/presentation/parent/pages/parent_reward_page.dart',
+  'lib/domain/services/plant_growth_service.dart',
 };
 
 /// 权益命名空间标识符（词边界、大小写敏感）。
@@ -79,6 +90,13 @@ void main() {
       'lib/data/local/repositories/entitlement_local_repository.dart',
       'lib/core/di/providers.dart',
       'lib/presentation/shared/premium_gate.dart',
+      'lib/presentation/parent/pages/parent_premium_page.dart',
+      'lib/platform/iap_service.dart',
+      'lib/main.dart',
+      'lib/presentation/child/pages/garden_page.dart',
+      'lib/presentation/parent/pages/parent_task_config_page.dart',
+      'lib/presentation/parent/pages/parent_reward_page.dart',
+      'lib/domain/services/plant_growth_service.dart',
     ]) {
       expect(File('$root/$rel').existsSync(), isTrue,
           reason: '白名单文件不应缺失（缺失说明重构后守卫白名单失效）：$rel');

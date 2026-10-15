@@ -113,6 +113,18 @@ enum AudioCue {
   /// 护眼卡 · 全程单配音（`eyecare.mp3` 63.974s，2026-10-09 C43 玄参交付：
   /// 5 段配音已剪辑拼为 1 段，与 640 帧动画同时长播放；旧 5 个 cue 弃用删除）。
   eyeCare,
+
+  /// C74 专注等级 · **普通升级**（非称号节点）配音（`default_level_up.mp3`，
+  /// 2026-10-14 玄参交付，实测 3.5788s，已按 C35 归一化到 −20 LUFS）。
+  ///
+  /// 配 `assets/fx/levelUp/defaultLevelUp/` 36 帧；**不发阳光、不写账本**。
+  levelUpDefault,
+
+  /// C74 专注等级 · **称号节点**（1/5/10/…/40）配音（`5_level_up.mp3`，
+  /// 2026-10-14 玄参交付，实测 4.1796s，实测已 −20.42 LUFS 无需校正）。
+  ///
+  /// 配 `assets/fx/levelUp/5leveUp/` 41 帧（目录名按交付原样，少一个 `l`）。
+  levelUpFive,
 }
 
 /// [AudioCue] 到 assets 音频文件路径的映射（相对工程根）。
@@ -156,6 +168,10 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/5s_countdown.mp3';
       case AudioCue.eyeCare:
         return 'assets/audio/sfx/eyecare.mp3';
+      case AudioCue.levelUpDefault:
+        return 'assets/audio/sfx/default_level_up.mp3';
+      case AudioCue.levelUpFive:
+        return 'assets/audio/sfx/5_level_up.mp3';
     }
   }
 }

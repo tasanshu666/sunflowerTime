@@ -332,6 +332,52 @@ void main() {
     });
   });
 
+  group('C74 升级演出序列帧契约（2026-10-14 玄参交付，两套）', () {
+    // ⚠️ 目录名按交付**原样**：`defaultLevelUp`（36 帧）/ `5leveUp`（41 帧，少一个 l）。
+    // 帧数**不写死**在播放侧（运行期读 AssetManifest），但素材契约本身必须钉死：
+    // 玄参补帧/删帧时只需改常量，测试会如实反映真实帧数。
+    final Map<String, int> levelUpDirs = <String, int>{
+      kLevelUpDefaultFxDir: kLevelUpDefaultFrameCount,
+      kLevelUpTitleFxDir: kLevelUpTitleFrameCount,
+    };
+
+    levelUpDirs.forEach((String dir, int count) {
+      test('$dir：恰有 $count 张、文件名与 fxFrameAssets 契约一致', () {
+        final List<String> files = pngsOf(dir);
+        expect(files.length, count,
+            reason: '$dir 帧数应为 $count，实际 ${files.length}');
+        final List<String> expected =
+            fxFrameAssets(dir, count, ext: kLevelUpFxFrameExt)
+                .map((String p) => p.split('/').last)
+                .toList();
+        expect(files, expected, reason: '$dir 文件名与契约不符');
+      });
+    });
+
+    test('两套升级音效存在且时长与播放常量一致（音画同步）', () {
+      expect(AudioCue.levelUpDefault.assetPath,
+          'assets/audio/sfx/default_level_up.mp3');
+      expect(AudioCue.levelUpFive.assetPath,
+          'assets/audio/sfx/5_level_up.mp3');
+      final Map<AudioCue, int> expectedMs = <AudioCue, int>{
+        AudioCue.levelUpDefault: kLevelUpDefaultFxDurationMs,
+        AudioCue.levelUpFive: kLevelUpTitleFxDurationMs,
+      };
+      expectedMs.forEach((AudioCue cue, int ms) {
+        final File f = File('$root/${cue.assetPath}');
+        expect(f.existsSync(), isTrue, reason: '缺音频：${cue.assetPath}');
+        final double seconds = _mp3DurationSeconds(f.readAsBytesSync());
+        // 容差 0.12s：本函数按 MPEG 帧头逐帧累加（含编码器延迟/尾部补齐），
+        // 与容器读数有几十毫秒级差异；只要能抓住「素材换错了」即可。
+        expect((seconds - ms / 1000).abs(), lessThan(0.12),
+            reason: '${cue.assetPath} 实测 ${seconds.toStringAsFixed(3)}s ≠ '
+                '${ms / 1000}s —— 音画会不同步');
+        // ≥3s 红线（iOS CoreAudio -11849）—— 本组穷举目录那条例已覆盖，此处再钉一次。
+        expect(seconds, greaterThanOrEqualTo(3.0));
+      });
+    });
+  });
+
   group('pubspec 资产登记护栏（⚠️ 目录声明不递归，叶子目录必须逐个列全）', () {
     // 2026-09-28 实证翻车：登记了 assets/fx/grow/ 与 assets/fx/care/ 两行，
     // 但帧全在更深一层子目录 → 帧根本没进包，Image.asset errorBuilder 静默吞，
@@ -357,6 +403,9 @@ void main() {
         kFocusCollectFxDir,
         kFocusSettleFxDir,
         kFocusReturnFxDir,
+        // C74 升级演出（2026-10-14）：两个叶子目录必须逐个登记。
+        kLevelUpDefaultFxDir,
+        kLevelUpTitleFxDir,
         ...kEyeCarePlaylist.map((EyeCareSegment s) => s.dir).toSet(),
       ];
       for (final String dir in dirs) {

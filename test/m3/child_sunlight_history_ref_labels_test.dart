@@ -72,6 +72,30 @@ SunlightEntry _entry(String id, String? refType, double net) => SunlightEntry(
     );
 
 void main() {
+  test('C74 专注等级升级 refType 字符串值冻结（append-only，防改名分裂历史行）', () {
+    expect(kFocusLevelUpRefType, 'focus_level_up');
+  });
+
+  testWidgets('C74 专注等级升级在「阳光来源记录」显示「专注升级」（非「其他」）',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: <Override>[
+        sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository(
+          <SunlightEntry>[
+            _entry('lv20', kFocusLevelUpRefType, 11), // 解锁「专心小骑士」
+            _entry('lv1', kFocusLevelUpRefType, 3), // 解锁「专注小萌芽」
+            _entry('e3', 'something_unknown', 1), // 未知 refType → 兜底
+          ],
+        )),
+      ],
+      child: const MaterialApp(home: ChildSunlightHistoryPage()),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('专注升级'), findsNWidgets(2));
+    expect(find.text('其他'), findsOneWidget);
+  });
+
   test('Batch1 开花奖励 refType 字符串值冻结（防改名分裂历史账本 tag）', () {
     expect(kBloomRewardRefType, 'bloom_reward');
     expect(kBloomSecondPhaseRefType, 'bloom_reward_24h');

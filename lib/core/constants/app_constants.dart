@@ -134,6 +134,16 @@ const String kPrefAppUsageDate = 'app_usage_date';
 /// App 当日累计时长的 SharedPreferences 键（秒）。
 const String kPrefAppUsageSeconds = 'app_usage_seconds';
 
+// ── C74 · 专注等级（§5.24）────────────────────────────────────────────────
+
+/// 「**已结算到的最高等级**」的 SharedPreferences 键（`int`，1..8）。
+///
+/// ⚠️ 语义不是「首用基线」而是「已结算到的最高等级」（**只增不减**），因为它同时
+/// 承担两个职责：① 老用户首用**不补发**历史等级阳光；② 升级结算的**幂等锚点之一**
+/// （另一锚点是阳光账本，二者取大，设计 §5.24.3）。
+/// 与 C14 防沉迷（`kPrefAppUsageDate`）同款先例：**不升 schemaVersion**（仍 24）。
+const String kPrefFocusLevelSettled = 'focus_level_settled';
+
 // ── 单次使用限时（F99，玄参 2026-10-08）──────────────────────────────
 
 /// **单次连续使用上限（分钟）**：娱乐 tab 连续前台满 N 分钟 → 锁定娱乐 tab。
@@ -157,6 +167,19 @@ const String kPrefAppUsageLockedUntilMs = 'app_usage_locked_until_ms';
 /// 玄参 2026-09-29：调试期间默认**打开**（true = 绕过限时，不进拦截状态）；
 /// 家长端首页有临时开关可关掉恢复拦截。release 构建不读该键（照常防沉迷）。
 const String kPrefDebugCapBypass = 'debug_cap_bypass';
+
+/// 孩子端昵称的 SharedPreferences 键（2026-10-14 玄参拍板：非必填，默认「小朋友」）。
+///
+/// 🔴 **纯本地存储、不上传、不经任何网络/账号体系** —— 与隐私政策「不收集儿童
+/// 个人信息」的承诺一致（故本功能**不需要**改隐私政策）。
+/// 空串 / 只含空白 = 未设置 → 展示回落到 [kDefaultChildNickname]。
+const String kPrefChildNickname = 'child_nickname';
+
+/// 昵称默认展示值（未设置 / 清空后的回落）。
+const String kDefaultChildNickname = '小朋友';
+
+/// 昵称最大字符数（玄参拍板 ≤12）。
+const int kChildNicknameMaxLength = 12;
 
 /// 家长端「每日 App 使用时长」可选档位（分钟）。
 ///

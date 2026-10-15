@@ -109,7 +109,12 @@ final Map<String, List<String>> _growFxResolved = <String, List<String>>{};
 /// 资产清单缓存（懒加载；读不到 = 空集合，全部回退契约推导）。
 Set<String>? _growFxManifestAssets;
 
-Future<Set<String>> _loadGrowFxManifest() async {
+/// 加载**资产清单**（懒加载 + 进程级缓存；读不到 = 空集，调用方回退契约推导）。
+///
+/// ⚠️ 一律走 `AssetManifest.loadFromAssetBundle(rootBundle)` —— **绝不读
+/// `AssetManifest.json`**（Flutter 3.7+ 已不再生成该文件，读了必然拿到空集，
+/// 表现为「帧静默不显示」，极难排查）。
+Future<Set<String>> loadFxManifest() async {
   final Set<String>? cached = _growFxManifestAssets;
   if (cached != null) return cached;
   try {
@@ -117,9 +122,42 @@ Future<Set<String>> _loadGrowFxManifest() async {
         await AssetManifest.loadFromAssetBundle(rootBundle);
     return _growFxManifestAssets = manifest.listAssets().toSet();
   } catch (_) {
-    // 清单读不到不崩（与 PlantArtwork 同口径）：回退 sunflower 契约推导。
+    // 清单读不到不崩（与 PlantArtwork 同口径）：回退契约推导。
     return _growFxManifestAssets = const <String>{};
   }
+}
+
+/// 通用「帧目录 → 实际帧列表」解析（**帧数不写死**，C74 升级演出用）。
+///
+/// 三级回退（与 [resolveGrowFxAssets] 同款纪律）：
+///  ① `dir/frame*.{ext}` 在 AssetManifest 里**实测**命中（按文件名升序）；
+///  ② 清单不可用 / 命中为空 → 契约推导 [fxFrameAssets]（用 [fallbackCount]）；
+///  ③ 仍为空（目录里一帧都没有）→ 空列表，播放器渲染 `SizedBox`（不崩）。
+///
+/// ⚠️ [fallbackCount] 只是「清单读不到时」的兜底，**不是**真值 —— 玄参补帧/删帧后
+/// 无需改代码（这正是本函数存在的意义）。
+Future<List<String>> resolveFxFrames(
+  String dir, {
+  required String ext,
+  required int fallbackCount,
+}) async {
+  final Set<String> assets = await loadFxManifest();
+  final String prefix = '$dir/frame';
+  final String suffix = '.$ext';
+  final List<String> hit = assets
+      .where((String p) =>
+          p.startsWith(prefix) &&
+          p.endsWith(suffix) &&
+          p.length > prefix.length + suffix.length &&
+          int.tryParse(p.substring(prefix.length, p.length - suffix.length)) !=
+              null)
+      .toList()
+    ..sort();
+  if (hit.isNotEmpty) return List<String>.unmodifiable(hit);
+  // ② 契约兜底（清单不可用）；③ 兜底数为 0 → 空列表。
+  return fallbackCount <= 0
+      ? const <String>[]
+      : fxFrameAssets(dir, fallbackCount, ext: ext);
 }
 
 /// 解析「物种×过渡」的**实际帧列表**（2026-10-12 五物种开花帧接入）。
@@ -139,7 +177,7 @@ Future<List<String>> resolveGrowFxAssets(
   final List<String>? cached = _growFxResolved[key];
   if (cached != null) return cached;
 
-  final Set<String> assets = await _loadGrowFxManifest();
+  final Set<String> assets = await loadFxManifest();
   List<String> pick(String dir) {
     final String prefix = '${growFxDir(dir, t)}/frame';
     const String ext = '.$kGrowFxFrameExt';

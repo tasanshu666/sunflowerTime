@@ -24,6 +24,7 @@ import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
+import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
 
 /// 设置页：家长可控开关集 + PIN 重设 + 阳光赠予 + 三个入口卡。
 class ParentSettingsPage extends ConsumerStatefulWidget {
@@ -259,6 +260,16 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
+        // 🔴 2026-10-14 玄参截图反馈：「会员与购买」**上移到最顶部**第一个分区
+        // （原话「放在最上面，更显眼」）。其余分区顺序不变。
+        const _SectionTitle('会员与购买'),
+        _EntryCard(
+          icon: Icons.star_rounded,
+          title: '升级解锁全部功能',
+          subtitle: const PremiumStatusText(),
+          onTap: () => context.push('/parent/premium'),
+        ),
+        const SizedBox(height: 12),
         _SectionTitle('防沉迷与作息'),
         _SwitchTile(
           title: '免打扰模式',
@@ -376,17 +387,18 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           onTap: _grantGift,
         ),
         const SizedBox(height: 12),
+        // 「会员与购买」已上移到列表最顶部（玄参 2026-10-14 反馈），此处不再重复。
         _SectionTitle('数据入口'),
         _EntryCard(
           icon: Icons.bar_chart,
           title: '专注报告',
-          subtitle: '周/月专注分布与健康指标',
+          subtitle: const Text('周/月专注分布与健康指标'),
           onTap: () => context.push('/parent/report'),
         ),
         _EntryCard(
           icon: Icons.delete_forever,
           title: '删除入口',
-          subtitle: '删除全部本地数据（§10.4 C5）',
+          subtitle: const Text('删除全部本地数据（§10.4 C5）'),
           danger: true,
           onTap: () => context.push('/parent/delete'),
         ),
@@ -510,11 +522,12 @@ class _NightBoundaryTile extends StatelessWidget {
   }
 }
 
-/// 入口卡（跳转）。
+/// 入口卡（跳转）。[subtitle] 为 Widget，可直接嵌入随状态刷新的组件
+/// （如会员状态 [`PremiumStatusText`]）。
 class _EntryCard extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String subtitle;
+  final Widget subtitle;
   final VoidCallback onTap;
   final bool danger;
   const _EntryCard({
@@ -533,7 +546,7 @@ class _EntryCard extends StatelessWidget {
               style: danger
                   ? const TextStyle(color: Colors.red)
                   : null),
-          subtitle: Text(subtitle),
+          subtitle: subtitle,
           trailing: const Icon(Icons.chevron_right),
           onTap: onTap,
         ),

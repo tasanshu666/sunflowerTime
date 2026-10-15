@@ -23,6 +23,7 @@ import 'package:sunflower_time/presentation/parent/pages/parent_login_page.dart'
 import 'package:sunflower_time/presentation/parent/pages/parent_report_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_delete_page.dart';
+import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -108,6 +109,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/parent/delete',
         builder: (context, state) => const ParentDeletePage(),
+      ),
+      // 付费墙 · 阶段 3 第二批：一次性买断购买页（从家长端设置页 push 进入）。
+      GoRoute(
+        path: '/parent/premium',
+        builder: (context, state) => const ParentPremiumPage(),
       ),
     ],
     // 首启同意流守卫：未同意 → /consent；已同意访问 /consent → /

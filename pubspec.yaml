@@ -36,6 +36,10 @@ dependencies:
   native_device_orientation: ^2.0.0
   # ── 音频播放（M2 音频模块，§1.1）：单例播放器，资源缺失静默降级
   just_audio: ^0.9.42
+  # ── 内购（付费墙 · 阶段 2）：一次性永久买断（Non-Consumable）。
+  # 用**全平台包** in_app_purchase（含 iOS StoreKit + Android Play Billing 适配），
+  # 而非只引入 in_app_purchase_storekit：API 是一等公民，Android 版将来必然接入。
+  in_app_purchase: ^3.3.1
 
 dev_dependencies:
   flutter_test:
@@ -121,6 +125,13 @@ flutter:
     - assets/backgrounds/today.webp
     - assets/backgrounds/growth.webp
     - assets/backgrounds/store02.webp
+    # C74 升级演出序列帧（2026-10-14 玄参交付，**两套**）：
+    #  · defaultLevelUp/ 36 帧 → 普通升级（非称号节点）；
+    #  · 5leveUp/ 41 帧 → 9 个称号节点（⚠️ 目录名按交付原样，少一个 `l`）。
+    # ⚠️ **目录声明不递归**（C18 教训），两个叶子目录必须逐个列全；帧数不写死，
+    # 运行期由 `resolveFxFrames` 读 AssetManifest 实测。
+    - assets/fx/levelUp/defaultLevelUp/
+    - assets/fx/levelUp/5leveUp/
     # 成长项/奖励 卡片图标（2026-10-09 玄参交付，C44）：512×512 透明 WebP，
     # 按名称关键词映射（单点收口见 growth_icons.dart），缺失/失败回退马卡龙色块+图标。
     - assets/ui/growth/

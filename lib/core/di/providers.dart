@@ -5,8 +5,10 @@ library providers;
 import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/data/local/database/app_database.dart';
+import 'package:sunflower_time/data/local/focus_level_prefs_store.dart';
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/weekly_pool_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/reward_local_repository.dart';
@@ -16,8 +18,12 @@ import 'package:sunflower_time/data/local/repositories/tracking_local_repository
 import 'package:sunflower_time/data/local/repositories/plant_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/task_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/eye_care_log_local_repository.dart';
+import 'package:sunflower_time/data/local/repositories/entitlement_local_repository.dart';
+import 'package:sunflower_time/data/local/secure_entitlement_store.dart';
 import 'package:sunflower_time/data/local/secure_store.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
+import 'package:sunflower_time/domain/repositories/entitlement_repository.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
@@ -27,11 +33,14 @@ import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
 import 'package:sunflower_time/domain/repositories/eye_care_log_repository.dart';
+import 'package:sunflower_time/domain/repositories/focus_level_store.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
+import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
+import 'package:sunflower_time/domain/services/entitlement_service.dart';
 import 'package:sunflower_time/domain/services/weekly_pool_service.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
@@ -39,6 +48,7 @@ import 'package:sunflower_time/domain/services/focus_report_service.dart';
 import 'package:sunflower_time/domain/services/data_management_service.dart';
 import 'package:sunflower_time/domain/services/memoir_service.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
+import 'package:sunflower_time/platform/iap_service.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/presentation/child/state/app_usage_controller.dart';
 
@@ -249,3 +259,70 @@ final rewardAssetsProvider = FutureProvider<Set<String>>((ref) async {
     return <String>{};
   }
 });
+
+// ── C74 · 专注等级（§5.24）：已结算等级存储 + 结算服务 ──────────────────────
+//
+// 🔴 两条 lazy 铁律（付费墙阶段既有的 Provider 纪律，本功能沿用）：
+//   1. Provider 函数体只在**首次 read** 时执行，此处仅「登记如何构造」；
+//   2. 不在 build 路径同步构造对象（尤其不碰 SharedPreferences 的异步读取）。
+
+/// 「已结算到的最高等级」存储（SharedPreferences 实现，同 C14 防沉迷先例）。
+///
+/// ⚠️ 惰性：`sharedPreferencesProvider` 必须在 main 中 override，若不惰性会在
+/// 未初始化的 ProviderScope 里提前读。
+final focusLevelStoreProvider = Provider<FocusLevelSettledStore>(
+  (ref) => FocusLevelPrefsStore(ref.watch(sharedPreferencesProvider)),
+);
+
+/// 专注等级结算服务（纯 Dart 编排：SP + 阳光账本）。
+///
+/// 依赖向上指着 [focusLevelStoreProvider] / [sunlightRepositoryProvider]，
+/// **不反向依赖**任何 presentation；id 生成注入 `Uuid().v4()`（domain 不引入插件）。
+final focusLevelServiceProvider = Provider<FocusLevelService>(
+  (ref) => FocusLevelService(
+    ledger: ref.watch(sunlightRepositoryProvider),
+    store: ref.watch(focusLevelStoreProvider),
+    idFactory: () => const Uuid().v4(),
+  ),
+);
+
+// ── 付费墙权益（2026 付费墙 · 阶段 1 技术底座）─────────────────────────────
+//
+// 🔴 三条铁律（否则会让现有 widget 测试集体抛异常 / 免费功能退化）：
+//   1. 新增 Provider **必须惰性**：Riverpod Provider 的函数体在**首次 read 时**才执行，
+//      此处只是「登记如何构造」，**绝不在 build 路径同步构造对象**。
+//   2. `entitlementProvider` **默认值必须是 free**，且 IAP 完全不可用时**不得抛异常**。
+//   3. 阶段 1 **不接线任何门控点**：门控矩阵全放开，故即便有人 watch 本 Provider，
+//      行为也与今天一致。
+
+/// 权益票据仓储（惰性：首次 read 才构造本地实现 + 安全区存储）。
+final entitlementRepositoryProvider = Provider<EntitlementRepository>(
+  (ref) => EntitlementLocalRepository(SecureEntitlementStore()),
+);
+
+/// 内购平台服务（惰性：`IapService.instance` 构造**不解析插件**，构造安全；
+/// 首次 `loadProducts` / `buyLifetime` / `restore` 才惰性接入 StoreKit / Play Billing）。
+final iapServiceProvider = Provider<IapService>(
+  (ref) => IapService.instance,
+);
+
+/// 权益服务（惰性：判定实现纯逻辑，构造不触平台）。
+///
+/// 内存态默认 [Entitlement.free]；首次 [`EntitlementService.load`] 才读安全区票据。
+/// 阶段 1 门控矩阵全放开，[`EntitlementService.can`] 对 free 亦返回 true。
+/// 阶段 2 起注入 [`IapService`]（真实购买 / 恢复链路；失败仍安全退回 free）。
+final entitlementServiceProvider = Provider<EntitlementService>(
+  (ref) => MatrixEntitlementService(
+    repository: ref.watch(entitlementRepositoryProvider),
+    iap: ref.watch(iapServiceProvider),
+  ),
+);
+
+/// 当前权益（UI 门控读取的唯一来源）。
+///
+/// **默认 [Entitlement.free]，构造即安全**——StateProvider 的初始函数只在首次
+/// read 时求值，返回常量 free，不触任何平台 API、不会抛。购买 / 恢复成功后由
+/// 上层置为 premium（阶段 2 接线；阶段 1 恒为 free）。
+final entitlementProvider = StateProvider<Entitlement>(
+  (ref) => Entitlement.free,
+);

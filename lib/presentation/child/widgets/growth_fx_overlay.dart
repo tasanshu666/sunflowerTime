@@ -19,56 +19,19 @@
 ///    [FrameSequencePlayer]），播放**不遮挡花园**（无遮罩层）；
 ///  · 播完 → 整张卡 [kFxDisplayFadeOutMs] 淡出 → [onComplete]；
 ///  · 全程 `IgnorePointer`（不拦截点击）、总时长有限（可被 `pumpAndSettle` 结束）。
+///
+/// ## C74 重构说明（2026-10-14，设计 §5.24.6 / Q-K）
+/// 卡体与进出场包络已抽到 [`fx_card_shell.dart`]（`FxCardShell` + `FxCardEnvelope`），
+/// 本文件只剩「序列帧播放区」这一块内容。**视觉零变化**：色值原值搬迁、widget 树
+/// 逐层一致（`test/m3/growth_fx_overlay_test.dart` 等既有用例锁定）。
 library growth_fx_overlay;
-
-import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/presentation/child/widgets/fx_card_shell.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/shared/responsive.dart';
-
-// —— 奶油阳光风视觉常量（仅本组件使用，故就近定义；与 App 马卡龙/奶油风同源） ——
-
-/// 卡底渐变：顶部奶白。
-const Color kGrowFxCardTop = Color(0xFFFFFDF7);
-
-/// 卡底渐变：底部奶油黄。
-const Color kGrowFxCardBottom = Color(0xFFFFF2D9);
-
-/// 卡片描边（暖黄，压住渐变边缘让卡片有「厚度」）。
-const Color kGrowFxCardEdge = Color(0xFFFFE0A3);
-
-/// 标题胶囊底色（与 `reward_card.dart` 的价格胶囊同色）。
-const Color kGrowFxTagBg = Color(0xFFFFF1C2);
-
-/// 标题胶囊文字色（深棕黄，暖色板上可读）。
-const Color kGrowFxTagText = Color(0xFF8D6E00);
-
-/// 外发光阴影（暖棕，替代纯黑阴影，避免发灰）。
-const Color kGrowFxShadowWarm = Color(0x2E8D6E00);
-
-/// 贴地阴影（极淡，给卡片落地感）。
-const Color kGrowFxShadowDark = Color(0x14000000);
-
-/// 卡内金色柔光（径向中心色，末端色为同 RGB 的 0 alpha 避免插出灰边）。
-const Color kGrowFxGlowCore = Color(0x4DFFD77A);
-
-/// 卡内金色柔光末端色。
-const Color kGrowFxGlowEdge = Color(0x00FFD77A);
-
-/// 弹入动画时长（毫秒）。
-const int kGrowFxEnterMs = 360;
-
-/// 卡内容区左右/上下内边距。
-const double kGrowFxCardPadding = 14;
-
-/// 卡内播放区圆角。
-const double kGrowFxInnerRadius = 20;
-
-/// 退场时缩到的比例（1.0 = 不缩小）。
-const double kGrowFxExitScale = 0.94;
 
 /// 成长演出：中央卡片 + 序列帧 + 弹入 / 播完淡出。
 class GrowthFxOverlay extends StatefulWidget {
@@ -98,16 +61,10 @@ class GrowthFxOverlay extends StatefulWidget {
 
 class _GrowthFxOverlayState extends State<GrowthFxOverlay>
     with TickerProviderStateMixin {
-  /// 弹入控制器（一次性，[Curves.easeOutBack] 轻微回弹）。
-  late final AnimationController _enterCtrl = AnimationController(
+  /// 进出场包络（弹入 + 整卡淡出），与 C74 升级演出共用同一个实现。
+  late final FxCardEnvelope _envelope = FxCardEnvelope(
     vsync: this,
-    duration: const Duration(milliseconds: kGrowFxEnterMs),
-  );
-
-  /// 整卡淡出控制器（播放段结束后启动）。
-  late final AnimationController _fadeCtrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: kFxDisplayFadeOutMs),
+    onComplete: _onFinished,
   );
 
   /// 播放是否已结束（结束后卡片不再接收重建抖动）。
@@ -116,28 +73,23 @@ class _GrowthFxOverlayState extends State<GrowthFxOverlay>
   @override
   void initState() {
     super.initState();
-    _fadeCtrl.addStatusListener(_onFadeStatus);
-    unawaited(_enterCtrl.forward());
+    _envelope.startEnter();
   }
 
-  void _onFadeStatus(AnimationStatus status) {
-    if (status == AnimationStatus.completed) {
-      if (mounted) setState(() => _playing = false);
-      widget.onComplete?.call();
-    }
+  void _onFinished() {
+    if (mounted) setState(() => _playing = false);
+    widget.onComplete?.call();
   }
 
   /// 序列帧播完 → 启动整卡淡出。
   void _onPlayComplete() {
     if (!mounted) return;
-    _fadeCtrl.forward();
+    _envelope.fadeOut();
   }
 
   @override
   void dispose() {
-    _fadeCtrl.removeStatusListener(_onFadeStatus);
-    _enterCtrl.dispose();
-    _fadeCtrl.dispose();
+    _envelope.dispose();
     super.dispose();
   }
 
@@ -150,121 +102,41 @@ class _GrowthFxOverlayState extends State<GrowthFxOverlay>
     final double inner = cardW - kGrowFxCardPadding * 2;
     return IgnorePointer(
       child: Center(
-        // 外层：弹入（缩放 + 淡入）。
-        child: AnimatedBuilder(
-          animation: _enterCtrl,
-          builder: (BuildContext context, Widget? child) {
-            final double enter =
-                Curves.easeOutBack.transform(_enterCtrl.value).clamp(0.0, 1.2);
-            return Opacity(
-              opacity: _enterCtrl.value.clamp(0.0, 1.0),
-              child: Transform.scale(
-                scale: 0.86 + 0.14 * enter,
-                child: child,
-              ),
-            );
-          },
-          // 内层：整卡淡出 + 轻微收拢。
-          child: AnimatedBuilder(
-            animation: _fadeCtrl,
-            builder: (BuildContext context, Widget? child) {
-              final double t = _fadeCtrl.value.clamp(0.0, 1.0);
-              return Opacity(
-                opacity: 1 - t,
-                child: Transform.scale(
-                  scale: 1 - (1 - kGrowFxExitScale) * t,
-                  child: child,
-                ),
-              );
-            },
-            child: _card(cardW, inner),
+        child: _envelope.wrap(
+          FxCardShell(
+            width: cardW,
+            title: widget.title,
+            child: _playArea(inner),
           ),
         ),
       ),
     );
   }
 
-  /// 奶油阳光卡：渐变底 + 暖黄描边 + 胶囊标题 + 金色柔光播放区。
-  Widget _card(double cardW, double inner) {
-    return Container(
-      width: cardW,
-      padding: const EdgeInsets.all(kGrowFxCardPadding),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[kGrowFxCardTop, kGrowFxCardBottom],
-        ),
-        border: Border.fromBorderSide(
-          BorderSide(color: kGrowFxCardEdge, width: 2),
-        ),
-        borderRadius: BorderRadius.all(Radius.circular(kGrowFxCardRadius)),
-        boxShadow: <BoxShadow>[
-          // 暖棕外发光（主）+ 极淡贴地阴影（次），避免纯黑阴影把卡片压灰。
-          BoxShadow(
-            color: kGrowFxShadowWarm,
-            blurRadius: 30,
-            offset: Offset(0, 10),
-          ),
-          BoxShadow(
-            color: kGrowFxShadowDark,
-            blurRadius: 14,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          if (widget.title != null) ...<Widget>[
-            _tag(widget.title!),
-            const SizedBox(height: 10),
-          ],
-          // 播放区：金色径向柔光打底，让透明底的植株「站在光里」。
-          ClipRRect(
-            borderRadius:
-                const BorderRadius.all(Radius.circular(kGrowFxInnerRadius)),
-            child: SizedBox(
-              width: inner,
-              height: inner,
-              child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment(0, 0.08),
-                    radius: 0.72,
-                    colors: <Color>[kGrowFxGlowCore, kGrowFxGlowEdge],
-                  ),
-                ),
-                child: _playing
-                    ? FrameSequencePlayer(
-                        frames: widget.frames,
-                        durationMs: widget.durationMs,
-                        fadeOutMs: 0, // 淡出由**整卡**统一处理
-                        onComplete: _onPlayComplete,
-                      )
-                    : const SizedBox.shrink(),
-              ),
+  /// 卡内播放区：金色径向柔光打底，让透明底的植株「站在光里」。
+  Widget _playArea(double inner) {
+    return ClipRRect(
+      borderRadius:
+          const BorderRadius.all(Radius.circular(kGrowFxInnerRadius)),
+      child: SizedBox(
+        width: inner,
+        height: inner,
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0, 0.08),
+              radius: 0.72,
+              colors: <Color>[kGrowFxGlowCore, kGrowFxGlowEdge],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  /// 阳光黄胶囊标题。
-  Widget _tag(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: const BoxDecoration(
-        color: kGrowFxTagBg,
-        borderRadius: BorderRadius.all(Radius.circular(999)),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 17,
-          fontWeight: FontWeight.w800,
-          color: kGrowFxTagText,
+          child: _playing
+              ? FrameSequencePlayer(
+                  frames: widget.frames,
+                  durationMs: widget.durationMs,
+                  fadeOutMs: 0, // 淡出由**整卡**统一处理
+                  onComplete: _onPlayComplete,
+                )
+              : const SizedBox.shrink(),
         ),
       ),
     );

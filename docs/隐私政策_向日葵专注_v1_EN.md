@@ -1,0 +1,194 @@
+# SunFocus (向日葵专注) Privacy Policy
+
+> **Version**: v1 ｜ **Effective date**: 2026-xx-xx (TBD) ｜ **Scope**: **Global users (overseas-first)**, launching on the Apple App Store (US region primary)
+> **Applicable laws**: GDPR (EU), COPPA (US, children under 13), Apple App Store Kids Category requirements; Google Play Families Policy applies when the Android version launches (see Section 11)
+> **Mainland China addendum**: the PRC Personal Information Protection Law (PIPL) and the Provisions on the Protection of Children's Personal Information Online are set out separately as **Appendix A, applicable only when the app is distributed in mainland China**
+> **Maintainer**: 1007681634@qq.com
+> **App**: SunFocus ｜ **Bundle ID**: `com.sunflowertime.app`
+
+> This is the English version of the SunFocus Privacy Policy. The Chinese original is `docs/隐私政策_向日葵专注_v1.md`; both are drafts and are kept in sync.
+
+---
+
+## 1. A Note for Parents and Kids
+
+SunFocus is a utility app that helps children practise calm focus: kids earn "sunshine" by completing focus timers, then use it to grow plants in a garden and redeem rewards set by their parents. **This is not a product that collects information about you**: we do not upload any of your data to servers we operate, and we do not track you in any way. (In-app purchases are processed by the app store — Apple on iOS — see Section 4.)
+
+- 👨‍👩‍👧 **For parents**: every piece of data your child creates in this app stays on your own phone. There is no account, no cloud, and nothing is sent to us or to any third party. The purchase feature is provided by the app store (Apple); we never see or store your payment information.
+- 🌻 **For kids**: this app will not ask for your name, your phone number, or where you live, and it will not send your information to anyone. Use it with peace of mind.
+
+---
+
+## 2. Who We Are (developer information placeholder)
+
+| Item | Details |
+|---|---|
+| App name | SunFocus (向日葵专注) |
+| Bundle ID | `com.sunflowertime.app` |
+| Developer name | 【Developer legal entity name — placeholder】 |
+| Contact | 1007681634@qq.com |
+| Form | Standalone Flutter app: **no server we operate, no account system**; all data is stored on the device and is not uploaded (in-app purchase is settled by the app store — Apple on iOS — see Section 4) |
+
+---
+
+## 3. What We Collect (Almost Nothing)
+
+**Key fact: the app has no channel that uploads user data — all data is stored only in an encrypted database on your device.**
+
+| What we do **not** do | Details |
+|---|---|
+| We do not collect personal information | No name, phone number, location, contacts, photo library, camera, or microphone data — nothing that can identify an individual |
+| No account | No registration, no login, no cloud account |
+| No third-party SDKs (one exception, at right) | No analytics, no advertising, no push, no social sharing, no maps SDK. The only third-party component is the **system-level in-app purchase billing library** (Apple StoreKit on iOS / Google Play Billing on Android), used solely to complete the one-time buyout purchase and "Restore Purchases" — **never to upload user data** |
+| No user tracking | No event logging or telemetry, no device fingerprinting, no cross-app tracking |
+
+| Local-only data (never uploaded) | Where it is stored |
+|---|---|
+| Focus timer history, plant growth progress | Encrypted local database (SQLCipher) |
+| Parental PIN (stored only as a **sha256 + salt hash** — irreversible, never in plain text) | System secure storage (flutter_secure_storage) |
+| App settings, reward templates | Local key-value storage (shared_preferences) |
+
+---
+
+## 4. System Permissions (per AndroidManifest)
+
+The table below lists, one by one, the permissions actually declared in the merged `AndroidManifest.xml` of the **Android version** build (verified by building with `flutter build apk --release`).
+
+**Key point**: `ACCESS_NETWORK_STATE`, `INTERNET` and `com.android.vending.BILLING` are **merged in automatically by dependency libraries** and serve in-app purchase billing only; **the app has no channel that uploads user data**.
+
+| Permission | Type | Purpose | Required? |
+|---|---|---|---|
+| `android.permission.ACCESS_NOTIFICATION_POLICY` | Normal permission (granted at install, no prompt) | Lets the app **block notification interruptions (Do Not Disturb policy)** during focus sessions, helping children focus quietly; implementation: `lib/platform/dnd_controller.dart` and `android/app/src/main/kotlin/com/sunflowertime/app/MainActivity.kt` | **Implemented** (in use during focus sessions; toggle on the entry page, on by default) |
+| `android.permission.ACCESS_NETWORK_STATE` | Normal permission (granted at install) | **Not requested by us**: merged in automatically by the audio library `just_audio` (`androidx.media3:media3-exoplayer`); used only to read network connectivity state. **No user data is transmitted** | Bundled by a dependency |
+| `com.android.vending.BILLING` | Normal permission (granted at install) | Added by the in-app purchase library `in_app_purchase_android` (Google Play Billing); used **only for the one-time buyout purchase and Restore Purchases**; no user data is uploaded | Required for purchasing |
+| `android.permission.INTERNET` | Normal permission (granted at install) | Merged in automatically by the same billing chain (`com.google.android.datatransport`) so the billing library can talk to Google Play to complete a purchase / validate it. **Not used to upload user data** | Required for purchasing |
+| Location / camera / microphone / contacts / file storage, etc. | — | **Not declared** | — |
+
+> **Platform differences**: every item above is an **Android**-side declaration. **The iOS version declares no network-related permissions** (iOS has no concept of an INTERNET permission); purchases and Restore Purchases are handled by Apple StoreKit. On both platforms, **no user data is uploaded to the developer or to any third-party server**.
+
+> **Note (implemented)**: `ACCESS_NOTIFICATION_POLICY` **is implemented and in use** — when a child enters a focus session the app turns on system Do Not Disturb to block notification interruptions, and restores normal behaviour when the session ends; there is a toggle on the entry page, on by default. Implementation: `lib/platform/dnd_controller.dart` (`MethodChannel('sunfocus/dnd')`: `isGranted()` / `requestAccess()` / `setEnabled()`) and `android/app/src/main/kotlin/com/sunflowertime/app/MainActivity.kt` (`:27` `isNotificationPolicyAccessGranted`; `:47` / `:48` `INTERRUPTION_FILTER_PRIORITY` / `INTERRUPTION_FILTER_ALL`). This permission only affects system Do Not Disturb and **involves no network transmission and no upload of user data**.
+>
+> Note: `<queries>` (PROCESS_TEXT) in the AndroidManifest is a **package-visibility declaration, not a permission**. It does not affect user privacy and need not be disclosed as a permission.
+
+---
+
+## 5. Purchases and Refunds (One-Time Buyout)
+
+**This app uses a one-time buyout (non-consumable in-app purchase)**: you pay once and unlock the app permanently. **It is not a subscription, it does not auto-renew, and there are no recurring charges.**
+
+| Item | Details |
+|---|---|
+| Payment processor | **Apple App Store** (iOS). **The developer does not operate its own payment channel, does not integrate any third-party payment SDK, and never sees or stores your payment information** (card numbers, billing addresses, etc. are handled by Apple) |
+| Price and settlement | The price is converted and displayed automatically by the App Store per region; the actual amount and currency are those shown on the App Store checkout sheet |
+| Refunds | **Refunds are handled by Apple under Apple's policies; the developer has no authority to grant or decide a refund.** To request one, use Apple's official "Report a Problem" page (reportaproblem.apple.com) |
+| Restore Purchases | With the same Apple ID, you can use "Restore Purchases" in the app to regain your entitlement after changing devices or reinstalling |
+| Cross-platform boundary | **A purchase made on iOS cannot be restored on the Android version, and vice versa** — the two stores' accounts and purchase records are separate |
+| Parental gate | **The purchase entry point sits behind the parental lock (PIN)**, so children cannot make a purchase on their own, in line with Apple App Store Kids Category requirements for in-app purchases |
+
+> Note: **whether "Family Sharing" will be enabled has not been finally decided**; if it is enabled, it will be described here separately.
+
+---
+
+## 6. Data Storage and Security
+
+- App data is stored in an **encrypted local database (SQLCipher)**; the key is generated when the app is installed and never leaves the device.
+- The parental PIN is stored as a **sha256 hash with a random salt** in system secure storage (the Keystore / Keychain equivalent). **It is never stored in plain text and cannot be reversed.**
+- Data is **not uploaded to the cloud, not synced, and not backed up to any third-party service**. Payment information arising from an in-app purchase is handled by the app store (Apple); we never see it, never retain it, and never link it to your on-device data.
+- **Uninstalling the app deletes all local data**: the encrypted database and key-value storage are removed along with the app's data directory, leaving no residue.
+
+---
+
+## 7. Parental Controls
+
+- The parental area is **PIN-protected**; children cannot enter it or change settings and rewards on their own.
+- Parents can manage reward templates and view focus statistics — all of this is on-device data and is not sent anywhere.
+
+---
+
+## 8. Children's Rights
+
+In accordance with the children's privacy laws applicable to the scope of this policy (EU GDPR Article 8, US COPPA, and other laws where you live); **the mainland China addendum is in Appendix A**:
+
+- By default, the app **does not collect any children's personal information**.
+- Parents have the right to access, correct and delete local data — **the way to do this is to uninstall the app on the device**, which permanently deletes all data.
+- If you have questions about this policy, please contact the maintainer using the details below.
+
+---
+
+## 9. Contact Us
+
+- Maintainer email: **1007681634@qq.com**
+- Developer legal entity name / address: 【placeholder — to be completed before launch】
+- Public URL of this privacy policy: 【placeholder URL — to be filled in at review submission】
+
+---
+
+## 10. Language Versions and Policy Updates
+
+### 10.1 Language version precedence
+
+- This policy is published in two texts: a **Simplified Chinese version** (`docs/隐私政策_向日葵专注_v1.md`) and an **English version** (`docs/隐私政策_向日葵专注_v1_EN.md`), the latter being a translation of the former.
+- 🔴 **Should the two versions differ in any way, the Simplified Chinese version prevails.**
+- Both texts are synchronised drafts; material changes will be announced in the app or in the release notes.
+
+### 10.2 Updates and publication
+
+- This policy may be updated as the app evolves.
+- This text currently lives at 【public URL placeholder】 and will be entered in the "Privacy Policy" field of each store at review submission.
+- Last updated: v1 (2026-xx-xx, TBD).
+
+---
+
+## 11. Global Compliance (GDPR / COPPA / Store Kids Policies)
+
+### 11.1 GDPR (EU / European Economic Area)
+
+- The app **does not collect or upload any personal data**. The developer does not carry out any processing of personal data as a controller, and there is no cross-border transfer of personal data: data created in the app always stays on your device.
+- Because the developer holds none of your personal data, you do **not** need to send the developer access / rectification / erasure requests in order to stay in full control — deleting the data on your device, or uninstalling the app, permanently deletes all local data (see Section 6).
+- The app sets no cookies or similar tracking technologies and uses no third-party analytics.
+- 【TBD】If any data processing activity is added in future, an EU Representative will be appointed first and this section updated; **the controller's legal entity name and contact address are to be completed before launch** (see Section 9).
+- 【TBD】The specific implementation and wording of the **parent / guardian consent mechanism** (GDPR Article 8) is to be confirmed with legal counsel before it is added.
+
+### 11.2 COPPA (US, children under 13)
+
+- The app is intended for children and families, but it **does not collect, request or upload any children's personal information**: no name, email, phone number, location, photos or voice recordings, and no publicly shareable user-generated content.
+- It contains **no third-party advertising, no behavioural/targeted advertising and no third-party analytics SDK**, and it never markets to or profiles children.
+- 【TBD】If a future feature involves collecting any children's personal information, we will switch to "obtain **verifiable parental consent (VPC)** first, then collect" and update this section.
+
+### 11.3 Apple App Store Kids Category requirements (iOS, launch platform)
+
+- The app contains **no third-party advertising, no third-party analytics and no social sharing**; the only external communication is in-app purchase billing, handled by Apple (see Section 5).
+- **In-app purchase requires passing the parental gate (PIN)**; the purchase is a one-time buyout, not a subscription, and does not auto-renew.
+- The "no data collected" statements in this policy must match the App Store Connect **App Privacy** disclosure item by item (this app declares **Data Not Collected**).
+
+### 11.4 Google Play Families Policy (Android version, when it launches)
+
+- When the Android version launches, the Google Play Families Policy and the Google Play **Data safety** form will apply; see Section 4 for the permission picture (`INTERNET`, `ACCESS_NETWORK_STATE` and `BILLING` are all merged in by dependency libraries and are **used only for in-app purchase billing, never to upload user data**).
+
+---
+
+## Appendix A: Mainland China Addendum (**applicable only when distributed in mainland China**)
+
+> **Applicability**: this appendix takes effect only if the app is published / distributed in **mainland China**. The current version is overseas-first; Section 11 governs.
+
+Under the PRC Personal Information Protection Law (PIPL) and the Provisions on the Protection of Children's Personal Information Online:
+
+- When distributed in mainland China, the app by default **does not collect any children's personal information**.
+- Parents have the right to access, correct and delete local data — **the way to do this is to uninstall the app on the device**, which permanently deletes all data.
+- If the processing of personal information within China, or any outbound transfer of personal information, is introduced in future, we will provide additional notice and a consent mechanism under the laws above.
+- Contact: 1007681634@qq.com.
+
+---
+
+## Open Items (to be confirmed)
+
+- [ ] Permission minimisation review: whether `ACCESS_NETWORK_STATE` (bundled by the audio library) and `INTERNET` / `BILLING` (bundled by the billing library) can be narrowed or removed via the manifest (may affect purchasing and audio; requires engineering assessment)
+- [ ] **Public hosting URL** for this privacy policy (required for review)
+- [ ] Developer legal entity name, address, software copyright / ICP filing and other launch qualifications (store placeholders)
+- [ ] **Controller legal entity name and address** (both GDPR and COPPA require an identifiable controller; required before launch)
+- [ ] Whether an **EU Representative** must be appointed for GDPR (legal counsel to confirm)
+- [ ] Specific implementation and wording of the **parent / guardian consent mechanism** (COPPA VPC / GDPR Article 8) — legal counsel to confirm
+- [ ] Whether **Family Sharing** will be enabled (Sections 5 and the EN version must be updated together)
+- [ ] Keep the Chinese and English versions in sync (`docs/隐私政策_向日葵专注_v1.md` / `docs/隐私政策_向日葵专注_v1_EN.md`); the EN version is delivered and **still needs public hosting**; required for App Store US listing
+- [ ] Align store compliance forms with this policy: App Store Connect "App Privacy" and Google Play "Data safety" (must match this policy word for word)
+- [ ] Language-hierarchy clause: which language version governs in case of conflict (to be confirmed by legal counsel before launch)

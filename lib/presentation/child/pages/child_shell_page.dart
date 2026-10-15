@@ -20,7 +20,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
@@ -37,6 +36,7 @@ import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/pages/store_page.dart';
 import 'package:sunflower_time/presentation/child/state/app_usage_controller.dart';
 import 'package:sunflower_time/presentation/child/widgets/app_cap_dialog.dart';
+import 'package:sunflower_time/presentation/child/widgets/parent_entry_action.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 import 'package:sunflower_time/shared/adaptive_nav_bar.dart';
 
@@ -472,26 +472,11 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
           _ => null,
         },
         actions: <Widget>[
-          // C44e 二轮反馈：家长入口图标同理垫白胶囊（沉浸式 tab），看不清问题
-          // 一并解决；非沉浸 tab 保持原样。
-          immersive
-              ? Container(
-                  margin: const EdgeInsets.only(right: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.78),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.family_restroom),
-                    tooltip: '家长天地',
-                    onPressed: () => context.go('/parent'),
-                  ),
-                )
-              : IconButton(
-                  icon: const Icon(Icons.family_restroom),
-                  tooltip: '家长天地',
-                  onPressed: () => context.go('/parent'),
-                ),
+          // 🔑 抽成 [ParentEntryAction] 单点收口：shell 与度量测试引用同一份 widget，
+          // 测试量到的就是真实渲染的图标（v3 徽章右对齐到家长图标所在竖线，
+          // 见 parent_entry_action.dart 文档）。两种形态（沉浸式垫白胶囊 / 裸图标）
+          // 与原内联版逐位一致，仅多挂一个 [ParentEntryAction.iconKey] 供度量。
+          ParentEntryAction(immersive: immersive),
         ],
       ),
       body: IndexedStack(

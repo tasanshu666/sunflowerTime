@@ -16,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
@@ -23,9 +24,14 @@ import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/focus_level.dart';
+import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
+import 'package:sunflower_time/domain/services/focus_level_service.dart'
+    show levelOfMinutes, thresholdMinutesOfLevel;
+import 'package:sunflower_time/presentation/child/widgets/level_up_fx_overlay.dart';
 
 /// 孩子端「我的」：累计成就。
 class ChildProfilePage extends ConsumerStatefulWidget {
@@ -45,6 +51,9 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
   int _totalEyeCares = 0;
   double _balance = 0;
   bool _loading = true;
+
+  /// 孩子昵称（T4：纯本地 SharedPreferences，默认「小朋友」，**不上传**）。
+  String _nickname = kDefaultChildNickname;
 
   @override
   void initState() {
@@ -88,6 +97,153 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
     await _reload(silent: true);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // T4 · 昵称（纯本地，非必填）
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// 读取昵称（缺失 / 空串 → 回落 [kDefaultChildNickname]）。
+  ///
+  /// 🔴 **纯本地、不上传**：只读写 SharedPreferences，不经任何网络 / 账号体系
+  /// —— 与隐私政策「不收集儿童个人信息」的承诺一致，故本功能**无需**改隐私政策。
+  String _readNickname() {
+    final String? raw =
+        ref.read(sharedPreferencesProvider).getString(kPrefChildNickname);
+    final String trimmed = (raw ?? '').trim();
+    return trimmed.isEmpty ? kDefaultChildNickname : trimmed;
+  }
+
+  /// 弹出昵称编辑框（限长 [kChildNicknameMaxLength]，trim，空则回落默认）。
+  Future<void> _editNickname() async {
+    final TextEditingController controller =
+        TextEditingController(text: _nickname);
+    final String? input = await showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('我的昵称'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: kChildNicknameMaxLength,
+          decoration: const InputDecoration(
+            hintText: '小朋友',
+            counterText: '',
+          ),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (String v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (input == null || !mounted) return;
+    final String trimmed = input.trim();
+    await ref
+        .read(sharedPreferencesProvider)
+        .setString(kPrefChildNickname, trimmed);
+    if (!mounted) return;
+    setState(() => _nickname = trimmed.isEmpty ? kDefaultChildNickname : trimmed);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // T3 · 调试区：等级结算快捷入口（仅 kDebugMode）
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// 追加一条**真实的**专注会话（[minutes] 分钟）并走真实结算 + 演出。
+  ///
+  /// ⚠️ 「模拟」= 写一条真实会话记录（驱动量 `FocusStats.totalFocusMinutes` 本来就
+  /// 由会话聚合而来），**不是**假造等级数字 —— 结算仍走**等级服务 `settle()`** 的
+  /// 同一条代码路径（双锚点 / 幂等 / 写账本全都在），与今日页调用的是同一个方法。
+  Future<void> _debugAddFocusMinutes(double minutes) async {
+    final DateTime now = DateTime.now();
+    await ref.read(focusRepositoryProvider).saveSession(
+          FocusSession(
+            id: const Uuid().v4(),
+            start: now.subtract(Duration(minutes: minutes.round())),
+            end: now,
+            plannedMin: minutes.round(),
+            actualFocusMin: minutes,
+            status: FocusStatus.completed,
+            sunlightEarned: 0,
+            createdAt: now,
+          ),
+        );
+    if (!mounted) return;
+    await _reload(silent: true);
+    if (!mounted) return;
+    await _debugSettleAndShowFx();
+  }
+
+  /// 直接跳到**下一个称号节点**：补足到该节点门槛所需的分钟数。
+  Future<void> _debugJumpToNextTitleNode() async {
+    final double current =
+        (await ref.read(focusRepositoryProvider).totalStats())
+            .totalFocusMinutes;
+    final int level = levelOfMinutes(current);
+    final int? nextTitleNode = _nextTitleNodeAfter(level);
+    if (nextTitleNode == null) {
+      _snack('已经是最高称号节点（Lv.$level）');
+      return;
+    }
+    final int target = thresholdMinutesOfLevel(nextTitleNode);
+    final double add = (target - current).ceilToDouble();
+    if (add <= 0) {
+      _snack('已在 Lv.$nextTitleNode 之上，无需补');
+      return;
+    }
+    await _debugAddFocusMinutes(add);
+    _snack('已补 ${add.round()} 分钟 → 目标 Lv.$nextTitleNode');
+  }
+
+  /// 重置等级结算锚点（**只清 SP，不动账本**）。
+  ///
+  /// ⚠️ 账本 `sunlight_ledger` 是 append-only 事实源（C12）→ 清了 SP 之后，下次结算
+  /// 会因**双锚点取大**被账本里已发过的节点顶回去，**已发过的阳光不会重发**
+  /// （这是幂等红线 I1，不是 bug）。按钮文案已如实注明这一点。
+  Future<void> _debugResetLevelAnchor() async {
+    await ref.read(focusLevelStoreProvider).clear();
+    if (!mounted) return;
+    await _reload(silent: true);
+    _snack('已清 SP 锚点（账本已发过的不会重发）');
+  }
+
+  /// 走**真实**结算 + 演出（与今日页 `_settleFocusLevel` 同一条 `settle()` 路径）。
+  Future<void> _debugSettleAndShowFx() async {
+    final double total =
+        (await ref.read(focusRepositoryProvider).totalStats())
+            .totalFocusMinutes;
+    final FocusLevelSettleResult result =
+        await ref.read(focusLevelServiceProvider).settle(total);
+    if (!mounted) return;
+    if (result.granted.isNotEmpty) {
+      // 阳光已落袋 → 同步孩子端经济展示（与今日页同款）。
+      ref.read(economyRevisionProvider.notifier).state++;
+    }
+    await showLevelUpFxAuto(context, result);
+  }
+
+  void _snack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  /// 严格大于 [level] 的**最小**称号节点（没有则返回 null）。
+  int? _nextTitleNodeAfter(int level) {
+    for (final int n in kFocusLevelTitleLevels) {
+      if (n > level) return n;
+    }
+    return null;
+  }
+
   // ── C68：自动刷新接线（切回本 tab / 回前台 / 跨 08:00 或跨天）───────────────
   @override
   int? get refreshTabIndex => kChildTabIndexOfProfile;
@@ -123,6 +279,7 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
             plants.where((Plant p) => p.status == PlantStatus.bloomed).length;
         _totalEyeCares = eyeCares;
         _balance = balance;
+        _nickname = _readNickname();
         _loading = false;
       });
     } catch (_) {
@@ -163,10 +320,40 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        '我的阳光：${sunlightDisplayInt(_balance)} ☀',
-                        style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          // T4：昵称（点击整行改名；非必填，默认「小朋友」）。
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _editNickname,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Flexible(
+                                  child: Text(
+                                    _nickname,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.edit,
+                                    size: 16, color: Colors.grey),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '我的阳光：${sunlightDisplayInt(_balance)} ☀',
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ],
                       ),
                     ),
                     // 右上角标签：点击进入阳光来源记录（用户 2026-09-21 反馈 ③）。
@@ -237,6 +424,29 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
             style: OutlinedButton.styleFrom(foregroundColor: Colors.orange),
             onPressed: _grantDebugSunlight,
             child: const Text('DEBUG 加1000阳光'),
+          ),
+          // ── T3 · 等级演出调试入口（玄参 2026-10-14 要，用于测演出）────────
+          // ⚠️ 三个按钮都走**真实**的 `FocusLevelService.settle()`（写真实会话、
+          // 真实写账本、真实播演出），没有另写假结算。
+          const SizedBox(height: 8),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.teal),
+            onPressed: () => _debugAddFocusMinutes(30),
+            child: const Text('DEBUG 累计专注 +30 分钟（模拟）'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.teal),
+            onPressed: _debugJumpToNextTitleNode,
+            child: const Text('DEBUG 直接跳到下一个称号节点'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.blueGrey),
+            onPressed: _debugResetLevelAnchor,
+            // ⚠️ 文案如实注明：账本是 append-only 事实源，清 SP 后双锚点取大会
+            // 被已发节点顶回去 —— **已发过的阳光不会重发**（幂等红线 I1）。
+            child: const Text('DEBUG 重置等级结算锚点（账本已发过的不会重发）'),
           ),
         ],
       ],

@@ -17,12 +17,14 @@
 /// [SunlightRepository.earnNetOnDay]（当日实际发放合计，§4.5 口径）。
 library child_today_page;
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
@@ -31,7 +33,12 @@ import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
+import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/domain/services/focus_level_service.dart';
+import 'package:sunflower_time/presentation/child/widgets/focus_level_badge.dart';
+import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
+import 'package:sunflower_time/presentation/child/widgets/level_up_fx_overlay.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 
@@ -68,9 +75,35 @@ const double kTodayCardTopRatio = 0.40;
 /// ⚠️ 只有「今日」页有这个双常量结构（成长/商店两页的底图锚点仍 = 卡片起点）。
 const double kTodayBgPanelTargetRatio = 0.37;
 
+/// 底图分界线 ↔ 第一张卡之间那条奶油「呼吸带」占**屏高**的比例（C67 = 3%）。
+///
+/// ## 为什么必须显式成常量（2026-10-14 玄参 iOS 手机模拟器实测回归）
+/// C67 把卡片定在 [kTodayCardTopRatio] = 0.40、底图锚点定在 0.37，二者之差 **3%
+/// 就是呼吸带** —— 但这个减法只在**平板**成立：平板上底图会按 [kTodayBgPanelTargetRatio]
+/// 主动对齐，分界线**真的**落在 `0.37 × 屏高`。
+/// **手机端底图恒 `topCenter`（C64 手机零像素回归）** → 分界线落在 `cover` 几何处
+/// （今日图 = `0.399 × 3200 × 屏宽 / 1440` ≈ `0.887 × 屏宽`），与 `0.37 × 屏高`
+/// **无关**；而卡片仍按 `0.40 × 屏高` 摆 → 手机上卡片反而在分界线**之上**约 7pt
+/// （实测 iPhone 390×844：卡顶 337.6 / 分界线 345.8），也就是玄参截图里「卡片骑在
+/// 面板圆角上、呼吸带没了」。
+///
+/// ## 修法
+/// 卡片起点改为 `max(0.40 × 屏高, 实测分界线 + 本常量 × 屏高)`：
+///  · **平板**：分界线 = 0.37 × 屏高 ⇒ 第二项 = 0.40 × 屏高 ⇒ `max` 取到**冻结值本身**
+///    （iPad 零像素变化，C67 标定 36pt 呼吸带原样保留）；
+///  · **手机**：分界线被 cover 抬高 ⇒ 第二项更大 ⇒ 卡片随之下移到分界线下方，
+///    呼吸带 = 3% 屏高（iPhone 844 ≈ 25pt），与平板**同口径**。
+///
+/// ⚠️ 两个 C67 冻结常量（0.40 / 0.37）**均未改动**；底图仍恒 topCenter，**零像素变化**。
+const double kTodayBreathingBandRatio = 0.03;
+
 /// 孩子端「今日」状态卡。
 class ChildTodayPage extends ConsumerStatefulWidget {
   const ChildTodayPage({super.key});
+
+  /// 悬浮阳光胶囊的 Key（度量护栏用：读它的 RenderBox 得到真实胶囊矩形，
+  /// 与生产同源 —— `today_badge_bounds_test.dart` 平板「徽章 ∩ 阳光胶囊 = ∅」）。
+  static const Key sunBubbleKey = Key('todayFloatingSunBubble');
 
   @override
   ConsumerState<ChildTodayPage> createState() => _ChildTodayPageState();
@@ -86,6 +119,19 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   int _taskTotal = 0;
   bool _loading = true;
 
+  /// 累计有效专注分钟（C74 驱动量；`FocusRepository.totalStats()` 派生）。
+  double _totalFocusMinutes = 0;
+
+  /// 升级演出（**只在称号节点**播）在飞闸门（F114 教训：单 bool 抑制不可靠 →
+  /// 只在演出 `onComplete` 与兜底定时器里解除，绝不被 `_reload` 重入提前清）。
+  bool _levelUpFxInFlight = false;
+
+  /// 升级演出的根 Overlay 浮层（页面卸载时必须显式移除）。
+  OverlayEntry? _levelUpFxEntry;
+
+  /// 演出兜底定时器（onComplete 因任何原因没触发也保证浮层被清走）。
+  Timer? _levelUpFxTimer;
+
   /// 悬浮气泡的漂动时钟（C44i：玄参反馈太陕太窄 → 12s 一圈、振幅放大 ~70%；
   /// Lissajous 轨迹，整数倍谐波 → 无规律小范围飘动感且循环无跳变）。
   late final AnimationController _drift =
@@ -100,6 +146,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
 
   @override
   void dispose() {
+    _cancelLevelUpFx(); // 根 Overlay 浮层不随本页卸载，必须显式移除。
     _drift.dispose();
     super.dispose();
   }
@@ -130,6 +177,12 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
           0.0, (double a, FocusSession s) => a + s.actualFocusMin);
       final TodayTaskBoard board =
           await ref.read(taskCheckInServiceProvider).board(now);
+      // C74 驱动量：累计有效专注分钟（来自 App 首用至今的全部会话）。
+      // ⚠️ 技术债（Q-J）：`totalStats()` 是全量取行后内存求和，当前量级无碍，
+      //    超过 ~5 万行再评估改 SQL 聚合 —— v1 不改。
+      final double totalFocusMinutes =
+          (await ref.read(focusRepositoryProvider).totalStats())
+              .totalFocusMinutes;
       if (!mounted) return;
       setState(() {
         _balance = balance;
@@ -138,12 +191,99 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         _focusCount = sessions.length;
         _taskDone = board.doneCount;
         _taskTotal = board.total;
+        _totalFocusMinutes = totalFocusMinutes;
         _loading = false;
       });
+      // C74 结算必须在 setState 之后：徽章先亮出来，再看是否要发阳光 / 播演出。
+      await _settleFocusLevel(totalFocusMinutes);
     } catch (_) {
       // 今日卡属概览，任一查询失败不阻塞（保留上次值）。
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  // ── C74 · 专注等级结算 + 升级演出（只在今日页；§5.24.3 / §5.24.6）────────
+
+  /// 结算本轮等级：**先写账本**（崩溃不丢阳光），再按结果决定是否播演出。
+  ///
+  /// 🔑 只有**跨过称号节点**时 `granted` 非空 → 自增经济修订号 + 播 1 场演出；
+  /// 普通升级（40 级里的另外 31 次）**零阳光、零演出**，只更新徽章进度。
+  /// 失败一律记日志后吞掉（S10：`catch(_)` 静默吞 = 泄漏），**不阻塞今日页渲染**。
+  Future<void> _settleFocusLevel(double totalFocusMinutes) async {
+    try {
+      final FocusLevelSettleResult result =
+          await ref.read(focusLevelServiceProvider).settle(totalFocusMinutes);
+      if (!mounted) return;
+      // 🔑 C74 §6 **修订二**：每次升级都播演出，但只有称号节点发阳光。
+      //  `levelUpFxKindOf` 返回 null = 没升级 / 老用户首用静默 ⇒ 什么都不做。
+      final LevelUpFxKind? kind = levelUpFxKindOf(result);
+      if (kind == null) return;
+      if (kind == LevelUpFxKind.titleNode) {
+        // 阳光已落袋 → 同步孩子端经济展示（今日阳光 / 我的页 / 花园胶囊）。
+        ref.read(economyRevisionProvider.notifier).state++;
+      }
+      // 演出只在**今日页可见**时上屏（§5.24.4：不可见 ⇒ 只结算不播；
+      // 阳光已落袋，演出属庆祝不补发、不补播）。
+      final bool visible =
+          ref.read(childShellTabIndexProvider) == kChildTabIndexOfToday;
+      if (visible) await _showLevelUpFx(result, kind);
+    } catch (e) {
+      // 结算失败不影响今日页任何既有功能（等级是纯荣誉）。
+      debugPrint('[FocusLevel] 结算失败：$e');
+    }
+  }
+
+  /// 播一场升级演出（根 Overlay + in-flight 闸门，保证一次进页至多一场）。
+  ///
+  /// ⚠️ 普通升级的演出频次是称号节点的数倍（40 级全升完播 39 场）→ 闸门必须只
+  /// 放行一场；跨多级一次结算也**只播一场**（用最高节点对应的素材）。
+  /// [frames] 先解析好再建浮层（解析是 async，不能在 OverlayEntry.builder 里做）。
+  Future<void> _showLevelUpFx(
+    FocusLevelSettleResult result,
+    LevelUpFxKind kind,
+  ) async {
+    if (!mounted || _levelUpFxInFlight) return;
+    _levelUpFxInFlight = true;
+    final LevelUpFxSpec spec = levelUpFxSpecOf(kind);
+    final List<String> frames = await resolveFxFrames(
+      spec.dir,
+      ext: spec.frameExt,
+      fallbackCount: spec.fallbackFrameCount,
+    );
+    if (!mounted) {
+      _levelUpFxInFlight = false; // 解析期间已卸载：直接解除闸门
+      return;
+    }
+    final OverlayEntry entry = levelUpFxOverlayEntry(
+      result: result,
+      frames: frames,
+      onComplete: _removeLevelUpFx,
+    );
+    _levelUpFxEntry = entry;
+    Overlay.of(context, rootOverlay: true).insert(entry);
+    // 兜底：演出 onComplete 因任何原因未触发也保证浮层被清走 + 解除闸门。
+    _levelUpFxTimer = Timer(
+      Duration(milliseconds: spec.totalMs + 300),
+      _removeLevelUpFx,
+    );
+  }
+
+  /// 移除演出浮层（幂等；唯一的闸门解锁口）。
+  void _removeLevelUpFx() {
+    _levelUpFxTimer?.cancel();
+    _levelUpFxTimer = null;
+    _levelUpFxEntry?.remove();
+    _levelUpFxEntry = null;
+    _levelUpFxInFlight = false;
+  }
+
+  /// 页面卸载：停定时器并摘浮层（不触碰 ref —— Riverpod 纪律）。
+  void _cancelLevelUpFx() {
+    _levelUpFxTimer?.cancel();
+    _levelUpFxTimer = null;
+    _levelUpFxEntry?.remove();
+    _levelUpFxEntry = null;
+    _levelUpFxInFlight = false;
   }
 
   @override
@@ -160,7 +300,12 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
     // ③「开始专注」按钮钉在底部；④只有中间状态卡可滚动。
     final Widget body = _loading
         ? const Center(child: CircularProgressIndicator())
-        : _buildLayout();
+        // LayoutBuilder 量到的就是 [TabBackground] 的真实盒子（DecoratedBox 原样
+        // 透传约束）→ 卡片起点才能与底图分界线**同源反算**（见 [_buildLayout]）。
+        : LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints c) =>
+                _buildLayout(box: c.biggest),
+          );
 
     // C44：整页背景（上半场景 + 下半留白，白卡浮在留白区上）。
     return TabBackground(
@@ -174,13 +319,25 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   }
 
   /// 布局：`Stack[ 场景留白 + 卡片滚动区 + 钉底按钮 , 悬浮阳光气泡 ]`。
-  Widget _buildLayout() {
+  Widget _buildLayout({required Size box}) {
     final double screenH = MediaQuery.sizeOf(context).height;
     final double screenW = MediaQuery.sizeOf(context).width;
-    // 第一张卡起点 = [kTodayCardTopRatio] × 屏高（C67 = **0.40**）：上半向日葵 +
-    // 积木插画完整露出，下方再留 3% 屏高的奶油呼吸带。直接用屏高比例定位（实测模拟器 padding.top ≈118pt
+    // 底图分界线（**实测反算**，与 TabBackground 同源；未登记几何 ⇒ -inf）。
+    final double panelLineY = TabBackground.panelLineY(
+      context: context,
+      box: box,
+      asset: kTodayBgAsset,
+      targetRatio: kTodayBgPanelTargetRatio,
+    );
+    // 第一张卡起点：C67 冻结值 `0.40 × 屏高` **与**「实测分界线 + 3% 呼吸带」取大。
+    // 平板上两者相等（⇒ iPad 零变化）；手机上分界线被 cover 抬高，取大即把卡片
+    // 压回分界线下方，恢复呼吸带（见 [kTodayBreathingBandRatio] 的推导）。
+    // 直接用屏高比例定位（实测模拟器 padding.top ≈118pt
     // 双倍计入，减 topInset 反而会把卡片顶回 20%，故与 topInset 解耦）。
-    final double sceneGap = screenH * kTodayCardTopRatio;
+    final double sceneGap = math.max(
+      screenH * kTodayCardTopRatio,
+      panelLineY + screenH * kTodayBreathingBandRatio,
+    );
 
     return Stack(
       children: <Widget>[
@@ -262,8 +419,34 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
           left: screenW * 0.65,
           top: screenH * 0.25,
           child: _FloatingSunBubble(
+            capsuleKey: ChildTodayPage.sunBubbleKey,
             balance: _balance,
             drift: _drift,
+          ),
+        ),
+        // C74 · 专注等级徽章。
+        // 🔴 不改本页任何冻结常量：卡片起点 [kTodayCardTopRatio] 与底图锚点
+        // [kTodayBgPanelTargetRatio] 均未改动，徽章只是场景区上方的**新增元素**。
+        //
+        // · 手机：左上角（[kTodayBadgeLeftRatio] / [kTodayBadgeTopRatio]）—— 零回归。
+        // · 平板（v3 右对齐 / v4 落红框，玄参真机拍板）：右对齐到
+        //   [kTodayBadgeRightInsetTablet]（100pt，与右上家长入口图标的右内边距取齐成一条竖线）；
+        //   top = [kTodayBadgeTopRatioTablet]（0.10，落在「今日」pill 右下方的空白墙区，
+        //   既在透明 AppBar 家长图标之下、又在右侧阳光胶囊飘动区之上，两个都不压）。
+        //   根因：iPad 上底图 cover 把向日葵花头抬到屏 y≈44，左上角墙区被花头/窗/
+        //   书架占满，徽章虽渲染但视觉丢失 —— 移到右侧墙区是唯一根治解（手机不动）。
+        Positioned(
+          right: isTabletOf(context) ? kTodayBadgeRightInsetTablet : null,
+          left: isTabletOf(context)
+              ? null
+              : screenW * kTodayBadgeLeftRatio,
+          top: screenH *
+              (isTabletOf(context)
+                  ? kTodayBadgeTopRatioTablet
+                  : kTodayBadgeTopRatio),
+          child: FocusLevelBadge(
+            progress: progressOf(_totalFocusMinutes),
+            totalMinutes: _totalFocusMinutes,
           ),
         ),
       ],
@@ -286,7 +469,14 @@ class _FloatingSunBubble extends StatelessWidget {
   final double balance;
   final Animation<double> drift;
 
-  const _FloatingSunBubble({required this.balance, required this.drift});
+  /// 胶囊容器的 Key（度量护栏用，由页面传入 [ChildTodayPage.sunBubbleKey]）。
+  final Key? capsuleKey;
+
+  const _FloatingSunBubble({
+    required this.balance,
+    required this.drift,
+    this.capsuleKey,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -314,6 +504,7 @@ class _FloatingSunBubble extends StatelessWidget {
         return Transform.translate(offset: Offset(dx, dy), child: child);
       },
       child: Container(
+        key: capsuleKey,
         // C67：胶囊整体放大（见类文档的尺寸表）。
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
         decoration: BoxDecoration(

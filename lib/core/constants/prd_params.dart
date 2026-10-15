@@ -1141,3 +1141,418 @@ const double kTabletTextScaleMax = 1.6;
 ///    **不跨边界绝不查库**；
 ///  · 只在**当前可见**的 tab 上运行（不可见的 tab 一个定时器都不留）。
 const int kChildTabBoundaryCheckSeconds = 60;
+
+// ───────────────────────────────────────────────────────────────────────────
+// C74 · 专注等级 → 专注称号（2026-10-14 玄参拍板；§10 修订为 40 级 + 9 称号）
+//
+// 口径（宪法级，见 `docs/口径裁定表_v1.md` C74）：
+//  ① 驱动量 = **累计有效专注分钟**，从 App 首用累计（老用户跳级，允许跨多级）；
+//  ② **40 级**门槛见 [kFocusLevelThresholdMinutes]；
+//  ③ **9 个称号**（每 5 级一个）见 [kFocusLevelTitleLevels] / [kFocusLevelTitles]；
+//  ④ 阳光**只在 9 个称号节点发**，合计 102 ☀（见 [kFocusLevelUpSunlight]），
+//     🔴 **同一称号节点绝不重复发**；普通升级（另外 31 次）**不发阳光、不播演出**；
+//  ⑤ **不做付费门控**；⑥ **只在孩子端今日页展示**；⑦ **不影响任何玩法数值**。
+//  ⑧ **老用户首用静默跳级**：认等级与称号，**不补发历史称号阳光**（§9）。
+//
+// 🔴 三条总纪律：
+//   · 阶梯**只以本文件的一种形态存在**（防孪生宪法总纪律 #2）：页面 / 结算 / 表格里
+//     **不得**出现「2 小时 / 6 小时」等第二份写法（展示一律由小时→分钟换算派生）；
+//   · `'focus_level_up'` 字符串值**冻结（append-only）**：改名只能改常量名，绝不改值
+//     （一旦落库的历史行永不改）；
+//   · 🔧 **满级节奏调整只需改 [kFocusLevelThresholdMinutes]**（C74 §2 附注：等比压缩
+//     整表使满级 = 120h 也不动结构）。
+//
+// ⚠️ `kLevelUpAudioCue`（= `AudioCue.collectReward`）属 `lib/platform/audio_service.dart`，
+// prd_params 不可 import 平台层，故就近定义在
+// `presentation/child/widgets/level_up_fx_overlay.dart` 顶部（**音效替换点**）。
+// ───────────────────────────────────────────────────────────────────────────
+
+/// 最高等级（= [kFocusLevelThresholdMinutes].length = **40**）。
+const int kFocusLevelMaxLevel = 40;
+
+/// 各级门槛（**累计有效专注分钟**，唯一真源；UI 按「n 小时 m 分钟」展示）。
+///
+/// 索引 0 = Lv.1；🔴 **Lv.1 门槛 = 60 分钟**（不是 0 —— 累计不足 1 小时的孩子
+/// `level = 0`「尚未解锁」，这是本功能唯一需要处理 `level == 0` 的地方）。
+///
+/// 判定：`累计分钟 >= 门槛` 即达到该等级（闭区间下界），取满足条件的最大等级；
+/// 允许跳级（老用户一上线直接拿到应得等级）。
+///
+/// 小时 → 分钟换算（C74 §2 阶梯表，逐条核对）：
+/// 1h/2h/4h/6h/8h · 11h/15h/19h/23h/28h · 33h/38h/44h/51h/57h ·
+/// 65h/72h/80h/89h/98h · 107h/117h/127h/138h/149h · 160h/172h/184h/197h/210h ·
+/// 224h/238h/252h/267h/282h · 298h/314h/331h/348h/365h。
+const List<int> kFocusLevelThresholdMinutes = <int>[
+  60, // Lv.1   1h
+  120, // Lv.2  2h
+  240, // Lv.3  4h
+  360, // Lv.4  6h
+  480, // Lv.5  8h
+  660, // Lv.6  11h
+  900, // Lv.7  15h
+  1140, // Lv.8 19h
+  1380, // Lv.9 23h
+  1680, // Lv.10 28h
+  1980, // Lv.11 33h
+  2280, // Lv.12 38h
+  2640, // Lv.13 44h
+  3060, // Lv.14 51h
+  3420, // Lv.15 57h
+  3900, // Lv.16 65h
+  4320, // Lv.17 72h
+  4800, // Lv.18 80h
+  5340, // Lv.19 89h
+  5880, // Lv.20 98h
+  6420, // Lv.21 107h
+  7020, // Lv.22 117h
+  7620, // Lv.23 127h
+  8280, // Lv.24 138h
+  8940, // Lv.25 149h
+  9600, // Lv.26 160h
+  10320, // Lv.27 172h
+  11040, // Lv.28 184h
+  11820, // Lv.29 197h
+  12600, // Lv.30 210h
+  13440, // Lv.31 224h
+  14280, // Lv.32 238h
+  15120, // Lv.33 252h
+  16020, // Lv.34 267h
+  16920, // Lv.35 282h
+  17880, // Lv.36 298h
+  18840, // Lv.37 314h
+  19860, // Lv.38 331h
+  20880, // Lv.39 348h
+  21900, // Lv.40 365h（满级）
+];
+
+/// **称号解锁节点**（每 5 级一个，共 9 个；与 [kFocusLevelTitles] 一一对应）。
+const List<int> kFocusLevelTitleLevels = <int>[1, 5, 10, 15, 20, 25, 30, 35, 40];
+
+/// 称号文案（童话校园风，**索引与 [kFocusLevelTitleLevels] 一一对应**）。
+///
+/// 🔑 **等级与称号解耦**：40 级里只有 9 个称号节点，**当前称号 = 已解锁的最高称号节点**
+/// （如 Lv.7 → 仍是 Lv.5 的「专注小苗苗」），称号不随每一级变化。
+const List<String> kFocusLevelTitles = <String>[
+  '专注小萌芽', // Lv.1
+  '专注小苗苗', // Lv.5
+  '静心小书童', // Lv.10
+  '时光小卫士', // Lv.15
+  '专心小骑士', // Lv.20
+  '守时小星使', // Lv.25
+  '专注小法师', // Lv.30
+  '星辰守护者', // Lv.35
+  '时光大贤者', // Lv.40（满级）
+];
+
+/// 解锁该称号节点发放的阳光（**只在 9 个称号节点发**；非称号等级一律 0）。
+///
+/// 合计 **102 ☀**（= 3+5+7+9+11+13+16+18+20），仍低于复核红线 150 ☀。
+const Map<int, int> kFocusLevelUpSunlight = <int, int>{
+  1: 3,
+  5: 5,
+  10: 7,
+  15: 9,
+  20: 11,
+  25: 13,
+  30: 16,
+  35: 18,
+  40: 20,
+};
+
+/// 九档称号阳光合计（= **102 ☀**，C74 §4；用于护栏断言与经济复核，勿手改）。
+const int kFocusLevelTotalSunlight = 102;
+
+/// 阳光账本 refType（🔴 **值冻结，append-only**）。
+const String kFocusLevelUpRefType = 'focus_level_up';
+
+/// 阳光账本 refId 前缀：`refId = 'lv{n}'`（小写、无空格，防大小写分裂）。
+///
+/// 唯一生成入口是 `levelRefIdOf()`（`lib/domain/services/focus_level_service.dart`），
+/// 页面**禁止拼字符串**。
+const String kFocusLevelRefIdPrefix = 'lv';
+
+// ── 升级演出序列帧素材（2026-10-14 玄参交付，C74 §6 修订二「每次升级都播」）─────
+
+/// 普通升级（非称号节点）：36 帧 PNG + `default_level_up.mp3`。
+///
+/// ⚠️ 目录名按玄参交付**原样使用**（`defaultLevelUp`，首字母大写驼峰）。
+const String kLevelUpDefaultFxDir = 'assets/fx/levelUp/defaultLevelUp';
+
+/// 称号节点（1/5/10/…/40）：41 帧 PNG + `5_level_up.mp3`。
+///
+/// ⚠️ **目录名拼写就是 `5leveUp`（少一个 `l`）** —— 玄参交付时即如此，按现状使用、
+/// **不重命名**（改名要同步 pubspec / 常量 / 素材目录三处，风险大于收益）。
+/// 帧数不写死：运行期由 `resolveFxFrames` 读 AssetManifest 实测，这里只是兜底契约值。
+const String kLevelUpTitleFxDir = 'assets/fx/levelUp/5leveUp';
+
+/// 升级演出帧扩展名（玄参交付为 PNG，未走 WebP 压缩管线）。
+const String kLevelUpFxFrameExt = 'png';
+
+/// 普通升级帧数（**兜底契约值**，运行期以 AssetManifest 实测为准）。
+const int kLevelUpDefaultFrameCount = 36;
+
+/// 称号节点帧数（**兜底契约值**，运行期以 AssetManifest 实测为准）。
+const int kLevelUpTitleFrameCount = 41;
+
+/// 普通升级演出时长 = `default_level_up.mp3` **实测** 3.5788s（afinfo）。
+///
+/// 帧速 = 帧数 ÷ 音频时长 = 36 ÷ 3.579 ≈ **10.06 fps**（C28「帧速 = 音频时长推导」先例）。
+const int kLevelUpDefaultFxDurationMs = 3579;
+
+/// 称号节点演出时长 = `5_level_up.mp3` **实测** 4.1796s（afinfo）。
+///
+/// 帧速 = 41 ÷ 4.180 ≈ **9.81 fps**。
+const int kLevelUpTitleFxDurationMs = 4180;
+
+/// 升级演出卡停留时长（毫秒）—— **未接素材时的兜底**（见 [kLevelUpFxHoldMsOf]）。
+///
+/// ⚠️ 仅作为「未命中素材序列帧」时的兜底停留时长；命中素材时实际停留由
+/// [kLevelUpFxHoldMsOf] / LevelUpFxSpec.durationMs 决定（= 音频时长）。
+///
+/// 包络 = 弹入 `kGrowFxEnterMs`(360) → 停留 → 淡出 `kFxDisplayFadeOutMs`(300)。
+/// 接入序列帧后停留时长取「该套素材的播放时长」，由 [kLevelUpFxHoldMsOf] 给出。
+const int kLevelUpFxHoldMs = 1600;
+
+/// 某类升级演出的停留时长（= 对应序列帧播放时长，音画同步）。
+int kLevelUpFxHoldMsOf(bool isTitleNode) =>
+    isTitleNode ? kLevelUpTitleFxDurationMs : kLevelUpDefaultFxDurationMs;
+
+// ── 今日页等级徽章（方案 A：场景区左上，与右下阳光气泡同级）─────────────────
+
+/// 徽章锚点 · `left = 屏宽 × 本值`（手机 402 → ≈16pt；平板 834 → ≈33pt）。
+const double kTodayBadgeLeftRatio = 0.04;
+
+/// 徽章锚点 · `top = 屏高 × 本值`（**手机**；402×874 → ≈96pt）。
+///
+/// ## 沿革
+///  · 0.10 → 0.17（2026-10-14 上午）：躲「今日」标题带；
+///  · 0.17 → **0.11**（2026-10-14 下午）：玄参真机反馈「徽章压住向日葵花头」。
+///    依据（PIL 逐像素标定 `today.webp`）：向日葵立绘花瓣顶在源图 y≈583
+///    （见 `kTodayBgSunflowerNormalizedRect`），手机 cover 几何下花头顶落在
+///    屏 y≈157（390×844）/≈162（402×874）；0.17×844=143.5 的徽章（含独立提示行
+///    总高 ~82pt）一路压到 ≈225pt，整盖花脸。
+///
+/// ## 为什么是 0.11 而不是 0.12（RenderBox 实测后微调）
+/// 气泡改**包内容自适应高**后实测总高 ≈54pt。0.12 时最紧的机型（390×844）
+/// 徽章底距花头顶只剩 ≈1.8pt，小屏 Android（360×800，长宽比恰 = 底图 0.45）
+/// 更是**负余量**；0.11 时全部手机机型余量 ≥3pt（360×800 ≈3 / 390×844 ≈10 /
+/// 402×874 ≈12），同时仍稳在「今日」标题 pill（底 ≈62~90pt）之下。
+/// 度量护栏：`today_badge_bounds_test.dart`（徽章 ↔ 立绘 / 「今日」pill 两个
+/// RenderBox 不相交 + 提示行收进气泡内）。
+///
+/// ⚠️ **平板不用本值**（见 [kTodayBadgeTopRatioTablet]）：iPad 834×1210 上底图
+/// 被主动对齐到 0.37 × 屏高，花头顶被 cover 抬到屏 y≈44（在透明 AppBar 之后）——
+/// 0.10~0.14 的任何值都会让徽章整块压在花头上，反而 0.17 与花头只有底部 ~19pt
+/// 的边角相接。故平板维持 0.17（位置零回归），只改手机。
+const double kTodayBadgeTopRatio = 0.11;
+
+/// 徽章锚点 · `top = 屏高 × 本值`（**平板**，shortestSide ≥ 600）。
+///
+/// ## v4（2026-10-15 玄参拍板「徽章移今日 pill 右下方红框」）：0.17 → **0.10**
+/// 玄参在 iPad Pro 11"(834×1194) 画红框要求徽章放到「今日」pill 右下方
+/// 空白墙区（红框约 y 116~161pt）。0.10 × 1194 ≈ 119pt 落在红框带内，且仍在
+/// 「透明 AppBar 家长入口图标（底 ≈80pt）**之下**、右侧阳光胶囊飘动区
+/// （基点 0.25×屏高 ≈298pt、振幅 ±19pt ⇒ 顶 ≈279pt）**之上**」的空白带 ——
+/// 与两者天然分离（度量护栏 `today_badge_bounds_test.dart` 平板五条硬约束）。
+/// 手机端 top 用 [kTodayBadgeTopRatio]（0.11），与本值无关。
+const double kTodayBadgeTopRatioTablet = 0.10;
+
+/// 徽章锚点 · 平板**右侧内边距**（`right = 本值`，固定 pt，**非比例**）。
+///
+/// ## v4（2026-10-15 玄参拍板「移入今日 pill 右下方红框」）：10 → **100**
+/// v3 的 10pt 是「右缘与家长图标右缘取齐成一条竖线」，但玄参 iPad 实测反馈
+/// 徽章太靠右上（压在家长图标正下方、且溢出），要求移到「今日」pill 右下方
+/// 红框区（红框约 x 447~734pt），与家长图标**左缘**留 ≥16pt 间距（即徽章右缘
+/// < 家长图标左缘 − 16pt）。
+///
+/// 家长入口图标 = `margin: right:10` + `IconButton`(~48pt) ⇒ 左缘 ≈ 屏宽 − 58；
+/// 取 100pt 内边距 ⇒ 徽章右缘 ≈ 屏宽 − 100，与家长图标左缘间距 ≈ 42pt（≥16 ✅），
+/// 且徽章落在红框右端（x ≈ 537~734pt，在 447~734 红框内）。固定 pt（非比例）
+/// 保证不同屏宽平板的间距一致（家长图标的 margin/icon 也是固定 pt）。手机端
+/// 不用本值（仍走 [kTodayBadgeLeftRatio]）。
+///
+/// 🔴 根因（为什么不在左上）：iPad 上底图 cover 把向日葵花头抬到屏 y≈44
+/// （藏状态栏后），左上角墙区被花头/窗/书架占满，徽章虽渲染但视觉丢失 ——
+/// 移到「今日 pill 右下方」红框区是唯一根治解（手机不动）。
+const double kTodayBadgeRightInsetTablet = 100.0;
+
+/// 圆形等级徽章直径（手机基准；平板一律乘 `uiScaleOf(context)`）。
+///
+/// 44 → **38**（2026-10-14 下午「摘要 + 点按详情」方案）：徽章降级为**摘要**，
+/// 提示文案整体撤出（改由详情卡承载），只剩「圆徽 + 称号 + 细进度条」三件，
+/// 故圆徽可以随之收紧，胶囊高度从 54pt 降到 ≈44pt。
+/// ⚠️ 未解锁符号 **[kLevelLockedFontSize]** 与 **[kLevelLockedBgDiameter]** 不随
+/// 直径走（圆底取 `max(直径 − 8, 30)`）⇒ 38pt 圆里的 🌱 仍是 30pt奶油底 + 26pt
+/// 符号，**玄参「🌱 太小看不清」的修复没有被稀释**（C65 平板 ×1.3 同理）。
+const double kLevelBadgeDiameter = 38;
+
+/// 胶囊圆角（= 胶囊高 / 2 ⇒ 恒为正圆角胶囊；避免各处内联除法）。
+///
+/// 原写「= [kLevelBadgeDiameter] / 2」，2026-10-14 下午改 = **胶囊高/2**
+/// （高度 = 圆徽 + 2×[kLevelBadgePadV] = 38 + 6 = 44 ⇒ 22，数值恰好未变）。
+const double kLevelBadgeRadius = 22;
+
+/// 徽章与右侧文字列的水平间距。
+const double kLevelBadgeGap = 8;
+
+/// 胶囊内左右 padding（文字不与描边贴边）。
+const double kLevelBadgePadH = 10;
+
+/// 胶囊内上下 padding。
+///
+/// 3pt：气泡总高 = max(圆徽 38, 文案列 ≈22) + 2×3 = **44pt（RenderBox 实测）**，
+/// 比上一版（≈54pt）矮 10pt，「标题 pill ↔ 花头顶」墙区余量随之翻倍。
+const double kLevelBadgePadV = 3;
+
+/// 胶囊内称号行 ↔ 细进度条的间距。
+const double kLevelBadgeTextGap = 3;
+
+/// 未解锁（累计 < 60 分钟）时称号位显示的一行文案。
+///
+/// 徽章内的**唯一内联文案**，其余称号一律由 [kFocusLevelTitles] 派生。
+const String kLevelBadgeLockedTitle = '尚未解锁称号';
+
+/// 整个徽章区的**最大宽度**（安全上界，超出则称号省略）。
+///
+/// ## 220 → **152** 的账（2026-10-14 下午「摘要」方案，**RenderBox 实测**）
+/// 宽度 = 左 padding 10 + 圆徽 38 + 间距 8 + 文案列 max(称号, 进度条 72) + 右 10：
+///  · 称号一律 5 个汉字（9 个称号）/ 未解锁行 6 字 → 13pt 字号实测 **≈78pt**；
+///  · ⇒ 自然宽度 ≈ **144pt**，上界留 8pt 余量定 152（顺序不得反：先量后定）。
+/// 仍远低于气泡区红线 241.2（右缘实测 ≈156pt，见 `today_badge_bounds_test.dart`）。
+const double kLevelBadgeMaxWidth = 152;
+
+/// 细进度条宽 / 高 / 圆角（手机基准；**徽章摘要态回归**，2026-10-14 下午）。
+///
+/// 84 → **72**：跟着称号实测量（78pt）取齐略窄，视觉不与称号行打架。
+/// 沿革：2026-10-14 下午一度因「高度预算」移除 → 提示文案撤出后空间返还，
+/// 玄参拍板「进度条回归但放在缩小的徽章内」。
+const double kLevelBarWidth = 72;
+const double kLevelBarHeight = 6;
+const double kLevelBarRadius = 3;
+
+/// 称号文案字号（胶囊内唯一一行文字）。
+const double kLevelTitleFontSize = 13;
+
+/// 等级数字字号（`Lv.N`，粗体；随圆徽直径等比）。
+const double kLevelLabelFontSize = 15;
+
+/// 等级徽章文案前缀（`Lv.` + 数字）。
+const String kLevelBadgeTextPrefix = 'Lv.';
+
+/// 未解锁（累计 < 1 小时）时的徽章内替代符号。
+///
+/// 2026-10-14 玄参反馈「🌱 太小看不清」→ 字号由 18 提到 26，并叠在奶油色圆底上
+/// （[kLevelLockedBg] / [kLevelLockedBgDiameter]），视觉「看得清」。
+const String kLevelLockedGlyph = '🌱';
+
+/// 未解锁替身符号的字号（18 → **26**）。
+const double kLevelLockedFontSize = 26;
+
+/// 未解锁替身符号的**奶油色圆底**直径（手机基准；平板乘 `uiScaleOf`）。
+///
+/// 玄参「看得清」要求：光靠放大 emoji 在场景插画上仍会糊 → 加一层奶油圆底把
+/// 符号「托」起来（与 App 奶油/阳光风同源，不用刺眼纯白）。
+const double kLevelLockedBgDiameter = 30;
+
+/// 徽章进度文案模板 · **未解锁**（`{r}` = 距 Lv.1 的剩余时长，`{t}` = Lv.1 称号）。
+///
+/// ⚠️ **已停用**（2026-10-14 下午「摘要 + 点按详情」）：提示文案从徽章完全撤出，
+/// 「还差多久」改由详情卡第二块承载（[kLevelDetailNextTextTemplate]）。
+const String kLevelLockedTextTemplate = '再专注 {r} 解锁 Lv.1 · {t}';
+
+/// 徽章进度文案模板 · **已解锁**（`{c}` = 当前累计时长，`{n}` = 下一级，
+/// `{r}` = 距下一级的剩余时长）。
+///
+/// ⚠️ **已停用**（同上）：玄参反馈「累计 8 小时·距 Lv.6 还需 3 小时」在卡片里
+/// 断成 2 行难看 —— 徽章回到「摘要」，长文案只在详情卡出现。
+/// 口径保留：⚠️ **进度指向下一级，不是下一个称号**（等级与称号已解耦）。
+const String kLevelNextLevelTextTemplate = '累计 {c} · 距 Lv.{n} 还需 {r}';
+
+/// 满级（Lv.40）文案模板：详情卡第二块显示本句（原「隐藏进度条」语义保留）。
+const String kLevelMaxTextTemplate = '已是最高称号 · {t}';
+
+// ── 等级详情卡（点徽章弹出；2026-10-14 下午「摘要 + 点按详情」方案）─────────
+
+/// 详情卡最大宽（pt）。
+const double kLevelDetailCardMaxWidth = 310;
+
+/// 详情卡最大高 = 屏高 × 本值（矮屏兜底 scroll）。
+const double kLevelDetailMaxHeightRatio = 0.82;
+
+/// 详情卡圆角（马卡龙风大圆角）。
+const double kLevelDetailCardRadius = 28;
+
+/// 详情卡内边距。
+const double kLevelDetailCardPad = 20;
+
+/// 卡内大号等级圆徽直径（与演出卡 96 / 今日徽章 38 三档互不干扰）。
+const double kLevelDetailBadgeDiameter = 72;
+
+/// 卡内「Lv.N」小标签字号。
+const double kLevelDetailLabelFontSize = 13;
+
+/// 卡内称号大字字号。
+const double kLevelDetailTitleFontSize = 22;
+
+/// 卡内第二块（「距下一级还差 …」/ 满级文案）字号。
+const double kLevelDetailBodyFontSize = 14;
+
+/// 圆徽 ↔ 右侧称号列间距 / 第二块与列表的间距。
+const double kLevelDetailSectionGap = 14;
+
+/// 9 个称号列表：**每行高**。
+const double kLevelDetailRowHeight = 34;
+
+/// 9 个称号列表：左侧节点圆牌尺寸。
+const double kLevelDetailRowChipSize = 26;
+
+/// 9 个称号列表：称号字号。
+const double kLevelDetailRowFontSize = 13;
+
+/// 详情卡第二块文案模板 · **非满级**（`{n}` = 下一级，`{r}` = 该级门槛分钟 − 累计
+/// 有效分钟，即 `FocusLevelProgress.minutesToNext`，由 `progressOf` 纯派生）。
+///
+/// 🔑 距下一级 = 下一级门槛 − 累计（`C74` 40 档门槛见
+/// [kFocusLevelThresholdMinutes]），UI **不得另写算式**（S14：逻辑单点）。
+const String kLevelDetailNextTextTemplate = '距 Lv.{n} 还差 {r}';
+
+/// 当前称号行尾追加的**高亮标记**（9 个称号里只有一行有）。
+const String kLevelDetailCurrentMark = '✨';
+
+// ── 升级演出卡（LevelUpFxOverlay）文案与尺寸（同样单点收口）─────────────────
+
+/// 升级演出卡顶部胶囊标题（只在**称号节点**出现）。
+const String kLevelUpFxTitle = '解锁新称号！';
+
+/// 一次解锁多个称号时的副标题模板（`{n}` = 本轮解锁称号数）。
+const String kLevelUpFxMultiTemplate = '连升 {n} 个称号！';
+
+/// **普通升级**（非称号节点）的卡顶部胶囊标题。
+///
+/// C74 §6 修订二：普通升级**也播演出**（`defaultLevelUp` 素材），但**不发阳光、
+/// 不写账本** —— 故标题只说「升级」，绝不出现阳光字样。
+const String kLevelUpFxLevelTitle = '升级啦！';
+
+/// 一次跨过多个普通等级时的副标题模板（`{n}` = 本轮前进的等级数）。
+const String kLevelUpFxLevelMultiTemplate = '连升 {n} 级！';
+
+/// 卡片内的大号等级徽章直径（手机基准；平板乘 `uiScaleOf(context)`）。
+const double kLevelUpFxBadgeDiameter = 96;
+
+/// 卡内等级文案字号。
+const double kLevelUpFxLevelFontSize = 18;
+
+/// 卡内称号字号。
+const double kLevelUpFxTitleFontSize = 22;
+
+/// 卡内「+N ☀」字号。
+const double kLevelUpFxAmountFontSize = 22;
+
+/// 卡内阳光图标尺寸（素材图不吃 textScaler → 显式乘 `uiScaleOf`）。
+const double kLevelUpFxSunIconSize = 26;
+
+/// 卡内**序列帧舞台**边长（正方形；手机基准，平板乘 `uiScaleOf`）。
+///
+/// 与成长演出卡同款「金色径向柔光 + 内含正方形播放区」布局
+/// （`kGrowFxInnerRadius` 圆角、`kGrowFxGlowCore/Edge` 渐变），保证两套演出视觉一致。
+const double kLevelUpFxStageSize = 150;

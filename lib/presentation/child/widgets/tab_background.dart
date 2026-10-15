@@ -70,6 +70,46 @@ class TabBackground extends StatelessWidget {
         _ => null,
       };
 
+  /// 底图分界线在**容器坐标系**下的 y（body 顶部 = 屏顶 ⇒ 数值等于屏幕 y）。
+  ///
+  /// 与 [build] 走**同一套**几何（[geometryOf] + [tabBgAlignmentY] + [panelTopScreenY]）
+  /// 反算，保证「页面读到的分界线」与「底图真正画出的分界线」逐像素同源 —— 页面
+  /// 不再自己二手推算 cover 结果（C64 起这类重复口径已多次引起对不齐）。
+  ///
+  /// ⚠️ 手机端恒 `topCenter`（C64 手机零像素回归）→ 分界线落在 cover 几何处，
+  /// **不一定**等于 [panelTargetRatio] × 屏高：这正是「今日页卡片骑在面板圆角上」
+  /// 的根因（C67 的 0.40 是按「分界线 + 3% 呼吸带」标定的，平板才成立）。
+  ///
+  /// 底图未登记几何 / 约束无界时返回 `-inf` —— 调用方应退回冻结的卡片起点。
+  static double panelLineY({
+    required BuildContext context,
+    required Size box,
+    required String asset,
+    required double targetRatio,
+  }) {
+    final (Size, double)? geo = geometryOf(asset);
+    if (geo == null || !box.width.isFinite || !box.height.isFinite) {
+      return double.negativeInfinity;
+    }
+    // 与 build 同款闸门：仅平板做对齐，手机恒 topCenter。
+    double alignmentY = -1;
+    if (isTabletOf(context)) {
+      final double? a = tabBgAlignmentY(
+        box: box,
+        src: geo.$1,
+        panelTopFraction: geo.$2,
+        targetY: MediaQuery.sizeOf(context).height * targetRatio,
+      );
+      if (a != null) alignmentY = a;
+    }
+    return panelTopScreenY(
+      box: box,
+      src: geo.$1,
+      panelTopFraction: geo.$2,
+      alignmentY: alignmentY,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // ⚠️ 必须量到**真实容器尺寸**才能算 cover 绘制高；body 恒为紧约束，

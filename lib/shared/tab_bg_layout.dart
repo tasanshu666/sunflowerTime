@@ -92,3 +92,48 @@ double panelTopScreenY({
   final double top = (box.height - drawnH) * (alignmentY + 1) / 2;
   return top + panelTopFraction * drawnH;
 }
+
+/// 「今日」底图里**向日葵立绘**（花头 + 茎叶 + 花盆）的归一化矩形
+/// （2026-10-14 逐像素标定，勿改）。
+///
+/// 标定方式（与 `kGardenSignNormalizedRect` 同款、`probe_tab_bg_panel_top.py`
+/// 同源思路）：PIL 读 `today.webp` 源图，按「描边暗线」逐行/列扫描 —— 花头中心
+/// 列带 x[340,420] 自 y500 向下第一条 `min(lum) < 205` 暗线 = 花瓣顶 **y583**；
+/// 花头行带 y[640,760] 得花瓣左右缘 ≈ x205/x565；花盆列带得盆底 ≈ y1204。
+/// 取整并外扩 ~5px 安全边：x 200~575 / y 580~1210 →
+///   left = 200/1440 = 0.13889, top = 580/3200 = 0.18125,
+///   right = 575/1440 = 0.39931, bottom = 1210/3200 = 0.37813。
+///
+/// 用途：今日页等级徽章的**占位禁区** —— 徽章（左上身份胶囊）不得与本矩形
+/// 相交，否则压住向日葵花脸（玄参 2026-10-14 真机反馈）。护栏测试
+/// `today_badge_bounds_test.dart` 用 [todayBgSunflowerScreenRect] 把它映射到
+/// 各机型的真实屏幕矩形后与徽章 RenderBox 求交。
+const Rect kTodayBgSunflowerNormalizedRect =
+    Rect.fromLTRB(0.13889, 0.18125, 0.39931, 0.37813);
+
+/// 向日葵立绘在给定容器与对齐值下的**屏幕矩形**（容器坐标系）。
+///
+/// 与 [panelTopScreenY] 同一套 cover 几何：`scale = max(box.w/src.w, box.h/src.h)`、
+/// 绘制原点 = 水平居中 + 垂直按 [alignmentY]（与 `DecorationImage.alignment`
+/// 经 `Alignment.inscribe` 的公式一致）。⚠️ [alignmentY] 必须取**真实渲染值**
+/// （手机恒 `-1`（topCenter）、平板由 [tabBgAlignmentY] 算出），测试应从
+/// `TabBackground.decorationKey` 的 `DecorationImage.alignment` 读，不要自算。
+Rect todayBgSunflowerScreenRect({
+  required Size box,
+  required double alignmentY,
+}) {
+  final double scale = math.max(
+    box.width / kTodayBgSrcSize.width,
+    box.height / kTodayBgSrcSize.height,
+  );
+  final double drawnW = kTodayBgSrcSize.width * scale;
+  final double drawnH = kTodayBgSrcSize.height * scale;
+  final double left = (box.width - drawnW) / 2;
+  final double top = (box.height - drawnH) * (alignmentY + 1) / 2;
+  return Rect.fromLTRB(
+    left + kTodayBgSunflowerNormalizedRect.left * drawnW,
+    top + kTodayBgSunflowerNormalizedRect.top * drawnH,
+    left + kTodayBgSunflowerNormalizedRect.right * drawnW,
+    top + kTodayBgSunflowerNormalizedRect.bottom * drawnH,
+  );
+}

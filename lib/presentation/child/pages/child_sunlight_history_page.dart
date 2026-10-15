@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
@@ -52,6 +53,9 @@ const Map<String, String> _refLabels = <String, String>{
   'queueRelease': '阳光池释放',
   'parent_gift': '家长赠予',
   'debug_grant': '调试发放',
+  // C74 专注等级升级一次性阳光（玄参 2026-10-14 拍板；refType 值冻结）。
+  // 🔴 新增 refType 必须同步本映射，否则孩子端显示「其他」，阳光来源对不上账（既有铁律）。
+  kFocusLevelUpRefType: '专注升级',
 };
 
 /// 孩子端阳光来源记录页。

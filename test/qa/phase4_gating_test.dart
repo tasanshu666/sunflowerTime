@@ -25,6 +25,7 @@ import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
@@ -263,6 +264,13 @@ class _FakeSunlightRepository implements SunlightRepository {
 }
 
 class _FakeFocusRepository implements FocusRepository {
+  /// C77（2026-10-15）：`expandPot` 缺省 perk 时内部走 [PlantGrowthService.currentPerk]
+  /// → 本仓储的 `totalStats()`（域层新依赖）。返回 0 分钟 = Lv.0 = 无称号加成，
+  /// 扩容价取**基础价** —— 与「测试只验配额拦截，不验属性」的本文件意图一致。
+  @override
+  Future<FocusStats> totalStats() async =>
+      const FocusStats(totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
+
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError('${invocation.memberName} 未在本测试中打桩');

@@ -37,6 +37,7 @@ import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/entities/tracking_event.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/domain/services/focus_engine.dart';
 import 'package:sunflower_time/domain/services/presence_detector.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
@@ -153,6 +154,15 @@ class _FocusPageState extends ConsumerState<FocusPage>
   /// **展示数**，随 [SettleArgs.eyeCareReward] 带给结算页——修复「20 分钟场场内
   /// 护眼完成但结算页护眼奖励显示 0」的展示口径缺陷（此前只统计场末那次）。
   int _sessionEyeCareReward = 0;
+
+  /// 当前称号属性（provider 未就绪回退 [PlantPerk.none]，不虚报；Q-E）。
+  Future<PlantPerk> _perkOrNone() async {
+    try {
+      return await ref.read(currentPlantPerkProvider.future);
+    } catch (_) {
+      return PlantPerk.none;
+    }
+  }
 
   /// 到时结束后的过渡缓冲倒计时（0 = 未在缓冲；5→4→3→2→1 逐秒刷新。
   /// 玄参 2026-10-08 定 3s，同日晚 F100 改 **5s** 配 `5s_countdown.mp3`）。
@@ -391,7 +401,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
     _engine.resume();
     // C51：完成护眼 → 累计本场展示数（场内 / 场末统一口径；跳过不累计）。
     if (result != null && result.completed) {
-      _sessionEyeCareReward += kEyeCareRewardSunlight;
+      // C77 第 7 条：护眼展示累加 perk-aware（与护眼卡入账同源，防孪生）。
+      _sessionEyeCareReward +=
+          EyeCareService.rewardSunlightOf(await _perkOrNone());
     }
     return result;
   }

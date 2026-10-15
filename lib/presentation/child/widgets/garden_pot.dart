@@ -51,6 +51,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 
@@ -198,6 +199,9 @@ class GardenPot extends StatelessWidget {
   /// 害虫浮标是否正在渐变消失（同 [weedFading]）。
   final bool pestFading;
 
+  /// C77 · 当前称号专属属性（缺省 [PlantPerk.none] → 奖励文案基础值 = 旧口径，零回归）。
+  final PlantPerk perk;
+
   const GardenPot({
     super.key,
     required this.plant,
@@ -207,6 +211,7 @@ class GardenPot extends StatelessWidget {
     required this.onClearPest,
     this.weedFading = false,
     this.pestFading = false,
+    this.perk = PlantPerk.none,
   });
 
   /// 状态色：与养护面板保持一致，进度条与图标用它。
@@ -314,7 +319,7 @@ class GardenPot extends StatelessWidget {
                                 glyphHeight:
                                     artW * kPlantPotWidthFraction * kWeedSizeToPotRatio,
                                 tooltip:
-                                    '有杂草，点我拔掉 +${kGardenWeedReward.toInt()} ☀',
+                                    '有杂草，点我拔掉 +${weedRewardOf(perk).toInt()} ☀',
                                 onTap: onClearWeed,
                               ),
                             ),
@@ -338,7 +343,7 @@ class GardenPot extends StatelessWidget {
                                     kPestSizeToPotRatio *
                                     (30 / 52),
                                 tooltip:
-                                    '有害虫，点我除掉 +${kGardenPestReward.toInt()} ☀',
+                                    '有害虫，点我除掉 +${pestRewardOf(perk).toInt()} ☀',
                                 onTap: onClearPest,
                               ),
                             ),

@@ -154,7 +154,7 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
   /// 列表顶部工具条：标题 + 条数 + 「新增成长项」（替代原右下角悬浮加号）。
   ///
   /// 阶段 4：达免费上限时按钮**置灰 + 内联原因**，点击走 [PremiumQuotaGate.onTap]
-  /// （1s 轻提示 + 「了解会员」），**不置空回调**（C62）。
+  /// （1s 轻提示 + 「解锁全部功能」），**不置空回调**（C62）。
   Widget _headerBar(bool canAdd, EntitlementTier tier) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),

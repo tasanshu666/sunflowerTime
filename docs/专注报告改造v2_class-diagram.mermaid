@@ -1,0 +1,146 @@
+classDiagram
+    %% 专注报告改造 v2 —— 类图（★=新增/改动；其余为既有）
+    %% 关键：FocusRangeQuery 为**独立能力接口**，不改 FocusRepository 本体（保 ~49 个 fake 不破）。
+
+    class FocusRepository {
+        <<abstract>>
+        +Future~void~ saveSession(s)
+        +Future~List~FocusSession~~ sessionsOfDay(dayKey)
+        +Future~int~ countValidFocusDaysLastWeek(now)
+        +Future~FocusStats~ totalStats()
+    }
+    class FocusRangeQuery ★ {
+        <<abstract·新增能力接口>>
+        +Future~List~FocusSession~~ sessionsBetween(from, to)
+    }
+    class FocusLocalRepository {
+        +implements FocusRepository, FocusRangeQuery
+    }
+
+    class FocusSession {
+        +String id
+        +DateTime start
+        +DateTime? end
+        +int plannedMin
+        +double actualFocusMin
+        +FocusStatus status
+    }
+    class FocusStats {
+        +double totalFocusMinutes
+        +int totalSessions
+        +int totalValidDays
+    }
+
+    class ReportPeriod ★ {
+        <<enum>>
+        day
+        week
+        month
+        year
+    }
+    class PeriodRange ★ {
+        <<value·半开区间>>
+        +DateTime start
+        +DateTime end  %% [start, end)
+    }
+    class DateTimeExt ★ {
+        <<library datetime_ext.dart>>
+        +DateTime startOfDay(d)$
+        +DateTime startOfWeek(d)$
+        +DateTime startOfMonth(d)$
+        +DateTime startOfYear(d)$
+        +DateTime endOf(period, start)$
+    }
+
+    class DailyFocusPoint {
+        +String dayKey
+        +DateTime date
+        +double focusMinutes
+        +int sessionCount
+        +bool isWfd
+    }
+    class PeriodReport ★ {
+        <<value·报告聚合>>
+        +ReportPeriod period
+        +PeriodRange range
+        +double totalMinutes
+        +int validFocusDays
+        +double avgPerDay
+        +DailyFocusPoint? bestDay
+        +List~int~ monthlyTrend      %% 年：12 月
+        +int longestStreak          %% 最长连续有效专注日
+        +List~DailyFocusPoint~ days
+    }
+    class FocusReport {
+        <<既有·保留兼容>>
+        +List~DailyFocusPoint~ last7Days
+        +double weeklyFocusMinutes
+        +int validFocusDaysLast7
+        +double stabilityScore
+        +List~int~ weeklyValidDayTrend
+    }
+
+    class FocusReportService ★ {
+        +Future~FocusReport~ buildReport(now)          %% 既有，保留
+        +Future~PeriodReport~ buildPeriodReport(p, anchor) ★
+        +Future~List~DailyFocusPoint~~ heatmapDays(n) ★
+        -bool _isWfd(s)  %% 口径单点
+        -_aggregateByDay(sessions) ★
+    }
+
+    class ParentHistoryPage ★ {
+        +int _segment  %% 0=报告 1=记录
+    }
+    class HistoryActivitySection ★ {
+        +Period day/week/month
+        +DateTime anchor
+    }
+    class FocusReportSection ★ {
+        +ReportPeriod period
+        +DateTime anchor
+    }
+    class ReportPeriodBar ★
+    class ReportHeatmap ★
+    class ParentReportPage ★ {
+        %% 改造为复用 FocusReportSection；/parent/report 重定向
+    }
+    class ParentHomePage ★ {
+        +int? initialTab
+        +int? initialSegment
+    }
+    class ParentSettingsPage ★ {
+        %% 报告入口卡 → 记录 tab·报告段
+    }
+
+    class PremiumGate {
+        <<既有·门控单点UI>>
+    }
+    class PremiumUpsellCard {
+        <<既有>>
+    }
+    class EntitlementMatrix {
+        <<library entitlement_matrix.dart>>
+        +bool featureAllowedFor(f, tier)$
+    }
+
+    FocusRepository <|.. FocusLocalRepository
+    FocusRangeQuery  <|.. FocusLocalRepository
+    FocusReportService --> FocusRepository : 依赖接口
+    FocusReportService ..> FocusRangeQuery : is 能力探测(可选快路径)
+    FocusReportService --> PeriodReport : 产出
+    FocusReportService --> FocusReport : 产出(兼容)
+    PeriodReport --> DailyFocusPoint
+    FocusReport --> DailyFocusPoint
+    FocusReportService ..> DateTimeExt : startOf*/endOf
+    DateTimeExt ..> ReportPeriod
+
+    ParentHistoryPage --> HistoryActivitySection
+    ParentHistoryPage --> FocusReportSection
+    FocusReportSection --> ReportPeriodBar
+    FocusReportSection --> ReportHeatmap
+    FocusReportSection ..> FocusReportService : buildPeriodReport / heatmapDays
+    FocusReportSection ..> EntitlementMatrix : featureAllowedFor(deepReport)  %% 门控单点
+    FocusReportSection ..> PremiumUpsellCard : 免费档引导卡
+    ParentReportPage ..> FocusReportSection : 复用(避免孪生)
+    ParentHomePage ..> ParentHistoryPage : initialTab/Segment
+    ParentSettingsPage ..> ParentHomePage : go(/parent/home?tab=history&seg=report)

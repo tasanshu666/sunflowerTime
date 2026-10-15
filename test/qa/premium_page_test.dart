@@ -140,6 +140,12 @@ _Env _buildEnv({
 }
 
 Future<void> _pumpPage(WidgetTester tester, _Env env) async {
+  // 阶段 5：购买页新增「对比表」后内容显著变高（主按钮落到首屏之下），把测试视口
+  // 调高使整页一次性布局 —— 仅避免 `ListView` 懒加载导致控件未构建，**不改任何断言**。
+  tester.view.physicalSize = const Size(400, 5000);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: env.container,
@@ -189,9 +195,9 @@ void main() {
           reason: '商品拉取完成前应显示加载中');
 
       await _pumpUntil(
-          tester, () => find.text('一次买断 · $_storePrice').evaluate().isNotEmpty);
+          tester, () => find.text('立即解锁 · $_storePrice').evaluate().isNotEmpty);
 
-      expect(find.text('一次买断 · $_storePrice'), findsOneWidget,
+      expect(find.text('立即解锁 · $_storePrice'), findsOneWidget,
           reason: '主按钮必须用商店返回的本地化价格（$_storePrice），而非硬编码金额');
       expect(find.text('恢复购买'), findsOneWidget,
           reason: 'Apple 硬性要求：可恢复内购必须有「恢复购买」入口');
@@ -215,9 +221,9 @@ void main() {
 
       await _pumpPage(tester, env);
       await _pumpUntil(
-          tester, () => find.text('一次买断 · $_storePrice').evaluate().isNotEmpty);
+          tester, () => find.text('立即解锁 · $_storePrice').evaluate().isNotEmpty);
 
-      await tester.tap(find.text('一次买断 · $_storePrice'));
+      await tester.tap(find.text('立即解锁 · $_storePrice'));
       await _pumpUntil(
         tester,
         () => env.container.read(entitlementProvider).isPremium,
@@ -249,9 +255,9 @@ void main() {
 
       await _pumpPage(tester, env);
       await _pumpUntil(
-          tester, () => find.text('一次买断 · $_storePrice').evaluate().isNotEmpty);
+          tester, () => find.text('立即解锁 · $_storePrice').evaluate().isNotEmpty);
 
-      await tester.tap(find.text('一次买断 · $_storePrice'));
+      await tester.tap(find.text('立即解锁 · $_storePrice'));
       await _pumpUntil(
         tester,
         () => find.textContaining('购买未完成').evaluate().isNotEmpty,
@@ -263,7 +269,7 @@ void main() {
           reason: '取消后权益不得变为 premium');
       expect(find.textContaining('购买未完成'), findsOneWidget,
           reason: '取消后必须给用户明确提示');
-      expect(find.text('一次买断 · $_storePrice'), findsOneWidget,
+      expect(find.text('立即解锁 · $_storePrice'), findsOneWidget,
           reason: '取消后主按钮仍在（可再次购买）');
       expect(tester.takeException(), isNull, reason: '取消不得抛异常');
       await _drainSnack(tester);
@@ -321,7 +327,7 @@ void main() {
 
       await _pumpPage(tester, env);
       await _pumpUntil(
-          tester, () => find.text('一次买断 · $_storePrice').evaluate().isNotEmpty);
+          tester, () => find.text('立即解锁 · $_storePrice').evaluate().isNotEmpty);
 
       await tester.tap(find.text('恢复购买'));
       await _pumpUntil(
@@ -345,7 +351,7 @@ void main() {
 
       await _pumpPage(tester, env);
       await _pumpUntil(
-          tester, () => find.text('一次买断 · $_storePrice').evaluate().isNotEmpty);
+          tester, () => find.text('立即解锁 · $_storePrice').evaluate().isNotEmpty);
 
       await tester.tap(find.text('恢复购买'));
       await _pumpUntil(
@@ -369,7 +375,7 @@ void main() {
 
       await _pumpPage(tester, env);
       await _pumpUntil(
-          tester, () => find.text('一次买断 · $_storePrice').evaluate().isNotEmpty);
+          tester, () => find.text('立即解锁 · $_storePrice').evaluate().isNotEmpty);
 
       await tester.tap(find.text('恢复购买'));
       await _pumpUntil(

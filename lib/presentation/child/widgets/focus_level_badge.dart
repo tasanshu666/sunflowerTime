@@ -44,6 +44,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart'
     show nextLevelGapTextOf, sunlightOfLevel, titleOfLevel, titleRowsOfLevel;
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 
 /// 徽章展示档位（空间紧张时的三级降级，§5.24.5）。
@@ -285,6 +286,18 @@ class FocusLevelDetailDialog extends StatelessWidget {
   static Key titleRowRewardKeyOf(int level) =>
       Key('$titleRowRewardKeyPrefix$level');
 
+  /// 卡内**内容框**（`ConstrainedBox(maxWidth: kLevelDetailCardMaxWidth)`）的 Key。
+  ///
+  /// widget 测试量「卡宽 ≤ 310」用（`Dialog` 外层含 `insetPadding` 铺满屏，量它无意义）。
+  static const Key cardKey = Key('focusLevelDetailCard');
+
+  /// 9 行右侧「称号专属属性」小徽章的 Key 前缀（第 i 个称号节点）。
+  static const String titleRowPerkKeyPrefix = 'focusLevelDetailTitleRowPerk';
+
+  /// 第 [level] 个称号节点行的属性徽章 Key。
+  static Key titleRowPerkKeyOf(int level) =>
+      Key('$titleRowPerkKeyPrefix$level');
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -293,6 +306,7 @@ class FocusLevelDetailDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(kLevelDetailCardRadius),
       ),
       child: ConstrainedBox(
+        key: cardKey,
         constraints: BoxConstraints(
           maxWidth: kLevelDetailCardMaxWidth,
           // 矮屏兜底：内容超高时可滚（`showDialog` 不会因为溢出给 ALT 红条）。
@@ -319,6 +333,17 @@ class FocusLevelDetailDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: kLevelDetailSectionGap),
                 _buildTitleList(),
+                const SizedBox(height: kLevelDetailSectionGap),
+                // C77 底部 emoji 图例（单点常量 [kLevelPerkLegendText]，不页面拼接）；
+                // 用 Text 自动换行（平板 1.6× 必然换行）——**不**用 Row。
+                const Text(
+                  kLevelPerkLegendText,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: kLevelDetailLegendFontSize,
+                    color: _kDetailSoftColor,
+                  ),
+                ),
               ],
             ),
           ),
@@ -376,45 +401,71 @@ class FocusLevelDetailDialog extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         for (final FocusLevelTitleRow row in rows)
-          Container(
+          ConstrainedBox(
             key: titleRowKeyOf(row.level),
-            height: kLevelDetailRowHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: row.isCurrent ? _kDetailHighlightBg : null,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: <Widget>[
-                _TitleNodeChip(row: row),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    row.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: kLevelDetailRowFontSize,
-                      fontWeight:
-                          row.isCurrent ? FontWeight.w800 : FontWeight.w500,
-                      color: row.unlocked
-                          ? _kBadgeTitleColor
-                          : _kDetailLockedColor,
+            // 🔴 C65/C75⑤：行高用 minHeight（**不是**固定 height）——平板 textScaler 1.6 时
+            // 右侧上下两行的内在高可能 > 44，固定高会 RenderFlex 纵向 overflow。
+            constraints: const BoxConstraints(minHeight: kLevelDetailRowHeight),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: row.isCurrent ? _kDetailHighlightBg : null,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: <Widget>[
+                  _TitleNodeChip(row: row),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      row.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: kLevelDetailRowFontSize,
+                        fontWeight:
+                            row.isCurrent ? FontWeight.w800 : FontWeight.w500,
+                        color: row.unlocked
+                            ? _kBadgeTitleColor
+                            : _kDetailLockedColor,
+                      ),
                     ),
                   ),
-                ),
-                if (row.isCurrent)
-                  const Text(
-                    kLevelDetailCurrentMark,
-                    style: TextStyle(fontSize: kLevelDetailRowFontSize),
+                  if (row.isCurrent)
+                    const Text(
+                      kLevelDetailCurrentMark,
+                      style: TextStyle(fontSize: kLevelDetailRowFontSize),
+                    ),
+                  const SizedBox(width: 8),
+                  // C77：右侧改**上下两行**（属性徽章 + 阳光奖励），缓解横向压力（设计 §7.2）。
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: kLevelDetailPerkRightColMaxWidth,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: <Widget>[
+                        _PerkPill(
+                          key: FocusLevelDetailDialog.titleRowPerkKeyOf(
+                            row.level,
+                          ),
+                          level: row.level,
+                          unlocked: row.unlocked,
+                        ),
+                        const SizedBox(height: 2),
+                        _TitleRowReward(
+                          key: FocusLevelDetailDialog.titleRowRewardKeyOf(
+                            row.level,
+                          ),
+                          amount: sunlightOfLevel(row.level),
+                          unlocked: row.unlocked,
+                        ),
+                      ],
+                    ),
                   ),
-                const SizedBox(width: 8),
-                _TitleRowReward(
-                  key: FocusLevelDetailDialog.titleRowRewardKeyOf(row.level),
-                  amount: sunlightOfLevel(row.level),
-                  unlocked: row.unlocked,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
       ],
@@ -586,6 +637,45 @@ class _LockedGlyphPlate extends StatelessWidget {
           style: TextStyle(fontSize: fontSize),
         ),
       ),
+    );
+  }
+}
+
+/// 详情卡每行右侧的**称号专属属性**小徽章（emoji + 增减量，如「💧 −1」）。
+///
+/// C77 第 3 块：与「小太阳 +N」上下叠放（设计 §7.2）。属性 emoji 与增减量**全部**
+/// 走 `plant_perk.dart` 纯函数（[perkEmojiOfTitleNode] / [perkShortTextOf] /
+/// [perkOfTitleNode]）——不在页面拼九种文案（防孪生 S2）。
+/// 已解锁 = 实心色（阳光橙 [_kBarFill]）+ 粗体；未解锁 = 灰字（[kLevelDetailLockedColor]）。
+class _PerkPill extends StatelessWidget {
+  const _PerkPill({super.key, required this.level, required this.unlocked});
+
+  /// 称号节点等级（决定 emoji 与属性量）。
+  final int level;
+
+  /// 该节点是否已解锁（决定颜色与字重）。
+  final bool unlocked;
+
+  @override
+  Widget build(BuildContext context) {
+    final String emoji = perkEmojiOfTitleNode(level);
+    final String text = perkShortTextOf(perkOfTitleNode(level));
+    final Color color = unlocked ? _kBarFill : _kDetailLockedColor;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        Text(emoji, style: const TextStyle(fontSize: kLevelDetailPerkFontSize)),
+        const SizedBox(width: 2),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: kLevelDetailPerkFontSize,
+            fontWeight: unlocked ? FontWeight.w700 : FontWeight.w500,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -7,7 +7,7 @@
 ///    不允许则弹付费引导。业务代码零改动（无需把逻辑拆进 Widget 树）。
 ///
 /// 阶段 4 追加：**计数型**门控 [`PremiumQuotaGate`]（吃「当前数量」，委托
-/// `quotaAllowsAdd`）——家长端「新增」入口达上限时给 1s 轻提示 + 「了解会员」。
+/// `quotaAllowsAdd`）——家长端「新增」入口达上限时给 1s 轻提示 + 「解锁全部功能」。
 /// 对齐 C62：**「不可点」≠ `onTap: null`**（不静默失败）。
 ///
 /// ⚠️ **阶段 4 已落地**：门控矩阵（`kEntitlementMatrix`）现已收紧 5 项 ——
@@ -107,7 +107,7 @@ class PremiumGate extends ConsumerWidget {
 ///
 /// 纪律（C62）：**「不可点」≠ `onTap: null`** —— 达上限时**不**置空回调，而是落到
 /// 分因提示；调用方据 [allows] 自行把按钮**置灰**（视觉），点击时经 [onTap] 给
-/// **1s 轻提示 + 「了解会员」**（不静默失败）。
+/// **1s 轻提示 + 「解锁全部功能」**（不静默失败）。
 ///
 /// 🔴 红线 C69：判定**只读**计数，**绝不**删除 / 裁剪任何已存数据。
 class PremiumQuotaGate {
@@ -122,7 +122,7 @@ class PremiumQuotaGate {
       quotaAllowsAdd(feature, tier, currentCount);
 
   /// 「新增」入口回调：放行 → 跑 [onAllowed]；达上限 → 1s 轻提示（家长端带
-  /// 「了解会员」→ `/parent/premium`，孩子端 [allowUpsell] = false 时不出购买入口）。
+  /// 「解锁全部功能」→ `/parent/premium`，孩子端 [allowUpsell] = false 时不出购买入口）。
   static void onTap({
     required BuildContext context,
     required FeatureKey feature,
@@ -147,7 +147,7 @@ class PremiumQuotaGate {
         duration: const Duration(milliseconds: 1000),
         action: allowUpsell
             ? SnackBarAction(
-                label: '了解会员',
+                label: '解锁全部功能',
                 onPressed: () => context.push('/parent/premium'),
               )
             : null,
@@ -244,9 +244,129 @@ Future<void> showPremiumUpsell(BuildContext context, FeatureKey feature) {
             Navigator.of(ctx).pop();
             context.push('/parent/premium');
           },
-          child: const Text('了解会员'),
+          child: const Text('解锁全部功能'),
         ),
       ],
     ),
   );
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// 购买页对比表 · 数据层（付费墙 · 阶段 5 · 购买页改版 v1 §3.2 / §4.1）
+//
+// 为什么 presenter 放这里：本文件**已在** `entitlement_gate_guard_test` 的权益标识符
+// 白名单内 —— 派生逻辑（读矩阵）留在此处，UI 组件（`PremiumUnlockTable`）就能保持
+// **守卫干净**（不含任何权益标识符），无需改白名单。
+// ───────────────────────────────────────────────────────────────────────────
+
+/// 对比表「买断后解锁」一行（纯数据，供 UI 渲染）。
+///
+/// 取值全部来自**单点矩阵**（[kEntitlementMatrix]）经 [featureAllowedFor] /
+/// [featureQuotaFor] 派生，故改矩阵即改对比表，杜绝「宣传数字与实现漂移」。
+class PremiumUnlockRow {
+  /// 项目名（对比表左列）。
+  final String label;
+
+  /// 免费档显示串（如 `'4 个'` / `'5 条'` / `'✗'`）。
+  final String freeText;
+
+  /// 买断档显示串（如 `'最多 12'` / `'✓ 不限'`）。
+  final String premiumText;
+
+  /// 免费档是否为「可用 / 正向」（驱动 ✓ / ✗ 与配色）。
+  final bool freeOk;
+
+  /// 买断档是否为「可用 / 正向」（恒 true）。
+  final bool premiumOk;
+
+  /// 溯源用（便于守卫断言「恰好这 4 个键」）。
+  final FeatureKey key;
+
+  /// 可选补充注（小字，渲染在该行下方）；仅花盆行用（C70：扩容仍需花阳光）。
+  final String? note;
+
+  const PremiumUnlockRow({
+    required this.label,
+    required this.freeText,
+    required this.premiumText,
+    required this.freeOk,
+    required this.premiumOk,
+    required this.key,
+    this.note,
+  });
+}
+
+/// B 组 4 行（**显式白名单，禁止遍历能力枚举的 `values`**）。
+///
+/// 🔴 为什么必须显式枚举：能力枚举里除这 4 个真实生效键外，还有 `deepReport` +
+/// 4 个**未实现**键。一旦遍历 `values`，未实现能力会被写进对外卖点 → 描述不符
+/// （Apple 3.1.1 / 2.3.1 拒审）。故此处**逐行写死键名**，并由源码守卫兜底
+/// （见 `test/qa/premium_unlock_table_test.dart` 的变异测试）。
+///
+/// 数值来源：
+///  · 布尔：`featureAllowedFor(oneClickCare, tier)`；
+///  · 配额：`featureQuotaFor(gardenPotCapacity|taskTemplateCount|rewardTemplateCount, tier)`
+///    （[kUnlimitedQuota] → `'不限'`）。
+///
+/// [matrix] 仅供测试注入自定义矩阵（生产恒用 [kEntitlementMatrix]）。
+List<PremiumUnlockRow> unlockRowsFor({
+  Map<FeatureKey, FeatureRule> matrix = kEntitlementMatrix,
+}) {
+  final int freePot =
+      featureQuotaFor(FeatureKey.gardenPotCapacity, EntitlementTier.free, matrix: matrix);
+  final int premiumPot =
+      featureQuotaFor(FeatureKey.gardenPotCapacity, EntitlementTier.premium, matrix: matrix);
+  final int freeTask =
+      featureQuotaFor(FeatureKey.taskTemplateCount, EntitlementTier.free, matrix: matrix);
+  final int premiumTask =
+      featureQuotaFor(FeatureKey.taskTemplateCount, EntitlementTier.premium, matrix: matrix);
+  final int freeReward =
+      featureQuotaFor(FeatureKey.rewardTemplateCount, EntitlementTier.free, matrix: matrix);
+  final int premiumReward =
+      featureQuotaFor(FeatureKey.rewardTemplateCount, EntitlementTier.premium, matrix: matrix);
+  final bool freeOneClick =
+      featureAllowedFor(FeatureKey.oneClickCare, EntitlementTier.free, matrix: matrix);
+  final bool premiumOneClick =
+      featureAllowedFor(FeatureKey.oneClickCare, EntitlementTier.premium, matrix: matrix);
+
+  return <PremiumUnlockRow>[
+    PremiumUnlockRow(
+      key: FeatureKey.oneClickCare,
+      label: '花园「一键操作」',
+      freeText: freeOneClick ? '✓' : '✗',
+      freeOk: freeOneClick,
+      premiumText: premiumOneClick ? '✓ 不限' : '✗',
+      premiumOk: premiumOneClick,
+    ),
+    PremiumUnlockRow(
+      key: FeatureKey.gardenPotCapacity,
+      label: '花盆上限',
+      freeText: _quotaText(freePot, unit: '个'),
+      freeOk: true,
+      premiumText: premiumPot == kUnlimitedQuota ? '✓ 不限' : '最多 $premiumPot',
+      premiumOk: true,
+      // C70：买断只解锁「扩容资格」，扩容仍需花阳光 —— 必须如实标注。
+      note: '扩容仍需花阳光',
+    ),
+    PremiumUnlockRow(
+      key: FeatureKey.taskTemplateCount,
+      label: '成长项模板',
+      freeText: _quotaText(freeTask, unit: '条'),
+      freeOk: true,
+      premiumText: premiumTask == kUnlimitedQuota ? '✓ 不限' : '最多 $premiumTask',
+      premiumOk: true,
+    ),
+    PremiumUnlockRow(
+      key: FeatureKey.rewardTemplateCount,
+      label: '奖励模板',
+      freeText: _quotaText(freeReward, unit: '条'),
+      freeOk: true,
+      premiumText: premiumReward == kUnlimitedQuota ? '✓ 不限' : '最多 $premiumReward',
+      premiumOk: true,
+    ),
+  ];
+}
+
+/// 配额展示串：`kUnlimitedQuota` → `'不限'`，否则 `'$quota $unit'`（如 `'4 个'`）。
+String _quotaText(int quota, {required String unit}) =>
+    quota == kUnlimitedQuota ? '不限' : '$quota $unit';

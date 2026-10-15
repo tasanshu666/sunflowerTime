@@ -1,0 +1,61 @@
+sequenceDiagram
+    %% 专注报告改造 v2 —— 关键调用流（时序图）
+    %% 覆盖：入口迁移 · 报告段取数(快/慢路径) · 周期切换 · deepReport 门控 · 记录段独立
+
+    actor P as 家长
+    participant Set as ParentSettingsPage ★
+    participant Home as ParentHomePage ★
+    participant Hist as ParentHistoryPage ★
+    participant Rpt as FocusReportSection ★
+    participant Svc as FocusReportService ★
+    participant Repo as FocusLocalRepository
+    participant Range as FocusRangeQuery ★
+    participant Gate as featureAllowedFor(deepReport)
+    participant Premium as ParentPremiumPage
+
+    %% ── 1. 入口迁移（G1：≤1 click）──────────────
+    Note over Set,Hist: ① 设置页入口重定向 → 记录 tab·报告段
+    P->>Set: 点「专注报告」入口卡
+    Set->>Home: go('/parent/home?tab=history&seg=report')
+    Home->>Hist: initialTab=history, initialSegment=report
+    Note right of Hist: 底栏「记录」= 1 click；分段默认落「专注报告」= 0 额外 click
+
+    %% ── 2. 报告段取数（周期切换）──────────────
+    Note over Rpt,Repo: ② 切到「年」→ 取数（快/慢路径自动选）
+    P->>Rpt: 选周期「年」
+    Rpt->>Gate: featureAllowedFor(deepReport, tier)
+    alt deepReport 关闭（免费）
+        Gate-->>Rpt: false
+        Rpt-->>P: 周期按钮置灰 + 引导卡（不静默隐藏）；不切换
+        opt 点「查看详情」
+            Rpt->>Premium: push('/parent/premium')
+        end
+    else deepReport 开启（付费）
+        Rpt->>Svc: buildPeriodReport(year, anchor)
+        Svc->>Range: (is FocusRangeQuery?) 
+        alt 仓储实现 FocusRangeQuery（生产）
+            Svc->>Repo: sessionsBetween(startOfYear, endOfYear)  %% [start,end)
+            Repo-->>Svc: List~FocusSession~（1 次查询）
+            Svc->>Svc: _aggregateByDay → 366 日 → 12 月趋势/最长连续
+        else 未实现（旧 fake）
+            loop 逐日 366 次
+                Svc->>Repo: sessionsOfDay(dayKey)
+            end
+            Svc->>Svc: _aggregateByDay（结果与快路径一致）
+        end
+        Svc-->>Rpt: PeriodReport
+        Rpt-->>P: Hero + 12 月趋势 + 热力图
+    end
+
+    %% ── 3. 热力图 ──────────────────────────────
+    Note over Rpt: ③ 热力图（近 1 年）：行=周一~周日 列=周；色阶 4~5 档
+    Rpt->>Svc: heatmapDays(366)
+    Svc-->>Rpt: List~DailyFocusPoint~ → ReportHeatmap 逐格着色
+    P->>Rpt: 点某格
+    Rpt-->>P: 轻提示「X 月 X 日 · N 分钟」
+
+    %% ── 4. 记录段独立（不联动）─────────────────
+    Note over Hist: ④ 切到「任务与奖励」段：期间状态**独立**，不改报告段 anchor
+    P->>Hist: 切分段 → 任务与奖励
+    Hist->>Hist: HistoryActivitySection(自有 period{日/周/月} + anchor)
+    Note right of Hist: 两段粒度集合不同（记录无「年」）→ 各自独立，避免非法粒度

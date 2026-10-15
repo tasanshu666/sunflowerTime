@@ -260,12 +260,12 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        // 🔴 2026-10-14 玄参截图反馈：「会员与购买」**上移到最顶部**第一个分区
+        // 🔴 2026-10-14 玄参截图反馈：「解锁全部功能」**上移到最顶部**第一个分区
         // （原话「放在最上面，更显眼」）。其余分区顺序不变。
-        const _SectionTitle('会员与购买'),
+        const _SectionTitle('解锁全部功能'),
         _EntryCard(
           icon: Icons.star_rounded,
-          title: '升级解锁全部功能',
+          title: '解锁全部功能',
           subtitle: const PremiumStatusText(),
           onTap: () => context.push('/parent/premium'),
         ),
@@ -387,7 +387,7 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           onTap: _grantGift,
         ),
         const SizedBox(height: 12),
-        // 「会员与购买」已上移到列表最顶部（玄参 2026-10-14 反馈），此处不再重复。
+        // 「解锁全部功能」已上移到列表最顶部（玄参 2026-10-14 反馈），此处不再重复。
         _SectionTitle('数据入口'),
         _EntryCard(
           icon: Icons.bar_chart,
@@ -523,7 +523,7 @@ class _NightBoundaryTile extends StatelessWidget {
 }
 
 /// 入口卡（跳转）。[subtitle] 为 Widget，可直接嵌入随状态刷新的组件
-/// （如会员状态 [`PremiumStatusText`]）。
+/// （如解锁状态 [`PremiumStatusText`]）。
 class _EntryCard extends StatelessWidget {
   final IconData icon;
   final String title;

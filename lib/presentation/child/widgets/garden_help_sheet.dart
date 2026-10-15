@@ -71,7 +71,7 @@ class GardenHelpSheet extends StatelessWidget {
               icon: Icons.local_florist,
               title: '阳光能干什么',
               detail: '在花园种植物（点空花盆选一株，花 ☀ 种下）；\n'
-                  '给植物浇水 $kPlantWaterCost ☀/次、施肥 $kPlantFertilizeCost ☀/次；\n'
+                  '给植物浇水 $kPlantWaterCost ☀/次起、施肥 $kPlantFertilizeCost ☀/次起；\n'
                   '也可以去「商店」兑换喜欢的奖励。',
             ),
             _HelpRow(

@@ -20,6 +20,7 @@ import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 
 import 'care_effect_overlay.dart';
 import 'child_snack.dart';
@@ -84,15 +85,28 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
   bool _busy = false;
   String? _error;
 
+  /// C77 · 当前称号专属属性（铲除返还额展示与扣费**同源**；未就绪回退 [PlantPerk.none]）。
+  PlantPerk _perk = PlantPerk.none;
+
   @override
   void initState() {
     super.initState();
     _load();
   }
 
+  /// 读取当前称号属性（provider 未就绪时回退 [PlantPerk.none]，不虚报；Q-E）。
+  Future<PlantPerk> _readPerk() async {
+    try {
+      return await ref.read(currentPlantPerkProvider.future);
+    } catch (_) {
+      return PlantPerk.none;
+    }
+  }
+
   /// 读取该株植物 + 物种 + 今日养护额度（三者都从仓储取最新值）。
   Future<void> _load() async {
     try {
+      _perk = await _readPerk();
       final PlantRepository repo = ref.read(plantRepositoryProvider);
       final Plant? p = await repo.plant(widget.plantId);
       if (p != null) {
@@ -173,8 +187,11 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
   Future<void> _shovel() async {
     if (_busy || _plant == null) return;
     final Plant plant = _plant!;
-    final int refund =
-        plant.status == PlantStatus.dead ? 0 : plant.shovelRefund;
+    // C77 第 9 条：确认卡返还额与实际入账**同源** [shovelRefundOf]
+    // （防「显示 150 / 实返 170」，TC-37b）。
+    final int refund = plant.status == PlantStatus.dead
+        ? 0
+        : shovelRefundOf(plant.shovelRefund, _perk);
     final bool? ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
@@ -202,7 +219,7 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
       () async {
         final int refunded = await ref
             .read(plantGrowthServiceProvider)
-            .shovel(plant.id, DateTime.now());
+            .shovel(plant.id, DateTime.now(), perk: _perk);
         widget.onShoveled?.call(refunded);
       },
       closeAfter: true,
@@ -236,14 +253,17 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
           plant: plant,
           species: species,
           quota: _quota,
+          perk: _perk,
           onWater: () => _run(
-            () => ref.read(plantGrowthServiceProvider).water(plant.id, DateTime.now()),
+            () => ref
+                .read(plantGrowthServiceProvider)
+                .water(plant.id, DateTime.now(), perk: _perk),
             effect: CareEffectType.water,
           ),
           onFertilize: () => _run(
             () => ref
                 .read(plantGrowthServiceProvider)
-                .fertilize(plant.id, DateTime.now()),
+                .fertilize(plant.id, DateTime.now(), perk: _perk),
             effect: CareEffectType.fertilize,
           ),
           onClear: () => _run(

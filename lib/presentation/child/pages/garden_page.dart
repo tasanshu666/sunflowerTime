@@ -50,6 +50,7 @@ import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
@@ -157,6 +158,9 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   AgeTier _tier = AgeTier.low;
   int _capacity = kGardenPotCapacityDefault;
   double _balance = 0;
+
+  /// C77 · 当前称号专属属性（随 [_reload] 刷新；未就绪时 [PlantPerk.none] = 无加成）。
+  PlantPerk _perk = PlantPerk.none;
   bool _loading = true;
   bool _busy = false;
   String? _error;
@@ -333,9 +337,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     super.dispose();
   }
 
-  /// 扩容一只花盆的阳光价（按年段，§4.6）：供按钮文案与确认卡使用，避免裸字面量。
-  int get _expandCost =>
-      _tier == AgeTier.low ? kPlantPotExpandCostLow : kPlantPotExpandCostHigh;
+  /// 扩容一只花盆的阳光价（按年段 + C77 称号减免）：供按钮文案与确认卡使用。
+  int get _expandCost => expandCostOf(_perk, premium: _tier != AgeTier.low);
 
   /// [silent] = true 时不整页转圈（养护动作后静默刷新），避免每次浇水都闪一次
   /// 全屏 loading，孩子看着像「页面重载」而不是「浇完了」。
@@ -361,6 +364,9 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       final AppSettings settings =
           await ref.read(settingsRepositoryProvider).getSettings();
       _tier = settings.ageTier;
+      // C77：当前称号专属属性（与域层 [PlantGrowthService.currentPerk] 同源；随经济
+      // 修订号 / tab 刷新重算）。批量路径以本值下发，避免逐株重读。
+      _perk = await ref.read(currentPlantPerkProvider.future);
       _capacity = settings.gardenPotCapacity;
       // 花园氛围音与音效开关（玄参 2026-09-28）：花园页也应用一次最新设置，
       // 保证从家长端改完开关回到花园立即生效（专注页进页时也会应用一次）。
@@ -728,7 +734,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         _clearHint = (
           potIndex: potIndex,
           label: weed ? '除草成功' : '除虫成功',
-          sunlight: (weed ? kGardenWeedReward : kGardenPestReward).toInt(),
+          sunlight: (weed ? weedRewardOf(_perk) : pestRewardOf(_perk)).toInt(),
         );
       });
       unawaited(_reload(silent: true));
@@ -1043,7 +1049,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     );
     if (ok != true) return; // 取消 / 关闭对话框 → 不扣任何阳光
     await _run(() =>
-        ref.read(plantGrowthServiceProvider).expandPot(DateTime.now()));
+        ref.read(plantGrowthServiceProvider).expandPot(DateTime.now(), perk: _perk));
   }
 
   // ── 一键操作（口径 C29，玄参 2026-10-05 拍板）────────────────────────────
@@ -1085,7 +1091,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     if (_busy) return;
     final PlantGrowthService svc = ref.read(plantGrowthServiceProvider);
     final DateTime now = DateTime.now();
-    final OneClickPlan plan = await svc.oneClickPlan(kind, now);
+    final OneClickPlan plan = await svc.oneClickPlan(kind, now, perk: _perk);
     if (!mounted) return;
     // 一键操作的「计划为空 / 不可执行」提示统一走**居中 Overlay 浮层**（玄参 2026-10-07
     // 截图实证：旧 `_snack` 是屏幕最下面的 SnackBar，停留久且不居中）——复用 [_showBatchHint]，
@@ -1121,15 +1127,15 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     final String content = switch (kind) {
       PlantOneClickKind.water =>
         '将对 ${plan.plantIds.length} 盆植物各浇 1 次水\n'
-            '合计扣除：${plan.totalCost} ☀（每盆 $kPlantWaterCost ☀）\n'
+            '合计扣除：${plan.totalCost} ☀（每盆 ${waterCostOf(_perk)} ☀）\n'
             '当前阳光：${_balance.toInt()} ☀',
       PlantOneClickKind.fertilize =>
         '将对 ${plan.plantIds.length} 盆植物各施 1 次肥\n'
-            '合计扣除：${plan.totalCost} ☀（每盆 $kPlantFertilizeCost ☀）\n'
+            '合计扣除：${plan.totalCost} ☀（每盆 ${fertilizeCostOf(_perk)} ☀）\n'
             '当前阳光：${_balance.toInt()} ☀',
       PlantOneClickKind.care =>
         '将清除 ${plan.actionCount} 处杂草 / 害虫\n'
-            '奖励照常发放：除草 +${kGardenWeedReward.toInt()} ☀ / 除虫 +${kGardenPestReward.toInt()} ☀',
+            '奖励照常发放：除草 +${weedRewardOf(_perk).toInt()} ☀ / 除虫 +${pestRewardOf(_perk).toInt()} ☀',
     };
     final bool? ok = await showDialog<bool>(
       context: context,
@@ -1171,17 +1177,17 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       switch (kind) {
         case PlantOneClickKind.water:
           for (final String id in plan.plantIds) {
-            await svc.water(id, now);
+            await svc.water(id, now, perk: _perk);
           }
         case PlantOneClickKind.fertilize:
           for (final String id in plan.plantIds) {
-            await svc.fertilize(id, now);
+            await svc.fertilize(id, now, perk: _perk);
           }
         case PlantOneClickKind.care:
           for (final ({String plantId, bool weed}) t in plan.careTargets) {
             t.weed
-                ? await svc.clearWeed(t.plantId, now)
-                : await svc.clearPest(t.plantId, now);
+                ? await svc.clearWeed(t.plantId, now, perk: _perk)
+                : await svc.clearPest(t.plantId, now, perk: _perk);
           }
       }
     });
@@ -1209,7 +1215,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     final int careEarned = plan.careTargets.fold<int>(
       0,
       (int sum, ({String plantId, bool weed}) t) =>
-          sum + (t.weed ? kGardenWeedReward : kGardenPestReward).toInt(),
+          sum + (t.weed ? weedRewardOf(_perk) : pestRewardOf(_perk)).toInt(),
     );
     setState(() {
       _batchPulse
@@ -1548,6 +1554,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
           key: _potKey(i),
           plant: occupant,
           species: _speciesOf(occupant),
+          perk: _perk,
           onTap: () => _openCareSheet(occupant.id, i),
           onClearWeed: () => _clearPest(occupant.id, i, weed: true),
           onClearPest: () => _clearPest(occupant.id, i, weed: false),

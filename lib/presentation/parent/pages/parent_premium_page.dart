@@ -1,4 +1,4 @@
-/// 家长端·会员与购买页（付费墙 · 阶段 3 第二批）。
+/// 家长端·解锁全部功能页（付费墙 · 阶段 3 第二批）。
 ///
 /// 职责：把「一次性永久买断」的完整购买体验收在一处 ——
 ///  · 展示**商店返回的本地化价格**（`IapProduct.price`，绝不硬编码金额 / `$`）；
@@ -24,7 +24,10 @@ import 'package:sunflower_time/core/constants/iap_product_ids.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/services/iap_contract.dart';
+import 'package:sunflower_time/presentation/parent/widgets/premium_unlock_table.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
+import 'package:sunflower_time/presentation/shared/premium_gate.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/shared/theme.dart';
 
 /// 页内统一色（暖色儿童风：深字 + 柔灰字，白底卡由 [creamCardDecoration] 提供）。
@@ -38,7 +41,7 @@ const Key kPremiumMainButtonKey = Key('premiumMainButton');
 /// 「恢复购买」按钮 Key。
 const Key kPremiumRestoreButtonKey = Key('premiumRestoreButton');
 
-/// 家长端·会员与购买页。
+/// 家长端·解锁全部功能页。
 class ParentPremiumPage extends ConsumerStatefulWidget {
   const ParentPremiumPage({super.key});
 
@@ -153,7 +156,7 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
     return Theme(
       data: parentThemeFor(Theme.of(context).brightness),
       child: Scaffold(
-        appBar: AppBar(title: const Text('会员与购买')),
+        appBar: AppBar(title: const Text('解锁全部功能')),
         body: _buildBody(entitlement.isPremium),
       ),
     );
@@ -172,6 +175,12 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
           _buildUnavailableCard(),
           const SizedBox(height: 16),
         ],
+        // 阶段 5：主卡与主按钮之间插入「解锁前后对比表」。
+        PremiumUnlockTable(isUnlocked: unlocked),
+        const SizedBox(height: 16),
+        // 阶段 5：权益预览 4 徽标（数据源同 unlockRowsFor，只列真实生效项）。
+        _buildPreviewBadges(),
+        const SizedBox(height: 16),
         _buildMainButton(unlocked),
         const SizedBox(height: 10),
         _buildRestoreButton(),
@@ -181,49 +190,90 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
     );
   }
 
-  /// 顶部主卡（奶油风白底大圆角）：功能说明 + 当前状态胶囊。
+  /// 顶部主卡（阶段 5 视觉升级：极淡金渐变底 + 金描边 1.5 + 暖金柔光 + 👑 徽章 +
+  /// 金胶囊 + 图标径向金光）。
   ///
-  /// ⚠️ 图标已改为向日葵美术（玄参 2026-10-14 反馈），见 [_PremiumSunflowerIcon]。
+  /// ⚠️ 图标仍为向日葵美术（玄参 2026-10-14 反馈），见 [_PremiumSunflowerIcon]；
+  /// 🔴 主卡保留**精确**「已解锁 / 未解锁」胶囊文案（测试依赖 `find.text('已解锁')`）。
   Widget _buildHeroCard(bool unlocked) {
     final ({Color bg, Color fg}) tone = macaronColorById('premium');
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-      decoration: creamCardDecoration(),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFFFFFDF7), Color(0xFFFFF0C9)],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE8C56A), width: 1.5),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x33E8A600),
+            blurRadius: 16,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
         children: <Widget>[
-          // 2026-10-14 玄参截图反馈：主卡图标 emoji 🌻 → **仓库现有向日葵美术**
-          // （`species_sunflower_adult_bloomed.png`，1200×2000 带盆盛开图）。
-          // 马卡龙圆角容器同款风格；下午二轮反馈「cover 把花盆整个切掉」→
-          // 改 **BoxFit.contain** 完整展示整株（含盆），容器放大到 52×52 补
-          // contain 的视觉损失（圆角仍 14 与其余图标块一致）。
-          _PremiumSunflowerIcon(bg: tone.bg),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text(
-                  '升级解锁全部功能',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: _kInk,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // 图标容器外包一层**径向金光**（不换素材、不改 [_PremiumSunflowerIcon]。
+              Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: <Color>[Color(0xFFFFE7B0), Color(0xFFFFF7E0)],
                   ),
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  '一次买断 · 永久解锁，陪孩子一起专注成长',
-                  style: TextStyle(fontSize: 13, color: _kInkSoft),
+                padding: const EdgeInsets.all(3),
+                child: _PremiumSunflowerIcon(bg: tone.bg),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      '解锁全部功能',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: _kInk,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      '一次买断 · 永久解锁，陪孩子一起专注成长',
+                      style: TextStyle(fontSize: 13, color: _kInkSoft),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: <Widget>[
+                        pillLabel(
+                          text: unlocked ? '已解锁' : '未解锁',
+                          bg: unlocked
+                              ? const Color(0xFFD9F2DD)
+                              : const Color(0xFFEFEAE0),
+                          fg: unlocked ? _kUnlocked : _kInkSoft,
+                        ),
+                        const SizedBox(width: 8),
+                        const _GoldPill(text: '一次买断 · 永久'),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                pillLabel(
-                  text: unlocked ? '已解锁' : '未解锁',
-                  bg: unlocked ? const Color(0xFFD9F2DD) : const Color(0xFFEFEAE0),
-                  fg: unlocked ? _kUnlocked : _kInkSoft,
-                ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          // 右上角金徽章 👑（不参与布局，允许溢出到卡片内边距）。
+          Positioned(
+            top: -8,
+            right: -8,
+            child: Text('👑', style: TextStyle(fontSize: 20 * uiScaleOf(context))),
           ),
         ],
       ),
@@ -269,16 +319,22 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
     );
   }
 
-  /// 主按钮：未解锁 → 「一次买断 · <本地化价格>」；已解锁 → 不可点的「已解锁」。
+  /// 主按钮：未解锁 → 「立即解锁 · <本地化价格>」；已解锁 → 不可点的「已解锁 · 感谢支持」。
+  ///
+  /// 🔴 按钮本体**必须**仍是 [ButtonStyleButton]（[FilledButton]）且 key 保持
+  /// [kPremiumMainButtonKey] —— `premium_page_test` 对 `find.byKey(kPremiumMainButtonKey)`
+  /// 做 `tester.widget<ButtonStyleButton>(...)` 强转。阶段 5 的金渐变只加在**外层
+  /// 装饰**（[_goldButtonShell]）上，按钮本体透明。
   Widget _buildMainButton(bool unlocked) {
     if (unlocked) {
-      return SizedBox(
-        width: double.infinity,
+      return _goldButtonShell(
+        active: true,
         child: FilledButton.icon(
           key: kPremiumMainButtonKey,
           onPressed: null,
-          icon: const Icon(Icons.check_circle_outline),
-          label: const Text('已解锁'),
+          style: _goldButtonStyle(),
+          icon: const Icon(Icons.verified),
+          label: const Text('已解锁 · 感谢支持'),
         ),
       );
     }
@@ -289,14 +345,72 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
         ? '购买中…'
         : _storeUnavailable || price.isEmpty
             ? '暂不可购买'
-            : '一次买断 · $price';
-    return SizedBox(
-      width: double.infinity,
+            : '立即解锁 · $price';
+    return _goldButtonShell(
+      active: enabled,
       child: FilledButton(
         key: kPremiumMainButtonKey,
         onPressed: enabled ? _buy : null,
+        style: _goldButtonStyle(),
         child: Text(label),
       ),
+    );
+  }
+
+  /// 主按钮本体样式（透明底；金渐变由外层 [_goldButtonShell] 提供）。
+  ButtonStyle _goldButtonStyle() => FilledButton.styleFrom(
+        backgroundColor: Colors.transparent,
+        disabledBackgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        disabledForegroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size.fromHeight(48),
+        shape: const StadiumBorder(),
+      );
+
+  /// 金渐变胶囊外壳（阶段 5）：圆角 999 + 暖金渐变 + 暖金阴影。
+  ///
+  /// [active] = false（商店不可用 / 加载中）时降为**灰金**，但按钮本体仍是可测的
+  /// [ButtonStyleButton]（禁用态由 `onPressed == null` 表达，测试依赖）。
+  Widget _goldButtonShell({required Widget child, required bool active}) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: active
+              ? const <Color>[Color(0xFFFFCE5C), Color(0xFFE8A600)]
+              : const <Color>[Color(0xFFE8DFC6), Color(0xFFD8CBA6)],
+        ),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x33B8860B),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  /// 权益预览 4 徽标（阶段 5）。数据源同 [unlockRowsFor]（避免第二处硬编码）。
+  ///
+  /// 🔴 只列 **4 枚真实生效**项；严禁未实现能力写进对外卖点。
+  Widget _buildPreviewBadges() {
+    final List<PremiumUnlockRow> rows = unlockRowsFor();
+    const List<String> emojis = <String>['⚡', '🪴', '📋', '🎁'];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: <Widget>[
+        for (int i = 0; i < rows.length && i < emojis.length; i++)
+          pillLabel(
+            text: '${emojis[i]} ${rows[i].label} ${rows[i].premiumText}',
+            bg: const Color(0xFFFFF3D6),
+            fg: const Color(0xFF8D6E00),
+          ),
+      ],
     );
   }
 
@@ -362,7 +476,7 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   }
 }
 
-/// 会员状态文案（供**家长端设置页**入口卡副标题复用）。
+/// 解锁状态文案（供**家长端设置页**入口卡副标题复用）。
 ///
 /// 刻意收敛在此文件（权益命名空间白名单内），避免设置页散落权益判定 —— 设置页只
 /// 需嵌入本组件即可随 [`entitlementProvider`] 自动刷新「未解锁 / 已解锁」。
@@ -426,6 +540,33 @@ class _PremiumSunflowerIcon extends StatelessWidget {
             errorBuilder: (_, __, ___) => const Center(
               child: Text('🌻', style: TextStyle(fontSize: 24)),
             ),
+          ),
+        ),
+      );
+}
+
+/// 顶部金胶囊（阶段 5）：金渐变底 + 白字，用于主卡「一次买断 · 永久」。
+class _GoldPill extends StatelessWidget {
+  const _GoldPill({required this.text});
+
+  /// 胶囊文案。
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: <Color>[Color(0xFFFFCE5C), Color(0xFFE8A600)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
           ),
         ),
       );

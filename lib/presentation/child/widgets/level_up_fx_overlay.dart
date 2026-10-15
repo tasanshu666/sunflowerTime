@@ -38,6 +38,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart'
     show titleOfLevel;
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/presentation/child/widgets/focus_level_badge.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/fx_card_shell.dart';
@@ -298,6 +299,9 @@ class _LevelUpContent extends StatelessWidget {
     final int titles = result.titlesGained;
     final int levels = result.levelsGained;
 
+    // C77：本轮「最高新称号」的专属属性（= 已解锁节点属性累积，与域层同源）。
+    final PlantPerk perk = perkOfLevel(shownLevel);
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
@@ -386,6 +390,20 @@ class _LevelUpContent extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+        // C77：称号节点追加「本称号专属：…」行（普通升级**不显示** —— 无新称号）；
+        // 文案由 [perkSummaryTextOf] + 模板单点装配（不写页面内 if-else 拼 9 种）。
+        if (isTitleNode && !perk.isNone) ...<Widget>[
+          const SizedBox(height: 6),
+          Text(
+            kLevelUpFxPerkTemplate.replaceAll('{text}', perkSummaryTextOf(perk)),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF8A5A00),
+            ),
           ),
         ],
       ],

@@ -53,6 +53,7 @@ import 'package:sunflower_time/domain/entities/eye_care_log.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 
@@ -205,14 +206,25 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
     }
   }
 
-  /// 完整完成护眼 → 账本 +[kEyeCareRewardSunlight] 阳光，`refType = 'eye_care_break'`。
+  /// 当前称号属性（provider 未就绪回退 [PlantPerk.none]，不虚报；Q-E）。
+  Future<PlantPerk> _perkOrNone() async {
+    try {
+      return await ref.read(currentPlantPerkProvider.future);
+    } catch (_) {
+      return PlantPerk.none;
+    }
+  }
+
+  /// 完整完成护眼 → 账本 +[EyeCareService.rewardSunlightOf(perk)] 阳光，
+  /// `refType = 'eye_care_break'`（C77 第 7 条）。
   Future<void> _appendReward() async {
     try {
       final SunlightRepository ledger =
           ref.read(sunlightRepositoryProvider);
       final DateTime now = DateTime.now();
       final double before = await ledger.balance();
-      final double amount = EyeCareService.rewardSunlight().toDouble();
+      final double amount =
+          EyeCareService.rewardSunlightOf(await _perkOrNone()).toDouble();
       await ledger.append(SunlightEntry(
         id: _uuid.v4(),
         ts: now,

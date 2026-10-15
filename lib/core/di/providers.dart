@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart';
 import 'package:sunflower_time/data/local/focus_level_prefs_store.dart';
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
@@ -36,6 +37,7 @@ import 'package:sunflower_time/domain/repositories/eye_care_log_repository.dart'
 import 'package:sunflower_time/domain/repositories/focus_level_store.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
@@ -171,6 +173,29 @@ final economyRevisionProvider = StateProvider<int>((ref) => 0);
 final sunlightBalanceProvider = FutureProvider.autoDispose<double>((ref) async {
   ref.watch(economyRevisionProvider);
   return ref.read(sunlightRepositoryProvider).balance();
+});
+
+/// C77 · 当前称号专属属性（花园 / 护眼 / 详情卡 / 演出 / 结算共用，单实例）。
+///
+/// = `perkOfLevel(levelOfMinutes(totalFocusMinutes))` —— **唯一来源**（设计 §3.4）；
+/// 输入是**原始等级**（不是已结算等级 / SP 锚点），且**不读** entitlement（P4 免费 / 买断一致）。
+/// 随 [economyRevisionProvider]（跨页刷新总线）重算：专注结算 / 升级后回到花园即拿到新属性。
+///
+/// ⚠️ 性能（Q-J）：`totalStats()` 全量取行内存求和；花园单株动作各读一次可接受，
+/// 批量路径（一键）由页面**只读一次**后经 `PlantGrowthService` 参数下发（§5.2）。
+final currentPlantPerkProvider = FutureProvider<PlantPerk>((ref) async {
+  ref.watch(economyRevisionProvider);
+  // 🔴 有界等待（Q-E）：仓储不可用 / 极慢 → 超时回退 [PlantPerk.none]，
+  // 绝不把「读属性」变成会挂住 UI 流程（护眼奖励 / 结算展示）的 await。
+  try {
+    final stats = await ref
+        .read(focusRepositoryProvider)
+        .totalStats()
+        .timeout(kPlantPerkProviderTimeout);
+    return perkOfLevel(levelOfMinutes(stats.totalFocusMinutes));
+  } catch (_) {
+    return PlantPerk.none;
+  }
 });
 
 /// 兑换编排服务（§3.2 / §4.1–4.3）：submit / verify / releaseQueue / pendingList。

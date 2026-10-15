@@ -36,6 +36,8 @@ import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/entitlement_service.dart';
+import 'package:sunflower_time/domain/services/focus_level_service.dart';
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 
 /// 植物养成业务异常（余额不足 / 状态非法 / 花盆占用等）。
 class PlantOperationException implements Exception {
@@ -223,8 +225,16 @@ class PlantGrowthService {
         _weedRandom = weedRandom ?? random ?? Random(),
         _onEconomyChanged = onEconomyChanged;
 
-  /// 两档价：低年段取 low，其余（中 / 高）取 high（U3 决策：植物保留 §4.6 两档）。
-  int _price(int low, int high, AgeTier tier) => tier == AgeTier.low ? low : high;
+  /// 当前称号的专属属性（C77）：`perkOfLevel(levelOfMinutes(累计有效专注分钟))`。
+  ///
+  /// 🔴 输入是**原始等级**（不是已结算等级 / SP 锚点，见设计 §3.4）；**不读** entitlement
+  /// （P4 免费 / 买断一致）。域方法缺省 `perk` 时内部走本方法（保既有单测向后兼容，S10）。
+  /// ⚠️ 性能（Q-J 技术债）：`totalStats()` 全量取行内存求和 —— 单株动作各读一次可接受；
+  ///    批量路径（一键操作）由调用方**只读一次**再下发（§5.2）。
+  Future<PlantPerk> currentPerk() async {
+    final double minutes = (await _focus.totalStats()).totalFocusMinutes;
+    return perkOfLevel(levelOfMinutes(minutes));
+  }
 
   /// 账本扣减（net<0）。refType 区分来源（§3.2 账本铁律）。
   Future<void> _appendSpend({
@@ -949,20 +959,24 @@ class PlantGrowthService {
     return (need - elapsed).inSeconds ~/ 60 + 1;
   }
 
-  /// 浇水：校验额度（每日次数 + 30 分钟间隔）→ 扣 [kPlantWaterCost] 阳光
+  /// 浇水：校验额度（每日次数 + 30 分钟间隔）→ 扣 [waterCostOf] 阳光
   /// (refType='plant_water') → 进度 +[kPlantWaterProgressGain] → lastWaterAt=now（重置枯萎计时）。
   ///
+  /// [perk]（C77 第 1 条）：当前称号专属属性；缺省 `null` → 内部 [currentPerk]
+  /// （保既有单测向后兼容，S10）。扣费与 UI 展示**同源** —— 都走 [waterCostOf]（防孪生 S2）。
+  ///
   /// 若动作前植物处于 wilting，浇完后用 [_maybeRecover] 评估是否靠养护恢复（2026-09-23 替代付费救回）。
-  Future<void> water(String plantId, DateTime now) async {
+  Future<void> water(String plantId, DateTime now, {PlantPerk? perk}) async {
     final Plant? p = await _plants.plant(plantId);
     if (p == null) throw const PlantOperationException('植物不存在');
     final PlantCareQuota quota = await careQuota(p, now);
     if (quota.waterBlockReason != null) {
       throw PlantOperationException(quota.waterBlockReason!);
     }
-    await _spendCheck(kPlantWaterCost);
+    final int cost = waterCostOf(perk ?? await currentPerk());
+    await _spendCheck(cost);
     await _appendSpend(
-      amount: kPlantWaterCost.toDouble(),
+      amount: cost.toDouble(),
       type: SunlightType.plant,
       refType: 'plant_water',
       now: now,
@@ -984,21 +998,23 @@ class PlantGrowthService {
     await _plants.savePlant(recovered);
   }
 
-  /// 施肥：校验额度（每日 1 次）→ 扣 [kPlantFertilizeCost] 阳光
+  /// 施肥：校验额度（每日 1 次）→ 扣 [fertilizeCostOf] 阳光
   /// (refType='plant_fertilize') → 进度 +[kPlantFertilizeProgressGain]。
   ///
+  /// [perk]（C77 第 2 条）：当前称号专属属性；缺省 → 内部 [currentPerk]（S10）。
   /// 注意：施肥同样刷新 lastWaterAt=now（与浇水一致）。若动作前植物处于 wilting，
   /// 施完后用 [_maybeRecover] 评估是否靠养护恢复（2026-09-23 替代付费救回）。
-  Future<void> fertilize(String plantId, DateTime now) async {
+  Future<void> fertilize(String plantId, DateTime now, {PlantPerk? perk}) async {
     final Plant? p = await _plants.plant(plantId);
     if (p == null) throw const PlantOperationException('植物不存在');
     final PlantCareQuota quota = await careQuota(p, now);
     if (quota.fertilizeBlockReason != null) {
       throw PlantOperationException(quota.fertilizeBlockReason!);
     }
-    await _spendCheck(kPlantFertilizeCost);
+    final int cost = fertilizeCostOf(perk ?? await currentPerk());
+    await _spendCheck(cost);
     await _appendSpend(
-      amount: kPlantFertilizeCost.toDouble(),
+      amount: cost.toDouble(),
       type: SunlightType.plant,
       refType: 'plant_fertilize',
       now: now,
@@ -1029,11 +1045,18 @@ class PlantGrowthService {
   ///  · 返还走账本入账（refType=[kPlantShovelRefundRefType]，值冻结，`_refLabels`
   ///    已同步「铲除返还」）；返还 0 时不写账本行；
   ///  · UI 侧负责二次确认弹卡（明示返还额）后再调本方法，领域层不做确认。
-  Future<int> shovel(String plantId, DateTime now) async {
+  ///
+  /// C77 第 9 条（玄参 2026-10-15）：退款 = **基础额「种下时定」**（`plants.shovel_refund`
+  /// 列，free 首株 0 / 档位株 150/250，`_tierShovelRefund`/`_chargeForPlanting` **不改**）
+  /// + **称号加成「铲除时叠加」** [shovelRefundOf]。
+  /// [perk] 缺省 → [currentPerk]（铲除这一刻的当前称号，符合玩家直觉）；
+  /// 🔴 **无铲除护栏**（Q9 已关闭）：券种 / 碎片株与付费株同额（170/270），死亡株仍返 0。
+  Future<int> shovel(String plantId, DateTime now, {PlantPerk? perk}) async {
     final Plant? p = await _plants.plant(plantId);
     if (p == null) throw const PlantOperationException('植物不存在');
-    final int refund =
-        p.status == PlantStatus.dead ? 0 : p.shovelRefund.clamp(0, 1 << 30);
+    final int refund = p.status == PlantStatus.dead
+        ? 0
+        : shovelRefundOf(p.shovelRefund, perk ?? await currentPerk());
     await _plants.deletePlant(plantId);
     if (refund > 0) {
       await _appendEarn(
@@ -1059,7 +1082,13 @@ class PlantGrowthService {
   /// UI 流程（玄参拍板）：确认卡（明示合计价）→ 阳光不足**整体拦截**（一株都不执行）→
   /// 逐株执行既有单株方法（本服务 [water] / [fertilize] / [clearWeed] / [clearPest]，
   /// 各自再校验一次额度，幂等安全）→ 汇总飘字 + 每盆轻量反馈。
-  Future<OneClickPlan> oneClickPlan(PlantOneClickKind kind, DateTime now) async {
+  /// [perk]（C77）：当前称号专属属性；缺省 → **只读一次** [currentPerk]（批量路径不重复读，
+  /// S10 / R6）。单价 perk-aware，数量乘照旧（§4.5）。
+  Future<OneClickPlan> oneClickPlan(
+    PlantOneClickKind kind,
+    DateTime now, {
+    PlantPerk? perk,
+  }) async {
     final List<Plant> plants = await _plants.plants();
     switch (kind) {
       case PlantOneClickKind.water:
@@ -1075,8 +1104,10 @@ class PlantGrowthService {
               : q.canFertilize;
           if (ok) ids.add(p.id);
         }
-        final int unit =
-            kind == PlantOneClickKind.water ? kPlantWaterCost : kPlantFertilizeCost;
+        final PlantPerk effectivePerk = perk ?? await currentPerk();
+        final int unit = kind == PlantOneClickKind.water
+            ? waterCostOf(effectivePerk)
+            : fertilizeCostOf(effectivePerk);
         return OneClickPlan(plantIds: ids, totalCost: ids.length * unit);
       case PlantOneClickKind.care:
         final List<({String plantId, bool weed})> targets =
@@ -1091,24 +1122,29 @@ class PlantGrowthService {
   }
 
   /// 拔掉杂草（口径 C26，玄参 2026-09-30 拍板）：清除当天杂草 + 入账
-  /// [kGardenWeedReward] 阳光（账本 `refType='plant_weed'`，可 child 端阳光来源显示）。
+  /// [weedRewardOf] 阳光（账本 `refType='plant_weed'`，可 child 端阳光来源显示）。
   ///
   /// 分因失败抛 [PlantOperationException]：植物不存在 / 已死亡 / 本盆当前无杂草。
   /// ⚠️ 清除后**保留** `weedPestRollDay = 今天`：否则同日再 tick 会重 roll 又长出杂草，
   /// 「点一下就没了」退化成「点完没几分钟又冒出来」。
-  Future<void> clearWeed(String plantId, DateTime now) =>
-      _clearPestOrWeed(plantId: plantId, now: now, isWeed: true);
+  /// [perk]（C77 第 3 条）：缺省 → 内部 [currentPerk]。
+  Future<void> clearWeed(String plantId, DateTime now, {PlantPerk? perk}) =>
+      _clearPestOrWeed(plantId: plantId, now: now, isWeed: true, perk: perk);
 
   /// 除虫（口径 C26，玄参 2026-09-30 拍板）：语义同 [clearWeed]，奖励
-  /// [kGardenPestReward] 阳光（账本 `refType='plant_pest'`）。
-  Future<void> clearPest(String plantId, DateTime now) =>
-      _clearPestOrWeed(plantId: plantId, now: now, isWeed: false);
+  /// [pestRewardOf] 阳光（账本 `refType='plant_pest'`）。[perk]（C77 第 4 条）。
+  Future<void> clearPest(String plantId, DateTime now, {PlantPerk? perk}) =>
+      _clearPestOrWeed(plantId: plantId, now: now, isWeed: false, perk: perk);
 
   /// [clearWeed] / [clearPest] 的公共实现（入账 + 清字段，不做第二次校验）。
+  ///
+  /// C77 第 3/4 条：奖励 perk-aware（[weedRewardOf] / [pestRewardOf]）；
+  /// [perk] 缺省 → [currentPerk]。
   Future<void> _clearPestOrWeed({
     required String plantId,
     required DateTime now,
     required bool isWeed,
+    PlantPerk? perk,
   }) async {
     final Plant? p = await _plants.plant(plantId);
     if (p == null) throw const PlantOperationException('植物不存在');
@@ -1119,8 +1155,9 @@ class PlantGrowthService {
     if (!hit) {
       throw PlantOperationException(isWeed ? '这盆没有杂草哦' : '这盆没有害虫哦');
     }
+    final PlantPerk effectivePerk = perk ?? await currentPerk();
     await _appendEarn(
-      amount: isWeed ? kGardenWeedReward : kGardenPestReward,
+      amount: isWeed ? weedRewardOf(effectivePerk) : pestRewardOf(effectivePerk),
       refType: isWeed ? kGardenWeedRefType : kGardenPestRefType,
       now: now,
       refId: plantId,
@@ -1211,16 +1248,17 @@ class PlantGrowthService {
   ///
   /// 🔴 阶段 4：上限改为**按档位**（域层防线，防绕过 UI 一次性顶到满格）；**只拦扩容**，
   /// 绝不压低 / 删除任何已有盆位（C69 红线：达上限时已有盆位照常可用）。
-  Future<void> expandPot(DateTime now) async {
+  /// [perk]（C77 第 8 条）：扩容价 perk-aware（低年段取 low / 其余取 high，各 − 减免）；
+  /// 缺省 → 内部 [currentPerk]。
+  Future<void> expandPot(DateTime now, {PlantPerk? perk}) async {
     final AppSettings settings = await _settings.getSettings();
     final int limit = _potCapacityLimit;
     if (settings.gardenPotCapacity >= limit) {
       throw PlantOperationException('花园已达当前档位容量上限（$limit 盆），解锁可扩容');
     }
-    final int cost = _price(
-      kPlantPotExpandCostLow,
-      kPlantPotExpandCostHigh,
-      settings.ageTier,
+    final int cost = expandCostOf(
+      perk ?? await currentPerk(),
+      premium: settings.ageTier != AgeTier.low,
     );
     final double balance = await _ledger.balance();
     if (balance < cost) {
@@ -1553,6 +1591,15 @@ class PlantGrowthService {
     return cut < kBloomDewMinSunlight ? kBloomDewMinSunlight : cut;
   }
 
+  /// C77 第 6 条：晨露实发 = 折损（[bloomDewSunlight]）**之后**再加称号加成（§4.4 R3）。
+  ///
+  /// 🔴 顺序铁律：`+ perk.dewBonus` **必须放在折损之后**。若先加再折，未养护时 `+1` 会被
+  /// `×0.5` 吃掉（`ceil((base+1)×0.5) − ceil(base×0.5)` 可能 = 0），「每条 +1」变「有时 +0」
+  /// ——违反 P1 单次 ±1 的诚实性。**展示**（[withBloomDewDiscount]）与**发放**
+  /// （[_settlePendingReward]）**都调本函数** ⇒ 头顶气泡数字 = 实际到手（S6）。
+  static int dewSunlightOf(int base, bool cared, PlantPerk perk) =>
+      bloomDewSunlight(base, cared) + perk.dewBonus;
+
   /// 该条晨露（[dueAt]）的**前一天**该株是否养护达标（账本为事实源，**不加列**）。
   ///
   /// 达标 = `plant_water` + `plant_fertilize` 账本条数 ≥ [kBloomDewCarePerDayRequired]。
@@ -1567,29 +1614,38 @@ class PlantGrowthService {
     return water + fertilizer >= kBloomDewCarePerDayRequired;
   }
 
-  /// 该条 pending 的**实发阳光**：开花瞬间不折损；每日晨露按前一日养护折损。
-  Future<int> bloomDewSunlightOf(PendingBloomReward reward) async {
+  /// 该条 pending 的**实发阳光**：开花瞬间不折损；每日晨露按前一日养护折损（+ 称号加成）。
+  ///
+  /// C77 第 6 条：[perk] 缺省 → [currentPerk]（展示与发放走同一函数，S6）。
+  Future<int> bloomDewSunlightOf(
+    PendingBloomReward reward, {
+    PlantPerk? perk,
+  }) async {
     if (reward.rewardKind == kBloomRewardPhaseInstant) {
       return reward.rewardSunlight;
     }
-    return bloomDewSunlight(
+    return dewSunlightOf(
       reward.rewardSunlight,
       await bloomDewCaredBefore(reward.plantId, reward.dueAt),
+      perk ?? await currentPerk(),
     );
   }
 
   /// 展示用：把「可收集奖励」映射（plantId → 列表）里的阳光换成折损后数值
   /// ——**与发放同源**（都走 [bloomDewSunlightOf]），保证头顶图标数字 = 实际到手。
   Future<Map<String, List<PendingBloomReward>>> withBloomDewDiscount(
-    Map<String, List<PendingBloomReward>> byPlant,
-  ) async {
+    Map<String, List<PendingBloomReward>> byPlant, {
+    PlantPerk? perk,
+  }) async {
+    // C77：批量只读一次当前称号（R6），下发到每条 [bloomDewSunlightOf]。
+    final PlantPerk effectivePerk = perk ?? await currentPerk();
     final Map<String, List<PendingBloomReward>> out =
         <String, List<PendingBloomReward>>{};
     for (final MapEntry<String, List<PendingBloomReward>> e
         in byPlant.entries) {
       final List<PendingBloomReward> list = <PendingBloomReward>[];
       for (final PendingBloomReward r in e.value) {
-        final int v = await bloomDewSunlightOf(r);
+        final int v = await bloomDewSunlightOf(r, perk: effectivePerk);
         list.add(v == r.rewardSunlight ? r : r.copyWith(rewardSunlight: v));
       }
       out[e.key] = list;
@@ -1648,9 +1704,11 @@ class PlantGrowthService {
     // 折成 0 → 阳光一条都不发（2026-10-12 回归实测踩到）。
     BloomRewardOutcome settled = outcome;
     if (!instant && settled.sunlight > 0) {
-      final int discounted = bloomDewSunlight(
+      // C77 第 6 条：折损之后再加称号加成（与 [withBloomDewDiscount] 同源 [dewSunlightOf]）。
+      final int discounted = dewSunlightOf(
         settled.sunlight,
         await bloomDewCaredBefore(reward.plantId, reward.dueAt),
+        await currentPerk(),
       );
       if (discounted != settled.sunlight) {
         settled = settled.copyWith(sunlight: discounted);
@@ -1722,8 +1780,8 @@ class PlantGrowthService {
     bool premium,
     List<PlantSpecies> species,
   ) async {
-    final int base =
-        premium ? kBloomInstantSunlightPremium : kBloomInstantSunlight;
+    // C77 第 5 条：保底基础阳光 perk-aware（与 [_grantInstantReward] 同源，S4）。
+    final int base = bloomInstantBaseOf(await currentPerk(), premium: premium);
     int sunlight = base;
     int fragments = 0;
     String? seed;
@@ -1820,8 +1878,8 @@ class PlantGrowthService {
   /// 发放**开花瞬间**奖励：保底基础阳光（单独一笔，100% 必给）+ 惊喜加成（碎片 / 种子 / 大额阳光）。
   ///
   /// ⚠️ 账本粒度与旧实现一致：保底基础阳光与「大额阳光」加成各记**一笔**（`refType` 皆为
-  ///    [kBloomRewardRefType]）。基础阳光由 [premium] 确定（[BloomRewardOutcome.sunlight] 与其之差
-  ///    即惊喜加成）。种子 / 碎片不走账本。
+  ///    [kBloomRewardRefType]）。基础阳光由 [premium] **与当前称号属性**共同确定
+  ///    （[BloomRewardOutcome.sunlight] 与其之差即惊喜加成）。种子 / 碎片不走账本。
   Future<void> _grantInstantReward(
     BloomRewardOutcome outcome,
     bool premium,
@@ -1829,10 +1887,14 @@ class PlantGrowthService {
     DateTime now,
   ) async {
     // ① 保底基础阳光（100% 必给）——单独一笔。
-    final int base =
-        premium ? kBloomInstantSunlightPremium : kBloomInstantSunlight;
+    // C77 第 5 条：base perk-aware（与 [_rollInstantReward] 同源，S4）。
+    final int base = bloomInstantBaseOf(await currentPerk(), premium: premium);
+    // 🔴 拆分护栏（§5.3）：预登记值 [outcome] 恒为准。若植物在换档前开花（旧 base 6）
+    //    而在换档后收集（新 base 7），取 baseRow = min(base, outcome.sunlight) 使
+    //    ① + ② 合计恒 = outcome.sunlight（既不漏也不多发）；base ≤ outcome 时与旧行为逐字节一致。
+    final int baseRow = base < outcome.sunlight ? base : outcome.sunlight;
     await _appendEarn(
-      amount: base.toDouble(),
+      amount: baseRow.toDouble(),
       refType: kBloomRewardRefType,
       now: now,
       refId: plantId,
@@ -1843,10 +1905,10 @@ class PlantGrowthService {
       await _addPremiumFragments(outcome.fragments);
     } else if (outcome.seedSpeciesId != null) {
       await _bloomRewards.unlockSpecies(outcome.seedSpeciesId!);
-    } else if (outcome.sunlight > base) {
+    } else if (outcome.sunlight > baseRow) {
       // 大额阳光（含「本档全持券 → 兜底阳光」）——单独一笔。
       await _appendEarn(
-        amount: (outcome.sunlight - base).toDouble(),
+        amount: (outcome.sunlight - baseRow).toDouble(),
         refType: kBloomRewardRefType,
         now: now,
         refId: plantId,

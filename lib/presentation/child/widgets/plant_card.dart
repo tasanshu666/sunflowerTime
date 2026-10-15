@@ -24,6 +24,10 @@ import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_perk.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+// C77 称号专属属性取值函数：本文件已 import 同名类 `PlantPerk`（能力接口骨架，
+// `domain/entities/plant_perk.dart`），故称号属性侧**加前缀**避免类名冲突。
+import 'package:sunflower_time/domain/services/plant_perk.dart' as title_perk
+    show waterCostOf, fertilizeCostOf, PlantPerk;
 import 'package:sunflower_time/domain/services/plant_perk_registry.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
@@ -44,6 +48,9 @@ class PlantCard extends StatelessWidget {
   /// 铲除（C29，非死亡株也可铲）：点击后由调用方弹二次确认卡再执行。
   final VoidCallback? onShovel;
 
+  /// C77 · 当前称号专属属性（缺省 null → 按钮 cost 显示基础价 = 旧口径，零回归）。
+  final title_perk.PlantPerk? perk;
+
   const PlantCard({
     super.key,
     required this.plant,
@@ -53,6 +60,7 @@ class PlantCard extends StatelessWidget {
     this.onFertilize,
     this.onClear,
     this.onShovel,
+    this.perk,
   });
 
   String get _stageLabel {
@@ -457,7 +465,7 @@ class PlantCard extends StatelessWidget {
                     title: q == null
                         ? '浇水'
                         : '浇水 +${_fmtGain(_careGain(firstGain: kPlantWaterProgressGain, rebloomGain: kRebloomWaterProgressGain))}%',
-                    cost: kPlantWaterCost,
+                    cost: title_perk.waterCostOf(perk ?? title_perk.PlantPerk.none),
                     enabled: canWater,
                     onTap: onWater,
                   ),
@@ -469,7 +477,7 @@ class PlantCard extends StatelessWidget {
                     title: q == null
                         ? '施肥'
                         : '施肥 +${_fmtGain(_careGain(firstGain: kPlantFertilizeProgressGain, rebloomGain: kRebloomFertilizeProgressGain))}%',
-                    cost: kPlantFertilizeCost,
+                    cost: title_perk.fertilizeCostOf(perk ?? title_perk.PlantPerk.none),
                     enabled: canFertilize,
                     onTap: onFertilize,
                   ),

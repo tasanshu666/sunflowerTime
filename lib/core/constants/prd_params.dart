@@ -1500,8 +1500,26 @@ const double kLevelDetailBodyFontSize = 14;
 /// 圆徽 ↔ 右侧称号列间距 / 第二块与列表的间距。
 const double kLevelDetailSectionGap = 14;
 
-/// 9 个称号列表：**每行高**。
-const double kLevelDetailRowHeight = 34;
+/// 9 个称号列表：**每行最小高**（`ConstrainedBox(minHeight:)`，不是固定 `height`）。
+///
+/// 34 → **44**（C77 称号属性，2026-10-15）：行右侧由「单行 ☀+N」改为
+/// **上下两行**「属性徽章（emoji + 增减）+ ☀+N」。
+/// 🔴 **必须用 `minHeight` 而非固定 `height`**（C65 教训：固定高会被放大文字撑破）：
+/// 平板 `textScaler` 最高 [kTabletTextScaleMax]（1.6）时右侧两行的内在高可能 > 44，
+/// 固定 `height: 44` 会 **RenderFlex 纵向 overflow**；`minHeight` 让行随内容增高、零溢出
+/// （验收见 `test/m3/level_detail_perk_layout_test.dart`）。
+const double kLevelDetailRowHeight = 44;
+
+/// 详情卡每行**右侧属性/奖励列**的最大宽（C77；实测回填，见 `level_detail_perk_layout_test`）。
+///
+/// 超过则换行/溢出预警。provisional 96（长称号 + ✨ + 属性徽章 + ☀N 两行）。
+const double kLevelDetailPerkRightColMaxWidth = 96;
+
+/// 详情卡属性徽章字号（`💧−1` 之类，比称号行 [kLevelDetailRowFontSize] 更小）。
+const double kLevelDetailPerkFontSize = 11;
+
+/// 详情卡底部 emoji 图例字号（极小号；[kLevelDetailRowFontSize] − 1）。
+const double kLevelDetailLegendFontSize = 12;
 
 /// 9 个称号列表：左侧节点圆牌尺寸。
 const double kLevelDetailRowChipSize = 26;
@@ -1556,3 +1574,84 @@ const double kLevelUpFxSunIconSize = 26;
 /// 与成长演出卡同款「金色径向柔光 + 内含正方形播放区」布局
 /// （`kGrowFxInnerRadius` 圆角、`kGrowFxGlowCore/Edge` 渐变），保证两套演出视觉一致。
 const double kLevelUpFxStageSize = 150;
+
+// ───────────────────────────────────────────────────────────────────────────
+// C77 · 称号专属属性（玄参 2026-10-15 拍板；**对 C74 §5「不影响任何玩法数值」的
+//       有意识修订**，已随本批落 `口径裁定表_v1.md` C77）
+//
+// 口径（读码实测，唯一真源 = 阶段 5 PRD §1.3）：
+//   ① Lv.1  专注小萌芽 → 浇水消耗 −1        （kPlantWaterCost 5→4）
+//   ② Lv.5  专注小苗苗 → 施肥消耗 −1        （kPlantFertilizeCost 10→9）
+//   ③ Lv.10 静心小书童 → 除草奖励 +1        （kGardenWeedReward 1→2）
+//   ④ Lv.15 时光小卫士 → 除虫奖励 +1        （kGardenPestReward 2→3）
+//   ⑤ Lv.20 专心小骑士 → 开花即时阳光 +1    （kBloomInstantSunlight 6→7 / 精品 10→11）
+//   ⑥ Lv.25 守时小星使 → 晨露阳光 +1/条     （加在折损之后；见 dewSunlightOf）
+//   ⑦ Lv.30 专注小法师 → 护眼完成奖励 +1    （kEyeCareRewardSunlight 3→4）
+//   ⑧ Lv.35 星辰守护者 → 花盆扩容消耗 −20   （kPlantPotExpandCostHigh/Low 400/160→380/140）
+//   ⑨ Lv.40 时光大贤者 → 铲除退款 +20       （kShovelRefundCommon/Premium 150/250→170/270）
+//
+// 🔴 四条硬纪律（P1~P5）：
+//   · **单次一律 ±1**（仅 ⑧⑨ 两条一次性项用小幅定量）；绝不引入乘法/加速/花期变更；
+//   · **9 条零重复**：同一常量不在两条里出现，**禁止「再 −1」叠加式写法**；
+//   · 属性 = `f(当前称号)` **纯派生**（`perkOfLevel(levelOfMinutes(totalFocusMinutes))`），
+//     **不新增表 / 不加列，`schemaVersion` 维持 24**；
+//   · **免费/买断一致**：判定**不读**任何权益 / 门控来源（P4）。
+//
+// 取值/接线实现真源：`docs/称号属性_v1_系统设计.md`；纯函数落 `lib/domain/services/plant_perk.dart`。
+// ───────────────────────────────────────────────────────────────────────────
+
+/// ① 浇水消耗减免（Lv.1 · 专注小萌芽）。
+const int kPerkWaterDiscount = 1;
+
+/// ② 施肥消耗减免（Lv.5 · 专注小苗苗）。
+const int kPerkFertilizeDiscount = 1;
+
+/// ③ 除草奖励加成（Lv.10 · 静心小书童）。
+const int kPerkWeedBonus = 1;
+
+/// ④ 除虫奖励加成（Lv.15 · 时光小卫士）。
+const int kPerkPestBonus = 1;
+
+/// ⑤ 开花即时阳光加成（Lv.20 · 专心小骑士）。
+const int kPerkBloomInstantBonus = 1;
+
+/// ⑥ 晨露阳光加成（Lv.25 · 守时小星使；**加在折损之后**，见 `dewSunlightOf`）。
+const int kPerkDewBonus = 1;
+
+/// ⑦ 护眼完成奖励加成（Lv.30 · 专注小法师）。
+const int kPerkEyeCareBonus = 1;
+
+/// ⑧ 花盆扩容消耗减免（Lv.35 · 星辰守护者；一次性项）。
+const int kPerkExpandDiscount = 20;
+
+/// ⑨ 铲除退款加成（Lv.40 · 时光大贤者；一次性项）。
+/// 🔴 `base == 0`（免费首株）**不加成**，天然防「免费种 → 铲」刷分（见 `shovelRefundOf`）。
+const int kPerkShovelRefundBonus = 20;
+
+/// 9 称号节点属性的 **emoji**（索引与 [kFocusLevelTitleLevels] 一一对应）。
+const List<String> kPerkEmojis = <String>[
+  '💧', // Lv.1  浇水 −1
+  '🌾', // Lv.5  施肥 −1
+  '🌿', // Lv.10 除草 +1
+  '🦗', // Lv.15 除虫 +1
+  '🌻', // Lv.20 开花 +1
+  '🌤', // Lv.25 晨露 +1
+  '👁', // Lv.30 护眼 +1
+  '🪴', // Lv.35 扩容 −20
+  '⛏️', // Lv.40 铲除 +20
+];
+
+/// 升级演出卡「本称号专属」行模板（`{text}` = 属性摘要，见 `perkSummaryTextOf`）。
+const String kLevelUpFxPerkTemplate = '本称号专属：{text}';
+
+/// 详情卡底部 emoji 图例（**单点常量，禁止页面拼接**）。
+const String kLevelPerkLegendText = '💧浇水−1 · 🌾施肥−1 · 🌿除草+1 · 🦗除虫+1 · '
+    '🌻开花+1 · 🌤晨露+1 · 👁护眼+1 · 🪴扩容−20 · ⛏️铲除+20';
+
+/// 称号属性读取的**等待上限**（`currentPlantPerkProvider` 用）。
+///
+/// 正常路径 = 一次 `totalStats()` 仓储查询（毫秒级）；**仅在仓储不可用 / 极慢时**
+/// 超时兜底为 [PlantPerk.none]（不虚报、**绝不卡主线程 / 卡 UI 流程**，Q-E）。
+/// 2s 远大于正常查询耗时，故正常使用零影响。
+const Duration kPlantPerkProviderTimeout = Duration(seconds: 2);
+

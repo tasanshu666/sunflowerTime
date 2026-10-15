@@ -1,0 +1,57 @@
+%% 购买页改版 v1 · 时序图（Mermaid sequenceDiagram）
+%% 覆盖：① 打开购买页（对比表派生）② 购买 ③ 恢复购买（②③ 流程不变，仅文案/视觉变化）
+
+sequenceDiagram
+    autonumber
+    actor Parent as 家长
+    participant Nav as go_router
+    participant Page as ParentPremiumPage
+    participant Table as PremiumUnlockTable
+    participant Gate as premium_gate.unlockRowsFor()
+    participant Matrix as kEntitlementMatrix
+    participant Ent as entitlementProvider
+    participant Iap as iapServiceProvider (IapClient)
+    participant Svc as entitlementServiceProvider
+
+    Note over Parent,Matrix: ① 打开购买页 + 对比表派生（本批新增）
+
+    Parent->>Nav: 设置页点「解锁全部功能」入口卡
+    Nav->>Page: push('/parent/premium')
+    Page->>Page: initState() → _loadProduct()
+    Page->>Iap: loadProducts()
+    Iap-->>Page: [IapProduct(id=lifetime, price='HK$88.00')]
+    Page->>Page: _pickLifetime() → _product（价格仅来自商店）
+
+    Page->>Ent: watch(entitlementProvider) → isPremium
+    Ent-->>Page: false（免费档）
+    Page->>Table: build(isUnlocked: false)
+    Table->>Gate: unlockRowsFor(matrix: kEntitlementMatrix)
+    Gate->>Matrix: featureAllowedFor(oneClickCare, free) = false
+    Gate->>Matrix: featureQuotaFor(gardenPotCapacity/taskTemplateCount/rewardTemplateCount, tier)
+    Matrix-->>Gate: 4 / 12 ；5 / 不限
+    Gate-->>Table: [PremiumUnlockRow × 4]  （显式枚举 4 键，禁 values 遍历）
+    Table-->>Page: 两栏对比表（免费=中性米白 / 买断=暖金渐变）
+    Page->>Page: _buildPreviewBadges() → 4 枚真实项徽标（无「深度报告」）
+    Page-->>Parent: 主卡(金渐变) → 对比表 → 预览徽标 → 主按钮「立即解锁 · HK$88.00」→ 恢复购买 → 说明卡
+
+    Note over Parent,Matrix: ② 购买（流程不变，仅视觉/文案变化）
+
+    Parent->>Page: 点主按钮「立即解锁 · HK$88.00」
+    Page->>Page: _buy()（_buying = true，按钮禁用）
+    Page->>Svc: purchaseLifetime()
+    Svc->>Iap: startLifetimePurchase(kIapProductIdLifetime)
+    Iap-->>Svc: IapMessage(purchased, jws)
+    Svc->>Svc: 落库票据
+    Page->>Svc: load()
+    Svc-->>Page: Entitlement.premium
+    Page->>Ent: state = premium（刷新全局）
+    Ent-->>Page: isPremium = true（主卡胶囊「已解锁」+ 主按钮→金对勾「已解锁 · 感谢支持」）
+    Page-->>Parent: SnackBar「已解锁，感谢支持 🌻」
+
+    Note over Parent,Matrix: ③ 恢复购买（Apple 硬性要求入口，流程不变）
+
+    Parent->>Page: 点「恢复购买」(kPremiumRestoreButtonKey)
+    Page->>Svc: restore()
+    Svc-->>Page: RestoreResult.restored | nothingToRestore | failed
+    Page->>Ent: state = load()
+    Page-->>Parent: 三态分因提示（已恢复 / 没找到记录 / 恢复失败）

@@ -120,6 +120,11 @@ void main() {
       final List<String> lines = f.readAsStringSync().split('\n');
       for (int i = 0; i < lines.length; i++) {
         final String line = lines[i];
+        // 🔴 判据精度（2026-10-15，team-lead 拍板）：**整行注释**不计入违例 ——
+        //    本守卫拦的是「代码引用权益标识符」（门控点四散），文档/注释里**提到**
+        //    该词（如 C77 设计说明「判定不读权益来源」）不是门控点，不算违宪。
+        //    ⚠️ 行内**尾**注释不做豁免（该行本身是代码，仍会命中）→ 守卫强度不降。
+        if (line.trimLeft().startsWith('//')) continue;
         for (final RegExp token in _tokens) {
           if (token.hasMatch(line)) {
             violations.add('$rel:${i + 1} 出现「${token.pattern}」→ $line');

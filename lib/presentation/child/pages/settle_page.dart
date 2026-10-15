@@ -20,6 +20,7 @@ import 'package:sunflower_time/core/constants/praise_phrases.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -78,7 +79,7 @@ class SettleArgs {
 
   /// 本场**已完成**的护眼奖励（玄参 2026-10-08）：
   /// 到时结束走专注页内护眼时随 args 传入（护眼卡内部已入账，本页只展示）；
-  /// 本页自带插卡路径（eyeCarePending）完成时同样按 [kEyeCareRewardSunlight] 显示。
+  /// 本页自带插卡路径（eyeCarePending）完成时同样按 [EyeCareService.rewardSunlightOf] 显示。
   final int eyeCareReward;
 
   const SettleArgs({
@@ -119,7 +120,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
   /// 奖励数字（孩子会以为「先领了再护眼」）。
   bool _eyeCareDone = false;
 
-  /// 本场结算的护眼奖励（玄参 2026-10-04 拍板口径）：完成护眼 = [kEyeCareRewardSunlight]
+  /// 本场结算的护眼奖励（玄参 2026-10-04 拍板口径）：完成护眼 = [EyeCareService.rewardSunlightOf]
   /// （账本入账由护眼卡内部完成，本页只收结果显示）；跳过 / 未触发 = 0。
   ///
   /// 2026-10-08：初值改为读 [SettleArgs.eyeCareReward]——到时结束的场末护眼已在
@@ -196,9 +197,18 @@ class _SettlePageState extends ConsumerState<SettlePage>
     }
   }
 
+  /// 当前称号属性（provider 未就绪回退 [PlantPerk.none]，不虚报；Q-E）。
+  Future<PlantPerk> _perkOrNone() async {
+    try {
+      return await ref.read(currentPlantPerkProvider.future);
+    } catch (_) {
+      return PlantPerk.none;
+    }
+  }
+
   /// 压入结算前护眼卡（C28「先护眼、后领奖励」）。
   ///
-  /// 完成时的 [kEyeCareRewardSunlight] 由**护眼卡内部**写阳光账本（唯一真源，
+  /// 完成时的 [EyeCareService.rewardSunlightOf] 由**护眼卡内部**写阳光账本（唯一真源，
   /// `refType='eye_care_break'`），本页只收结果、驱动「护眼奖励」行显示；
   /// 跳过（确认后）→ 无奖励显示 0。设置读取失败按默认「允许跳过」放行（安全侧，
   /// 不让配置异常阻塞结算流程）。
@@ -213,6 +223,11 @@ class _SettlePageState extends ConsumerState<SettlePage>
       // 设置读取失败：按默认「允许跳过」放行。
     }
     if (!mounted || _eyeCareDone) return;
+    // C77：护眼完成奖励 perk-aware。**先发起**属性读取（不阻塞压卡），护眼卡 ≈64s
+    // 播放期间 provider 即已就绪（或按 [kPlantPerkProviderTimeout] 兜底），退场后
+    // `await` 立即返回 —— 既不拖慢「占位解除」，也天然规避卡内 `economyRevision` 自增
+    // 触发的重算（取卡前已定的值；属性只依赖专注分钟，与修订号无关）。
+    final Future<PlantPerk> perkFuture = _perkOrNone();
     // 护眼卡 pop 出的是 [EyeCareResult] 包装（不是裸枚举）。
     final Object? result = await Navigator.of(context).push<Object?>(
       MaterialPageRoute<Object?>(
@@ -229,12 +244,13 @@ class _SettlePageState extends ConsumerState<SettlePage>
     // C44：护眼卡进场时锁了横屏（含本页是竖屏进场的 sessionEnd 路径）→
     // 退场后本页重新锁回竖屏，防止横屏态残留到结算页。
     unawaited(_lockPortrait());
+    // C77：护眼完成奖励 perk-aware（与护眼卡实际入账同源 EyeCareService.rewardSunlightOf）。
+    final int eyeCareReward = (result is EyeCareResult && result.completed)
+        ? EyeCareService.rewardSunlightOf(await perkFuture)
+        : 0;
     setState(() {
       _eyeCareDone = true;
-      _eyeCareReward =
-          result is EyeCareResult && result.completed
-              ? kEyeCareRewardSunlight
-              : 0;
+      _eyeCareReward = eyeCareReward;
     });
     // F115：护眼收口 → 此刻才起结算庆祝（此前 2026-10-08 已记录过该缺陷，但当时
     // 只修了「到时结束」路径，本页插卡路径漏修 → 本次补齐）。
@@ -536,7 +552,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
                       const SizedBox(height: 8),
                       _StatRow(
                         label: '护眼奖励',
-                        // 玄参 2026-10-08：本场护眼的结果——完成 +kEyeCareRewardSunlight ☀
+                        // 玄参 2026-10-08 / C77：本场护眼的结果——完成 +rewardSunlightOf(perk) ☀
                         // （护眼卡内部已入账，到时结束随 args 直达 / 插卡路径完成后回填）；
                         // 跳过 / 未触发显示 0。
                         value: _mask(

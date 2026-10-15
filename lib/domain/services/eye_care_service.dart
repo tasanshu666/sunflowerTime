@@ -24,6 +24,7 @@ library eye_care_service;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 
 /// 一次护眼的结果（完成 / 跳过）。
 ///
@@ -141,8 +142,16 @@ class EyeCareService {
     return span >= kEyeCareSessionEndMinutes * 60;
   }
 
-  /// 完整完成一次的护眼奖励阳光（= [kEyeCareRewardSunlight]）。
+  /// 完整完成一次的护眼奖励阳光（= [kEyeCareRewardSunlight]，**无加成**）。
+  ///
+  /// ⚠️ 保留本方法（C77 S11）：仓内多处测试假实现依赖旧签名，删/改会连锁破坏；
+  /// 新调用方走 [rewardSunlightOf]（等价于 `rewardSunlightOf(PlantPerk.none)`）。
   static int rewardSunlight() => kEyeCareRewardSunlight;
+
+  /// C77 第 7 条：护眼完成奖励 perk-aware（= `kEyeCareRewardSunlight + perk.eyeCareBonus`）。
+  ///
+  /// 域层与 UI（账本写入 / 展示累加）**同源调用本函数**（防孪生 S2）。
+  static int rewardSunlightOf(PlantPerk perk) => eyeCareRewardOf(perk);
 
   /// 护眼总时长（秒，固定 = [kEyeCareDurationSeconds]；家长端不设、不可调）。
   static int durationSeconds() => kEyeCareDurationSeconds;

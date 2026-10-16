@@ -12,7 +12,8 @@
 ///  · 门控判定与展示解耦（对比表**不做**门控判定，只做展示）。
 ///
 /// ## 数据来源
-///  · **B 组「买断后解锁」4 行**：[unlockRowsFor]（读矩阵派生，改矩阵即改表）；
+///  · **B 组「买断后解锁」5 行**：[unlockRowsFor]（读矩阵派生，改矩阵即改表；C80 追加
+///    第 5 行「称号属性」，遍历全部派生行渲染，新增键自动入表）；
 ///  · **A 组「免费就能用」8 行**：静态文案（这些能力不在门控矩阵内，是纯描述）。
 ///
 /// ## 🔴 合规红线
@@ -78,39 +79,21 @@ class PremiumUnlockTable extends StatelessWidget {
         _dataRow(r.label, r.free, r.premium, true, s, premiumOk: true),
       _footNote('更多报告能力开发中', s),
       _groupBand('买断后解锁', s),
-      _dataRow(
-        derived[0].label,
-        derived[0].freeText,
-        derived[0].premiumText,
-        derived[0].freeOk,
-        s,
-        premiumOk: derived[0].premiumOk,
-      ),
-      _dataRow(
-        derived[1].label,
-        derived[1].freeText,
-        derived[1].premiumText,
-        derived[1].freeOk,
-        s,
-        premiumOk: derived[1].premiumOk,
-      ),
-      if (derived[1].note != null) _footNote(derived[1].note!, s),
-      _dataRow(
-        derived[2].label,
-        derived[2].freeText,
-        derived[2].premiumText,
-        derived[2].freeOk,
-        s,
-        premiumOk: derived[2].premiumOk,
-      ),
-      _dataRow(
-        derived[3].label,
-        derived[3].freeText,
-        derived[3].premiumText,
-        derived[3].freeOk,
-        s,
-        premiumOk: derived[3].premiumOk,
-      ),
+      // C80：**遍历全部 `unlockRowsFor()` 行**（而非逐行写死 `derived[0..3]`）——
+      // 第 5 行「称号属性」（能力键 `titlePerks`）随数据层追加即自动入表，
+      // 从此「改数据层 = 改表」真正成立（原写死下标会漏掉新增行）。行的 [note]
+      // （如花盆「扩容仍需花阳光」）紧跟在**本行之下**渲染，位置语义与原实现一致。
+      for (final PremiumUnlockRow r in derived) ...<Widget>[
+        _dataRow(
+          r.label,
+          r.freeText,
+          r.premiumText,
+          r.freeOk,
+          s,
+          premiumOk: r.premiumOk,
+        ),
+        if (r.note != null) _footNote(r.note!, s),
+      ],
     ];
 
     return Container(

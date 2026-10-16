@@ -11,13 +11,14 @@
 /// ## 叠加语义（🔴 关键）
 /// 9 个称号节点**各绑一个不同机制**（[kPlantPerkPerTitleNode]，零重复 P5）；用户**依次解锁**，
 /// 每解锁一个节点即**永久获得**该属性 ⇒ [perkOfLevel] 是**已解锁节点的累积**：
-///  · Lv.1 → 仅浇水 −1；Lv.5 → 浇水 −1 **且** 施肥 −1（两节点各一条，叠加）；
+///  · Lv.1 → 仅护眼 +1（C78 前置）；Lv.5 → 护眼 +1 **且** 浇水 −1（两节点各一条，叠加）；
 ///  · Lv.40（满级）→ 9 条属性**全生效**。
 /// （量化模型，见 PRD §1.4 (d)：「减免 48 = 浇水 36 + 施肥 12」正需两者同时生效。）
 ///
 /// 🔴 纪律：
-///  · 属性 = `perkOfLevel(levelOfMinutes(totalFocusMinutes))` —— **任何地方都不换输入**，
-///    尤其**不得读**任何权益 / 门控来源（P4 免费/买断一致）；
+///  · 属性 = `perkOfLevel(levelOfMinutes(totalFocusMinutes))` —— **任何地方都不换输入**；
+///    🔴 C80 修订（废止 P4）：当前属性统一走 provider/域层单点（读 `FeatureKey.titlePerks`），
+///    `perkOfLevel` 本身无档位入参，门控在调用侧（旁路禁令见 `plant_perk_bypass_guard_test`）；
 ///  · 9 条零重复：同一常量不在两条里出现，禁止「再 −1」叠加式写法；
 ///  · 单次一律 ±1（仅 ⑧⑨ 两条一次性项用小幅定量）。
 library plant_perk;
@@ -127,19 +128,21 @@ class PlantPerk {
       'shovel+$shovelRefundBonus)';
 }
 
-/// 9 称号节点**各自新增**的属性（**索引与 [kFocusLevelTitleLevels] 一一对应**）。
+/// 9 称号节点**各自新增**的属性（**索引与 [kFocusLevelTitleLevels] 一一对应**；
+/// 🔴 **C78 节点重排（2026-10-15）**：护眼 → Lv.1，其余 8 条顺延一位；
+/// 属性内容与数值一字不变，判定逻辑零改动 —— 唯一单点 = 本表）。
 ///
 /// 🔴 **9 条零重复（P5）**：每项**恰好一个**字段非零，且 9 项绑定的字段两两不同
-/// （浇水/施肥/除草/除虫/开花/晨露/护眼/扩容/铲除各一，见 `plant_perk_test.dart` TC-13）。
+/// （护眼/浇水/施肥/除草/除虫/开花/晨露/扩容/铲除各一，见 `plant_perk_test.dart` TC-13）。
 /// 禁止任何「同一字段出现两次」的叠加式写法。
 const List<PlantPerk> kPlantPerkPerTitleNode = <PlantPerk>[
-  PlantPerk(waterDiscount: kPerkWaterDiscount), // Lv.1  节点（① 浇水）
-  PlantPerk(fertilizeDiscount: kPerkFertilizeDiscount), // Lv.5  节点（② 施肥）
-  PlantPerk(weedBonus: kPerkWeedBonus), // Lv.10 节点（③ 除草）
-  PlantPerk(pestBonus: kPerkPestBonus), // Lv.15 节点（④ 除虫）
-  PlantPerk(bloomInstantBonus: kPerkBloomInstantBonus), // Lv.20 节点（⑤ 开花即时）
-  PlantPerk(dewBonus: kPerkDewBonus), // Lv.25 节点（⑥ 晨露）
-  PlantPerk(eyeCareBonus: kPerkEyeCareBonus), // Lv.30 节点（⑦ 护眼）
+  PlantPerk(eyeCareBonus: kPerkEyeCareBonus), // Lv.1  节点（① 护眼，C78 前置）
+  PlantPerk(waterDiscount: kPerkWaterDiscount), // Lv.5  节点（② 浇水）
+  PlantPerk(fertilizeDiscount: kPerkFertilizeDiscount), // Lv.10 节点（③ 施肥）
+  PlantPerk(weedBonus: kPerkWeedBonus), // Lv.15 节点（④ 除草）
+  PlantPerk(pestBonus: kPerkPestBonus), // Lv.20 节点（⑤ 除虫）
+  PlantPerk(bloomInstantBonus: kPerkBloomInstantBonus), // Lv.25 节点（⑥ 开花即时）
+  PlantPerk(dewBonus: kPerkDewBonus), // Lv.30 节点（⑦ 晨露）
   PlantPerk(expandDiscount: kPerkExpandDiscount), // Lv.35 节点（⑧ 扩容）
   PlantPerk(shovelRefundBonus: kPerkShovelRefundBonus), // Lv.40 节点（⑨ 铲除）
 ];
@@ -152,7 +155,8 @@ const List<PlantPerk> kPlantPerkPerTitleNode = <PlantPerk>[
 ///
 /// 🔴 输入必须是**原始等级**（`levelOfMinutes(totalFocusMinutes)`），**不得**用
 /// `settledLevel` / SP 锚点（否则老用户「首用静默」期属性会短暂缺失）。
-/// 🔴 无档位入参：免费 / 买断**同 level 同结果**（P4）。
+/// `perkOfLevel` 为**纯等级→属性派生**（C80 起门控在调用侧：provider/`currentPerk()` 单点）；
+/// ⚠️ 旁路禁令见 `plant_perk_bypass_guard_test`。
 PlantPerk perkOfLevel(int level) {
   if (level < 1) return PlantPerk.none;
   PlantPerk total = PlantPerk.none;
@@ -176,6 +180,15 @@ PlantPerk perkOfTitleNode(int nodeLevel) {
 String perkEmojiOfTitleNode(int nodeLevel) {
   final int idx = kFocusLevelTitleLevels.indexOf(nodeLevel);
   return idx < 0 ? '' : kPerkEmojis[idx];
+}
+
+/// 单个称号节点属性的**名称**（[kPerkNames]，与节点一一对应；非节点返回空串）。
+///
+/// C81：详情卡属性行「属性名」单点收口（页面禁硬编码 9 名，防孪生 S2）；
+/// 与 [perkEmojiOfTitleNode] / [perkShortTextOf] 分段渲染 ⇒「👁 护眼 +1 ☀」。
+String perkNameOfTitleNode(int nodeLevel) {
+  final int idx = kFocusLevelTitleLevels.indexOf(nodeLevel);
+  return idx < 0 ? '' : kPerkNames[idx];
 }
 
 // ── perk-aware 取值函数（域层与 UI **共用**，杜绝孪生）────────────────────────
@@ -241,9 +254,13 @@ String perkSummaryTextOf(PlantPerk p) {
   return parts.join(' · ');
 }
 
-/// 属性徽章短文案（详情卡逐行右侧用）：单节点的「符号 + 增减量」，如 `−1` / `+20`。
+/// 属性徽章**数值短语**（详情卡逐行右侧用）：**纯数值带符号**，如 `+1` / `−1` /
+/// `−20` / `+20`（🔴 C81 ③：去掉「额外 / 消耗 / 返还」等描述词）。
 ///
-/// 与 [perkSummaryTextOf] 同源（都从 [PlantPerk] 字段派生），只为紧凑展示。
+/// 属性**名称**由 [perkNameOfTitleNode] 承担、阳光单位由 UI 层的
+/// `assets/rewards/sunlight.png` 图标承担（C80：非 ☀ 文字）⇒ 本函数只回数值。
+/// 顺序无关（9 条零重复保证单字段非零）；量值 `±${p.x}` **派生**、禁写死。
+/// 与 [perkSummaryTextOf] 同源；文案单点收口于此（页面禁拼，防孪生 S2）。
 String perkShortTextOf(PlantPerk p) {
   if (p.waterDiscount > 0) return '−${p.waterDiscount}';
   if (p.fertilizeDiscount > 0) return '−${p.fertilizeDiscount}';

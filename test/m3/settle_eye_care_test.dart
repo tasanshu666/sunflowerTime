@@ -5,8 +5,8 @@
 ///     （未触发 / 跳过 → `0 ☀️`）。
 ///  ② **C28 §1 场末插入点接线**（修复交付遗漏：`eyeCarePending` 此前从未被
 ///     结算页消费）——带 `eyeCarePending: true` 进场时护眼卡压在结算页之上，
-///     结算数字以「···」占位不抢先露出；护眼**完成**后显示 `+3 ☀️` 且账本
-///     恰有一条 `eye_care_break`（唯一真源，护眼卡内部写入）。
+///     结算数字以「···」占位不抢先露出；护眼**完成**后显示 `+2 ☀️`（C78 基础值
+///     3 → 2）且账本恰有一条 `eye_care_break`（唯一真源，护眼卡内部写入）。
 ///  ③ **跳过**：二次确认后回结算页，「护眼奖励」显示 `0 ☀️`，账本零写入。
 ///
 /// ⚠️ 护眼页内嵌 SunflowerCanvas 无限呼吸动画 → **禁用 pumpAndSettle**，
@@ -244,7 +244,7 @@ void main() {
     expect(ledger.appended, isEmpty);
   });
 
-  testWidgets('eyeCarePending：先护眼后领奖励——占位「···」→ 完成 → +3 ☀️ 且账本一条', (tester) async {
+  testWidgets('eyeCarePending：先护眼后领奖励——占位「···」→ 完成 → +2 ☀️（C78）且账本一条', (tester) async {
     final _FakeSunlightRepository ledger = _FakeSunlightRepository(100);
     _usePhoneScreen(tester);
     await _pumpSettlePage(

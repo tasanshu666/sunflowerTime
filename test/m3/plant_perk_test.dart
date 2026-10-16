@@ -1,5 +1,7 @@
 /// C77 · **称号专属属性 · 纯函数单测**（`lib/domain/services/plant_perk.dart`）。
 ///
+/// **C78 节点重排已同步**（护眼 → Lv.1，其余 8 条顺延一位；数值不变）。
+///
 /// 覆盖系统设计 §12.1 的 TC-01..TC-14：
 ///  · [perkOfLevel] 边界（未解锁 / 节点 / 非节点 / 满级）与**累积语义**；
 ///  · 9 条 perk-aware 取值函数（`waterCostOf` … `shovelRefundOf`）的定值；
@@ -21,30 +23,31 @@ void main() {
       expect(perkOfLevel(-3), PlantPerk.none);
     });
 
-    test('TC-02 Lv.1 只解锁「浇水 −1」，其余 8 项为 0', () {
+    test('TC-02 Lv.1 只解锁「护眼 +1」（C78 前置），其余 8 项为 0', () {
       final PlantPerk p = perkOfLevel(1);
-      expect(p.waterDiscount, kPerkWaterDiscount);
+      expect(p.eyeCareBonus, kPerkEyeCareBonus);
+      expect(p.waterDiscount, 0);
       expect(p.fertilizeDiscount, 0);
       expect(p.weedBonus, 0);
       expect(p.pestBonus, 0);
       expect(p.bloomInstantBonus, 0);
       expect(p.dewBonus, 0);
-      expect(p.eyeCareBonus, 0);
       expect(p.expandDiscount, 0);
       expect(p.shovelRefundBonus, 0);
       expect(p.isNone, isFalse);
     });
 
-    test('TC-03 非节点等级 Lv.4 → 取已解锁最高节点（Lv.1）', () {
+    test('TC-03 非节点等级 Lv.4 → 取已解锁最高节点（Lv.1 护眼）', () {
       expect(perkOfLevel(4), perkOfLevel(1));
-      expect(perkOfLevel(4).waterDiscount, kPerkWaterDiscount);
+      expect(perkOfLevel(4).eyeCareBonus, kPerkEyeCareBonus);
     });
 
-    test('TC-04 Lv.5 → 两节点各一条，**叠加**（浇水 −1 且 施肥 −1）', () {
+    test('TC-04 Lv.5 → 两节点各一条，**叠加**（护眼 +1 且 浇水 −1）', () {
       final PlantPerk p = perkOfLevel(5);
       expect(p.waterDiscount, kPerkWaterDiscount);
-      expect(p.fertilizeDiscount, kPerkFertilizeDiscount);
+      expect(p.eyeCareBonus, kPerkEyeCareBonus);
       // 其余 7 项仍为 0（未到 Lv.10 节点）。
+      expect(p.fertilizeDiscount, 0);
       expect(p.weedBonus, 0);
       expect(p.pestBonus, 0);
     });
@@ -84,35 +87,36 @@ void main() {
   });
 
   group('TC-06..11 perk-aware 取值函数定值', () {
-    test('TC-06 waterCostOf(Lv.1) == 4（5 − 1）', () {
-      expect(waterCostOf(perkOfLevel(1)), kPlantWaterCost - 1);
-      expect(waterCostOf(perkOfLevel(1)), 4);
+    test('TC-06 waterCostOf(Lv.5) == 4（5 − 1）；未到浇水节点（Lv.1）则基础价', () {
+      expect(waterCostOf(perkOfLevel(5)), kPlantWaterCost - 1);
+      expect(waterCostOf(perkOfLevel(5)), 4);
+      expect(waterCostOf(perkOfLevel(1)), kPlantWaterCost);
     });
 
-    test('TC-07 fertilizeCostOf(Lv.5) == 9（10 − 1）', () {
-      expect(fertilizeCostOf(perkOfLevel(5)), kPlantFertilizeCost - 1);
-      expect(fertilizeCostOf(perkOfLevel(5)), 9);
+    test('TC-07 fertilizeCostOf(Lv.10) == 9（10 − 1）', () {
+      expect(fertilizeCostOf(perkOfLevel(10)), kPlantFertilizeCost - 1);
+      expect(fertilizeCostOf(perkOfLevel(10)), 9);
     });
 
-    test('TC-08 weedRewardOf(Lv.10) == 2 / pestRewardOf(Lv.15) == 3', () {
-      expect(weedRewardOf(perkOfLevel(10)), kGardenWeedReward + 1);
-      expect(weedRewardOf(perkOfLevel(10)), 2);
-      expect(pestRewardOf(perkOfLevel(15)), kGardenPestReward + 1);
-      expect(pestRewardOf(perkOfLevel(15)), 3);
+    test('TC-08 weedRewardOf(Lv.15) == 2 / pestRewardOf(Lv.20) == 3', () {
+      expect(weedRewardOf(perkOfLevel(15)), kGardenWeedReward + 1);
+      expect(weedRewardOf(perkOfLevel(15)), 2);
+      expect(pestRewardOf(perkOfLevel(20)), kGardenPestReward + 1);
+      expect(pestRewardOf(perkOfLevel(20)), 3);
     });
 
-    test('TC-09 bloomInstantBaseOf(Lv.20) → 普通 7 / 精品 11', () {
-      expect(bloomInstantBaseOf(perkOfLevel(20), premium: false),
+    test('TC-09 bloomInstantBaseOf(Lv.25) → 普通 7 / 精品 11', () {
+      expect(bloomInstantBaseOf(perkOfLevel(25), premium: false),
           kBloomInstantSunlight + 1);
-      expect(bloomInstantBaseOf(perkOfLevel(20), premium: false), 7);
-      expect(bloomInstantBaseOf(perkOfLevel(20), premium: true),
+      expect(bloomInstantBaseOf(perkOfLevel(25), premium: false), 7);
+      expect(bloomInstantBaseOf(perkOfLevel(25), premium: true),
           kBloomInstantSunlightPremium + 1);
-      expect(bloomInstantBaseOf(perkOfLevel(20), premium: true), 11);
+      expect(bloomInstantBaseOf(perkOfLevel(25), premium: true), 11);
     });
 
-    test('TC-10 eyeCareRewardOf(Lv.30) == 4（3 + 1）', () {
-      expect(eyeCareRewardOf(perkOfLevel(30)), kEyeCareRewardSunlight + 1);
-      expect(eyeCareRewardOf(perkOfLevel(30)), 4);
+    test('TC-10 eyeCareRewardOf(Lv.1) == 3（C78 基础 2 + 1；C78 前置）', () {
+      expect(eyeCareRewardOf(perkOfLevel(1)), kEyeCareRewardSunlight + 1);
+      expect(eyeCareRewardOf(perkOfLevel(1)), 3);
     });
 
     test('TC-11 expandCostOf(Lv.35) → 精品 380 / 普通 140', () {
@@ -221,17 +225,48 @@ void main() {
       expect(perkEmojiOfTitleNode(7), '');
     });
 
-    test('perkShortTextOf：单节点 → 单个符号 + 增减量；none → 空串', () {
+    test('perkShortTextOf：C81 纯数值带符号（9 节点逐条）；none → 空串', () {
       expect(perkShortTextOf(PlantPerk.none), '');
-      expect(perkShortTextOf(perkOfTitleNode(1)), '−1');
-      expect(perkShortTextOf(perkOfTitleNode(10)), '+1');
-      expect(perkShortTextOf(perkOfTitleNode(35)), '−20');
-      expect(perkShortTextOf(perkOfTitleNode(40)), '+20');
+      expect(perkShortTextOf(perkOfTitleNode(1)), '+1'); // ① 护眼
+      expect(perkShortTextOf(perkOfTitleNode(5)), '−1'); // ② 浇水
+      expect(perkShortTextOf(perkOfTitleNode(10)), '−1'); // ③ 施肥
+      expect(perkShortTextOf(perkOfTitleNode(15)), '+1'); // ④ 除草
+      expect(perkShortTextOf(perkOfTitleNode(20)), '+1'); // ⑤ 除虫
+      expect(perkShortTextOf(perkOfTitleNode(25)), '+1'); // ⑥ 绽放
+      expect(perkShortTextOf(perkOfTitleNode(30)), '+1'); // ⑦ 晨露
+      expect(perkShortTextOf(perkOfTitleNode(35)), '−20'); // ⑧ 扩盆
+      expect(perkShortTextOf(perkOfTitleNode(40)), '+20'); // ⑨ 铲除
+      // 🔴 C81 ③：描述词（额外/消耗/返还）已全部去掉。
+      for (final int lv in kFocusLevelTitleLevels) {
+        final String t = perkShortTextOf(perkOfTitleNode(lv));
+        expect(t, isNot(contains('额外')));
+        expect(t, isNot(contains('消耗')));
+        expect(t, isNot(contains('返还')));
+      }
     });
 
-    test('perkSummaryTextOf：none → 空串；Lv.1 含「浇水消耗 −1」；满级 9 项齐全', () {
+    test('perkNameOfTitleNode：C81 属性名（9 节点逐条，与 emoji 同索引）；非节点空串', () {
+      expect(kPerkNames.length, kFocusLevelTitleLevels.length);
+      expect(perkNameOfTitleNode(1), '护眼');
+      expect(perkNameOfTitleNode(5), '浇水');
+      expect(perkNameOfTitleNode(10), '施肥');
+      expect(perkNameOfTitleNode(15), '除草');
+      expect(perkNameOfTitleNode(20), '除虫');
+      expect(perkNameOfTitleNode(25), '绽放');
+      expect(perkNameOfTitleNode(30), '晨露');
+      expect(perkNameOfTitleNode(35), '扩盆');
+      expect(perkNameOfTitleNode(40), '铲除');
+      for (final int lv in kFocusLevelTitleLevels) {
+        expect(perkNameOfTitleNode(lv), isNotEmpty);
+      }
+      expect(perkNameOfTitleNode(7), '');
+      expect(perkNameOfTitleNode(0), '');
+    });
+
+    test('perkSummaryTextOf：none → 空串；Lv.1 含「护眼奖励 +1」（C78 前置）；满级 9 项齐全', () {
       expect(perkSummaryTextOf(PlantPerk.none), '');
-      expect(perkSummaryTextOf(perkOfLevel(1)), contains('浇水消耗 −1'));
+      expect(perkSummaryTextOf(perkOfLevel(1)), contains('护眼奖励 +1'));
+      expect(perkSummaryTextOf(perkOfLevel(5)), contains('浇水消耗 −1'));
       final String full = perkSummaryTextOf(perkOfLevel(40));
       for (final String frag in <String>[
         '浇水消耗 −1',
@@ -245,12 +280,6 @@ void main() {
         '铲除退款 +20',
       ]) {
         expect(full, contains(frag), reason: '满级摘要应含「$frag」');
-      }
-    });
-
-    test('图例常量覆盖 9 条 emoji', () {
-      for (final String emoji in kPerkEmojis) {
-        expect(kLevelPerkLegendText, contains(emoji));
       }
     });
 

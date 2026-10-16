@@ -2,41 +2,63 @@
 ///
 /// 钉住五件事：
 ///  ① **点徽章弹卡**：卡内含「当前等级 + 称号」与「距 Lv.N 还差 X」；
-///  ② **9 个称号全列**（1/5/10/…/40 一行不落），**当前称号那行高亮 + ✨**；
+///  ② **9 个称号全列**（1/5/10/…/40 一行不落），**当前称号那行高亮**（高亮底 + w800；
+///     C81 ⑤ 已删行尾 ✨ —— 它会把当前行右列往左挤、破坏 9 行右对齐）；；
 ///  ③ **点 barrier 关闭**（不是一次性演出，点外面就走）；
 ///  ④ **满级态**（Lv.40）：第二块显示满级文案，9 行里「时光大贤者」高亮；
 ///  ⑤ **跨级/压线**：刚好踩到门槛（60 → Lv.1 / 120 → Lv.2 / 59.9 → 未解锁）
 ///     三处数据都正确（`progressOf` 纯派生，本文件只验装配口径）。
 ///
+/// C80 · 追加三件（TC-V3-09..12）：
+///  ⑥ **三态徽章**：免费档已达标行 = 锁标态（置灰 + 🔒 + 阳光图标）、未达行 = 灰字无锁；
+///  ⑦ **付费恢复**：premium 档全橙实心；dialog 开着时 entitlement 变化 → 自动重建
+///     （R-V3-3 / P1-1，零回调代码）；
+///  ⑧ **锁标点按** → **只弹升级提示卡**（C81 ①：不 pop 详情卡、不跳转；V3-Q1 结案）。
+///
+/// C81 · 追加（玄参真机验收）：
+///  ⑨ 属性 pill 顺序 = `[🔒] emoji 属性名 数值 ☀`；**9 行统一带 ☀**（不再按达等级条件渲染）。
+///
 /// 🟢 夹具纪律：不依赖网络 / 不依赖真机，纯 widget 度量；徽章可**单独立泵**
-/// （详情卡是本组件的私事，不需要整张今日页）。
+/// （详情卡是本组件的私事，不需要整张今日页）。C80 后详情卡为 ConsumerWidget，
+/// 夹具一律包 [ProviderScope]（付费态经外部 [ProviderContainer] 注入）。
 library focus_level_detail_dialog_test;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
+import 'package:sunflower_time/domain/services/plant_perk.dart'
+    show perkOfTitleNode, perkShortTextOf;
 import 'package:sunflower_time/presentation/child/widgets/focus_level_badge.dart';
 
 /// 立泵一枚摘要徽章（外层 `MaterialApp` 提供 Dialog 所需的 Navigator/Theme）。
+///
+/// [container] 传入时经 [UncontrolledProviderScope] 外接（⑦ 购买即时重建断言用）。
 Future<void> _pumpBadge(
   WidgetTester tester, {
   required double totalMinutes,
+  ProviderContainer? container,
 }) async {
-  await tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(
-        body: Align(
-          alignment: Alignment.topLeft,
-          child: FocusLevelBadge(
-            progress: progressOf(totalMinutes),
-            totalMinutes: totalMinutes,
-          ),
+  final Widget app = MaterialApp(
+    home: Scaffold(
+      body: Align(
+        alignment: Alignment.topLeft,
+        child: FocusLevelBadge(
+          progress: progressOf(totalMinutes),
+          totalMinutes: totalMinutes,
         ),
       ),
     ),
+  );
+  await tester.pumpWidget(
+    container == null
+        ? ProviderScope(child: app)
+        : UncontrolledProviderScope(container: container, child: app),
   );
   await tester.pumpAndSettle();
 }
@@ -89,7 +111,7 @@ void main() {
     );
   });
 
-  testWidgets('② 9 个称号全列 + 当前称号高亮（仅一行带 ✨）',
+  testWidgets('② 9 个称号全列 + 当前称号高亮（高亮底 + 加粗；C81 ⑤ 无 ✨）',
       (WidgetTester tester) async {
     await _pumpBadge(tester, totalMinutes: 900); // Lv.7 → 当前节点 Lv.5
     await _openDetail(tester);
@@ -114,56 +136,81 @@ void main() {
         reason: 'Lv.$node 那一行必须显示「${kFocusLevelTitles[i]}」',
       );
     }
-    // 当前称号 = 已解锁的**最高**称号节点（Lv.5，不是 Lv.10）。
-    expect(find.text(kLevelDetailCurrentMark), findsOneWidget,
-        reason: '9 行里只能有一行带 ✨');
-    // ✨ 必须落在 Lv.5 那一行（用 descendant 定位，不靠视觉）。
-    expect(
-      find.descendant(
-        of: find.byKey(FocusLevelDetailDialog.titleRowKeyOf(5)),
-        matching: find.text(kLevelDetailCurrentMark),
-      ),
-      findsOneWidget,
-      reason: 'Lv.7 的当前称号节点仍是 Lv.5（称号 ↔ 等级解耦，C74 §3）',
-    );
+    // C81 ⑤：不再有 ✨ —— 当前称号行改用 **高亮底 + w800 加粗** 标示。
+    for (int i = 0; i < kFocusLevelTitleLevels.length; i++) {
+      final int node = kFocusLevelTitleLevels[i];
+      final Text titleText = tester.widget<Text>(find.descendant(
+        of: find.byKey(FocusLevelDetailDialog.titleRowKeyOf(node)),
+        matching: find.text(kFocusLevelTitles[i]),
+      ));
+      final bool isCurrent = node == 5; // Lv.7 的当前称号节点 = Lv.5
+      expect(titleText.style?.fontWeight,
+          isCurrent ? FontWeight.w800 : FontWeight.w500,
+          reason: 'Lv.$node ${isCurrent ? '是当前称号（w800 加粗）' : '非当前（w500）'}');
+    }
+    // ✨ 已删除（C81 ⑤）：全树不得再出现（它会把当前行右列往左挤、破坏 9 行对齐）。
+    expect(find.text('✨'), findsNothing,
+        reason: 'C81 ⑤：行尾 ✨ 已删（改高亮底 + 加粗，9 行右列严格对齐）');
 
-    // v3：9 行右侧每行都有「小太阳 + 阳光奖励数」，金额 = sunlightOfLevel(节点)
-    // （C74 §4：3/5/7/9/11/13/16/18/20）。
-    for (final int level in kFocusLevelTitleLevels) {
-      final Finder rewardFinder = find.byKey(
-          FocusLevelDetailDialog.titleRowRewardKeyOf(level));
-      expect(rewardFinder, findsOneWidget,
-          reason: 'Lv.$level 行必须有「小太阳 + 奖励数」widget');
+    // C81 ②：9 行**统一**带阳光图标（不再按达等级条件渲染）。
+    for (final int node in kFocusLevelTitleLevels) {
       expect(
         find.descendant(
-            of: rewardFinder, matching: find.text('${sunlightOfLevel(level)}')),
+          of: find.byKey(FocusLevelDetailDialog.titleRowPerkKeyOf(node)),
+          matching: find.byType(Image),
+        ),
         findsOneWidget,
-        reason: 'Lv.$level 行奖励数 = ${sunlightOfLevel(level)} ☀（C74 §4）',
+        reason: 'Lv.$node 行统一带阳光图标（C81 ②）',
       );
     }
 
-    // v3：已解锁 vs 未解锁的锁/太阳语义（Lv.7 → 已解锁 Lv.1/Lv.5，未解锁 Lv.10+）。
-    // · 太阳色：已解锁 = 阳光橙（已领取）、未解锁 = 灰（预告激励）。
-    // · 锁：未解锁行节点牌有 🔒、已解锁行无 🔒（节点牌显示等级数字）。
-    const Color sunOrange = Color(0xFFE8A600);
+    // C78：9 行的专属属性徽章（_PerkPill）渲染于**称号文字之后**（同 Row、右侧）。
+    for (final int level in kFocusLevelTitleLevels) {
+      final Finder pillFinder = find.byKey(
+          FocusLevelDetailDialog.titleRowPerkKeyOf(level));
+      expect(pillFinder, findsOneWidget,
+          reason: 'Lv.$level 行必须有专属属性徽章');
+      final Rect pillRect = tester.getRect(pillFinder);
+      final Rect titleRect = tester.getRect(find.descendant(
+        of: find.byKey(FocusLevelDetailDialog.titleRowKeyOf(level)),
+        matching: find.text(kFocusLevelTitles[kFocusLevelTitleLevels.indexOf(level)]),
+      ));
+      expect(pillRect.left, greaterThan(titleRect.left),
+          reason: 'Lv.$level 的属性徽章必须在称号文字之后（C78「说明移到称号后面」）');
+    }
+
+    // C80 三态语义（免费档默认）：
+    //  · 已达标行（Lv.1 / Lv.5）= **锁标态**：pill 内含 🔒、文字置灰、可点；
+    //  · 未达行 = **灰字**：pill 内无 🔒（节点牌的 🔒 是圆牌自己的，不在此列）。
+    //  （免费档全体置灰；付费后的橙实心见 ⑦。）
+    const Color perkOrange = Color(0xFFE8A600);
     const Color lockedGrey = Color(0xFFB0A08C);
     for (int i = 0; i < kFocusLevelTitleLevels.length; i++) {
       final int node = kFocusLevelTitleLevels[i];
       final Finder row =
           find.byKey(FocusLevelDetailDialog.titleRowKeyOf(node));
-      final Finder reward =
-          find.byKey(FocusLevelDetailDialog.titleRowRewardKeyOf(node));
       final bool unlocked = 7 >= node;
+      final Finder pill =
+          find.byKey(FocusLevelDetailDialog.titleRowPerkKeyOf(node));
+      // 行内恰一枚 🔒：未解锁行 = 圆牌锁；已达标免费行 = pill 锁标。
       expect(
         find.descendant(of: row, matching: find.text('🔒')),
-        unlocked ? findsNothing : findsOneWidget,
-        reason: 'Lv.$node 节点牌：${unlocked ? '数字(无🔒)' : '🔒'}',
+        findsOneWidget,
+        reason: 'Lv.$node 行内恰一枚 🔒（未解锁=圆牌 / 已达标免费=pill 锁标）',
       );
-      final Icon sun = tester.widget<Icon>(
-        find.descendant(of: reward, matching: find.byType(Icon)),
+      // pill 内的 🔒：仅已达标（锁标态）行有。
+      expect(
+        find.descendant(of: pill, matching: find.text('🔒')),
+        unlocked ? findsOneWidget : findsNothing,
+        reason: 'Lv.$node pill：${unlocked ? '锁标态（含🔒）' : '灰字（无🔒）'}',
       );
-      expect(sun.color, unlocked ? sunOrange : lockedGrey,
-          reason: 'Lv.$node 小太阳：${unlocked ? '阳光橙(已领取)' : '灰(预告)'}');
+      final Text perkText = tester.widget<Text>(find.descendant(
+        of: pill,
+        matching: find.text(perkShortTextOf(perkOfTitleNode(node))),
+      ));
+      expect(perkText.style?.color, unlocked ? lockedGrey : lockedGrey,
+          reason: '免费档全体置灰（已达标=锁标态灰 / 未达=灰字），付费橙见 ⑦');
+      expect(perkText.style?.color, isNot(perkOrange));
     }
   });
 
@@ -195,14 +242,13 @@ void main() {
         tester.widget<Text>(find.byKey(FocusLevelDetailDialog.gapTextKey));
     expect(gap.data, kLevelMaxTextTemplate.replaceAll('{t}', '时光大贤者'),
         reason: '满级第二块显示满级文案（单点收敛到常量模板）');
-    expect(
-      find.descendant(
-        of: find.byKey(FocusLevelDetailDialog.titleRowKeyOf(40)),
-        matching: find.text(kLevelDetailCurrentMark),
-      ),
-      findsOneWidget,
-      reason: '满级时高亮第 9 个称号（Lv.40 · 时光大贤者）',
-    );
+    // C81 ⑤：改认证当前行 = **加粗**（✨ 已删）。
+    final Text lastTitle = tester.widget<Text>(find.descendant(
+      of: find.byKey(FocusLevelDetailDialog.titleRowKeyOf(40)),
+      matching: find.text('时光大贤者'),
+    ));
+    expect(lastTitle.style?.fontWeight, FontWeight.w800,
+        reason: '满级时高亮第 9 个称号（Lv.40 · 时光大贤者，C81 ⑤ 加粗）');
   });
 
   testWidgets('⑤ 压线 / 跨级：59.9 → 未解锁，60 → Lv.1，120 → Lv.2（进度归零）',
@@ -243,5 +289,102 @@ void main() {
       '距 Lv.3 还差 2 小时',
       reason: 'Lv.3 门槛 240 − 120 = 120 分钟',
     );
+  });
+
+  // ── C80/C81 · ⑥ 免费三态边界（TC-V3-10）：未达行灰字无锁不可点（☀ 统一带）──────
+  testWidgets('⑥ C81 未达等级行：灰字、pill 无锁、带阳光图标、不可点（P0-6 边界）',
+      (WidgetTester tester) async {
+    // Lv.7 → 未达节点取 Lv.10（灰字态）。
+    await _pumpBadge(tester, totalMinutes: 900);
+    await _openDetail(tester);
+
+    final Finder pill =
+        find.byKey(FocusLevelDetailDialog.titleRowPerkKeyOf(10));
+    expect(pill, findsOneWidget);
+    expect(find.descendant(of: pill, matching: find.text('🔒')), findsNothing,
+        reason: '未达行灰字无锁（锁只出现在圆牌）');
+    expect(find.descendant(of: pill, matching: find.byType(Image)),
+        findsOneWidget,
+        reason: 'C81 ②：9 行统一带阳光图标（未达行亦置灰带 ☀）');
+    final Text perkText = tester.widget<Text>(find.descendant(
+      of: pill,
+      matching: find.text(perkShortTextOf(perkOfTitleNode(10))),
+    ));
+    expect(perkText.style?.color, const Color(0xFFB0A08C),
+        reason: '未达行 = 灰字（_kDetailLockedColor）');
+    // 不可点：tap 后详情卡仍在（无弹卡、无跳转行为可断言 → 卡未关即证）。
+    await tester.tap(pill);
+    await tester.pumpAndSettle();
+    expect(find.byKey(FocusLevelDetailDialog.dialogKey), findsOneWidget,
+        reason: '灰字态不可点：tap 后详情卡仍开着');
+    expect(find.byKey(FocusLevelDetailDialog.perkLockedHintKey), findsNothing,
+        reason: '灰字态不弹升级提示卡（仅锁标态可点）');
+  });
+
+  // ── C80 · ⑦ 付费恢复（TC-V3-11）：橙实心 + dialog 开着购买自动重建 ──────────
+  testWidgets('⑦ C80 premium：已达标行橙实心（w700 无🔒）；dialog 开着 → entitlement\n'
+      '变化 → 自动重建恢复（P1-1 零回调）', (WidgetTester tester) async {
+    final ProviderContainer container = ProviderContainer();
+    addTearDown(container.dispose);
+    await _pumpBadge(tester, totalMinutes: 900, container: container);
+    await _openDetail(tester);
+
+    // 免费档初始：Lv.5 行 = 锁标态（灰 + 🔒）。
+    final Finder pill5 =
+        find.byKey(FocusLevelDetailDialog.titleRowPerkKeyOf(5));
+    expect(
+      find.descendant(of: pill5, matching: find.text('🔒')),
+      findsOneWidget,
+    );
+
+    // 模拟购买成功（不关 dialog）→ ConsumerWidget watch 驱动自动重建。
+    container.read(entitlementProvider.notifier).state = Entitlement.lifetime();
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(FocusLevelDetailDialog.dialogKey), findsOneWidget,
+        reason: 'entitlement 变化只重建内容，不关卡（R-V3-3）');
+    expect(find.descendant(of: pill5, matching: find.text('🔒')), findsNothing,
+        reason: '付费后锁标消失');
+    final Text perkText5 = tester.widget<Text>(find.descendant(
+      of: pill5,
+      matching: find.text(perkShortTextOf(perkOfTitleNode(5))),
+    ));
+    expect(perkText5.style?.color, const Color(0xFFE8A600),
+        reason: '付费后已达标行恢复橙实心（_kBarFill）');
+    expect(perkText5.style?.fontWeight, FontWeight.w700);
+    // 未达行仍灰字（付费不改变等级意义）。
+    final Text perkText10 = tester.widget<Text>(find.descendant(
+      of: find.byKey(FocusLevelDetailDialog.titleRowPerkKeyOf(10)),
+      matching: find.text(perkShortTextOf(perkOfTitleNode(10))),
+    ));
+    expect(perkText10.style?.color, const Color(0xFFB0A08C),
+        reason: '未达行与档位无关，恒灰字');
+  });
+
+  // ── C81 ① 锁标点按：只弹升级提示卡（不 pop、不跳转；V3-Q1 结案）───────────────
+  testWidgets('⑧ C81 锁标态点按 → 弹「请升级到完整版本功能」提示卡（不 pop/不跳转）',
+      (WidgetTester tester) async {
+    await _pumpBadge(tester, totalMinutes: 900); // Lv.7：Lv.1/5 已达标（锁标态）
+    await _openDetail(tester);
+    expect(find.byKey(FocusLevelDetailDialog.dialogKey), findsOneWidget);
+
+    await tester.tap(find.byKey(FocusLevelDetailDialog.titleRowPerkKeyOf(1)));
+    await tester.pumpAndSettle();
+
+    // 弹提示卡（文案单点常量）。
+    expect(find.byKey(FocusLevelDetailDialog.perkLockedHintKey), findsOneWidget,
+        reason: '锁标点按 → 弹升级提示卡（C81 ①）');
+    expect(find.text(kPremiumUpsellHintText), findsOneWidget,
+        reason: '提示文案 = kPremiumUpsellHintText「请升级到完整版本功能」');
+    // **不** pop 详情卡（提示卡叠在详情卡之上）。
+    expect(find.byKey(FocusLevelDetailDialog.dialogKey), findsOneWidget,
+        reason: '详情卡不得被 pop（C81 ①：只提示、不跳转）');
+
+    // 点「知道了」→ 关提示卡，详情卡仍在。
+    await tester.tap(find.text(kLevelDetailHintConfirmText));
+    await tester.pumpAndSettle();
+    expect(find.byKey(FocusLevelDetailDialog.perkLockedHintKey), findsNothing);
+    expect(find.byKey(FocusLevelDetailDialog.dialogKey), findsOneWidget,
+        reason: '关提示卡后回到详情卡（未跳转、未 pop）');
   });
 }

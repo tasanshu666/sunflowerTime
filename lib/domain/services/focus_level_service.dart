@@ -5,30 +5,29 @@
 ///  · [FocusLevelService]：把「读 SP → 读账本 → 写账本 → 推进 SP」编排起来，**可注入
 ///    clock / idFactory**，故 `package:test` 下可确定性验证。
 ///
-/// ## 等级 40 级 vs 称号 9 个（C74 §2/§3/§4，🔑 全案核心）
+/// ## 等级 40 级 vs 称号 9 个（C74 §2/§3/§4 + **C78 经济层删除**，🔑 全案核心）
 ///  · 等级门槛 `kFocusLevelThresholdMinutes`（Lv.1 = **60 分钟**，故不足 1 小时 ⇒ lv 0）；
 ///  · 称号只在 `kFocusLevelTitleLevels` 解锁，**当前称号 = 已解锁的最高称号节点**；
-///  · 阳光**只在称号节点发**（其余 31 次普通升级：不发阳光、不播演出，只更新进度）。
+///  · **C78（2026-10-15）**：称号节点**只解锁专属属性、零阳光、零账本行**；
+///    其余 31 次普通升级只更新进度；两种升级**都播演出**（C74 §6 修订二）。
 ///
-/// ## 幂等锚点（设计 §5.24.3，🔴 核心算法）
+/// ## 幂等锚点（设计 §5.24.3 + C78 降级说明）
 /// `settledLevel = max(SP 值, 账本中已存在的最大称号节点 K)`
-/// —— 双锚点**取大**：账本保证「同一称号节点绝不重复发」（C12 事实源），SP 补上
-/// 「老用户首用不补发」这一条。只用一个锚点必在某场景出错（丢 SP 会补发 / 老用户会补发）。
+/// —— 双锚点**取大**：C78 前历史行仍靠账本锚防「SP 丢失、账本仍在」老号被
+/// 误判首用重播历史演出；C78 后**新节点不再写账本**，幂等**只靠 SP**（最坏 =
+/// SP 写成功前崩溃重播一场演出，无重复阳光可发，R-V2-1）。
 ///
 /// ## 四条不变式
-///  I1 同一称号节点**绝不重复发**（双锚点 + 每节点写前 `countByRefTypeAndRefId == 0`）；
-///  I2 **不补发历史称号阳光**（首用分支只写 SP，不写任何账本行）；
+///  I1 同一称号节点**绝不重复结算**（双锚点 + 每节点写前 `countByRefTypeAndRefId == 0`）；
+///  I2 **不补发历史**（首用分支只写 SP，不写任何账本行；C78 后本就无阳光可发）；
 ///  I3 中间一条写失败**不等于永久跳过**（停在失败前一级，下轮重试）；
-///  I4 崩溃不丢阳光（**先写账本、后播演出**；演出由调用方在本方法返回后再播）。
+///  I4 ~~崩溃不丢阳光~~（C78 后零写入；演出时序不变：结算返回后由调用方播）。
 library focus_level_service;
 
 import 'dart:math' as math;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
-import 'package:sunflower_time/core/utils/datetime_ext.dart';
-import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
-import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/focus_level_store.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 
@@ -85,7 +84,7 @@ int latestTitleNodeOfLevel(int level) {
   return node;
 }
 
-/// 该等级是否**称号节点**（决定「发不发阳光 / 播不播演出」，C74 §4）。
+/// 该等级是否**称号节点**（决定「是否解锁属性 / 播不播演出」，C74 §4 + C78）。
 bool isTitleLevelOf(int level) => kFocusLevelTitleLevels.contains(level);
 
 /// 等级 → 门槛分钟（`C74` 阶梯表唯一读法；页面不得另写「1 小时」等第二份写法）。
@@ -96,10 +95,10 @@ int thresholdMinutesOfLevel(int level) {
   return kFocusLevelThresholdMinutes[idx];
 }
 
-/// 等级 → 该称号节点的阳光（**非称号等级 = 0**；`level < 1` = 0）。
-int sunlightOfLevel(int level) => kFocusLevelUpSunlight[level] ?? 0;
-
 /// 等级 → 账本 refId（`'lv{n}'`）—— 🔴 **唯一生成入口**，页面禁止拼字符串。
+///
+/// ⚠️ C78 后**不再新增**账本行；`probeGrantedMaxTitleNode` / `countRef` 仍用本前缀
+/// 读 **C78 前历史行**（老号保护，防误判首用重播历史演出）。
 String levelRefIdOf(int level) => '$kFocusLevelRefIdPrefix$level';
 
 /// `settledLevel + 1 .. currentLevel` 的**升序**等级列表（含非称号等级）；
@@ -114,17 +113,12 @@ List<int> pendingLevelsOf({
   ];
 }
 
-/// 从一串待推进等级里挑出**需要发阳光的称号节点**（保持升序）。
+/// 从一串待推进等级里挑出**称号节点**（保持升序；C78 后决定演出种类与属性解锁，
+/// 不再涉及阳光）。
 List<int> titleLevelsOf(List<int> levels) => <int>[
       for (final int lv in levels)
         if (isTitleLevelOf(lv)) lv,
     ];
-
-/// 一批称号节点的阳光合计（跨多级「连升 N 个称号 +N☀」用）。
-int sunlightTotalOf(List<int> levels) => levels.fold(
-      0,
-      (int sum, int lv) => sum + sunlightOfLevel(lv),
-    );
 
 /// 累计分钟 → 徽章展示模型（纯派生，零 I/O）。
 ///
@@ -237,14 +231,16 @@ int nextSettledLevelOf({
 // 二、结算服务（纯 Dart，串行编排；依赖全部可注入）
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// C74 专注等级结算服务。
+/// C74 专注等级结算服务（**C78 经济层删除**：称号节点零阳光、零账本行）。
 ///
-/// 三条分支（设计 §5.24.3 + C74 §9）：
+/// 三条分支（设计 §5.24.3 + C74 §9 + C78）：
 ///  ① **快路径**（占绝大多数进页）：SP 有值 且 `current <= SP` ⇒ **零账本查询**；
 ///  ② **首用分支**：SP 未写过 且 账本无 `focus_level_up` 行 ⇒ 只写 SP（= current），
-///     返回 `firstUseSilent = true`（🔴 不补发历史称号阳光、不播演出）；
-///  ③ **结算分支**：`settled = max(SP ?? 0, K)` → 逐节点发阳光（先写账本）→ 推进 SP。
-///     只有**称号节点**会写账本；普通升级只把 SP 推进到当前等级（零阳光、零演出）。
+///     返回 `firstUseSilent = true`（🔴 不播演出；C78 后无阳光可补发，
+///     账本锚仍保护 C78 前历史行不被误判首用）；
+///  ③ **结算分支**：`settled = max(SP ?? 0, K)` → 逐称号节点判定（幂等读账本）→ 推进 SP。
+///     🔴 C78 后**零账本写入**：账本只读（[probeGrantedMaxTitleNode] / [countRef]）；
+///     演出触发 = `granted.isNotEmpty`（节点结算成功即入列，`amount` 恒 0）。
 class FocusLevelService {
   FocusLevelService({
     required SunlightRepository ledger,
@@ -258,15 +254,21 @@ class FocusLevelService {
 
   final SunlightRepository _ledger;
   final FocusLevelSettledStore _store;
+
+  // C78 后结算**零账本写入**，两者不再被 `settle()` 使用；但**保留注入点与字段**
+  // —— 全仓数十处 `FocusLevelService(...)` 构造点（含测试夹具）依赖该签名，
+  // 删参会连锁编译失败；保留亦为将来「写库型结算」预留。
+  // ignore: unused_field
   final String Function() _idFactory;
 
-  /// 可注入时钟（🟢 夹具时间戳一律相对 `DateTime.now()`，测试不写死绝对时间）。
+  // ignore: unused_field
   final DateTime Function() _clock;
 
-  /// 本轮结算。**先写账本**（崩溃不丢阳光，I4），演出由**调用方**在本方法返回后播。
+  /// 本轮结算（C78：零账本写入；演出由**调用方**在本方法返回后播）。
   ///
-  /// 🔑 返回值里 `granted` **只含称号节点** —— 调用方据此判断「是否播演出」
-  /// （空 ⇒ 普通升级或首用，一律不播）。
+  /// 🔑 返回值里 `granted` **只含称号节点** —— 调用方据此判断「是否播称号演出」
+  /// （空 ⇒ 普通升级（default 素材）或首用（不播））。`LevelGrant.amount` 与
+  /// `totalSunlight` 自 v2.0（C78）起**恒 0**（字段保留防连锁，见实体 doc）。
   Future<FocusLevelSettleResult> settle(double totalFocusMinutes) async {
     final int current = levelOfMinutes(totalFocusMinutes);
     final int? sp = await _store.read();
@@ -314,34 +316,17 @@ class FocusLevelService {
 
     for (final int lv in pendingTitles) {
       final String refId = levelRefIdOf(lv);
-      // 二级幂等（I1）：账本已有该称号节点 ⇒ 跳过（即便双锚点漏判也不会重发）。
+      // 幂等（I1）：C78 前历史行已有该节点 ⇒ 跳过（防「SP 丢失、账本仍在」老号
+      // 被误判首用而重播历史演出，R-V2-1 缓解）。🔴 只读，不写。
       final int already = await countRef(refId);
       if (already > 0) {
         settledOk[lv] = true;
         continue;
       }
-      final int amount = sunlightOfLevel(lv);
-      try {
-        final double before = await _ledger.balance();
-        await _ledger.append(
-          SunlightEntry(
-            id: _idFactory(),
-            ts: _clock(),
-            type: SunlightType.earn,
-            gross: amount.toDouble(),
-            net: amount.toDouble(),
-            balanceAfter: before + amount,
-            refType: kFocusLevelUpRefType,
-            refId: refId,
-            dayKey: dayKey(_clock()),
-          ),
-        );
-      } catch (_) {
-        // 🔴 append-only 账本：写失败**绝不重试**（重试只会产生重复行 → 重复发阳光），
-        // 跳过本条继续下一节点 —— 下次进页由 [nextSettledLevelOf] 停在失败前一级重试。
-        continue;
-      }
-      granted.add(LevelGrant(level: lv, amount: amount));
+      // C78：节点结算 = 零写入（原先在此写阳光账本，已删）；`granted` 非空即
+      // 触发称号演出，`amount` 恒 0 ⇒ 演出卡阳光行因既有条件
+      // `totalSunlight > 0`（level_up_fx_overlay.dart）自动隐藏。
+      granted.add(LevelGrant(level: lv, amount: 0));
       settledOk[lv] = true;
     }
 
@@ -364,9 +349,8 @@ class FocusLevelService {
       // （普通升级也播演出，但 `granted` 为空）。
       settledBefore: settled,
       granted: granted,
-      totalSunlight: sunlightTotalOf(
-        granted.map((LevelGrant g) => g.level).toList(growable: false),
-      ),
+      // C78：恒 0（原「按等级发阳光」的经济层已整体删除）。
+      totalSunlight: 0,
       firstUseSilent: false,
     );
   }

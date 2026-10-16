@@ -148,7 +148,8 @@ class EyeCareService {
   /// 新调用方走 [rewardSunlightOf]（等价于 `rewardSunlightOf(PlantPerk.none)`）。
   static int rewardSunlight() => kEyeCareRewardSunlight;
 
-  /// C77 第 7 条：护眼完成奖励 perk-aware（= `kEyeCareRewardSunlight + perk.eyeCareBonus`）。
+  /// C77 第 7 条 + **C78 前置（→ Lv.1）**：护眼完成奖励 perk-aware
+  /// （= `kEyeCareRewardSunlight + perk.eyeCareBonus`；基础值 C78 起 2，Lv.1 起 3）。
   ///
   /// 域层与 UI（账本写入 / 展示累加）**同源调用本函数**（防孪生 S2）。
   static int rewardSunlightOf(PlantPerk perk) => eyeCareRewardOf(perk);

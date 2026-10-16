@@ -196,10 +196,12 @@ class PlantGrowthService {
   /// 生产环境由 DI 装配自增 `economyRevisionProvider` 刷新 UI；域层保持零 Flutter 依赖。
   final void Function()? _onEconomyChanged;
 
-  /// 权益服务（可选，阶段 4 域层防线）。
+  /// 权益服务（可选，域层防线）。
   ///
-  /// 仅用于给「花盆扩容」按**档位上限**判定（免费 4 / 买断 12），替代原先写死的
-  /// [kGardenPotCapacityMax]。**默认 null = 旧行为**（上限恒为 [kGardenPotCapacityMax]），
+  /// 两处用途：① 阶段 4「花盆扩容」按**档位上限**判定（免费 4 / 买断 12），替代原先
+  /// 写死的 [kGardenPotCapacityMax]；② C80「称号专属属性」`currentPerk()` 以
+  /// `can(FeatureKey.titlePerks)` 门控（free → [PlantPerk.none]）。
+  /// **默认 null = 旧行为**（上限恒为 [kGardenPotCapacityMax] / 属性不做门控），
   /// 以保既有域单测逐字节不变。域层**不** import Riverpod / 门控 UI，只依赖域服务接口。
   final EntitlementService? _entitlement;
 
@@ -227,11 +229,20 @@ class PlantGrowthService {
 
   /// 当前称号的专属属性（C77）：`perkOfLevel(levelOfMinutes(累计有效专注分钟))`。
   ///
-  /// 🔴 输入是**原始等级**（不是已结算等级 / SP 锚点，见设计 §3.4）；**不读** entitlement
-  /// （P4 免费 / 买断一致）。域方法缺省 `perk` 时内部走本方法（保既有单测向后兼容，S10）。
+  /// 🔴 输入是**原始等级**（不是已结算等级 / SP 锚点，见设计 §3.4）。
+  ///
+  /// C80 · **域层防线（废止 C77 P4「免费 / 买断一致」）**：已注入 [_entitlement] 时，
+  /// 先以 `can(FeatureKey.titlePerks)` 判定——free 档回 [PlantPerk.none]，与 provider
+  /// 侧门控（`currentPlantPerkProvider`）双重一致，绕过 UI 直调域服务也拿不到属性。
+  /// **默认 null = C77 旧行为**（不做门控），以保既有域单测逐字节不变。
+  /// 域方法缺省 `perk` 时内部走本方法（保既有单测向后兼容，S10）。
   /// ⚠️ 性能（Q-J 技术债）：`totalStats()` 全量取行内存求和 —— 单株动作各读一次可接受；
   ///    批量路径（一键操作）由调用方**只读一次**再下发（§5.2）。
   Future<PlantPerk> currentPerk() async {
+    final EntitlementService? entitlement = _entitlement;
+    if (entitlement != null && !entitlement.can(FeatureKey.titlePerks)) {
+      return PlantPerk.none;
+    }
     final double minutes = (await _focus.totalStats()).totalFocusMinutes;
     return perkOfLevel(levelOfMinutes(minutes));
   }

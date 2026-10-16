@@ -9,7 +9,7 @@
 /// —— id 已存在则整行跳过（家长改过的价 / 名 / 删一律尊重），id 缺失才补默认行。
 ///
 /// 本测试钉死：
-///  ① `AppDatabase.schemaVersion == 24`；
+///  ① `AppDatabase.schemaVersion == 25`（C79 后最新；v24 批次建立时为 24）；
 ///  ② 真机态（仅 3 任务 + 4 奖励）→ 打开后补齐为 9 + 6，且补入行字段值正确；
 ///  ③ 已存在的内置行**不被覆盖**（家长改过的值原样保留）；
 ///  ④ 用户自建项（UUID id）一律不动；
@@ -175,11 +175,11 @@ Map<String, Object?>? _byId(List<Map<String, Object?>> rows, String id) {
 
 void main() {
   group('迁移 v23->v24：补齐内置种子（C55）', () {
-    test('schemaVersion 必须为最新 24（版本号与迁移改动不许脱节）', () async {
+    test('schemaVersion 必须为最新 25（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database =
           await _openV23(seedSqls: const <String>[]);
       addTearDown(database.close);
-      expect(database.schemaVersion, 24);
+      expect(database.schemaVersion, 25);
     });
 
     test('真机态（3 任务 + 4 奖励）→ 补齐为 9 + 6，且补入行字段值正确', () async {
@@ -267,7 +267,7 @@ void main() {
     test('幂等：v24 库二次打开不报错、数据稳定', () async {
       final db.AppDatabase database = await _openV23();
       await database.customSelect('SELECT 1').get(); // 二次访问触发 schema 校验
-      expect(database.schemaVersion, 24);
+      expect(database.schemaVersion, 25);
       expect(await _tasks(database), hasLength(9));
       expect(await _rewards(database), hasLength(6));
       await database.close();
@@ -299,7 +299,7 @@ void main() {
       await database.customSelect('SELECT 1').get();
       addTearDown(database.close);
 
-      expect(database.schemaVersion, 24);
+      expect(database.schemaVersion, 25);
       expect(await _tasks(database), hasLength(9));
       expect(await _rewards(database), hasLength(6));
     });

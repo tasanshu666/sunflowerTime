@@ -165,6 +165,16 @@ const Map<FeatureKey, FeatureRule> kEntitlementMatrix = <FeatureKey, FeatureRule
     freeQuota: kUnlimitedQuota,
     premiumQuota: kUnlimitedQuota,
   ),
+  // ── C80 · 称号专属属性（真门控）：免费 = 关闭（当前属性恒为 none），
+  //    买断 = 按等级累积解锁（见 `kPlantPerkPerTitleNode`）。
+  //    门控判定唯一入口 = `featureAllowedFor(FeatureKey.titlePerks, tier)`；
+  //    UI（详情卡 / 演出卡）与域层（`PlantGrowthService.currentPerk`）均走此判定。
+  FeatureKey.titlePerks: FeatureRule(
+    key: FeatureKey.titlePerks,
+    freeEnabled: false,
+    freeQuota: kUnlimitedQuota,
+    premiumQuota: kUnlimitedQuota,
+  ),
 };
 
 /// 便捷判定：给定能力点与档位，是否允许（未登记 = 不门控，安全放行）。

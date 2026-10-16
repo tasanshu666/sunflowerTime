@@ -56,7 +56,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 24;
+  int get schemaVersion => 25;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -681,6 +681,33 @@ class AppDatabase extends _$AppDatabase {
                 'enabled, content_category) '
                 'VALUES (?, ?, 1, ?, ?, 1, 1, ?);',
                 r,
+              );
+            }
+          }
+
+          // ㉕ v25（C79，玄参 2026-10-15 23:25 拍板）：设置页死开关清理 ——
+          //    `detection_on`（在场检测）与 `autonomous_mode`（自主模式/孩子自助
+          //    核销）两列 DROP：
+          //    · `detection_on`：全仓零消费（专注页 `focus_page.dart` **无条件**
+          //      启动 `PresenceDetector`，功能常开 = 防挂机核心，逻辑一行不动），
+          //      开关已从家长设置页移除 → 列无存在意义；
+          //    · `autonomous_mode`：全仓**零业务消费点**（自主核销从未实现），
+          //      实体字段 / UI 开关 / 列一并彻底删除；
+          //    · ⚠️ SQLite `ALTER TABLE DROP COLUMN`（3.35+，本仓 sqlite3/sqlcipher
+          //      满足）；两列均无索引/触发器引用，可安全 DROP；
+          //    · 幂等：v25+ 库不再进入本分支；列已删时 PRAGMA 检查跳过
+          //      （用仓内同款 `_hasColumn` 幂等写法防重复执行报错）。
+          //    ⚠️ 版本变更（24 → 25），必须配迁移测试（见
+          //       `test/m3/migration_v25_test.dart`）。
+          if (from < 25) {
+            if (await _hasColumn(settings.actualTableName, 'detection_on')) {
+              await customStatement(
+                'ALTER TABLE settings DROP COLUMN detection_on;',
+              );
+            }
+            if (await _hasColumn(settings.actualTableName, 'autonomous_mode')) {
+              await customStatement(
+                'ALTER TABLE settings DROP COLUMN autonomous_mode;',
               );
             }
           }

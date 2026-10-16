@@ -39,11 +39,15 @@ library focus_level_badge;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart'
-    show nextLevelGapTextOf, sunlightOfLevel, titleOfLevel, titleRowsOfLevel;
+    show nextLevelGapTextOf, titleOfLevel, titleRowsOfLevel;
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 
@@ -258,7 +262,12 @@ Future<void> showFocusLevelDetailDialog(
 }
 
 /// 等级详情卡内容（三块：当前等级+称号 / 距下一级 / 9 个称号全列表）。
-class FocusLevelDetailDialog extends StatelessWidget {
+///
+/// **C80 改版**：改为 [ConsumerWidget] —— `watch` [entitlementProvider] 判定
+/// `FeatureKey.titlePerks`（矩阵单点 [featureAllowedFor]）后给每行属性徽章下发
+/// `perkUnlocked`（三态：橙实心 / 锁标 / 灰字）。卡开着时购买返回 → entitlement
+/// 变化自动重建，锁标行即时恢复橙实心（R-V3-3 已消解；P1-1 零回调代码）。
+class FocusLevelDetailDialog extends ConsumerWidget {
   const FocusLevelDetailDialog({super.key, required this.progress});
 
   /// 第一块里那枚**大圆徽**的 Key（区别于今日页摘要徽章那枚，避免重复 Key）。
@@ -279,13 +288,6 @@ class FocusLevelDetailDialog extends StatelessWidget {
   /// 第 [level] 个称号节点的行 Key。
   static Key titleRowKeyOf(int level) => Key('$titleRowKeyPrefix$level');
 
-  /// 9 行右侧「阳光奖励」widget 的 Key 前缀（第 i 个称号节点）。
-  static const String titleRowRewardKeyPrefix = 'focusLevelDetailTitleRowReward';
-
-  /// 第 [level] 个称号节点行的奖励 widget Key。
-  static Key titleRowRewardKeyOf(int level) =>
-      Key('$titleRowRewardKeyPrefix$level');
-
   /// 卡内**内容框**（`ConstrainedBox(maxWidth: kLevelDetailCardMaxWidth)`）的 Key。
   ///
   /// widget 测试量「卡宽 ≤ 310」用（`Dialog` 外层含 `insetPadding` 铺满屏，量它无意义）。
@@ -298,8 +300,19 @@ class FocusLevelDetailDialog extends StatelessWidget {
   static Key titleRowPerkKeyOf(int level) =>
       Key('$titleRowPerkKeyPrefix$level');
 
+  /// C81 ①：属性锁标态点按弹出的**升级提示卡** Key（widget 测试断言用）。
+  ///
+  /// 「只弹提示、不跳转」——不 pop 详情卡、不 push 购买页（V3-Q1 结案）。
+  static const Key perkLockedHintKey = Key('focusLevelDetailPerkLockedHint');
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // C80：付费是否解锁称号专属属性（矩阵单点判定，与 provider / 域层同源）。
+    final bool perkUnlocked = featureAllowedFor(
+        FeatureKey.titlePerks, ref.watch(entitlementProvider).tier);
+    // C81 ⑥：卡宽乘 [uiScaleOf]（平板 1.3×）——修**满级 5 字长称号**在 iPad 被
+    // ellipsis 截断（手机 = 1.0 → 零像素回归；C61/C65：定尺寸元素乘 uiScale）。
+    final double s = uiScaleOf(context);
     return Dialog(
       key: dialogKey,
       shape: RoundedRectangleBorder(
@@ -308,7 +321,7 @@ class FocusLevelDetailDialog extends StatelessWidget {
       child: ConstrainedBox(
         key: cardKey,
         constraints: BoxConstraints(
-          maxWidth: kLevelDetailCardMaxWidth,
+          maxWidth: kLevelDetailCardMaxWidth * s,
           // 矮屏兜底：内容超高时可滚（`showDialog` 不会因为溢出给 ALT 红条）。
           maxHeight: MediaQuery.sizeOf(context).height *
               kLevelDetailMaxHeightRatio,
@@ -332,18 +345,7 @@ class FocusLevelDetailDialog extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: kLevelDetailSectionGap),
-                _buildTitleList(),
-                const SizedBox(height: kLevelDetailSectionGap),
-                // C77 底部 emoji 图例（单点常量 [kLevelPerkLegendText]，不页面拼接）；
-                // 用 Text 自动换行（平板 1.6× 必然换行）——**不**用 Row。
-                const Text(
-                  kLevelPerkLegendText,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: kLevelDetailLegendFontSize,
-                    color: _kDetailSoftColor,
-                  ),
-                ),
+                _buildTitleList(perkUnlocked),
               ],
             ),
           ),
@@ -386,16 +388,18 @@ class FocusLevelDetailDialog extends StatelessWidget {
     );
   }
 
-  /// 第三块：**9 个称号全列表**（当前称号高亮 + ✨，每行右侧「小太阳 +
-  /// 阳光奖励数」，v3 玄参拍板）。
+  /// 第三块：**9 个称号全列表**（当前称号高亮，属性徽章**恒靠右且 9 行严格对齐**）。
   ///
-  /// · 每行右侧加「小太阳 + 该称号节点阳光奖励数」（C74 §4：3/5/7/9/11/13/
-  ///   16/18/20，共 102 ☀）；已解锁 = 实心彩色太阳（已领取），未解锁 = 灰色
-  ///   太阳（预告激励，让孩子有盼头）；当前行保留高亮底 + ✨。
-  /// · 🔑 奖励数取自 [sunlightOfLevel]（复用 `kFocusLevelUpSunlight` 现有常量，
-  ///   **不写第二份数据源**，C74 §4）。
-  /// · 仍少文字：不加额外说明句、不加底部汇总行。
-  Widget _buildTitleList() {
+  /// · 每行 = 节点圆牌 + 称号（弹性宽、ellipsis）+ 属性徽章靠右
+  ///   （[perkEmojiOfTitleNode] / [perkNameOfTitleNode] / [perkShortTextOf] 同源派生，
+  ///   不在页面拼九种文案，防孪生 S2）；当前行以**高亮底 + 加粗**标示。
+  ///   **C80 改版**：删底部图例区（属性说明上机进徽章行，P0-1/P0-2）；属性徽章
+  ///   三态由 [perkUnlocked] 下发（[_PerkPill]，P0-3/P0-6）。
+  ///   **C81 ⑤**：删掉行尾 ✨（原 `kLevelDetailCurrentMark`，常量已随删）——它排在
+  ///   `_PerkPill` 之后会把**当前行右列**往左挤一个 ✨ 宽 ⇒ 9 行右列不再对齐（玄参
+  ///   真机反馈）；删后当前行语义由高亮底 + w800 承担，右列 9 行严格右对齐。
+  /// · 行高用 minHeight（C65/C75⑤：平板 textScaler 1.6 时内容自然增高、零溢出）。
+  Widget _buildTitleList(bool perkUnlocked) {
     final List<FocusLevelTitleRow> rows = titleRowsOfLevel(progress.level);
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -416,6 +420,8 @@ class FocusLevelDetailDialog extends StatelessWidget {
                 children: <Widget>[
                   _TitleNodeChip(row: row),
                   const SizedBox(width: 10),
+                  // C80：称号占满剩余空间（Flexible + ellipsis 优先级最高），
+                  // 属性徽章**恒靠右**（不在 Expanded 内、不吃挤压，P1-2）。
                   Expanded(
                     child: Text(
                       row.title,
@@ -423,46 +429,23 @@ class FocusLevelDetailDialog extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: kLevelDetailRowFontSize,
-                        fontWeight:
-                            row.isCurrent ? FontWeight.w800 : FontWeight.w500,
+                        fontWeight: row.isCurrent
+                            ? FontWeight.w800
+                            : FontWeight.w500,
                         color: row.unlocked
                             ? _kBadgeTitleColor
                             : _kDetailLockedColor,
                       ),
                     ),
                   ),
-                  if (row.isCurrent)
-                    const Text(
-                      kLevelDetailCurrentMark,
-                      style: TextStyle(fontSize: kLevelDetailRowFontSize),
+                  const SizedBox(width: 6),
+                  _PerkPill(
+                    key: FocusLevelDetailDialog.titleRowPerkKeyOf(
+                      row.level,
                     ),
-                  const SizedBox(width: 8),
-                  // C77：右侧改**上下两行**（属性徽章 + 阳光奖励），缓解横向压力（设计 §7.2）。
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: kLevelDetailPerkRightColMaxWidth,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: <Widget>[
-                        _PerkPill(
-                          key: FocusLevelDetailDialog.titleRowPerkKeyOf(
-                            row.level,
-                          ),
-                          level: row.level,
-                          unlocked: row.unlocked,
-                        ),
-                        const SizedBox(height: 2),
-                        _TitleRowReward(
-                          key: FocusLevelDetailDialog.titleRowRewardKeyOf(
-                            row.level,
-                          ),
-                          amount: sunlightOfLevel(row.level),
-                          unlocked: row.unlocked,
-                        ),
-                      ],
-                    ),
+                    level: row.level,
+                    unlocked: row.unlocked,
+                    perkUnlocked: perkUnlocked,
                   ),
                 ],
               ),
@@ -590,13 +573,25 @@ class LevelBadgeCircle extends StatelessWidget {
                   diameter: diameter,
                   fontSize: labelFontSize ?? kLevelLockedFontSize,
                 )
-              : Text(
-                  '$kLevelBadgeTextPrefix$level',
-                  style: TextStyle(
-                    fontSize: labelFontSize ??
-                        (diameter / kLevelBadgeDiameter) * kLevelLabelFontSize,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
+              : FittedBox(
+                  // 🔴 两位数截断修复（真机 Lv.40 → 「Lv.4」）：
+                  // `Lv.N` 是无空格单一词，两位数（Lv.10~Lv.40）的词宽在等比字号下
+                  // 超过圆内可用宽（直径 − 2×白描边），又无换行点 ⇒ 水平被裁掉末位。
+                  // [FittedBox.scaleDown] 让标签**只在小到放不下时**整体等比缩小：
+                  // 一位数视觉零变化；两位数缩到恰好填满内宽，单行完整显示。
+                  // ⚠️ 这是「装进固定圆」的布局适配，不违反 C65 红线 —— 文字仍只走
+                  // `MediaQuery.textScaler`（FittedBox 不乘 uiScaleOf、不改 textScaler）。
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '$kLevelBadgeTextPrefix$level',
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: labelFontSize ??
+                          (diameter / kLevelBadgeDiameter) *
+                              kLevelLabelFontSize,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
         ),
@@ -641,94 +636,121 @@ class _LockedGlyphPlate extends StatelessWidget {
   }
 }
 
-/// 详情卡每行右侧的**称号专属属性**小徽章（emoji + 增减量，如「💧 −1」）。
+/// 详情卡每行右侧的**专属属性小徽章**（如「🔒 👁 护眼 +1 ☀」）。
 ///
-/// C77 第 3 块：与「小太阳 +N」上下叠放（设计 §7.2）。属性 emoji 与增减量**全部**
-/// 走 `plant_perk.dart` 纯函数（[perkEmojiOfTitleNode] / [perkShortTextOf] /
-/// [perkOfTitleNode]）——不在页面拼九种文案（防孪生 S2）。
-/// 已解锁 = 实心色（阳光橙 [_kBarFill]）+ 粗体；未解锁 = 灰字（[kLevelDetailLockedColor]）。
+/// **C81 形态**（玄参真机验收后定稿）：
+///  顺序 = `[🔒（有锁才显示）] [属性 emoji] [属性名] [数值] [☀]`（单一 `Row`）；
+///  · 属性 emoji 走 [perkEmojiOfTitleNode]、属性名走 [perkNameOfTitleNode]、
+///    数值走 [perkShortTextOf]（**纯数值带符号**，C81 ③ 去描述词）——三者同源单点；
+///  · 阳光图标**9 行统一恒带**（C81 ②：不再按达等级条件渲染）。
+///
+/// **三态视觉**（P0-3 + P0-6）：
+///  · **橙实心**（`unlocked && perkUnlocked`）：数值/属性名暖橙 w700 + ☀ 原色；
+///  · **锁标态**（`unlocked && !perkUnlocked`）：整体置灰（[_kDetailLockedColor]）+
+///    🔒 前缀 + ☀ 同置灰；**可点** → 只弹**升级提示卡**（C81 ①：不 pop、不跳转）；
+///    热区扩展 ≥ 44pt（P1-2 孩子手指）；
+///  · **灰字**（`!unlocked`）：灰字无锁、不可点（P0-6 边界），☀ 一并置灰（统一）。
+///
+/// 属性 emoji / 名称 / 数值**全部**走 `plant_perk.dart` 纯函数——不在页面拼九种
+/// 文案（防孪生 S2）；C61 图形素材乘 [uiScaleOf]。
 class _PerkPill extends StatelessWidget {
-  const _PerkPill({super.key, required this.level, required this.unlocked});
-
-  /// 称号节点等级（决定 emoji 与属性量）。
-  final int level;
-
-  /// 该节点是否已解锁（决定颜色与字重）。
-  final bool unlocked;
-
-  @override
-  Widget build(BuildContext context) {
-    final String emoji = perkEmojiOfTitleNode(level);
-    final String text = perkShortTextOf(perkOfTitleNode(level));
-    final Color color = unlocked ? _kBarFill : _kDetailLockedColor;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: <Widget>[
-        Text(emoji, style: const TextStyle(fontSize: kLevelDetailPerkFontSize)),
-        const SizedBox(width: 2),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: kLevelDetailPerkFontSize,
-            fontWeight: unlocked ? FontWeight.w700 : FontWeight.w500,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// 详情卡 9 行右侧的「小太阳 + 阳光奖励数」（v3 玄参拍板）。
-///
-/// · 已解锁（[unlocked] = true）：实心彩色太阳（阳光橙 [_kUnlockedSunColor]）+
-///   数字 —— 已领取语义；
-/// · 未解锁：灰色太阳（[_kLockedSunColor]）+ 数字 —— 预告激励，让孩子看见下一档
-///   能领多少 ☀。
-///
-/// 🔑 奖励金额来自调用方传入（实为 [sunlightOfLevel] 的返回，复用
-/// `kFocusLevelUpSunlight` 现有常量，不写第二份数据源，C74 §4）。太阳用内置
-/// `Icons.wb_sunny`（实心），与全 App 阳光素材缺失回退图标同源；灰态 = 同一枚
-/// 图标换色，可靠且可测（颜色直接读 [Icon.color]）。
-class _TitleRowReward extends StatelessWidget {
-  const _TitleRowReward({
+  const _PerkPill({
     super.key,
-    required this.amount,
+    required this.level,
     required this.unlocked,
+    required this.perkUnlocked,
   });
 
-  /// 该称号节点的阳光奖励（3/5/7/9/11/13/16/18/20，C74 §4）。
-  final int amount;
+  /// 称号节点等级（决定 emoji / 名称 / 属性量）。
+  final int level;
 
-  /// 该节点是否已解锁（决定太阳颜色与字重）。
+  /// 该节点是否已达等级（决定行色系与是否可点）。
   final bool unlocked;
 
-  /// 已解锁太阳色（阳光橙，与进度条填充 [_kBarFill] 同源）。
-  static const Color _kUnlockedSunColor = Color(0xFFE8A600);
+  /// C80：付费是否解锁称号专属属性（= `featureAllowedFor(FeatureKey.titlePerks, tier)`）。
+  final bool perkUnlocked;
 
-  /// 未解锁太阳色（与未解锁称号文字 [_kDetailLockedColor] 同源灰）。
-  static const Color _kLockedSunColor = Color(0xFFB0A08C);
+  /// 锁标态点按 → 弹「请升级到完整版本功能」提示卡（C81 ①）。
+  ///
+  /// 只提示、**不** pop 详情卡、**不** push 购买页（V3-Q1 结案：孩子端已无购买入口）。
+  static Future<void> _showLockedHint(BuildContext context) {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        key: FocusLevelDetailDialog.perkLockedHintKey,
+        content: const Text(kPremiumUpsellHintText),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(kLevelDetailHintConfirmText),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final Color color = unlocked ? _kUnlockedSunColor : _kLockedSunColor;
-    return Row(
+    final double s = uiScaleOf(context);
+    final String emoji = perkEmojiOfTitleNode(level);
+    final String name = perkNameOfTitleNode(level);
+    final String value = perkShortTextOf(perkOfTitleNode(level));
+    // 三态判定（顺序敏感：未达等级 > 未购买 > 已购实心）。
+    final bool locked = unlocked && !perkUnlocked; // 锁标态（可点）
+    final bool orange = unlocked && perkUnlocked; // 橙实心
+    final Color color = orange ? _kBarFill : _kDetailLockedColor;
+    final TextStyle labelStyle = TextStyle(
+      fontSize: kLevelDetailPerkFontSize,
+      fontWeight: orange ? FontWeight.w700 : FontWeight.w500,
+      color: color,
+    );
+
+    Widget pill = Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
-        Icon(Icons.wb_sunny, color: color, size: 16),
+        // C81 ④ 顺序：🔒 在最前（仅锁标态）→ emoji → 属性名 → 数值 → ☀。
+        if (locked) ...<Widget>[
+          const Text('🔒',
+              style: TextStyle(fontSize: kLevelDetailPerkFontSize)),
+          const SizedBox(width: 2),
+        ],
+        Text(emoji, style: const TextStyle(fontSize: kLevelDetailPerkFontSize)),
+        const SizedBox(width: 2),
+        Text(name, style: labelStyle),
+        const SizedBox(width: 2),
+        Text(value, style: labelStyle),
+        // C81 ②：阳光图标**9 行统一恒带**（橙实心原色 / 锁标·灰字置灰）。
         const SizedBox(width: 3),
-        Text(
-          '$amount',
-          style: TextStyle(
-            fontSize: kLevelDetailRowFontSize,
-            fontWeight: unlocked ? FontWeight.w700 : FontWeight.w500,
+        Image.asset(
+          'assets/rewards/sunlight.png',
+          width: kLevelDetailPerkSunIconSize * s,
+          height: kLevelDetailPerkSunIconSize * s,
+          fit: BoxFit.contain,
+          color: orange ? null : _kDetailLockedColor,
+          errorBuilder: (_, __, ___) => Icon(
+            Icons.wb_sunny,
             color: color,
+            size: kLevelDetailPerkSunIconSize * s,
           ),
         ),
       ],
     );
+
+    if (locked) {
+      // C81 ①：仅锁标态可点 → 只弹升级提示卡（不 pop、不跳转）；
+      // 热区扩展 ≥ 44pt（P1-2 孩子手指）。
+      pill = GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => _showLockedHint(context),
+        child: ConstrainedBox(
+          constraints:
+              const BoxConstraints(minWidth: 44, minHeight: 44),
+          child: Center(child: pill),
+        ),
+      );
+    }
+    return pill;
   }
 }
 

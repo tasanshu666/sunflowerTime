@@ -22,6 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/iap_product_ids.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/repositories/entitlement_repository.dart';
@@ -262,9 +263,9 @@ void main() {
 
   // ─────────────────────── T3 对比表数据派生（unit）───────────────────────
   group('阶段5 · T3 对比表数据派生（unit）', () {
-    test('恰好 4 行，键为 4 个真实生效项（白名单）', () {
+    test('C80 后恰好 5 行，键为 5 个真实生效项（白名单）', () {
       final List<PremiumUnlockRow> rows = unlockRowsFor();
-      expect(rows.length, 4);
+      expect(rows.length, 5);
       expect(
         rows.map((PremiumUnlockRow r) => r.key).toList(),
         <FeatureKey>[
@@ -272,8 +273,9 @@ void main() {
           FeatureKey.gardenPotCapacity,
           FeatureKey.taskTemplateCount,
           FeatureKey.rewardTemplateCount,
+          FeatureKey.titlePerks,
         ],
-        reason: '🔴 必须显式枚举这 4 个键，禁止遍历 FeatureKey.values',
+        reason: '🔴 必须显式枚举这 5 个键（C80 加 titlePerks），禁止遍历 FeatureKey.values',
       );
     });
 
@@ -294,6 +296,15 @@ void main() {
       expect(byKey[FeatureKey.rewardTemplateCount]!.premiumText, contains('不限'));
       // C70：花盆行必须带注
       expect(byKey[FeatureKey.gardenPotCapacity]!.note, '扩容仍需花阳光');
+      // C80 第 5 行：称号属性（free ✗ / premium ✓ 9 条，9 由 kFocusLevelTitleLevels 派生）。
+      expect(byKey[FeatureKey.titlePerks]!.freeOk, isFalse,
+          reason: '称号属性免费关闭（C80 门控）');
+      expect(byKey[FeatureKey.titlePerks]!.freeText, '✗');
+      expect(byKey[FeatureKey.titlePerks]!.premiumOk, isTrue);
+      expect(byKey[FeatureKey.titlePerks]!.premiumText,
+          '✓ ${kFocusLevelTitleLevels.length} 条',
+          reason: 'premiumText 由 kFocusLevelTitleLevels.length 派生（9 派生，防漂移）');
+      expect(byKey[FeatureKey.titlePerks]!.label, '称号属性');
     });
 
     test('注入自定义矩阵 → 输出随之变化（证明非硬编码）', () {
@@ -377,12 +388,17 @@ void main() {
       }
     });
 
-    test('运行期：预览徽标数据源只含 4 项且标签无红线词', () {
+    test('运行期：预览徽标数据源只含 5 项且标签无红线词（C80 第 5 枚 🏅）', () {
       final List<PremiumUnlockRow> rows = unlockRowsFor();
-      expect(rows.length, 4, reason: '预览徽标只应 4 枚真实生效项（无「深度报告」那枚）');
+      expect(rows.length, 5, reason: '预览徽标 5 枚真实生效项（C80：+ 称号属性）');
       for (final PremiumUnlockRow r in rows) {
         expect(_hitsRedLine(r.label), isFalse);
       }
+      // 预览徽标 emoji 表扩第 5 枚（源码断言，与 rows.length 同长防漏）。
+      final String page =
+          _read(root, 'lib/presentation/parent/pages/parent_premium_page.dart');
+      expect(page.contains("'⚡', '🪴', '📋', '🎁', '🏅'"), isTrue,
+          reason: '预览徽标 emojis 常量应扩到 5 枚（V3-Q3 裁定加 🏅）');
     });
   });
 
@@ -398,7 +414,8 @@ void main() {
 
   // ───────────────────── T2 对比表渲染结构（widget）─────────────────────
   group('阶段5 · T2 对比表渲染结构（widget）', () {
-    testWidgets('两栏胶囊 + 两个分组带 + B 组 4 行项目名齐全', (WidgetTester tester) async {
+    testWidgets('两栏胶囊 + 两个分组带 + B 组 5 行项目名齐全（C80：+ 称号属性）',
+        (WidgetTester tester) async {
       await _pumpTable(tester);
 
       // 两栏胶囊
@@ -408,12 +425,13 @@ void main() {
       // 两个分组带
       expect(find.text('免费就能用'), findsOneWidget);
       expect(find.text('买断后解锁'), findsOneWidget);
-      // B 组 4 行项目名
+      // B 组 5 行项目名
       for (final String label in <String>[
         '花园「一键操作」',
         '花盆上限',
         '成长项模板',
         '奖励模板',
+        '称号属性',
       ]) {
         expect(find.text(label), findsOneWidget, reason: 'B 组缺行：$label');
       }
@@ -560,17 +578,22 @@ void main() {
 
   // ───────────────────── T12 孩子端无购买入口（源码）─────────────────────
   group('阶段5 · T12 孩子端无购买入口（源码）', () {
-    test('孩子端页面不含 /parent/premium', () {
+    test('孩子端页面一律不含 /parent/premium（C81 ①：锁标只弹提示卡，不再跳转）', () {
+      // 🔴 C81 修订（玄参拍板）：详情卡锁标点按改「只弹提示卡、不跳转」⇒ 孩子端
+      // **零**购买入口（原 C80 的 `focus_level_badge` 白名单随之撤销）。
       final List<String> hits = <String>[];
       final Directory child = Directory('$root/lib/presentation/child');
       for (final File f in child.listSync(recursive: true).whereType<File>()) {
         if (!f.path.endsWith('.dart')) continue;
-        final String rel = f.path.substring(root.length + 1).replaceAll('\\', '/');
+        final String rel =
+            f.path.substring(root.length + 1).replaceAll('\\', '/');
         if (f.readAsStringSync().contains('/parent/premium')) {
           hits.add(rel);
         }
       }
-      expect(hits, isEmpty, reason: '孩子端不得出现购买入口：${hits.join(', ')}');
+      expect(hits, isEmpty,
+          reason: '孩子端不得出现购买入口（C81 ①：锁标只弹提示卡）：'
+              '${hits.join(', ')}');
     });
   });
 }

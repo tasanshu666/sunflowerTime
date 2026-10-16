@@ -54,6 +54,8 @@ const Map<String, String> _refLabels = <String, String>{
   'parent_gift': '家长赠予',
   'debug_grant': '调试发放',
   // C74 专注等级升级一次性阳光（玄参 2026-10-14 拍板；refType 值冻结）。
+  // 🔴 C78（2026-10-15）：升级不再发阳光（零账本行）——本标签仅供**历史行**显示，
+  //    账本 append-only 不清理，故映射必须保留。
   // 🔴 新增 refType 必须同步本映射，否则孩子端显示「其他」，阳光来源对不上账（既有铁律）。
   kFocusLevelUpRefType: '专注升级',
 };

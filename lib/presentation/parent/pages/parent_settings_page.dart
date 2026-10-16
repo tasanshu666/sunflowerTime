@@ -1,7 +1,7 @@
 /// 家长端·设置页（M3 T03，第 5 个 tab）。
 ///
 /// 复用现有 Settings 字段（ageTier / 夜间边界 / 每日上限 / App 时长 / 休息 /
-/// quietMode / detectionOn / soundOn / bgmOn / themeDark / autonomousMode），
+/// quietMode / soundOn / bgmOn / themeDark），
 /// 0 新增字段。额外能力：
 ///  · PIN 重设（[SecureStore.resetPin]，非 settings 字段）；
 ///  · 阳光赠予动作（[SunlightRepository.append] refType='parent_gift'，日/月上限见 U1）；
@@ -263,10 +263,12 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
         // 🔴 2026-10-14 玄参截图反馈：「解锁全部功能」**上移到最顶部**第一个分区
         // （原话「放在最上面，更显眼」）。其余分区顺序不变。
         const _SectionTitle('解锁全部功能'),
+        // C78（V2-4）：唯一**金令牌视觉**入口（仅样式；路由 / PIN 门控 / 副标题不变）。
         _EntryCard(
           icon: Icons.star_rounded,
           title: '解锁全部功能',
           subtitle: const PremiumStatusText(),
+          gold: true,
           onTap: () => context.push('/parent/premium'),
         ),
         const SizedBox(height: 12),
@@ -276,11 +278,9 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           value: s.quietMode,
           onChanged: (v) => _update(s.copyWith(quietMode: v)),
         ),
-        _SwitchTile(
-          title: '在场检测',
-          value: s.detectionOn,
-          onChanged: (v) => _update(s.copyWith(detectionOn: v)),
-        ),
+        // 🔴 C79（2026-10-15 玄参拍板）：原「在场检测」开关已移除 ——
+        //    功能**常开**（专注页无条件启动 PresenceDetector，防挂机核心，
+        //    逻辑一行不动），不再有可关的开关。
         _NightBoundaryTile(
           hour: s.nightBoundaryHour,
           minute: s.nightBoundaryMinute,
@@ -366,11 +366,9 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           value: s.themeDark,
           onChanged: (v) => _update(s.copyWith(themeDark: v)),
         ),
-        _SwitchTile(
-          title: '自主模式（孩子自助核销）',
-          value: s.autonomousMode,
-          onChanged: (v) => _update(s.copyWith(autonomousMode: v)),
-        ),
+        // 🔴 C79（2026-10-15 玄参拍板）：原「自主模式（孩子自助核销）」开关已
+        //    **彻底删除** —— 全仓排查该字段零业务消费点（自主核销从未实现），
+        //    实体字段 + DB 列（schemaVersion 25 DROP COLUMN）一并移除。
         const SizedBox(height: 12),
         _SectionTitle('家长锁与赠予'),
         ListTile(
@@ -524,31 +522,65 @@ class _NightBoundaryTile extends StatelessWidget {
 
 /// 入口卡（跳转）。[subtitle] 为 Widget，可直接嵌入随状态刷新的组件
 /// （如解锁状态 [`PremiumStatusText`]）。
+///
+/// C78（V2-4）：可选 [gold] 令牌视觉 —— **仅「解锁全部功能」入口传 true**，
+/// 复用购买页金系色值（底渐变 `0xFFFFFDF7→0xFFFFF0C9` / 描边 `0xFFE8C56A`
+/// 1.5px / 图标金 `0xFFE8A600` / 字 `0xFF6B6252`）；其余入口卡白底逐像素不变。
 class _EntryCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final Widget subtitle;
   final VoidCallback onTap;
   final bool danger;
+  final bool gold;
   const _EntryCard({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.onTap,
     this.danger = false,
+    this.gold = false,
   });
 
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) {
+    if (gold) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[Color(0xFFFFFDF7), Color(0xFFFFF0C9)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE8C56A), width: 1.5),
+        ),
         child: ListTile(
-          leading: Icon(icon, color: danger ? Colors.red : null),
-          title: Text(title,
-              style: danger
-                  ? const TextStyle(color: Colors.red)
-                  : null),
+          leading: Icon(icon, color: const Color(0xFFE8A600)),
+          title: Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFF6B6252),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           subtitle: subtitle,
-          trailing: const Icon(Icons.chevron_right),
+          trailing: const Icon(Icons.chevron_right, color: Color(0xFFE8A600)),
           onTap: onTap,
         ),
       );
+    }
+    return Card(
+      child: ListTile(
+        leading: Icon(icon, color: danger ? Colors.red : null),
+        title: Text(title,
+            style: danger
+                ? const TextStyle(color: Colors.red)
+                : null),
+        subtitle: subtitle,
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
+  }
 }

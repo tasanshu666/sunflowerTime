@@ -84,7 +84,7 @@ class FocusLevelProgress {
 ///
 /// 9 个称号节点（`kFocusLevelTitleLevels`）**全部列出**：已解锁/未解锁由累计分钟
 /// 派生，[isCurrent] 指的是「**当前称号 = 已解锁的最高称号节点**」（C74 §3，如
-/// Lv.7 的当前节点仍是 Lv.5）—— 详情卡据此高亮 + ✨。
+/// Lv.7 的当前节点仍是 Lv.5）—— 详情卡据此高亮（高亮底 + w800 加粗，C81 ⑤）。
 class FocusLevelTitleRow {
   const FocusLevelTitleRow({
     required this.level,
@@ -123,14 +123,17 @@ class FocusLevelTitleRow {
       'isCurrent=$isCurrent)';
 }
 
-/// 本轮**实际入账**的一条称号阳光（按等级升序，供演出「连升 N 个称号 +N☀」展示与对账）。
+/// 本轮结算命中的**一条称号节点**（按等级升序，供演出展示与对账）。
+///
+/// ⚠️ **v2.0（C78）起 [amount] 恒 0**（经济层删除：称号节点零阳光、零账本行）；
+/// 字段保留防构造点/夹具连锁，演出判定只看 `granted` 是否非空。
 class LevelGrant {
   const LevelGrant({required this.level, required this.amount});
 
-  /// 入账对应的**称号节点等级**（1/5/10/15/20/25/30/35/40）。
+  /// 节点对应的**称号等级**（1/5/10/15/20/25/30/35/40）。
   final int level;
 
-  /// 该称号节点的阳光金额（阶梯表；> 0）。
+  /// 该称号节点的阳光金额（**v2.0 起恒 0**，见上）；构造点仍要求显式传 0。
   final int amount;
 
   @override
@@ -147,13 +150,13 @@ class LevelGrant {
 
 /// 一次升级结算的**完整出参**（由 `FocusLevelService.settle` 返回）。
 ///
-/// 调用方据此决定后续动作（🔑 **C74 §6 修订二**：每次升级都播演出，但只有称号节点
-/// 才发阳光 —— 故「是否升级」与「是否解锁称号」是两个**独立**的判定）：
-///  · `granted.isNotEmpty` ⇒ **称号节点**：发阳光 + 播 `5leveUp` 演出；
-///  · `granted.isEmpty && leveledUp` ⇒ **普通升级**：播 `defaultLevelUp` 演出，
-///    但**零阳光、零账本行**（视觉层与经济层分离）；
+/// 调用方据此决定后续动作（🔑 **C74 §6 修订二**：每次升级都播演出；
+/// **C78 后称号节点也不发阳光** —— 故「是否升级」与「是否解锁称号」仍是两个
+/// **独立**判定）：
+///  · `granted.isNotEmpty` ⇒ **称号节点**：播 `5leveUp` 演出（零阳光、零账本行）；
+///  · `granted.isEmpty && leveledUp` ⇒ **普通升级**：播 `defaultLevelUp` 演出；
 ///  · `!leveledUp` ⇒ 没升级（快路径 / 首用静默）⇒ 什么都不播；
-///  · `firstUseSilent == true` ⇒ 老用户首用，**静默**（已写 SP，不补发、不播演出）。
+///  · `firstUseSilent == true` ⇒ 老用户首用，**静默**（已写 SP，不播演出）。
 class FocusLevelSettleResult {
   const FocusLevelSettleResult({
     required this.currentLevel,
@@ -180,7 +183,8 @@ class FocusLevelSettleResult {
   /// 本轮**实际写账成功**的称号节点清单（升序）；为空 = 无需演出。
   final List<LevelGrant> granted;
 
-  /// 本轮合计发放阳光（= `granted` 金额之和）。
+  /// 本轮合计发放阳光（**v2.0（C78）起恒 0**：称号节点零阳光、零账本行；
+  /// 演出卡阳光行因既有条件 `totalSunlight > 0` 自动隐藏）。
   final int totalSunlight;
 
   /// 是否命中「老用户首用静默」分支（写已结算等级、不补发、不播演出）。

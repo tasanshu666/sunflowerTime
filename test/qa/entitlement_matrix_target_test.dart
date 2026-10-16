@@ -4,8 +4,8 @@
 /// 本测试把两件事钉死：
 ///  1. **防漂移**：登记的花盆目标值必须**引用** `prd_params.dart` 的容量常量
 ///     （若有人另写死 `4` / `12`，一旦 PRD 调整基础容量即两处漂移）；
-///  2. **防边界漂移**：阶段 4 收紧的 5 项，其 free / premium 的开关与额度**必须**等于
-///     约定边界（若有人手滑改动，本测试立即变红）；其余键（`parentReport` +
+///  2. **防边界漂移**：阶段 4 收紧的 5 项 + C80 `titlePerks`，其 free / premium 的开关与
+///     额度**必须**等于约定边界（若有人手滑改动，本测试立即变红）；其余键（`parentReport` +
 ///     4 个未实现键）**必须**保持免费放开。
 library entitlement_matrix_target_test;
 
@@ -15,13 +15,14 @@ import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 
-/// 阶段 4 **已收紧**的能力点（其余保持免费放开）。
+/// 阶段 4 **已收紧**的能力点（其余保持免费放开）。C80：`titlePerks` 加入收紧集。
 const Set<FeatureKey> _tightenedInPhase4 = <FeatureKey>{
   FeatureKey.oneClickCare,
   FeatureKey.gardenPotCapacity,
   FeatureKey.taskTemplateCount,
   FeatureKey.rewardTemplateCount,
   FeatureKey.deepReport,
+  FeatureKey.titlePerks,
 };
 
 /// 「功能尚未实现」的键：🔴 本批**不接门控**（Apple 3.1.1/2.3.1 拒审风险），
@@ -88,6 +89,16 @@ void main() {
       final FeatureRule r = kEntitlementMatrix[FeatureKey.deepReport]!;
       expect(r.freeEnabled, isFalse);
       expect(r.premiumEnabled, isTrue);
+    });
+
+    test('C80 称号属性：free 关闭 / premium 放开 / 双向 unlimited（TC-V3-01）', () {
+      final FeatureRule r = kEntitlementMatrix[FeatureKey.titlePerks]!;
+      expect(r.freeEnabled, isFalse,
+          reason: 'C80：free 不享 9 条称号专属属性（currentPerk → none）');
+      expect(r.premiumEnabled, isTrue);
+      expect(r.freeQuota, kUnlimitedQuota,
+          reason: '布尔型门控：额度双向不限（无配额语义）');
+      expect(r.premiumQuota, kUnlimitedQuota);
     });
   });
 

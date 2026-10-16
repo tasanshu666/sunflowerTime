@@ -365,10 +365,10 @@ void main() {
     });
   });
 
-  group('奖励（C28 §3）', () {
-    test('完整完成 = +3 阳光，且 refType 字符串值冻结为 eye_care_break', () {
+  group('奖励（C28 §3；C78 基础值 3 → 2）', () {
+    test('完整完成 = +2 阳光（C78 基础值），且 refType 字符串值冻结为 eye_care_break', () {
       expect(EyeCareService.rewardSunlight(), kEyeCareRewardSunlight);
-      expect(kEyeCareRewardSunlight, 3);
+      expect(kEyeCareRewardSunlight, 2, reason: 'C78：护眼基础奖励 3 → 2');
       expect(kEyeCareRefType, 'eye_care_break');
       expect(kEyeCareRefLabel, '护眼',
           reason: '孩子端「阳光来源记录」的映射文案（口径冻结）');

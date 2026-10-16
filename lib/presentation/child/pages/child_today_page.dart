@@ -194,7 +194,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         _totalFocusMinutes = totalFocusMinutes;
         _loading = false;
       });
-      // C74 结算必须在 setState 之后：徽章先亮出来，再看是否要发阳光 / 播演出。
+      // C74 结算必须在 setState 之后：徽章先亮出来，再看是否要播演出。
       await _settleFocusLevel(totalFocusMinutes);
     } catch (_) {
       // 今日卡属概览，任一查询失败不阻塞（保留上次值）。
@@ -204,26 +204,26 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
 
   // ── C74 · 专注等级结算 + 升级演出（只在今日页；§5.24.3 / §5.24.6）────────
 
-  /// 结算本轮等级：**先写账本**（崩溃不丢阳光），再按结果决定是否播演出。
+  /// 结算本轮等级（**C78：零阳光、零账本写入**），再按结果决定是否播演出。
   ///
   /// 🔑 只有**跨过称号节点**时 `granted` 非空 → 自增经济修订号 + 播 1 场演出；
-  /// 普通升级（40 级里的另外 31 次）**零阳光、零演出**，只更新徽章进度。
+  /// 普通升级（40 级里的另外 31 次）零演出，只更新徽章进度。
   /// 失败一律记日志后吞掉（S10：`catch(_)` 静默吞 = 泄漏），**不阻塞今日页渲染**。
   Future<void> _settleFocusLevel(double totalFocusMinutes) async {
     try {
       final FocusLevelSettleResult result =
           await ref.read(focusLevelServiceProvider).settle(totalFocusMinutes);
       if (!mounted) return;
-      // 🔑 C74 §6 **修订二**：每次升级都播演出，但只有称号节点发阳光。
+      // 🔑 C74 §6 **修订二** + C78：每次升级都播演出，称号节点不再发阳光。
       //  `levelUpFxKindOf` 返回 null = 没升级 / 老用户首用静默 ⇒ 什么都不做。
       final LevelUpFxKind? kind = levelUpFxKindOf(result);
       if (kind == null) return;
       if (kind == LevelUpFxKind.titleNode) {
-        // 阳光已落袋 → 同步孩子端经济展示（今日阳光 / 我的页 / 花园胶囊）。
+        // 属性已随等级纯派生生效 → 同步孩子端经济展示（今日阳光 / 我的页 / 花园胶囊）。
         ref.read(economyRevisionProvider.notifier).state++;
       }
       // 演出只在**今日页可见**时上屏（§5.24.4：不可见 ⇒ 只结算不播；
-      // 阳光已落袋，演出属庆祝不补发、不补播）。
+      // 演出属庆祝不补播）。
       final bool visible =
           ref.read(childShellTabIndexProvider) == kChildTabIndexOfToday;
       if (visible) await _showLevelUpFx(result, kind);

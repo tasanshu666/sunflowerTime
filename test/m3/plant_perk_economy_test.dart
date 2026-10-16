@@ -23,6 +23,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
@@ -30,9 +31,11 @@ import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
+import 'package:sunflower_time/domain/repositories/entitlement_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/domain/services/entitlement_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 
 // ── 内存 Fake 仓储（端到端装配用）────────────────────────────────────────────
@@ -127,6 +130,19 @@ class _PlantRepo implements PlantRepository {
       ];
 }
 
+/// 内存假权益仓储（端到端装配用：注入买断票据，使域层 `currentPerk()` 走 premium）。
+class _EntitlementRepo implements EntitlementRepository {
+  _EntitlementRepo(this._stored);
+  Entitlement _stored;
+  @override
+  Future<Entitlement> read() async => _stored;
+  @override
+  Future<void> write(Entitlement entitlement, {String? jws}) async =>
+      _stored = entitlement;
+  @override
+  Future<void> clear() async => _stored = Entitlement.free;
+}
+
 class _SettingsRepo implements SettingsRepository {
   @override
   Future<AppSettings> getSettings() async => const AppSettings(
@@ -162,10 +178,15 @@ double _minutesOfLevel(int level) =>
 void main() {
   // ── ① 装配端到端：provider 与域层同源 ──────────────────────────────────────
   group('T04 · currentPlantPerkProvider 装配（端到端）', () {
+    // 🔴 C80 门控反转：provider 读写继承自 entitlementProvider —— free 档短路回
+    // [PlantPerk.none]，**premium 档**才按等级累积取属性。本组验证的是「装配与
+    // 域层同源」，故统一注入买断档（`Entitlement.lifetime()`）走 premium 分支。
     Future<PlantPerk> perkAt(double minutes) async {
       final ProviderContainer c = ProviderContainer(
         overrides: <Override>[
           focusRepositoryProvider.overrideWithValue(_FocusRepo(minutes)),
+          entitlementProvider
+              .overrideWith((Ref ref) => Entitlement.lifetime()),
         ],
       );
       addTearDown(c.dispose);
@@ -185,7 +206,11 @@ void main() {
     test('随 economyRevisionProvider 重算（跨页刷新总线）', () async {
       final _FocusRepo focus = _FocusRepo(_minutesOfLevel(5));
       final ProviderContainer c = ProviderContainer(
-        overrides: <Override>[focusRepositoryProvider.overrideWithValue(focus)],
+        overrides: <Override>[
+          focusRepositoryProvider.overrideWithValue(focus),
+          entitlementProvider
+              .overrideWith((Ref ref) => Entitlement.lifetime()),
+        ],
       );
       addTearDown(c.dispose);
       expect(await c.read(currentPlantPerkProvider.future), perkOfLevel(5));
@@ -199,6 +224,12 @@ void main() {
     test('provider 装配的 PlantGrowthService 走内部 currentPerk()（Lv.40 → 水 −4 / 施 −9）',
         () async {
       final _Ledger ledger = _Ledger();
+      // C80：域层防线读**注入的** entitlementServiceProvider —— 预置买断票据并 load，
+      // 使 `PlantGrowthService.currentPerk()` 走 premium（free 档会回 none → 浇水 5）。
+      final MatrixEntitlementService gate = MatrixEntitlementService(
+        repository: _EntitlementRepo(Entitlement.lifetime()),
+      );
+      await gate.load();
       final ProviderContainer c = ProviderContainer(
         overrides: <Override>[
           focusRepositoryProvider
@@ -206,6 +237,10 @@ void main() {
           plantRepositoryProvider.overrideWithValue(_PlantRepo(<Plant>[_plant0()])),
           sunlightRepositoryProvider.overrideWithValue(ledger),
           settingsRepositoryProvider.overrideWithValue(_SettingsRepo()),
+          // C80：provider 侧读 entitlementProvider；域侧读 entitlementServiceProvider。
+          entitlementProvider
+              .overrideWith((Ref ref) => Entitlement.lifetime()),
+          entitlementServiceProvider.overrideWithValue(gate),
           bloomRewardRepositoryProvider
               .overrideWithValue(InMemoryBloomRewardRepository()),
         ],

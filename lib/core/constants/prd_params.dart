@@ -998,8 +998,12 @@ const List<EyeCareSegment> kEyeCarePlaylist = <EyeCareSegment>[
 /// [kEyeCareDurationSeconds] = 63s，两者差 <1s，以播放收尾回调为准）。
 const int kEyeCarePlaylistTotalMs = 63974;
 
-/// 完整完成一次护眼的**奖励阳光**（玄参 2026-10-08 修订：+2 → **+3**）。
-const int kEyeCareRewardSunlight = 3;
+/// 完整完成一次护眼的**奖励阳光**基础值。
+///
+/// 沿革：+2 → +3（玄参 2026-10-08）→ **+2（C78，2026-10-15）**：护眼 perk 前置到
+/// Lv.1（[kPerkEyeCareBonus]），基础值全体降为 2 —— 未解锁 = **2☀**、Lv.1 起 =
+/// **3☀**（与改版前已解锁水平持平）、**任何等级不再出现 4☀**。
+const int kEyeCareRewardSunlight = 2;
 
 /// 场末（结算页之前）插入护眼卡的**本段注视门槛**（分钟）：≥ 该值才打断，
 /// 本段 < 该值不打断（交给「每 2 场休 10 分钟」大休息兜底）。
@@ -1149,10 +1153,13 @@ const int kChildTabBoundaryCheckSeconds = 60;
 //  ① 驱动量 = **累计有效专注分钟**，从 App 首用累计（老用户跳级，允许跨多级）；
 //  ② **40 级**门槛见 [kFocusLevelThresholdMinutes]；
 //  ③ **9 个称号**（每 5 级一个）见 [kFocusLevelTitleLevels] / [kFocusLevelTitles]；
-//  ④ 阳光**只在 9 个称号节点发**，合计 102 ☀（见 [kFocusLevelUpSunlight]），
-//     🔴 **同一称号节点绝不重复发**；普通升级（另外 31 次）**不发阳光、不播演出**；
-//  ⑤ **不做付费门控**；⑥ **只在孩子端今日页展示**；⑦ **不影响任何玩法数值**。
-//  ⑧ **老用户首用静默跳级**：认等级与称号，**不补发历史称号阳光**（§9）。
+//  ④ **经济层删除（C78，2026-10-15 玄参拍板）**：9 个称号节点升级**只解锁专属
+//     属性、零阳光、零账本行**（废止原「阳光只在 9 个称号节点发、合计 102☀」）；
+//     升级演出照播；🔴 历史已发阳光**不追回**——账本 append-only，只停发、
+//     不清理、不写负向对冲行；
+//  ⑤ **不做付费门控**；⑥ **只在孩子端今日页展示**；
+//  ⑦ 玩法数值影响 = 仅 C77 称号专属属性（C74 原「不影响任何玩法数值」已修订）。
+//  ⑧ **老用户首用静默跳级**：认等级与称号（§9；C78 后无阳光可补发，口径不变）。
 //
 // 🔴 三条总纪律：
 //   · 阶梯**只以本文件的一种形态存在**（防孪生宪法总纪律 #2）：页面 / 结算 / 表格里
@@ -1244,25 +1251,10 @@ const List<String> kFocusLevelTitles = <String>[
   '时光大贤者', // Lv.40（满级）
 ];
 
-/// 解锁该称号节点发放的阳光（**只在 9 个称号节点发**；非称号等级一律 0）。
-///
-/// 合计 **102 ☀**（= 3+5+7+9+11+13+16+18+20），仍低于复核红线 150 ☀。
-const Map<int, int> kFocusLevelUpSunlight = <int, int>{
-  1: 3,
-  5: 5,
-  10: 7,
-  15: 9,
-  20: 11,
-  25: 13,
-  30: 16,
-  35: 18,
-  40: 20,
-};
-
-/// 九档称号阳光合计（= **102 ☀**，C74 §4；用于护栏断言与经济复核，勿手改）。
-const int kFocusLevelTotalSunlight = 102;
-
 /// 阳光账本 refType（🔴 **值冻结，append-only**）。
+///
+/// ⚠️ C78 经济层删除后称号节点**不再新增**账本行；历史行原样保留（不清理、
+/// 不写负向对冲行），孩子端 `_refLabels` 仍凭本值把历史行对账为「专注升级」。
 const String kFocusLevelUpRefType = 'focus_level_up';
 
 /// 阳光账本 refId 前缀：`refId = 'lv{n}'`（小写、无空格，防大小写分裂）。
@@ -1510,16 +1502,14 @@ const double kLevelDetailSectionGap = 14;
 /// （验收见 `test/m3/level_detail_perk_layout_test.dart`）。
 const double kLevelDetailRowHeight = 44;
 
-/// 详情卡每行**右侧属性/奖励列**的最大宽（C77；实测回填，见 `level_detail_perk_layout_test`）。
-///
-/// 超过则换行/溢出预警。provisional 96（长称号 + ✨ + 属性徽章 + ☀N 两行）。
-const double kLevelDetailPerkRightColMaxWidth = 96;
-
-/// 详情卡属性徽章字号（`💧−1` 之类，比称号行 [kLevelDetailRowFontSize] 更小）。
+/// 详情卡属性徽章字号（`👁额外+1` 之类，比称号行 [kLevelDetailRowFontSize] 更小）。
 const double kLevelDetailPerkFontSize = 11;
 
-/// 详情卡底部 emoji 图例字号（极小号；[kLevelDetailRowFontSize] − 1）。
-const double kLevelDetailLegendFontSize = 12;
+/// 详情卡属性徽章右侧**阳光图标**尺寸（C80：非 ☀ 文字，走 `assets/rewards/sunlight.png`）。
+///
+/// ⚠️ C61 图形纪律：本值**乘 [uiScaleOf]**（图形不吃 textScaler）；缺图回退
+/// `Icons.wb_sunny`（照抄演出卡成例）。尺寸对齐演出卡 `kLevelUpFxSunIconSize` 系。
+const double kLevelDetailPerkSunIconSize = 12;
 
 /// 9 个称号列表：左侧节点圆牌尺寸。
 const double kLevelDetailRowChipSize = 26;
@@ -1534,8 +1524,14 @@ const double kLevelDetailRowFontSize = 13;
 /// [kFocusLevelThresholdMinutes]），UI **不得另写算式**（S14：逻辑单点）。
 const String kLevelDetailNextTextTemplate = '距 Lv.{n} 还差 {r}';
 
-/// 当前称号行尾追加的**高亮标记**（9 个称号里只有一行有）。
-const String kLevelDetailCurrentMark = '✨';
+/// 信息型/提醒弹窗的**确认按钮**文案（C81：锁标升级提示卡「知道了」）。
+const String kLevelDetailHintConfirmText = '知道了';
+
+/// 详情卡属性锁标点按弹出的**升级提示卡**文案（C81 ①：只提示、**不跳转**）。
+///
+/// 孩子端详情卡属性锁标态点按 → 弹 `AlertDialog` 显示本句；**不** pop 详情卡、
+/// **不** push 购买页（V3-Q1 由此结案：`/parent/premium` 对孩子端不可达）。
+const String kPremiumUpsellHintText = '请升级到完整版本功能';
 
 // ── 升级演出卡（LevelUpFxOverlay）文案与尺寸（同样单点收口）─────────────────
 
@@ -1579,14 +1575,15 @@ const double kLevelUpFxStageSize = 150;
 // C77 · 称号专属属性（玄参 2026-10-15 拍板；**对 C74 §5「不影响任何玩法数值」的
 //       有意识修订**，已随本批落 `口径裁定表_v1.md` C77）
 //
-// 口径（读码实测，唯一真源 = 阶段 5 PRD §1.3）：
-//   ① Lv.1  专注小萌芽 → 浇水消耗 −1        （kPlantWaterCost 5→4）
-//   ② Lv.5  专注小苗苗 → 施肥消耗 −1        （kPlantFertilizeCost 10→9）
-//   ③ Lv.10 静心小书童 → 除草奖励 +1        （kGardenWeedReward 1→2）
-//   ④ Lv.15 时光小卫士 → 除虫奖励 +1        （kGardenPestReward 2→3）
-//   ⑤ Lv.20 专心小骑士 → 开花即时阳光 +1    （kBloomInstantSunlight 6→7 / 精品 10→11）
-//   ⑥ Lv.25 守时小星使 → 晨露阳光 +1/条     （加在折损之后；见 dewSunlightOf）
-//   ⑦ Lv.30 专注小法师 → 护眼完成奖励 +1    （kEyeCareRewardSunlight 3→4）
+// 口径（读码实测，唯一真源 = 阶段 5 PRD §1.3；⚠️ **节点已按 C78 重排**：护眼前置
+// Lv.1、其余 8 条顺延一位，9 条属性内容与数值一字不变）：
+//   ① Lv.1  专注小萌芽 → 护眼完成奖励 +1    （kEyeCareRewardSunlight 基础值 C78 后 2，+1 → 3）
+//   ② Lv.5  专注小苗苗 → 浇水消耗 −1        （kPlantWaterCost 5→4）
+//   ③ Lv.10 静心小书童 → 施肥消耗 −1        （kPlantFertilizeCost 10→9）
+//   ④ Lv.15 时光小卫士 → 除草奖励 +1        （kGardenWeedReward 1→2）
+//   ⑤ Lv.20 专心小骑士 → 除虫奖励 +1        （kGardenPestReward 2→3）
+//   ⑥ Lv.25 守时小星使 → 开花即时阳光 +1    （kBloomInstantSunlight 6→7 / 精品 10→11）
+//   ⑦ Lv.30 专注小法师 → 晨露阳光 +1/条     （加在折损之后；见 dewSunlightOf）
 //   ⑧ Lv.35 星辰守护者 → 花盆扩容消耗 −20   （kPlantPotExpandCostHigh/Low 400/160→380/140）
 //   ⑨ Lv.40 时光大贤者 → 铲除退款 +20       （kShovelRefundCommon/Premium 150/250→170/270）
 //
@@ -1594,32 +1591,33 @@ const double kLevelUpFxStageSize = 150;
 //   · **单次一律 ±1**（仅 ⑧⑨ 两条一次性项用小幅定量）；绝不引入乘法/加速/花期变更；
 //   · **9 条零重复**：同一常量不在两条里出现，**禁止「再 −1」叠加式写法**；
 //   · 属性 = `f(当前称号)` **纯派生**（`perkOfLevel(levelOfMinutes(totalFocusMinutes))`），
-//     **不新增表 / 不加列，`schemaVersion` 维持 24**；
-//   · **免费/买断一致**：判定**不读**任何权益 / 门控来源（P4）。
+//     **不新增表 / 不加列，`schemaVersion` 不因本属性变更**（当前 25，C79 起）；
+//   · 🔴 C80 修订（废止 P4）：9 条属性 **premium 专享**（`FeatureKey.titlePerks` 门控，
+//     free → none）；等级 / 称号本身仍免费（C74 §4 修订）。
 //
 // 取值/接线实现真源：`docs/称号属性_v1_系统设计.md`；纯函数落 `lib/domain/services/plant_perk.dart`。
 // ───────────────────────────────────────────────────────────────────────────
 
-/// ① 浇水消耗减免（Lv.1 · 专注小萌芽）。
+/// ① 护眼完成奖励加成（**Lv.1 · 专注小萌芽**，C78 前置；原 Lv.30）。
+const int kPerkEyeCareBonus = 1;
+
+/// ② 浇水消耗减免（**Lv.5 · 专注小苗苗**，C78 前原 Lv.1）。
 const int kPerkWaterDiscount = 1;
 
-/// ② 施肥消耗减免（Lv.5 · 专注小苗苗）。
+/// ③ 施肥消耗减免（**Lv.10 · 静心小书童**，C78 前原 Lv.5）。
 const int kPerkFertilizeDiscount = 1;
 
-/// ③ 除草奖励加成（Lv.10 · 静心小书童）。
+/// ④ 除草奖励加成（**Lv.15 · 时光小卫士**，C78 前原 Lv.10）。
 const int kPerkWeedBonus = 1;
 
-/// ④ 除虫奖励加成（Lv.15 · 时光小卫士）。
+/// ⑤ 除虫奖励加成（**Lv.20 · 专心小骑士**，C78 前原 Lv.15）。
 const int kPerkPestBonus = 1;
 
-/// ⑤ 开花即时阳光加成（Lv.20 · 专心小骑士）。
+/// ⑥ 开花即时阳光加成（**Lv.25 · 守时小星使**，C78 前原 Lv.20）。
 const int kPerkBloomInstantBonus = 1;
 
-/// ⑥ 晨露阳光加成（Lv.25 · 守时小星使；**加在折损之后**，见 `dewSunlightOf`）。
+/// ⑦ 晨露阳光加成（**Lv.30 · 专注小法师**，C78 前原 Lv.25；**加在折损之后**，见 `dewSunlightOf`）。
 const int kPerkDewBonus = 1;
-
-/// ⑦ 护眼完成奖励加成（Lv.30 · 专注小法师）。
-const int kPerkEyeCareBonus = 1;
 
 /// ⑧ 花盆扩容消耗减免（Lv.35 · 星辰守护者；一次性项）。
 const int kPerkExpandDiscount = 20;
@@ -1628,25 +1626,45 @@ const int kPerkExpandDiscount = 20;
 /// 🔴 `base == 0`（免费首株）**不加成**，天然防「免费种 → 铲」刷分（见 `shovelRefundOf`）。
 const int kPerkShovelRefundBonus = 20;
 
-/// 9 称号节点属性的 **emoji**（索引与 [kFocusLevelTitleLevels] 一一对应）。
+/// 9 称号节点属性的 **emoji**（索引与 [kFocusLevelTitleLevels] 一一对应；
+/// 🔴 C78 重排后与 `kPlantPerkPerTitleNode` **同索引对齐**）。
 const List<String> kPerkEmojis = <String>[
-  '💧', // Lv.1  浇水 −1
-  '🌾', // Lv.5  施肥 −1
-  '🌿', // Lv.10 除草 +1
-  '🦗', // Lv.15 除虫 +1
-  '🌻', // Lv.20 开花 +1
-  '🌤', // Lv.25 晨露 +1
-  '👁', // Lv.30 护眼 +1
+  '👁', // Lv.1  护眼 +1
+  '💧', // Lv.5  浇水 −1
+  '🌾', // Lv.10 施肥 −1
+  '🌿', // Lv.15 除草 +1
+  '🦗', // Lv.20 除虫 +1
+  '🌻', // Lv.25 开花 +1
+  '🌤', // Lv.30 晨露 +1
   '🪴', // Lv.35 扩容 −20
   '⛏️', // Lv.40 铲除 +20
+];
+
+/// 9 称号节点属性的**名称**（索引与 [kFocusLevelTitleLevels] 一一对应；
+/// 🔴 C81 新增：与 [kPerkEmojis] / `kPlantPerkPerTitleNode` **同索引对齐**）。
+///
+/// 详情卡属性行「属性名」单点收口于此（页面禁硬编码 9 名，防孪生 S2）；
+/// 与 `perkShortTextOf`（数值）分段渲染 ⇒ 形如「👁 护眼 +1 ☀」。
+const List<String> kPerkNames = <String>[
+  '护眼', // Lv.1
+  '浇水', // Lv.5
+  '施肥', // Lv.10
+  '除草', // Lv.15
+  '除虫', // Lv.20
+  '绽放', // Lv.25
+  '晨露', // Lv.30
+  '扩盆', // Lv.35
+  '铲除', // Lv.40
 ];
 
 /// 升级演出卡「本称号专属」行模板（`{text}` = 属性摘要，见 `perkSummaryTextOf`）。
 const String kLevelUpFxPerkTemplate = '本称号专属：{text}';
 
-/// 详情卡底部 emoji 图例（**单点常量，禁止页面拼接**）。
-const String kLevelPerkLegendText = '💧浇水−1 · 🌾施肥−1 · 🌿除草+1 · 🦗除虫+1 · '
-    '🌻开花+1 · 🌤晨露+1 · 👁护眼+1 · 🪴扩容−20 · ⛏️铲除+20';
+/// 升级演出卡属性行**免费锁标尾缀**（C80 P0-7，PM 裁定措辞「付费解锁」）。
+///
+/// 免费档在 [kLevelUpFxPerkTemplate] 装配结果后拼接（单点常量，禁页面内联）；
+/// 付费档不拼接（与 C78 现状逐字节一致）。
+const String kLevelUpFxPerkLockedSuffix = ' · 🔒付费解锁';
 
 /// 称号属性读取的**等待上限**（`currentPlantPerkProvider` 用）。
 ///

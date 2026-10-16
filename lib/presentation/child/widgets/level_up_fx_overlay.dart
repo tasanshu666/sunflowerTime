@@ -1,13 +1,14 @@
 /// C74 · 升级演出浮层（设计 §5.24.6 / 口径 C74 §6 **修订二**：每次升级都播）。
 ///
-/// ## 什么时候播（🔑 C74 §6 修订二，2026-10-14 玄参拍板）
+/// ## 什么时候播（🔑 C74 §6 修订二，2026-10-14 玄参拍板；C78 经济层删除）
 /// ~~原「31 次普通升级零演出」作废~~ —— 玄参交付了两套序列帧与两支音效，改为：
 ///  · **称号节点**（1/5/10/15/20/25/30/35/40）：`5leveUp` 41 帧 + `5_level_up.mp3`
-///    + **发阳光、写账本** + 卡内显示「+N ☀」；
+///    + **解锁专属属性**（C78：零阳光、零账本行；卡内不显示阳光行）；
 ///  · **普通升级**（另外 31 次）：`defaultLevelUp` 36 帧 + `default_level_up.mp3`
-///    + **零阳光、零账本行**（素材是视觉层，不动经济层）+ 卡内**不显示**阳光行。
+///    + 卡内不显示阳光行。
 ///
-/// 🔴 阳光总量仍是 9 个节点共 102☀（口径未动），演出频次提高不改变经济。
+/// 🔴 **C78（2026-10-15）**：称号节点不再发阳光（原「9 节点共 102☀」废止）；
+/// 历史已发阳光不追回，账本 append-only 只停发、不清理、不写负向对冲行。
 ///
 /// ## 素材与节奏
 ///  · 帧数**不写死**：运行期 [resolveFxFrames] 读 AssetManifest 实测（三级回退）；
@@ -33,8 +34,12 @@
 library level_up_fx_overlay;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart'
     show titleOfLevel;
@@ -47,16 +52,16 @@ import 'package:sunflower_time/shared/responsive.dart';
 
 /// 本轮演出该用哪一套素材（**纯判定**，可单测）。
 enum LevelUpFxKind {
-  /// 称号节点：5 级素材 + 发阳光。
+  /// 称号节点：5 级素材 + 属性解锁。
   titleNode,
 
-  /// 普通升级：default 素材 + 零阳光。
+  /// 普通升级：default 素材。
   ordinary,
 }
 
 /// 一轮结算 → 演出种类；**不该播返回 null**（未升级 / 老用户首用静默）。
 ///
-/// 🔑 判定顺序刻意如此：`granted` 优先（称号节点一定发过阳光），
+/// 🔑 判定顺序刻意如此：`granted` 优先（称号节点结算成功即入列，C78 后金额恒 0），
 /// 其次才看 `leveledUp`（普通升级）。
 LevelUpFxKind? levelUpFxKindOf(FocusLevelSettleResult result) {
   if (result.firstUseSilent) return null;
@@ -270,19 +275,27 @@ class _LevelUpFxOverlayState extends State<LevelUpFxOverlay>
   }
 }
 
-/// 卡内容：**序列帧主视觉**（居中）+ 等级/称号文案 +（称号节点才显示）「+N ☀」。
+/// 卡内容：**序列帧主视觉**（居中）+ 等级/称号文案 +（称号节点才显示）属性行。
 ///
 /// 主视觉区从「纯大号徽章」改为序列帧动画：帧播完**定格末帧**（C22 先例），
 /// 整卡淡出由 [FxCardEnvelope] 处理。帧列表为空时回退到静态大徽章（不崩）。
-class _LevelUpContent extends StatelessWidget {
+///
+/// **C80**：改 [ConsumerWidget] —— `watch` [entitlementProvider] 判定
+/// `FeatureKey.titlePerks`；免费档属性行**置灰 + 🔒付费解锁尾缀**（P0-7），
+/// 付费档与 C78 现状逐字节一致。不加点击跳转（演出是瞬时 overlay，转化入口
+/// 由详情卡承担）。
+class _LevelUpContent extends ConsumerWidget {
   const _LevelUpContent({required this.result, required this.frames});
 
   final FocusLevelSettleResult result;
   final List<String> frames;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final double s = uiScaleOf(context);
+    // C80：付费是否解锁称号专属属性（矩阵单点判定，与详情卡 / provider 同源）。
+    final bool perkUnlocked = featureAllowedFor(
+        FeatureKey.titlePerks, ref.watch(entitlementProvider).tier);
     final LevelUpFxKind? kind = levelUpFxKindOf(result);
     final int durationMs =
         kind == null ? kLevelUpFxHoldMs : levelUpFxSpecOf(kind).durationMs;
@@ -363,7 +376,8 @@ class _LevelUpContent extends StatelessWidget {
             ),
           ),
         ],
-        // 🔴 阳光行**只在称号节点**出现（普通升级零阳光，显示「+0 ☀」是错的）。
+        // 🔴 **C78 后恒隐藏**：`totalSunlight` 恒 0（称号节点零阳光、零账本行），
+        // 保留条件式仅为兼容旧夹具；显示「+0 ☀」是错的，绝不放开。
         if (isTitleNode && result.totalSunlight > 0) ...<Widget>[
           const SizedBox(height: 8),
           Row(
@@ -394,15 +408,21 @@ class _LevelUpContent extends StatelessWidget {
         ],
         // C77：称号节点追加「本称号专属：…」行（普通升级**不显示** —— 无新称号）；
         // 文案由 [perkSummaryTextOf] + 模板单点装配（不写页面内 if-else 拼 9 种）。
+        // C80：免费档同文案置灰（与详情卡锁态同源色）+「 · 🔒付费解锁」尾缀
+        // （PM 裁定措辞）；付费档与 C78 现状一致。不加点击跳转（P0-7）。
         if (isTitleNode && !perk.isNone) ...<Widget>[
           const SizedBox(height: 6),
           Text(
-            kLevelUpFxPerkTemplate.replaceAll('{text}', perkSummaryTextOf(perk)),
+            kLevelUpFxPerkTemplate
+                    .replaceAll('{text}', perkSummaryTextOf(perk)) +
+                (perkUnlocked ? '' : kLevelUpFxPerkLockedSuffix),
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF8A5A00),
+              color: perkUnlocked
+                  ? const Color(0xFF8A5A00) // C78 现状：暖棕
+                  : const Color(0xFFB0A08C), // C80 免费锁标：置灰（同详情卡）
             ),
           ),
         ],

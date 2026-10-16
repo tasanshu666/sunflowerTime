@@ -331,10 +331,10 @@ Future<PendingBloomReward> _instantOf(
 void main() {
   // ── ① 消耗减免（浇水 / 施肥）─────────────────────────────────────────────
   group('① 消耗减免（TC-15/16）', () {
-    test('TC-15 浇水扣费 perk-aware（Lv.1 → −4，Lv.0 → −5）', () async {
+    test('TC-15 浇水扣费 perk-aware（C78 浇水 → Lv.5：Lv.5 → −4，Lv.0 → −5）', () async {
       final _Ctx a = _make();
       await a.plants.savePlant(_plant(lastWaterAt: null));
-      await a.svc.water(_kPlantId, _now, perk: perkOfLevel(1));
+      await a.svc.water(_kPlantId, _now, perk: perkOfLevel(5));
       expect(_net(a.ledger, 'plant_water'), -4);
 
       final _Ctx b = _make();
@@ -344,37 +344,37 @@ void main() {
     });
 
     test('TC-15b 浇水缺省 perk → 内部 currentPerk（focus 驱动）', () async {
-      final _Ctx ctx = _make(minutesOfLevel: 1);
+      final _Ctx ctx = _make(minutesOfLevel: 5);
       await ctx.plants.savePlant(_plant(lastWaterAt: null));
       await ctx.svc.water(_kPlantId, _now);
       expect(_net(ctx.ledger, 'plant_water'), -4);
-      expect(await ctx.svc.currentPerk(), perkOfLevel(1));
+      expect(await ctx.svc.currentPerk(), perkOfLevel(5));
     });
 
-    test('TC-16 施肥扣费（Lv.5 → −9，Lv.4 → −10）', () async {
+    test('TC-16 施肥扣费（C78 施肥 → Lv.10：Lv.10 → −9，Lv.9 → −10）', () async {
       final _Ctx a = _make();
       await a.plants.savePlant(_plant());
-      await a.svc.fertilize(_kPlantId, _now, perk: perkOfLevel(5));
+      await a.svc.fertilize(_kPlantId, _now, perk: perkOfLevel(10));
       expect(_net(a.ledger, 'plant_fertilize'), -9);
 
       final _Ctx b = _make();
       await b.plants.savePlant(_plant());
-      await b.svc.fertilize(_kPlantId, _now, perk: perkOfLevel(4));
+      await b.svc.fertilize(_kPlantId, _now, perk: perkOfLevel(9));
       expect(_net(b.ledger, 'plant_fertilize'), -kPlantFertilizeCost);
     });
   });
 
   // ── ② 微收入（除草 / 除虫）───────────────────────────────────────────────
   group('② 微收入（TC-17）', () {
-    test('除草 Lv.10 → +2；除虫 Lv.15 → +3', () async {
+    test('除草 Lv.15 → +2；除虫 Lv.20 → +3（C78 节点重排）', () async {
       final _Ctx a = _make();
       await a.plants.savePlant(_plant(weedAt: _now));
-      await a.svc.clearWeed(_kPlantId, _now, perk: perkOfLevel(10));
+      await a.svc.clearWeed(_kPlantId, _now, perk: perkOfLevel(15));
       expect(_net(a.ledger, kGardenWeedRefType), 2);
 
       final _Ctx b = _make();
       await b.plants.savePlant(_plant(pestAt: _now));
-      await b.svc.clearPest(_kPlantId, _now, perk: perkOfLevel(15));
+      await b.svc.clearPest(_kPlantId, _now, perk: perkOfLevel(20));
       expect(_net(b.ledger, kGardenPestRefType), 3);
     });
 
@@ -388,38 +388,38 @@ void main() {
 
   // ── ③ 开花即时阳光（TC-18/19）────────────────────────────────────────────
   group('③ 开花即时（TC-18/19）', () {
-    test('TC-18 Lv.20 → 普通保底 7 / 精品 11（两笔合计 = 到手）', () async {
+    test('TC-18 Lv.25 → 普通保底 7 / 精品 11（两笔合计 = 到手；C78 开花 → Lv.25）', () async {
       final DateTime bloomAt = DateTime(2026, 10, 15, 8, 0);
-      final _Ctx common = _make(minutesOfLevel: 20);
+      final _Ctx common = _make(minutesOfLevel: 25);
       await common.plants.savePlant(_readyToBloom('sp_common', bloomAt));
       await common.svc.tickAll(bloomAt);
       final PendingBloomReward ic =
           await _instantOf(common.bloom, bloomAt.add(const Duration(days: 1)));
-      expect(ic.rewardSunlight, 7, reason: 'Lv.20 → 保底 6 + 1');
+      expect(ic.rewardSunlight, 7, reason: 'Lv.25 → 保底 6 + 1');
       await common.svc.collectBloomReward(ic.id, bloomAt);
       expect(_net(common.ledger, kBloomRewardRefType), 7);
 
-      final _Ctx prem = _make(minutesOfLevel: 20);
+      final _Ctx prem = _make(minutesOfLevel: 25);
       await prem.plants.savePlant(_readyToBloom('sp_premium', bloomAt));
       await prem.svc.tickAll(bloomAt);
       final PendingBloomReward ip =
           await _instantOf(prem.bloom, bloomAt.add(const Duration(days: 1)));
-      expect(ip.rewardSunlight, 11, reason: 'Lv.20 → 精品保底 10 + 1');
+      expect(ip.rewardSunlight, 11, reason: 'Lv.25 → 精品保底 10 + 1');
       await prem.svc.collectBloomReward(ip.id, bloomAt);
       expect(_net(prem.ledger, kBloomRewardRefType), 11);
     });
 
-    test('TC-19 拆分护栏：Lv.19 开花(base6) → 升级 Lv.20 后收集(base7) → 总发 6（不多发）', () async {
+    test('TC-19 拆分护栏：Lv.24 开花(base6) → 升级 Lv.25 后收集(base7) → 总发 6（不多发）', () async {
       final DateTime bloomAt = DateTime(2026, 10, 15, 8, 0);
-      final _Ctx ctx = _make(minutesOfLevel: 19);
+      final _Ctx ctx = _make(minutesOfLevel: 24);
       await ctx.plants.savePlant(_readyToBloom('sp_common', bloomAt));
       await ctx.svc.tickAll(bloomAt);
       final PendingBloomReward instant =
           await _instantOf(ctx.bloom, bloomAt.add(const Duration(days: 1)));
-      expect(instant.rewardSunlight, 6, reason: 'Lv.19 保底 base 6');
+      expect(instant.rewardSunlight, 6, reason: 'Lv.24 保底 base 6');
 
-      // 收集前换档：升到 Lv.20（收集时 base 变 7）。
-      ctx.focus.minutes = _minutesOfLevel(20);
+      // 收集前换档：升到 Lv.25（收集时 base 变 7）。
+      ctx.focus.minutes = _minutesOfLevel(25);
       await ctx.svc.collectBloomReward(instant.id, bloomAt);
       expect(_net(ctx.ledger, kBloomRewardRefType), 6,
           reason: '⚠️ 护栏 baseRow = min(base, outcome) → 换档不漏不多发');
@@ -431,17 +431,17 @@ void main() {
     test('TC-20 dewSunlightOf = 折损后 + perk.dewBonus；flowerDewSunlight 不改', () {
       expect(PlantGrowthService.bloomDewSunlight(6, false), 3,
           reason: '折损纯函数保持原样（ceil(6×0.5)）');
-      expect(PlantGrowthService.dewSunlightOf(6, false, perkOfLevel(25)), 4,
-          reason: '折损后 + 1');
-      expect(PlantGrowthService.dewSunlightOf(6, true, perkOfLevel(25)), 7,
+      expect(PlantGrowthService.dewSunlightOf(6, false, perkOfLevel(30)), 4,
+          reason: '折损后 + 1（C78 晨露 → Lv.30）');
+      expect(PlantGrowthService.dewSunlightOf(6, true, perkOfLevel(30)), 7,
           reason: '未折损 + 1');
-      expect(PlantGrowthService.dewSunlightOf(6, false, perkOfLevel(24)), 3,
-          reason: '未到 Lv.25 → 无加成');
+      expect(PlantGrowthService.dewSunlightOf(6, false, perkOfLevel(29)), 3,
+          reason: '未到 Lv.30 → 无加成');
     });
 
     test('TC-21 展示（withBloomDewDiscount）= 发放（collectBloomReward）', () async {
       final DateTime bloomAt = DateTime(2026, 10, 15, 8, 0);
-      final _Ctx ctx = _make(minutesOfLevel: 25);
+      final _Ctx ctx = _make(minutesOfLevel: 30);
       await ctx.plants.savePlant(_readyToBloom('sp_common', bloomAt));
       await ctx.svc.tickAll(bloomAt);
 
@@ -463,7 +463,7 @@ void main() {
       await ctx.svc.collectBloomReward(dew.id, far);
       // 晨露（非瞬间）走第二段账目 refType（[kBloomSecondPhaseRefType]），非开花瞬间的 refType。
       final double granted = _net(ctx.ledger, kBloomSecondPhaseRefType);
-      expect(shownAmount, 3, reason: 'Lv.25 晨露：折损 ceil(3×0.5)=2 + 称号 +1 = 3');
+      expect(shownAmount, 3, reason: 'Lv.30 晨露：折损 ceil(3×0.5)=2 + 称号 +1 = 3');
       expect(granted, shownAmount,
           reason: '头顶气泡数字必须 = 实际到手（同一 dewSunlightOf）');
     });
@@ -471,11 +471,13 @@ void main() {
 
   // ── ⑤ 护眼（TC-22）───────────────────────────────────────────────────────
   group('⑤ 护眼完成奖励（TC-22）', () {
-    test('rewardSunlightOf(Lv.30) == 4；旧 rewardSunlight() 保留 = 3', () {
-      expect(EyeCareService.rewardSunlightOf(perkOfLevel(30)), 4);
-      expect(EyeCareService.rewardSunlightOf(perkOfLevel(29)), 3);
+    test('rewardSunlightOf(Lv.1) == 3（C78 护眼前置 + 基础 2）；未解锁 == 2', () {
+      expect(EyeCareService.rewardSunlightOf(perkOfLevel(1)), 3,
+          reason: 'C78：基础 2 + 护眼节点 +1（Lv.1 即解锁）');
+      expect(EyeCareService.rewardSunlightOf(perkOfLevel(0)), 2,
+          reason: '未解锁 → 基础值（C78：3 → 2）');
       expect(EyeCareService.rewardSunlight(), kEyeCareRewardSunlight);
-      expect(EyeCareService.rewardSunlight(), 3);
+      expect(EyeCareService.rewardSunlight(), 2);
     });
   });
 

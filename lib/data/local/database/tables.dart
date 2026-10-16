@@ -23,13 +23,17 @@ class Settings extends Table {
   // 2026-09-29 玄参拍板：花园氛围音**默认开启**（此前默认 false，且代码从未把设置
   // 接到音频服务 → 花园 BGM 从来没响过）。存量库由 v13 迁移把该列翻为 1。
   BoolColumn get bgmOn => boolean().withDefault(const Constant(true))();
-  BoolColumn get detectionOn => boolean().withDefault(const Constant(true))();
+  // 🔴 C79（2026-10-15 玄参拍板）：原 `detection_on` 列已随「在场检测」设置项删除
+  //  （schemaVersion 25 DROP COLUMN）—— 专注页 `PresenceDetector` **无条件启动、
+  //  功能常开**（防挂机核心，逻辑一行不动），不再有可关的开关，故列无消费点。
   IntColumn get autoConfirmSingleHigh => integer().withDefault(const Constant(kAutoApproveMaxCostHigh))();
   IntColumn get autoConfirmSingleLow => integer().withDefault(const Constant(kAutoApproveMaxCostLow))();
   RealColumn get autoConfirmMonthlyPct => real().withDefault(const Constant(kAutoApprovePoolRatio))();
   RealColumn get currencyRate => real().withDefault(const Constant(kAutoApprovePoolRatio))();
   BoolColumn get themeDark => boolean().withDefault(const Constant(false))();
-  BoolColumn get autonomousMode => boolean().withDefault(const Constant(false))();
+  // 🔴 C79（2026-10-15 玄参拍板）：原 `autonomous_mode` 列已随「自主模式（孩子自助
+  //  核销）」设置项彻底删除（schemaVersion 25 DROP COLUMN）—— 全仓排查该字段
+  //  **零业务消费点**（自主核销从未实现），列/实体字段/UI 开关一并移除。
   IntColumn get gardenPotCapacity =>
       integer().withDefault(const Constant(kGardenPotCapacityDefault))(); // 花园花盆容量（M3 §3.1）
 

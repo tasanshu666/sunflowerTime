@@ -15,13 +15,17 @@ class AppSettings {
   final bool quietMode;
   final bool soundOn;
   final bool bgmOn;
-  final bool detectionOn;
+  // 🔴 C79（2026-10-15 玄参拍板）：原 `detectionOn`（在场检测）字段已删除 ——
+  //  功能常开（专注页无条件启动 `PresenceDetector`，防挂机核心，逻辑一行不动），
+  //  不再有可关的开关；schemaVersion 25 DROP COLUMN。
   final int autoConfirmSingleHigh; // 130
   final int autoConfirmSingleLow; // 50
   final double autoConfirmMonthlyPct; // 0.25
   final double currencyRate; // 0.25
   final bool themeDark;
-  final bool autonomousMode;
+  // 🔴 C79（2026-10-15 玄参拍板）：原 `autonomousMode`（自主模式/孩子自助核销）
+  //  字段已**彻底删除** —— 全仓排查零业务消费点（自主核销从未实现）；
+  //  schemaVersion 25 DROP COLUMN。
   final int gardenPotCapacity; // 花园花盆容量（初始 4 → 解锁 12，§3.1 M3）
 
   // ── C28 少儿护眼休息（玄参 2026-10-04 拍板，口径裁定表 v1 C28 §4）───────────
@@ -50,13 +54,11 @@ class AppSettings {
     this.soundOn = true,
     // 2026-09-29 玄参拍板：花园氛围音默认开启（家长端「背景音乐」可关）。
     this.bgmOn = true,
-    this.detectionOn = true,
     this.autoConfirmSingleHigh = kAutoApproveMaxCostHigh,
     this.autoConfirmSingleLow = kAutoApproveMaxCostLow,
     this.autoConfirmMonthlyPct = kAutoApprovePoolRatio,
     this.currencyRate = kAutoApprovePoolRatio,
     this.themeDark = false, // 默认浅色（§4.1.4 明亮向日葵基调）；深色由家长显式开启
-    this.autonomousMode = false,
     this.gardenPotCapacity = kGardenPotCapacityDefault,
     this.eyeCareEnabled = kEyeCareEnabledDefault,
     this.eyeCareIntervalMin = kEyeCareIntervalMinDefault,
@@ -77,13 +79,11 @@ class AppSettings {
     bool? quietMode,
     bool? soundOn,
     bool? bgmOn,
-    bool? detectionOn,
     int? autoConfirmSingleHigh,
     int? autoConfirmSingleLow,
     double? autoConfirmMonthlyPct,
     double? currencyRate,
     bool? themeDark,
-    bool? autonomousMode,
     int? gardenPotCapacity,
     bool? eyeCareEnabled,
     int? eyeCareIntervalMin,
@@ -102,13 +102,11 @@ class AppSettings {
       quietMode: quietMode ?? this.quietMode,
       soundOn: soundOn ?? this.soundOn,
       bgmOn: bgmOn ?? this.bgmOn,
-      detectionOn: detectionOn ?? this.detectionOn,
       autoConfirmSingleHigh: autoConfirmSingleHigh ?? this.autoConfirmSingleHigh,
       autoConfirmSingleLow: autoConfirmSingleLow ?? this.autoConfirmSingleLow,
       autoConfirmMonthlyPct: autoConfirmMonthlyPct ?? this.autoConfirmMonthlyPct,
       currencyRate: currencyRate ?? this.currencyRate,
       themeDark: themeDark ?? this.themeDark,
-      autonomousMode: autonomousMode ?? this.autonomousMode,
       gardenPotCapacity: gardenPotCapacity ?? this.gardenPotCapacity,
       eyeCareEnabled: eyeCareEnabled ?? this.eyeCareEnabled,
       eyeCareIntervalMin: eyeCareIntervalMin ?? this.eyeCareIntervalMin,

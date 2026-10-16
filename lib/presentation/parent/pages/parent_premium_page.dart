@@ -394,12 +394,13 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
     );
   }
 
-  /// 权益预览 4 徽标（阶段 5）。数据源同 [unlockRowsFor]（避免第二处硬编码）。
+  /// 权益预览 5 徽标（阶段 5 + C80 第 5 枚）。数据源同 [unlockRowsFor]（避免第二处硬编码）。
   ///
-  /// 🔴 只列 **4 枚真实生效**项；严禁未实现能力写进对外卖点。
+  /// 🔴 只列 **5 枚真实生效**项（C80：`titlePerks` 为真实生效第 5 键，V3-Q3 裁定加）；
+  /// 严禁未实现能力写进对外卖点。
   Widget _buildPreviewBadges() {
     final List<PremiumUnlockRow> rows = unlockRowsFor();
-    const List<String> emojis = <String>['⚡', '🪴', '📋', '🎁'];
+    const List<String> emojis = <String>['⚡', '🪴', '📋', '🎁', '🏅'];
     return Wrap(
       spacing: 8,
       runSpacing: 8,

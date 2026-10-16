@@ -2,7 +2,7 @@
 ///
 /// 覆盖（设计 §5.24.11 测试点 + 2026-10-14 修订新增边界）：
 ///  · TC-01 门槛边界（含 **Lv.1 = 60 分钟** 与 `level = 0` 未解锁态）；
-///  · TC-02 阳光阶梯只在 9 个称号节点发、合计 102 ☀；
+///  · TC-02 **C78：称号节点零阳光、零账本行**（原 102☀ 阶梯已废止）；
 ///  · TC-03 称号映射与**等级↔称号解耦**（Lv.7 → 仍是 Lv.5 的称号）；
 ///  · TC-04/05 `pendingLevelsOf` / `titleLevelsOf` / `nextSettledLevelOf`（含失败停在上一级）；
 ///  · TC-06 快路径零账本查询；
@@ -213,43 +213,29 @@ void main() {
   });
 
   // ── TC-02 · 阳光阶梯 ────────────────────────────────────────────────────
-  group('TC-02 阳光只在 9 个称号节点发（合计 102 ☀）', () {
-    test('9 个节点金额逐条相等', () {
-      final Map<int, int> expected = <int, int>{
-        1: 3,
-        5: 5,
-        10: 7,
-        15: 9,
-        20: 11,
-        25: 13,
-        30: 16,
-        35: 18,
-        40: 20,
-      };
-      for (final MapEntry<int, int> e in expected.entries) {
-        expect(sunlightOfLevel(e.key), e.value,
-            reason: 'Lv.${e.key} 应发 ${e.value} ☀');
-      }
-      expect(kFocusLevelUpSunlight.length, 9);
-    });
-
-    test('非称号等级一律 0 阳光（40 级里有 31 次普通升级不发）', () {
+  group('TC-02 C78：称号节点零阳光、零账本行（原 102☀ 阶梯废止）', () {
+    test('9 个称号节点仍被 titleLevelsOf 挑出；31 次普通升级不挑', () {
+      expect(titleLevelsOf(List<int>.of(kFocusLevelTitleLevels)).length, 9);
       final int ordinary = <int>[
         for (int lv = 1; lv <= kFocusLevelMaxLevel; lv++)
           if (!isTitleLevelOf(lv)) lv,
       ].length;
       expect(ordinary, 31, reason: '40 级减去 9 个称号节点 = 31 次普通升级');
-      for (final int lv in <int>[2, 3, 4, 6, 7, 9, 22, 39]) {
-        expect(sunlightOfLevel(lv), 0, reason: 'Lv.$lv 不是称号节点，不得发阳光');
-      }
     });
 
-    test('九档合计 = 102 ☀（= kFocusLevelTotalSunlight）', () {
-      final int total = sunlightTotalOf(
-        List<int>.of(kFocusLevelTitleLevels),
-      );
-      expect(total, 102);
-      expect(total, kFocusLevelTotalSunlight);
+    test('全等级扫描结算：账本零新增、totalSunlight 恒 0、amount 恒 0', () async {
+      for (final int minutes in <int>[0, 60, 360, 480, 1980, 7620, 21900]) {
+        final _FakeLedger ledger = _FakeLedger();
+        final _FakeStore store = _FakeStore()..value = 0;
+        final FocusLevelSettleResult r =
+            await _service(ledger, store).settle(minutes.toDouble());
+        expect(ledger.entries, isEmpty,
+            reason: '$minutes 分钟结算后账本不得新增任何行（C78）');
+        expect(r.totalSunlight, 0, reason: '$minutes 分钟结算 totalSunlight 恒 0');
+        for (final LevelGrant g in r.granted) {
+          expect(g.amount, 0, reason: 'Lv.${g.level} 的 LevelGrant.amount 恒 0');
+        }
+      }
     });
   });
 
@@ -501,31 +487,29 @@ void main() {
       expect(ledger.entries, isEmpty);
     });
 
-    test('TC-08b 首用后跨过 Lv.1：60 分钟 → 发 3 ☀（一个称号节点）', () async {
+    test('TC-08b 首用后跨过 Lv.1：60 分钟 → 解锁 Lv.1 属性，零阳光零账本行（C78）',
+        () async {
       final _FakeLedger ledger = _FakeLedger();
       final _FakeStore store = _FakeStore()..value = 0;
       final FocusLevelSettleResult r = await _service(ledger, store).settle(60);
       expect(r.currentLevel, 1);
-      expect(r.granted, <LevelGrant>[const LevelGrant(level: 1, amount: 3)]);
-      expect(r.totalSunlight, 3);
-      expect(ledger.entries.length, 1);
-      expect(ledger.entries.single.refId, levelRefIdOf(1));
-      expect(ledger.entries.single.refType, kFocusLevelUpRefType);
-      expect(ledger.entries.single.net, 3);
+      expect(r.granted, <LevelGrant>[const LevelGrant(level: 1, amount: 0)],
+          reason: 'granted 非空 ⇒ 播称号演出；amount 恒 0（C78）');
+      expect(r.totalSunlight, 0);
+      expect(ledger.entries, isEmpty, reason: 'C78 后零账本写入');
     });
   });
 
   // ── TC-09~14 · 结算与幂等 ───────────────────────────────────────────────
   group('TC-09~14 结算编排与幂等', () {
-    test('TC-09 单节点：settled=4 → Lv.5 恰好发一条 5 ☀，余额 +5', () async {
+    test('TC-09 单节点：settled=4 → Lv.5 结算成功（amount 0），账本零新增', () async {
       final _FakeLedger ledger = _FakeLedger(initialBalance: 100);
       final _FakeStore store = _FakeStore()..value = 4;
       final FocusLevelSettleResult r = await _service(ledger, store).settle(480);
-      expect(r.granted, <LevelGrant>[const LevelGrant(level: 5, amount: 5)]);
-      expect(r.totalSunlight, 5);
-      expect(ledger.entries.length, 1);
-      expect(ledger.entries.single.balanceAfter, 105);
-      expect(await ledger.balance(), 105);
+      expect(r.granted, <LevelGrant>[const LevelGrant(level: 5, amount: 0)]);
+      expect(r.totalSunlight, 0);
+      expect(ledger.entries, isEmpty, reason: 'C78 后零账本写入');
+      expect(await ledger.balance(), 100, reason: '余额不变');
     });
 
     test('TC-02b 普通升级：Lv.1 → Lv.4（跨 3 个非称号等级）→ 零阳光零 grant', () async {
@@ -539,19 +523,16 @@ void main() {
       expect(store.value, 4, reason: 'SP 仍推进到 Lv.4（下轮从 4 起算）');
     });
 
-    test('TC-10 重复进页 5 次：账本行数与余额恒定（I1）', () async {
+    test('TC-10 重复进页 5 次：账本零新增、余额恒定（I1 幂等）', () async {
       final _FakeLedger ledger = _FakeLedger(initialBalance: 20);
       final _FakeStore store = _FakeStore()..value = 0;
       final FocusLevelService svc = _service(ledger, store);
-      int grantedFirst = 0;
       for (int i = 0; i < 5; i++) {
         final FocusLevelSettleResult r = await svc.settle(480); // Lv.5
-        if (i == 0) grantedFirst = r.totalSunlight;
-        expect(r.totalSunlight, i == 0 ? grantedFirst : 0);
+        expect(r.totalSunlight, 0);
       }
-      expect(grantedFirst, 8, reason: '首轮发 Lv.1(3) + Lv.5(5)');
-      expect(ledger.entries.length, 2);
-      expect(await ledger.balance(), 28);
+      expect(ledger.entries, isEmpty, reason: 'C78 后零账本写入，重复进页也不新增');
+      expect(await ledger.balance(), 20, reason: '余额恒定');
     });
 
     test('TC-11a 老用户首用一次跳到 Lv.23：🔴 静默，逐雨后零阳光零演出（C74 §9）',
@@ -568,8 +549,8 @@ void main() {
       expect(store.value, 23);
     });
 
-    test('TC-11b 跨多级（已过首用，settled=0 → Lv.23）：逐条入账 5 个称号节点，'
-        '合计 35 ☀，只算一场演出量', () async {
+    test('TC-11b 跨多级（已过首用，settled=0 → Lv.23）：逐节点结算 5 个称号，'
+        '零阳光零账本行（C78），只算一场演出量', () async {
       final _FakeLedger ledger = _FakeLedger();
       final _FakeStore store = _FakeStore()..value = 0;
       final FocusLevelSettleResult r =
@@ -579,34 +560,24 @@ void main() {
       expect(
         r.granted,
         <LevelGrant>[
-          const LevelGrant(level: 1, amount: 3),
-          const LevelGrant(level: 5, amount: 5),
-          const LevelGrant(level: 10, amount: 7),
-          const LevelGrant(level: 15, amount: 9),
-          const LevelGrant(level: 20, amount: 11),
+          const LevelGrant(level: 1, amount: 0),
+          const LevelGrant(level: 5, amount: 0),
+          const LevelGrant(level: 10, amount: 0),
+          const LevelGrant(level: 15, amount: 0),
+          const LevelGrant(level: 20, amount: 0),
         ],
       );
-      expect(r.totalSunlight, 35, reason: '3+5+7+9+11 = 35 ☀');
-      expect(r.titlesGained, 5, reason: '结算 5 条账本，但演出**只播 1 场**'
+      expect(r.totalSunlight, 0, reason: 'C78：恒 0');
+      expect(r.titlesGained, 5, reason: '演出**只播 1 场**'
           '（由调用方按 granted 非空判定）');
-      expect(ledger.entries.length, 5);
-      expect(
-        ledger.entries.map((SunlightEntry e) => e.refId).toList(),
-        <String>[
-          levelRefIdOf(1),
-          levelRefIdOf(5),
-          levelRefIdOf(10),
-          levelRefIdOf(15),
-          levelRefIdOf(20),
-        ],
-      );
+      expect(ledger.entries, isEmpty, reason: 'C78 后零账本写入');
       expect(store.value, 23);
-      // 再次进入：零发放（幂等 + SP 已推进）。
+      // 再次进入：零结算（幂等 + SP 已推进）。
       final FocusLevelSettleResult again =
           await _service(ledger, store).settle(7620);
       expect(again.granted, isEmpty);
       expect(again.totalSunlight, 0);
-      expect(ledger.entries.length, 5);
+      expect(ledger.entries, isEmpty);
     });
 
     test('TC-12a 双锚点取大：账本已发 lv5 ⇒ settled 抬到 5，本次零发放', () async {
@@ -618,20 +589,20 @@ void main() {
       expect(ledger.entries.length, 1, reason: '未新增任何账本行');
     });
 
-    test('TC-12b 账本已有 lv1 ⇒ 继续前进时不再补发 lv1，只发新的称号节点', () async {
+    test('TC-12b 账本已有 lv1（历史行）⇒ 不重播 lv1 演出，只结算新的称号节点', () async {
       final _FakeLedger ledger = _FakeLedger()..seedGranted(1, 3);
       final _FakeStore store = _FakeStore()..value = 0;
       final FocusLevelSettleResult r = await _service(ledger, store).settle(480);
       expect(
         r.granted,
-        <LevelGrant>[const LevelGrant(level: 5, amount: 5)],
-        reason: 'Lv.1 已在账本里 ⇒ 二级幂等生效，只发 Lv.5',
+        <LevelGrant>[const LevelGrant(level: 5, amount: 0)],
+        reason: 'Lv.1 已在账本里 ⇒ 二级幂等生效，只结算 Lv.5',
       );
-      expect(ledger.entries.length, 2);
+      expect(ledger.entries.length, 1, reason: 'C78 后零新增，只剩预置的 lv1 历史行');
       expect(
         ledger.balanceOfRefId(levelRefIdOf(1)),
         1,
-        reason: 'lv1 仍然只有一条 historic 记录',
+        reason: 'lv1 历史行原样保留（append-only）',
       );
     });
 
@@ -646,34 +617,31 @@ void main() {
           reason: '21~23 都是非称号等级 ⇒ settled 一路推进到当前等级');
     });
 
-    test('TC-14 写账本失败：跳过该节点、不重试、不崩溃，后续节点继续', () async {
-      final _FakeLedger ledger = _FakeLedger(throwOnAmount: 7); // lv10 失败
+    test('TC-14 C78 后零写入：即便账本 append 抛错，结算也全量通过、零账本行', () async {
+      final _FakeLedger ledger = _FakeLedger(throwOnAmount: 7);
       final _FakeStore store = _FakeStore()..value = 0;
       final FocusLevelSettleResult r = await _service(ledger, store).settle(1980);
       expect(r.currentLevel, 11, reason: '1980 分钟 = 33h = Lv.11');
       expect(r.granted, <LevelGrant>[
-        const LevelGrant(level: 1, amount: 3),
-        const LevelGrant(level: 5, amount: 5),
+        const LevelGrant(level: 1, amount: 0),
+        const LevelGrant(level: 5, amount: 0),
+        const LevelGrant(level: 10, amount: 0),
       ]);
-      expect(r.settledLevel, 9, reason: 'I3：停在失败节点（Lv.10）前一级');
-      // 修好账本后再进：只补 Lv.10，不重复发 Lv.1/5。
-      ledger.throwOnAmount = null;
-      final FocusLevelSettleResult retry =
-          await _service(ledger, store).settle(1980);
-      expect(retry.granted, <LevelGrant>[const LevelGrant(level: 10, amount: 7)]);
-      expect(ledger.entries.length, 3);
+      expect(r.settledLevel, 11,
+          reason: 'C78 零写入：append 抛错不再可发生，节点全部结算成功');
+      expect(ledger.entries, isEmpty);
     });
 
-    test('全部 9 个称号节点跑完 → 恰好 102 ☀', () async {
+    test('全部 9 个称号节点跑完 → 零阳光、零账本行（C78）', () async {
       final _FakeLedger ledger = _FakeLedger();
       final _FakeStore store = _FakeStore()..value = 0;
       final FocusLevelSettleResult r =
           await _service(ledger, store).settle(21900);
       expect(r.currentLevel, kFocusLevelMaxLevel);
-      expect(r.totalSunlight, kFocusLevelTotalSunlight);
-      expect(r.totalSunlight, 102);
-      expect(ledger.entries.length, 9);
-      expect(await ledger.balance(), 102);
+      expect(r.totalSunlight, 0);
+      expect(r.titlesGained, 9, reason: '9 个节点全部结算成功（amount 恒 0）');
+      expect(ledger.entries, isEmpty, reason: 'C78 后零账本写入');
+      expect(await ledger.balance(), 0);
     });
   });
 }

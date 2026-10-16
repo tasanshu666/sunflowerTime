@@ -12,6 +12,7 @@
 library level_up_fx_overlay_test;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
@@ -105,13 +106,17 @@ Future<void> _pump(
   required VoidCallback onComplete,
   List<String> frames = kNoFrames,
 }) async {
+  // C80：_LevelUpContent 为 ConsumerWidget（watch entitlementProvider 判锁标），
+  // 夹具包 ProviderScope（默认 free 档，不影响本文件断言口径）。
   await tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(
-        body: LevelUpFxOverlay(
-          result: result,
-          frames: frames,
-          onComplete: onComplete,
+    ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: LevelUpFxOverlay(
+            result: result,
+            frames: frames,
+            onComplete: onComplete,
+          ),
         ),
       ),
     ),
@@ -257,7 +262,10 @@ void main() {
 
     late _FxHostState host;
     await tester.pumpWidget(
-      MaterialApp(home: _FxHost(onReady: (_FxHostState s) => host = s)),
+      // C80：演出卡内容为 ConsumerWidget，夹具包 ProviderScope（默认 free 档）。
+      ProviderScope(
+        child: MaterialApp(home: _FxHost(onReady: (_FxHostState s) => host = s)),
+      ),
     );
     await tester.pump(); // 首帧 → 回调里插入根 Overlay 浮层
     await tester.pump(const Duration(milliseconds: 16));
@@ -278,7 +286,9 @@ void main() {
     // 走真实插入路径（`levelUpFxOverlayEntry`），浮层外层才有 IgnorePointer。
     late _FxHostState host;
     await tester.pumpWidget(
-      MaterialApp(home: _FxHost(onReady: (_FxHostState s) => host = s)),
+      ProviderScope(
+        child: MaterialApp(home: _FxHost(onReady: (_FxHostState s) => host = s)),
+      ),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));

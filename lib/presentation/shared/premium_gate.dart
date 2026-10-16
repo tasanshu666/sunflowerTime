@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 
@@ -49,6 +50,8 @@ String _featureLabel(FeatureKey f) {
       return '纪念册导出';
     case FeatureKey.familySharing:
       return '家庭共享';
+    case FeatureKey.titlePerks:
+      return '称号专属属性';
   }
 }
 
@@ -296,12 +299,13 @@ class PremiumUnlockRow {
   });
 }
 
-/// B 组 4 行（**显式白名单，禁止遍历能力枚举的 `values`**）。
+/// B 组 5 行（**显式白名单，禁止遍历能力枚举的 `values`**）。
 ///
-/// 🔴 为什么必须显式枚举：能力枚举里除这 4 个真实生效键外，还有 `deepReport` +
+/// 🔴 为什么必须显式枚举：能力枚举里除这 5 个真实生效键外，还有 `deepReport` +
 /// 4 个**未实现**键。一旦遍历 `values`，未实现能力会被写进对外卖点 → 描述不符
 /// （Apple 3.1.1 / 2.3.1 拒审）。故此处**逐行写死键名**，并由源码守卫兜底
 /// （见 `test/qa/premium_unlock_table_test.dart` 的变异测试）。
+/// C80：`titlePerks`（称号专属属性）为真实生效的第 5 键（free ✗ / premium ✓ 9 条）。
 ///
 /// 数值来源：
 ///  · 布尔：`featureAllowedFor(oneClickCare, tier)`；
@@ -363,6 +367,22 @@ List<PremiumUnlockRow> unlockRowsFor({
       freeOk: true,
       premiumText: premiumReward == kUnlimitedQuota ? '✓ 不限' : '最多 $premiumReward',
       premiumOk: true,
+    ),
+    // C80 第 5 行：称号专属属性。freeOk 派生自矩阵（与其余布尔行同款），
+    // premiumText 由 [kFocusLevelTitleLevels.length] 派生（9 派生，防漂移）。
+    PremiumUnlockRow(
+      key: FeatureKey.titlePerks,
+      label: '称号属性',
+      freeText: featureAllowedFor(
+              FeatureKey.titlePerks, EntitlementTier.free,
+              matrix: matrix)
+          ? '✓'
+          : '✗',
+      freeOk: featureAllowedFor(
+          FeatureKey.titlePerks, EntitlementTier.free, matrix: matrix),
+      premiumText: '✓ ${kFocusLevelTitleLevels.length} 条',
+      premiumOk: featureAllowedFor(
+          FeatureKey.titlePerks, EntitlementTier.premium, matrix: matrix),
     ),
   ];
 }

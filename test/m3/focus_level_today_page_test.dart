@@ -223,7 +223,8 @@ class _TodayHarness {
         _FakeFocusRepository(totalMinutes: totalMinutes);
     final _MemoryStore store = _MemoryStore()..value = settledBefore;
     for (final int lv in seededLevels) {
-      sunlight.seedGranted(lv, sunlightOfLevel(lv));
+      // C78：amount 数值不再有口径意义（历史行语义），预置 1 即可。
+      sunlight.seedGranted(lv, 1);
     }
     final ProviderContainer container = ProviderContainer(
       overrides: <Override>[
@@ -338,25 +339,22 @@ void main() {
     }
   });
 
-  testWidgets('② Lv.1 触发：60 分钟 → 发 3 ☀ 且只播一场演出',
+  testWidgets('② Lv.1 触发：60 分钟 → 解锁称号 + 只播一场演出（零阳光零账本行，C78）',
       (WidgetTester tester) async {
     // SP = 0 表示「已过首用（此前累计 < 1 小时）」，否则会走首用静默分支。
     final _TodayHarness h =
         await enterTodayPage(tester, totalMinutes: 60, settledBefore: 0);
     await tester.pump(const Duration(milliseconds: 64));
 
-    expect(h.sunlight.entries.length, 1, reason: '跨过 Lv.1 称号节点应入账 1 条');
-    expect(h.sunlight.entries.single.refType, kFocusLevelUpRefType);
-    expect(h.sunlight.entries.single.refId, levelRefIdOf(1));
-    expect(h.sunlight.entries.single.net, 3);
-    expect(await h.sunlight.balance(), 3);
+    expect(h.sunlight.entries, isEmpty, reason: 'C78：称号节点零阳光、零账本行');
+    expect(await h.sunlight.balance(), 0);
     expect(h.store.value, 1);
 
     final bool fxShown = await _pumpUntil(
       tester,
       () => find.byKey(kLevelUpFxCardKey).evaluate().isNotEmpty,
     );
-    expect(fxShown, isTrue, reason: '称号节点解锁应播演出');
+    expect(fxShown, isTrue, reason: '称号节点解锁仍播演出（C78 演出保留）');
     expect(
       find.byKey(kLevelUpFxCardKey).evaluate().length,
       1,
@@ -364,7 +362,8 @@ void main() {
     );
     expect(find.text('解锁新称号！'), findsOneWidget);
     expect(find.text('Lv.1 · 专注小萌芽'), findsOneWidget);
-    expect(find.text('+3'), findsOneWidget);
+    // C78：阳光行因 `totalSunlight > 0` 恒假自动隐藏，不得出现「+N」。
+    expect(find.text('+3'), findsNothing, reason: 'C78 后不再显示 +N ☀ 阳光行');
   });
 
   // ⚠️ AC-03 已按 **C74 §6 修订二** 改写（2026-10-14 玄参拍板「每次升级都播」）：
@@ -386,10 +385,10 @@ void main() {
     // 演出是 async 解析帧后插入的，多给几帧让它上屏。
     await tester.pump(const Duration(milliseconds: 96));
 
-    // 🔴 经济层：零入账（这是红线，修订二**没有**动它）。
+    // 🔴 经济层：零入账（C78：连称号节点也零账本行）。
     expect(h.sunlight.entries.length, 1,
-        reason: 'Lv.2/3/4 都不是称号节点 ⇒ 零入账');
-    expect(await h.sunlight.balance(), 3, reason: '余额仍是 Lv.1 那 3☀');
+        reason: 'Lv.2/3/4 都不是称号节点 ⇒ 零入账（只剩预置的 lv1 历史行）');
+    expect(await h.sunlight.balance(), 1, reason: '余额仍是预置的 lv1 历史行');
 
     // 🔴 视觉层：普通升级**要播**一场（用 default 素材的标题，不是「解锁新称号」）。
     expect(find.byKey(kLevelUpFxCardKey), findsOneWidget,
@@ -451,7 +450,7 @@ void main() {
             '${badge.height.toStringAsFixed(1)}pt');
   });
 
-  testWidgets('④ 重复刷新幂等：连续 5 次 reload → 账本行数与余额恒定',
+  testWidgets('④ 重复刷新幂等：连续 5 次 reload → 零阳光零账本行（C78）',
       (WidgetTester tester) async {
     final _TodayHarness h = await enterTodayPage(
       tester,
@@ -460,19 +459,17 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 96));
 
-    expect(h.sunlight.entries.length, 2, reason: '首轮发 Lv.1(3) + Lv.5(5)');
-    expect(await h.sunlight.balance(), 8);
-    expect(h.sunlight.levelRefCount(1), 1);
-    expect(h.sunlight.levelRefCount(5), 1);
+    expect(h.sunlight.entries, isEmpty, reason: 'C78：首轮结算也零账本行');
+    expect(await h.sunlight.balance(), 0);
+    expect(h.store.value, 5);
 
     // 连续 5 次 C68 刷新（切回 tab / 回前台同路径）。
     for (int i = 0; i < 5; i++) {
       h.triggerReload();
       await tester.pump(const Duration(milliseconds: 96));
     }
-    expect(h.sunlight.entries.length, 2, reason: '🔴 重复进页不得重复发（I1）');
-    expect(await h.sunlight.balance(), 8);
-    expect(h.sunlight.levelRefCount(5), 1);
+    expect(h.sunlight.entries, isEmpty, reason: '🔴 重复进页也不新增（I1）');
+    expect(await h.sunlight.balance(), 0);
     expect(h.store.value, 5);
   });
 
@@ -497,7 +494,7 @@ void main() {
         reason: '进度指向**下一级**，不是下一个称号（详情卡承接原进度文案）');
   });
 
-  testWidgets('⑥ 不可见不播：tab 不是今日 ⇒ 仍先写账本，但不插演出浮层',
+  testWidgets('⑥ 不可见不播：tab 不是今日 ⇒ 结算照常（零账本行，C78），但不插演出浮层',
       (WidgetTester tester) async {
     final _TodayHarness h = await enterTodayPage(
       tester,
@@ -507,8 +504,8 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 128));
 
-    expect(h.sunlight.entries.length, 1,
-        reason: 'I4：不可见也要先写账本（崩溃不丢阳光）');
+    expect(h.sunlight.entries, isEmpty, reason: 'C78：结算零账本写入');
+    expect(h.store.value, 1, reason: '结算照常推进 SP');
     expect(find.byKey(kLevelUpFxCardKey), findsNothing,
         reason: '页面不可见 ⇒ 只结算不播');
   });

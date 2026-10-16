@@ -184,13 +184,15 @@ void main() {
     });
   });
 
-  group('门控矩阵阶段 4：免费边界（收紧 5 项 / 其余放开）', () {
+  group('门控矩阵阶段 4 + C80：免费边界（收紧 6 项 / 其余放开）', () {
     const Set<FeatureKey> tightened = <FeatureKey>{
       FeatureKey.oneClickCare,
       FeatureKey.gardenPotCapacity,
       FeatureKey.taskTemplateCount,
       FeatureKey.rewardTemplateCount,
       FeatureKey.deepReport,
+      // C80：称号专属属性 —— 本仓第一个真实生效的布尔收紧键。
+      FeatureKey.titlePerks,
     };
 
     test('矩阵覆盖全部 FeatureKey', () {
@@ -220,6 +222,15 @@ void main() {
           isFalse);
       expect(featureAllowedFor(FeatureKey.deepReport, EntitlementTier.free),
           isFalse);
+      // C80：称号属性 free 关闭 / premium 放开（布尔型，双向 unlimited）。
+      expect(featureAllowedFor(FeatureKey.titlePerks, EntitlementTier.free),
+          isFalse);
+      expect(featureAllowedFor(FeatureKey.titlePerks, EntitlementTier.premium),
+          isTrue);
+      expect(featureQuotaFor(FeatureKey.titlePerks, EntitlementTier.free),
+          kUnlimitedQuota);
+      expect(featureQuotaFor(FeatureKey.titlePerks, EntitlementTier.premium),
+          kUnlimitedQuota);
       // 花盆：free=4 / premium=12（皆有限，买断更宽）。
       expect(featureQuotaFor(FeatureKey.gardenPotCapacity, EntitlementTier.free),
           kFreeGardenPotQuota);

@@ -49,6 +49,14 @@ final Set<String> _whitelist = <String>{
   'lib/presentation/parent/pages/parent_task_config_page.dart',
   'lib/presentation/parent/pages/parent_reward_page.dart',
   'lib/domain/services/plant_growth_service.dart',
+  // C80 第二批（称号属性付费解锁 · 详情卡改版）：
+  //  · focus_level_badge.dart：详情卡改 ConsumerWidget，读 entitlementProvider +
+  //    featureAllowedFor(titlePerks) 给每行属性徽章下发**锁标态**（合法展示用途，
+  //    非门控散落——门控仍只经矩阵单点）；
+  //  · level_up_fx_overlay.dart：升级演出卡同理（免费档属性行置灰 + 🔒付费解锁尾缀）。
+  //    两者均只读矩阵单点，且**仅** FeatureKey.titlePerks 一处，绝不含 isPremium 判定。
+  'lib/presentation/child/widgets/focus_level_badge.dart',
+  'lib/presentation/child/widgets/level_up_fx_overlay.dart',
 };
 
 /// 权益命名空间标识符（词边界、大小写敏感）。
@@ -97,6 +105,8 @@ void main() {
       'lib/presentation/parent/pages/parent_task_config_page.dart',
       'lib/presentation/parent/pages/parent_reward_page.dart',
       'lib/domain/services/plant_growth_service.dart',
+      'lib/presentation/child/widgets/focus_level_badge.dart',
+      'lib/presentation/child/widgets/level_up_fx_overlay.dart',
     ]) {
       expect(File('$root/$rel').existsSync(), isTrue,
           reason: '白名单文件不应缺失（缺失说明重构后守卫白名单失效）：$rel');

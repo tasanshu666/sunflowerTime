@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart';
 import 'package:sunflower_time/data/local/focus_level_prefs_store.dart';
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
@@ -178,13 +179,23 @@ final sunlightBalanceProvider = FutureProvider.autoDispose<double>((ref) async {
 /// C77 · 当前称号专属属性（花园 / 护眼 / 详情卡 / 演出 / 结算共用，单实例）。
 ///
 /// = `perkOfLevel(levelOfMinutes(totalFocusMinutes))` —— **唯一来源**（设计 §3.4）；
-/// 输入是**原始等级**（不是已结算等级 / SP 锚点），且**不读** entitlement（P4 免费 / 买断一致）。
-/// 随 [economyRevisionProvider]（跨页刷新总线）重算：专注结算 / 升级后回到花园即拿到新属性。
+/// 输入是**原始等级**（不是已结算等级 / SP 锚点）。
+///
+/// C80 · **门控反转（废止 C77 P4「免费 / 买断一致」）**：`watch` [entitlementProvider]，
+/// free 档**短路**回 [PlantPerk.none]（不查库），premium 档才按等级累积取属性。
+/// 购买成功写 [entitlementProvider]（StateProvider），本 Provider 已 watch 之 → 自动重算，
+/// 详情卡 / 花园等消费方零回调代码即刷新。随 [economyRevisionProvider]
+/// （跨页刷新总线）重算：专注结算 / 升级后回到花园即拿到新属性。
 ///
 /// ⚠️ 性能（Q-J）：`totalStats()` 全量取行内存求和；花园单株动作各读一次可接受，
 /// 批量路径（一键）由页面**只读一次**后经 `PlantGrowthService` 参数下发（§5.2）。
 final currentPlantPerkProvider = FutureProvider<PlantPerk>((ref) async {
   ref.watch(economyRevisionProvider);
+  // C80 门控：免费档安全默认 = 无属性（异常回退 none ≡ 免费语义，双重一致）。
+  if (!featureAllowedFor(
+      FeatureKey.titlePerks, ref.watch(entitlementProvider).tier)) {
+    return PlantPerk.none;
+  }
   // 🔴 有界等待（Q-E）：仓储不可用 / 极慢 → 超时回退 [PlantPerk.none]，
   // 绝不把「读属性」变成会挂住 UI 流程（护眼奖励 / 结算展示）的 await。
   try {

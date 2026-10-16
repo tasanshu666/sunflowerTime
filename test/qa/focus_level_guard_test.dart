@@ -1,14 +1,16 @@
 /// C74 · 专注等级**口径巡检护栏**（grep 级断言，防止数值孪生 / 越界 / 付费门控）。
 ///
-/// 钉住八条（对应设计 §5.24.11 的 TC-19 ~ TC-22 + 新增的 40 级口径）：
+/// 钉住八条（对应设计 §5.24.11 的 TC-19 ~ TC-22 + 新增的 40 级口径；**C78 修订**）：
 ///  ① **常量冻结**：`kTodayCardTopRatio` = 0.40、`kTodayBgPanelTargetRatio` = 0.37（C67）；
 ///  ② **阶梯表逐条核对**：40 档门槛 = C74 §2 的小时表 × 60；
-///  ③ **称号与阳光**：9 个称号节点、金额 3/5/7/9/11/13/16/18/20、合计 102 ☀；
+///  ③ **称号节点**：9 个节点；**C78 后零阳光、零账本行**（经济层删除，
+///     删除守卫另见 `c78_economy_removal_guard_test.dart`）；
 ///  ④ **数值单点**：门槛分钟 / 称号文案 / `'focus_level_up'` 在 `lib/` 里**只出现在
 ///     `prd_params.dart`**（其余文件一律引用常量）；
 ///  ⑤ **只在今日页**：结算页 / 我的页 / 家长端**不引用**等级组件与服务；
-///  ⑥ **无付费门控**：本功能链路不出现 `EntitlementService` / `PremiumGate` /
-///     `EntitlementTier`；
+///  ⑥ **等级/称号不做门控，专属属性门控**（C80 修订 C74 §4）：等级数据/逻辑链路
+///     （域 + 存储 + 今日页）零权益引用；仅展示文件（徽章 / 演出卡）允许为
+///     `FeatureKey.titlePerks` 锁标读 `entitlementProvider`；
 ///  ⑦ **分层纪律**：`domain` 的等级文件**零 flutter / 零插件 import**；
 ///  ⑧ **账本映射**：`child_sunlight_history_page.dart` 已登记 `kFocusLevelUpRefType`。
 library focus_level_guard_test;
@@ -95,23 +97,18 @@ void main() {
     expect(levelOfMinutes(_c74Hours.last * 60.0 - 0.1), kFocusLevelMaxLevel - 1);
   });
 
-  test('③ 9 个称号节点 + 阳光阶梯 3/5/7/9/11/13/16/18/20 = 102 ☀', () {
+  test('③ 9 个称号节点（C78：零阳光、零账本行，原 102☀ 阶梯废止）', () {
     expect(kFocusLevelTitleLevels, <int>[1, 5, 10, 15, 20, 25, 30, 35, 40]);
     expect(kFocusLevelTitles, _c74Titles);
-    final List<int> amounts = <int>[
-      for (final int lv in kFocusLevelTitleLevels) sunlightOfLevel(lv),
-    ];
-    expect(amounts, <int>[3, 5, 7, 9, 11, 13, 16, 18, 20]);
-    expect(
-      amounts.fold<int>(0, (int a, int b) => a + b),
-      kFocusLevelTotalSunlight,
-    );
-    expect(kFocusLevelTotalSunlight, 102);
-    // 非称号等级一律 0。
-    for (int lv = 1; lv <= kFocusLevelMaxLevel; lv++) {
-      if (kFocusLevelTitleLevels.contains(lv)) continue;
-      expect(sunlightOfLevel(lv), 0, reason: 'Lv.$lv 不是称号节点');
+    // C78：称号节点只解锁专属属性（节点判定仍在，供演出/属性派生用）。
+    for (final int lv in kFocusLevelTitleLevels) {
+      expect(isTitleLevelOf(lv), isTrue, reason: 'Lv.$lv 仍是称号节点');
     }
+    final int ordinary = <int>[
+      for (int lv = 1; lv <= kFocusLevelMaxLevel; lv++)
+        if (!isTitleLevelOf(lv)) lv,
+    ].length;
+    expect(ordinary, 31);
   });
 
   test('④ 数值单点：门槛分钟 / 称号文案 / refType 只出现在 prd_params.dart', () {
@@ -215,22 +212,45 @@ void main() {
     }
   });
 
-  test('⑥ 无付费门控：等级链路不出现 Entitlement / PremiumGate', () {
-    final List<String> chain = <String>[
+  test('⑥ C80 修订：等级/称号链路不做门控，仅 titlePerks 专属属性门控', () {
+    // 🔴 C80 修订 C74 §4（原「全体系不做门控」）：等级/称号**本身**仍免费不做门控，
+    //    仅「称号专属属性」（`FeatureKey.titlePerks`）为付费解锁 —— 故本巡检分两层：
+    //  (a) 等级**数据 / 逻辑**链路（域 + 存储 + 今日页）：**零权益引用**（主体不变）；
+    //  (b) 展示文件（徽章 / 演出卡）：允许为**锁标展示**读 `entitlementProvider`，但
+    //      **只允许** `FeatureKey.titlePerks` 这一处门控，且绝不含 PremiumGate /
+    //      EntitlementService / EntitlementTier（门控不散落）。
+    final List<String> pureChain = <String>[
       'lib/domain/services/focus_level_service.dart',
       'lib/domain/entities/focus_level.dart',
       'lib/domain/repositories/focus_level_store.dart',
       'lib/data/local/focus_level_prefs_store.dart',
-      'lib/presentation/child/widgets/focus_level_badge.dart',
-      'lib/presentation/child/widgets/level_up_fx_overlay.dart',
       'lib/presentation/child/pages/child_today_page.dart',
     ];
-    for (final String path in chain) {
+    for (final String path in pureChain) {
       final String src = _read(path);
       expect(src.contains('EntitlementService'), isFalse, reason: '$path 出现付费服务');
       expect(src.contains('PremiumGate'), isFalse, reason: '$path 出现付费门控');
       expect(src.contains('EntitlementTier'), isFalse, reason: '$path 出现权益档位');
       expect(src.contains('entitlementProvider'), isFalse, reason: '$path 出现权益 provider');
+      expect(src.contains('FeatureKey'), isFalse, reason: '$path 等级逻辑链路不得读权益能力键');
+    }
+
+    // (b) 展示文件：允许 titlePerks 锁标，其余门控一律禁止。
+    final List<String> displayChain = <String>[
+      'lib/presentation/child/widgets/focus_level_badge.dart',
+      'lib/presentation/child/widgets/level_up_fx_overlay.dart',
+    ];
+    for (final String path in displayChain) {
+      final String src = _read(path);
+      expect(src.contains('PremiumGate'), isFalse,
+          reason: '$path 出现 PremiumGate（门控散落，应只读矩阵单点 featureAllowedFor）');
+      expect(src.contains('EntitlementService'), isFalse, reason: '$path 出现付费服务');
+      expect(src.contains('EntitlementTier'), isFalse, reason: '$path 出现权益档位');
+      // 读 entitlementProvider 仅当用于 FeatureKey.titlePerks 锁标（C80 唯一允许的门控点）。
+      if (src.contains('entitlementProvider')) {
+        expect(src.contains('FeatureKey.titlePerks'), isTrue,
+            reason: '$path 读 entitlementProvider 只允许用于 FeatureKey.titlePerks 锁标（C80）');
+      }
     }
   });
 

@@ -55,6 +55,14 @@ enum FeatureKey {
 
   /// 家庭共享（免费目标：关闭）。
   familySharing,
+
+  // ── C80 登记（称号属性付费解锁）──
+
+  /// 称号专属属性（9 条：浇水/施肥折扣、扩盆/铲退/绽放/护眼等增益）。
+  ///
+  /// free = 不生效（`currentPerk()` 回 [PlantPerk.none]），premium = 按等级累积解锁。
+  /// 门控判定唯一入口 = `featureAllowedFor(FeatureKey.titlePerks, tier)`。
+  titlePerks,
 }
 
 /// 一次（永久）买断的权益快照。

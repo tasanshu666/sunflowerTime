@@ -100,16 +100,6 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("bgm_on" IN (0, 1))'),
       defaultValue: const Constant(true));
-  static const VerificationMeta _detectionOnMeta =
-      const VerificationMeta('detectionOn');
-  @override
-  late final GeneratedColumn<bool> detectionOn = GeneratedColumn<bool>(
-      'detection_on', aliasedName, false,
-      type: DriftSqlType.bool,
-      requiredDuringInsert: false,
-      defaultConstraints: GeneratedColumn.constraintIsAlways(
-          'CHECK ("detection_on" IN (0, 1))'),
-      defaultValue: const Constant(true));
   static const VerificationMeta _autoConfirmSingleHighMeta =
       const VerificationMeta('autoConfirmSingleHigh');
   @override
@@ -151,16 +141,6 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       requiredDuringInsert: false,
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("theme_dark" IN (0, 1))'),
-      defaultValue: const Constant(false));
-  static const VerificationMeta _autonomousModeMeta =
-      const VerificationMeta('autonomousMode');
-  @override
-  late final GeneratedColumn<bool> autonomousMode = GeneratedColumn<bool>(
-      'autonomous_mode', aliasedName, false,
-      type: DriftSqlType.bool,
-      requiredDuringInsert: false,
-      defaultConstraints: GeneratedColumn.constraintIsAlways(
-          'CHECK ("autonomous_mode" IN (0, 1))'),
       defaultValue: const Constant(false));
   static const VerificationMeta _gardenPotCapacityMeta =
       const VerificationMeta('gardenPotCapacity');
@@ -213,13 +193,11 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
         quietMode,
         soundOn,
         bgmOn,
-        detectionOn,
         autoConfirmSingleHigh,
         autoConfirmSingleLow,
         autoConfirmMonthlyPct,
         currencyRate,
         themeDark,
-        autonomousMode,
         gardenPotCapacity,
         eyeCareEnabled,
         eyeCareIntervalMin,
@@ -316,12 +294,6 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       context.handle(
           _bgmOnMeta, bgmOn.isAcceptableOrUnknown(data['bgm_on']!, _bgmOnMeta));
     }
-    if (data.containsKey('detection_on')) {
-      context.handle(
-          _detectionOnMeta,
-          detectionOn.isAcceptableOrUnknown(
-              data['detection_on']!, _detectionOnMeta));
-    }
     if (data.containsKey('auto_confirm_single_high')) {
       context.handle(
           _autoConfirmSingleHighMeta,
@@ -349,12 +321,6 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
     if (data.containsKey('theme_dark')) {
       context.handle(_themeDarkMeta,
           themeDark.isAcceptableOrUnknown(data['theme_dark']!, _themeDarkMeta));
-    }
-    if (data.containsKey('autonomous_mode')) {
-      context.handle(
-          _autonomousModeMeta,
-          autonomousMode.isAcceptableOrUnknown(
-              data['autonomous_mode']!, _autonomousModeMeta));
     }
     if (data.containsKey('garden_pot_capacity')) {
       context.handle(
@@ -415,8 +381,6 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
           .read(DriftSqlType.bool, data['${effectivePrefix}sound_on'])!,
       bgmOn: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}bgm_on'])!,
-      detectionOn: attachedDatabase.typeMapping
-          .read(DriftSqlType.bool, data['${effectivePrefix}detection_on'])!,
       autoConfirmSingleHigh: attachedDatabase.typeMapping.read(DriftSqlType.int,
           data['${effectivePrefix}auto_confirm_single_high'])!,
       autoConfirmSingleLow: attachedDatabase.typeMapping.read(
@@ -428,8 +392,6 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
           .read(DriftSqlType.double, data['${effectivePrefix}currency_rate'])!,
       themeDark: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}theme_dark'])!,
-      autonomousMode: attachedDatabase.typeMapping
-          .read(DriftSqlType.bool, data['${effectivePrefix}autonomous_mode'])!,
       gardenPotCapacity: attachedDatabase.typeMapping.read(
           DriftSqlType.int, data['${effectivePrefix}garden_pot_capacity'])!,
       eyeCareEnabled: attachedDatabase.typeMapping
@@ -461,13 +423,11 @@ class Setting extends DataClass implements Insertable<Setting> {
   final bool quietMode;
   final bool soundOn;
   final bool bgmOn;
-  final bool detectionOn;
   final int autoConfirmSingleHigh;
   final int autoConfirmSingleLow;
   final double autoConfirmMonthlyPct;
   final double currencyRate;
   final bool themeDark;
-  final bool autonomousMode;
   final int gardenPotCapacity;
   final bool eyeCareEnabled;
   final int eyeCareIntervalMin;
@@ -486,13 +446,11 @@ class Setting extends DataClass implements Insertable<Setting> {
       required this.quietMode,
       required this.soundOn,
       required this.bgmOn,
-      required this.detectionOn,
       required this.autoConfirmSingleHigh,
       required this.autoConfirmSingleLow,
       required this.autoConfirmMonthlyPct,
       required this.currencyRate,
       required this.themeDark,
-      required this.autonomousMode,
       required this.gardenPotCapacity,
       required this.eyeCareEnabled,
       required this.eyeCareIntervalMin,
@@ -513,13 +471,11 @@ class Setting extends DataClass implements Insertable<Setting> {
     map['quiet_mode'] = Variable<bool>(quietMode);
     map['sound_on'] = Variable<bool>(soundOn);
     map['bgm_on'] = Variable<bool>(bgmOn);
-    map['detection_on'] = Variable<bool>(detectionOn);
     map['auto_confirm_single_high'] = Variable<int>(autoConfirmSingleHigh);
     map['auto_confirm_single_low'] = Variable<int>(autoConfirmSingleLow);
     map['auto_confirm_monthly_pct'] = Variable<double>(autoConfirmMonthlyPct);
     map['currency_rate'] = Variable<double>(currencyRate);
     map['theme_dark'] = Variable<bool>(themeDark);
-    map['autonomous_mode'] = Variable<bool>(autonomousMode);
     map['garden_pot_capacity'] = Variable<int>(gardenPotCapacity);
     map['eye_care_enabled'] = Variable<bool>(eyeCareEnabled);
     map['eye_care_interval_min'] = Variable<int>(eyeCareIntervalMin);
@@ -542,13 +498,11 @@ class Setting extends DataClass implements Insertable<Setting> {
       quietMode: Value(quietMode),
       soundOn: Value(soundOn),
       bgmOn: Value(bgmOn),
-      detectionOn: Value(detectionOn),
       autoConfirmSingleHigh: Value(autoConfirmSingleHigh),
       autoConfirmSingleLow: Value(autoConfirmSingleLow),
       autoConfirmMonthlyPct: Value(autoConfirmMonthlyPct),
       currencyRate: Value(currencyRate),
       themeDark: Value(themeDark),
-      autonomousMode: Value(autonomousMode),
       gardenPotCapacity: Value(gardenPotCapacity),
       eyeCareEnabled: Value(eyeCareEnabled),
       eyeCareIntervalMin: Value(eyeCareIntervalMin),
@@ -574,7 +528,6 @@ class Setting extends DataClass implements Insertable<Setting> {
       quietMode: serializer.fromJson<bool>(json['quietMode']),
       soundOn: serializer.fromJson<bool>(json['soundOn']),
       bgmOn: serializer.fromJson<bool>(json['bgmOn']),
-      detectionOn: serializer.fromJson<bool>(json['detectionOn']),
       autoConfirmSingleHigh:
           serializer.fromJson<int>(json['autoConfirmSingleHigh']),
       autoConfirmSingleLow:
@@ -583,7 +536,6 @@ class Setting extends DataClass implements Insertable<Setting> {
           serializer.fromJson<double>(json['autoConfirmMonthlyPct']),
       currencyRate: serializer.fromJson<double>(json['currencyRate']),
       themeDark: serializer.fromJson<bool>(json['themeDark']),
-      autonomousMode: serializer.fromJson<bool>(json['autonomousMode']),
       gardenPotCapacity: serializer.fromJson<int>(json['gardenPotCapacity']),
       eyeCareEnabled: serializer.fromJson<bool>(json['eyeCareEnabled']),
       eyeCareIntervalMin: serializer.fromJson<int>(json['eyeCareIntervalMin']),
@@ -607,13 +559,11 @@ class Setting extends DataClass implements Insertable<Setting> {
       'quietMode': serializer.toJson<bool>(quietMode),
       'soundOn': serializer.toJson<bool>(soundOn),
       'bgmOn': serializer.toJson<bool>(bgmOn),
-      'detectionOn': serializer.toJson<bool>(detectionOn),
       'autoConfirmSingleHigh': serializer.toJson<int>(autoConfirmSingleHigh),
       'autoConfirmSingleLow': serializer.toJson<int>(autoConfirmSingleLow),
       'autoConfirmMonthlyPct': serializer.toJson<double>(autoConfirmMonthlyPct),
       'currencyRate': serializer.toJson<double>(currencyRate),
       'themeDark': serializer.toJson<bool>(themeDark),
-      'autonomousMode': serializer.toJson<bool>(autonomousMode),
       'gardenPotCapacity': serializer.toJson<int>(gardenPotCapacity),
       'eyeCareEnabled': serializer.toJson<bool>(eyeCareEnabled),
       'eyeCareIntervalMin': serializer.toJson<int>(eyeCareIntervalMin),
@@ -635,13 +585,11 @@ class Setting extends DataClass implements Insertable<Setting> {
           bool? quietMode,
           bool? soundOn,
           bool? bgmOn,
-          bool? detectionOn,
           int? autoConfirmSingleHigh,
           int? autoConfirmSingleLow,
           double? autoConfirmMonthlyPct,
           double? currencyRate,
           bool? themeDark,
-          bool? autonomousMode,
           int? gardenPotCapacity,
           bool? eyeCareEnabled,
           int? eyeCareIntervalMin,
@@ -660,7 +608,6 @@ class Setting extends DataClass implements Insertable<Setting> {
         quietMode: quietMode ?? this.quietMode,
         soundOn: soundOn ?? this.soundOn,
         bgmOn: bgmOn ?? this.bgmOn,
-        detectionOn: detectionOn ?? this.detectionOn,
         autoConfirmSingleHigh:
             autoConfirmSingleHigh ?? this.autoConfirmSingleHigh,
         autoConfirmSingleLow: autoConfirmSingleLow ?? this.autoConfirmSingleLow,
@@ -668,7 +615,6 @@ class Setting extends DataClass implements Insertable<Setting> {
             autoConfirmMonthlyPct ?? this.autoConfirmMonthlyPct,
         currencyRate: currencyRate ?? this.currencyRate,
         themeDark: themeDark ?? this.themeDark,
-        autonomousMode: autonomousMode ?? this.autonomousMode,
         gardenPotCapacity: gardenPotCapacity ?? this.gardenPotCapacity,
         eyeCareEnabled: eyeCareEnabled ?? this.eyeCareEnabled,
         eyeCareIntervalMin: eyeCareIntervalMin ?? this.eyeCareIntervalMin,
@@ -704,8 +650,6 @@ class Setting extends DataClass implements Insertable<Setting> {
       quietMode: data.quietMode.present ? data.quietMode.value : this.quietMode,
       soundOn: data.soundOn.present ? data.soundOn.value : this.soundOn,
       bgmOn: data.bgmOn.present ? data.bgmOn.value : this.bgmOn,
-      detectionOn:
-          data.detectionOn.present ? data.detectionOn.value : this.detectionOn,
       autoConfirmSingleHigh: data.autoConfirmSingleHigh.present
           ? data.autoConfirmSingleHigh.value
           : this.autoConfirmSingleHigh,
@@ -719,9 +663,6 @@ class Setting extends DataClass implements Insertable<Setting> {
           ? data.currencyRate.value
           : this.currencyRate,
       themeDark: data.themeDark.present ? data.themeDark.value : this.themeDark,
-      autonomousMode: data.autonomousMode.present
-          ? data.autonomousMode.value
-          : this.autonomousMode,
       gardenPotCapacity: data.gardenPotCapacity.present
           ? data.gardenPotCapacity.value
           : this.gardenPotCapacity,
@@ -753,13 +694,11 @@ class Setting extends DataClass implements Insertable<Setting> {
           ..write('quietMode: $quietMode, ')
           ..write('soundOn: $soundOn, ')
           ..write('bgmOn: $bgmOn, ')
-          ..write('detectionOn: $detectionOn, ')
           ..write('autoConfirmSingleHigh: $autoConfirmSingleHigh, ')
           ..write('autoConfirmSingleLow: $autoConfirmSingleLow, ')
           ..write('autoConfirmMonthlyPct: $autoConfirmMonthlyPct, ')
           ..write('currencyRate: $currencyRate, ')
           ..write('themeDark: $themeDark, ')
-          ..write('autonomousMode: $autonomousMode, ')
           ..write('gardenPotCapacity: $gardenPotCapacity, ')
           ..write('eyeCareEnabled: $eyeCareEnabled, ')
           ..write('eyeCareIntervalMin: $eyeCareIntervalMin, ')
@@ -783,13 +722,11 @@ class Setting extends DataClass implements Insertable<Setting> {
         quietMode,
         soundOn,
         bgmOn,
-        detectionOn,
         autoConfirmSingleHigh,
         autoConfirmSingleLow,
         autoConfirmMonthlyPct,
         currencyRate,
         themeDark,
-        autonomousMode,
         gardenPotCapacity,
         eyeCareEnabled,
         eyeCareIntervalMin,
@@ -812,13 +749,11 @@ class Setting extends DataClass implements Insertable<Setting> {
           other.quietMode == this.quietMode &&
           other.soundOn == this.soundOn &&
           other.bgmOn == this.bgmOn &&
-          other.detectionOn == this.detectionOn &&
           other.autoConfirmSingleHigh == this.autoConfirmSingleHigh &&
           other.autoConfirmSingleLow == this.autoConfirmSingleLow &&
           other.autoConfirmMonthlyPct == this.autoConfirmMonthlyPct &&
           other.currencyRate == this.currencyRate &&
           other.themeDark == this.themeDark &&
-          other.autonomousMode == this.autonomousMode &&
           other.gardenPotCapacity == this.gardenPotCapacity &&
           other.eyeCareEnabled == this.eyeCareEnabled &&
           other.eyeCareIntervalMin == this.eyeCareIntervalMin &&
@@ -839,13 +774,11 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
   final Value<bool> quietMode;
   final Value<bool> soundOn;
   final Value<bool> bgmOn;
-  final Value<bool> detectionOn;
   final Value<int> autoConfirmSingleHigh;
   final Value<int> autoConfirmSingleLow;
   final Value<double> autoConfirmMonthlyPct;
   final Value<double> currencyRate;
   final Value<bool> themeDark;
-  final Value<bool> autonomousMode;
   final Value<int> gardenPotCapacity;
   final Value<bool> eyeCareEnabled;
   final Value<int> eyeCareIntervalMin;
@@ -864,13 +797,11 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     this.quietMode = const Value.absent(),
     this.soundOn = const Value.absent(),
     this.bgmOn = const Value.absent(),
-    this.detectionOn = const Value.absent(),
     this.autoConfirmSingleHigh = const Value.absent(),
     this.autoConfirmSingleLow = const Value.absent(),
     this.autoConfirmMonthlyPct = const Value.absent(),
     this.currencyRate = const Value.absent(),
     this.themeDark = const Value.absent(),
-    this.autonomousMode = const Value.absent(),
     this.gardenPotCapacity = const Value.absent(),
     this.eyeCareEnabled = const Value.absent(),
     this.eyeCareIntervalMin = const Value.absent(),
@@ -890,13 +821,11 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     this.quietMode = const Value.absent(),
     this.soundOn = const Value.absent(),
     this.bgmOn = const Value.absent(),
-    this.detectionOn = const Value.absent(),
     this.autoConfirmSingleHigh = const Value.absent(),
     this.autoConfirmSingleLow = const Value.absent(),
     this.autoConfirmMonthlyPct = const Value.absent(),
     this.currencyRate = const Value.absent(),
     this.themeDark = const Value.absent(),
-    this.autonomousMode = const Value.absent(),
     this.gardenPotCapacity = const Value.absent(),
     this.eyeCareEnabled = const Value.absent(),
     this.eyeCareIntervalMin = const Value.absent(),
@@ -922,13 +851,11 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     Expression<bool>? quietMode,
     Expression<bool>? soundOn,
     Expression<bool>? bgmOn,
-    Expression<bool>? detectionOn,
     Expression<int>? autoConfirmSingleHigh,
     Expression<int>? autoConfirmSingleLow,
     Expression<double>? autoConfirmMonthlyPct,
     Expression<double>? currencyRate,
     Expression<bool>? themeDark,
-    Expression<bool>? autonomousMode,
     Expression<int>? gardenPotCapacity,
     Expression<bool>? eyeCareEnabled,
     Expression<int>? eyeCareIntervalMin,
@@ -950,7 +877,6 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
       if (quietMode != null) 'quiet_mode': quietMode,
       if (soundOn != null) 'sound_on': soundOn,
       if (bgmOn != null) 'bgm_on': bgmOn,
-      if (detectionOn != null) 'detection_on': detectionOn,
       if (autoConfirmSingleHigh != null)
         'auto_confirm_single_high': autoConfirmSingleHigh,
       if (autoConfirmSingleLow != null)
@@ -959,7 +885,6 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
         'auto_confirm_monthly_pct': autoConfirmMonthlyPct,
       if (currencyRate != null) 'currency_rate': currencyRate,
       if (themeDark != null) 'theme_dark': themeDark,
-      if (autonomousMode != null) 'autonomous_mode': autonomousMode,
       if (gardenPotCapacity != null) 'garden_pot_capacity': gardenPotCapacity,
       if (eyeCareEnabled != null) 'eye_care_enabled': eyeCareEnabled,
       if (eyeCareIntervalMin != null)
@@ -983,13 +908,11 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
       Value<bool>? quietMode,
       Value<bool>? soundOn,
       Value<bool>? bgmOn,
-      Value<bool>? detectionOn,
       Value<int>? autoConfirmSingleHigh,
       Value<int>? autoConfirmSingleLow,
       Value<double>? autoConfirmMonthlyPct,
       Value<double>? currencyRate,
       Value<bool>? themeDark,
-      Value<bool>? autonomousMode,
       Value<int>? gardenPotCapacity,
       Value<bool>? eyeCareEnabled,
       Value<int>? eyeCareIntervalMin,
@@ -1008,7 +931,6 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
       quietMode: quietMode ?? this.quietMode,
       soundOn: soundOn ?? this.soundOn,
       bgmOn: bgmOn ?? this.bgmOn,
-      detectionOn: detectionOn ?? this.detectionOn,
       autoConfirmSingleHigh:
           autoConfirmSingleHigh ?? this.autoConfirmSingleHigh,
       autoConfirmSingleLow: autoConfirmSingleLow ?? this.autoConfirmSingleLow,
@@ -1016,7 +938,6 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
           autoConfirmMonthlyPct ?? this.autoConfirmMonthlyPct,
       currencyRate: currencyRate ?? this.currencyRate,
       themeDark: themeDark ?? this.themeDark,
-      autonomousMode: autonomousMode ?? this.autonomousMode,
       gardenPotCapacity: gardenPotCapacity ?? this.gardenPotCapacity,
       eyeCareEnabled: eyeCareEnabled ?? this.eyeCareEnabled,
       eyeCareIntervalMin: eyeCareIntervalMin ?? this.eyeCareIntervalMin,
@@ -1066,9 +987,6 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     if (bgmOn.present) {
       map['bgm_on'] = Variable<bool>(bgmOn.value);
     }
-    if (detectionOn.present) {
-      map['detection_on'] = Variable<bool>(detectionOn.value);
-    }
     if (autoConfirmSingleHigh.present) {
       map['auto_confirm_single_high'] =
           Variable<int>(autoConfirmSingleHigh.value);
@@ -1086,9 +1004,6 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
     }
     if (themeDark.present) {
       map['theme_dark'] = Variable<bool>(themeDark.value);
-    }
-    if (autonomousMode.present) {
-      map['autonomous_mode'] = Variable<bool>(autonomousMode.value);
     }
     if (gardenPotCapacity.present) {
       map['garden_pot_capacity'] = Variable<int>(gardenPotCapacity.value);
@@ -1121,13 +1036,11 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
           ..write('quietMode: $quietMode, ')
           ..write('soundOn: $soundOn, ')
           ..write('bgmOn: $bgmOn, ')
-          ..write('detectionOn: $detectionOn, ')
           ..write('autoConfirmSingleHigh: $autoConfirmSingleHigh, ')
           ..write('autoConfirmSingleLow: $autoConfirmSingleLow, ')
           ..write('autoConfirmMonthlyPct: $autoConfirmMonthlyPct, ')
           ..write('currencyRate: $currencyRate, ')
           ..write('themeDark: $themeDark, ')
-          ..write('autonomousMode: $autonomousMode, ')
           ..write('gardenPotCapacity: $gardenPotCapacity, ')
           ..write('eyeCareEnabled: $eyeCareEnabled, ')
           ..write('eyeCareIntervalMin: $eyeCareIntervalMin, ')
@@ -7129,13 +7042,11 @@ typedef $$SettingsTableCreateCompanionBuilder = SettingsCompanion Function({
   Value<bool> quietMode,
   Value<bool> soundOn,
   Value<bool> bgmOn,
-  Value<bool> detectionOn,
   Value<int> autoConfirmSingleHigh,
   Value<int> autoConfirmSingleLow,
   Value<double> autoConfirmMonthlyPct,
   Value<double> currencyRate,
   Value<bool> themeDark,
-  Value<bool> autonomousMode,
   Value<int> gardenPotCapacity,
   Value<bool> eyeCareEnabled,
   Value<int> eyeCareIntervalMin,
@@ -7155,13 +7066,11 @@ typedef $$SettingsTableUpdateCompanionBuilder = SettingsCompanion Function({
   Value<bool> quietMode,
   Value<bool> soundOn,
   Value<bool> bgmOn,
-  Value<bool> detectionOn,
   Value<int> autoConfirmSingleHigh,
   Value<int> autoConfirmSingleLow,
   Value<double> autoConfirmMonthlyPct,
   Value<double> currencyRate,
   Value<bool> themeDark,
-  Value<bool> autonomousMode,
   Value<int> gardenPotCapacity,
   Value<bool> eyeCareEnabled,
   Value<int> eyeCareIntervalMin,
@@ -7221,9 +7130,6 @@ class $$SettingsTableFilterComposer
   ColumnFilters<bool> get bgmOn => $composableBuilder(
       column: $table.bgmOn, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<bool> get detectionOn => $composableBuilder(
-      column: $table.detectionOn, builder: (column) => ColumnFilters(column));
-
   ColumnFilters<int> get autoConfirmSingleHigh => $composableBuilder(
       column: $table.autoConfirmSingleHigh,
       builder: (column) => ColumnFilters(column));
@@ -7241,10 +7147,6 @@ class $$SettingsTableFilterComposer
 
   ColumnFilters<bool> get themeDark => $composableBuilder(
       column: $table.themeDark, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<bool> get autonomousMode => $composableBuilder(
-      column: $table.autonomousMode,
-      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get gardenPotCapacity => $composableBuilder(
       column: $table.gardenPotCapacity,
@@ -7318,9 +7220,6 @@ class $$SettingsTableOrderingComposer
   ColumnOrderings<bool> get bgmOn => $composableBuilder(
       column: $table.bgmOn, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<bool> get detectionOn => $composableBuilder(
-      column: $table.detectionOn, builder: (column) => ColumnOrderings(column));
-
   ColumnOrderings<int> get autoConfirmSingleHigh => $composableBuilder(
       column: $table.autoConfirmSingleHigh,
       builder: (column) => ColumnOrderings(column));
@@ -7339,10 +7238,6 @@ class $$SettingsTableOrderingComposer
 
   ColumnOrderings<bool> get themeDark => $composableBuilder(
       column: $table.themeDark, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<bool> get autonomousMode => $composableBuilder(
-      column: $table.autonomousMode,
-      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get gardenPotCapacity => $composableBuilder(
       column: $table.gardenPotCapacity,
@@ -7409,9 +7304,6 @@ class $$SettingsTableAnnotationComposer
   GeneratedColumn<bool> get bgmOn =>
       $composableBuilder(column: $table.bgmOn, builder: (column) => column);
 
-  GeneratedColumn<bool> get detectionOn => $composableBuilder(
-      column: $table.detectionOn, builder: (column) => column);
-
   GeneratedColumn<int> get autoConfirmSingleHigh => $composableBuilder(
       column: $table.autoConfirmSingleHigh, builder: (column) => column);
 
@@ -7426,9 +7318,6 @@ class $$SettingsTableAnnotationComposer
 
   GeneratedColumn<bool> get themeDark =>
       $composableBuilder(column: $table.themeDark, builder: (column) => column);
-
-  GeneratedColumn<bool> get autonomousMode => $composableBuilder(
-      column: $table.autonomousMode, builder: (column) => column);
 
   GeneratedColumn<int> get gardenPotCapacity => $composableBuilder(
       column: $table.gardenPotCapacity, builder: (column) => column);
@@ -7479,13 +7368,11 @@ class $$SettingsTableTableManager extends RootTableManager<
             Value<bool> quietMode = const Value.absent(),
             Value<bool> soundOn = const Value.absent(),
             Value<bool> bgmOn = const Value.absent(),
-            Value<bool> detectionOn = const Value.absent(),
             Value<int> autoConfirmSingleHigh = const Value.absent(),
             Value<int> autoConfirmSingleLow = const Value.absent(),
             Value<double> autoConfirmMonthlyPct = const Value.absent(),
             Value<double> currencyRate = const Value.absent(),
             Value<bool> themeDark = const Value.absent(),
-            Value<bool> autonomousMode = const Value.absent(),
             Value<int> gardenPotCapacity = const Value.absent(),
             Value<bool> eyeCareEnabled = const Value.absent(),
             Value<int> eyeCareIntervalMin = const Value.absent(),
@@ -7505,13 +7392,11 @@ class $$SettingsTableTableManager extends RootTableManager<
             quietMode: quietMode,
             soundOn: soundOn,
             bgmOn: bgmOn,
-            detectionOn: detectionOn,
             autoConfirmSingleHigh: autoConfirmSingleHigh,
             autoConfirmSingleLow: autoConfirmSingleLow,
             autoConfirmMonthlyPct: autoConfirmMonthlyPct,
             currencyRate: currencyRate,
             themeDark: themeDark,
-            autonomousMode: autonomousMode,
             gardenPotCapacity: gardenPotCapacity,
             eyeCareEnabled: eyeCareEnabled,
             eyeCareIntervalMin: eyeCareIntervalMin,
@@ -7531,13 +7416,11 @@ class $$SettingsTableTableManager extends RootTableManager<
             Value<bool> quietMode = const Value.absent(),
             Value<bool> soundOn = const Value.absent(),
             Value<bool> bgmOn = const Value.absent(),
-            Value<bool> detectionOn = const Value.absent(),
             Value<int> autoConfirmSingleHigh = const Value.absent(),
             Value<int> autoConfirmSingleLow = const Value.absent(),
             Value<double> autoConfirmMonthlyPct = const Value.absent(),
             Value<double> currencyRate = const Value.absent(),
             Value<bool> themeDark = const Value.absent(),
-            Value<bool> autonomousMode = const Value.absent(),
             Value<int> gardenPotCapacity = const Value.absent(),
             Value<bool> eyeCareEnabled = const Value.absent(),
             Value<int> eyeCareIntervalMin = const Value.absent(),
@@ -7557,13 +7440,11 @@ class $$SettingsTableTableManager extends RootTableManager<
             quietMode: quietMode,
             soundOn: soundOn,
             bgmOn: bgmOn,
-            detectionOn: detectionOn,
             autoConfirmSingleHigh: autoConfirmSingleHigh,
             autoConfirmSingleLow: autoConfirmSingleLow,
             autoConfirmMonthlyPct: autoConfirmMonthlyPct,
             currencyRate: currencyRate,
             themeDark: themeDark,
-            autonomousMode: autonomousMode,
             gardenPotCapacity: gardenPotCapacity,
             eyeCareEnabled: eyeCareEnabled,
             eyeCareIntervalMin: eyeCareIntervalMin,

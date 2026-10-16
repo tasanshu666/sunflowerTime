@@ -1,7 +1,7 @@
 /// 免费零回归守卫测试（付费墙 · 阶段 1 收口 → 阶段 4 收紧后更新）。
 ///
 /// 阶段 1 门控全放开，本测试钉「free == premium」。阶段 4 **刻意收紧 5 项**，
-/// 故守卫随之改写为两层：
+/// C80 再收紧 `titlePerks`（共 6 项），故守卫随之改写为两层：
 ///  1. **未收紧的能力**：free 与 premium 判定 / 额度仍必须等价且放行（免费功能不退化）；
 ///  2. **已收紧的能力**：其免费边界与买断边界必须**明确声明**（防手滑放回全开）。
 ///
@@ -28,12 +28,14 @@ String _projectRoot() {
 }
 
 /// 阶段 4 **已收紧**的能力点（其余免费能力必须与 premium 等价）。
+/// C80：`titlePerks`（称号专属属性）加入收紧集 —— 本仓**第一个真实生效的布尔收紧键**。
 const Set<FeatureKey> _tightenedInPhase4 = <FeatureKey>{
   FeatureKey.oneClickCare,
   FeatureKey.gardenPotCapacity,
   FeatureKey.taskTemplateCount,
   FeatureKey.rewardTemplateCount,
   FeatureKey.deepReport,
+  FeatureKey.titlePerks,
 };
 
 void main() {
@@ -62,11 +64,13 @@ void main() {
     });
 
     test('「已收紧」能力点的免费边界 = 声明值（防放回全开）', () {
-      // 一键操作 / 深度报告：free 关闭。
+      // 一键操作 / 深度报告 / C80 称号属性：free 关闭。
       expect(featureAllowedFor(FeatureKey.oneClickCare, EntitlementTier.free),
           isFalse);
       expect(featureAllowedFor(FeatureKey.deepReport, EntitlementTier.free),
           isFalse);
+      expect(featureAllowedFor(FeatureKey.titlePerks, EntitlementTier.free),
+          isFalse, reason: 'C80：free 不享 9 条称号专属属性（currentPerk → none）');
       // 花盆 / 任务 / 奖励：free 有额度上限，premium 更宽。
       expect(featureQuotaFor(FeatureKey.gardenPotCapacity, EntitlementTier.free),
           kFreeGardenPotQuota);

@@ -45,13 +45,13 @@ class SettingsLocalRepository implements SettingsRepository {
       quietMode: row.quietMode,
       soundOn: row.soundOn,
       bgmOn: row.bgmOn,
-      detectionOn: row.detectionOn,
       autoConfirmSingleHigh: row.autoConfirmSingleHigh,
       autoConfirmSingleLow: row.autoConfirmSingleLow,
       autoConfirmMonthlyPct: row.autoConfirmMonthlyPct,
       currencyRate: row.currencyRate,
       themeDark: row.themeDark,
-      autonomousMode: row.autonomousMode,
+      // C79（2026-10-15）：`detectionOn` / `autonomousMode` 已随死开关清理删除
+      //  （schemaVersion 25 DROP COLUMN）；旧库两列由迁移幂等删除，读回不再映射。
       // C28：护眼三项（口径裁定表 v1 C28 §4）。老库由 v15 迁移幂等补列并落默认值，
       // 这里直接取列值即可（若列缺失会因 schema 不一致抛错，属必配迁移未跑，不该静默兜底）。
       eyeCareEnabled: row.eyeCareEnabled,
@@ -78,13 +78,11 @@ class SettingsLocalRepository implements SettingsRepository {
         quietMode: Value(s.quietMode),
         soundOn: Value(s.soundOn),
         bgmOn: Value(s.bgmOn),
-        detectionOn: Value(s.detectionOn),
         autoConfirmSingleHigh: Value(s.autoConfirmSingleHigh),
         autoConfirmSingleLow: Value(s.autoConfirmSingleLow),
         autoConfirmMonthlyPct: Value(s.autoConfirmMonthlyPct),
         currencyRate: Value(s.currencyRate),
         themeDark: Value(s.themeDark),
-        autonomousMode: Value(s.autonomousMode),
         eyeCareEnabled: Value(s.eyeCareEnabled),
         eyeCareIntervalMin: Value(s.eyeCareIntervalMin),
         eyeCareSkipAllowed: Value(s.eyeCareSkipAllowed),

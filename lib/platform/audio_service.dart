@@ -514,6 +514,11 @@ class AudioService {
     final int gen = ++_sfxGeneration;
     // 本次请求是否已过期（已有更新的请求发起过）——过期一律让位，**绝不**再碰播放器。
     bool stale() => gen != _sfxGeneration;
+    // 🔴 C82 真机日志：养护 cue 被随后发起的成长 cue「静默作废」是「有动画没声音」的机制，
+    //    故把「作废点」全部日志化（release 下 _adbg 直接短路，零噪声）。
+    _adbg('sfx', 'begin gen=$gen paths=$paths');
+    void abandon(String stage) =>
+        _adbg('sfx', 'abandon gen=$gen @$stage（已被更新的 SFX 超越）now=$_sfxGeneration');
 
     final AudioPlayer? player = await _sfx;
     if (player == null) return; // 播放器构造失败：静默降级
@@ -535,21 +540,40 @@ class AudioService {
     // 外层 = 重试轮次；内层 = 候选回退（C59：物种专属 → 通用兜底）。
     for (int round = 0; round < 2; round++) {
       if (round > 0) {
-        if (stale()) return;
+        if (stale()) {
+          abandon('retry-round');
+          return;
+        }
         await Future<void>.delayed(const Duration(milliseconds: 600));
-        if (stale()) return;
+        if (stale()) {
+          abandon('retry-delay');
+          return;
+        }
       }
       for (final String path in paths) {
-        if (stale()) return;
+        if (stale()) {
+          abandon('before-path');
+          return;
+        }
         try {
           // 每个 `await` 之后都重新比对代际：中途被更新的请求超越 → 立刻让位退出，
           // 既不把对方掐断，也不白播（F116）。
           await player.stop();
-          if (stale()) return;
+          if (stale()) {
+            abandon('after-stop');
+            return;
+          }
           await player.setAsset(path);
-          if (stale()) return;
+          _adbg('sfx', 'loaded gen=$gen path=$path');
+          if (stale()) {
+            abandon('after-setAsset');
+            return;
+          }
           await player.seek(Duration.zero);
-          if (stale()) return;
+          if (stale()) {
+            abandon('after-seek');
+            return;
+          }
           // D1 同款（玄参 2026-10-07 真机日志锁定）：**绝不 await `player.play()`**——
           // just_audio 0.9.46 的 `play()` 返回的 Future 只在 pause / stop / 播完时才完成，
           // `await` 它会挂到**整段播完**（护眼配音 63.97s 就挂 64 秒）。改为「发起播放
@@ -557,7 +581,10 @@ class AudioService {
           // 正常起播时**首次检查即命中、零延迟**；未起播才轮到 20ms × ≤10 的轮询）。
           unawaited(player.play());
           final bool started = await _pollPlaybackStarted(player);
-          if (stale()) return;
+          if (stale()) {
+            abandon('after-play');
+            return;
+          }
           if (started) return; // 确已起播 → 成功返回（F116-C：不再「发起即认为成功」）
           _adbg('sfx', 'not started（有限轮询未起播）→ 试下一候选 / 下一轮: $path');
         } catch (_) {

@@ -70,6 +70,46 @@ import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 
+/// 花园页真机诊断日志统一 tag（`[GARDENFX][毫秒时间戳][位置] 内容`）。
+///
+/// 与 `audio_service.dart` 的 `_kAmbientDiagTag` 同风格：**仅 `kDebugMode` 打印**，
+/// release 包零噪声。用途 = 玄参下一轮真机复测时，凭日志判定一次养护动作里
+/// 「养护动效/音效走了哪条分支」「成长演出被请求了几次、闸门怎么变」「SFX 是否被作废」。
+///
+/// ⚠️ 用 [debugPrint]：`flutter test` 会把它指向 `debugPrintSynchronously`
+/// （不挂节流 Timer），FakeAsync widget 测试里也不会留下 pending timer。
+const String _kGardenFxDiagTag = 'GARDENFX';
+
+/// 打印一行花园页诊断日志（**仅 `kDebugMode`**，release 包零噪声）。
+void _gfxDbg(String where, String msg) {
+  if (!kDebugMode) return;
+  debugPrint(
+      '[$_kGardenFxDiagTag][${DateTime.now().millisecondsSinceEpoch}][$where] $msg');
+}
+
+/// 养护动效浮层 / 成长演出浮层的**稳定 Key**（C82）。
+///
+/// ## 真要防的 bug（玄参 2026-10-16 小米真机「盛开帧播两次」）
+/// 根 Stack 的 children 里，两个浮层都是**条件渲染**。当「养护动效 `_activeEffect` 结束置
+/// null」把 `CareEffectOverlay` 从 children 移除时，后面所有兄弟**整体前移一位**；
+/// `GrowthFxOverlay` 于是落到原先 `CareEffectOverlay` 的 index 上——**若两处浮层都没有 Key**，
+/// 两个 `Positioned` 同类型 → `Widget.canUpdate`（同 runtimeType 且同 key）在 `null==null`
+/// 下**误命中** → **原地复用**该元素、只换 child → 子类型 `CareEffectOverlay → GrowthFxOverlay`
+/// 不匹配 → 旧的 GrowthFxOverlay 元素被卸载、**新建 State** → 一次性动画从第 0 帧**重放**
+/// = 真机看到的「播两次」。
+///
+/// ## 实测边界（QA 复核 B，隔离副本删 Key 复跑；**勿再重推**）
+///  · **M1** 只删成长 Key（保留养护 Key）→ 🟢 3/3 仍绿；
+///  · **M1b** 只删养护 Key（保留成长 Key）→ 🟢 仍绿；
+///  · **M1c** **两把 Key 全删** → 🔴 `Expected<1>/Actual<2>`（两次 `initState` = remount）。
+/// ⇒ **任一方带独立 Key 即可断开位置匹配链**：顶对齐在该 index 因 key 不匹配而停，改由
+/// **自底向上**按 (类型+key) 匹配 → `GrowthFxOverlay` 元素被保住；**只有两把都缺**才会原地
+/// 复用 → remount。故两把 Key 都保留，作**双保险**（单把已足够，见上）。
+const Key _kCareEffectOverlayKey = ValueKey<String>('gardenCareEffectOverlay');
+
+/// 成长过渡演出浮层的稳定 Key（C82；机制与实测边界见 [_kCareEffectOverlayKey] 的说明）。
+const Key _kGrowthFxOverlayKey = ValueKey<String>('gardenGrowthFxOverlay');
+
 /// 孩子端花园：植物养成主界面。
 ///
 /// [embedded] = true 时作为孩子端「花园」tab 的内容渲染（不叠加独立 Scaffold/AppBar，
@@ -819,14 +859,22 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   }) {
     final BuildContext? potCtx = _potKey(potIndex).currentContext;
     final BuildContext? stackCtx = _pageStackKey.currentContext;
+    _gfxDbg('CAREFX',
+        'entry pot=$potIndex type=${type.name} potCtx=${potCtx != null} stackCtx=${stackCtx != null} mounted=$mounted');
     if (potCtx == null || stackCtx == null || !mounted) {
       // 拿不到坐标（极端情况）也要保证业务收尾不丢：直接执行并退出。
+      // 🔴 早退分支①：拿不到花盆/页面 Stack 的 context（无动效、无音效，仅业务收尾）。
+      _gfxDbg('CAREFX',
+          'EARLY-RETURN-① context 缺失 → 跳过动效与音效 pot=$potIndex type=${type.name}');
       onFinished?.call();
       return;
     }
     final RenderBox? potBox = potCtx.findRenderObject() as RenderBox?;
     final RenderBox? stackBox = stackCtx.findRenderObject() as RenderBox?;
     if (potBox == null || stackBox == null) {
+      // 🔴 早退分支②：RenderBox 缺失。
+      _gfxDbg('CAREFX',
+          'EARLY-RETURN-② RenderBox 缺失 → 跳过动效与音效 pot=$potIndex type=${type.name}');
       onFinished?.call();
       return;
     }
@@ -834,7 +882,12 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     final Plant? plant = _occupantOf(potIndex);
     final PlantSpecies? species =
         plant == null ? null : _speciesOf(plant);
-    if (!mounted) return;
+    if (!mounted) {
+      // 🔴 早退分支③：坐标换算后组件已卸载。
+      _gfxDbg('CAREFX',
+          'EARLY-RETURN-③ 坐标换算后已卸载 → 跳过动效与音效 pot=$potIndex type=${type.name}');
+      return;
+    }
     final List<String> frames;
     final int durationMs;
     final AudioCue cue;
@@ -856,6 +909,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         durationMs = kCarePestDurationMs;
         cue = AudioCue.carePest;
     }
+    _gfxDbg('CAREFX',
+        'play careSound pot=$potIndex type=${type.name} cue=${cue.name} → ${cue.assetPath}');
     AudioService.instance.playSfx(cue);
     setState(() => _activeEffect = _CareEffectSpec(
           type: type,
@@ -908,7 +963,25 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         t = GrowTransition.adultToBloomed;
       }
       if (t != null) {
-        _playGrowthFx(t, growSpeciesDir(p.speciesId));
+        // 「同一动作」判定（C82）：养护动作可能同时触发成长跃迁——
+        //  · 浇水 / 施肥把枯萎的盛开成株**救活** → `wilting → bloomed`（救活回跳）；
+        //  · 浇水 / 施肥把幼苗推进成株 → `sprout → adult`。
+        // 这两种情况下，**同一个动作已经播了养护音效**，若再发起成长音效，会因 SFX 只有
+        // 一个共享播放器、口径「后发起者赢」（F116）把先发起的养护音效**静默作废**
+        // （真机「有动画没声音」）。故此时**不播成长音效**、保留该动作本来的养护音效；
+        // 演出动画照常播放。判定 = 救活回跳 || 养护动效正屏上（同一动作）。
+        final bool recoveryReEntry = prevStatus == PlantStatus.wilting.name;
+        // 「同一动作」= 本株的养护动效正屏上（其音效已随同一动作发起）→ 不再发起成长音效。
+        // 用 `plant.id` 对齐，避免「A 株养护动效在屏时误伤 B 株的自然成长音效」。
+        final bool sameActionCareSound =
+            recoveryReEntry || (_activeEffect?.plant?.id == p.id);
+        _gfxDbg('GROWTHFX',
+            'detect plant=${p.id} $before → ${current[p.id]} → transition=${t.name} bloomCount=${p.bloomCount} recoveryReEntry=$recoveryReEntry sameActionCareSound=$sameActionCareSound');
+        _playGrowthFx(
+          t,
+          growSpeciesDir(p.speciesId),
+          playGrowthSfx: !sameActionCareSound,
+        );
         return; // 一帧只播一场演出
       }
     }
@@ -922,18 +995,47 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 2026-10-12 五物种接入：帧列表按 [speciesDir] 从 AssetManifest 异步实测
   /// （各组帧数 25~27 不同；缺失回退 sunflower），解析完再上屏。
   /// 2026-10-13 音效按物种（口径 C59）：两级回退「物种专属 → 通用兜底」（[_growthCue] 给兜底路径）。
-  void _playGrowthFx(GrowTransition transition, String speciesDir) {
+  ///
+  /// [playGrowthSfx]（C82 玄参 2026-10-16 小米真机「养护音效全无」）：是否播放成长音效。
+  /// 养护动作（浇水 / 施肥）把枯萎的盛开成株**救活**时会顺带触发一次 `adultToBloomed`
+  /// 演出（域层 `wilting → growing → bloomed` 两跳）；但**同一动作已经播了养护音效**，
+  /// 而 SFX 全局只有一个共享播放器、口径「后发起者赢」（F116）→ 后发起的成长音效会把
+  /// **先发起的养护音效静默作废**（真机「有动画没声音」）。故「救活回跳」这一次演出**不播**
+  /// 成长音效、保留该动作本来的养护音效；真正的成长升级（种子→幼苗 / 幼苗→成株 /
+  /// 首次开花 / 自然复开花）不受影响，照常播成长音效。
+  ///
+  /// ⚠️ v1 曾加「按跃迁身份 token 去重」（`'${plant.id}:${transition.name}:${bloomCount}'`）
+  /// 作第二道防线，但**实测无法构造任何触发路径**（除 `_growthFxInFlight` 闸门外，同一株的
+  /// 同一 `transition` 必然伴随 `bloomCount` 变化 → token 恒不同；且 `_lastPhases` 只会前进、
+  /// 不会让同一跃迁被 diff 出第二次）→ 经 team-lead 复核确认是**零覆盖死代码**，已移除。
+  void _playGrowthFx(
+    GrowTransition transition,
+    String speciesDir, {
+    bool playGrowthSfx = true,
+  }) {
     if (!mounted) return;
     // ⚠️ 去重闸门（2026-10-13 玄参实测「开花动画播了两次」）：同一个阶段跃迁可能被
     // 多条刷新路径各观测一次，若两次都上屏就会重播。演出是幂等的 → 在飞/在屏期间
     // 一律忽略后续请求（口径「一帧只播一场演出」）。
-    if (_growthFxInFlight) return;
+    if (_growthFxInFlight) {
+      _gfxDbg('GROWTHFX',
+          'BLOCKED by in-flight 闸门 transition=${transition.name}（演出进行中，忽略本次请求）');
+      return;
+    }
+    _gfxDbg('GROWTHFX',
+        'play requested transition=${transition.name} dir=$speciesDir playSfx=$playGrowthSfx inFlight(旧)=false → 置位 true');
     _growthFxInFlight = true;
-    AudioService.instance.playSfxPaths(growSfxAssetCandidates(
-      transition,
-      speciesDir,
-      _growthCue(transition).assetPath,
-    ));
+    if (playGrowthSfx) {
+      AudioService.instance.playSfxPaths(growSfxAssetCandidates(
+        transition,
+        speciesDir,
+        _growthCue(transition).assetPath,
+      ));
+    } else {
+      // 同一动作已播养护音效 → 不再发起成长音效（避免共享播放器互相作废）。
+      _gfxDbg('GROWTHFX',
+          'SKIP growth SFX（同一动作保留养护音效）transition=${transition.name}');
+    }
     unawaited(() async {
       try {
         final List<String> frames =
@@ -946,6 +1048,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             ));
       } catch (_) {
         // 帧解析异常（资源缺失等）：解除闸门，避免后续演出被永久挡住。
+        _gfxDbg('GROWTHFX',
+            'resolveGrowFxAssets 异常 → 闸门复位 false transition=${transition.name}');
         _growthFxInFlight = false;
         rethrow;
       }
@@ -1861,8 +1965,20 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                 child: BloomDebugEntry(onTap: _openDebugPanel),
               ),
             // 养护成功动效：精确摆到对应花盆格之上（效果帧叠加 + 音频），有限时长，结束自移除。
+            //
+            // 🔴 C82 关键修复（玄参 2026-10-16 小米真机「盛开动画播两次」的真因）：本 Stack 的
+            //    children 是按**位置**（index）做元素复用的，而上面几个浮层是**条件渲染**的。
+            //    「养护动效 `_activeEffect` 结束置 null」会把它从 children 里移除 → 后面所有
+            //    兄弟节点**整体前移一位** → [GrowthFxOverlay] 落到原先 [CareEffectOverlay] 的
+            //    index 上。**若两处浮层都无 Key**：同为 `Positioned`、`canUpdate` 在
+            //    `null==null` 下为 true → **原地复用**该元素、只换 child → 子类型不匹配 →
+            //    旧 GrowthFxOverlay 元素被卸载、**新建 State** → 动画从第 0 帧**重放**（播两次）。
+            //    修法：两处浮层各加**稳定 Key**（`_kCareEffectOverlayKey` / `_kGrowthFxOverlayKey`）。
+            //    ⚠️ 实测边界（QA 复核 B）：**任一把 Key 在位即可断链**（顶对齐因 key 不匹配提前
+            //    停止，改走自底向上匹配 → GrowthFx 元素被保住）；**两把都缺**才 remount。两把都留。
             if (_activeEffect != null)
               Positioned(
+                key: _kCareEffectOverlayKey,
                 left: _activeEffect!.offset.dx,
                 top: _activeEffect!.offset.dy,
                 width: _activeEffect!.size.width,
@@ -1886,8 +2002,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
               ),
             // 成长过渡演出（玄参 2026-09-29 改口径）：**屏幕中央焦点卡片**内放大播放
             // 序列帧 + 成长音频，播完整卡淡出（组件内部处理），结束自移除。
+            // 🔴 C82：稳定 Key（见上方养护动效处的说明）——防「养护动效进出导致本演出被 remount 重播」。
             if (_activeGrowth != null)
               Positioned.fill(
+                key: _kGrowthFxOverlayKey,
                 child: GrowthFxOverlay(
                   frames: _activeGrowth!.frames,
                   durationMs: _activeGrowth!.transition.durationMs,
@@ -1899,8 +2017,12 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                         _activeGrowth = null;
                         _growthFxInFlight = false;
                       });
+                      _gfxDbg('GROWTHFX',
+                          'onComplete → _activeGrowth=null, 闸门复位 false');
                     } else {
                       _growthFxInFlight = false;
+                      _gfxDbg('GROWTHFX',
+                          'onComplete(已卸载) → 闸门复位 false');
                     }
                   },
                 ),

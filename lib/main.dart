@@ -12,6 +12,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sunflower_time/app.dart';
 import 'package:sunflower_time/bootstrap.dart';
+import 'package:sunflower_time/core/constants/build_flags.dart';
+import 'package:sunflower_time/core/constants/iap_product_ids.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/data/local/repositories/reward_seed.dart';
@@ -105,6 +107,17 @@ Future<void> main() async {
 /// ⚠️ 抽成**顶层函数**（而非内联在 `main()`）以便被
 /// `test/qa/cold_start_entitlement_test.dart` 直接单测；行为与内联版逐字一致。
 Future<void> hydrateEntitlement(ProviderContainer container) async {
+  // 内部验收包（`--dart-define=FORCE_UNLOCK_ALL=true`）：跳过票据读取，直接注入
+  // 永久会员，供自家设备验收付费区。默认构建该常量为 false → 正式包行为逐字不变。
+  // 🔴 不写库：是否会员只由「构建时带没带 define」决定，卸载重装不会改变。
+  if (kForceUnlockAll) {
+    container.read(entitlementProvider.notifier).state = Entitlement.lifetime(
+      acquiredAt: DateTime(2026, 10, 17),
+      productId: kIapProductIdLifetime,
+    );
+    debugPrint('[entitlement] FORCE_UNLOCK_ALL 生效：本次启动按永久会员运行');
+    return;
+  }
   try {
     final Entitlement entitlement =
         await container.read(entitlementServiceProvider).load();

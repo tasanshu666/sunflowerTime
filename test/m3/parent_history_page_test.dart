@@ -15,6 +15,10 @@
 ///  · 因此凡是**需要看月 / 年**的用例，容器必须注入买断权益（[premium] = true）；
 ///    只跑日 / 周的用例保持默认免费档（顺带覆盖「默认 = 免费」这条真路径）。
 ///
+/// C89 追加（2026-10-17，闰年测试硬化）：
+///  · 年视图夹具落在 **2028（闰年）**，含 2 月 29 日与 12 月 31 日两个极端日期 ——
+///    「加 365 天」类定长推算在此夹具下必红（2026 夹具与非闰年下两算法同解，抓不住）。
+///
 /// 说明：为了确定性，页面注入 `now = 2026-10-10 20:00`（周六，本周为 10-05 ~ 10-11）。
 /// 只覆盖历史页本身所需的 Provider，其余本页不读，故不注入。
 library parent_history_page_test;
@@ -676,5 +680,39 @@ void main() {
     expect(find.text('2026年10月5日 ～ 10月11日'), findsOneWidget);
     expect(find.text('完成 2 次'), findsOneWidget);
     expect(find.text('升级解锁'), findsNothing);
+  });
+
+  testWidgets('C89 闰年夹具：年视图必须含 2 月 29 日与 12 月 31 日',
+      (WidgetTester tester) async {
+    // 🔴 夹具故意落在 **2028（闰年）**：2028-01-01 + 365 天 = 2028-12-31，
+    // 半开区间 [start, end) 会把 12-31 排除在外 —— 若有人把年终点改回
+    // `Duration(days: 365)` 定长推算，本例必红（现行 2026 夹具抓不住）。
+    final _FakeTaskRepository taskRepo = _FakeTaskRepository(
+      tasks_: const <Task>[_taskRead],
+      checkIns: <CheckIn>[
+        _verified('c1', 't_read', DateTime(2028, 2, 29, 9)), // 闰日
+        _verified('c2', 't_read', DateTime(2028, 12, 31, 21)), // 年末日
+      ],
+    );
+
+    await _pump(
+      tester,
+      _overrides(
+        taskRepo: taskRepo,
+        rewardRepo: _FakeRewardRepository(),
+        premium: true,
+      ),
+      now: DateTime(2028, 12, 31, 23),
+    );
+    await _switchToActivity(tester);
+
+    await tester.tap(find.text('年'));
+    await tester.pumpAndSettle();
+
+    // 闰日 + 年末日都在同一年视图内：起点算术含 2-29、终点算术含 12-31。
+    expect(find.text('2028 年'), findsOneWidget);
+    expect(find.text('完成 2 次'), findsOneWidget);
+    expect(find.text('共 2 次'), findsOneWidget);
+    expect(find.text('首次 2028-02-29 ～ 最近 2028-12-31'), findsOneWidget);
   });
 }

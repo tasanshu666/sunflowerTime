@@ -238,6 +238,20 @@ void main() {
       expect(DateTime(2026, 12, 31, 23, 59).isBefore(end), isTrue);
     });
 
+    test('年（C89 闰年 2028）：含 2 月 29 日与 12 月 31 日，不含 2029-01-01', () {
+      // 🔴 锚点故意落在闰年：若把年终点改回 `Duration(days: 365)` 定长推算，
+      // end = 2028-12-31 → 12-31 23:59 不再早于 end，本例必红。
+      final DateTime anchor = DateTime(2028, 12, 31, 23, 59);
+      final DateTime start = ReportPeriod.year.startOf(anchor);
+      final DateTime end = ReportPeriod.year.endOf(anchor);
+
+      expect(start, DateTime(2028, 1, 1));
+      expect(end, DateTime(2029, 1, 1));
+      expect(DateTime(2028, 2, 29).isBefore(end), isTrue);
+      expect(DateTime(2028, 12, 31, 23, 59).isBefore(end), isTrue);
+      expect(DateTime(2029, 1, 1).isBefore(end), isFalse);
+    });
+
     test('周：周一为始；周日锚点回落到本周一（C55）', () {
       final DateTime sunday = DateTime(2026, 10, 4, 18, 30);
       expect(sunday.weekday, DateTime.sunday);

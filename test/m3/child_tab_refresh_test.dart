@@ -17,6 +17,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 
@@ -220,6 +221,42 @@ void main() {
     );
     expect(kChildTabCount, 5);
   });
+
+  // ── C90 期 2：孩子档案修订号触发（家长端切孩子 → 统一刷，不要求可见）────
+  group('ChildTabAutoRefresh · C90 期 2 修订号触发', () {
+    testWidgets('修订号变化 → 可见的 tab 刷新', (WidgetTester tester) async {
+      final _Harness h = _Harness(tester);
+      await h.mount(initialTab: kChildTabIndexOfGarden);
+      expect(h.calls, 0);
+
+      h.bumpChildProfileRevision();
+      await tester.pump();
+      expect(h.calls, 1,
+          reason: 'C90 期 2：家长端切换/新建/编辑/删除孩子 → 修订号自增 → 必须重读'
+              '（数据源已按孩子隔离，不刷 = 上个孩子的快照）');
+    });
+
+    testWidgets('⚠️ 不可见的 tab 也刷新（IndexedStack 隐藏页也在台上，统一换数据源）',
+        (WidgetTester tester) async {
+      final _Harness h = _Harness(tester);
+      await h.mount(initialTab: kChildTabIndexOfToday); // 花园隐藏
+      expect(h.calls, 0);
+
+      h.bumpChildProfileRevision();
+      await tester.pump();
+      expect(h.calls, 1,
+          reason: '这是 mixin「刻意不覆盖不可见 tab」纪律的唯一例外（C90 期 2 拍板）');
+    });
+
+    testWidgets('修订号不变 → 不刷', (WidgetTester tester) async {
+      final _Harness h = _Harness(tester);
+      await h.mount(initialTab: kChildTabIndexOfGarden);
+
+      h.goTab(kChildTabIndexOfStore); // 切走（不触发修订号）
+      await tester.pump();
+      expect(h.calls, 0);
+    });
+  });
 }
 
 /// 只挂 [ChildTabAutoRefresh] 的探针页：把「刷新被调用」记进 [_Harness.calls]。
@@ -294,6 +331,10 @@ class _Harness {
 
   void goTab(int index) =>
       container.read(childShellTabIndexProvider.notifier).state = index;
+
+  /// 模拟家长端切换 / 新建 / 编辑 / 删除孩子（C90 期 1：修订号自增）。
+  void bumpChildProfileRevision() =>
+      container.read(childProfileRevisionProvider.notifier).state++;
 
   /// 模拟「退后台 → 回前台」。
   ///

@@ -1,17 +1,28 @@
 /// 本地阳光账本仓储（实现 domain 接口，§2.1 / §3.2）。
+///
+/// C90 期 2：数据按「当前孩子」隔离 —— 写入落 [AccountService.childId]，读取
+/// 全口径按 childId 过滤。🔴 仓储接口签名一律不变（过滤在实现内部完成）；
+/// [AccountService] 可选（null → 按 kChildIdDefault，既有单测零改动）。
 library sunlight_local_repository;
 
 import 'package:drift/drift.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/domain/services/account_service.dart';
 
 class SunlightLocalRepository implements SunlightRepository {
   final AppDatabase _db;
+  final AccountService? _account;
 
-  SunlightLocalRepository(this._db);
+  SunlightLocalRepository(this._db, {AccountService? account})
+      : _account = account;
+
+  /// 当前孩子的 childId（C90 期 2：写入落标 + 读取过滤统一收口）。
+  String get _childId => _account?.childId ?? kChildIdDefault;
 
   @override
   Future<double> append(SunlightEntry entry) async {
@@ -26,19 +37,22 @@ class SunlightLocalRepository implements SunlightRepository {
         refType: Value(entry.refType),
         refId: Value(entry.refId),
         dayKey: Value(entry.dayKey),
+        childId: Value(_childId),
       ),
+      childId: _childId,
     );
     // 余额 = 已存余额 + 本次 net（append-only 账本）。
-    final prev = await _db.sunlightLedgerDao.balance();
+    final prev = await _db.sunlightLedgerDao.balance(childId: _childId);
     return prev; // 注：balance() 已含刚插入行；此返回值供上层参考
   }
 
   @override
-  Future<double> balance() => _db.sunlightLedgerDao.balance();
+  Future<double> balance() => _db.sunlightLedgerDao.balance(childId: _childId);
 
   @override
   Future<List<SunlightEntry>> all() async {
-    final List<SunlightLedger> rows = await _db.sunlightLedgerDao.allDesc();
+    final List<SunlightLedger> rows =
+        await _db.sunlightLedgerDao.allDesc(childId: _childId);
     return rows.map((SunlightLedger r) => SunlightEntry(
       id: r.id,
       ts: r.ts,
@@ -53,27 +67,30 @@ class SunlightLocalRepository implements SunlightRepository {
   }
 
   @override
-  Future<double> dayNet(String dayKey) => _db.sunlightLedgerDao.dayNet(dayKey);
+  Future<double> dayNet(String dayKey) =>
+      _db.sunlightLedgerDao.dayNet(dayKey, childId: _childId);
 
   @override
   Future<double> earnGrossOnDay(String dayKey) =>
-      _db.sunlightLedgerDao.sumEarnGrossOnDay(dayKey);
+      _db.sunlightLedgerDao.sumEarnGrossOnDay(dayKey, childId: _childId);
 
   @override
   Future<double> earnNetOnDay(String dayKey) =>
-      _db.sunlightLedgerDao.sumEarnNetOnDay(dayKey);
+      _db.sunlightLedgerDao.sumEarnNetOnDay(dayKey, childId: _childId);
 
   @override
   Future<double> verifiedRedeemTotal() =>
-      _db.sunlightLedgerDao.verifiedRedeemTotal();
+      _db.sunlightLedgerDao.verifiedRedeemTotal(childId: _childId);
 
   @override
   Future<double> netByRefTypeOnDay(String refType, String dayKey) =>
-      _db.sunlightLedgerDao.sumNetByRefTypeDay(refType, dayKey);
+      _db.sunlightLedgerDao.sumNetByRefTypeDay(refType, dayKey,
+          childId: _childId);
 
   @override
   Future<double> netByRefTypeInMonth(String refType, String monthKey) =>
-      _db.sunlightLedgerDao.sumNetByRefTypeMonth(refType, monthKey);
+      _db.sunlightLedgerDao.sumNetByRefTypeMonth(refType, monthKey,
+          childId: _childId);
 
   @override
   Future<int> countByRefTypeAndRefIdOnDay(
@@ -81,7 +98,8 @@ class SunlightLocalRepository implements SunlightRepository {
     String refId,
     String dayKey,
   ) =>
-      _db.sunlightLedgerDao.countByRefTypeAndRefIdOnDay(refType, refId, dayKey);
+      _db.sunlightLedgerDao.countByRefTypeAndRefIdOnDay(refType, refId, dayKey,
+          childId: _childId);
 
   @override
   Future<int> countByRefTypeAndRefIdSince(
@@ -89,13 +107,15 @@ class SunlightLocalRepository implements SunlightRepository {
     String refId,
     DateTime since,
   ) =>
-      _db.sunlightLedgerDao.countByRefTypeAndRefIdSince(refType, refId, since);
+      _db.sunlightLedgerDao.countByRefTypeAndRefIdSince(refType, refId, since,
+          childId: _childId);
 
   @override
   Future<int> countByRefType(String refType) =>
-      _db.sunlightLedgerDao.countByRefType(refType);
+      _db.sunlightLedgerDao.countByRefType(refType, childId: _childId);
 
   @override
   Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) =>
-      _db.sunlightLedgerDao.lastTsByRefTypeAndRefId(refType, refId);
+      _db.sunlightLedgerDao.lastTsByRefTypeAndRefId(refType, refId,
+          childId: _childId);
 }

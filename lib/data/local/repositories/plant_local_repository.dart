@@ -6,6 +6,7 @@ library plant_local_repository;
 
 import 'package:drift/drift.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart' as db;
 import 'package:sunflower_time/data/local/plant_seed.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -14,30 +15,42 @@ import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
+import 'package:sunflower_time/domain/services/account_service.dart';
 
 /// 本地植物仓储：实现植物实例读写（[PlantRepository]）与成株后循环玩法 Batch 1 的
 /// 奖励账目（[BloomRewardRepository]），二者共用同一 `AppDatabase`。
+///
+/// C90 期 2：植物数据按「当前孩子」隔离 —— 写入落 [AccountService.childId]，读取
+/// 按 childId 过滤（花园只推进当前孩子的植物，PlantGrowthService.tickAll 同此口径）。
+/// 🔴 仓储接口签名一律不变（过滤在实现内部完成）；[AccountService] 可选
+///（null → 按 kChildIdDefault，既有单测零改动）。
 class PlantLocalRepository implements PlantRepository, BloomRewardRepository {
   final db.AppDatabase _db;
+  final AccountService? _account;
 
-  PlantLocalRepository(this._db);
+  PlantLocalRepository(this._db, {AccountService? account})
+      : _account = account;
+
+  /// 当前孩子的 childId（C90 期 2：写入落标 + 读取过滤统一收口）。
+  String get _childId => _account?.childId ?? kChildIdDefault;
 
   @override
   Future<List<Plant>> plants() async =>
-      (await _db.plantDao.all()).map(_toPlant).toList();
+      (await _db.plantDao.all(childId: _childId)).map(_toPlant).toList();
 
   @override
   Future<Plant?> plant(String id) async {
-    final db.Plant? row = await _db.plantDao.byId(id);
+    final db.Plant? row = await _db.plantDao.byId(id, childId: _childId);
     return row == null ? null : _toPlant(row);
   }
 
   @override
   Future<void> savePlant(Plant plant) =>
-      _db.plantDao.upsert(_toCompanion(plant));
+      _db.plantDao.upsert(_toCompanion(plant), childId: _childId);
 
   @override
-  Future<void> deletePlant(String id) => _db.plantDao.deleteById(id);
+  Future<void> deletePlant(String id) =>
+      _db.plantDao.deleteById(id, childId: _childId);
 
   @override
   Future<List<PlantSpecies>> species() async => kSeedPlantSpecies;

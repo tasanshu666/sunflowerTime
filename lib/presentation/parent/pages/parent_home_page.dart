@@ -17,8 +17,10 @@
 library parent_home_page;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_today_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_reward_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page.dart';
@@ -69,6 +71,56 @@ class _ParentHomePageState extends State<ParentHomePage> {
     }
   }
 
+  /// 5 tab 保活栈（C90 期 2：按孩子档案修订号整组重挂载）。
+  ///
+  /// [childProfileRevisionProvider] 变化（家长切换 / 新建 / 编辑 / 删除孩子成功）
+  /// → 五个 KeyedSubtree 的 key 全换 → IndexedStack 整组 tab **卸载重建** =
+  /// 各页 `initState → _reload()` 全量重读当前孩子的数据（期 2 起数据已按孩子
+  /// 隔离，防「切完孩子还是上个孩子的快照」）。
+  ///
+  /// ⚠️ 取舍（拍板口径）：切孩子是**低频**动作，整组重挂载会丢各 tab 的滚动位 /
+  /// 输入态 —— 可接受，换来五个页面数据源一次换净；不做逐页 listenManual 改造
+  ///（5 个页面一个都不碰，改动面最小）。日常切 tab（修订号不变）仍是原样保活。
+  Widget _buildIndexedStack() {
+    return Consumer(
+      builder: (BuildContext context, WidgetRef ref, _) {
+        final int revision = ref.watch(childProfileRevisionProvider);
+        // key 带 tab 后缀（同级 children 的 key 必须唯一，防 debug 断言
+        // 「Duplicate keys found」）；五个 key 共享同一 revision 段，
+        // 修订号一变即整组换 key → 全量重挂载。
+        return IndexedStack(
+          index: _index,
+          children: <Widget>[
+            KeyedSubtree(
+              key: ValueKey<String>('c90-child-$revision-today'),
+              child: const ParentTodayPage(),
+            ),
+            KeyedSubtree(
+              key: ValueKey<String>('c90-child-$revision-reward'),
+              child: const ParentRewardPage(),
+            ),
+            // 任务 tab 复用任务配置页的 embedded 形态（不叠加第二层 AppBar；
+            // 返回栈仍由本页 AppBar / 系统返回键统一处理）。
+            KeyedSubtree(
+              key: ValueKey<String>('c90-child-$revision-task'),
+              child: const ParentTaskConfigPage(embedded: true),
+            ),
+            // C54：记录 tab（C76：分段承载「专注报告」+「任务与奖励」）。
+            // 带参直达时把 initialSegment 透传给记录页。
+            KeyedSubtree(
+              key: ValueKey<String>('c90-child-$revision-history'),
+              child: ParentHistoryPage(initialSegment: widget.initialSegment),
+            ),
+            KeyedSubtree(
+              key: ValueKey<String>('c90-child-$revision-settings'),
+              child: const ParentSettingsPage(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 家长端首页是路由栈底（登录用 go 替换了栈），Android 系统返回键在此会直接
@@ -100,22 +152,7 @@ class _ParentHomePageState extends State<ParentHomePage> {
           body: Column(
             children: <Widget>[
               const ChildProfileBar(),
-              Expanded(
-                child: IndexedStack(
-                  index: _index,
-                  children: <Widget>[
-                    const ParentTodayPage(),
-                    const ParentRewardPage(),
-                    // 任务 tab 复用任务配置页的 embedded 形态（不叠加第二层 AppBar；
-                    // 返回栈仍由本页 AppBar / 系统返回键统一处理）。
-                    const ParentTaskConfigPage(embedded: true),
-                    // C54：记录 tab（C76：分段承载「专注报告」+「任务与奖励」）。
-                    // 带参直达时把 initialSegment 透传给记录页。
-                    ParentHistoryPage(initialSegment: widget.initialSegment),
-                    const ParentSettingsPage(),
-                  ],
-                ),
-              ),
+              Expanded(child: _buildIndexedStack()),
             ],
           ),
           // C61 平板适配：限宽居中（同孩子端）；手机端原样（零变化）。

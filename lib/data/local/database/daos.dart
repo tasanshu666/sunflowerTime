@@ -26,22 +26,39 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
     with _$SunlightLedgerDaoMixin {
   SunlightLedgerDao(super.db);
 
+  /// C90 期 2：[childId] 可选过滤（null = 不过滤，仅迁移/老调用点用；
+  /// 仓储层一律传当前孩子，漏传即数据串孩子 —— 全部口径见下）。
+
   /// 追加一条账本记录（append-only，§3.2）。
-  Future<void> append(SunlightLedgersCompanion row) =>
-      into(sunlightLedgers).insert(row);
+  ///
+  /// [childId] 非空且 row 未显式带 childId 时补写（C90 期 2：落当前孩子）。
+  Future<void> append(SunlightLedgersCompanion row, {String? childId}) {
+    final SunlightLedgersCompanion full =
+        (childId == null || row.childId.present)
+            ? row
+            : row.copyWith(childId: Value(childId));
+    return into(sunlightLedgers).insert(full);
+  }
 
   /// 全部账本记录（阳光来源记录页用，按时间倒序）。
-  Future<List<SunlightLedger>> allDesc() async {
-    final List<SunlightLedger> rows = await select(sunlightLedgers).get();
+  Future<List<SunlightLedger>> allDesc({String? childId}) async {
+    final query = select(sunlightLedgers);
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    final List<SunlightLedger> rows = await query.get();
     rows.sort((SunlightLedger a, SunlightLedger b) => b.ts.compareTo(a.ts));
     return rows;
   }
 
   /// 当前余额（sum(net)）。
-  Future<double> balance() async {
+  Future<double> balance({String? childId}) async {
     final Expression<double> sum = sunlightLedgers.net.sum();
-    final row = await (selectOnly(sunlightLedgers)..addColumns([sum]))
-        .getSingle();
+    final query = selectOnly(sunlightLedgers)..addColumns([sum]);
+    if (childId != null) {
+      query.where(sunlightLedgers.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(sum) ?? 0.0;
   }
 
@@ -50,60 +67,79 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
   /// 注意：本方法按**全部类型**（earn / redeem / plant / queueRelease）求和，
   /// 用于「当天净余额」口径；**不可**用于任务打卡的软顶差额核算（会污染核算，
   /// 打卡核算请用 [sumEarnGrossOnDay] / [sumEarnNetOnDay]）。
-  Future<double> dayNet(String dayKey) async {
+  Future<double> dayNet(String dayKey, {String? childId}) async {
     final Expression<double> sum = sunlightLedgers.net.sum();
-    final row = await (selectOnly(sunlightLedgers)
-          ..where(sunlightLedgers.dayKey.equals(dayKey))
-          ..addColumns([sum]))
-        .getSingle();
+    final query = selectOnly(sunlightLedgers)
+      ..where(sunlightLedgers.dayKey.equals(dayKey))
+      ..addColumns([sum]);
+    if (childId != null) {
+      query.where(sunlightLedgers.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(sum) ?? 0.0;
   }
 
   /// 某日 **earn 类型** 的 gross（毛产出）合计（任务打卡软顶核算用，§4.5）。
   ///
   /// 只统计 `type == earn`，避免 redeem / plant / queueRelease 污染软顶核算。
-  Future<double> sumEarnGrossOnDay(String dayKey) async {
+  Future<double> sumEarnGrossOnDay(String dayKey, {String? childId}) async {
     final Expression<double> sum = sunlightLedgers.gross.sum();
-    final row = await (selectOnly(sunlightLedgers)
-          ..where(sunlightLedgers.type.equals(SunlightType.earn.index))
-          ..where(sunlightLedgers.dayKey.equals(dayKey))
-          ..addColumns([sum]))
-        .getSingle();
+    final query = selectOnly(sunlightLedgers)
+      ..where(sunlightLedgers.type.equals(SunlightType.earn.index))
+      ..where(sunlightLedgers.dayKey.equals(dayKey))
+      ..addColumns([sum]);
+    if (childId != null) {
+      query.where(sunlightLedgers.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(sum) ?? 0.0;
   }
 
   /// 某日 **earn 类型** 的 net（实际发放）合计（任务打卡软顶核算用，§4.5）。
   ///
   /// 只统计 `type == earn`，即「当日已发阳光」的软顶基数。
-  Future<double> sumEarnNetOnDay(String dayKey) async {
+  Future<double> sumEarnNetOnDay(String dayKey, {String? childId}) async {
     final Expression<double> sum = sunlightLedgers.net.sum();
-    final row = await (selectOnly(sunlightLedgers)
-          ..where(sunlightLedgers.type.equals(SunlightType.earn.index))
-          ..where(sunlightLedgers.dayKey.equals(dayKey))
-          ..addColumns([sum]))
-        .getSingle();
+    final query = selectOnly(sunlightLedgers)
+      ..where(sunlightLedgers.type.equals(SunlightType.earn.index))
+      ..where(sunlightLedgers.dayKey.equals(dayKey))
+      ..addColumns([sum]);
+    if (childId != null) {
+      query.where(sunlightLedgers.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(sum) ?? 0.0;
   }
 
   /// 已核销总额对账（§3.2）。
-  Future<double> verifiedRedeemTotal() async {
+  Future<double> verifiedRedeemTotal({String? childId}) async {
     final Expression<double> sum = sunlightLedgers.net.sum();
-    final row = await (selectOnly(sunlightLedgers)
-          ..where(sunlightLedgers.type.equals(SunlightType.redeem.index))
-          ..addColumns([sum]))
-        .getSingle();
+    final query = selectOnly(sunlightLedgers)
+      ..where(sunlightLedgers.type.equals(SunlightType.redeem.index))
+      ..addColumns([sum]);
+    if (childId != null) {
+      query.where(sunlightLedgers.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     final value = row.read(sum);
     return (value ?? 0.0).abs();
   }
 
   /// 指定 refType 在某日的净阳光合计（家长赠予上限核算用，§4.5）。
-  Future<double> sumNetByRefTypeDay(String refType, String dayKey) async {
+  Future<double> sumNetByRefTypeDay(
+    String refType,
+    String dayKey, {
+    String? childId,
+  }) async {
     final Expression<double> sum = sunlightLedgers.net.sum();
-    final row = await (selectOnly(sunlightLedgers)
-          ..where(sunlightLedgers.refType.equals(refType))
-          ..where(sunlightLedgers.dayKey.equals(dayKey))
-          ..addColumns([sum]))
-        .getSingle();
+    final query = selectOnly(sunlightLedgers)
+      ..where(sunlightLedgers.refType.equals(refType))
+      ..where(sunlightLedgers.dayKey.equals(dayKey))
+      ..addColumns([sum]);
+    if (childId != null) {
+      query.where(sunlightLedgers.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(sum) ?? 0.0;
   }
 
@@ -115,15 +151,19 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
   Future<int> countByRefTypeAndRefIdOnDay(
     String refType,
     String refId,
-    String dayKey,
-  ) async {
+    String dayKey, {
+    String? childId,
+  }) async {
     final Expression<int> countExp = sunlightLedgers.id.count();
-    final row = await (selectOnly(sunlightLedgers)
-          ..where(sunlightLedgers.refType.equals(refType))
-          ..where(sunlightLedgers.refId.equals(refId))
-          ..where(sunlightLedgers.dayKey.equals(dayKey))
-          ..addColumns([countExp]))
-        .getSingle();
+    final query = selectOnly(sunlightLedgers)
+      ..where(sunlightLedgers.refType.equals(refType))
+      ..where(sunlightLedgers.refId.equals(refId))
+      ..where(sunlightLedgers.dayKey.equals(dayKey))
+      ..addColumns([countExp]);
+    if (childId != null) {
+      query.where(sunlightLedgers.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(countExp) ?? 0;
   }
 
@@ -135,15 +175,19 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
   Future<int> countByRefTypeAndRefIdSince(
     String refType,
     String refId,
-    DateTime since,
-  ) async {
+    DateTime since, {
+    String? childId,
+  }) async {
     final Expression<int> countExp = sunlightLedgers.id.count();
-    final row = await (selectOnly(sunlightLedgers)
-          ..where(sunlightLedgers.refType.equals(refType))
-          ..where(sunlightLedgers.refId.equals(refId))
-          ..where(sunlightLedgers.ts.isBiggerOrEqualValue(since))
-          ..addColumns([countExp]))
-        .getSingle();
+    final query = selectOnly(sunlightLedgers)
+      ..where(sunlightLedgers.refType.equals(refType))
+      ..where(sunlightLedgers.refId.equals(refId))
+      ..where(sunlightLedgers.ts.isBiggerOrEqualValue(since))
+      ..addColumns([countExp]);
+    if (childId != null) {
+      query.where(sunlightLedgers.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(countExp) ?? 0;
   }
 
@@ -151,12 +195,15 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
   ///
   /// 与 [countByRefTypeAndRefIdOnDay] 的区别：不按日、不按 refId，全表累计 ——
   /// 「累计护眼」以账本 `refType='eye_care_break'` 为权威口径（含上线以来全部历史）。
-  Future<int> countByRefType(String refType) async {
+  Future<int> countByRefType(String refType, {String? childId}) async {
     final Expression<int> countExp = sunlightLedgers.id.count();
-    final row = await (selectOnly(sunlightLedgers)
-          ..where(sunlightLedgers.refType.equals(refType))
-          ..addColumns([countExp]))
-        .getSingle();
+    final query = selectOnly(sunlightLedgers)
+      ..where(sunlightLedgers.refType.equals(refType))
+      ..addColumns([countExp]);
+    if (childId != null) {
+      query.where(sunlightLedgers.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(countExp) ?? 0;
   }
 
@@ -164,47 +211,87 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
   ///
   /// 用账本时间而非 `Plants.lastWaterAt`：后者在施肥 / 救回时也会被刷新，
   /// 会让「浇完水 → 施肥 → 立刻又能浇水」绕过 30 分钟间隔。
-  Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) async {
+  Future<DateTime?> lastTsByRefTypeAndRefId(
+    String refType,
+    String refId, {
+    String? childId,
+  }) async {
     final Expression<DateTime> maxExp = sunlightLedgers.ts.max();
-    final row = await (selectOnly(sunlightLedgers)
-          ..where(sunlightLedgers.refType.equals(refType))
-          ..where(sunlightLedgers.refId.equals(refId))
-          ..addColumns([maxExp]))
-        .getSingle();
+    final query = selectOnly(sunlightLedgers)
+      ..where(sunlightLedgers.refType.equals(refType))
+      ..where(sunlightLedgers.refId.equals(refId))
+      ..addColumns([maxExp]);
+    if (childId != null) {
+      query.where(sunlightLedgers.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(maxExp);
   }
 
   /// 指定 refType 在某月的净阳光合计（按 dayKey 前缀匹配 monthKey）。
-  Future<double> sumNetByRefTypeMonth(String refType, String monthKey) async {
+  Future<double> sumNetByRefTypeMonth(
+    String refType,
+    String monthKey, {
+    String? childId,
+  }) async {
     final Expression<double> sum = sunlightLedgers.net.sum();
-    final row = await (selectOnly(sunlightLedgers)
-          ..where(sunlightLedgers.refType.equals(refType))
-          ..where(sunlightLedgers.dayKey.like('$monthKey%'))
-          ..addColumns([sum]))
-        .getSingle();
+    final query = selectOnly(sunlightLedgers)
+      ..where(sunlightLedgers.refType.equals(refType))
+      ..where(sunlightLedgers.dayKey.like('$monthKey%'))
+      ..addColumns([sum]);
+    if (childId != null) {
+      query.where(sunlightLedgers.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(sum) ?? 0.0;
   }
 }
 
 /// 植物 DAO（§3.1 plant，M3 新增）。
+///
+/// C90 期 2：查询 / 写入方法带可选 [childId]（null = 不过滤 / 不补写，仅迁移与
+/// 老调用点用；仓储层一律传当前孩子，漏传即数据串孩子）。
 @DriftAccessor(tables: [Plants])
 class PlantDao extends DatabaseAccessor<AppDatabase> with _$PlantDaoMixin {
   PlantDao(super.db);
 
   /// 全部植物。
-  Future<List<Plant>> all() => select(plants).get();
+  Future<List<Plant>> all({String? childId}) {
+    final query = select(plants);
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.get();
+  }
 
   /// 按主键（id）读取单株，不存在返回 null。
-  Future<Plant?> byId(String id) =>
-      (select(plants)..where((t) => t.id.equals(id))).getSingleOrNull();
+  Future<Plant?> byId(String id, {String? childId}) {
+    final query = select(plants)..where((t) => t.id.equals(id));
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.getSingleOrNull();
+  }
 
   /// 插入或更新（按主键冲突合并）。
-  Future<void> upsert(PlantsCompanion row) =>
-      into(plants).insertOnConflictUpdate(row);
+  ///
+  /// [childId] 非空且 row 未显式带 childId 时补写（C90 期 2：落当前孩子）。
+  Future<void> upsert(PlantsCompanion row, {String? childId}) {
+    final PlantsCompanion full =
+        (childId == null || row.childId.present)
+            ? row
+            : row.copyWith(childId: Value(childId));
+    return into(plants).insertOnConflictUpdate(full);
+  }
 
   /// 硬删除单株（按主键 id）。
-  Future<int> deleteById(String id) =>
-      (delete(plants)..where((t) => t.id.equals(id))).go();
+  Future<int> deleteById(String id, {String? childId}) {
+    final query = delete(plants)..where((t) => t.id.equals(id));
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.go();
+  }
 
   /// 清空全部植物（数据管理 / 删除全部本地数据用）。
   Future<int> deleteAll() => delete(plants).go();
@@ -308,34 +395,65 @@ class BloomRewardDao extends DatabaseAccessor<AppDatabase>
 }
 
 /// 任务 / 打卡 DAO（§3.1 task / check_in，M3 真实化）。
+///
+/// C90 期 2：查询 / 写入方法带可选 [childId]（null = 不过滤 / 不补写，仅迁移与
+/// 老调用点用；仓储层一律传当前孩子，漏传即数据串孩子）。
 @DriftAccessor(tables: [Tasks, CheckIns])
 class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
   TaskDao(super.db);
 
   /// 全部任务模板。
-  Future<List<Task>> allTasks() => select(tasks).get();
+  Future<List<Task>> allTasks({String? childId}) {
+    final query = select(tasks);
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.get();
+  }
 
   /// 插入或更新任务（按主键冲突合并）。
-  Future<void> upsertTask(TasksCompanion row) =>
-      into(tasks).insertOnConflictUpdate(row);
+  ///
+  /// [childId] 非空且 row 未显式带 childId 时补写（C90 期 2：落当前孩子）。
+  Future<void> upsertTask(TasksCompanion row, {String? childId}) {
+    final TasksCompanion full =
+        (childId == null || row.childId.present)
+            ? row
+            : row.copyWith(childId: Value(childId));
+    return into(tasks).insertOnConflictUpdate(full);
+  }
 
   /// 硬删除任务（按主键 id）。
-  Future<int> deleteTaskById(String id) =>
-      (delete(tasks)..where((t) => t.id.equals(id))).go();
+  Future<int> deleteTaskById(String id, {String? childId}) {
+    final query = delete(tasks)..where((t) => t.id.equals(id));
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.go();
+  }
 
   /// 插入一条打卡记录。
-  Future<void> insertCheckIn(CheckInsCompanion row) =>
-      into(checkIns).insert(row);
+  ///
+  /// [childId] 非空且 row 未显式带 childId 时补写（C90 期 2：落当前孩子）。
+  Future<void> insertCheckIn(CheckInsCompanion row, {String? childId}) {
+    final CheckInsCompanion full =
+        (childId == null || row.childId.present)
+            ? row
+            : row.copyWith(childId: Value(childId));
+    return into(checkIns).insert(full);
+  }
 
   /// 某日打卡记录（date 落在 [dayStart, dayStart+1d) 区间）。
-  Future<List<CheckIn>> checkInsOfDay(String dayKey) {
+  Future<List<CheckIn>> checkInsOfDay(String dayKey, {String? childId}) {
     final DateTime dayStart = _parseDay(dayKey);
     final DateTime dayEnd = dayStart.add(const Duration(days: 1));
-    return (select(checkIns)
-          ..where((t) =>
-              t.date.isBiggerOrEqualValue(dayStart) &
-              t.date.isSmallerThanValue(dayEnd)))
-        .get();
+    final query = select(checkIns)
+      ..where((t) =>
+          t.date.isBiggerOrEqualValue(dayStart) &
+          t.date.isSmallerThanValue(dayEnd));
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.get();
   }
 
   /// 清空全部任务与打卡（数据管理用）。
@@ -343,37 +461,60 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
   Future<int> deleteAllCheckIns() => delete(checkIns).go();
 
   /// 全部打卡记录条数（跨任务、跨日期累计；M4 打卡领域层聚合用）。
-  Future<int> countCheckIns() async {
+  Future<int> countCheckIns({String? childId}) async {
     final Expression<int> countExp = checkIns.id.count();
-    final row =
-        await (selectOnly(checkIns)..addColumns([countExp])).getSingle();
+    final query = selectOnly(checkIns)..addColumns([countExp]);
+    if (childId != null) {
+      query.where(checkIns.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(countExp) ?? 0;
   }
 
   /// 按主键读取单条打卡；不存在返回 null（家长端核销用，M4）。
-  Future<CheckIn?> checkInById(String id) =>
-      (select(checkIns)..where((t) => t.id.equals(id))).getSingleOrNull();
+  Future<CheckIn?> checkInById(String id, {String? childId}) {
+    final query = select(checkIns)..where((t) => t.id.equals(id));
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.getSingleOrNull();
+  }
 
   /// 指定核销状态的打卡，按 completedAt 升序（家长端待核销列表用，M4）。
-  Future<List<CheckIn>> checkInsByStatus(int status) =>
-      (select(checkIns)
-            ..where((t) => t.status.equals(status))
-            ..orderBy([(t) => OrderingTerm(expression: t.completedAt)]))
-          .get();
+  Future<List<CheckIn>> checkInsByStatus(int status, {String? childId}) {
+    final query = select(checkIns)
+      ..where((t) => t.status.equals(status))
+      ..orderBy([(t) => OrderingTerm(expression: t.completedAt)]);
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.get();
+  }
 
   /// 更新打卡记录（按主键冲突合并；家长核销 / 驳回写回用，M4）。
-  Future<void> updateCheckIn(CheckInsCompanion row) =>
-      into(checkIns).insertOnConflictUpdate(row);
+  ///
+  /// [childId] 非空且 row 未显式带 childId 时补写（C90 期 2：落当前孩子，
+  /// 防 upsert 更新路径把归属改写回默认孩子）。
+  Future<void> updateCheckIn(CheckInsCompanion row, {String? childId}) {
+    final CheckInsCompanion full =
+        (childId == null || row.childId.present)
+            ? row
+            : row.copyWith(childId: Value(childId));
+    return into(checkIns).insertOnConflictUpdate(full);
+  }
 
   /// 指定核销状态的打卡条数（M4 统计口径：只数已核销）。
   ///
   /// 状态以 int 传参（数据层不依赖领域枚举，避免跨层依赖）。
-  Future<int> countCheckInsByStatus(int status) async {
+  Future<int> countCheckInsByStatus(int status, {String? childId}) async {
     final Expression<int> countExp = checkIns.id.count();
-    final row = await (selectOnly(checkIns)
-          ..addColumns([countExp])
-          ..where(checkIns.status.equals(status)))
-        .getSingle();
+    final query = selectOnly(checkIns)
+      ..addColumns([countExp])
+      ..where(checkIns.status.equals(status));
+    if (childId != null) {
+      query.where(checkIns.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(countExp) ?? 0;
   }
 
@@ -381,6 +522,7 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
   ///
   /// 并发双核销防护：家长连点两次时，第二次 `where` 命中 0 行 → 返回 0，
   /// 调用方据此放弃入账（否则余额翻倍）。状态以 int 传参（数据层不依赖领域枚举）。
+  /// [childId] 双保险：id 唯一之外再按孩子过滤（C90 期 2）。
   Future<int> resolveCheckInIfStatus({
     required String id,
     required int fromStatus,
@@ -388,9 +530,17 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
     required double sunlightGranted,
     required DateTime resolvedAt,
     String? parentNote,
+    String? childId,
   }) {
     return (update(checkIns)
-          ..where((t) => t.id.equals(id) & t.status.equals(fromStatus)))
+          ..where((t) {
+            Expression<bool> cond =
+                t.id.equals(id) & t.status.equals(fromStatus);
+            if (childId != null) {
+              cond = cond & t.childId.equals(childId);
+            }
+            return cond;
+          }))
         .write(CheckInsCompanion(
           status: Value(toStatus),
           sunlightGranted: Value(sunlightGranted),
@@ -564,33 +714,49 @@ class TrackingEventDao extends DatabaseAccessor<AppDatabase>
 /// 少儿护眼记录 DAO（玄参 2026-10-09：家长报告护眼统计）。
 ///
 /// 只追加 + 聚合，不修改不删除；聚合口径见 [EyeCareLogRepository]。
+/// C90 期 2：方法带可选 [childId]（null = 不过滤 / 不补写，仅迁移与老调用点用；
+/// 仓储层一律传当前孩子，漏传即数据串孩子）。
 @DriftAccessor(tables: [EyeCareLogs])
 class EyeCareLogDao extends DatabaseAccessor<AppDatabase>
     with _$EyeCareLogDaoMixin {
   EyeCareLogDao(super.db);
 
   /// 追加一条护眼记录（id 冲突时忽略 —— Uuid 碰撞即数据缺陷，不覆盖旧事实）。
-  Future<void> appendRow(EyeCareLogsCompanion row) =>
-      into(eyeCareLogs).insert(row, mode: InsertMode.insertOrIgnore);
+  ///
+  /// [childId] 非空且 row 未显式带 childId 时补写（C90 期 2：落当前孩子）。
+  Future<void> appendRow(EyeCareLogsCompanion row, {String? childId}) {
+    final EyeCareLogsCompanion full =
+        (childId == null || row.childId.present)
+            ? row
+            : row.copyWith(childId: Value(childId));
+    return into(eyeCareLogs).insert(full, mode: InsertMode.insertOrIgnore);
+  }
 
   /// 指定 result 的累计条数（result = EyeCareResultType.name）。
-  Future<int> countByResult(String result) async {
+  Future<int> countByResult(String result, {String? childId}) async {
     final Expression<int> cnt = eyeCareLogs.id.count();
-    final row = await (selectOnly(eyeCareLogs)
-          ..addColumns([cnt])
-          ..where(eyeCareLogs.result.equals(result)))
-        .getSingle();
+    final query = selectOnly(eyeCareLogs)
+      ..addColumns([cnt])
+      ..where(eyeCareLogs.result.equals(result));
+    if (childId != null) {
+      query.where(eyeCareLogs.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(cnt) ?? 0;
   }
 
   /// 指定 result 的观看秒数合计（skipped 的部分观看时长；completed 恒为全片长，
   /// 报告侧用「账本完成次数 × kEyeCareDurationSeconds」口径更准、防双重计数）。
-  Future<int> sumWatchedSecondsByResult(String result) async {
+  Future<int> sumWatchedSecondsByResult(String result,
+      {String? childId}) async {
     final Expression<int> sum = eyeCareLogs.watchedSeconds.sum();
-    final row = await (selectOnly(eyeCareLogs)
-          ..addColumns([sum])
-          ..where(eyeCareLogs.result.equals(result)))
-        .getSingle();
+    final query = selectOnly(eyeCareLogs)
+      ..addColumns([sum])
+      ..where(eyeCareLogs.result.equals(result));
+    if (childId != null) {
+      query.where(eyeCareLogs.childId.equals(childId));
+    }
+    final row = await query.getSingle();
     return row.read(sum) ?? 0;
   }
 }

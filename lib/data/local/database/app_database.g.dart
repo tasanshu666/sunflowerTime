@@ -1168,6 +1168,14 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
       type: DriftSqlType.int,
       requiredDuringInsert: false,
       defaultValue: const Constant(0));
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
   static const VerificationMeta _weedAtMeta = const VerificationMeta('weedAt');
   @override
   late final GeneratedColumn<DateTime> weedAt = GeneratedColumn<DateTime>(
@@ -1211,6 +1219,7 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
         bloomedAt,
         bloomCount,
         mood,
+        childId,
         weedAt,
         pestAt,
         weedPestRollDay,
@@ -1319,6 +1328,10 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
       context.handle(
           _moodMeta, mood.isAcceptableOrUnknown(data['mood']!, _moodMeta));
     }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
     if (data.containsKey('weed_at')) {
       context.handle(_weedAtMeta,
           weedAt.isAcceptableOrUnknown(data['weed_at']!, _weedAtMeta));
@@ -1382,6 +1395,8 @@ class $PlantsTable extends Plants with TableInfo<$PlantsTable, Plant> {
           .read(DriftSqlType.int, data['${effectivePrefix}bloom_count'])!,
       mood: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}mood'])!,
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
       weedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}weed_at']),
       pestAt: attachedDatabase.typeMapping
@@ -1417,6 +1432,7 @@ class Plant extends DataClass implements Insertable<Plant> {
   final DateTime? bloomedAt;
   final int bloomCount;
   final int mood;
+  final String childId;
   final DateTime? weedAt;
   final DateTime? pestAt;
   final DateTime? weedPestRollDay;
@@ -1439,6 +1455,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       this.bloomedAt,
       required this.bloomCount,
       required this.mood,
+      required this.childId,
       this.weedAt,
       this.pestAt,
       this.weedPestRollDay,
@@ -1471,6 +1488,7 @@ class Plant extends DataClass implements Insertable<Plant> {
     }
     map['bloom_count'] = Variable<int>(bloomCount);
     map['mood'] = Variable<int>(mood);
+    map['child_id'] = Variable<String>(childId);
     if (!nullToAbsent || weedAt != null) {
       map['weed_at'] = Variable<DateTime>(weedAt);
     }
@@ -1510,6 +1528,7 @@ class Plant extends DataClass implements Insertable<Plant> {
           : Value(bloomedAt),
       bloomCount: Value(bloomCount),
       mood: Value(mood),
+      childId: Value(childId),
       weedAt:
           weedAt == null && nullToAbsent ? const Value.absent() : Value(weedAt),
       pestAt:
@@ -1542,6 +1561,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       bloomedAt: serializer.fromJson<DateTime?>(json['bloomedAt']),
       bloomCount: serializer.fromJson<int>(json['bloomCount']),
       mood: serializer.fromJson<int>(json['mood']),
+      childId: serializer.fromJson<String>(json['childId']),
       weedAt: serializer.fromJson<DateTime?>(json['weedAt']),
       pestAt: serializer.fromJson<DateTime?>(json['pestAt']),
       weedPestRollDay: serializer.fromJson<DateTime?>(json['weedPestRollDay']),
@@ -1569,6 +1589,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       'bloomedAt': serializer.toJson<DateTime?>(bloomedAt),
       'bloomCount': serializer.toJson<int>(bloomCount),
       'mood': serializer.toJson<int>(mood),
+      'childId': serializer.toJson<String>(childId),
       'weedAt': serializer.toJson<DateTime?>(weedAt),
       'pestAt': serializer.toJson<DateTime?>(pestAt),
       'weedPestRollDay': serializer.toJson<DateTime?>(weedPestRollDay),
@@ -1594,6 +1615,7 @@ class Plant extends DataClass implements Insertable<Plant> {
           Value<DateTime?> bloomedAt = const Value.absent(),
           int? bloomCount,
           int? mood,
+          String? childId,
           Value<DateTime?> weedAt = const Value.absent(),
           Value<DateTime?> pestAt = const Value.absent(),
           Value<DateTime?> weedPestRollDay = const Value.absent(),
@@ -1616,6 +1638,7 @@ class Plant extends DataClass implements Insertable<Plant> {
         bloomedAt: bloomedAt.present ? bloomedAt.value : this.bloomedAt,
         bloomCount: bloomCount ?? this.bloomCount,
         mood: mood ?? this.mood,
+        childId: childId ?? this.childId,
         weedAt: weedAt.present ? weedAt.value : this.weedAt,
         pestAt: pestAt.present ? pestAt.value : this.pestAt,
         weedPestRollDay: weedPestRollDay.present
@@ -1652,6 +1675,7 @@ class Plant extends DataClass implements Insertable<Plant> {
       bloomCount:
           data.bloomCount.present ? data.bloomCount.value : this.bloomCount,
       mood: data.mood.present ? data.mood.value : this.mood,
+      childId: data.childId.present ? data.childId.value : this.childId,
       weedAt: data.weedAt.present ? data.weedAt.value : this.weedAt,
       pestAt: data.pestAt.present ? data.pestAt.value : this.pestAt,
       weedPestRollDay: data.weedPestRollDay.present
@@ -1683,6 +1707,7 @@ class Plant extends DataClass implements Insertable<Plant> {
           ..write('bloomedAt: $bloomedAt, ')
           ..write('bloomCount: $bloomCount, ')
           ..write('mood: $mood, ')
+          ..write('childId: $childId, ')
           ..write('weedAt: $weedAt, ')
           ..write('pestAt: $pestAt, ')
           ..write('weedPestRollDay: $weedPestRollDay, ')
@@ -1710,6 +1735,7 @@ class Plant extends DataClass implements Insertable<Plant> {
         bloomedAt,
         bloomCount,
         mood,
+        childId,
         weedAt,
         pestAt,
         weedPestRollDay,
@@ -1736,6 +1762,7 @@ class Plant extends DataClass implements Insertable<Plant> {
           other.bloomedAt == this.bloomedAt &&
           other.bloomCount == this.bloomCount &&
           other.mood == this.mood &&
+          other.childId == this.childId &&
           other.weedAt == this.weedAt &&
           other.pestAt == this.pestAt &&
           other.weedPestRollDay == this.weedPestRollDay &&
@@ -1760,6 +1787,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
   final Value<DateTime?> bloomedAt;
   final Value<int> bloomCount;
   final Value<int> mood;
+  final Value<String> childId;
   final Value<DateTime?> weedAt;
   final Value<DateTime?> pestAt;
   final Value<DateTime?> weedPestRollDay;
@@ -1783,6 +1811,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     this.bloomedAt = const Value.absent(),
     this.bloomCount = const Value.absent(),
     this.mood = const Value.absent(),
+    this.childId = const Value.absent(),
     this.weedAt = const Value.absent(),
     this.pestAt = const Value.absent(),
     this.weedPestRollDay = const Value.absent(),
@@ -1807,6 +1836,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     this.bloomedAt = const Value.absent(),
     this.bloomCount = const Value.absent(),
     this.mood = const Value.absent(),
+    this.childId = const Value.absent(),
     this.weedAt = const Value.absent(),
     this.pestAt = const Value.absent(),
     this.weedPestRollDay = const Value.absent(),
@@ -1837,6 +1867,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     Expression<DateTime>? bloomedAt,
     Expression<int>? bloomCount,
     Expression<int>? mood,
+    Expression<String>? childId,
     Expression<DateTime>? weedAt,
     Expression<DateTime>? pestAt,
     Expression<DateTime>? weedPestRollDay,
@@ -1861,6 +1892,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       if (bloomedAt != null) 'bloomed_at': bloomedAt,
       if (bloomCount != null) 'bloom_count': bloomCount,
       if (mood != null) 'mood': mood,
+      if (childId != null) 'child_id': childId,
       if (weedAt != null) 'weed_at': weedAt,
       if (pestAt != null) 'pest_at': pestAt,
       if (weedPestRollDay != null) 'weed_pest_roll_day': weedPestRollDay,
@@ -1887,6 +1919,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       Value<DateTime?>? bloomedAt,
       Value<int>? bloomCount,
       Value<int>? mood,
+      Value<String>? childId,
       Value<DateTime?>? weedAt,
       Value<DateTime?>? pestAt,
       Value<DateTime?>? weedPestRollDay,
@@ -1910,6 +1943,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
       bloomedAt: bloomedAt ?? this.bloomedAt,
       bloomCount: bloomCount ?? this.bloomCount,
       mood: mood ?? this.mood,
+      childId: childId ?? this.childId,
       weedAt: weedAt ?? this.weedAt,
       pestAt: pestAt ?? this.pestAt,
       weedPestRollDay: weedPestRollDay ?? this.weedPestRollDay,
@@ -1972,6 +2006,9 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
     if (mood.present) {
       map['mood'] = Variable<int>(mood.value);
     }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
     if (weedAt.present) {
       map['weed_at'] = Variable<DateTime>(weedAt.value);
     }
@@ -2010,6 +2047,7 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
           ..write('bloomedAt: $bloomedAt, ')
           ..write('bloomCount: $bloomCount, ')
           ..write('mood: $mood, ')
+          ..write('childId: $childId, ')
           ..write('weedAt: $weedAt, ')
           ..write('pestAt: $pestAt, ')
           ..write('weedPestRollDay: $weedPestRollDay, ')
@@ -2853,6 +2891,14 @@ class $FocusSessionsTable extends FocusSessions
   late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
       'created_at', aliasedName, false,
       type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -2862,7 +2908,8 @@ class $FocusSessionsTable extends FocusSessions
         actualFocusMin,
         status,
         sunlightEarned,
-        createdAt
+        createdAt,
+        childId
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2925,6 +2972,10 @@ class $FocusSessionsTable extends FocusSessions
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
     return context;
   }
 
@@ -2950,6 +3001,8 @@ class $FocusSessionsTable extends FocusSessions
           DriftSqlType.double, data['${effectivePrefix}sunlight_earned'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
     );
   }
 
@@ -2968,6 +3021,7 @@ class FocusSession extends DataClass implements Insertable<FocusSession> {
   final int status;
   final double sunlightEarned;
   final DateTime createdAt;
+  final String childId;
   const FocusSession(
       {required this.id,
       required this.start,
@@ -2976,7 +3030,8 @@ class FocusSession extends DataClass implements Insertable<FocusSession> {
       required this.actualFocusMin,
       required this.status,
       required this.sunlightEarned,
-      required this.createdAt});
+      required this.createdAt,
+      required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2990,6 +3045,7 @@ class FocusSession extends DataClass implements Insertable<FocusSession> {
     map['status'] = Variable<int>(status);
     map['sunlight_earned'] = Variable<double>(sunlightEarned);
     map['created_at'] = Variable<DateTime>(createdAt);
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
@@ -3003,6 +3059,7 @@ class FocusSession extends DataClass implements Insertable<FocusSession> {
       status: Value(status),
       sunlightEarned: Value(sunlightEarned),
       createdAt: Value(createdAt),
+      childId: Value(childId),
     );
   }
 
@@ -3018,6 +3075,7 @@ class FocusSession extends DataClass implements Insertable<FocusSession> {
       status: serializer.fromJson<int>(json['status']),
       sunlightEarned: serializer.fromJson<double>(json['sunlightEarned']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -3032,6 +3090,7 @@ class FocusSession extends DataClass implements Insertable<FocusSession> {
       'status': serializer.toJson<int>(status),
       'sunlightEarned': serializer.toJson<double>(sunlightEarned),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
@@ -3043,7 +3102,8 @@ class FocusSession extends DataClass implements Insertable<FocusSession> {
           double? actualFocusMin,
           int? status,
           double? sunlightEarned,
-          DateTime? createdAt}) =>
+          DateTime? createdAt,
+          String? childId}) =>
       FocusSession(
         id: id ?? this.id,
         start: start ?? this.start,
@@ -3053,6 +3113,7 @@ class FocusSession extends DataClass implements Insertable<FocusSession> {
         status: status ?? this.status,
         sunlightEarned: sunlightEarned ?? this.sunlightEarned,
         createdAt: createdAt ?? this.createdAt,
+        childId: childId ?? this.childId,
       );
   FocusSession copyWithCompanion(FocusSessionsCompanion data) {
     return FocusSession(
@@ -3069,6 +3130,7 @@ class FocusSession extends DataClass implements Insertable<FocusSession> {
           ? data.sunlightEarned.value
           : this.sunlightEarned,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
@@ -3082,14 +3144,15 @@ class FocusSession extends DataClass implements Insertable<FocusSession> {
           ..write('actualFocusMin: $actualFocusMin, ')
           ..write('status: $status, ')
           ..write('sunlightEarned: $sunlightEarned, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(id, start, end, plannedMin, actualFocusMin,
-      status, sunlightEarned, createdAt);
+      status, sunlightEarned, createdAt, childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3101,7 +3164,8 @@ class FocusSession extends DataClass implements Insertable<FocusSession> {
           other.actualFocusMin == this.actualFocusMin &&
           other.status == this.status &&
           other.sunlightEarned == this.sunlightEarned &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.childId == this.childId);
 }
 
 class FocusSessionsCompanion extends UpdateCompanion<FocusSession> {
@@ -3113,6 +3177,7 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSession> {
   final Value<int> status;
   final Value<double> sunlightEarned;
   final Value<DateTime> createdAt;
+  final Value<String> childId;
   final Value<int> rowid;
   const FocusSessionsCompanion({
     this.id = const Value.absent(),
@@ -3123,6 +3188,7 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSession> {
     this.status = const Value.absent(),
     this.sunlightEarned = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   FocusSessionsCompanion.insert({
@@ -3134,6 +3200,7 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSession> {
     required int status,
     required double sunlightEarned,
     required DateTime createdAt,
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         start = Value(start),
@@ -3151,6 +3218,7 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSession> {
     Expression<int>? status,
     Expression<double>? sunlightEarned,
     Expression<DateTime>? createdAt,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3162,6 +3230,7 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSession> {
       if (status != null) 'status': status,
       if (sunlightEarned != null) 'sunlight_earned': sunlightEarned,
       if (createdAt != null) 'created_at': createdAt,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3175,6 +3244,7 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSession> {
       Value<int>? status,
       Value<double>? sunlightEarned,
       Value<DateTime>? createdAt,
+      Value<String>? childId,
       Value<int>? rowid}) {
     return FocusSessionsCompanion(
       id: id ?? this.id,
@@ -3185,6 +3255,7 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSession> {
       status: status ?? this.status,
       sunlightEarned: sunlightEarned ?? this.sunlightEarned,
       createdAt: createdAt ?? this.createdAt,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3216,6 +3287,9 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSession> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3233,6 +3307,7 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSession> {
           ..write('status: $status, ')
           ..write('sunlightEarned: $sunlightEarned, ')
           ..write('createdAt: $createdAt, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3292,9 +3367,17 @@ class $SunlightLedgersTable extends SunlightLedgers
   late final GeneratedColumn<String> dayKey = GeneratedColumn<String>(
       'day_key', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
   @override
   List<GeneratedColumn> get $columns =>
-      [id, ts, type, gross, net, balanceAfter, refType, refId, dayKey];
+      [id, ts, type, gross, net, balanceAfter, refType, refId, dayKey, childId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -3355,6 +3438,10 @@ class $SunlightLedgersTable extends SunlightLedgers
     } else if (isInserting) {
       context.missing(_dayKeyMeta);
     }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
     return context;
   }
 
@@ -3382,6 +3469,8 @@ class $SunlightLedgersTable extends SunlightLedgers
           .read(DriftSqlType.string, data['${effectivePrefix}ref_id']),
       dayKey: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}day_key'])!,
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
     );
   }
 
@@ -3401,6 +3490,7 @@ class SunlightLedger extends DataClass implements Insertable<SunlightLedger> {
   final String? refType;
   final String? refId;
   final String dayKey;
+  final String childId;
   const SunlightLedger(
       {required this.id,
       required this.ts,
@@ -3410,7 +3500,8 @@ class SunlightLedger extends DataClass implements Insertable<SunlightLedger> {
       required this.balanceAfter,
       this.refType,
       this.refId,
-      required this.dayKey});
+      required this.dayKey,
+      required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3427,6 +3518,7 @@ class SunlightLedger extends DataClass implements Insertable<SunlightLedger> {
       map['ref_id'] = Variable<String>(refId);
     }
     map['day_key'] = Variable<String>(dayKey);
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
@@ -3444,6 +3536,7 @@ class SunlightLedger extends DataClass implements Insertable<SunlightLedger> {
       refId:
           refId == null && nullToAbsent ? const Value.absent() : Value(refId),
       dayKey: Value(dayKey),
+      childId: Value(childId),
     );
   }
 
@@ -3460,6 +3553,7 @@ class SunlightLedger extends DataClass implements Insertable<SunlightLedger> {
       refType: serializer.fromJson<String?>(json['refType']),
       refId: serializer.fromJson<String?>(json['refId']),
       dayKey: serializer.fromJson<String>(json['dayKey']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -3475,6 +3569,7 @@ class SunlightLedger extends DataClass implements Insertable<SunlightLedger> {
       'refType': serializer.toJson<String?>(refType),
       'refId': serializer.toJson<String?>(refId),
       'dayKey': serializer.toJson<String>(dayKey),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
@@ -3487,7 +3582,8 @@ class SunlightLedger extends DataClass implements Insertable<SunlightLedger> {
           double? balanceAfter,
           Value<String?> refType = const Value.absent(),
           Value<String?> refId = const Value.absent(),
-          String? dayKey}) =>
+          String? dayKey,
+          String? childId}) =>
       SunlightLedger(
         id: id ?? this.id,
         ts: ts ?? this.ts,
@@ -3498,6 +3594,7 @@ class SunlightLedger extends DataClass implements Insertable<SunlightLedger> {
         refType: refType.present ? refType.value : this.refType,
         refId: refId.present ? refId.value : this.refId,
         dayKey: dayKey ?? this.dayKey,
+        childId: childId ?? this.childId,
       );
   SunlightLedger copyWithCompanion(SunlightLedgersCompanion data) {
     return SunlightLedger(
@@ -3512,6 +3609,7 @@ class SunlightLedger extends DataClass implements Insertable<SunlightLedger> {
       refType: data.refType.present ? data.refType.value : this.refType,
       refId: data.refId.present ? data.refId.value : this.refId,
       dayKey: data.dayKey.present ? data.dayKey.value : this.dayKey,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
@@ -3526,14 +3624,15 @@ class SunlightLedger extends DataClass implements Insertable<SunlightLedger> {
           ..write('balanceAfter: $balanceAfter, ')
           ..write('refType: $refType, ')
           ..write('refId: $refId, ')
-          ..write('dayKey: $dayKey')
+          ..write('dayKey: $dayKey, ')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(
-      id, ts, type, gross, net, balanceAfter, refType, refId, dayKey);
+      id, ts, type, gross, net, balanceAfter, refType, refId, dayKey, childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3546,7 +3645,8 @@ class SunlightLedger extends DataClass implements Insertable<SunlightLedger> {
           other.balanceAfter == this.balanceAfter &&
           other.refType == this.refType &&
           other.refId == this.refId &&
-          other.dayKey == this.dayKey);
+          other.dayKey == this.dayKey &&
+          other.childId == this.childId);
 }
 
 class SunlightLedgersCompanion extends UpdateCompanion<SunlightLedger> {
@@ -3559,6 +3659,7 @@ class SunlightLedgersCompanion extends UpdateCompanion<SunlightLedger> {
   final Value<String?> refType;
   final Value<String?> refId;
   final Value<String> dayKey;
+  final Value<String> childId;
   final Value<int> rowid;
   const SunlightLedgersCompanion({
     this.id = const Value.absent(),
@@ -3570,6 +3671,7 @@ class SunlightLedgersCompanion extends UpdateCompanion<SunlightLedger> {
     this.refType = const Value.absent(),
     this.refId = const Value.absent(),
     this.dayKey = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SunlightLedgersCompanion.insert({
@@ -3582,6 +3684,7 @@ class SunlightLedgersCompanion extends UpdateCompanion<SunlightLedger> {
     this.refType = const Value.absent(),
     this.refId = const Value.absent(),
     required String dayKey,
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         ts = Value(ts),
@@ -3600,6 +3703,7 @@ class SunlightLedgersCompanion extends UpdateCompanion<SunlightLedger> {
     Expression<String>? refType,
     Expression<String>? refId,
     Expression<String>? dayKey,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3612,6 +3716,7 @@ class SunlightLedgersCompanion extends UpdateCompanion<SunlightLedger> {
       if (refType != null) 'ref_type': refType,
       if (refId != null) 'ref_id': refId,
       if (dayKey != null) 'day_key': dayKey,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3626,6 +3731,7 @@ class SunlightLedgersCompanion extends UpdateCompanion<SunlightLedger> {
       Value<String?>? refType,
       Value<String?>? refId,
       Value<String>? dayKey,
+      Value<String>? childId,
       Value<int>? rowid}) {
     return SunlightLedgersCompanion(
       id: id ?? this.id,
@@ -3637,6 +3743,7 @@ class SunlightLedgersCompanion extends UpdateCompanion<SunlightLedger> {
       refType: refType ?? this.refType,
       refId: refId ?? this.refId,
       dayKey: dayKey ?? this.dayKey,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3671,6 +3778,9 @@ class SunlightLedgersCompanion extends UpdateCompanion<SunlightLedger> {
     if (dayKey.present) {
       map['day_key'] = Variable<String>(dayKey.value);
     }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3689,6 +3799,7 @@ class SunlightLedgersCompanion extends UpdateCompanion<SunlightLedger> {
           ..write('refType: $refType, ')
           ..write('refId: $refId, ')
           ..write('dayKey: $dayKey, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5045,6 +5156,14 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       type: DriftSqlType.int,
       requiredDuringInsert: false,
       defaultValue: const Constant(0));
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -5056,7 +5175,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         sunlightReward,
         repeatRule,
         isCustom,
-        category
+        category,
+        childId
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5127,6 +5247,10 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       context.handle(_categoryMeta,
           category.isAcceptableOrUnknown(data['category']!, _categoryMeta));
     }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
     return context;
   }
 
@@ -5156,6 +5280,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
           .read(DriftSqlType.bool, data['${effectivePrefix}is_custom'])!,
       category: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}category'])!,
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
     );
   }
 
@@ -5176,6 +5302,7 @@ class Task extends DataClass implements Insertable<Task> {
   final String? repeatRule;
   final bool isCustom;
   final int category;
+  final String childId;
   const Task(
       {required this.id,
       required this.name,
@@ -5186,7 +5313,8 @@ class Task extends DataClass implements Insertable<Task> {
       required this.sunlightReward,
       this.repeatRule,
       required this.isCustom,
-      required this.category});
+      required this.category,
+      required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -5204,6 +5332,7 @@ class Task extends DataClass implements Insertable<Task> {
     }
     map['is_custom'] = Variable<bool>(isCustom);
     map['category'] = Variable<int>(category);
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
@@ -5223,6 +5352,7 @@ class Task extends DataClass implements Insertable<Task> {
           : Value(repeatRule),
       isCustom: Value(isCustom),
       category: Value(category),
+      childId: Value(childId),
     );
   }
 
@@ -5240,6 +5370,7 @@ class Task extends DataClass implements Insertable<Task> {
       repeatRule: serializer.fromJson<String?>(json['repeatRule']),
       isCustom: serializer.fromJson<bool>(json['isCustom']),
       category: serializer.fromJson<int>(json['category']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -5256,6 +5387,7 @@ class Task extends DataClass implements Insertable<Task> {
       'repeatRule': serializer.toJson<String?>(repeatRule),
       'isCustom': serializer.toJson<bool>(isCustom),
       'category': serializer.toJson<int>(category),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
@@ -5269,7 +5401,8 @@ class Task extends DataClass implements Insertable<Task> {
           int? sunlightReward,
           Value<String?> repeatRule = const Value.absent(),
           bool? isCustom,
-          int? category}) =>
+          int? category,
+          String? childId}) =>
       Task(
         id: id ?? this.id,
         name: name ?? this.name,
@@ -5282,6 +5415,7 @@ class Task extends DataClass implements Insertable<Task> {
         repeatRule: repeatRule.present ? repeatRule.value : this.repeatRule,
         isCustom: isCustom ?? this.isCustom,
         category: category ?? this.category,
+        childId: childId ?? this.childId,
       );
   Task copyWithCompanion(TasksCompanion data) {
     return Task(
@@ -5303,6 +5437,7 @@ class Task extends DataClass implements Insertable<Task> {
           data.repeatRule.present ? data.repeatRule.value : this.repeatRule,
       isCustom: data.isCustom.present ? data.isCustom.value : this.isCustom,
       category: data.category.present ? data.category.value : this.category,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
@@ -5318,7 +5453,8 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('sunlightReward: $sunlightReward, ')
           ..write('repeatRule: $repeatRule, ')
           ..write('isCustom: $isCustom, ')
-          ..write('category: $category')
+          ..write('category: $category, ')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
@@ -5334,7 +5470,8 @@ class Task extends DataClass implements Insertable<Task> {
       sunlightReward,
       repeatRule,
       isCustom,
-      category);
+      category,
+      childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5348,7 +5485,8 @@ class Task extends DataClass implements Insertable<Task> {
           other.sunlightReward == this.sunlightReward &&
           other.repeatRule == this.repeatRule &&
           other.isCustom == this.isCustom &&
-          other.category == this.category);
+          other.category == this.category &&
+          other.childId == this.childId);
 }
 
 class TasksCompanion extends UpdateCompanion<Task> {
@@ -5362,6 +5500,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<String?> repeatRule;
   final Value<bool> isCustom;
   final Value<int> category;
+  final Value<String> childId;
   final Value<int> rowid;
   const TasksCompanion({
     this.id = const Value.absent(),
@@ -5374,6 +5513,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.repeatRule = const Value.absent(),
     this.isCustom = const Value.absent(),
     this.category = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TasksCompanion.insert({
@@ -5387,6 +5527,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.repeatRule = const Value.absent(),
     required bool isCustom,
     this.category = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -5404,6 +5545,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<String>? repeatRule,
     Expression<bool>? isCustom,
     Expression<int>? category,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5417,6 +5559,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (repeatRule != null) 'repeat_rule': repeatRule,
       if (isCustom != null) 'is_custom': isCustom,
       if (category != null) 'category': category,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5432,6 +5575,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       Value<String?>? repeatRule,
       Value<bool>? isCustom,
       Value<int>? category,
+      Value<String>? childId,
       Value<int>? rowid}) {
     return TasksCompanion(
       id: id ?? this.id,
@@ -5444,6 +5588,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       repeatRule: repeatRule ?? this.repeatRule,
       isCustom: isCustom ?? this.isCustom,
       category: category ?? this.category,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5481,6 +5626,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     if (category.present) {
       map['category'] = Variable<int>(category.value);
     }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5500,6 +5648,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('repeatRule: $repeatRule, ')
           ..write('isCustom: $isCustom, ')
           ..write('category: $category, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5582,6 +5731,14 @@ class $CheckInsTable extends CheckIns with TableInfo<$CheckInsTable, CheckIn> {
   late final GeneratedColumn<String> parentNote = GeneratedColumn<String>(
       'parent_note', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -5594,7 +5751,8 @@ class $CheckInsTable extends CheckIns with TableInfo<$CheckInsTable, CheckIn> {
         sunlightGross,
         sunlightGranted,
         resolvedAt,
-        parentNote
+        parentNote,
+        childId
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5671,6 +5829,10 @@ class $CheckInsTable extends CheckIns with TableInfo<$CheckInsTable, CheckIn> {
           parentNote.isAcceptableOrUnknown(
               data['parent_note']!, _parentNoteMeta));
     }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
     return context;
   }
 
@@ -5702,6 +5864,8 @@ class $CheckInsTable extends CheckIns with TableInfo<$CheckInsTable, CheckIn> {
           .read(DriftSqlType.dateTime, data['${effectivePrefix}resolved_at']),
       parentNote: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}parent_note']),
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
     );
   }
 
@@ -5723,6 +5887,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
   final double sunlightGranted;
   final DateTime? resolvedAt;
   final String? parentNote;
+  final String childId;
   const CheckIn(
       {required this.id,
       required this.taskId,
@@ -5734,7 +5899,8 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       required this.sunlightGross,
       required this.sunlightGranted,
       this.resolvedAt,
-      this.parentNote});
+      this.parentNote,
+      required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -5755,6 +5921,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
     if (!nullToAbsent || parentNote != null) {
       map['parent_note'] = Variable<String>(parentNote);
     }
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
@@ -5777,6 +5944,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       parentNote: parentNote == null && nullToAbsent
           ? const Value.absent()
           : Value(parentNote),
+      childId: Value(childId),
     );
   }
 
@@ -5795,6 +5963,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       sunlightGranted: serializer.fromJson<double>(json['sunlightGranted']),
       resolvedAt: serializer.fromJson<DateTime?>(json['resolvedAt']),
       parentNote: serializer.fromJson<String?>(json['parentNote']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -5812,6 +5981,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       'sunlightGranted': serializer.toJson<double>(sunlightGranted),
       'resolvedAt': serializer.toJson<DateTime?>(resolvedAt),
       'parentNote': serializer.toJson<String?>(parentNote),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
@@ -5826,7 +5996,8 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           double? sunlightGross,
           double? sunlightGranted,
           Value<DateTime?> resolvedAt = const Value.absent(),
-          Value<String?> parentNote = const Value.absent()}) =>
+          Value<String?> parentNote = const Value.absent(),
+          String? childId}) =>
       CheckIn(
         id: id ?? this.id,
         taskId: taskId ?? this.taskId,
@@ -5839,6 +6010,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
         sunlightGranted: sunlightGranted ?? this.sunlightGranted,
         resolvedAt: resolvedAt.present ? resolvedAt.value : this.resolvedAt,
         parentNote: parentNote.present ? parentNote.value : this.parentNote,
+        childId: childId ?? this.childId,
       );
   CheckIn copyWithCompanion(CheckInsCompanion data) {
     return CheckIn(
@@ -5862,6 +6034,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           data.resolvedAt.present ? data.resolvedAt.value : this.resolvedAt,
       parentNote:
           data.parentNote.present ? data.parentNote.value : this.parentNote,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
@@ -5878,7 +6051,8 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           ..write('sunlightGross: $sunlightGross, ')
           ..write('sunlightGranted: $sunlightGranted, ')
           ..write('resolvedAt: $resolvedAt, ')
-          ..write('parentNote: $parentNote')
+          ..write('parentNote: $parentNote, ')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
@@ -5895,7 +6069,8 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       sunlightGross,
       sunlightGranted,
       resolvedAt,
-      parentNote);
+      parentNote,
+      childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5910,7 +6085,8 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           other.sunlightGross == this.sunlightGross &&
           other.sunlightGranted == this.sunlightGranted &&
           other.resolvedAt == this.resolvedAt &&
-          other.parentNote == this.parentNote);
+          other.parentNote == this.parentNote &&
+          other.childId == this.childId);
 }
 
 class CheckInsCompanion extends UpdateCompanion<CheckIn> {
@@ -5925,6 +6101,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
   final Value<double> sunlightGranted;
   final Value<DateTime?> resolvedAt;
   final Value<String?> parentNote;
+  final Value<String> childId;
   final Value<int> rowid;
   const CheckInsCompanion({
     this.id = const Value.absent(),
@@ -5938,6 +6115,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     this.sunlightGranted = const Value.absent(),
     this.resolvedAt = const Value.absent(),
     this.parentNote = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CheckInsCompanion.insert({
@@ -5952,6 +6130,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     this.sunlightGranted = const Value.absent(),
     this.resolvedAt = const Value.absent(),
     this.parentNote = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         taskId = Value(taskId),
@@ -5970,6 +6149,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     Expression<double>? sunlightGranted,
     Expression<DateTime>? resolvedAt,
     Expression<String>? parentNote,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5984,6 +6164,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
       if (sunlightGranted != null) 'sunlight_granted': sunlightGranted,
       if (resolvedAt != null) 'resolved_at': resolvedAt,
       if (parentNote != null) 'parent_note': parentNote,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6000,6 +6181,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
       Value<double>? sunlightGranted,
       Value<DateTime?>? resolvedAt,
       Value<String?>? parentNote,
+      Value<String>? childId,
       Value<int>? rowid}) {
     return CheckInsCompanion(
       id: id ?? this.id,
@@ -6013,6 +6195,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
       sunlightGranted: sunlightGranted ?? this.sunlightGranted,
       resolvedAt: resolvedAt ?? this.resolvedAt,
       parentNote: parentNote ?? this.parentNote,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6053,6 +6236,9 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     if (parentNote.present) {
       map['parent_note'] = Variable<String>(parentNote.value);
     }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6073,6 +6259,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
           ..write('sunlightGranted: $sunlightGranted, ')
           ..write('resolvedAt: $resolvedAt, ')
           ..write('parentNote: $parentNote, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6653,9 +6840,17 @@ class $EyeCareLogsTable extends EyeCareLogs
   late final GeneratedColumn<String> source = GeneratedColumn<String>(
       'source', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
   @override
   List<GeneratedColumn> get $columns =>
-      [id, ts, dayKey, result, watchedSeconds, source];
+      [id, ts, dayKey, result, watchedSeconds, source, childId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -6702,6 +6897,10 @@ class $EyeCareLogsTable extends EyeCareLogs
     } else if (isInserting) {
       context.missing(_sourceMeta);
     }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
     return context;
   }
 
@@ -6723,6 +6922,8 @@ class $EyeCareLogsTable extends EyeCareLogs
           .read(DriftSqlType.int, data['${effectivePrefix}watched_seconds'])!,
       source: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}source'])!,
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
     );
   }
 
@@ -6739,13 +6940,15 @@ class EyeCareLogRow extends DataClass implements Insertable<EyeCareLogRow> {
   final String result;
   final int watchedSeconds;
   final String source;
+  final String childId;
   const EyeCareLogRow(
       {required this.id,
       required this.ts,
       required this.dayKey,
       required this.result,
       required this.watchedSeconds,
-      required this.source});
+      required this.source,
+      required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -6755,6 +6958,7 @@ class EyeCareLogRow extends DataClass implements Insertable<EyeCareLogRow> {
     map['result'] = Variable<String>(result);
     map['watched_seconds'] = Variable<int>(watchedSeconds);
     map['source'] = Variable<String>(source);
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
@@ -6766,6 +6970,7 @@ class EyeCareLogRow extends DataClass implements Insertable<EyeCareLogRow> {
       result: Value(result),
       watchedSeconds: Value(watchedSeconds),
       source: Value(source),
+      childId: Value(childId),
     );
   }
 
@@ -6779,6 +6984,7 @@ class EyeCareLogRow extends DataClass implements Insertable<EyeCareLogRow> {
       result: serializer.fromJson<String>(json['result']),
       watchedSeconds: serializer.fromJson<int>(json['watchedSeconds']),
       source: serializer.fromJson<String>(json['source']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -6791,6 +6997,7 @@ class EyeCareLogRow extends DataClass implements Insertable<EyeCareLogRow> {
       'result': serializer.toJson<String>(result),
       'watchedSeconds': serializer.toJson<int>(watchedSeconds),
       'source': serializer.toJson<String>(source),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
@@ -6800,7 +7007,8 @@ class EyeCareLogRow extends DataClass implements Insertable<EyeCareLogRow> {
           String? dayKey,
           String? result,
           int? watchedSeconds,
-          String? source}) =>
+          String? source,
+          String? childId}) =>
       EyeCareLogRow(
         id: id ?? this.id,
         ts: ts ?? this.ts,
@@ -6808,6 +7016,7 @@ class EyeCareLogRow extends DataClass implements Insertable<EyeCareLogRow> {
         result: result ?? this.result,
         watchedSeconds: watchedSeconds ?? this.watchedSeconds,
         source: source ?? this.source,
+        childId: childId ?? this.childId,
       );
   EyeCareLogRow copyWithCompanion(EyeCareLogsCompanion data) {
     return EyeCareLogRow(
@@ -6819,6 +7028,7 @@ class EyeCareLogRow extends DataClass implements Insertable<EyeCareLogRow> {
           ? data.watchedSeconds.value
           : this.watchedSeconds,
       source: data.source.present ? data.source.value : this.source,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
@@ -6830,14 +7040,15 @@ class EyeCareLogRow extends DataClass implements Insertable<EyeCareLogRow> {
           ..write('dayKey: $dayKey, ')
           ..write('result: $result, ')
           ..write('watchedSeconds: $watchedSeconds, ')
-          ..write('source: $source')
+          ..write('source: $source, ')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode =>
-      Object.hash(id, ts, dayKey, result, watchedSeconds, source);
+      Object.hash(id, ts, dayKey, result, watchedSeconds, source, childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -6847,7 +7058,8 @@ class EyeCareLogRow extends DataClass implements Insertable<EyeCareLogRow> {
           other.dayKey == this.dayKey &&
           other.result == this.result &&
           other.watchedSeconds == this.watchedSeconds &&
-          other.source == this.source);
+          other.source == this.source &&
+          other.childId == this.childId);
 }
 
 class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
@@ -6857,6 +7069,7 @@ class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
   final Value<String> result;
   final Value<int> watchedSeconds;
   final Value<String> source;
+  final Value<String> childId;
   final Value<int> rowid;
   const EyeCareLogsCompanion({
     this.id = const Value.absent(),
@@ -6865,6 +7078,7 @@ class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
     this.result = const Value.absent(),
     this.watchedSeconds = const Value.absent(),
     this.source = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   EyeCareLogsCompanion.insert({
@@ -6874,6 +7088,7 @@ class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
     required String result,
     required int watchedSeconds,
     required String source,
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         ts = Value(ts),
@@ -6888,6 +7103,7 @@ class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
     Expression<String>? result,
     Expression<int>? watchedSeconds,
     Expression<String>? source,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6897,6 +7113,7 @@ class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
       if (result != null) 'result': result,
       if (watchedSeconds != null) 'watched_seconds': watchedSeconds,
       if (source != null) 'source': source,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6908,6 +7125,7 @@ class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
       Value<String>? result,
       Value<int>? watchedSeconds,
       Value<String>? source,
+      Value<String>? childId,
       Value<int>? rowid}) {
     return EyeCareLogsCompanion(
       id: id ?? this.id,
@@ -6916,6 +7134,7 @@ class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
       result: result ?? this.result,
       watchedSeconds: watchedSeconds ?? this.watchedSeconds,
       source: source ?? this.source,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6941,6 +7160,9 @@ class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
     if (source.present) {
       map['source'] = Variable<String>(source.value);
     }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6956,6 +7178,7 @@ class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
           ..write('result: $result, ')
           ..write('watchedSeconds: $watchedSeconds, ')
           ..write('source: $source, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7757,6 +7980,7 @@ typedef $$PlantsTableCreateCompanionBuilder = PlantsCompanion Function({
   Value<DateTime?> bloomedAt,
   Value<int> bloomCount,
   Value<int> mood,
+  Value<String> childId,
   Value<DateTime?> weedAt,
   Value<DateTime?> pestAt,
   Value<DateTime?> weedPestRollDay,
@@ -7781,6 +8005,7 @@ typedef $$PlantsTableUpdateCompanionBuilder = PlantsCompanion Function({
   Value<DateTime?> bloomedAt,
   Value<int> bloomCount,
   Value<int> mood,
+  Value<String> childId,
   Value<DateTime?> weedAt,
   Value<DateTime?> pestAt,
   Value<DateTime?> weedPestRollDay,
@@ -7850,6 +8075,9 @@ class $$PlantsTableFilterComposer
 
   ColumnFilters<int> get mood => $composableBuilder(
       column: $table.mood, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get weedAt => $composableBuilder(
       column: $table.weedAt, builder: (column) => ColumnFilters(column));
@@ -7929,6 +8157,9 @@ class $$PlantsTableOrderingComposer
   ColumnOrderings<int> get mood => $composableBuilder(
       column: $table.mood, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get weedAt => $composableBuilder(
       column: $table.weedAt, builder: (column) => ColumnOrderings(column));
 
@@ -8004,6 +8235,9 @@ class $$PlantsTableAnnotationComposer
   GeneratedColumn<int> get mood =>
       $composableBuilder(column: $table.mood, builder: (column) => column);
 
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
+
   GeneratedColumn<DateTime> get weedAt =>
       $composableBuilder(column: $table.weedAt, builder: (column) => column);
 
@@ -8057,6 +8291,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             Value<DateTime?> bloomedAt = const Value.absent(),
             Value<int> bloomCount = const Value.absent(),
             Value<int> mood = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<DateTime?> weedAt = const Value.absent(),
             Value<DateTime?> pestAt = const Value.absent(),
             Value<DateTime?> weedPestRollDay = const Value.absent(),
@@ -8081,6 +8316,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             bloomedAt: bloomedAt,
             bloomCount: bloomCount,
             mood: mood,
+            childId: childId,
             weedAt: weedAt,
             pestAt: pestAt,
             weedPestRollDay: weedPestRollDay,
@@ -8105,6 +8341,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             Value<DateTime?> bloomedAt = const Value.absent(),
             Value<int> bloomCount = const Value.absent(),
             Value<int> mood = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<DateTime?> weedAt = const Value.absent(),
             Value<DateTime?> pestAt = const Value.absent(),
             Value<DateTime?> weedPestRollDay = const Value.absent(),
@@ -8129,6 +8366,7 @@ class $$PlantsTableTableManager extends RootTableManager<
             bloomedAt: bloomedAt,
             bloomCount: bloomCount,
             mood: mood,
+            childId: childId,
             weedAt: weedAt,
             pestAt: pestAt,
             weedPestRollDay: weedPestRollDay,
@@ -8630,6 +8868,7 @@ typedef $$FocusSessionsTableCreateCompanionBuilder = FocusSessionsCompanion
   required int status,
   required double sunlightEarned,
   required DateTime createdAt,
+  Value<String> childId,
   Value<int> rowid,
 });
 typedef $$FocusSessionsTableUpdateCompanionBuilder = FocusSessionsCompanion
@@ -8642,6 +8881,7 @@ typedef $$FocusSessionsTableUpdateCompanionBuilder = FocusSessionsCompanion
   Value<int> status,
   Value<double> sunlightEarned,
   Value<DateTime> createdAt,
+  Value<String> childId,
   Value<int> rowid,
 });
 
@@ -8679,6 +8919,9 @@ class $$FocusSessionsTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
 }
 
 class $$FocusSessionsTableOrderingComposer
@@ -8715,6 +8958,9 @@ class $$FocusSessionsTableOrderingComposer
 
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$FocusSessionsTableAnnotationComposer
@@ -8749,6 +8995,9 @@ class $$FocusSessionsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
 }
 
 class $$FocusSessionsTableTableManager extends RootTableManager<
@@ -8785,6 +9034,7 @@ class $$FocusSessionsTableTableManager extends RootTableManager<
             Value<int> status = const Value.absent(),
             Value<double> sunlightEarned = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               FocusSessionsCompanion(
@@ -8796,6 +9046,7 @@ class $$FocusSessionsTableTableManager extends RootTableManager<
             status: status,
             sunlightEarned: sunlightEarned,
             createdAt: createdAt,
+            childId: childId,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -8807,6 +9058,7 @@ class $$FocusSessionsTableTableManager extends RootTableManager<
             required int status,
             required double sunlightEarned,
             required DateTime createdAt,
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               FocusSessionsCompanion.insert(
@@ -8818,6 +9070,7 @@ class $$FocusSessionsTableTableManager extends RootTableManager<
             status: status,
             sunlightEarned: sunlightEarned,
             createdAt: createdAt,
+            childId: childId,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -8853,6 +9106,7 @@ typedef $$SunlightLedgersTableCreateCompanionBuilder = SunlightLedgersCompanion
   Value<String?> refType,
   Value<String?> refId,
   required String dayKey,
+  Value<String> childId,
   Value<int> rowid,
 });
 typedef $$SunlightLedgersTableUpdateCompanionBuilder = SunlightLedgersCompanion
@@ -8866,6 +9120,7 @@ typedef $$SunlightLedgersTableUpdateCompanionBuilder = SunlightLedgersCompanion
   Value<String?> refType,
   Value<String?> refId,
   Value<String> dayKey,
+  Value<String> childId,
   Value<int> rowid,
 });
 
@@ -8904,6 +9159,9 @@ class $$SunlightLedgersTableFilterComposer
 
   ColumnFilters<String> get dayKey => $composableBuilder(
       column: $table.dayKey, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
 }
 
 class $$SunlightLedgersTableOrderingComposer
@@ -8942,6 +9200,9 @@ class $$SunlightLedgersTableOrderingComposer
 
   ColumnOrderings<String> get dayKey => $composableBuilder(
       column: $table.dayKey, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$SunlightLedgersTableAnnotationComposer
@@ -8979,6 +9240,9 @@ class $$SunlightLedgersTableAnnotationComposer
 
   GeneratedColumn<String> get dayKey =>
       $composableBuilder(column: $table.dayKey, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
 }
 
 class $$SunlightLedgersTableTableManager extends RootTableManager<
@@ -9017,6 +9281,7 @@ class $$SunlightLedgersTableTableManager extends RootTableManager<
             Value<String?> refType = const Value.absent(),
             Value<String?> refId = const Value.absent(),
             Value<String> dayKey = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SunlightLedgersCompanion(
@@ -9029,6 +9294,7 @@ class $$SunlightLedgersTableTableManager extends RootTableManager<
             refType: refType,
             refId: refId,
             dayKey: dayKey,
+            childId: childId,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -9041,6 +9307,7 @@ class $$SunlightLedgersTableTableManager extends RootTableManager<
             Value<String?> refType = const Value.absent(),
             Value<String?> refId = const Value.absent(),
             required String dayKey,
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SunlightLedgersCompanion.insert(
@@ -9053,6 +9320,7 @@ class $$SunlightLedgersTableTableManager extends RootTableManager<
             refType: refType,
             refId: refId,
             dayKey: dayKey,
+            childId: childId,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -9736,6 +10004,7 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   Value<String?> repeatRule,
   required bool isCustom,
   Value<int> category,
+  Value<String> childId,
   Value<int> rowid,
 });
 typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
@@ -9749,6 +10018,7 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<String?> repeatRule,
   Value<bool> isCustom,
   Value<int> category,
+  Value<String> childId,
   Value<int> rowid,
 });
 
@@ -9790,6 +10060,9 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<int> get category => $composableBuilder(
       column: $table.category, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
 }
 
 class $$TasksTableOrderingComposer
@@ -9833,6 +10106,9 @@ class $$TasksTableOrderingComposer
 
   ColumnOrderings<int> get category => $composableBuilder(
       column: $table.category, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$TasksTableAnnotationComposer
@@ -9873,6 +10149,9 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumn<int> get category =>
       $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
 }
 
 class $$TasksTableTableManager extends RootTableManager<
@@ -9908,6 +10187,7 @@ class $$TasksTableTableManager extends RootTableManager<
             Value<String?> repeatRule = const Value.absent(),
             Value<bool> isCustom = const Value.absent(),
             Value<int> category = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TasksCompanion(
@@ -9921,6 +10201,7 @@ class $$TasksTableTableManager extends RootTableManager<
             repeatRule: repeatRule,
             isCustom: isCustom,
             category: category,
+            childId: childId,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -9934,6 +10215,7 @@ class $$TasksTableTableManager extends RootTableManager<
             Value<String?> repeatRule = const Value.absent(),
             required bool isCustom,
             Value<int> category = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TasksCompanion.insert(
@@ -9947,6 +10229,7 @@ class $$TasksTableTableManager extends RootTableManager<
             repeatRule: repeatRule,
             isCustom: isCustom,
             category: category,
+            childId: childId,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -9980,6 +10263,7 @@ typedef $$CheckInsTableCreateCompanionBuilder = CheckInsCompanion Function({
   Value<double> sunlightGranted,
   Value<DateTime?> resolvedAt,
   Value<String?> parentNote,
+  Value<String> childId,
   Value<int> rowid,
 });
 typedef $$CheckInsTableUpdateCompanionBuilder = CheckInsCompanion Function({
@@ -9994,6 +10278,7 @@ typedef $$CheckInsTableUpdateCompanionBuilder = CheckInsCompanion Function({
   Value<double> sunlightGranted,
   Value<DateTime?> resolvedAt,
   Value<String?> parentNote,
+  Value<String> childId,
   Value<int> rowid,
 });
 
@@ -10039,6 +10324,9 @@ class $$CheckInsTableFilterComposer
 
   ColumnFilters<String> get parentNote => $composableBuilder(
       column: $table.parentNote, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
 }
 
 class $$CheckInsTableOrderingComposer
@@ -10085,6 +10373,9 @@ class $$CheckInsTableOrderingComposer
 
   ColumnOrderings<String> get parentNote => $composableBuilder(
       column: $table.parentNote, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$CheckInsTableAnnotationComposer
@@ -10128,6 +10419,9 @@ class $$CheckInsTableAnnotationComposer
 
   GeneratedColumn<String> get parentNote => $composableBuilder(
       column: $table.parentNote, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
 }
 
 class $$CheckInsTableTableManager extends RootTableManager<
@@ -10164,6 +10458,7 @@ class $$CheckInsTableTableManager extends RootTableManager<
             Value<double> sunlightGranted = const Value.absent(),
             Value<DateTime?> resolvedAt = const Value.absent(),
             Value<String?> parentNote = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               CheckInsCompanion(
@@ -10178,6 +10473,7 @@ class $$CheckInsTableTableManager extends RootTableManager<
             sunlightGranted: sunlightGranted,
             resolvedAt: resolvedAt,
             parentNote: parentNote,
+            childId: childId,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -10192,6 +10488,7 @@ class $$CheckInsTableTableManager extends RootTableManager<
             Value<double> sunlightGranted = const Value.absent(),
             Value<DateTime?> resolvedAt = const Value.absent(),
             Value<String?> parentNote = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               CheckInsCompanion.insert(
@@ -10206,6 +10503,7 @@ class $$CheckInsTableTableManager extends RootTableManager<
             sunlightGranted: sunlightGranted,
             resolvedAt: resolvedAt,
             parentNote: parentNote,
+            childId: childId,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -10553,6 +10851,7 @@ typedef $$EyeCareLogsTableCreateCompanionBuilder = EyeCareLogsCompanion
   required String result,
   required int watchedSeconds,
   required String source,
+  Value<String> childId,
   Value<int> rowid,
 });
 typedef $$EyeCareLogsTableUpdateCompanionBuilder = EyeCareLogsCompanion
@@ -10563,6 +10862,7 @@ typedef $$EyeCareLogsTableUpdateCompanionBuilder = EyeCareLogsCompanion
   Value<String> result,
   Value<int> watchedSeconds,
   Value<String> source,
+  Value<String> childId,
   Value<int> rowid,
 });
 
@@ -10593,6 +10893,9 @@ class $$EyeCareLogsTableFilterComposer
 
   ColumnFilters<String> get source => $composableBuilder(
       column: $table.source, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
 }
 
 class $$EyeCareLogsTableOrderingComposer
@@ -10622,6 +10925,9 @@ class $$EyeCareLogsTableOrderingComposer
 
   ColumnOrderings<String> get source => $composableBuilder(
       column: $table.source, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$EyeCareLogsTableAnnotationComposer
@@ -10650,6 +10956,9 @@ class $$EyeCareLogsTableAnnotationComposer
 
   GeneratedColumn<String> get source =>
       $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
 }
 
 class $$EyeCareLogsTableTableManager extends RootTableManager<
@@ -10684,6 +10993,7 @@ class $$EyeCareLogsTableTableManager extends RootTableManager<
             Value<String> result = const Value.absent(),
             Value<int> watchedSeconds = const Value.absent(),
             Value<String> source = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               EyeCareLogsCompanion(
@@ -10693,6 +11003,7 @@ class $$EyeCareLogsTableTableManager extends RootTableManager<
             result: result,
             watchedSeconds: watchedSeconds,
             source: source,
+            childId: childId,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -10702,6 +11013,7 @@ class $$EyeCareLogsTableTableManager extends RootTableManager<
             required String result,
             required int watchedSeconds,
             required String source,
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               EyeCareLogsCompanion.insert(
@@ -10711,6 +11023,7 @@ class $$EyeCareLogsTableTableManager extends RootTableManager<
             result: result,
             watchedSeconds: watchedSeconds,
             source: source,
+            childId: childId,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

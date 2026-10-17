@@ -12,11 +12,26 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
+import 'package:sunflower_time/domain/services/account_service.dart';
 
+/// 本地专注会话仓储（实现 domain 接口，§2.1 / §3.1）。
+///
+/// 真实 Drift 实现，替换 M0 的 `FocusLocalRepositoryStub`（该桩已从
+/// `local_stub_repositories.dart` 移除）。
+///
+/// C90 期 2：会话数据按「当前孩子」隔离 —— 写入落 [AccountService.childId]，
+/// 读取全口径按 childId 过滤（专注报告 / 等级 / 花盆属性全部只算当前孩子）。
+/// 🔴 仓储接口签名一律不变（过滤在实现内部完成）；[AccountService] 可选
+///（null → 按 kChildIdDefault，既有单测零改动）。
 class FocusLocalRepository implements FocusRepository, FocusRangeQuery {
   final db.AppDatabase _db;
+  final AccountService? _account;
 
-  FocusLocalRepository(this._db);
+  FocusLocalRepository(this._db, {AccountService? account})
+      : _account = account;
+
+  /// 当前孩子的 childId（C90 期 2：写入落标 + 读取过滤统一收口）。
+  String get _childId => _account?.childId ?? kChildIdDefault;
 
   @override
   Future<void> saveSession(FocusSession session) async {
@@ -30,6 +45,7 @@ class FocusLocalRepository implements FocusRepository, FocusRangeQuery {
             status: Value(session.status.index),
             sunlightEarned: Value(session.sunlightEarned),
             createdAt: Value(session.createdAt),
+            childId: Value(_childId),
           ),
         );
   }
@@ -41,7 +57,8 @@ class FocusLocalRepository implements FocusRepository, FocusRangeQuery {
     final rows = await (_db.select(_db.focusSessions)
           ..where((t) =>
               t.start.isBiggerOrEqualValue(dayStart) &
-              t.start.isSmallerThanValue(dayEnd))
+              t.start.isSmallerThanValue(dayEnd) &
+              t.childId.equals(_childId))
           ..orderBy([(t) => OrderingTerm(expression: t.start)]))
         .get();
     return rows.map(_toDomain).toList();
@@ -60,7 +77,8 @@ class FocusLocalRepository implements FocusRepository, FocusRangeQuery {
     final rows = await (_db.select(_db.focusSessions)
           ..where((t) =>
               t.start.isBiggerOrEqualValue(from) &
-              t.start.isSmallerThanValue(to))
+              t.start.isSmallerThanValue(to) &
+              t.childId.equals(_childId))
           ..orderBy([
             (t) => OrderingTerm(expression: t.start),
             (t) => OrderingTerm(expression: t.id),
@@ -79,7 +97,9 @@ class FocusLocalRepository implements FocusRepository, FocusRangeQuery {
         DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
     final rows = await (_db.select(_db.focusSessions)
           ..where((t) =>
-              t.start.isBiggerOrEqualValue(from) & t.start.isSmallerThanValue(to)))
+              t.start.isBiggerOrEqualValue(from) &
+              t.start.isSmallerThanValue(to) &
+              t.childId.equals(_childId)))
         .get();
 
     final Set<String> validDays = <String>{};
@@ -95,7 +115,10 @@ class FocusLocalRepository implements FocusRepository, FocusRangeQuery {
   Future<FocusStats> totalStats() async {
     // 全量聚合（§3.3）：累计专注分钟 / 会话数 / 有效专注日。
     // 数据量级为单机孩子的历史会话数，全量取内存聚合足够（不做分页/SQL 聚合）。
-    final List<db.FocusSession> rows = await _db.select(_db.focusSessions).get();
+    // C90 期 2：只聚合当前孩子的会话。
+    final List<db.FocusSession> rows = await (_db.select(_db.focusSessions)
+          ..where((t) => t.childId.equals(_childId)))
+        .get();
 
     double totalMinutes = 0.0;
     final Set<String> validDays = <String>{};

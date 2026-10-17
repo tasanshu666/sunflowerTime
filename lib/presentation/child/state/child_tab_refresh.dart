@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/di/providers.dart';
 
 import 'shell_tab.dart';
 
@@ -122,6 +123,14 @@ mixin ChildTabAutoRefresh<T extends ConsumerStatefulWidget> on ConsumerState<T> 
       ref.listenManual(childShellTabIndexProvider,
           (int? _, int next) => _onTabIndexChanged(next));
     }
+    // C90 期 2（玄参 2026-10-17 拍板）：家长端切换 / 新建 / 编辑 / 删除孩子后
+    // `childProfileRevisionProvider` 自增 → **无条件刷新**（⚠️ 不要求本 tab 可见）。
+    // 这是「刻意不覆盖不可见 tab」纪律的**唯一例外**：IndexedStack 隐藏页也在台上，
+    // 且期 2 起数据已按孩子隔离 —— 若不刷，切完孩子回到花园 / 商店仍是上个孩子的
+    // 快照（数据源换了、页面不知道）。与 C68 三类触发并列；在途闸门 [_refreshInFlight]
+    // 与「不可见不白跑时间轮询」的其余纪律均保持不变。
+    ref.listenManual(childProfileRevisionProvider,
+        (int? _, int __) => _requestRefresh());
     if (_visible) _startBoundaryTimer();
   }
 

@@ -58,7 +58,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 26;
+  int get schemaVersion => 27;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -722,6 +722,31 @@ class AppDatabase extends _$AppDatabase {
           //    老库升级同一条路，单一真源（口径见 tables.dart ChildProfiles 注释）。
           //    ⚠️ 版本变更（25 → 26），必须配迁移测试（见
           //       `test/m3/migration_v26_test.dart`）。
+
+          // ㉗ v27（C90 期 2，玄参 2026-10-17 拍板）：六张业务表各新增 `child_id`
+          //    列（TEXT NOT NULL DEFAULT 'single-child'），数据按「当前孩子」隔离：
+          //    plants / focus_sessions / sunlight_ledgers / tasks / check_ins /
+          //    eye_care_logs。
+          //    · 全部为**带默认值**的 ALTER TABLE ADD COLUMN（写法对齐 v26 先例
+          //      redemption_requests.child_id）：历史行补列后落默认值
+          //      kChildIdDefault —— 单孩子时代的全部存量数据无缝归属默认孩子，
+          //      老用户升级零感知；
+          //    · 不在本迁移做任何行改写（历史数据归属默认孩子即可）；
+          //    · 查询 / 写入按当前孩子过滤在仓储实现内部完成（🔴 仓储接口签名
+          //      一律不变，`implements FocusRepository` 有 57 处实现）；
+          //    · 本批刻意**不加列**的表（留第二批，复合主键 / 单例行需表重建）：
+          //      premium_fragments、unlocked_species、monthly_pools、
+          //      cooldown_counters；奖励模板全家共用（永不隔离）；
+          //      pending_bloom_rewards 经 plantId 挂植物 → 挂孩子，不加列；
+          //    · 用 `_ensureColumn` 幂等补列，重复升级不报错。
+          //    ⚠️ 版本变更（26 → 27），必须配迁移测试（见
+          //       `test/m3/migration_v27_test.dart`）。
+          await _ensureColumn(m, plants, plants.childId);
+          await _ensureColumn(m, focusSessions, focusSessions.childId);
+          await _ensureColumn(m, sunlightLedgers, sunlightLedgers.childId);
+          await _ensureColumn(m, tasks, tasks.childId);
+          await _ensureColumn(m, checkIns, checkIns.childId);
+          await _ensureColumn(m, eyeCareLogs, eyeCareLogs.childId);
         },
       );
 

@@ -6,56 +6,79 @@ library task_local_repository;
 
 import 'package:drift/drift.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart' as db;
 import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
+import 'package:sunflower_time/domain/services/account_service.dart';
 
+/// 本地任务 / 打卡仓储（实现 domain 接口，§2.1 / §3.1）。
+///
+/// 真实 Drift 实现，替换 M0 的 `TaskLocalRepositoryStub`（M3 T01）。
+/// M4：额外实现家长核销能力接口 [CheckInAdminRepository]。
+///
+/// C90 期 2：任务与打卡数据按「当前孩子」隔离 —— 写入落 [AccountService.childId]，
+/// 读取全口径按 childId 过滤（成长任务每个孩子各一套；家长端待核销 / 今日打卡 /
+/// 累计计数均只算当前孩子）。🔴 仓储接口签名一律不变（过滤在实现内部完成）；
+/// [AccountService] 可选（null → 按 kChildIdDefault，既有单测零改动）。
 class TaskLocalRepository implements TaskRepository, CheckInAdminRepository {
   final db.AppDatabase _db;
+  final AccountService? _account;
 
-  TaskLocalRepository(this._db);
+  TaskLocalRepository(this._db, {AccountService? account})
+      : _account = account;
+
+  /// 当前孩子的 childId（C90 期 2：写入落标 + 读取过滤统一收口）。
+  String get _childId => _account?.childId ?? kChildIdDefault;
 
   @override
   Future<List<Task>> tasks() async =>
-      (await _db.taskDao.allTasks()).map(_toTask).toList();
+      (await _db.taskDao.allTasks(childId: _childId)).map(_toTask).toList();
 
   @override
   Future<void> saveTask(Task task) =>
-      _db.taskDao.upsertTask(_toTaskCompanion(task));
+      _db.taskDao.upsertTask(_toTaskCompanion(task), childId: _childId);
 
   @override
-  Future<void> deleteTaskById(String id) => _db.taskDao.deleteTaskById(id);
+  Future<void> deleteTaskById(String id) =>
+      _db.taskDao.deleteTaskById(id, childId: _childId);
 
   @override
   Future<void> checkIn(CheckIn checkIn) =>
-      _db.taskDao.insertCheckIn(_toCheckInCompanion(checkIn));
+      _db.taskDao.insertCheckIn(_toCheckInCompanion(checkIn),
+          childId: _childId);
 
   @override
   Future<List<CheckIn>> checkInsOfDay(String dayKey) async =>
-      (await _db.taskDao.checkInsOfDay(dayKey)).map(_toCheckIn).toList();
+      (await _db.taskDao.checkInsOfDay(dayKey, childId: _childId))
+          .map(_toCheckIn)
+          .toList();
 
   @override
-  Future<int> totalCheckInCount() =>
-      _db.taskDao.countCheckInsByStatus(CheckInStatus.verified.index);
+  Future<int> totalCheckInCount() => _db.taskDao.countCheckInsByStatus(
+      CheckInStatus.verified.index,
+      childId: _childId);
 
   // ── CheckInAdminRepository（家长端核销，M4）──────────────────────────────
   @override
   Future<CheckIn?> checkInById(String id) async {
-    final db.CheckIn? row = await _db.taskDao.checkInById(id);
+    final db.CheckIn? row =
+        await _db.taskDao.checkInById(id, childId: _childId);
     return row == null ? null : _toCheckIn(row);
   }
 
   @override
   Future<List<CheckIn>> checkInsByStatus(CheckInStatus status) async =>
-      (await _db.taskDao.checkInsByStatus(status.index))
+      (await _db.taskDao.checkInsByStatus(status.index, childId: _childId))
           .map(_toCheckIn)
           .toList();
 
   @override
   Future<void> updateCheckIn(CheckIn checkIn) =>
-      _db.taskDao.updateCheckIn(_toCheckInCompanion(checkIn));
+      _db.taskDao.updateCheckIn(_toCheckInCompanion(checkIn),
+          childId: _childId);
 
   @override
   Future<bool> resolveCheckInIfStatus({
@@ -73,6 +96,7 @@ class TaskLocalRepository implements TaskRepository, CheckInAdminRepository {
         sunlightGranted: sunlightGranted,
         resolvedAt: resolvedAt,
         parentNote: parentNote,
+        childId: _childId,
       ) == 1;
 }
 

@@ -73,6 +73,12 @@ class Plants extends Table {
       integer().withDefault(const Constant(0))(); // 累计盛开次数（成株后循环玩法；v10 新增）
   IntColumn get mood => integer().withDefault(const Constant(0))(); // PlantMood index
 
+  // ── C90 期 2：归属孩子（玄参 2026-10-17 拍板，schemaVersion 27）────────────
+  // 历史行经迁移补列后落默认值 kChildIdDefault（= 单孩子时代的全部存量数据
+  // 无缝归属默认孩子）；新写入由 PlantLocalRepository 落当前孩子。
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子（C90 期 2）
+
   // ── v14 新增：花园干扰物（杂草 / 害虫，玄参 2026-09-30 拍板，口径 C26）──────
   // 存「出现当天零点」而非时刻：口径是「每天发生一次、当天有效、次日自动消失」，
   // 零点判等即天然保证跨天失效（次日零点 ≠ 今日零点 → 自动过期），不需要额外清理任务。
@@ -161,6 +167,11 @@ class FocusSessions extends Table {
   RealColumn get sunlightEarned => real()();
   DateTimeColumn get createdAt => dateTime()();
 
+  // ── C90 期 2：归属孩子（玄参 2026-10-17 拍板，schemaVersion 27）────────────
+  // 历史行迁移后默认归属 kChildIdDefault；新写入由 FocusLocalRepository 落当前孩子。
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子（C90 期 2）
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -176,6 +187,12 @@ class SunlightLedgers extends Table {
   TextColumn get refType => text().nullable()();
   TextColumn get refId => text().nullable()();
   TextColumn get dayKey => text()();
+
+  // ── C90 期 2：归属孩子（玄参 2026-10-17 拍板，schemaVersion 27）────────────
+  // 账本按孩子隔离（余额 / 软顶核算 / 累计口径全部只算当前孩子）；历史行迁移后
+  // 默认归属 kChildIdDefault；新写入由 SunlightLocalRepository 落当前孩子。
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子（C90 期 2）
 
   @override
   Set<Column> get primaryKey => {id};
@@ -244,6 +261,12 @@ class Tasks extends Table {
   IntColumn get category =>
       integer().withDefault(const Constant(0))(); // TaskCategory index（0=other 历史行安全默认）
 
+  // ── C90 期 2：归属孩子（玄参 2026-10-17 拍板，schemaVersion 27）────────────
+  // 成长任务按孩子隔离（每个孩子各一套任务清单；种子任务历史行默认归属
+  // kChildIdDefault —— 新建孩子初始任务为空，由家长自行配置，见报告风险项）。
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子（C90 期 2）
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -264,6 +287,12 @@ class CheckIns extends Table {
       real().withDefault(const Constant(0.0))(); // 实际入账；pending 时为 0
   DateTimeColumn get resolvedAt => dateTime().nullable()(); // 家长处理时间
   TextColumn get parentNote => text().nullable()(); // 驳回理由
+
+  // ── C90 期 2：归属孩子（玄参 2026-10-17 拍板，schemaVersion 27）────────────
+  // 打卡流水按孩子隔离（写法对齐 redemption_requests.childId，v26 先例）；
+  // 查询另有 taskId 可 join 回 tasks 表，此处直接落列做双保险。
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子（C90 期 2）
 
   @override
   Set<Column> get primaryKey => {id};
@@ -309,6 +338,12 @@ class EyeCareLogs extends Table {
   TextColumn get result => text()(); // EyeCareResultType.name
   IntColumn get watchedSeconds => integer()();
   TextColumn get source => text()(); // EyeCareSource.name
+
+  // ── C90 期 2：归属孩子（玄参 2026-10-17 拍板，schemaVersion 27）────────────
+  // 护眼记录按孩子隔离（家长报告护眼统计只算当前孩子）；历史行迁移后默认
+  // 归属 kChildIdDefault；新写入由 EyeCareLogLocalRepository 落当前孩子。
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子（C90 期 2）
 
   @override
   Set<Column> get primaryKey => {id};

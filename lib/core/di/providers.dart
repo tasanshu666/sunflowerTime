@@ -74,27 +74,37 @@ final settingsStoreProvider = Provider<SettingsStore>(
 );
 
 // ── Repository 装配 ───────────────────────────────────────────────
+// C90 期 2：六张隔离表（plants / focus_sessions / sunlight_ledgers / tasks /
+// check_ins / eye_care_logs）的仓储实现统一注入 accountService —— 写入落当前
+// 孩子、读取按当前孩子过滤；🔴 仓储接口签名一律不变。⚠️ 装配顺序无环：
+// accountService → childProfileRepository / settingsRepository / prefs，
+// 不回指下列任何仓储。
 final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsLocalRepository(ref.watch(appDatabaseProvider)),
 );
 final sunlightRepositoryProvider = Provider<SunlightRepository>(
-  (ref) => SunlightLocalRepository(ref.watch(appDatabaseProvider)),
+  (ref) => SunlightLocalRepository(ref.watch(appDatabaseProvider),
+      account: ref.watch(accountServiceProvider)),
 );
 final focusRepositoryProvider = Provider<FocusRepository>(
-  (ref) => FocusLocalRepository(ref.watch(appDatabaseProvider)),
+  (ref) => FocusLocalRepository(ref.watch(appDatabaseProvider),
+      account: ref.watch(accountServiceProvider)),
 );
 final taskRepositoryProvider = Provider<TaskRepository>(
-  (ref) => TaskLocalRepository(ref.watch(appDatabaseProvider)),
+  (ref) => TaskLocalRepository(ref.watch(appDatabaseProvider),
+      account: ref.watch(accountServiceProvider)),
 );
 
 /// 护眼记录仓储（玄参 2026-10-09：家长报告护眼统计）。
 final eyeCareLogRepositoryProvider = Provider<EyeCareLogRepository>(
-  (ref) => EyeCareLogLocalRepository(ref.watch(appDatabaseProvider)),
+  (ref) => EyeCareLogLocalRepository(ref.watch(appDatabaseProvider),
+      account: ref.watch(accountServiceProvider)),
 );
 /// 本地植物仓储单例（同时实现 [PlantRepository] 与 [BloomRewardRepository]，
 /// 共用同一 [AppDatabase]）；两个接口各暴露一个 Provider 供不同消费方注入。
 final plantLocalRepositoryProvider = Provider<PlantLocalRepository>(
-  (ref) => PlantLocalRepository(ref.watch(appDatabaseProvider)),
+  (ref) => PlantLocalRepository(ref.watch(appDatabaseProvider),
+      account: ref.watch(accountServiceProvider)),
 );
 final plantRepositoryProvider = Provider<PlantRepository>(
   (ref) => ref.watch(plantLocalRepositoryProvider),

@@ -155,3 +155,15 @@ class EyeCareLogDaoManager {
   $$EyeCareLogsTableTableManager get eyeCareLogs =>
       $$EyeCareLogsTableTableManager(_db.attachedDatabase, _db.eyeCareLogs);
 }
+
+mixin _$ChildProfileDaoMixin on DatabaseAccessor<AppDatabase> {
+  $ChildProfilesTable get childProfiles => attachedDatabase.childProfiles;
+  ChildProfileDaoManager get managers => ChildProfileDaoManager(this);
+}
+
+class ChildProfileDaoManager {
+  final _$ChildProfileDaoMixin _db;
+  ChildProfileDaoManager(this._db);
+  $$ChildProfilesTableTableManager get childProfiles =>
+      $$ChildProfilesTableTableManager(_db.attachedDatabase, _db.childProfiles);
+}

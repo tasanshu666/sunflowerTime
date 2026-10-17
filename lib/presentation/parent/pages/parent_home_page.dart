@@ -24,6 +24,7 @@ import 'package:sunflower_time/presentation/parent/pages/parent_reward_page.dart
 import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_history_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_settings_page.dart';
+import 'package:sunflower_time/presentation/parent/widgets/child_profile_bar.dart';
 import 'package:sunflower_time/shared/adaptive_nav_bar.dart';
 import 'package:sunflower_time/shared/theme.dart';
 
@@ -94,18 +95,27 @@ class _ParentHomePageState extends State<ParentHomePage> {
               onPressed: () => context.go('/'),
             ),
           ),
-          body: IndexedStack(
-            index: _index,
+          // C90 期 1：顶部「当前孩子」胶囊条（切换 / 新建入口只在家长天地），
+          // 下方 5 tab IndexedStack 原样保活。
+          body: Column(
             children: <Widget>[
-              const ParentTodayPage(),
-              const ParentRewardPage(),
-              // 任务 tab 复用任务配置页的 embedded 形态（不叠加第二层 AppBar；
-              // 返回栈仍由本页 AppBar / 系统返回键统一处理）。
-              const ParentTaskConfigPage(embedded: true),
-              // C54：记录 tab（C76：分段承载「专注报告」+「任务与奖励」）。
-              // 带参直达时把 initialSegment 透传给记录页。
-              ParentHistoryPage(initialSegment: widget.initialSegment),
-              const ParentSettingsPage(),
+              const ChildProfileBar(),
+              Expanded(
+                child: IndexedStack(
+                  index: _index,
+                  children: <Widget>[
+                    const ParentTodayPage(),
+                    const ParentRewardPage(),
+                    // 任务 tab 复用任务配置页的 embedded 形态（不叠加第二层 AppBar；
+                    // 返回栈仍由本页 AppBar / 系统返回键统一处理）。
+                    const ParentTaskConfigPage(embedded: true),
+                    // C54：记录 tab（C76：分段承载「专注报告」+「任务与奖励」）。
+                    // 带参直达时把 initialSegment 透传给记录页。
+                    ParentHistoryPage(initialSegment: widget.initialSegment),
+                    const ParentSettingsPage(),
+                  ],
+                ),
+              ),
             ],
           ),
           // C61 平板适配：限宽居中（同孩子端）；手机端原样（零变化）。

@@ -293,7 +293,6 @@ class TrackingEvents extends Table {
 }
 
 /// 少儿护眼记录（玄参 2026-10-09 拍板：家长报告需要护眼次数 / 时长 / 跳过统计）。
-///
 /// 每次**护眼卡退出**落一行，完成与跳过都记（写入点 `eye_care_page._finish`）：
 ///  · `result`：'completed'（自然走完，有奖励）/ 'skipped'（二次确认跳过，无奖励）；
 ///  · `watched_seconds`：实际观看秒数（completed 恒为 kEyeCareDurationSeconds；
@@ -310,6 +309,35 @@ class EyeCareLogs extends Table {
   TextColumn get result => text()(); // EyeCareResultType.name
   IntColumn get watchedSeconds => integer()();
   TextColumn get source => text()(); // EyeCareSource.name
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 多孩子档案（C90 期 1，玄参 2026-10-17 拍板，schemaVersion 26 新增）。
+///
+/// 口径：
+///  · 设备同一时刻只有一个「当前孩子」；切换 / 新建入口**只在家长天地**（本有家长
+///    PIN 门），孩子端零改动；
+///  · 免费 1 个档案、买断最多 [kPremiumChildProfileCount]（3）个；门控只拦新增，
+///    🔴 绝不删已存档案（C69 红线）；
+///  · 数据隔离在**期 2** 实施：本期只有兑换记录会落新 childId（切到谁记谁），
+///    其余页面数据本期不分孩子；
+///  · `ageTier`（年龄段）跟孩子走，但本期**只落列不接线**（防沉迷参数仍读全局
+///    settings 单行；期 2 迁移）；
+///  · 奖励模板家庭共用（期 2 也共用）。本期不做：删除档案、重命名、孩子端 UI。
+///
+/// 默认孩子**不在迁移里插**：由 App 层 `AccountService.initialize()` 冷启动补
+///（空表才插：id = kChildIdDefault、name = '孩子'、ageTier = 当前 settings 单行值），
+/// 全新安装与老库升级同一条路，单一真源。
+// Drift 行数据类命名避开领域实体 `ChildProfile`（domain/entities/child_profile.dart）。
+@DataClassName('ChildProfileRow')
+class ChildProfiles extends Table {
+  TextColumn get id => text()(); // uuid；默认孩子固定 = kChildIdDefault
+  TextColumn get name => text()();
+  // AgeTier.index；默认 2 = high（与 settings 单行空表默认语义一致）。
+  IntColumn get ageTier => integer().withDefault(const Constant(2))();
+  DateTimeColumn get createdAt => dateTime()();
 
   @override
   Set<Column> get primaryKey => {id};

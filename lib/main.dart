@@ -35,6 +35,16 @@ Future<void> main() async {
   // 门控单点。抽取为顶层 [hydrateEntitlement]，便于被冷启动回归测试直接单测
   //（`main()` 顶层逻辑无法在测试宿主直接跑）。
   await hydrateEntitlement(container);
+
+  // C90 期 1（玄参 2026-10-17 拍板）：冷启动初始化账号服务 —— 空表补建默认
+  // 孩子档案（幂等）+ 从 SP 恢复活跃孩子。失败安全：兜 try/catch 不阻塞启动
+  //（档案缺失时 AccountService 回退 kChildIdDefault 旧语义，功能不退化）。
+  try {
+    await container.read(accountServiceProvider).initialize();
+  } catch (e) {
+    debugPrint('[account] 默认孩子档案初始化失败：$e');
+  }
+
   // M2（T-D）：首次启动播种奖励模板。此处原版用 unawaited 把异常静默吞掉，
   // 导致玄参大人真机的「奖励模板缺失」故障极难发现。改为至少把异常打到日志，
   // 不改启动时序、不阻塞启动、不改变 UX。

@@ -184,7 +184,7 @@ void main() {
     });
   });
 
-  group('门控矩阵阶段 4 + C80：免费边界（收紧 6 项 / 其余放开）', () {
+  group('门控矩阵阶段 4 + C80 + C90：免费边界（收紧 7 项 / 其余放开）', () {
     const Set<FeatureKey> tightened = <FeatureKey>{
       FeatureKey.oneClickCare,
       FeatureKey.gardenPotCapacity,
@@ -193,6 +193,8 @@ void main() {
       FeatureKey.deepReport,
       // C80：称号专属属性 —— 本仓第一个真实生效的布尔收紧键。
       FeatureKey.titlePerks,
+      // C90 期 1：多孩子档案 —— free 1 / premium 3，只拦新增（C69）。
+      FeatureKey.multiChildProfile,
     };
 
     test('矩阵覆盖全部 FeatureKey', () {
@@ -250,6 +252,12 @@ void main() {
           featureQuotaFor(
               FeatureKey.rewardTemplateCount, EntitlementTier.premium),
           kUnlimitedQuota);
+      // C90 期 1：孩子档案 free 1 / premium 3（只拦新增，C69）。
+      expect(featureQuotaFor(FeatureKey.multiChildProfile, EntitlementTier.free),
+          kFreeChildProfileCount);
+      expect(
+          featureQuotaFor(FeatureKey.multiChildProfile, EntitlementTier.premium),
+          kPremiumChildProfileCount);
     });
 
     test('quotaAllowsAdd：达到 / 超过额度一律拦新增', () {

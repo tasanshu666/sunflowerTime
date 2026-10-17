@@ -6962,6 +6962,272 @@ class EyeCareLogsCompanion extends UpdateCompanion<EyeCareLogRow> {
   }
 }
 
+class $ChildProfilesTable extends ChildProfiles
+    with TableInfo<$ChildProfilesTable, ChildProfileRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ChildProfilesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _ageTierMeta =
+      const VerificationMeta('ageTier');
+  @override
+  late final GeneratedColumn<int> ageTier = GeneratedColumn<int>(
+      'age_tier', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(2));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [id, name, ageTier, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'child_profiles';
+  @override
+  VerificationContext validateIntegrity(Insertable<ChildProfileRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('age_tier')) {
+      context.handle(_ageTierMeta,
+          ageTier.isAcceptableOrUnknown(data['age_tier']!, _ageTierMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ChildProfileRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ChildProfileRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      ageTier: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}age_tier'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $ChildProfilesTable createAlias(String alias) {
+    return $ChildProfilesTable(attachedDatabase, alias);
+  }
+}
+
+class ChildProfileRow extends DataClass implements Insertable<ChildProfileRow> {
+  final String id;
+  final String name;
+  final int ageTier;
+  final DateTime createdAt;
+  const ChildProfileRow(
+      {required this.id,
+      required this.name,
+      required this.ageTier,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['age_tier'] = Variable<int>(ageTier);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  ChildProfilesCompanion toCompanion(bool nullToAbsent) {
+    return ChildProfilesCompanion(
+      id: Value(id),
+      name: Value(name),
+      ageTier: Value(ageTier),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ChildProfileRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ChildProfileRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      ageTier: serializer.fromJson<int>(json['ageTier']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'ageTier': serializer.toJson<int>(ageTier),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  ChildProfileRow copyWith(
+          {String? id, String? name, int? ageTier, DateTime? createdAt}) =>
+      ChildProfileRow(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        ageTier: ageTier ?? this.ageTier,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  ChildProfileRow copyWithCompanion(ChildProfilesCompanion data) {
+    return ChildProfileRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      ageTier: data.ageTier.present ? data.ageTier.value : this.ageTier,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChildProfileRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('ageTier: $ageTier, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, ageTier, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ChildProfileRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.ageTier == this.ageTier &&
+          other.createdAt == this.createdAt);
+}
+
+class ChildProfilesCompanion extends UpdateCompanion<ChildProfileRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<int> ageTier;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const ChildProfilesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.ageTier = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ChildProfilesCompanion.insert({
+    required String id,
+    required String name,
+    this.ageTier = const Value.absent(),
+    required DateTime createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name),
+        createdAt = Value(createdAt);
+  static Insertable<ChildProfileRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<int>? ageTier,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (ageTier != null) 'age_tier': ageTier,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ChildProfilesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<int>? ageTier,
+      Value<DateTime>? createdAt,
+      Value<int>? rowid}) {
+    return ChildProfilesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      ageTier: ageTier ?? this.ageTier,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (ageTier.present) {
+      map['age_tier'] = Variable<int>(ageTier.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChildProfilesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('ageTier: $ageTier, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6987,6 +7253,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $CooldownCountersTable(this);
   late final $TrackingEventsTable trackingEvents = $TrackingEventsTable(this);
   late final $EyeCareLogsTable eyeCareLogs = $EyeCareLogsTable(this);
+  late final $ChildProfilesTable childProfiles = $ChildProfilesTable(this);
   late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
   late final PlantDao plantDao = PlantDao(this as AppDatabase);
   late final BloomRewardDao bloomRewardDao =
@@ -7005,6 +7272,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final TrackingEventDao trackingEventDao =
       TrackingEventDao(this as AppDatabase);
   late final EyeCareLogDao eyeCareLogDao = EyeCareLogDao(this as AppDatabase);
+  late final ChildProfileDao childProfileDao =
+      ChildProfileDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7024,7 +7293,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         checkIns,
         cooldownCounters,
         trackingEvents,
-        eyeCareLogs
+        eyeCareLogs,
+        childProfiles
       ];
 }
 
@@ -10465,6 +10735,164 @@ typedef $$EyeCareLogsTableProcessedTableManager = ProcessedTableManager<
     ),
     EyeCareLogRow,
     PrefetchHooks Function()>;
+typedef $$ChildProfilesTableCreateCompanionBuilder = ChildProfilesCompanion
+    Function({
+  required String id,
+  required String name,
+  Value<int> ageTier,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$ChildProfilesTableUpdateCompanionBuilder = ChildProfilesCompanion
+    Function({
+  Value<String> id,
+  Value<String> name,
+  Value<int> ageTier,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
+
+class $$ChildProfilesTableFilterComposer
+    extends Composer<_$AppDatabase, $ChildProfilesTable> {
+  $$ChildProfilesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get ageTier => $composableBuilder(
+      column: $table.ageTier, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$ChildProfilesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ChildProfilesTable> {
+  $$ChildProfilesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get ageTier => $composableBuilder(
+      column: $table.ageTier, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ChildProfilesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ChildProfilesTable> {
+  $$ChildProfilesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get ageTier =>
+      $composableBuilder(column: $table.ageTier, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$ChildProfilesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ChildProfilesTable,
+    ChildProfileRow,
+    $$ChildProfilesTableFilterComposer,
+    $$ChildProfilesTableOrderingComposer,
+    $$ChildProfilesTableAnnotationComposer,
+    $$ChildProfilesTableCreateCompanionBuilder,
+    $$ChildProfilesTableUpdateCompanionBuilder,
+    (
+      ChildProfileRow,
+      BaseReferences<_$AppDatabase, $ChildProfilesTable, ChildProfileRow>
+    ),
+    ChildProfileRow,
+    PrefetchHooks Function()> {
+  $$ChildProfilesTableTableManager(_$AppDatabase db, $ChildProfilesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ChildProfilesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ChildProfilesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ChildProfilesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<int> ageTier = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ChildProfilesCompanion(
+            id: id,
+            name: name,
+            ageTier: ageTier,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            Value<int> ageTier = const Value.absent(),
+            required DateTime createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ChildProfilesCompanion.insert(
+            id: id,
+            name: name,
+            ageTier: ageTier,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ChildProfilesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ChildProfilesTable,
+    ChildProfileRow,
+    $$ChildProfilesTableFilterComposer,
+    $$ChildProfilesTableOrderingComposer,
+    $$ChildProfilesTableAnnotationComposer,
+    $$ChildProfilesTableCreateCompanionBuilder,
+    $$ChildProfilesTableUpdateCompanionBuilder,
+    (
+      ChildProfileRow,
+      BaseReferences<_$AppDatabase, $ChildProfilesTable, ChildProfileRow>
+    ),
+    ChildProfileRow,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -10499,4 +10927,6 @@ class $AppDatabaseManager {
       $$TrackingEventsTableTableManager(_db, _db.trackingEvents);
   $$EyeCareLogsTableTableManager get eyeCareLogs =>
       $$EyeCareLogsTableTableManager(_db, _db.eyeCareLogs);
+  $$ChildProfilesTableTableManager get childProfiles =>
+      $$ChildProfilesTableTableManager(_db, _db.childProfiles);
 }

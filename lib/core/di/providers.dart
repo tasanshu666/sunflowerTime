@@ -20,6 +20,7 @@ import 'package:sunflower_time/data/local/repositories/tracking_local_repository
 import 'package:sunflower_time/data/local/repositories/plant_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/task_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/eye_care_log_local_repository.dart';
+import 'package:sunflower_time/data/local/repositories/child_profile_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/entitlement_local_repository.dart';
 import 'package:sunflower_time/data/local/secure_entitlement_store.dart';
 import 'package:sunflower_time/data/local/secure_store.dart';
@@ -35,6 +36,7 @@ import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
 import 'package:sunflower_time/domain/repositories/eye_care_log_repository.dart';
+import 'package:sunflower_time/domain/repositories/child_profile_repository.dart';
 import 'package:sunflower_time/domain/repositories/focus_level_store.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
@@ -151,8 +153,29 @@ final audioServiceProvider = Provider<AudioService>((ref) => AudioService.instan
 
 // ── M2 经济与商店核销：服务装配（T-C 独占本段）────────────────────────────
 
-/// 账号服务（Plan B 单机版留桩，§3.2 / §7.6）。
-final accountServiceProvider = Provider<AccountService>((ref) => AccountService());
+/// 孩子档案仓储（C90 期 1，Drift `child_profiles` 表实现）。
+final childProfileRepositoryProvider = Provider<ChildProfileRepository>(
+  (ref) => ChildProfileLocalRepository(ref.watch(appDatabaseProvider)),
+);
+
+/// 账号服务（C90 期 1 真实现：本地多档案 + 家长天地切换；云同步仍留桩，C1）。
+///
+/// 全量依赖注入后具备多档案能力；冷启动由 main 调 `initialize()`
+///（空表补建默认孩子 + 从 SP 恢复活跃孩子）。
+final accountServiceProvider = Provider<AccountService>(
+  (ref) => AccountService(
+    children: ref.watch(childProfileRepositoryProvider),
+    settings: ref.watch(settingsRepositoryProvider),
+    prefs: ref.watch(sharedPreferencesProvider),
+  ),
+);
+
+/// 档案修订号（C90 期 1，仿 [economyRevisionProvider] 模式）。
+///
+/// 家长天地新建 / 切换孩子成功后自增；档案相关 UI（`ChildProfileBar` 等）
+/// watch 本值即自动刷新，无需回调。期 2 数据隔离落地后，孩子端经济展示
+/// 也应挂本修订号。
+final childProfileRevisionProvider = StateProvider<int>((ref) => 0);
 
 /// 周阳光池服务（§3.2 / §4.1）：取/建/重置周池 + C5 上限计算。
 final weeklyPoolServiceProvider = Provider<WeeklyPoolService>((ref) =>

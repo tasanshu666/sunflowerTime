@@ -27,8 +27,9 @@ String _projectRoot() {
       : cwd;
 }
 
-/// 阶段 4 **已收紧**的能力点（其余免费能力必须与 premium 等价）。
+/// 阶段 4 / C90 期 1 **已收紧**的能力点（其余免费能力必须与 premium 等价）。
 /// C80：`titlePerks`（称号专属属性）加入收紧集 —— 本仓**第一个真实生效的布尔收紧键**。
+/// C90 期 1：`multiChildProfile` 加入收紧集 —— free 1 / premium 3，只拦新增（C69）。
 const Set<FeatureKey> _tightenedInPhase4 = <FeatureKey>{
   FeatureKey.oneClickCare,
   FeatureKey.gardenPotCapacity,
@@ -36,6 +37,7 @@ const Set<FeatureKey> _tightenedInPhase4 = <FeatureKey>{
   FeatureKey.rewardTemplateCount,
   FeatureKey.deepReport,
   FeatureKey.titlePerks,
+  FeatureKey.multiChildProfile,
 };
 
 void main() {
@@ -78,6 +80,12 @@ void main() {
           kFreeTaskQuota);
       expect(featureQuotaFor(FeatureKey.rewardTemplateCount, EntitlementTier.free),
           kFreeRewardQuota);
+      // C90 期 1：孩子档案 free 1 / premium 3（只拦新增）。
+      expect(featureQuotaFor(FeatureKey.multiChildProfile, EntitlementTier.free),
+          kFreeChildProfileCount);
+      expect(
+          featureQuotaFor(FeatureKey.multiChildProfile, EntitlementTier.premium),
+          kPremiumChildProfileCount);
       // 买断后一律更宽 / 放开。
       expect(
         featureQuotaFor(FeatureKey.gardenPotCapacity, EntitlementTier.premium),

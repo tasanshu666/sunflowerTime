@@ -27,8 +27,9 @@ const Set<FeatureKey> _tightenedInPhase4 = <FeatureKey>{
 
 /// 「功能尚未实现」的键：🔴 本批**不接门控**（Apple 3.1.1/2.3.1 拒审风险），
 /// 必须行文等于现状（等价放行）。
+/// C90 期 1：`multiChildProfile` 已实现（家长天地档案切换/新建）并**移出本集**
+/// （收紧为 free 1 / premium 3，见下方边界测试）。
 const Set<FeatureKey> _notImplementedKeys = <FeatureKey>{
-  FeatureKey.multiChildProfile,
   FeatureKey.exportShare,
   FeatureKey.memoirExport,
   FeatureKey.familySharing,
@@ -40,6 +41,10 @@ void main() {
       expect(kFreeTaskQuota, 5);
       expect(kFreeRewardQuota, 5);
       expect(kFreeChildProfileCount, 1);
+    });
+
+    test('C90 孩子档案买断上限 = 3（玄参 2026-10-17 拍板）', () {
+      expect(kPremiumChildProfileCount, 3);
     });
 
     test('花盆目标值引用 prd_params 容量常量（防漂移）', () {
@@ -100,6 +105,23 @@ void main() {
           reason: '布尔型门控：额度双向不限（无配额语义）');
       expect(r.premiumQuota, kUnlimitedQuota);
     });
+
+    test('C90 孩子档案：free 1 / premium 3（只拦新增，freeEnabled 保持 true）', () {
+      final FeatureRule r = kEntitlementMatrix[FeatureKey.multiChildProfile]!;
+      expect(r.freeEnabled, isTrue,
+          reason: '免费档本就有 1 个档案：能力可用，只是数量受限');
+      expect(r.freeQuota, kFreeChildProfileCount);
+      expect(r.premiumQuota, kPremiumChildProfileCount);
+      // 配额判定语义（C69 红线）：达上限只拦新增，绝不删已存档案。
+      expect(quotaAllowsAdd(FeatureKey.multiChildProfile, EntitlementTier.free, 0),
+          isTrue, reason: 'free 无档案 → 可建第 1 个');
+      expect(quotaAllowsAdd(FeatureKey.multiChildProfile, EntitlementTier.free, 1),
+          isFalse, reason: 'free 已有 1 个 → 拦第 2 个');
+      expect(quotaAllowsAdd(FeatureKey.multiChildProfile, EntitlementTier.premium, 3),
+          isFalse, reason: 'premium 已有 3 个 → 拦第 4 个');
+      expect(quotaAllowsAdd(FeatureKey.multiChildProfile, EntitlementTier.premium, 2),
+          isTrue, reason: 'premium 已有 2 个 → 可建第 3 个');
+    });
   });
 
   group('🔴 未收紧项必须保持免费放开', () {
@@ -109,7 +131,7 @@ void main() {
       expect(r.freeQuota, kUnlimitedQuota);
     });
 
-    test('4 个未实现键行文 = 现状（等价放行，不接门控）', () {
+    test('3 个未实现键行文 = 现状（等价放行，不接门控）', () {
       for (final FeatureKey f in _notImplementedKeys) {
         final FeatureRule r = kEntitlementMatrix[f]!;
         expect(r.freeEnabled, isTrue,

@@ -37,6 +37,7 @@ part 'app_database.g.dart';
     CooldownCounters,
     TrackingEvents,
     EyeCareLogs,
+    ChildProfiles,
   ],
   daos: [
     SettingsDao,
@@ -50,13 +51,14 @@ part 'app_database.g.dart';
     CooldownCounterDao,
     TrackingEventDao,
     EyeCareLogDao,
+    ChildProfileDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 25;
+  int get schemaVersion => 26;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -711,6 +713,15 @@ class AppDatabase extends _$AppDatabase {
               );
             }
           }
+
+          // ㉖ v26（C90 期 1，玄参 2026-10-17 拍板）：新增 `child_profiles` 表
+          //    （多孩子档案底座）。仅**建表**：由 onUpgrade 首步 `m.createAll()`
+          //    （CREATE TABLE IF NOT EXISTS）幂等补齐，无列变更、无历史行改写。
+          //    ⚠️ 默认孩子**不在迁移里插** —— 由 App 层
+          //    `AccountService.initialize()` 冷启动补（空表才建），全新安装与
+          //    老库升级同一条路，单一真源（口径见 tables.dart ChildProfiles 注释）。
+          //    ⚠️ 版本变更（25 → 26），必须配迁移测试（见
+          //       `test/m3/migration_v26_test.dart`）。
         },
       );
 
@@ -734,6 +745,7 @@ class AppDatabase extends _$AppDatabase {
         await delete(cooldownCounters).go();
         await delete(trackingEvents).go();
         await delete(eyeCareLogs).go();
+        await delete(childProfiles).go();
       });
 
   /// 该表当前是否含某列（PRAGMA table_info）。

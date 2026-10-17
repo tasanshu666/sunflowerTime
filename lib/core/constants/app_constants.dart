@@ -181,6 +181,13 @@ const String kDefaultChildNickname = '小朋友';
 /// 昵称最大字符数（玄参拍板 ≤12）。
 const int kChildNicknameMaxLength = 12;
 
+/// 当前活跃孩子档案 id 的 SharedPreferences 键（C90 期 1，玄参 2026-10-17 拍板）。
+///
+/// 键缺失 / 指向不存在的孩子 → `AccountService.initialize()` 回退第一个孩子
+///（🔴 绝不因此删档案，C69）。⚠️ `kPrefChildNickname`（孩子端昵称）本期不动，
+/// 期 2 迁移进档案。
+const String kPrefActiveChildId = 'active_child_id';
+
 /// 家长端「每日 App 使用时长」可选档位（分钟）。
 ///
 /// 家长设置页下拉档位与本常量**唯一真源**（页面引用本常量，不再写裸字面量）。

@@ -7,8 +7,9 @@
 /// - 纯 Dart 常量，零平台依赖，可被纯逻辑单测直接断言。
 ///
 /// ⚠️⚠️ **阶段 4 已收紧其中 5 项**（`oneClickCare` / `gardenPotCapacity` /
-/// `taskTemplateCount` / `rewardTemplateCount` / `deepReport`）；其余（`parentReport`
-/// + 4 个未实现键）**保持免费放开**。
+/// `taskTemplateCount` / `rewardTemplateCount` / `deepReport`）；C90 期 1 再收紧
+/// `multiChildProfile`（free 1 / premium 3，只拦新增）。其余（`parentReport` +
+/// 3 个未实现键）**保持免费放开**。
 ///
 /// 🔴 红线 C69：额度超限**只拦新增、绝不删已存数据** —— 判定点只落在「新增动作」
 /// 入口（见 [quotaAllowsAdd]），绝不落在列表 / settings 的规范化上。
@@ -35,8 +36,14 @@ const int kFreeRewardQuota = 5;
 
 /// 免费档孩子档案数量上限（= 1）。
 ///
-/// ⚠️ 本期**未接门控**（多档案功能尚未实现），仅作目标值登记；阶段 N 实现后再接。
+/// C90 期 1（玄参 2026-10-17 拍板）已接线：门控只拦「新建档案」，
+/// 🔴 绝不删已存档案（C69 红线）。
 const int kFreeChildProfileCount = 1;
+
+/// 买断档孩子档案数量上限（= 3，玄参 2026-10-17 拍板：买断最多 3 个）。
+///
+/// 🔴 同样只拦新增：第 4 个被拦，已存 3 个档案只读保留。
+const int kPremiumChildProfileCount = 3;
 
 /// 免费档花盆容量上限。
 ///
@@ -130,12 +137,15 @@ const Map<FeatureKey, FeatureRule> kEntitlementMatrix = <FeatureKey, FeatureRule
   ),
   // ── 以下为「功能尚未实现」的键：🔴 **不接门控**（Apple 3.1.1/2.3.1 拒审风险）
   //    —— 行文保持 freeEnabled:true / kUnlimitedQuota = 现状（等价放行）。
-  // 多孩子档案（未实现，无档案实体 / 无 UI）：TODO(阶段N) 实现后按 [kFreeChildProfileCount] 收紧。
+  // ── C90 期 1（玄参 2026-10-17 拍板）多孩子档案：真门控 —— free = 1 个 /
+  //    premium = 3 个（[kPremiumChildProfileCount]）。🔴 只拦「新增档案」，
+  //    绝不删已存档案（C69 红线）；达上限时「+ 新建」照常可点、点击弹升级
+  //    （C62：不可点 ≠ 静默失败）。数据隔离期 2 实施（见 ChildProfiles 注释）。
   FeatureKey.multiChildProfile: FeatureRule(
     key: FeatureKey.multiChildProfile,
     freeEnabled: true,
-    freeQuota: kUnlimitedQuota,
-    premiumQuota: kUnlimitedQuota,
+    freeQuota: kFreeChildProfileCount,
+    premiumQuota: kPremiumChildProfileCount,
   ),
   // 深度报告（阶段 4 收紧）：免费关闭，买断不限。⚠️ 报告页接线本批缓做（先做报告改造）。
   FeatureKey.deepReport: FeatureRule(

@@ -594,3 +594,54 @@ class EyeCareLogDao extends DatabaseAccessor<AppDatabase>
     return row.read(sum) ?? 0;
   }
 }
+
+/// 孩子档案 DAO（C90 期 1，玄参 2026-10-17 拍板）。
+///
+/// 全部经 [ChildProfileLocalRepository] 供 [AccountService] 消费；口径
+///（切换入口只在家长天地、期 2 数据隔离、只拦新增不删档案）见 tables.dart
+/// `ChildProfiles` 注释。
+@DriftAccessor(tables: [ChildProfiles])
+class ChildProfileDao extends DatabaseAccessor<AppDatabase>
+    with _$ChildProfileDaoMixin {
+  ChildProfileDao(super.db);
+
+  /// 全部档案（按创建时间升序 —— 「第一个孩子」= 最早建的默认孩子）。
+  Future<List<ChildProfileRow>> all() =>
+      (select(childProfiles)
+            ..orderBy([(t) => OrderingTerm(expression: t.createdAt)]))
+          .get();
+
+  /// 按主键（id）读取单个档案，不存在返回 null。
+  Future<ChildProfileRow?> byId(String id) =>
+      (select(childProfiles)..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+
+  /// 插入或更新（按主键冲突合并）。
+  Future<void> upsert(ChildProfilesCompanion row) =>
+      into(childProfiles).insertOnConflictUpdate(row);
+
+  /// 档案总数（门控配额核算用，只读计数）。
+  Future<int> count() async {
+    final Expression<int> cnt = childProfiles.id.count();
+    final row =
+        await (selectOnly(childProfiles)..addColumns([cnt])).getSingle();
+    return row.read(cnt) ?? 0;
+  }
+
+  /// 更新档案（改名 / 调年龄段；id 与 createdAt 不变，C90 期 1 追加）。
+  Future<void> updateProfile(
+    String id, {
+    required String name,
+    required int ageTier,
+  }) =>
+      (update(childProfiles)..where((t) => t.id.equals(id))).write(
+        ChildProfilesCompanion(
+          name: Value(name),
+          ageTier: Value(ageTier),
+        ),
+      );
+
+  /// 按 id 删除档案（家长 PIN 复核由调用方负责，C90 期 1 追加）。
+  Future<void> deleteById(String id) =>
+      (delete(childProfiles)..where((t) => t.id.equals(id))).go();
+}

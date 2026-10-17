@@ -69,6 +69,11 @@ final Set<String> _whitelist = <String>{
   //    点击是否拦下弹「升级解锁」）。与报告段**同一 key**（不新增 FeatureKey），
   //    且周期算术 / 聚合 / 条导航**一律只吃 `bool unlocked` 与 `Set<_Period>`**。
   'lib/presentation/parent/widgets/history_activity_section.dart',
+  // C90 期 1（多孩子档案 · 家长天地切换/新建）：
+  //  · child_profile_bar.dart：档案胶囊条的**判定单点**（读 entitlementProvider +
+  //    quotaAllowsAdd(multiChildProfile) 决定新建是否放行 / 弹 showPremiumUpsell）。
+  //    只读矩阵单点，无 isPremium 判定；免费 1 / 买断 3，只拦新增（C69）。
+  'lib/presentation/parent/widgets/child_profile_bar.dart',
 };
 
 /// 权益命名空间标识符（词边界、大小写敏感）。
@@ -121,6 +126,7 @@ void main() {
       'lib/presentation/child/widgets/level_up_fx_overlay.dart',
       'lib/presentation/parent/widgets/focus_report_section.dart',
       'lib/presentation/parent/widgets/history_activity_section.dart',
+      'lib/presentation/parent/widgets/child_profile_bar.dart',
     ]) {
       expect(File('$root/$rel').existsSync(), isTrue,
           reason: '白名单文件不应缺失（缺失说明重构后守卫白名单失效）：$rel');

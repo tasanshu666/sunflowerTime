@@ -4,6 +4,7 @@
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/domain/entities/child_profile.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/weekly_pool.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
@@ -171,6 +172,17 @@ class FakeAccountService implements AccountService {
   String currentChildId() => kChildIdDefault;
   @override
   Future<void> ensureChild() => throw UnsupportedError('x');
+  // C90 期 1：AccountService 增加的多档案能力。Fake 恒单孩子，不实现语义、
+  // 仅满足接口（编排层只调 currentChildId，其余方法不会被本测试触达）。
+  @override
+  Future<void> initialize() async {}
+  @override
+  Future<void> switchTo(String id) => throw UnsupportedError('x');
+  @override
+  Future<ChildProfile> createChild(String name, AgeTier ageTier) =>
+      throw UnsupportedError('x');
+  @override
+  Future<ChildProfile?> currentProfile() async => null;
   @override
   Never signIn() => throw UnsupportedError('x');
   @override

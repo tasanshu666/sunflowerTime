@@ -144,7 +144,7 @@ void main() {
     test('schemaVersion 必须为最新 21（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openV19();
       addTearDown(database.close);
-      expect(database.schemaVersion, 25);
+      expect(database.schemaVersion, 26);
     });
 
     test('settings 行 true（历史默认落值 / 显式开启）升级后翻为 false', () async {
@@ -182,7 +182,7 @@ void main() {
             'VALUES (1, 2, 60, 30, 2, 10, 12, 400);',
       ]);
       await database.customSelect('SELECT 1').get(); // 二次访问触发 schema 校验
-      expect(database.schemaVersion, 25);
+      expect(database.schemaVersion, 26);
       expect(await _skipAllowed(database), isFalse);
       await database.close();
     });

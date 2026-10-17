@@ -2,7 +2,8 @@
 ///
 /// 取代 `parent_history_page.dart` 里原先的「段 0 临时占位」，与「任务与奖励」段
 /// （`history_activity_section.dart`）并列承载在记录页分段里。
-/// 旧的独立报告页 `parent_report_page.dart` **有意保留为孤儿页**（零改动，不路由到）。
+/// 旧的独立报告页 `parent_report_page.dart` 曾是 C76 留下的孤儿页（不路由到），
+/// **C87 已整个删除** —— 报告内容的本仓唯一实现在本文件。
 ///
 /// ## 信息架构（自上而下）
 ///  1. **周期切换器** `ReportPeriodBar`：日 / 周 / 月 / 年（默认**周**）；

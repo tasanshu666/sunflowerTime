@@ -583,16 +583,18 @@ void main() {
           reason: '孩子端不得触发购买');
     });
 
-    test('报告页门控（C76 已接线）：判定单点落在 focus_report_section，旧独立页保持零 token', () {
-      // 旧独立报告页 `parent_report_page.dart` 是**有意保留的孤儿页**（不路由到），
-      // C76 把门控接在记录页内嵌的 `FocusReportSection`，故旧页仍应零权益 token。
-      final String legacy = File(
-        '$root/lib/presentation/parent/pages/parent_report_page.dart',
-      ).readAsStringSync();
-      expect(legacy.contains('PremiumGate'), isFalse);
-      expect(legacy.contains('Entitlement'), isFalse);
+    test('报告段门控：判定单点落在 focus_report_section，旧独立页已删除', () {
+      // C87（2026-10-17）：旧独立报告页 `parent_report_page.dart` 曾是**有意保留的
+      // 孤儿页**（不路由到）。玄参拍板删除后，这里改为**反向断言**：
+      // 孤儿页不得复活 —— 一旦有人把老页捞回来，这条守卫立刻红。
+      expect(
+        File('$root/lib/presentation/parent/pages/parent_report_page.dart')
+            .existsSync(),
+        isFalse,
+        reason: 'C87：孤儿页已删除，不得复活（报告内容唯一实现在 focus_report_section）',
+      );
 
-      // 新报告段的门控必须真的接上了：判定走矩阵单点 `featureAllowedFor`。
+      // 报告段的门控必须真的接上了：判定走矩阵单点 `featureAllowedFor`。
       final String wired = File(
         '$root/lib/presentation/parent/widgets/focus_report_section.dart',
       ).readAsStringSync();

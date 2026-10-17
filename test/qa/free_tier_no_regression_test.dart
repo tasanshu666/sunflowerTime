@@ -158,17 +158,26 @@ void main() {
   });
 
   group('源码守卫：关键入口未被错误缠绕', () {
-    test('家长报告页内容未被权益判定缠上（本批缓做）', () {
+    test('报告段门控只经 focus_report_section 单点（旧独立页已删除）', () {
+      // C87（2026-10-17）：孤儿页 `parent_report_page.dart` 已按玄参拍板删除。
+      // 本用例原意是「本批缓做、报告页别被权益判定缠上」，该口径早被 C76 取代
+      // （月/年/稳定性/热力图归 deepReport），故改写为两条**更硬**的反向断言：
+      // ① 孤儿页不得复活；② 门控只能出现在报告段单点，且判定走矩阵。
+      expect(
+        File('$root/lib/presentation/parent/pages/parent_report_page.dart')
+            .existsSync(),
+        isFalse,
+        reason: 'C87：孤儿页已删除，不得复活',
+      );
+
       final String src = File(
-        '$root/lib/presentation/parent/pages/parent_report_page.dart',
+        '$root/lib/presentation/parent/widgets/focus_report_section.dart',
       ).readAsStringSync();
-      expect(src.contains('PremiumGate'), isFalse,
-          reason: '报告页门控本批缓做：不应引用 PremiumGate');
-      expect(src.contains('Entitlement'), isFalse,
-          reason: '报告页门控本批缓做：不应出现权益标识符');
-      // 报告页核心内容仍在：专注报告服务 + 有效专注日口径。
+      expect(src.contains('featureAllowedFor'), isTrue,
+          reason: '报告段门控必须走矩阵单点 featureAllowedFor');
+      // 报告段核心内容仍在：专注报告服务 + 有效专注日口径。
       expect(src.contains('focusReportServiceProvider'), isTrue,
-          reason: '报告页应仍走 focusReportServiceProvider（本地聚合）');
+          reason: '报告段应仍走 focusReportServiceProvider（本地聚合）');
     });
 
     test('孩子端花园页不出现购买入口 / 价格（门控只在家长端）', () {

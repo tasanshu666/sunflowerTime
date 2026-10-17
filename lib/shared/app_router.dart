@@ -20,8 +20,9 @@ import 'package:sunflower_time/presentation/child/pages/store_page.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_home_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_login_page.dart';
-// ⚠️ C76：`parent_report_page.dart` 不再被路由引用（`/parent/report` 已改为重定向），
-// 故此处删掉 import 以免产生 unused_import 告警；该文件由 T03 复用 FocusReportSection。
+// ⚠️ C76 / C87：`parent_report_page.dart` 曾在此被 import；C76 起 `/parent/report`
+// 改为重定向，C87 已把该孤儿页**整个删除**（报告内容唯一实现 = FocusReportSection）。
+// 此处保持无 import，切勿再把老页捞回来。
 import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_delete_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';

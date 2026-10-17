@@ -1,6 +1,13 @@
 /// 护眼统计 UI 测试（玄参 2026-10-09）：
-///  · 家长报告页新增「护眼统计」卡（完成 / 跳过 / 时长 / 跳过率）；
+///  · 家长报告「护眼统计」卡（完成 / 跳过 / 时长 / 跳过率）；
 ///  · 孩子端「我的」页新增「累计护眼」tile（账本口径）。
+///
+/// C87（2026-10-17）：老独立报告页 `parent_report_page.dart` 已成为**孤儿页**
+/// （路由已重定向、lib 内零引用）并删除 → 本测试改为直接挂新的
+/// `FocusReportSection`。**保留的是同一批断言与同一套取数接线**
+/// （`sunlightRepository.countByRefType` + `eyeCareLogRepository` 两项），
+/// 所以「账本口径 / 跳过口径 / 时长折算 / 跳过率」仍然是被**真实链路**证明的，
+/// 不是拿常量喂出来的假绿。
 library eye_care_stats_ui_test;
 
 import 'package:flutter/material.dart';
@@ -25,7 +32,7 @@ import 'package:sunflower_time/domain/repositories/task_repository.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
 import 'package:sunflower_time/domain/services/focus_report_service.dart';
 import 'package:sunflower_time/presentation/child/pages/child_profile_page.dart';
-import 'package:sunflower_time/presentation/parent/pages/parent_report_page.dart';
+import 'package:sunflower_time/presentation/parent/widgets/focus_report_section.dart';
 
 /// ── 假仓储 ────────────────────────────────────────────────────────────────
 
@@ -174,14 +181,17 @@ class _StubReportService extends FocusReportService {
       );
 }
 
-/// 报告页测试台：先挂一个空 home，再 push 报告页（绕开初始构建即查库）。
+/// 报告段测试台（C87：老 `ParentReportPage` 已删，改挂 `FocusReportSection`）。
+///
+/// 只覆盖护眼统计需要的三条取数口：报告服务桩（绕过 28+7 次查询）、
+/// 账本（完成次数）、护眼记录（跳过次数 / 跳过观看秒数）。
+/// 免费档（默认不注入权益）→ 少跑热力图与 35 次按日查询，用例更快。
 Future<void> _pumpReportPage(
   WidgetTester tester, {
   required int eyeCareCompleted,
   required int eyeCareSkipped,
   required int skippedWatchedSeconds,
 }) async {
-  final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
   await tester.pumpWidget(ProviderScope(
     overrides: <Override>[
       focusReportServiceProvider.overrideWithValue(_StubReportService()),
@@ -196,15 +206,14 @@ Future<void> _pumpReportPage(
       ),
     ],
     child: MaterialApp(
-      navigatorKey: navKey,
-      home: const Scaffold(body: SizedBox()),
+      home: Scaffold(
+        // 固定 now：护眼统计是全局口径，不随周期变；固定只为消掉时钟抖动。
+        body: FocusReportSection(now: DateTime(2026, 10, 10, 20)),
+      ),
     ),
   ));
-      navKey.currentState!.push<Object?>(MaterialPageRoute<Object?>(
-    builder: (_) => const ParentReportPage(),
-  ));
-  // _load 是多段异步（报告 + 账本 + 护眼记录）：有界步进 pump 直到加载完成。
-  for (int i = 0; i < 30; i++) {
+  // 报告主链 + 护眼卡两段异步：有界步进 pump 直到加载完成。
+  for (int i = 0; i < 60; i++) {
     await tester.pump(const Duration(milliseconds: 50));
     if (find.text('护眼统计').evaluate().isNotEmpty) break;
   }

@@ -57,6 +57,18 @@ final Set<String> _whitelist = <String>{
   //    两者均只读矩阵单点，且**仅** FeatureKey.titlePerks 一处，绝不含 isPremium 判定。
   'lib/presentation/child/widgets/focus_level_badge.dart',
   'lib/presentation/child/widgets/level_up_fx_overlay.dart',
+  // C76 第三批（专注报告 v2 · 报告段门控接线 T03）：
+  //  · focus_report_section.dart：报告段的**判定单点**（读 entitlementProvider +
+  //    featureAllowedFor(deepReport) 决定要不要取热力图 / 稳定性数据、要不要拦月/年）。
+  //    这是全仓唯一新增的门控点：色板 / 周期条 / 热力图 / 稳定性卡 / 护眼卡
+  //    **一律只吃 `bool unlocked`**，故其余 5 个新文件都不在白名单里（守卫仍紧）。
+  'lib/presentation/parent/widgets/focus_report_section.dart',
+  // C86 第四批（任务与奖励段加「年」粒度 + 免费档锁月/年）：
+  //  · history_activity_section.dart：记录页「任务与奖励」段的**判定单点**（读
+  //    entitlementProvider + featureAllowedFor(deepReport) 决定月/年是否置锁 /
+  //    点击是否拦下弹「升级解锁」）。与报告段**同一 key**（不新增 FeatureKey），
+  //    且周期算术 / 聚合 / 条导航**一律只吃 `bool unlocked` 与 `Set<_Period>`**。
+  'lib/presentation/parent/widgets/history_activity_section.dart',
 };
 
 /// 权益命名空间标识符（词边界、大小写敏感）。
@@ -107,6 +119,8 @@ void main() {
       'lib/domain/services/plant_growth_service.dart',
       'lib/presentation/child/widgets/focus_level_badge.dart',
       'lib/presentation/child/widgets/level_up_fx_overlay.dart',
+      'lib/presentation/parent/widgets/focus_report_section.dart',
+      'lib/presentation/parent/widgets/history_activity_section.dart',
     ]) {
       expect(File('$root/$rel').existsSync(), isTrue,
           reason: '白名单文件不应缺失（缺失说明重构后守卫白名单失效）：$rel');

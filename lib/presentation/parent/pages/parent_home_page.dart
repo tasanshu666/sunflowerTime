@@ -28,15 +28,45 @@ import 'package:sunflower_time/shared/adaptive_nav_bar.dart';
 import 'package:sunflower_time/shared/theme.dart';
 
 /// 家长端首页：底部导航壳（5 tab：今日 / 奖励 / 成长 / 记录 / 设置）。
+///
+/// C76（专注报告 v2）：支持带参直达 —— `/parent/home?tab=3&seg=0` 落地到
+/// 「记录」tab 的「专注报告」段（设置页「专注报告」入口卡 / 旧深链 `/parent/report`
+/// 都经此进入），家长端 ≤1 click 可看报告。
 class ParentHomePage extends StatefulWidget {
-  const ParentHomePage({super.key});
+  const ParentHomePage({super.key, this.initialTab = 0, this.initialSegment = 0});
+
+  /// 初始 tab（0 今日 / 1 奖励 / 2 成长 / 3 记录 / 4 设置；越界自动夹取）。
+  final int initialTab;
+
+  /// 「记录」tab 内的初始分段（0 专注报告 / 1 任务与奖励）；其余 tab 忽略此值。
+  final int initialSegment;
 
   @override
   State<ParentHomePage> createState() => _ParentHomePageState();
 }
 
 class _ParentHomePageState extends State<ParentHomePage> {
-  int _index = 0;
+  /// 底栏 tab 总数（今日 / 奖励 / 成长 / 记录 / 设置）。
+  static const int _kTabCount = 5;
+
+  /// 当前 tab（默认「今日」）。
+  late int _index;
+
+  @override
+  void initState() {
+    super.initState();
+    // State 字段不能在声明处读 widget，必须在 initState 里初始化。
+    _index = widget.initialTab.clamp(0, _kTabCount - 1);
+  }
+
+  @override
+  void didUpdateWidget(ParentHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 带参直达（`/parent/home?tab=n`）在「同页复用 State、仅 props 变化」时也能生效。
+    if (oldWidget.initialTab != widget.initialTab) {
+      _index = widget.initialTab.clamp(0, _kTabCount - 1);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,15 +96,16 @@ class _ParentHomePageState extends State<ParentHomePage> {
           ),
           body: IndexedStack(
             index: _index,
-            children: const <Widget>[
-              ParentTodayPage(),
-              ParentRewardPage(),
+            children: <Widget>[
+              const ParentTodayPage(),
+              const ParentRewardPage(),
               // 任务 tab 复用任务配置页的 embedded 形态（不叠加第二层 AppBar；
               // 返回栈仍由本页 AppBar / 系统返回键统一处理）。
-              ParentTaskConfigPage(embedded: true),
-              // C54：记录 tab（成长任务完成 / 奖励兑换历史，按内容统计次数）。
-              ParentHistoryPage(),
-              ParentSettingsPage(),
+              const ParentTaskConfigPage(embedded: true),
+              // C54：记录 tab（C76：分段承载「专注报告」+「任务与奖励」）。
+              // 带参直达时把 initialSegment 透传给记录页。
+              ParentHistoryPage(initialSegment: widget.initialSegment),
+              const ParentSettingsPage(),
             ],
           ),
           // C61 平板适配：限宽居中（同孩子端）；手机端原样（零变化）。

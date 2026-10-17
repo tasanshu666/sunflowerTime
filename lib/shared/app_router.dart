@@ -20,7 +20,8 @@ import 'package:sunflower_time/presentation/child/pages/store_page.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_home_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_login_page.dart';
-import 'package:sunflower_time/presentation/parent/pages/parent_report_page.dart';
+// ⚠️ C76：`parent_report_page.dart` 不再被路由引用（`/parent/report` 已改为重定向），
+// 故此处删掉 import 以免产生 unused_import 告警；该文件由 T03 复用 FocusReportSection。
 import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_delete_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
@@ -84,7 +85,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/parent/home',
-        builder: (context, state) => const ParentHomePage(),
+        // C76（专注报告 v2）：支持 `?tab=<0..4>&seg=<0|1>` 带参直达。
+        //
+        // 为什么用 `pageBuilder` 而不是 `builder`：go_router 的 `RouteMatch.pageKey`
+        // **只由路由路径生成**（`ValueKey<String>(matchedPath)`，query 不参与）。
+        // 家长端内部（设置页「专注报告」入口卡）用
+        // `context.go('/parent/home?tab=3&seg=0')` 跳转时 matchedLocation 仍是
+        // 同一路径 → Navigator 视为「同一个 page」，只做 `_updateSettings`，
+        // **不会**重建页面子树，新参数被丢弃 → 表现为「点了没反应」。
+        // 把 `tab`/`seg` 放进 pageKey 后，参数变化 = 新 page，必定按新参数重建
+        // （含 `initState`），入口卡一次点击即可落到「记录」tab 的报告段。
+        pageBuilder: (BuildContext context, GoRouterState state) {
+          final int tab =
+              int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0;
+          final int seg =
+              int.tryParse(state.uri.queryParameters['seg'] ?? '') ?? 0;
+          return MaterialPage<void>(
+            key: ValueKey<String>('/parent/home?tab=$tab&seg=$seg'),
+            child: ParentHomePage(initialTab: tab, initialSegment: seg),
+          );
+        },
       ),
       GoRoute(
         path: '/store',
@@ -100,7 +120,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/parent/report',
-        builder: (context, state) => const ParentReportPage(),
+        // C76（专注报告 v2）：报告不再是独立页面，改为「记录」tab 的专注报告段。
+        // 路由本身**保留**并重定向，兼容历史深链 / 旧版本文档里的入口。
+        redirect: (BuildContext context, GoRouterState state) =>
+            '/parent/home?tab=3&seg=0',
       ),
       GoRoute(
         path: '/parent/tasks',

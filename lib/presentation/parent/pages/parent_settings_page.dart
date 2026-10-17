@@ -6,10 +6,15 @@
 ///  · PIN 重设（[SecureStore.resetPin]，非 settings 字段）；
 ///  · 阳光赠予动作（[SunlightRepository.append] refType='parent_gift'，日/月上限见 U1）；
 ///  · 夜间边界下拉（M3 修订补齐，字段早存在但 UI 未暴露）；
-///  · 两个入口卡 → /parent/report、/parent/delete（**任务配置已升为独立 tab**，
-///    玄参大人反馈「奖励独占一个窗口、任务却在设置里」，故两者并排）。
+///  · 删除入口卡 → /parent/delete（**任务配置已升为独立 tab**，玄参大人反馈
+///    「奖励独占一个窗口、任务却在设置里」，故两者并排）。
+///
+/// C85 变更：① 删除「专注报告」入口卡（报告自 C76 起已在「记录」tab 内，双入口冗余）；
+/// ② 原「数据入口」分区标题改为「数据与隐私」（只剩删除入口）；
+/// ③ 末尾新增 **仅 Debug** 的「模拟已解锁」开关（`if (kDebugMode)` 包裹，release 无）。
 library parent_settings_page;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -25,8 +30,9 @@ import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
+import 'package:sunflower_time/presentation/parent/widgets/debug_unlock_switch.dart';
 
-/// 设置页：家长可控开关集 + PIN 重设 + 阳光赠予 + 三个入口卡。
+/// 设置页：家长可控开关集 + PIN 重设 + 阳光赠予 + 删除入口卡（+ Debug 调试区）。
 class ParentSettingsPage extends ConsumerStatefulWidget {
   const ParentSettingsPage({super.key});
 
@@ -386,13 +392,12 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
         ),
         const SizedBox(height: 12),
         // 「解锁全部功能」已上移到列表最顶部（玄参 2026-10-14 反馈），此处不再重复。
-        _SectionTitle('数据入口'),
-        _EntryCard(
-          icon: Icons.bar_chart,
-          title: '专注报告',
-          subtitle: const Text('周/月专注分布与健康指标'),
-          onTap: () => context.push('/parent/report'),
-        ),
+        // C85：原先此处还有一张「专注报告」入口卡 → **已删除**。报告自 C76 起已并入
+        // 「记录」tab 的分段（`FocusReportSection`），「记录」tab 底部即入口，
+        // 设置页再放一张属于双入口冗余（玄参 2026-10-17 反馈「设置里那张报告卡点
+        // 进去还是记录页，多一层」）。故本节只剩删除入口 → 标题改为「数据与隐私」。
+        _SectionTitle('数据与隐私'),
+        // 🔴 保留（隐私合规）：本地数据删除权——§10.4 C5 要求家长随时可清空本机数据。
         _EntryCard(
           icon: Icons.delete_forever,
           title: '删除入口',
@@ -400,6 +405,14 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           danger: true,
           onTap: () => context.push('/parent/delete'),
         ),
+        // 🐞 C85 · Debug 专用区：真机预览付费内容（月 / 年报告、热力图、深度报告）。
+        // `kDebugMode` 为编译期常量 → release 构建里整段被 tree-shake，
+        // 且本分支内的 widget / 文案在 release 包中**完全不存在**（不可见、不可触达）。
+        if (kDebugMode) ...<Widget>[
+          const SizedBox(height: 12),
+          const _SectionTitle('调试（仅 Debug 构建）'),
+          const DebugUnlockSwitch(),
+        ],
       ],
     );
   }

@@ -583,12 +583,23 @@ void main() {
           reason: '孩子端不得触发购买');
     });
 
-    test('报告页门控本批缓做：仍未缠权益判定', () {
-      final String src = File(
+    test('报告页门控（C76 已接线）：判定单点落在 focus_report_section，旧独立页保持零 token', () {
+      // 旧独立报告页 `parent_report_page.dart` 是**有意保留的孤儿页**（不路由到），
+      // C76 把门控接在记录页内嵌的 `FocusReportSection`，故旧页仍应零权益 token。
+      final String legacy = File(
         '$root/lib/presentation/parent/pages/parent_report_page.dart',
       ).readAsStringSync();
-      expect(src.contains('PremiumGate'), isFalse);
-      expect(src.contains('Entitlement'), isFalse);
+      expect(legacy.contains('PremiumGate'), isFalse);
+      expect(legacy.contains('Entitlement'), isFalse);
+
+      // 新报告段的门控必须真的接上了：判定走矩阵单点 `featureAllowedFor`。
+      final String wired = File(
+        '$root/lib/presentation/parent/widgets/focus_report_section.dart',
+      ).readAsStringSync();
+      expect(wired.contains('FeatureKey.deepReport'), isTrue,
+          reason: 'C76 裁定 #1：月报 / 年报 / 近 4 周稳定性 / 热力图四处必须归 deepReport');
+      expect(wired.contains('featureAllowedFor'), isTrue,
+          reason: '判定必须走门控矩阵单点 featureAllowedFor，不得散落 isPremium 旁路');
     });
   });
 }

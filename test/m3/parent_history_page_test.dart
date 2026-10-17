@@ -8,6 +8,13 @@
 ///  · 已核销打卡（verified）与已核销兑换（verified）为唯一数据源；
 ///  · 空态文案正确。
 ///
+/// C86 追加（玄参 2026-10-17）：
+///  · 「任务与奖励」段新增**年**粒度（日 / 周 / 月 / 年 四档）；
+///  · **免费档锁定月 / 年**（深度时间维度归 `deepReport`）：置锁 + 点了不切换 + 弹
+///    「升级解锁」（不静默）；日 / 周照常可用。
+///  · 因此凡是**需要看月 / 年**的用例，容器必须注入买断权益（[premium] = true）；
+///    只跑日 / 周的用例保持默认免费档（顺带覆盖「默认 = 免费」这条真路径）。
+///
 /// 说明：为了确定性，页面注入 `now = 2026-10-10 20:00`（周六，本周为 10-05 ~ 10-11）。
 /// 只覆盖历史页本身所需的 Provider，其余本页不读，故不注入。
 library parent_history_page_test;
@@ -18,6 +25,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
+import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -251,9 +259,16 @@ RedemptionRequest _redeemed(String id, String tplId, int cost, DateTime at) =>
       verifiedAt: at,
     );
 
+/// 买断权益快照（仅测试用）：C86 起免费档锁月 / 年，需要看月 / 年的用例必须注入。
+final Entitlement _lifetimeEntitlement = Entitlement.lifetime(
+  acquiredAt: DateTime(2026, 10, 10),
+  productId: 'test.premium',
+);
+
 List<Override> _overrides({
   required TaskRepository taskRepo,
   required RewardRepository rewardRepo,
+  bool premium = false,
 }) =>
     <Override>[
       taskRepositoryProvider.overrideWithValue(taskRepo),
@@ -261,6 +276,11 @@ List<Override> _overrides({
       sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
       focusRepositoryProvider.overrideWithValue(_FakeFocusRepository()),
       settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
+      // C86：默认**不注入** → 走真实免费档（锁月 / 年）；需要的用例显式买断。
+      if (premium)
+        entitlementProvider.overrideWith(
+          (Ref ref) => _lifetimeEntitlement,
+        ),
     ];
 
 Future<void> _pump(
@@ -280,6 +300,13 @@ Future<void> _pump(
       ),
     ),
   );
+  await tester.pumpAndSettle();
+}
+
+/// C76：记录页默认停在「专注报告」段，记录内容在「任务与奖励」段；
+/// 断言记录内容前先切段（只加这一步，不改既有断言）。
+Future<void> _switchToActivity(WidgetTester tester) async {
+  await tester.tap(find.text('任务与奖励'));
   await tester.pumpAndSettle();
 }
 
@@ -316,8 +343,10 @@ void main() {
 
     await _pump(
       tester,
-      _overrides(taskRepo: taskRepo, rewardRepo: rewardRepo),
+      // C86：本例要切「月」→ 必须买断（免费档月 / 年被拦）。
+      _overrides(taskRepo: taskRepo, rewardRepo: rewardRepo, premium: true),
     );
+    await _switchToActivity(tester);
 
     // ── 默认「日」：只统计今天 ──────────────────────────────
     expect(find.text('今天 · 10月10日'), findsOneWidget);
@@ -365,6 +394,7 @@ void main() {
       tester,
       _overrides(taskRepo: taskRepo, rewardRepo: _FakeRewardRepository()),
     );
+    await _switchToActivity(tester);
 
     // 今天：1 次。
     expect(find.text('今天 · 10月10日'), findsOneWidget);
@@ -399,6 +429,7 @@ void main() {
         rewardRepo: _FakeRewardRepository(),
       ),
     );
+    await _switchToActivity(tester);
 
     expect(find.text('本期间还没有成长项完成记录'), findsOneWidget);
     expect(find.text('本期间还没有奖励兑换记录'), findsOneWidget);
@@ -445,10 +476,205 @@ void main() {
         rewardRepo: _FakeRewardRepository(),
       ),
     );
+    await _switchToActivity(tester);
 
     // 3 条打卡里只有 1 条 verified → 只计 1 次。
     expect(find.text('完成 1 次'), findsOneWidget);
     expect(find.text('完成 3 次'), findsNothing);
     expect(find.text('共 1 次'), findsOneWidget);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C76（专注报告 v2 信息架构）：默认段 + 段内状态自持
+  // ─────────────────────────────────────────────────────────────────────────
+
+  testWidgets('默认段 = 专注报告：首屏不渲染记录段内容',
+      (WidgetTester tester) async {
+    await _pump(
+      tester,
+      _overrides(
+        taskRepo: _FakeTaskRepository(),
+        rewardRepo: _FakeRewardRepository(),
+      ),
+    );
+
+    // 分段标签「专注报告」+ 段 0 占位文案，至少一处。
+    expect(find.text('专注报告'), findsWidgets);
+    expect(find.text('任务与奖励'), findsOneWidget);
+
+    // 记录段独有的内容在首屏不可见（证明默认不是记录段）。
+    expect(find.text('成长任务完成记录'), findsNothing);
+    expect(find.text('奖励兑换记录'), findsNothing);
+    expect(find.text('本期完成成长项'), findsNothing);
+
+    // 反过来：切到记录段后，占位文案只剩分段标签一处。
+    await _switchToActivity(tester);
+    expect(find.text('专注报告'), findsOneWidget);
+    expect(find.text('成长任务完成记录'), findsOneWidget);
+  });
+
+  testWidgets('两段期间独立：记录段切「月」后切走再切回，期间仍为月',
+      (WidgetTester tester) async {
+    final _FakeTaskRepository taskRepo = _FakeTaskRepository(
+      tasks_: const <Task>[_taskRead],
+      checkIns: <CheckIn>[
+        // 本月内（不在今天、不在本周）
+        _verified('c1', 't_read', DateTime(2026, 10, 2, 9)),
+      ],
+    );
+
+    await _pump(
+      tester,
+      // C86：本例要切「月」→ 必须买断（免费档月 / 年被拦）。
+      _overrides(
+        taskRepo: taskRepo,
+        rewardRepo: _FakeRewardRepository(),
+        premium: true,
+      ),
+    );
+
+    // 记录段切到「月」。
+    await _switchToActivity(tester);
+    await tester.tap(find.text('月'));
+    await tester.pumpAndSettle();
+    expect(find.text('2026 年 10 月'), findsOneWidget);
+
+    // 切到专注报告段：记录段的内容整体不可见（期间标题也找不到）。
+    await tester.tap(find.text('专注报告'));
+    await tester.pumpAndSettle();
+    expect(find.text('2026 年 10 月'), findsNothing);
+
+    // 切回记录段：期间仍是「月」（段内状态自持，未被重建重置）。
+    await _switchToActivity(tester);
+    expect(find.text('2026 年 10 月'), findsOneWidget);
+    expect(find.text('今天 · 10月10日'), findsNothing);
+    expect(find.text('完成 1 次'), findsOneWidget);
+  });
+
+  testWidgets('initialSegment 越界值夹取：1 直达记录段，默认 0 为专注报告',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(600, 3000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    // 越界（99）→ 夹到记录段（1）。
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _overrides(
+          taskRepo: _FakeTaskRepository(),
+          rewardRepo: _FakeRewardRepository(),
+        ),
+        child: MaterialApp(
+          home: Scaffold(body: ParentHistoryPage(now: _now, initialSegment: 99)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('成长任务完成记录'), findsOneWidget);
+    expect(find.text('专注报告'), findsOneWidget); // 只剩分段标签
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C86：任务与奖励段加「年」粒度 + 免费档锁月 / 年
+  // ─────────────────────────────────────────────────────────────────────────
+
+  testWidgets('C86 免费档：月 / 年带锁，点「月」不切换且弹「升级解锁」',
+      (WidgetTester tester) async {
+    final _FakeTaskRepository taskRepo = _FakeTaskRepository(
+      tasks_: const <Task>[_taskRead],
+      checkIns: <CheckIn>[
+        _verified('c1', 't_read', DateTime(2026, 10, 10, 9)),
+      ],
+    );
+
+    // 免费档（不注入权益）。
+    await _pump(
+      tester,
+      _overrides(taskRepo: taskRepo, rewardRepo: _FakeRewardRepository()),
+    );
+    await _switchToActivity(tester);
+
+    // 记录段内**恰 2 枚**锁 = 月 / 年（日 / 周不锁）。
+    expect(find.byIcon(Icons.lock_outline), findsNWidgets(2));
+    expect(find.text('今天 · 10月10日'), findsOneWidget);
+
+    // 点「月」→ 不切换（仍是日）+ 弹「升级解锁」（C62：不可点 ≠ 静默）。
+    await tester.tap(find.text('月'));
+    await tester.pumpAndSettle();
+    expect(find.text('今天 · 10月10日'), findsOneWidget);
+    expect(find.text('2026 年 10 月'), findsNothing);
+    expect(find.text('升级解锁'), findsOneWidget);
+
+    // 「稍后」关掉后仍停在「日」。
+    await tester.tap(find.text('稍后'));
+    await tester.pumpAndSettle();
+    expect(find.text('升级解锁'), findsNothing);
+    expect(find.text('今天 · 10月10日'), findsOneWidget);
+
+    // 点「年」同样被拦。
+    await tester.tap(find.text('年'));
+    await tester.pumpAndSettle();
+    expect(find.text('今天 · 10月10日'), findsOneWidget);
+    expect(find.text('2026 年'), findsNothing);
+    expect(find.text('升级解锁'), findsOneWidget);
+    await tester.tap(find.text('稍后'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('C86 买断档：年可切，年视图跨月聚合正确',
+      (WidgetTester tester) async {
+    final _FakeTaskRepository taskRepo = _FakeTaskRepository(
+      tasks_: const <Task>[_taskRead],
+      checkIns: <CheckIn>[
+        _verified('c1', 't_read', DateTime(2026, 3, 5, 9)), // 3 月
+        _verified('c2', 't_read', DateTime(2026, 10, 10, 9)), // 10 月
+      ],
+    );
+
+    await _pump(
+      tester,
+      _overrides(
+        taskRepo: taskRepo,
+        rewardRepo: _FakeRewardRepository(),
+        premium: true,
+      ),
+    );
+    await _switchToActivity(tester);
+
+    // 买断档：无锁。
+    expect(find.byIcon(Icons.lock_outline), findsNothing);
+
+    await tester.tap(find.text('年'));
+    await tester.pumpAndSettle();
+
+    // 标题 = 自然年；两次打卡跨月但同年 → 年视图合并为 2 次。
+    expect(find.text('2026 年'), findsOneWidget);
+    expect(find.text('完成 2 次'), findsOneWidget);
+    expect(find.text('共 2 次'), findsOneWidget);
+    expect(find.text('首次 2026-03-05 ～ 最近 2026-10-10'), findsOneWidget);
+  });
+
+  testWidgets('C86 免费档：日 / 周仍可用（只锁月 / 年，未误伤周）',
+      (WidgetTester tester) async {
+    final _FakeTaskRepository taskRepo = _FakeTaskRepository(
+      tasks_: const <Task>[_taskRead],
+      checkIns: <CheckIn>[
+        _verified('c1', 't_read', DateTime(2026, 10, 10, 9)), // 今天
+        _verified('c2', 't_read', DateTime(2026, 10, 6, 9)), // 本周内
+      ],
+    );
+
+    await _pump(
+      tester,
+      _overrides(taskRepo: taskRepo, rewardRepo: _FakeRewardRepository()),
+    );
+    await _switchToActivity(tester);
+
+    await tester.tap(find.text('周'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2026年10月5日 ～ 10月11日'), findsOneWidget);
+    expect(find.text('完成 2 次'), findsOneWidget);
+    expect(find.text('升级解锁'), findsNothing);
   });
 }

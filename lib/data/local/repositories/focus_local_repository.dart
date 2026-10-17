@@ -13,7 +13,7 @@ import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 
-class FocusLocalRepository implements FocusRepository {
+class FocusLocalRepository implements FocusRepository, FocusRangeQuery {
   final db.AppDatabase _db;
 
   FocusLocalRepository(this._db);
@@ -43,6 +43,28 @@ class FocusLocalRepository implements FocusRepository {
               t.start.isBiggerOrEqualValue(dayStart) &
               t.start.isSmallerThanValue(dayEnd))
           ..orderBy([(t) => OrderingTerm(expression: t.start)]))
+        .get();
+    return rows.map(_toDomain).toList();
+  }
+
+  /// 半开区间 [from, to) 内全部会话（专注报告 v2 的周 / 月 / 年聚合与日历热力图）。
+  ///
+  /// where 写法与 [sessionsOfDay] **完全一致**（`start >= from` 且 `start < to`，
+  /// 半开区间），故两条路径对同一天的取数结果等价；`orderBy` 依次 `start` / `id`
+  /// 升序，保证同秒会话的输出顺序确定（报告只求和，顺序不影响数值，但便于单测对比）。
+  ///
+  /// 一次范围查询替代「逐日 N 次 `sessionsOfDay`」（年热力图最多 366 次），
+  /// 只用既有列、无新表 / 无新列 / 无迁移，`schemaVersion` 不变。
+  @override
+  Future<List<FocusSession>> sessionsBetween(DateTime from, DateTime to) async {
+    final rows = await (_db.select(_db.focusSessions)
+          ..where((t) =>
+              t.start.isBiggerOrEqualValue(from) &
+              t.start.isSmallerThanValue(to))
+          ..orderBy([
+            (t) => OrderingTerm(expression: t.start),
+            (t) => OrderingTerm(expression: t.id),
+          ]))
         .get();
     return rows.map(_toDomain).toList();
   }

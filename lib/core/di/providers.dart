@@ -364,3 +364,34 @@ final entitlementServiceProvider = Provider<EntitlementService>(
 final entitlementProvider = StateProvider<Entitlement>(
   (ref) => Entitlement.free,
 );
+
+/// 🐞 **仅 Debug 调试用**：模拟「已解锁」开关（release 不显示、不参与任何业务判定）。
+///
+/// 用途仅为真机预览付费内容（月 / 年报告、热力图、深度报告），**不落库、不写票据**，
+/// 重启 App 即失效；`main.dart` 冷启动 `hydrateEntitlement` 会按真实票据覆盖。
+///
+/// 为什么单独一个 Provider 而不直接改 [entitlementProvider]：调试开关需要自带
+/// **可回读的布尔值**给 UI 开关控件（`SwitchListTile.value`），而
+/// [entitlementProvider] 存的是实体快照；两者同源同向（见 [debugSetPremiumUnlock]），
+/// 但语义分离后可避免「调试态」污染购买链路的票据来源判断。
+final StateProvider<bool> debugPremiumUnlockProvider =
+    StateProvider<bool>((ref) => false);
+
+/// 🐞 **仅 Debug**：切换模拟解锁（写内存态 [entitlementProvider]，不落库）。
+///
+/// [enabled] 为 `true` → 记一个 `productId: 'debug.simulated.unlock'` 的假票据
+/// （`productId` 一眼可辨，便于真机上排查「为什么我解锁了」）；为 `false` → 回
+/// [Entitlement.free]。
+///
+/// 🔴 本函数是「调试态 → 权益态」的**唯一转换点**：UI 侧（`DebugUnlockSwitch`）
+/// 只碰 [debugPremiumUnlockProvider] 与本函数，故调试控件文件内零权益标识符
+/// （`test/qa/entitlement_gate_guard_test.dart` 守卫仍紧）。
+void debugSetPremiumUnlock(WidgetRef ref, bool enabled) {
+  ref.read(debugPremiumUnlockProvider.notifier).state = enabled;
+  ref.read(entitlementProvider.notifier).state = enabled
+      ? Entitlement.lifetime(
+          acquiredAt: DateTime.now(),
+          productId: 'debug.simulated.unlock',
+        )
+      : Entitlement.free;
+}

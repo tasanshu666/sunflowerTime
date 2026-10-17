@@ -5,14 +5,16 @@
 ///     topLeft → bottomRight）+ 金描边（`0xFFE8C56A`，1.5px）+ 星标金
 ///     （`0xFFE8A600`）+ 字色 `0xFF6B6252` w700 + 尾部 chevron 金 —— 色值与
 ///     购买页金系一致；
-///  ② **另两卡白底零回归**：`专注报告` / `删除入口` 仍是普通 Card（无渐变、
-///     无金描边），删除入口红色语义保留；
+///  ② **删除入口卡白底零回归**：`删除入口` 仍是普通 Card（无渐变、无金描边），
+///     红色语义保留；~~专注报告~~（C85 已从设置页删除该卡 → 报告改从「记录」tab 进入，
+///     断言同步收敛为只剩删除入口一张）。
 ///  ③ **路由不变**：点金卡仍 `push('/parent/premium')`；
 ///  ④ **副标题不变**：金卡 subtitle 仍是 `PremiumStatusText`（未解锁 → 「未解锁」）。
 ///
 /// 🟢 夹具：内存 SettingsRepository + GoRouter 占位页；`entitlementProvider`
 /// 默认 free，不触任何平台 API。
-/// ⚠️ 页面根是懒构建 ListView：底部「数据入口」两卡需先滚动进视口再断言。
+/// ⚠️ 页面根是懒构建 ListView：底部「数据与隐私」分区（只剩「删除入口」一卡）需先
+/// 滚动进视口再断言。C85 起「专注报告」卡已从本页删除。
 library parent_entry_gold_test;
 
 import 'package:flutter/material.dart';
@@ -140,18 +142,24 @@ void main() {
     expect(chevron.color, const Color(0xFFE8A600), reason: '金卡 chevron 也应金色');
   });
 
-  testWidgets('② 另两卡白底零回归（仍是 Card，无渐变）；删除入口红色语义保留', (tester) async {
+  testWidgets('② 删除入口卡白底零回归（仍是 Card，无渐变）；红色语义保留', (tester) async {
     await _pump(tester);
 
-    // ⚠️ 懒构建 ListView：先滚动到底部让「数据入口」两卡进视口。
+    // ⚠️ 懒构建 ListView：先滚动到底部让「数据与隐私」分区的删除入口进视口。
     await tester.scrollUntilVisible(
-      find.text('专注报告'),
+      find.text('删除入口'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
 
-    for (final String title in <String>['专注报告', '删除入口']) {
+    // C85：设置页只剩这一张入口卡（「专注报告」卡已删）→ 连带钉住它不再回流。
+    expect(find.text('专注报告'), findsNothing,
+        reason: 'C85：「专注报告」入口卡已从设置页删除（报告从「记录」tab 进入）');
+    expect(find.text('数据与隐私'), findsOneWidget,
+        reason: 'C85：原「数据入口」分区标题已更名为「数据与隐私」');
+
+    for (final String title in <String>['删除入口']) {
       expect(_nearestGradientContainerOf(tester, title), isNull,
           reason: '「$title」入口不得金化（仅会员入口金令牌）');
       expect(

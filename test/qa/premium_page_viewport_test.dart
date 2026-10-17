@@ -1,11 +1,18 @@
-/// 【QA 独立验证 · V3】购买页**真实视口**回归（400×800, dpr=1）。
+/// 【QA 独立验证 · C83】购买页**吸底回归**（真实视口 400×800, dpr=1）。
 ///
-/// 背景：`premium_page_test` 为绕开 `ListView` 懒加载把视口拉到 400×5000，
-/// **真实视口下的溢出 / 挤压 / 主按钮可达性被遮蔽**。本测试在真实手机视口下：
-///   ① 渲染全程 **零 RenderFlex overflow**（逐帧 takeException）；
-///   ② 主按钮 [kPremiumMainButtonKey] 在初始视口**首屏之下**（证明确需滚动），
-///      且**可通过滚动到达**并完整可见；
-///   ③ 量出主按钮顶部相对视口的偏移（pt），供「主按钮吸底」决策。
+/// 背景（历史 → C83）：改版后购买页主按钮原先排在 `ListView` 末尾，在真实手机视口下
+/// 必须滚动 ≈480pt 才看得到「立即解锁」，家长首屏直接看不到买断入口。C83 把
+/// **主按钮 + 「恢复购买」入口**搬进 `Scaffold.bottomNavigationBar` 吸底。
+///
+/// 本测试因此由「证明确需滚动」翻转为**吸底回归**，在真实手机视口下死守 5 条：
+///   ① 初始（scrollOffset == 0）主按钮 [kPremiumMainButtonKey] **完整可见**，
+///      且全树**唯一**（防「挪进底栏但没从列表删」造成重复 Key）；
+///   ② 把列表滚到最底后主按钮**仍完整可见**，且全局 y 与初始相差 < 1.0pt
+///      （即真正吸底、不随滚动位移）；
+///   ③ 「恢复购买」入口 [kPremiumRestoreButtonKey] 初始视口即完整可见
+///      （Apple 对可恢复内购的硬性要求，不得藏进滚动区）；
+///   ④ 全程 `tester.takeException()` 为空（零 RenderFlex overflow / 零布局异常）；
+///   ⑤ 主按钮不越出视口、其底边不压住恢复按钮（RenderBox 全局矩形比较）。
 library premium_page_viewport_test;
 
 import 'dart:async';
@@ -22,8 +29,12 @@ import 'package:sunflower_time/domain/services/entitlement_service.dart';
 import 'package:sunflower_time/platform/iap_service.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
 
+/// 真实视口尺寸（logical pt；dpr = 1）。
+const Size _kViewport = Size(400, 800);
+
 const String _storePrice = r'HK$88.00';
 
+/// 假 IAP 适配器（零平台依赖：绝不触碰真实 `in_app_purchase` / StoreKit）。
 class _FakeIapAdapter implements IapAdapter {
   bool available = true;
   String price = _storePrice;
@@ -59,6 +70,7 @@ class _FakeIapAdapter implements IapAdapter {
   Future<void> dispose() => _controller.close();
 }
 
+/// 内存假票据仓储（零平台依赖）。
 class _FakeRepo implements EntitlementRepository {
   _FakeRepo({Entitlement? initial}) : _stored = initial ?? Entitlement.free;
 
@@ -75,8 +87,12 @@ class _FakeRepo implements EntitlementRepository {
   Future<void> clear() async => _stored = Entitlement.free;
 }
 
-Future<void> _pumpRealViewport(WidgetTester tester, ProviderContainer container) async {
-  tester.view.physicalSize = const Size(400, 800);
+/// 在**真实** 400×800 / dpr=1 视口下挂载购买页（不做任何放大，保持真机口径）。
+Future<void> _pumpRealViewport(
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
+  tester.view.physicalSize = _kViewport;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -89,7 +105,7 @@ Future<void> _pumpRealViewport(WidgetTester tester, ProviderContainer container)
 }
 
 void main() {
-  testWidgets('V3 真实视口 400×800：零 overflow + 主按钮可达 + 量偏移',
+  testWidgets('C83 真实视口 400×800：主按钮吸底常驻可见 + 零 overflow',
       (WidgetTester tester) async {
     final _FakeIapAdapter adapter = _FakeIapAdapter();
     final IapService svc = IapService(
@@ -107,17 +123,17 @@ void main() {
     addTearDown(container.dispose);
     addTearDown(adapter.dispose);
 
-    final List<Object> overflowErrors = <Object>[];
+    // 逐帧收集异常（overflow 会在布局/paint 阶段以 FlutterError 抛给 takeException）。
+    final List<Object> exceptions = <Object>[];
     void collectException() {
-      final dynamic ex = tester.takeException();
-      if (ex != null) overflowErrors.add(ex);
+      final Object? ex = tester.takeException();
+      if (ex != null) exceptions.add(ex);
     }
 
     await _pumpRealViewport(tester, container);
     collectException();
 
-    // 等商品拉取完成（加载圈消失）。注意：真实视口下主按钮在首屏之下，
-    // ListView 懒加载 → 不能用「价格文案出现」作为就绪判据（首屏根本不构建）。
+    // 等商品拉取完成（加载圈消失 → 吸底栏才渲染）。
     bool ready = false;
     for (int i = 0; i < 120; i++) {
       if (find.byType(CircularProgressIndicator).evaluate().isEmpty) {
@@ -129,83 +145,100 @@ void main() {
     }
     expect(ready, isTrue, reason: '真实视口下商品也应正常返回（400×800）');
 
-    // ② 初始视口下主按钮**在首屏之下**（未构建 / 不可见）→ 证明确需滚动。
-    final bool initiallyVisible =
-        find.byKey(kPremiumMainButtonKey).evaluate().isNotEmpty &&
-            _fullyVisible(tester, kPremiumMainButtonKey);
-    // ListView 懒加载：首屏之下时 finder 可能为空或部分可见，两种都算「未直达」。
+    // ── ① 初始（未滚动）主按钮完整可见 + 全树唯一 ──────────────────────────
+    expect(find.byKey(kPremiumMainButtonKey), findsOneWidget,
+        reason: '主按钮必须全树唯一（不得既留在 ListView 又放进吸底栏）');
+    expect(_scrollOffset(tester), 0.0,
+        reason: '断言前提：此时列表尚未滚动（scrollOffset 必须为 0）');
+    expect(_fullyVisible(tester, kPremiumMainButtonKey), isTrue,
+        reason: '吸底后主按钮必须**首屏完整可见**，无需任何滚动（C83 核心行为）');
 
-    // ③ 逐步滚动直到主按钮完整可见（模拟用户滑动）。
-    bool reachable = false;
-    double scrolled = 0;
-    for (int i = 0; i < 30; i++) {
-      if (find.byKey(kPremiumMainButtonKey).evaluate().isNotEmpty &&
-          _fullyVisible(tester, kPremiumMainButtonKey)) {
-        reachable = true;
-        break;
-      }
-      final double before = _scrollOffset(tester);
-      await tester.drag(find.byType(ListView), const Offset(0, -240));
-      await tester.pump(const Duration(milliseconds: 50));
+    // ── ③ 恢复购买入口初始视口即完整可见（Apple 硬性要求） ────────────────
+    expect(find.byKey(kPremiumRestoreButtonKey), findsOneWidget,
+        reason: '「恢复购买」入口必须唯一且存在（Apple 对可恢复内购硬性要求）');
+    expect(_fullyVisible(tester, kPremiumRestoreButtonKey), isTrue,
+        reason: '「恢复购买」入口必须首屏完整可见，不得藏进滚动区');
+
+    // ── ⑤ 主按钮不越出视口、底边不压住恢复按钮 ────────────────────────────
+    final Rect btn0 = _globalRect(tester, kPremiumMainButtonKey);
+    final Rect restore0 = _globalRect(tester, kPremiumRestoreButtonKey);
+    expect(btn0.top, greaterThanOrEqualTo(0.0),
+        reason: '主按钮上边不得越出视口顶部');
+    expect(btn0.bottom, lessThanOrEqualTo(_kViewport.height),
+        reason: '主按钮下边不得越出视口底部');
+    expect(restore0.bottom, lessThanOrEqualTo(_kViewport.height),
+        reason: '恢复按钮下边不得越出视口底部');
+    expect(btn0.bottom, lessThanOrEqualTo(restore0.top + 0.01),
+        reason: '主按钮底边不得压住/重叠恢复按钮（应为「主按钮在上、恢复在下」）');
+    expect(btn0.left, greaterThanOrEqualTo(0.0),
+        reason: '主按钮左边不得越出视口左侧');
+    expect(btn0.right, lessThanOrEqualTo(_kViewport.width),
+        reason: '主按钮右边不得越出视口右侧');
+
+    // ── ② 滚到最底：主按钮仍完整可见且全局 y 不变（真正吸底） ──────────────
+    double prevOffset = _scrollOffset(tester);
+    for (int i = 0; i < 40; i++) {
+      await tester.drag(find.byType(ListView), const Offset(0, -300));
+      await tester.pump(const Duration(milliseconds: 30));
       collectException();
-      scrolled += (_scrollOffset(tester) - before).abs();
+      final double now = _scrollOffset(tester);
+      if ((now - prevOffset).abs() < 0.5) break; // 触底（已无可滚动余量）
+      prevOffset = now;
     }
-    // 兜底 ensureVisible：若仍在视口边缘，滚到完全可见。
-    if (reachable && !_fullyVisible(tester, kPremiumMainButtonKey)) {
-      await tester.ensureVisible(find.byKey(kPremiumMainButtonKey));
-      await tester.pump(const Duration(milliseconds: 50));
-    }
-    if (find.byKey(kPremiumMainButtonKey).evaluate().isNotEmpty &&
-        _fullyVisible(tester, kPremiumMainButtonKey)) {
-      reachable = true;
-    }
+    final double finalOffset = _scrollOffset(tester);
+    expect(finalOffset, greaterThan(200.0),
+        reason: '列表内容必须确实长于视口并被滚动过（否则本用例没有检验力）');
 
-    expect(reachable, isTrue,
-        reason: '主按钮必须可通过滚动到达并完整可见（真实视口 400×800）');
+    expect(find.byKey(kPremiumMainButtonKey), findsOneWidget,
+        reason: '滚动到最底后主按钮仍应唯一存在');
+    expect(_fullyVisible(tester, kPremiumMainButtonKey), isTrue,
+        reason: '滚动到最底后主按钮必须**仍完整可见**（吸底不得被列表顶出视口）');
 
-    // ① 全程零 RenderFlex overflow。
-    expect(overflowErrors, isEmpty,
-        reason: '真实视口渲染全程不得出现 RenderFlex overflow / 任何布局异常');
+    final Rect btn1 = _globalRect(tester, kPremiumMainButtonKey);
+    final Rect restore1 = _globalRect(tester, kPremiumRestoreButtonKey);
+    expect((btn1.top - btn0.top).abs(), lessThan(1.0),
+        reason: '主按钮全局 y 不得随列表滚动变化（吸底后应恒定），'
+            '实测位移 ${(btn1.top - btn0.top).abs().toStringAsFixed(2)}pt');
+    expect((restore1.top - restore0.top).abs(), lessThan(1.0),
+        reason: '恢复按钮全局 y 不得随列表滚动变化（吸底后应恒定）');
+    expect(btn1.bottom, lessThanOrEqualTo(restore1.top + 0.01),
+        reason: '滚动后主按钮与恢复按钮仍不得重叠');
+    expect(btn1.bottom, lessThanOrEqualTo(_kViewport.height),
+        reason: '滚动后主按钮仍不得越出视口底部');
 
-    // 量偏移：主按钮顶部相对视口内容区（AppBar 之下）的垂直距离。
-    final RenderBox btn = tester.renderObject<RenderBox>(
-      find.byKey(kPremiumMainButtonKey),
-    );
-    final Offset btnTop = btn.localToGlobal(Offset.zero);
-    final double appBarBottom = _appBarBottom(tester);
-    // ignore: avoid_print
-    print('QA-V3 主按钮顶部全局 y = ${btnTop.dy}pt；'
-        'AppBar 底 = $appBarBottom pt；'
-        '相对内容区偏移 = ${(btnTop.dy - appBarBottom).toStringAsFixed(1)}pt；'
-        '视口高 800pt；到达所需滚动 ≈ ${scrolled.toStringAsFixed(0)}pt'
-        '（终态 scrollOffset = ${_scrollOffset(tester).toStringAsFixed(0)}pt，'
-        '即初始按钮顶 ≈ ${(btnTop.dy + _scrollOffset(tester)).toStringAsFixed(0)}pt 全局）；'
-        '初始即完整可见 = $initiallyVisible');
+    // ── ④ 全程零异常（零 RenderFlex overflow） ─────────────────────────────
+    expect(exceptions, isEmpty,
+        reason: '真实视口渲染全程不得出现 RenderFlex overflow / 任何布局异常：'
+            '${exceptions.join('\n')}');
   });
 }
 
+/// 控件是否**完整**落在 [_kViewport] 之内（四条边都不越界）。
 bool _fullyVisible(WidgetTester tester, Key key) {
   final Finder f = find.byKey(key);
   if (f.evaluate().isEmpty) return false;
-  final RenderBox box = tester.renderObject<RenderBox>(f);
-  final Offset topLeft = box.localToGlobal(Offset.zero);
-  final Offset bottomRight = box.localToGlobal(Offset(box.size.width, box.size.height));
-  const Size viewport = Size(400, 800);
-  return topLeft.dy >= 0 &&
-      bottomRight.dy <= viewport.height &&
-      topLeft.dx >= 0 &&
-      bottomRight.dx <= viewport.width;
+  final Rect r = _globalRect(tester, key);
+  return r.top >= 0 &&
+      r.bottom <= _kViewport.height &&
+      r.left >= 0 &&
+      r.right <= _kViewport.width;
 }
 
+/// 控件在全局坐标系下的矩形（用于跨组件比较位置关系）。
+Rect _globalRect(WidgetTester tester, Key key) {
+  final RenderBox box = tester.renderObject<RenderBox>(find.byKey(key));
+  final Offset topLeft = box.localToGlobal(Offset.zero);
+  return Rect.fromLTWH(
+    topLeft.dx,
+    topLeft.dy,
+    box.size.width,
+    box.size.height,
+  );
+}
+
+/// 页面列表的当前滚动偏移（真实视口下只有一个 `Scrollable`：body 的 ListView）。
 double _scrollOffset(WidgetTester tester) {
   final ScrollableState state =
       tester.state<ScrollableState>(find.byType(Scrollable).first);
   return state.position.pixels;
-}
-
-double _appBarBottom(WidgetTester tester) {
-  final Finder appBar = find.byType(AppBar);
-  if (appBar.evaluate().isEmpty) return 0;
-  final RenderBox box = tester.renderObject<RenderBox>(appBar.first);
-  return box.localToGlobal(Offset.zero).dy + box.size.height;
 }

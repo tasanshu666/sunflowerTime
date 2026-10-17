@@ -9,6 +9,10 @@
 /// 状态机（全部覆盖）：`加载中` / `加载失败·商店不可用`（降级文案 + 主按钮禁用，
 /// 绝不崩）/ `未解锁` / `已解锁` / `购买中`。
 ///
+/// C83 布局纪律：**主按钮 + 恢复入口常驻吸底**（`Scaffold.bottomNavigationBar`），
+/// 不随列表滚动 —— 真实 400×800 视口下原先两者在列表末尾，家长要滑 ≈480pt 才看到
+/// 「立即解锁」。底栏高度由内容撑开（禁写死高度，平板 textScaler 1.3× 亦不溢出）。
+///
 /// 设计纪律（对齐架构 §「门控单点收口」+ 依赖倒置）：
 ///  · 平台细节全部走**纯 Dart 契约** [`IapClient`]（本页**不** import
 ///    `in_app_purchase`），故可脱离真实插件单测；
@@ -153,11 +157,19 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   @override
   Widget build(BuildContext context) {
     final Entitlement entitlement = ref.watch(entitlementProvider);
+    final ThemeData theme = parentThemeFor(Theme.of(context).brightness);
     return Theme(
-      data: parentThemeFor(Theme.of(context).brightness),
+      data: theme,
       child: Scaffold(
         appBar: AppBar(title: const Text('解锁全部功能')),
         body: _buildBody(entitlement.isPremium),
+        // C83 吸底（玄参反馈：真实视口下「立即解锁」需滚动 ≈480pt 才可见）：
+        // 主按钮 + 恢复购买入口搬到 `bottomNavigationBar` 槽位常驻底部 ——
+        // 这是**唯一**允许的吸底方式（不用 Stack/Positioned 盖 body，不用
+        // persistentFooterButtons 造重复按钮）。
+        // `_loading` 时给 null：底栏整体不渲染，避免先闪一下「暂不可购买」。
+        bottomNavigationBar:
+            _loading ? null : _buildStickyBottomBar(entitlement.isPremium, theme),
       ),
     );
   }
@@ -167,7 +179,9 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
       return const Center(child: CircularProgressIndicator());
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      // C83：主按钮 / 恢复按钮已移入吸底栏，页面底部不再需要为它们留白
+      // （32 → 16，仅保留常规页边距）。
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       children: <Widget>[
         _buildHeroCard(unlocked),
         const SizedBox(height: 16),
@@ -181,12 +195,53 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
         // 阶段 5：权益预览 4 徽标（数据源同 unlockRowsFor，只列真实生效项）。
         _buildPreviewBadges(),
         const SizedBox(height: 16),
-        _buildMainButton(unlocked),
-        const SizedBox(height: 10),
-        _buildRestoreButton(),
-        const SizedBox(height: 22),
+        // C83：`_buildMainButton` / `_buildRestoreButton` 已**移出**列表，
+        // 改由 [_buildStickyBottomBar] 承载（全树中这两个 Key 各只允许 1 个实例）。
         _buildNotesCard(),
       ],
+    );
+  }
+
+  /// 吸底操作区（C83）：主按钮 + 「恢复购买」入口常驻屏幕底部。
+  ///
+  /// 结构：`SafeArea(top: false)` → 顶部分隔线 + 向上轻阴影的容器 → 10pt 内边距
+  /// → `Column(mainAxisSize: min)`（主按钮外壳 / 6pt / 恢复按钮）。
+  ///
+  /// 🔴 高度**必须由内容撑开**（`MainAxisSize.min` + 无任何写死 height）：
+  /// 平板 textScaler 1.3× 时主按钮文案变高，写死高度必溢出。
+  /// 🔴 槽内**不用** `Center` / `Align` 包裹（若日后要用，必须写 `heightFactor: 1`，
+  /// 本仓曾因漏写导致 body 归零、全页空白）。
+  ///
+  /// [theme] 由 [build] 传入（本方法内的 `context` 还在 `Theme` 之上，取不到
+  /// [parentThemeFor] 的结果），底色取 `colorScheme.surface`：浅色模式下是近白奶白，
+  /// 深色模式下自动跟随，无需第二套写死色值。
+  Widget _buildStickyBottomBar(bool unlocked, ThemeData theme) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          border: const Border(
+            top: BorderSide(color: Color(0x1F6B6252), width: 1),
+          ),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 12,
+              offset: Offset(0, -4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            _buildMainButton(unlocked),
+            const SizedBox(height: 6),
+            _buildRestoreButton(),
+          ],
+        ),
+      ),
     );
   }
 
@@ -251,7 +306,13 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
                       style: TextStyle(fontSize: 13, color: _kInkSoft),
                     ),
                     const SizedBox(height: 10),
-                    Row(
+                    // C84（F121）：两枚胶囊由 `Row` 改 `Wrap` —— 320pt 窄屏 /
+                    // 系统字号调大时并排会横向溢出 18px（Row 不换行），Wrap 放不下
+                    // 就自动换行，宽屏视觉与此前一致（两枚仍在同一行）。
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: <Widget>[
                         pillLabel(
                           text: unlocked ? '已解锁' : '未解锁',
@@ -260,7 +321,6 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
                               : const Color(0xFFEFEAE0),
                           fg: unlocked ? _kUnlocked : _kInkSoft,
                         ),
-                        const SizedBox(width: 8),
                         const _GoldPill(text: '一次买断 · 永久'),
                       ],
                     ),
@@ -320,6 +380,9 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   }
 
   /// 主按钮：未解锁 → 「立即解锁 · <本地化价格>」；已解锁 → 不可点的「已解锁 · 感谢支持」。
+  ///
+  /// C83：本方法**整体原样搬运**到吸底栏（[_buildStickyBottomBar] 第一行），
+  /// 返回树与 Key 归属一概未动 —— 只换了挂载位置。
   ///
   /// 🔴 按钮本体**必须**仍是 [ButtonStyleButton]（[FilledButton]）且 key 保持
   /// [kPremiumMainButtonKey] —— `premium_page_test` 对 `find.byKey(kPremiumMainButtonKey)`
@@ -416,14 +479,32 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   }
 
   /// 「恢复购买」入口（Apple 对可恢复内购的硬性要求，**不得删除**）。
+  ///
+  /// C83：从列表末尾移到吸底栏主按钮下方，并收成**紧凑文字按钮** —— 底栏里再放一个
+  /// 48pt 高的大描边按钮会把操作区顶到 ≈130pt，挤占内容。文案 `恢复中… / 恢复购买`
+  /// 一字不改（Apple 审核认这几字，**不得删、不得换词**）。
+  ///
+  /// C84（2026-10-17 玄参拍板）：**可点范围撑到 44pt 高**（Apple HIG 最小点按尺寸），
+  /// 横向 padding 放宽到 16pt —— 手指不易点偏；字仍是 13pt，视觉几乎无变化。
+  /// ⚠️ `tapTargetSize: shrinkWrap` 必须保留：否则 Material 会再垫一层到 48pt，
+  /// 底栏白多 4pt 且 [_expectContentDrivenBar] 的高度不变量失真。
+  ///
+  /// 字号只写 `fontSize: 13`（**不**再乘 [uiScaleOf]）：文字缩放统一由 `textScaler`
+  /// 负责，两者相乘会在平板上放大两次。
   Widget _buildRestoreButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        key: kPremiumRestoreButtonKey,
-        onPressed: (_restoring || _buying) ? null : _restore,
-        icon: const Icon(Icons.restore),
-        label: Text(_restoring ? '恢复中…' : '恢复购买'),
+    return TextButton.icon(
+      key: kPremiumRestoreButtonKey,
+      onPressed: (_restoring || _buying) ? null : _restore,
+      icon: const Icon(Icons.restore, size: 16),
+      label: Text(
+        _restoring ? '恢复中…' : '恢复购买',
+        style: const TextStyle(fontSize: 13),
+      ),
+      style: TextButton.styleFrom(
+        foregroundColor: _kInkSoft,
+        minimumSize: const Size(0, 44),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
       ),
     );
   }

@@ -2068,7 +2068,7 @@ class $PremiumFragmentsTable extends PremiumFragments
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
       'id', aliasedName, false,
-      type: DriftSqlType.int, requiredDuringInsert: false);
+      type: DriftSqlType.int, requiredDuringInsert: true);
   static const VerificationMeta _balanceMeta =
       const VerificationMeta('balance');
   @override
@@ -2077,8 +2077,16 @@ class $PremiumFragmentsTable extends PremiumFragments
       type: DriftSqlType.int,
       requiredDuringInsert: false,
       defaultValue: const Constant(0));
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
   @override
-  List<GeneratedColumn> get $columns => [id, balance];
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
+  @override
+  List<GeneratedColumn> get $columns => [id, balance, childId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2091,16 +2099,22 @@ class $PremiumFragmentsTable extends PremiumFragments
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
     }
     if (data.containsKey('balance')) {
       context.handle(_balanceMeta,
           balance.isAcceptableOrUnknown(data['balance']!, _balanceMeta));
     }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {id};
+  Set<GeneratedColumn> get $primaryKey => {id, childId};
   @override
   PremiumFragmentRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -2109,6 +2123,8 @@ class $PremiumFragmentsTable extends PremiumFragments
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
       balance: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}balance'])!,
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
     );
   }
 
@@ -2122,12 +2138,15 @@ class PremiumFragmentRow extends DataClass
     implements Insertable<PremiumFragmentRow> {
   final int id;
   final int balance;
-  const PremiumFragmentRow({required this.id, required this.balance});
+  final String childId;
+  const PremiumFragmentRow(
+      {required this.id, required this.balance, required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['balance'] = Variable<int>(balance);
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
@@ -2135,6 +2154,7 @@ class PremiumFragmentRow extends DataClass
     return PremiumFragmentsCompanion(
       id: Value(id),
       balance: Value(balance),
+      childId: Value(childId),
     );
   }
 
@@ -2144,6 +2164,7 @@ class PremiumFragmentRow extends DataClass
     return PremiumFragmentRow(
       id: serializer.fromJson<int>(json['id']),
       balance: serializer.fromJson<int>(json['balance']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -2152,17 +2173,21 @@ class PremiumFragmentRow extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'balance': serializer.toJson<int>(balance),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
-  PremiumFragmentRow copyWith({int? id, int? balance}) => PremiumFragmentRow(
+  PremiumFragmentRow copyWith({int? id, int? balance, String? childId}) =>
+      PremiumFragmentRow(
         id: id ?? this.id,
         balance: balance ?? this.balance,
+        childId: childId ?? this.childId,
       );
   PremiumFragmentRow copyWithCompanion(PremiumFragmentsCompanion data) {
     return PremiumFragmentRow(
       id: data.id.present ? data.id.value : this.id,
       balance: data.balance.present ? data.balance.value : this.balance,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
@@ -2170,46 +2195,64 @@ class PremiumFragmentRow extends DataClass
   String toString() {
     return (StringBuffer('PremiumFragmentRow(')
           ..write('id: $id, ')
-          ..write('balance: $balance')
+          ..write('balance: $balance, ')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, balance);
+  int get hashCode => Object.hash(id, balance, childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PremiumFragmentRow &&
           other.id == this.id &&
-          other.balance == this.balance);
+          other.balance == this.balance &&
+          other.childId == this.childId);
 }
 
 class PremiumFragmentsCompanion extends UpdateCompanion<PremiumFragmentRow> {
   final Value<int> id;
   final Value<int> balance;
+  final Value<String> childId;
+  final Value<int> rowid;
   const PremiumFragmentsCompanion({
     this.id = const Value.absent(),
     this.balance = const Value.absent(),
+    this.childId = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   PremiumFragmentsCompanion.insert({
-    this.id = const Value.absent(),
+    required int id,
     this.balance = const Value.absent(),
-  });
+    this.childId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id);
   static Insertable<PremiumFragmentRow> custom({
     Expression<int>? id,
     Expression<int>? balance,
+    Expression<String>? childId,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (balance != null) 'balance': balance,
+      if (childId != null) 'child_id': childId,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
-  PremiumFragmentsCompanion copyWith({Value<int>? id, Value<int>? balance}) {
+  PremiumFragmentsCompanion copyWith(
+      {Value<int>? id,
+      Value<int>? balance,
+      Value<String>? childId,
+      Value<int>? rowid}) {
     return PremiumFragmentsCompanion(
       id: id ?? this.id,
       balance: balance ?? this.balance,
+      childId: childId ?? this.childId,
+      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -2222,6 +2265,12 @@ class PremiumFragmentsCompanion extends UpdateCompanion<PremiumFragmentRow> {
     if (balance.present) {
       map['balance'] = Variable<int>(balance.value);
     }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
     return map;
   }
 
@@ -2229,7 +2278,9 @@ class PremiumFragmentsCompanion extends UpdateCompanion<PremiumFragmentRow> {
   String toString() {
     return (StringBuffer('PremiumFragmentsCompanion(')
           ..write('id: $id, ')
-          ..write('balance: $balance')
+          ..write('balance: $balance, ')
+          ..write('childId: $childId, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -2695,8 +2746,16 @@ class $UnlockedSpeciesTable extends UnlockedSpecies
   late final GeneratedColumn<String> speciesId = GeneratedColumn<String>(
       'species_id', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
   @override
-  List<GeneratedColumn> get $columns => [speciesId];
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
+  @override
+  List<GeneratedColumn> get $columns => [speciesId, childId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2713,17 +2772,23 @@ class $UnlockedSpeciesTable extends UnlockedSpecies
     } else if (isInserting) {
       context.missing(_speciesIdMeta);
     }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {speciesId};
+  Set<GeneratedColumn> get $primaryKey => {speciesId, childId};
   @override
   UnlockedSpeciesRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return UnlockedSpeciesRow(
       speciesId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}species_id'])!,
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
     );
   }
 
@@ -2736,17 +2801,20 @@ class $UnlockedSpeciesTable extends UnlockedSpecies
 class UnlockedSpeciesRow extends DataClass
     implements Insertable<UnlockedSpeciesRow> {
   final String speciesId;
-  const UnlockedSpeciesRow({required this.speciesId});
+  final String childId;
+  const UnlockedSpeciesRow({required this.speciesId, required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['species_id'] = Variable<String>(speciesId);
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
   UnlockedSpeciesCompanion toCompanion(bool nullToAbsent) {
     return UnlockedSpeciesCompanion(
       speciesId: Value(speciesId),
+      childId: Value(childId),
     );
   }
 
@@ -2755,6 +2823,7 @@ class UnlockedSpeciesRow extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return UnlockedSpeciesRow(
       speciesId: serializer.fromJson<String>(json['speciesId']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -2762,59 +2831,72 @@ class UnlockedSpeciesRow extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'speciesId': serializer.toJson<String>(speciesId),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
-  UnlockedSpeciesRow copyWith({String? speciesId}) => UnlockedSpeciesRow(
+  UnlockedSpeciesRow copyWith({String? speciesId, String? childId}) =>
+      UnlockedSpeciesRow(
         speciesId: speciesId ?? this.speciesId,
+        childId: childId ?? this.childId,
       );
   UnlockedSpeciesRow copyWithCompanion(UnlockedSpeciesCompanion data) {
     return UnlockedSpeciesRow(
       speciesId: data.speciesId.present ? data.speciesId.value : this.speciesId,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
   @override
   String toString() {
     return (StringBuffer('UnlockedSpeciesRow(')
-          ..write('speciesId: $speciesId')
+          ..write('speciesId: $speciesId, ')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => speciesId.hashCode;
+  int get hashCode => Object.hash(speciesId, childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is UnlockedSpeciesRow && other.speciesId == this.speciesId);
+      (other is UnlockedSpeciesRow &&
+          other.speciesId == this.speciesId &&
+          other.childId == this.childId);
 }
 
 class UnlockedSpeciesCompanion extends UpdateCompanion<UnlockedSpeciesRow> {
   final Value<String> speciesId;
+  final Value<String> childId;
   final Value<int> rowid;
   const UnlockedSpeciesCompanion({
     this.speciesId = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   UnlockedSpeciesCompanion.insert({
     required String speciesId,
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : speciesId = Value(speciesId);
   static Insertable<UnlockedSpeciesRow> custom({
     Expression<String>? speciesId,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (speciesId != null) 'species_id': speciesId,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
   UnlockedSpeciesCompanion copyWith(
-      {Value<String>? speciesId, Value<int>? rowid}) {
+      {Value<String>? speciesId, Value<String>? childId, Value<int>? rowid}) {
     return UnlockedSpeciesCompanion(
       speciesId: speciesId ?? this.speciesId,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2824,6 +2906,9 @@ class UnlockedSpeciesCompanion extends UpdateCompanion<UnlockedSpeciesRow> {
     final map = <String, Expression>{};
     if (speciesId.present) {
       map['species_id'] = Variable<String>(speciesId.value);
+    }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -2835,6 +2920,7 @@ class UnlockedSpeciesCompanion extends UpdateCompanion<UnlockedSpeciesRow> {
   String toString() {
     return (StringBuffer('UnlockedSpeciesCompanion(')
           ..write('speciesId: $speciesId, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4807,9 +4893,17 @@ class $MonthlyPoolsTable extends MonthlyPools
   late final GeneratedColumn<DateTime> resetAt = GeneratedColumn<DateTime>(
       'reset_at', aliasedName, false,
       type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
   @override
   List<GeneratedColumn> get $columns =>
-      [monthKey, budget, used, autoReleased, resetAt];
+      [monthKey, budget, used, autoReleased, resetAt, childId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4848,11 +4942,15 @@ class $MonthlyPoolsTable extends MonthlyPools
     } else if (isInserting) {
       context.missing(_resetAtMeta);
     }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {monthKey};
+  Set<GeneratedColumn> get $primaryKey => {monthKey, childId};
   @override
   MonthlyPool map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -4867,6 +4965,8 @@ class $MonthlyPoolsTable extends MonthlyPools
           .read(DriftSqlType.int, data['${effectivePrefix}auto_released'])!,
       resetAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}reset_at'])!,
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
     );
   }
 
@@ -4882,12 +4982,14 @@ class MonthlyPool extends DataClass implements Insertable<MonthlyPool> {
   final int used;
   final int autoReleased;
   final DateTime resetAt;
+  final String childId;
   const MonthlyPool(
       {required this.monthKey,
       required this.budget,
       required this.used,
       required this.autoReleased,
-      required this.resetAt});
+      required this.resetAt,
+      required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -4896,6 +4998,7 @@ class MonthlyPool extends DataClass implements Insertable<MonthlyPool> {
     map['used'] = Variable<int>(used);
     map['auto_released'] = Variable<int>(autoReleased);
     map['reset_at'] = Variable<DateTime>(resetAt);
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
@@ -4906,6 +5009,7 @@ class MonthlyPool extends DataClass implements Insertable<MonthlyPool> {
       used: Value(used),
       autoReleased: Value(autoReleased),
       resetAt: Value(resetAt),
+      childId: Value(childId),
     );
   }
 
@@ -4918,6 +5022,7 @@ class MonthlyPool extends DataClass implements Insertable<MonthlyPool> {
       used: serializer.fromJson<int>(json['used']),
       autoReleased: serializer.fromJson<int>(json['autoReleased']),
       resetAt: serializer.fromJson<DateTime>(json['resetAt']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -4929,6 +5034,7 @@ class MonthlyPool extends DataClass implements Insertable<MonthlyPool> {
       'used': serializer.toJson<int>(used),
       'autoReleased': serializer.toJson<int>(autoReleased),
       'resetAt': serializer.toJson<DateTime>(resetAt),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
@@ -4937,13 +5043,15 @@ class MonthlyPool extends DataClass implements Insertable<MonthlyPool> {
           int? budget,
           int? used,
           int? autoReleased,
-          DateTime? resetAt}) =>
+          DateTime? resetAt,
+          String? childId}) =>
       MonthlyPool(
         monthKey: monthKey ?? this.monthKey,
         budget: budget ?? this.budget,
         used: used ?? this.used,
         autoReleased: autoReleased ?? this.autoReleased,
         resetAt: resetAt ?? this.resetAt,
+        childId: childId ?? this.childId,
       );
   MonthlyPool copyWithCompanion(MonthlyPoolsCompanion data) {
     return MonthlyPool(
@@ -4954,6 +5062,7 @@ class MonthlyPool extends DataClass implements Insertable<MonthlyPool> {
           ? data.autoReleased.value
           : this.autoReleased,
       resetAt: data.resetAt.present ? data.resetAt.value : this.resetAt,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
@@ -4964,14 +5073,15 @@ class MonthlyPool extends DataClass implements Insertable<MonthlyPool> {
           ..write('budget: $budget, ')
           ..write('used: $used, ')
           ..write('autoReleased: $autoReleased, ')
-          ..write('resetAt: $resetAt')
+          ..write('resetAt: $resetAt, ')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode =>
-      Object.hash(monthKey, budget, used, autoReleased, resetAt);
+      Object.hash(monthKey, budget, used, autoReleased, resetAt, childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4980,7 +5090,8 @@ class MonthlyPool extends DataClass implements Insertable<MonthlyPool> {
           other.budget == this.budget &&
           other.used == this.used &&
           other.autoReleased == this.autoReleased &&
-          other.resetAt == this.resetAt);
+          other.resetAt == this.resetAt &&
+          other.childId == this.childId);
 }
 
 class MonthlyPoolsCompanion extends UpdateCompanion<MonthlyPool> {
@@ -4989,6 +5100,7 @@ class MonthlyPoolsCompanion extends UpdateCompanion<MonthlyPool> {
   final Value<int> used;
   final Value<int> autoReleased;
   final Value<DateTime> resetAt;
+  final Value<String> childId;
   final Value<int> rowid;
   const MonthlyPoolsCompanion({
     this.monthKey = const Value.absent(),
@@ -4996,6 +5108,7 @@ class MonthlyPoolsCompanion extends UpdateCompanion<MonthlyPool> {
     this.used = const Value.absent(),
     this.autoReleased = const Value.absent(),
     this.resetAt = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MonthlyPoolsCompanion.insert({
@@ -5004,6 +5117,7 @@ class MonthlyPoolsCompanion extends UpdateCompanion<MonthlyPool> {
     this.used = const Value.absent(),
     this.autoReleased = const Value.absent(),
     required DateTime resetAt,
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : monthKey = Value(monthKey),
         budget = Value(budget),
@@ -5014,6 +5128,7 @@ class MonthlyPoolsCompanion extends UpdateCompanion<MonthlyPool> {
     Expression<int>? used,
     Expression<int>? autoReleased,
     Expression<DateTime>? resetAt,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5022,6 +5137,7 @@ class MonthlyPoolsCompanion extends UpdateCompanion<MonthlyPool> {
       if (used != null) 'used': used,
       if (autoReleased != null) 'auto_released': autoReleased,
       if (resetAt != null) 'reset_at': resetAt,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5032,6 +5148,7 @@ class MonthlyPoolsCompanion extends UpdateCompanion<MonthlyPool> {
       Value<int>? used,
       Value<int>? autoReleased,
       Value<DateTime>? resetAt,
+      Value<String>? childId,
       Value<int>? rowid}) {
     return MonthlyPoolsCompanion(
       monthKey: monthKey ?? this.monthKey,
@@ -5039,6 +5156,7 @@ class MonthlyPoolsCompanion extends UpdateCompanion<MonthlyPool> {
       used: used ?? this.used,
       autoReleased: autoReleased ?? this.autoReleased,
       resetAt: resetAt ?? this.resetAt,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5061,6 +5179,9 @@ class MonthlyPoolsCompanion extends UpdateCompanion<MonthlyPool> {
     if (resetAt.present) {
       map['reset_at'] = Variable<DateTime>(resetAt.value);
     }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5075,6 +5196,7 @@ class MonthlyPoolsCompanion extends UpdateCompanion<MonthlyPool> {
           ..write('used: $used, ')
           ..write('autoReleased: $autoReleased, ')
           ..write('resetAt: $resetAt, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6291,8 +6413,17 @@ class $CooldownCountersTable extends CooldownCounters
       type: DriftSqlType.int,
       requiredDuringInsert: false,
       defaultValue: const Constant(0));
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
   @override
-  List<GeneratedColumn> get $columns => [templateId, period, usedCount];
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
+  @override
+  List<GeneratedColumn> get $columns =>
+      [templateId, period, usedCount, childId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -6321,11 +6452,15 @@ class $CooldownCountersTable extends CooldownCounters
       context.handle(_usedCountMeta,
           usedCount.isAcceptableOrUnknown(data['used_count']!, _usedCountMeta));
     }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {templateId, period};
+  Set<GeneratedColumn> get $primaryKey => {templateId, period, childId};
   @override
   CooldownCounter map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -6336,6 +6471,8 @@ class $CooldownCountersTable extends CooldownCounters
           .read(DriftSqlType.int, data['${effectivePrefix}period'])!,
       usedCount: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}used_count'])!,
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
     );
   }
 
@@ -6349,16 +6486,19 @@ class CooldownCounter extends DataClass implements Insertable<CooldownCounter> {
   final String templateId;
   final int period;
   final int usedCount;
+  final String childId;
   const CooldownCounter(
       {required this.templateId,
       required this.period,
-      required this.usedCount});
+      required this.usedCount,
+      required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['template_id'] = Variable<String>(templateId);
     map['period'] = Variable<int>(period);
     map['used_count'] = Variable<int>(usedCount);
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
@@ -6367,6 +6507,7 @@ class CooldownCounter extends DataClass implements Insertable<CooldownCounter> {
       templateId: Value(templateId),
       period: Value(period),
       usedCount: Value(usedCount),
+      childId: Value(childId),
     );
   }
 
@@ -6377,6 +6518,7 @@ class CooldownCounter extends DataClass implements Insertable<CooldownCounter> {
       templateId: serializer.fromJson<String>(json['templateId']),
       period: serializer.fromJson<int>(json['period']),
       usedCount: serializer.fromJson<int>(json['usedCount']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -6386,14 +6528,17 @@ class CooldownCounter extends DataClass implements Insertable<CooldownCounter> {
       'templateId': serializer.toJson<String>(templateId),
       'period': serializer.toJson<int>(period),
       'usedCount': serializer.toJson<int>(usedCount),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
-  CooldownCounter copyWith({String? templateId, int? period, int? usedCount}) =>
+  CooldownCounter copyWith(
+          {String? templateId, int? period, int? usedCount, String? childId}) =>
       CooldownCounter(
         templateId: templateId ?? this.templateId,
         period: period ?? this.period,
         usedCount: usedCount ?? this.usedCount,
+        childId: childId ?? this.childId,
       );
   CooldownCounter copyWithCompanion(CooldownCountersCompanion data) {
     return CooldownCounter(
@@ -6401,6 +6546,7 @@ class CooldownCounter extends DataClass implements Insertable<CooldownCounter> {
           data.templateId.present ? data.templateId.value : this.templateId,
       period: data.period.present ? data.period.value : this.period,
       usedCount: data.usedCount.present ? data.usedCount.value : this.usedCount,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
@@ -6409,37 +6555,42 @@ class CooldownCounter extends DataClass implements Insertable<CooldownCounter> {
     return (StringBuffer('CooldownCounter(')
           ..write('templateId: $templateId, ')
           ..write('period: $period, ')
-          ..write('usedCount: $usedCount')
+          ..write('usedCount: $usedCount, ')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(templateId, period, usedCount);
+  int get hashCode => Object.hash(templateId, period, usedCount, childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is CooldownCounter &&
           other.templateId == this.templateId &&
           other.period == this.period &&
-          other.usedCount == this.usedCount);
+          other.usedCount == this.usedCount &&
+          other.childId == this.childId);
 }
 
 class CooldownCountersCompanion extends UpdateCompanion<CooldownCounter> {
   final Value<String> templateId;
   final Value<int> period;
   final Value<int> usedCount;
+  final Value<String> childId;
   final Value<int> rowid;
   const CooldownCountersCompanion({
     this.templateId = const Value.absent(),
     this.period = const Value.absent(),
     this.usedCount = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CooldownCountersCompanion.insert({
     required String templateId,
     required int period,
     this.usedCount = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : templateId = Value(templateId),
         period = Value(period);
@@ -6447,12 +6598,14 @@ class CooldownCountersCompanion extends UpdateCompanion<CooldownCounter> {
     Expression<String>? templateId,
     Expression<int>? period,
     Expression<int>? usedCount,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (templateId != null) 'template_id': templateId,
       if (period != null) 'period': period,
       if (usedCount != null) 'used_count': usedCount,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6461,11 +6614,13 @@ class CooldownCountersCompanion extends UpdateCompanion<CooldownCounter> {
       {Value<String>? templateId,
       Value<int>? period,
       Value<int>? usedCount,
+      Value<String>? childId,
       Value<int>? rowid}) {
     return CooldownCountersCompanion(
       templateId: templateId ?? this.templateId,
       period: period ?? this.period,
       usedCount: usedCount ?? this.usedCount,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6482,6 +6637,9 @@ class CooldownCountersCompanion extends UpdateCompanion<CooldownCounter> {
     if (usedCount.present) {
       map['used_count'] = Variable<int>(usedCount.value);
     }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6494,6 +6652,7 @@ class CooldownCountersCompanion extends UpdateCompanion<CooldownCounter> {
           ..write('templateId: $templateId, ')
           ..write('period: $period, ')
           ..write('usedCount: $usedCount, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -8394,13 +8553,17 @@ typedef $$PlantsTableProcessedTableManager = ProcessedTableManager<
     PrefetchHooks Function()>;
 typedef $$PremiumFragmentsTableCreateCompanionBuilder
     = PremiumFragmentsCompanion Function({
-  Value<int> id,
+  required int id,
   Value<int> balance,
+  Value<String> childId,
+  Value<int> rowid,
 });
 typedef $$PremiumFragmentsTableUpdateCompanionBuilder
     = PremiumFragmentsCompanion Function({
   Value<int> id,
   Value<int> balance,
+  Value<String> childId,
+  Value<int> rowid,
 });
 
 class $$PremiumFragmentsTableFilterComposer
@@ -8417,6 +8580,9 @@ class $$PremiumFragmentsTableFilterComposer
 
   ColumnFilters<int> get balance => $composableBuilder(
       column: $table.balance, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
 }
 
 class $$PremiumFragmentsTableOrderingComposer
@@ -8433,6 +8599,9 @@ class $$PremiumFragmentsTableOrderingComposer
 
   ColumnOrderings<int> get balance => $composableBuilder(
       column: $table.balance, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PremiumFragmentsTableAnnotationComposer
@@ -8449,6 +8618,9 @@ class $$PremiumFragmentsTableAnnotationComposer
 
   GeneratedColumn<int> get balance =>
       $composableBuilder(column: $table.balance, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
 }
 
 class $$PremiumFragmentsTableTableManager extends RootTableManager<
@@ -8480,18 +8652,26 @@ class $$PremiumFragmentsTableTableManager extends RootTableManager<
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
             Value<int> balance = const Value.absent(),
+            Value<String> childId = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
           }) =>
               PremiumFragmentsCompanion(
             id: id,
             balance: balance,
+            childId: childId,
+            rowid: rowid,
           ),
           createCompanionCallback: ({
-            Value<int> id = const Value.absent(),
+            required int id,
             Value<int> balance = const Value.absent(),
+            Value<String> childId = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
           }) =>
               PremiumFragmentsCompanion.insert(
             id: id,
             balance: balance,
+            childId: childId,
+            rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -8747,11 +8927,13 @@ typedef $$PendingBloomRewardsTableProcessedTableManager = ProcessedTableManager<
 typedef $$UnlockedSpeciesTableCreateCompanionBuilder = UnlockedSpeciesCompanion
     Function({
   required String speciesId,
+  Value<String> childId,
   Value<int> rowid,
 });
 typedef $$UnlockedSpeciesTableUpdateCompanionBuilder = UnlockedSpeciesCompanion
     Function({
   Value<String> speciesId,
+  Value<String> childId,
   Value<int> rowid,
 });
 
@@ -8766,6 +8948,9 @@ class $$UnlockedSpeciesTableFilterComposer
   });
   ColumnFilters<String> get speciesId => $composableBuilder(
       column: $table.speciesId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
 }
 
 class $$UnlockedSpeciesTableOrderingComposer
@@ -8779,6 +8964,9 @@ class $$UnlockedSpeciesTableOrderingComposer
   });
   ColumnOrderings<String> get speciesId => $composableBuilder(
       column: $table.speciesId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$UnlockedSpeciesTableAnnotationComposer
@@ -8792,6 +8980,9 @@ class $$UnlockedSpeciesTableAnnotationComposer
   });
   GeneratedColumn<String> get speciesId =>
       $composableBuilder(column: $table.speciesId, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
 }
 
 class $$UnlockedSpeciesTableTableManager extends RootTableManager<
@@ -8822,18 +9013,22 @@ class $$UnlockedSpeciesTableTableManager extends RootTableManager<
               $$UnlockedSpeciesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<String> speciesId = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               UnlockedSpeciesCompanion(
             speciesId: speciesId,
+            childId: childId,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String speciesId,
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               UnlockedSpeciesCompanion.insert(
             speciesId: speciesId,
+            childId: childId,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -9826,6 +10021,7 @@ typedef $$MonthlyPoolsTableCreateCompanionBuilder = MonthlyPoolsCompanion
   Value<int> used,
   Value<int> autoReleased,
   required DateTime resetAt,
+  Value<String> childId,
   Value<int> rowid,
 });
 typedef $$MonthlyPoolsTableUpdateCompanionBuilder = MonthlyPoolsCompanion
@@ -9835,6 +10031,7 @@ typedef $$MonthlyPoolsTableUpdateCompanionBuilder = MonthlyPoolsCompanion
   Value<int> used,
   Value<int> autoReleased,
   Value<DateTime> resetAt,
+  Value<String> childId,
   Value<int> rowid,
 });
 
@@ -9861,6 +10058,9 @@ class $$MonthlyPoolsTableFilterComposer
 
   ColumnFilters<DateTime> get resetAt => $composableBuilder(
       column: $table.resetAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
 }
 
 class $$MonthlyPoolsTableOrderingComposer
@@ -9887,6 +10087,9 @@ class $$MonthlyPoolsTableOrderingComposer
 
   ColumnOrderings<DateTime> get resetAt => $composableBuilder(
       column: $table.resetAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$MonthlyPoolsTableAnnotationComposer
@@ -9912,6 +10115,9 @@ class $$MonthlyPoolsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get resetAt =>
       $composableBuilder(column: $table.resetAt, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
 }
 
 class $$MonthlyPoolsTableTableManager extends RootTableManager<
@@ -9945,6 +10151,7 @@ class $$MonthlyPoolsTableTableManager extends RootTableManager<
             Value<int> used = const Value.absent(),
             Value<int> autoReleased = const Value.absent(),
             Value<DateTime> resetAt = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               MonthlyPoolsCompanion(
@@ -9953,6 +10160,7 @@ class $$MonthlyPoolsTableTableManager extends RootTableManager<
             used: used,
             autoReleased: autoReleased,
             resetAt: resetAt,
+            childId: childId,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -9961,6 +10169,7 @@ class $$MonthlyPoolsTableTableManager extends RootTableManager<
             Value<int> used = const Value.absent(),
             Value<int> autoReleased = const Value.absent(),
             required DateTime resetAt,
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               MonthlyPoolsCompanion.insert(
@@ -9969,6 +10178,7 @@ class $$MonthlyPoolsTableTableManager extends RootTableManager<
             used: used,
             autoReleased: autoReleased,
             resetAt: resetAt,
+            childId: childId,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -10530,6 +10740,7 @@ typedef $$CooldownCountersTableCreateCompanionBuilder
   required String templateId,
   required int period,
   Value<int> usedCount,
+  Value<String> childId,
   Value<int> rowid,
 });
 typedef $$CooldownCountersTableUpdateCompanionBuilder
@@ -10537,6 +10748,7 @@ typedef $$CooldownCountersTableUpdateCompanionBuilder
   Value<String> templateId,
   Value<int> period,
   Value<int> usedCount,
+  Value<String> childId,
   Value<int> rowid,
 });
 
@@ -10557,6 +10769,9 @@ class $$CooldownCountersTableFilterComposer
 
   ColumnFilters<int> get usedCount => $composableBuilder(
       column: $table.usedCount, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
 }
 
 class $$CooldownCountersTableOrderingComposer
@@ -10576,6 +10791,9 @@ class $$CooldownCountersTableOrderingComposer
 
   ColumnOrderings<int> get usedCount => $composableBuilder(
       column: $table.usedCount, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$CooldownCountersTableAnnotationComposer
@@ -10595,6 +10813,9 @@ class $$CooldownCountersTableAnnotationComposer
 
   GeneratedColumn<int> get usedCount =>
       $composableBuilder(column: $table.usedCount, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
 }
 
 class $$CooldownCountersTableTableManager extends RootTableManager<
@@ -10627,24 +10848,28 @@ class $$CooldownCountersTableTableManager extends RootTableManager<
             Value<String> templateId = const Value.absent(),
             Value<int> period = const Value.absent(),
             Value<int> usedCount = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               CooldownCountersCompanion(
             templateId: templateId,
             period: period,
             usedCount: usedCount,
+            childId: childId,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String templateId,
             required int period,
             Value<int> usedCount = const Value.absent(),
+            Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               CooldownCountersCompanion.insert(
             templateId: templateId,
             period: period,
             usedCount: usedCount,
+            childId: childId,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

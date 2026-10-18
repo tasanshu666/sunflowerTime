@@ -403,7 +403,13 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       await svc.dedupePendingBloomRewards();
       final AppSettings settings =
           await ref.read(settingsRepositoryProvider).getSettings();
-      _tier = settings.ageTier;
+      // C90 期 2：档位跟当前孩子走（不再读全局 settings 单行；档案源不可用
+      // 时回退 settings，与隔离前行为一致）。
+      try {
+        _tier = await ref.read(childAgeTierProvider.future);
+      } catch (_) {
+        _tier = settings.ageTier;
+      }
       // C77：当前称号专属属性（与域层 [PlantGrowthService.currentPerk] 同源；随经济
       // 修订号 / tab 刷新重算）。批量路径以本值下发，避免逐株重读。
       _perk = await ref.read(currentPlantPerkProvider.future);

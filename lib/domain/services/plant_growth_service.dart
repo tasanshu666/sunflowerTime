@@ -22,6 +22,7 @@ import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/bloom_reward_outcome.dart';
+import 'package:sunflower_time/domain/entities/child_profile.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -35,6 +36,7 @@ import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/domain/services/account_service.dart';
 import 'package:sunflower_time/domain/services/entitlement_service.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
@@ -182,6 +184,10 @@ class PlantGrowthService {
   final SunlightRepository _ledger;
   final SettingsRepository _settings;
   final BloomRewardRepository _bloomRewards;
+
+  /// 账号服务（C90 期 2 第二批可选注入：年龄段跟当前孩子走；null = 旧行为读
+  /// 全局 settings，既有域单测零改动）。
+  final AccountService? _account;
   final Uuid _uuid;
   final Random _random;
 
@@ -211,6 +217,7 @@ class PlantGrowthService {
     required SunlightRepository ledger,
     required SettingsRepository settings,
     required BloomRewardRepository bloomRewards,
+    AccountService? account,
     EntitlementService? entitlement,
     Uuid? uuid,
     Random? random,
@@ -221,6 +228,7 @@ class PlantGrowthService {
         _ledger = ledger,
         _settings = settings,
         _bloomRewards = bloomRewards,
+        _account = account,
         _entitlement = entitlement,
         _uuid = uuid ?? const Uuid(),
         _random = random ?? Random(),
@@ -1255,6 +1263,21 @@ class PlantGrowthService {
     return quota == kUnlimitedQuota ? kGardenPotCapacityMax : quota;
   }
 
+  /// 当前生效档位（C90 期 2 第二批）：注入 [_account] 且**存在当前孩子档案**时
+  /// 读档案 ageTier（年龄段跟孩子走）；否则读全局 settings 单行（= 隔离前行为，
+  /// 桩模式 / 既有域单测零感知）。
+  Future<AgeTier> _effectiveAgeTier() async {
+    final AccountService? account = _account;
+    if (account != null) {
+      // 🔴 有界等待（Q-E 先例）：档案源不可用 → 超时回退 null 落 settings 兜底。
+      final ChildProfile? profile = await account
+          .currentProfile()
+          .timeout(kChildProfileReadTimeout);
+      if (profile != null) return profile.ageTier;
+    }
+    return (await _settings.getSettings()).ageTier;
+  }
+
   /// 花盆扩容：capacity<档位上限 → 扣扩容价(refType='plant_expand') → gardenPotCapacity+1。
   ///
   /// 🔴 阶段 4：上限改为**按档位**（域层防线，防绕过 UI 一次性顶到满格）；**只拦扩容**，
@@ -1269,7 +1292,8 @@ class PlantGrowthService {
     }
     final int cost = expandCostOf(
       perk ?? await currentPerk(),
-      premium: settings.ageTier != AgeTier.low,
+      // C90 期 2：档位跟当前孩子走（未注入 account → 全局 settings，旧行为）。
+      premium: (await _effectiveAgeTier()) != AgeTier.low,
     );
     final double balance = await _ledger.balance();
     if (balance < cost) {

@@ -58,7 +58,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 27;
+  int get schemaVersion => 28;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -747,6 +747,29 @@ class AppDatabase extends _$AppDatabase {
           await _ensureColumn(m, tasks, tasks.childId);
           await _ensureColumn(m, checkIns, checkIns.childId);
           await _ensureColumn(m, eyeCareLogs, eyeCareLogs.childId);
+
+          // ㉘ v28（C90 期 2 第二批，玄参 2026-10-17 拍板）：剩余四张「复合主键 /
+          //    单例行」业务表按孩子隔离 —— premium_fragments（碎片余额）、
+          //    unlocked_species（种植券）、monthly_pools（周/月池）、
+          //    cooldown_counters（限领次数）各新增 `child_id`
+          //    （TEXT NOT NULL DEFAULT 'single-child'）并**并入主键**。
+          //    · 主键变更 → SQLite 无法 ALTER，必须**表重建**（12 步法）：
+          //      CREATE 新表（新复合主键）→ INSERT SELECT 拷贝（child_id 统一填
+          //      kChildIdDefault，单孩子时代全部存量无缝归属默认孩子）→
+          //      DROP 旧 → RENAME，每表一个事务；
+          //    · 幂等：每表先查 child_id 列是否存在 —— 存在（v28+ 库，或
+          //      onUpgrade 首步 createAll() 已按新 schema 建出的全新表）即跳过；
+          //    · 历史行不改写任何业务字段，只补 child_id；
+          //    · 查询 / 写入按当前孩子过滤在 DAO / 仓储实现内部完成（🔴 仓储
+          //      接口签名一律不变）。
+          //    ⚠️ 版本变更（27 → 28），必须配迁移测试（见
+          //       `test/m3/migration_v28_test.dart`）。
+          if (from < 28) {
+            await _rebuildPremiumFragmentsV28();
+            await _rebuildUnlockedSpeciesV28();
+            await _rebuildMonthlyPoolsV28();
+            await _rebuildCooldownCountersV28();
+          }
         },
       );
 
@@ -791,6 +814,113 @@ class AppDatabase extends _$AppDatabase {
     if (!await _hasColumn(table.actualTableName, column.name)) {
       await m.addColumn(table, column);
     }
+  }
+
+  // ── v28 表重建（C90 期 2 第二批）：四张复合主键表加 child_id ─────────────
+  //
+  // 每张表同一套路（12 步法裁剪版，单事务）:
+  //   ① child_id 列已存在 → 跳过（幂等）；
+  //   ② CREATE TABLE <t>_v28（新列集 + 新复合主键，DDL 与 drift 生成的
+  //      schema 逐列对齐 —— 列名 / 顺序 / NOT NULL / DEFAULT 一致）；
+  //   ③ INSERT INTO <t>_v28 SELECT ..., kChildIdDefault FROM <t>（历史行
+  //      业务字段逐位不变，child_id 统一填默认孩子）；
+  //   ④ DROP TABLE <t>；
+  //   ⑤ ALTER TABLE <t>_v28 RENAME TO <t>。
+
+  /// v28：premium_fragments 表重建（PK id → PK(id, child_id)）。
+  Future<void> _rebuildPremiumFragmentsV28() async {
+    if (await _hasColumn('premium_fragments', 'child_id')) return;
+    await transaction(() async {
+      await customStatement(
+        "CREATE TABLE premium_fragments_v28 ("
+        "\"id\" INTEGER NOT NULL, "
+        "\"balance\" INTEGER NOT NULL DEFAULT 0, "
+        "\"child_id\" TEXT NOT NULL DEFAULT '$kChildIdDefault', "
+        "PRIMARY KEY (\"id\", \"child_id\"));",
+      );
+      await customStatement(
+        "INSERT INTO premium_fragments_v28 (id, balance, child_id) "
+        "SELECT id, balance, '$kChildIdDefault' FROM premium_fragments;",
+      );
+      await customStatement('DROP TABLE premium_fragments;');
+      await customStatement(
+        'ALTER TABLE premium_fragments_v28 RENAME TO premium_fragments;',
+      );
+    });
+  }
+
+  /// v28：unlocked_species 表重建（PK species_id → PK(species_id, child_id)）。
+  Future<void> _rebuildUnlockedSpeciesV28() async {
+    if (await _hasColumn('unlocked_species', 'child_id')) return;
+    await transaction(() async {
+      await customStatement(
+        "CREATE TABLE unlocked_species_v28 ("
+        "\"species_id\" TEXT NOT NULL, "
+        "\"child_id\" TEXT NOT NULL DEFAULT '$kChildIdDefault', "
+        "PRIMARY KEY (\"species_id\", \"child_id\"));",
+      );
+      await customStatement(
+        "INSERT INTO unlocked_species_v28 (species_id, child_id) "
+        "SELECT species_id, '$kChildIdDefault' FROM unlocked_species;",
+      );
+      await customStatement('DROP TABLE unlocked_species;');
+      await customStatement(
+        'ALTER TABLE unlocked_species_v28 RENAME TO unlocked_species;',
+      );
+    });
+  }
+
+  /// v28：monthly_pools 表重建（PK month_key → PK(month_key, child_id)）。
+  Future<void> _rebuildMonthlyPoolsV28() async {
+    if (await _hasColumn('monthly_pools', 'child_id')) return;
+    await transaction(() async {
+      await customStatement(
+        "CREATE TABLE monthly_pools_v28 ("
+        "\"month_key\" TEXT NOT NULL, "
+        "\"budget\" INTEGER NOT NULL, "
+        "\"used\" INTEGER NOT NULL DEFAULT 0, "
+        "\"auto_released\" INTEGER NOT NULL DEFAULT 0, "
+        "\"reset_at\" INTEGER NOT NULL, "
+        "\"child_id\" TEXT NOT NULL DEFAULT '$kChildIdDefault', "
+        "PRIMARY KEY (\"month_key\", \"child_id\"));",
+      );
+      await customStatement(
+        "INSERT INTO monthly_pools_v28 "
+        "(month_key, budget, used, auto_released, reset_at, child_id) "
+        "SELECT month_key, budget, used, auto_released, reset_at, "
+        "'$kChildIdDefault' FROM monthly_pools;",
+      );
+      await customStatement('DROP TABLE monthly_pools;');
+      await customStatement(
+        'ALTER TABLE monthly_pools_v28 RENAME TO monthly_pools;',
+      );
+    });
+  }
+
+  /// v28：cooldown_counters 表重建
+  ///（PK(template_id, period) → PK(template_id, period, child_id)）。
+  Future<void> _rebuildCooldownCountersV28() async {
+    if (await _hasColumn('cooldown_counters', 'child_id')) return;
+    await transaction(() async {
+      await customStatement(
+        "CREATE TABLE cooldown_counters_v28 ("
+        "\"template_id\" TEXT NOT NULL, "
+        "\"period\" INTEGER NOT NULL, "
+        "\"used_count\" INTEGER NOT NULL DEFAULT 0, "
+        "\"child_id\" TEXT NOT NULL DEFAULT '$kChildIdDefault', "
+        "PRIMARY KEY (\"template_id\", \"period\", \"child_id\"));",
+      );
+      await customStatement(
+        "INSERT INTO cooldown_counters_v28 "
+        "(template_id, period, used_count, child_id) "
+        "SELECT template_id, period, used_count, '$kChildIdDefault' "
+        "FROM cooldown_counters;",
+      );
+      await customStatement('DROP TABLE cooldown_counters;');
+      await customStatement(
+        'ALTER TABLE cooldown_counters_v28 RENAME TO cooldown_counters;',
+      );
+    });
   }
 }
 

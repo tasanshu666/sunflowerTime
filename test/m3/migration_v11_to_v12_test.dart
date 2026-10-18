@@ -215,7 +215,7 @@ void main() {
     test('schemaVersion 必须为最新 14（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database =
           await _openMigrated(_v11Ddl(), 11);
-      expect(database.schemaVersion, 27);
+      expect(database.schemaVersion, 28);
     });
 
     test('新增 3 列（reward_sunlight / reward_fragments / reward_species_id）可见', () async {
@@ -330,7 +330,7 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 27);
+      expect(first.schemaVersion, 28);
       // 回写一行内容（证明新列可写）。
       await first.bloomRewardDao.updatePendingContent(
         id: 'pr_legacy',
@@ -344,7 +344,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 27);
+      expect(second.schemaVersion, 28);
       expect(await _count(second, 'pending_bloom_rewards'), 1,
           reason: '二次打开不得丢数据');
       final db.PendingBloomRewardRow row =

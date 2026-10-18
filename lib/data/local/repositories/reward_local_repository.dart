@@ -11,11 +11,22 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
+import 'package:sunflower_time/domain/services/account_service.dart';
 
+/// 本地奖励/兑换仓储（实现 domain 接口，§2.1 / §3.2）。
+///
+/// C90 期 2 第二批：cooldown_counters（每周限领次数）按孩子隔离（v28）——
+/// bump / count / decrement 全部落当前孩子、按当前孩子过滤；AccountService 可选
+/// 注入（null → 恒按 kChildIdDefault，既有单测零改动）。🔴 仓储接口签名一律不变。
 class RewardLocalRepository implements RewardRepository {
   final db.AppDatabase _db;
+  final AccountService? _account;
 
-  RewardLocalRepository(this._db);
+  RewardLocalRepository(this._db, {AccountService? account})
+      : _account = account;
+
+  /// 当前孩子的 childId（C90 期 2：冷却计数隔离统一收口）。
+  String get _childId => _account?.childId ?? kChildIdDefault;
 
   @override
   Future<List<RewardTemplate>> templates() async {
@@ -48,7 +59,8 @@ class RewardLocalRepository implements RewardRepository {
     // 落单即 bump 本周冷却计数（D4）：使「每周限领次数」真正生效——
     // 既驱动孩子端卡片「剩余次数」递减，也驱动 RedemptionOrchestrationService._onCooldown 冷却闸门。
     // 与 redemption_orchestration_test 的 FakeRewardRepository.createRequest 行为对齐（落申请即 +1）。
-    await _db.cooldownCounterDao.bump(r.templateId, CooldownPeriod.weekly);
+    await _db.cooldownCounterDao.bump(r.templateId, CooldownPeriod.weekly,
+        childId: _childId);
   }
 
   @override
@@ -90,11 +102,11 @@ class RewardLocalRepository implements RewardRepository {
 
   @override
   Future<int> cooldownCount(String templateId, CooldownPeriod window) =>
-      _db.cooldownCounterDao.count(templateId, window);
+      _db.cooldownCounterDao.count(templateId, window, childId: _childId);
 
   @override
   Future<void> decrementCooldown(String templateId, CooldownPeriod window) =>
-      _db.cooldownCounterDao.decrement(templateId, window);
+      _db.cooldownCounterDao.decrement(templateId, window, childId: _childId);
 
   db.RedemptionRequestsCompanion _requestCompanion(RedemptionRequest r) =>
       db.RedemptionRequestsCompanion(

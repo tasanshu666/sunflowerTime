@@ -24,6 +24,7 @@ import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/child_profile.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -32,6 +33,19 @@ import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart'
     show levelOfMinutes, thresholdMinutesOfLevel;
 import 'package:sunflower_time/presentation/child/widgets/level_up_fx_overlay.dart';
+
+/// 年龄段短文案（C90 期 2 第二批「我的」页展示用；完整档位文案见
+/// `child_profile_bar.dart`）。
+String _childTierLabel(AgeTier tier) {
+  switch (tier) {
+    case AgeTier.low:
+      return '低年级';
+    case AgeTier.mid:
+      return '中年级';
+    case AgeTier.high:
+      return '高年级';
+  }
+}
 
 /// 孩子端「我的」：累计成就。
 class ChildProfilePage extends ConsumerStatefulWidget {
@@ -52,8 +66,14 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
   double _balance = 0;
   bool _loading = true;
 
-  /// 孩子昵称（T4：纯本地 SharedPreferences，默认「小朋友」，**不上传**）。
-  String _nickname = kDefaultChildNickname;
+  /// 当前孩子展示名（C90 期 2 第二批：昵称跟档案走 —— 显示当前孩子档案
+  /// `name`，随 [childProfileRevisionProvider] 刷新。旧 SP 键 `kPrefChildNickname`
+  /// **停止读取**，孩子端改名入口已删（改名只在家长天地维护）。档案源不可用时
+  /// 回落 [kDefaultChildNickname]，与旧展示兜底一致）。
+  String _childName = kDefaultChildNickname;
+
+  /// 当前孩子年龄段（跟档案走；档案源不可用回落 high，与 settings 空表默认一致）。
+  AgeTier _childTier = AgeTier.high;
 
   @override
   void initState() {
@@ -98,58 +118,30 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // T4 · 昵称（纯本地，非必填）
+  // C90 期 2 第二批 · 当前孩子档案联动（昵称 / 年龄段跟档案走）
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// 读取昵称（缺失 / 空串 → 回落 [kDefaultChildNickname]）。
+  /// 读取当前孩子档案（玄参反馈：孩子端「我的」显示档案 name + 年龄段文案）。
   ///
-  /// 🔴 **纯本地、不上传**：只读写 SharedPreferences，不经任何网络 / 账号体系
-  /// —— 与隐私政策「不收集儿童个人信息」的承诺一致，故本功能**无需**改隐私政策。
-  String _readNickname() {
-    final String? raw =
-        ref.read(sharedPreferencesProvider).getString(kPrefChildNickname);
-    final String trimmed = (raw ?? '').trim();
-    return trimmed.isEmpty ? kDefaultChildNickname : trimmed;
-  }
-
-  /// 弹出昵称编辑框（限长 [kChildNicknameMaxLength]，trim，空则回落默认）。
-  Future<void> _editNickname() async {
-    final TextEditingController controller =
-        TextEditingController(text: _nickname);
-    final String? input = await showDialog<String>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('我的昵称'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: kChildNicknameMaxLength,
-          decoration: const InputDecoration(
-            hintText: '小朋友',
-            counterText: '',
-          ),
-          textInputAction: TextInputAction.done,
-          onSubmitted: (String v) => Navigator.of(ctx).pop(v),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-    );
-    if (input == null || !mounted) return;
-    final String trimmed = input.trim();
-    await ref
-        .read(sharedPreferencesProvider)
-        .setString(kPrefChildNickname, trimmed);
-    if (!mounted) return;
-    setState(() => _nickname = trimmed.isEmpty ? kDefaultChildNickname : trimmed);
+  /// 读 [AccountService.currentProfile]（内存活跃档案快照）。🔴 不直读仓储 ——
+  /// AccountService 桩模式（测试未注入依赖）下 `currentProfile()` 返回 null
+  /// **零触库**；仓储真源读取会在未 override 平台通道的测试环境挂起（真实库
+  /// Lazy open 依赖 path_provider）。缓存新鲜度：唯一改档入口（家长天地编辑）
+  /// 成功后已 `switchTo` 重读，快照即时。
+  Future<void> _loadCurrentChild() async {
+    try {
+      // 🔴 有界等待（Q-E 先例）：档案源不可用（测试环境真实库 Lazy open 挂起等）
+      // → 超时回退 null，绝不挂住本页 _reload。
+      final ChildProfile? profile = await ref
+          .read(accountServiceProvider)
+          .currentProfile()
+          .timeout(kChildProfileReadTimeout);
+      if (profile == null) return;
+      _childName = profile.name;
+      _childTier = profile.ageTier;
+    } catch (_) {
+      // 档案源不可用 → 保旧展示值。
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -269,6 +261,10 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
       final int eyeCares = await ref
           .read(sunlightRepositoryProvider)
           .countByRefType(kEyeCareRefType);
+      // C90 期 2：当前孩子档案（name + 年龄段）随每次刷新重读 —— 家长改档 /
+      // 切孩子后 childProfileRevisionProvider 自增 → ChildTabAutoRefresh 无条件
+      // 触发本方法，展示即时跟随。
+      await _loadCurrentChild();
       if (!mounted) return;
       setState(() {
         _totalFocusMinutes = stats.totalFocusMinutes.toDouble();
@@ -279,7 +275,6 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
             plants.where((Plant p) => p.status == PlantStatus.bloomed).length;
         _totalEyeCares = eyeCares;
         _balance = balance;
-        _nickname = _readNickname();
         _loading = false;
       });
     } catch (_) {
@@ -324,27 +319,16 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          // T4：昵称（点击整行改名；非必填，默认「小朋友」）。
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: _editNickname,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                Flexible(
-                                  child: Text(
-                                    _nickname,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                const Icon(Icons.edit,
-                                    size: 16, color: Colors.grey),
-                              ],
+                          // C90 期 2：只读展示「名字 · 年龄段」（昵称跟档案走，
+                          // 改名只在家长天地；本页不再有改名入口）。
+                          Flexible(
+                            child: Text(
+                              '$_childName · ${_childTierLabel(_childTier)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold),
                             ),
                           ),
                           const SizedBox(height: 2),

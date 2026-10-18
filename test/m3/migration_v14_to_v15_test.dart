@@ -175,7 +175,7 @@ void main() {
   group('迁移 v14->v15：少儿护眼休息三列（C28）', () {
     test('schemaVersion 必须为最新 15（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openMigrated(14);
-      expect(database.schemaVersion, 27);
+      expect(database.schemaVersion, 28);
     });
 
     test('三列补出来且历史行为默认值（开 / 20 分钟 / 不允许跳过）', () async {
@@ -235,13 +235,13 @@ void main() {
         ),
       );
       await first.customSelect('SELECT 1').get();
-      expect(first.schemaVersion, 27);
+      expect(first.schemaVersion, 28);
       await first.close();
 
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(() => second.close());
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 27);
+      expect(second.schemaVersion, 28);
       expect(await _count(second, 'settings'), 1);
 
       final Map<String, Object?> row = await _eyeCareRow(second);

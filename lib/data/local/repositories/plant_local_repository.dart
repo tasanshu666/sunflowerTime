@@ -56,25 +56,29 @@ class PlantLocalRepository implements PlantRepository, BloomRewardRepository {
   Future<List<PlantSpecies>> species() async => kSeedPlantSpecies;
 
   // ── BloomRewardRepository ────────────────────────────────────────────────
+  //
+  // C90 期 2 第二批：premium_fragments / unlocked_species 按孩子隔离（v28）——
+  // 写入落当前孩子、读取按当前孩子过滤（pending_bloom_rewards 本批不动）。
 
   @override
-  Future<int> premiumFragmentBalance() => _db.bloomRewardDao.fragmentBalance();
+  Future<int> premiumFragmentBalance() =>
+      _db.bloomRewardDao.fragmentBalance(childId: _childId);
 
   @override
   Future<void> setPremiumFragmentBalance(int balance) =>
-      _db.bloomRewardDao.setFragmentBalance(balance);
+      _db.bloomRewardDao.setFragmentBalance(balance, childId: _childId);
 
   @override
   Future<Set<String>> unlockedSpeciesIds() async =>
-      (await _db.bloomRewardDao.unlockedSpeciesIds()).toSet();
+      (await _db.bloomRewardDao.unlockedSpeciesIds(childId: _childId)).toSet();
 
   @override
   Future<void> unlockSpecies(String speciesId) =>
-      _db.bloomRewardDao.unlockSpecies(speciesId);
+      _db.bloomRewardDao.unlockSpecies(speciesId, childId: _childId);
 
   @override
   Future<void> consumeUnlock(String speciesId) =>
-      _db.bloomRewardDao.consumeUnlock(speciesId);
+      _db.bloomRewardDao.consumeUnlock(speciesId, childId: _childId);
 
   @override
   Future<void> insertPendingBloomReward(PendingBloomReward reward) =>

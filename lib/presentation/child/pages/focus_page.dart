@@ -258,7 +258,14 @@ class _FocusPageState extends ConsumerState<FocusPage>
   Future<void> _applyAudioOnEnter() async {
     final AppSettings s = await ref.read(settingsRepositoryProvider).getSettings();
     if (!mounted) return;
-    _tier = s.ageTier; // T-B：记录档位供埋点
+    // C90 期 2：档位跟当前孩子走（不再读全局 settings 单行；档案源不可用
+    // 时回退 settings，与隔离前行为一致）。
+    try {
+      _tier = await ref.read(childAgeTierProvider.future);
+    } catch (_) {
+      _tier = s.ageTier;
+    }
+    if (!mounted) return;
     _dailyFocusCap = s.dailyFocusCap; // 日上限口径：结算按此截断
     // C28：护眼判定用设置（总开关 / 触发间隔 / 是否允许跳过）。
     _eyeCareSettings = s;

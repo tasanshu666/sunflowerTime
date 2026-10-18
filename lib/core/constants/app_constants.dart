@@ -104,12 +104,14 @@ const String kDatabasePassphrase = 'sunfocus-planb-dev-passphrase-2026';
 /// 首次启动同意流是否已完成的标记键（shared_preferences）。
 const String kPrefFirstLaunchConsented = 'first_launch_consented';
 
-/// 孩子端已读「家长核销成功」通知的申请 id 列表（shared_preferences）。
-///
-/// 家长核销后孩子端需要一次性弹窗提醒；已展示过的申请 id 记在此处，
-/// 避免同一笔核销反复弹窗（M2 家长-孩子同步）。
-const String kPrefAckedVerifyIds = 'acked_verify_ids';
-const String kPrefAckedRejectIds = 'acked_reject_ids';
+/// 孩子端已读「家长核销成功」通知的申请 id 列表键 —— C90 期 2 第二批起**按孩子分键**
+///（玄参拍板）：`acked_verify_ids_read_$childId`。历史全局键 `acked_verify_ids`
+/// **不迁移**（切孩子后旧通知可能重弹一次，属拍板可接受范围）。
+/// 🔴 键名生成走本 helper 单点，禁止散写字面量。
+String ackedVerifyIdsKey(String childId) => 'acked_verify_ids_read_$childId';
+
+/// 孩子端已读「家长拒绝」通知键（B4 对称通知去重；按孩子分键口径同上）。
+String ackedRejectIdsKey(String childId) => 'acked_reject_ids_read_$childId';
 
 /// 家长 PIN 是否已在安全区落库的标记键（flutter_secure_storage）。
 const String kSecurePinHash = 'parent_pin_hash';
@@ -168,24 +170,21 @@ const String kPrefAppUsageLockedUntilMs = 'app_usage_locked_until_ms';
 /// 家长端首页有临时开关可关掉恢复拦截。release 构建不读该键（照常防沉迷）。
 const String kPrefDebugCapBypass = 'debug_cap_bypass';
 
-/// 孩子端昵称的 SharedPreferences 键（2026-10-14 玄参拍板：非必填，默认「小朋友」）。
+/// 昵称/展示名默认回落值（孩子端「我的」页档案读取失败时的兜底展示；
+/// 家长端 ChildProfileBar 无当前档案时同款回落）。
 ///
-/// 🔴 **纯本地存储、不上传、不经任何网络/账号体系** —— 与隐私政策「不收集儿童
-/// 个人信息」的承诺一致（故本功能**不需要**改隐私政策）。
-/// 空串 / 只含空白 = 未设置 → 展示回落到 [kDefaultChildNickname]。
-const String kPrefChildNickname = 'child_nickname';
-
-/// 昵称默认展示值（未设置 / 清空后的回落）。
+/// 历史：曾是「孩子端昵称 SP 键 `child_nickname`」的默认值（T4）；C90 期 2 第二批
+/// 起昵称跟孩子档案走（家长天地维护），`kPrefChildNickname` 键已删除、孩子端停止
+/// 读取（旧键留存但不迁移，玄参拍板）。
 const String kDefaultChildNickname = '小朋友';
 
-/// 昵称最大字符数（玄参拍板 ≤12）。
+/// 家长端新建 / 编辑孩子时的名字最大字符数（玄参拍板 ≤12）。
 const int kChildNicknameMaxLength = 12;
 
 /// 当前活跃孩子档案 id 的 SharedPreferences 键（C90 期 1，玄参 2026-10-17 拍板）。
 ///
 /// 键缺失 / 指向不存在的孩子 → `AccountService.initialize()` 回退第一个孩子
-///（🔴 绝不因此删档案，C69）。⚠️ `kPrefChildNickname`（孩子端昵称）本期不动，
-/// 期 2 迁移进档案。
+///（🔴 绝不因此删档案，C69）。
 const String kPrefActiveChildId = 'active_child_id';
 
 /// 家长端「每日 App 使用时长」可选档位（分钟）。

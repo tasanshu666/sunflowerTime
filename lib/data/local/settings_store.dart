@@ -16,21 +16,31 @@ class SettingsStore {
   Future<void> setFirstLaunchConsented(bool value) async =>
       _sp.setBool(kPrefFirstLaunchConsented, value);
 
-  /// 孩子端已展示过的「家长核销成功」申请 id（默认空）。
-  Future<List<String>> acknowledgedVerifyIds() async =>
-      _sp.getStringList(kPrefAckedVerifyIds) ?? <String>[];
+  // ── 已读通知键（C90 期 2 第二批：按孩子分键，键名单点见 app_constants）──────
 
-  /// 覆写「家长核销成功」已读 id 列表。
-  Future<void> setAcknowledgedVerifyIds(List<String> ids) async =>
-      _sp.setStringList(kPrefAckedVerifyIds, ids);
+  /// 孩子端已展示过的「家长核销成功」申请 id（默认空；按 [childId] 分键，
+  /// 历史全局键不迁移）。
+  Future<List<String>> acknowledgedVerifyIds({required String childId}) async =>
+      _sp.getStringList(ackedVerifyIdsKey(childId)) ?? <String>[];
 
-  /// 孩子端已展示过的「家长拒绝」申请 id（默认空，B4 对称通知去重）。
-  Future<List<String>> acknowledgedRejectIds() async =>
-      _sp.getStringList(kPrefAckedRejectIds) ?? <String>[];
+  /// 覆写「家长核销成功」已读 id 列表（按 [childId] 分键）。
+  Future<void> setAcknowledgedVerifyIds(
+    List<String> ids, {
+    required String childId,
+  }) async =>
+      _sp.setStringList(ackedVerifyIdsKey(childId), ids);
 
-  /// 覆写「家长拒绝」已读 id 列表。
-  Future<void> setAcknowledgedRejectIds(List<String> ids) async =>
-      _sp.setStringList(kPrefAckedRejectIds, ids);
+  /// 孩子端已展示过的「家长拒绝」申请 id（默认空，B4 对称通知去重；按
+  /// [childId] 分键）。
+  Future<List<String>> acknowledgedRejectIds({required String childId}) async =>
+      _sp.getStringList(ackedRejectIdsKey(childId)) ?? <String>[];
+
+  /// 覆写「家长拒绝」已读 id 列表（按 [childId] 分键）。
+  Future<void> setAcknowledgedRejectIds(
+    List<String> ids, {
+    required String childId,
+  }) async =>
+      _sp.setStringList(ackedRejectIdsKey(childId), ids);
 
   // ── P0 · A App 总使用时长（§6.1）：日键 + 当日累计秒 ──────────────────
 

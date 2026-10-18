@@ -140,7 +140,7 @@ void main() {
     test('① schemaVersion 必须为最新 26（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openV25();
       addTearDown(database.close);
-      expect(database.schemaVersion, 27);
+      expect(database.schemaVersion, 28);
     });
 
     test('② children 表存在且为空（默认孩子由 App 层补，不在迁移里插）', () async {
@@ -229,7 +229,7 @@ void main() {
       addTearDown(database.close);
       await database.customSelect('SELECT 1').get();
 
-      expect(database.schemaVersion, 27);
+      expect(database.schemaVersion, 28);
       expect(await _tableExists(database, 'child_profiles'), isTrue);
       expect(await _tableCount(database, 'child_profiles'), 0);
 

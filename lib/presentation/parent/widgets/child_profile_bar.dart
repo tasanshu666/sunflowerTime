@@ -345,6 +345,12 @@ class _ChildProfileBarState extends ConsumerState<ChildProfileBar> {
     await ref
         .read(childProfileRepositoryProvider)
         .update(p.id, name: result.name, ageTier: result.tier);
+    // C90 期 2 第二批：改的是**当前孩子** → 刷新 AccountService 缓存的活跃档案
+    //（switchTo 重读仓储，使孩子端年龄段 / 「我的」页展示即时跟档；id 不变，
+    // 写 SP 幂等无害）。
+    if (p.id == ref.read(accountServiceProvider).childId) {
+      await ref.read(accountServiceProvider).switchTo(p.id);
+    }
     ref.read(childProfileRevisionProvider.notifier).state++;
     await _reload();
     if (!mounted) return;

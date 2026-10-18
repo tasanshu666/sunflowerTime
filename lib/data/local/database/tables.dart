@@ -102,17 +102,25 @@ class Plants extends Table {
 
 /// 精品碎片账户余额（成株后循环玩法 Batch 1，v10 新增）。
 ///
-/// 单例行（镜像 [Settings] 模式，id 固定 = 1）：精品碎片为玩家级货币，
+/// 单孩时代为单例行（镜像 [Settings] 模式，id 固定 = 1）：精品碎片为玩家级货币，
 /// 仅由开花奖励掉落（瞬间 / 花开 48h 后），集齐阈值（8）片可在花园页**手动选择**
 /// 解锁 1 个精品物种（变更 B：不再自动解锁）。
+///
+/// C90 期 2 第二批（玄参 2026-10-17 拍板，schemaVersion 28）：余额按孩子隔离 ——
+/// 复合主键 (id, childId)，每个孩子一行（id 恒为 1）；历史行经 v28 表重建迁移
+/// 默认归属 kChildIdDefault。
 @DataClassName('PremiumFragmentRow')
 class PremiumFragments extends Table {
-  IntColumn get id => integer()(); // 单例行主键，固定 = 1
+  IntColumn get id => integer()(); // 单例行主键之一，固定 = 1
   IntColumn get balance =>
       integer().withDefault(const Constant(0))(); // 当前持有碎片数
 
+  // ── C90 期 2 第二批：归属孩子（schemaVersion 28 表重建）────────────────
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子
+
   @override
-  Set<Column> get primaryKey => {id};
+  Set<Column> get primaryKey => {id, childId};
 }
 
 /// 第二段（花开后掉落）待收集奖励队列（成株后循环玩法 Batch 1，v10 新增；
@@ -148,12 +156,19 @@ class PendingBloomRewards extends Table {
 /// 已解锁物种记账（成株后循环玩法 Batch 1，v10 新增；图鉴 Batch 2 读它）。
 ///
 /// 物种种子 / 碎片解锁均写入本表；`species_id` 复用植物物种种子（`plant_seed.dart`）的 id。
+///
+/// C90 期 2 第二批（玄参 2026-10-17 拍板，schemaVersion 28）：种植券按孩子隔离 ——
+/// 复合主键 (speciesId, childId)；历史行经 v28 表重建迁移默认归属 kChildIdDefault。
 @DataClassName('UnlockedSpeciesRow')
 class UnlockedSpecies extends Table {
   TextColumn get speciesId => text()();
 
+  // ── C90 期 2 第二批：归属孩子（schemaVersion 28 表重建）────────────────
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子
+
   @override
-  Set<Column> get primaryKey => {speciesId};
+  Set<Column> get primaryKey => {speciesId, childId};
 }
 
 /// 专注会话（§3.1 focus_session）。
@@ -235,6 +250,10 @@ class RedemptionRequests extends Table {
 }
 
 /// 月度池（§3.1 monthly_pool）。
+///
+/// C90 期 2 第二批（玄参 2026-10-17 拍板，schemaVersion 28）：周/月池按孩子隔离 ——
+/// 复合主键 (monthKey, childId)，每个孩子各一套池；历史行经 v28 表重建迁移
+/// 默认归属 kChildIdDefault。
 class MonthlyPools extends Table {
   TextColumn get monthKey => text()();
   IntColumn get budget => integer()();
@@ -242,8 +261,12 @@ class MonthlyPools extends Table {
   IntColumn get autoReleased => integer().withDefault(const Constant(0))();
   DateTimeColumn get resetAt => dateTime()();
 
+  // ── C90 期 2 第二批：归属孩子（schemaVersion 28 表重建）────────────────
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子
+
   @override
-  Set<Column> get primaryKey => {monthKey};
+  Set<Column> get primaryKey => {monthKey, childId};
 }
 
 /// 任务（§3.1 task）。
@@ -299,13 +322,21 @@ class CheckIns extends Table {
 }
 
 /// 冷却计数（§3.1 cooldown_counter）。
+///
+/// C90 期 2 第二批（玄参 2026-10-17 拍板，schemaVersion 28）：限领次数按孩子隔离 ——
+/// 复合主键 (templateId, period, childId)，每个孩子各一本账；历史行经 v28 表重建
+/// 迁移默认归属 kChildIdDefault。
 class CooldownCounters extends Table {
   TextColumn get templateId => text()();
   IntColumn get period => integer()(); // CooldownPeriod index
   IntColumn get usedCount => integer().withDefault(const Constant(0))();
 
+  // ── C90 期 2 第二批：归属孩子（schemaVersion 28 表重建）────────────────
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子
+
   @override
-  Set<Column> get primaryKey => {templateId, period};
+  Set<Column> get primaryKey => {templateId, period, childId};
 }
 
 /// 埋点（§3.1 tracking_event）。

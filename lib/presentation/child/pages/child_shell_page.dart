@@ -268,19 +268,26 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     }
   }
 
+  /// 当前孩子 id（C90 期 2 第二批：已读通知键按孩子分键；同步 getter，
+  /// AccountService 桩模式 → 默认孩子，不触数据库）。
+  String _currentChildId() => ref.read(accountServiceProvider).childId;
+
   /// 进入孩子端即检查「家长已核销」通知：有未读则弹窗告知，并标记已读。
   ///
   /// 判定口径：`verifiedRequests()` 中 id 不在 shared_preferences 已读列表里的申请。
+  /// C90 期 2：已读列表按当前孩子分键（历史全局键不迁移）。
   /// 任何异常都不阻塞首页（通知属增强能力）。
   Future<void> _checkVerifiedNotices() async {
     try {
       final RewardRepository repo = ref.read(rewardRepositoryProvider);
       final SettingsStore store = ref.read(settingsStoreProvider);
+      final String childId = _currentChildId();
 
       final List<RedemptionRequest> verified = await repo.verifiedRequests();
       if (verified.isEmpty) return;
 
-      final List<String> acked = await store.acknowledgedVerifyIds();
+      final List<String> acked =
+          await store.acknowledgedVerifyIds(childId: childId);
       final Set<String> ackedSet = acked.toSet();
       final List<RedemptionRequest> news =
           verified.where((RedemptionRequest r) => !ackedSet.contains(r.id)).toList();
@@ -325,9 +332,10 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
         ),
       );
 
-      // 标记已读（去重合并），下次进入不再重复弹窗。
+      // 标记已读（去重合并），下次进入不再重复弹窗（按当前孩子分键）。
       await store.setAcknowledgedVerifyIds(
         <String>{...acked, ...news.map((RedemptionRequest r) => r.id)}.toList(),
+        childId: childId,
       );
     } catch (_) {
       // 通知检查失败不阻塞孩子端首页。
@@ -337,16 +345,19 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   /// 进入孩子端即检查「家长拒绝」通知（B4 对称通知）：家长拒绝后孩子端也弹窗告知。
   ///
   /// 判定口径：`rejectedRequests()` 中 id 不在 shared_preferences 已读列表里的申请。
+  /// C90 期 2：已读列表按当前孩子分键（历史全局键不迁移）。
   /// 任何异常都不阻塞首页（通知属增强能力）。
   Future<void> _checkRejectedNotices() async {
     try {
       final RewardRepository repo = ref.read(rewardRepositoryProvider);
       final SettingsStore store = ref.read(settingsStoreProvider);
+      final String childId = _currentChildId();
 
       final List<RedemptionRequest> rejected = await repo.rejectedRequests();
       if (rejected.isEmpty) return;
 
-      final List<String> acked = await store.acknowledgedRejectIds();
+      final List<String> acked =
+          await store.acknowledgedRejectIds(childId: childId);
       final Set<String> ackedSet = acked.toSet();
       final List<RedemptionRequest> news =
           rejected.where((RedemptionRequest r) => !ackedSet.contains(r.id)).toList();
@@ -392,6 +403,7 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
 
       await store.setAcknowledgedRejectIds(
         <String>{...acked, ...news.map((RedemptionRequest r) => r.id)}.toList(),
+        childId: childId,
       );
     } catch (_) {
       // 通知检查失败不阻塞孩子端首页。

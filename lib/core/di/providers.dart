@@ -25,7 +25,9 @@ import 'package:sunflower_time/data/local/repositories/entitlement_local_reposit
 import 'package:sunflower_time/data/local/secure_entitlement_store.dart';
 import 'package:sunflower_time/data/local/secure_store.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
+import 'package:sunflower_time/domain/entities/child_profile.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/repositories/entitlement_repository.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart';
@@ -113,13 +115,15 @@ final bloomRewardRepositoryProvider = Provider<BloomRewardRepository>(
   (ref) => ref.watch(plantLocalRepositoryProvider),
 );
 final rewardRepositoryProvider = Provider<RewardRepository>(
-  (ref) => RewardLocalRepository(ref.watch(appDatabaseProvider)),
+  (ref) => RewardLocalRepository(ref.watch(appDatabaseProvider),
+      account: ref.watch(accountServiceProvider)),
 );
 final trackingRepositoryProvider = Provider<TrackingRepository>(
   (ref) => TrackingLocalRepository(ref.watch(appDatabaseProvider)),
 );
 final weeklyPoolRepositoryProvider = Provider<WeeklyPoolRepository>(
-  (ref) => WeeklyPoolLocalRepository(ref.watch(appDatabaseProvider)),
+  (ref) => WeeklyPoolLocalRepository(ref.watch(appDatabaseProvider),
+      account: ref.watch(accountServiceProvider)),
 );
 
 /// 阳光记账与软顶服务（T10，§4.5 / §3.2）。专注页结算时读取。
@@ -172,13 +176,23 @@ final childProfileRepositoryProvider = Provider<ChildProfileRepository>(
 ///
 /// 全量依赖注入后具备多档案能力；冷启动由 main 调 `initialize()`
 ///（空表补建默认孩子 + 从 SP 恢复活跃孩子）。
-final accountServiceProvider = Provider<AccountService>(
-  (ref) => AccountService(
-    children: ref.watch(childProfileRepositoryProvider),
-    settings: ref.watch(settingsRepositoryProvider),
-    prefs: ref.watch(sharedPreferencesProvider),
-  ),
-);
+///
+/// C90 期 2 第二批：更多消费方（reward / weeklyPool 仓储、childAgeTierProvider、
+/// PlantGrowthService）watch 本 Provider —— 装配改为**容错**：任一依赖不可用
+///（如测试环境未 override `sharedPreferencesProvider` / `appDatabaseProvider`）时
+/// 回退**无参旧桩**（childId 恒 kChildIdDefault、currentProfile 恒 null，不触库），
+/// 与「无参 = 旧行为」口径一致；生产 main 全量 override，永远走全量依赖分支。
+final accountServiceProvider = Provider<AccountService>((ref) {
+  try {
+    return AccountService(
+      children: ref.watch(childProfileRepositoryProvider),
+      settings: ref.watch(settingsRepositoryProvider),
+      prefs: ref.watch(sharedPreferencesProvider),
+    );
+  } catch (_) {
+    return AccountService();
+  }
+});
 
 /// 档案修订号（C90 期 1，仿 [economyRevisionProvider] 模式）。
 ///
@@ -186,6 +200,28 @@ final accountServiceProvider = Provider<AccountService>(
 /// watch 本值即自动刷新，无需回调。期 2 数据隔离落地后，孩子端经济展示
 /// 也应挂本修订号。
 final childProfileRevisionProvider = StateProvider<int>((ref) => 0);
+
+/// 当前孩子的年龄段（C90 期 2 第二批：**年龄段跟孩子走**，玄参拍板）。
+///
+/// 孩子端档位读取**单点**（专注页 / 花园页 / 商店页）：有当前孩子档案 → 档案
+/// `ageTier`；无档案（AccountService 桩 / 未初始化）→ 回退全局 settings 单行
+///（= 隔离前行为，测试 fake settings 照常生效）。家长端全局口径仍读
+/// [settingsProvider]。watch [childProfileRevisionProvider] —— 家长改档 / 切孩子
+/// 后自动重算。
+final childAgeTierProvider = FutureProvider.autoDispose<AgeTier>((ref) async {
+  ref.watch(childProfileRevisionProvider);
+  final AccountService account = ref.watch(accountServiceProvider);
+  try {
+    // 🔴 有界等待（Q-E 先例）：档案源不可用 → 超时回退 null 落全局 settings 兜底。
+    final ChildProfile? profile = await account
+        .currentProfile()
+        .timeout(kChildProfileReadTimeout);
+    if (profile != null) return profile.ageTier;
+  } catch (_) {
+    // 档案源不可用 → 落下方全局 settings 兜底。
+  }
+  return (await ref.watch(settingsRepositoryProvider).getSettings()).ageTier;
+});
 
 /// 周阳光池服务（§3.2 / §4.1）：取/建/重置周池 + C5 上限计算。
 final weeklyPoolServiceProvider = Provider<WeeklyPoolService>((ref) =>
@@ -268,6 +304,8 @@ final plantGrowthServiceProvider = Provider<PlantGrowthService>(
     ledger: ref.watch(sunlightRepositoryProvider),
     settings: ref.watch(settingsRepositoryProvider),
     bloomRewards: ref.watch(bloomRewardRepositoryProvider),
+    // C90 期 2：扩容档位判定（年龄段）跟当前孩子走（可选注入，域单测零改动）。
+    account: ref.watch(accountServiceProvider),
     // 阶段 4 域层防线：花盆扩容按档位上限（免费 4 / 买断 12），防绕过 UI 顶满。
     entitlement: ref.watch(entitlementServiceProvider),
     onEconomyChanged: () =>

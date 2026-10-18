@@ -183,6 +183,10 @@ class FakeAccountService implements AccountService {
       throw UnsupportedError('x');
   @override
   Future<ChildProfile?> currentProfile() async => null;
+  // C90 期 2 第二批：年龄段跟孩子走（Fake 恒单孩子 → 落全局设置语义由调用方
+  // 未注入档案时的回退兜底，这里直接回默认档，仅满足接口）。
+  @override
+  Future<AgeTier> currentAgeTier() async => AgeTier.high;
   @override
   Never signIn() => throw UnsupportedError('x');
   @override

@@ -1673,3 +1673,12 @@ const String kLevelUpFxPerkLockedSuffix = ' · 🔒付费解锁';
 /// 2s 远大于正常查询耗时，故正常使用零影响。
 const Duration kPlantPerkProviderTimeout = Duration(seconds: 2);
 
+/// 「读当前孩子档案」的**等待上限**（C90 期 2 第二批：child_profile_page /
+/// childAgeTierProvider / PlantGrowthService 档位解析用，仿
+/// [kPlantPerkProviderTimeout] 的 Q-E 有界等待纪律）。
+///
+/// 正常路径 = 一次 child_profiles 主键查询（毫秒级）；**仅在档案源不可用 / 极慢**
+///（如测试环境未注入内存库、真实库 Lazy open 被平台通道缺失挂起）超时回退空档案，
+/// **绝不把「读档案」变成会挂住 UI 流程的 await**。200ms 远大于正常查询耗时。
+const Duration kChildProfileReadTimeout = Duration(milliseconds: 200);
+

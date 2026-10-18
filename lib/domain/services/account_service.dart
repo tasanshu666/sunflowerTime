@@ -82,6 +82,17 @@ class AccountService {
   /// ⚠️ 调用签名不得变（`RedemptionOrchestrationService` 依赖）。
   String currentChildId() => childId;
 
+  /// 当前孩子的年龄段（C90 期 2 第二批：**年龄段跟孩子走**，玄参拍板）。
+  ///
+  /// 有档案 → 档案 `ageTier`；无档案（未初始化 / 桩模式 / 空表）→ 回退全局
+  /// settings 单行值，再回退 [AgeTier.high] —— 与隔离前「读全局设置」行为逐位
+  /// 一致，既有调用方（未注入依赖的测试）零感知。
+  Future<AgeTier> currentAgeTier() async {
+    final ChildProfile? profile = await currentProfile();
+    if (profile != null) return profile.ageTier;
+    return (await _settings?.getSettings())?.ageTier ?? AgeTier.high;
+  }
+
   /// 确保当前孩子档案存在（幂等别名 = [initialize]）。
   Future<void> ensureChild() => initialize();
 

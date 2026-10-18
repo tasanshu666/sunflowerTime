@@ -80,6 +80,9 @@ final _storeLoadProvider = FutureProvider<_StoreLoad>((ref) async {
   // 依赖经济修订号：家长端「核销/拒绝」或孩子端兑换后自增 → 本 provider 重算，
   // 避免家长端处理完返回孩子端时仍显示旧缓存（待核销总额/卡片禁用态不同步）。
   ref.watch(economyRevisionProvider);
+  // C90 期 2：切孩子（档案修订号自增）→ 本 provider 重算（档位 / 周池 /
+  // 冷却计数全跟当前孩子走；页面侧 ChildTabAutoRefresh 也会 invalidate 兜底）。
+  ref.watch(childProfileRevisionProvider);
   final AppSettings settings = await ref.watch(settingsProvider.future);
   final RewardRepository rewardRepo = ref.watch(rewardRepositoryProvider);
   final List<RewardTemplate> templates = await rewardRepo.templates();
@@ -111,8 +114,16 @@ final _storeLoadProvider = FutureProvider<_StoreLoad>((ref) async {
       cooldown[t.id] = t.frequencyLimitPerWeek > 0 && count >= t.frequencyLimitPerWeek;
       weeklyUsed[t.id] = count; // 供卡片展示「剩余次数 = limit - count」
     }
+  // C90 期 2：档位跟当前孩子走（不再读全局 settings 单行；档案源不可用时
+  // 回退 settings，与隔离前行为一致）。
+  AgeTier tier;
+  try {
+    tier = await ref.watch(childAgeTierProvider.future);
+  } catch (_) {
+    tier = settings.ageTier;
+  }
   return _StoreLoad(
-    tier: settings.ageTier,
+    tier: tier,
     templates: templates,
     onCooldown: cooldown,
     weeklyUsed: weeklyUsed,

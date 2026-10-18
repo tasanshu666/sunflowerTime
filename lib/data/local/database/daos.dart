@@ -298,46 +298,69 @@ class PlantDao extends DatabaseAccessor<AppDatabase> with _$PlantDaoMixin {
 }
 
 /// 成株后循环玩法 Batch 1 DAO（§3.1）：精品碎片余额 / 第二段待收集奖励 / 已解锁物种。
+///
+/// C90 期 2 第二批：premium_fragments / unlocked_species 已按孩子隔离
+///（schemaVersion 28 表重建，复合主键并入 child_id）—— 查询 / 写入方法带可选
+/// [childId]（null = 不过滤 / 不补写，仅迁移与老调用点用；仓储层一律传当前孩子，
+/// 漏传即数据串孩子）。pending_bloom_rewards 本批不动（花开队列暂不按孩子分）。
 @DriftAccessor(tables: [PremiumFragments, PendingBloomRewards, UnlockedSpecies])
 class BloomRewardDao extends DatabaseAccessor<AppDatabase>
     with _$BloomRewardDaoMixin {
   BloomRewardDao(super.db);
 
-  /// 精品碎片余额（单例行，无记录视为 0）。
-  Future<int> fragmentBalance() async {
-    final PremiumFragmentRow? row =
-        await (select(premiumFragments)..where((t) => t.id.equals(1)))
-            .getSingleOrNull();
+  /// 精品碎片余额（单例行 per 孩子：id 恒 = 1 + childId；无记录视为 0）。
+  Future<int> fragmentBalance({String? childId}) async {
+    final query = select(premiumFragments)..where((t) => t.id.equals(1));
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    final PremiumFragmentRow? row = await query.getSingleOrNull();
     return row?.balance ?? 0;
   }
 
-  /// 覆盖式写入精品碎片余额（单例行 upsert，id 固定 = 1）。
-  Future<void> setFragmentBalance(int balance) =>
+  /// 覆盖式写入精品碎片余额（upsert，复合主键 (id=1, childId) 冲突合并）。
+  ///
+  /// [childId] 为 null 时不显式带 childId（新行落列默认 kChildIdDefault，
+  /// 与「null = 老调用点」口径一致）。
+  Future<void> setFragmentBalance(int balance, {String? childId}) =>
       into(premiumFragments).insertOnConflictUpdate(
         PremiumFragmentsCompanion(
           id: const Value(1),
           balance: Value(balance),
+          childId: childId == null ? const Value.absent() : Value(childId),
         ),
       );
 
-  /// 已解锁物种 id 列表（语义：持有的免费种植券）。
-  Future<List<String>> unlockedSpeciesIds() async {
-    final List<UnlockedSpeciesRow> rows = await select(unlockedSpecies).get();
+  /// 已解锁物种 id 列表（语义：当前孩子持有的免费种植券）。
+  Future<List<String>> unlockedSpeciesIds({String? childId}) async {
+    final query = select(unlockedSpecies);
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    final List<UnlockedSpeciesRow> rows = await query.get();
     return rows.map((UnlockedSpeciesRow r) => r.speciesId).toList();
   }
 
-  /// 写入一张免费种植券（幂等，按 speciesId 主键冲突合并）。
-  Future<void> unlockSpecies(String speciesId) =>
+  /// 写入一张免费种植券（幂等，按复合主键 (speciesId, childId) 冲突合并）。
+  Future<void> unlockSpecies(String speciesId, {String? childId}) =>
       into(unlockedSpecies).insertOnConflictUpdate(
-        UnlockedSpeciesCompanion(speciesId: Value(speciesId)),
+        UnlockedSpeciesCompanion(
+          speciesId: Value(speciesId),
+          childId: childId == null ? const Value.absent() : Value(childId),
+        ),
       );
 
-  /// 消耗一张免费种植券（删除该 speciesId 行）。
+  /// 消耗一张免费种植券（删除当前孩子的该 speciesId 行）。
   ///
   /// 删除 0 行不报错（幂等）：调用方可能对「无券」的物种重复调用，视为无副作用。
-  Future<void> consumeUnlock(String speciesId) =>
-      (delete(unlockedSpecies)..where((t) => t.speciesId.equals(speciesId)))
-          .go();
+  /// ⚠️ 按孩子过滤：消耗动作**绝不动**另一孩子的券。
+  Future<void> consumeUnlock(String speciesId, {String? childId}) {
+    final query = delete(unlockedSpecies)..where((t) => t.speciesId.equals(speciesId));
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.go();
+  }
 
   /// 写入一条待收集奖励（花开瞬间 / 花开 48h 后掉落）。
   ///
@@ -626,52 +649,87 @@ class RedemptionRequestDao extends DatabaseAccessor<AppDatabase>
 }
 
 /// 月度池 DAO（§3.2）。
+///
+/// C90 期 2 第二批：monthly_pools 已按孩子隔离（schemaVersion 28 表重建，
+/// 复合主键 (month_key, child_id)）—— 方法带可选 [childId]（null = 不过滤 /
+/// 不补写，仅迁移与老调用点用；仓储层一律传当前孩子）。
 @DriftAccessor(tables: [MonthlyPools])
 class MonthlyPoolDao extends DatabaseAccessor<AppDatabase>
     with _$MonthlyPoolDaoMixin {
   MonthlyPoolDao(super.db);
 
-  /// 按主键（monthKey）读取单条，不存在返回 null。
-  Future<MonthlyPool?> of(String monthKey) =>
-      (select(monthlyPools)..where((p) => p.monthKey.equals(monthKey)))
-          .getSingleOrNull();
+  /// 按复合主键 (monthKey, childId) 读取单条，不存在返回 null。
+  Future<MonthlyPool?> of(String monthKey, {String? childId}) {
+    final query = select(monthlyPools)..where((p) => p.monthKey.equals(monthKey));
+    if (childId != null) {
+      query.where((p) => p.childId.equals(childId));
+    }
+    return query.getSingleOrNull();
+  }
 
-  /// 插入或更新（按主键冲突合并）。
-  Future<void> upsert(MonthlyPoolsCompanion row) =>
-      into(monthlyPools).insertOnConflictUpdate(row);
+  /// 插入或更新（按复合主键 (monthKey, childId) 冲突合并）。
+  ///
+  /// [childId] 非空且 row 未显式带 childId 时补写（C90 期 2：落当前孩子）。
+  Future<void> upsert(MonthlyPoolsCompanion row, {String? childId}) {
+    final MonthlyPoolsCompanion full =
+        (childId == null || row.childId.present)
+            ? row
+            : row.copyWith(childId: Value(childId));
+    return into(monthlyPools).insertOnConflictUpdate(full);
+  }
 }
 
 /// 冷却计数 DAO（§3.2）。
+///
+/// C90 期 2 第二批：cooldown_counters 已按孩子隔离（schemaVersion 28 表重建，
+/// 复合主键 (template_id, period, child_id)）—— 方法带可选 [childId]
+///（null = 不过滤 / 不补写，仅迁移与老调用点用；仓储层一律传当前孩子）。
 @DriftAccessor(tables: [CooldownCounters])
 class CooldownCounterDao extends DatabaseAccessor<AppDatabase>
     with _$CooldownCounterDaoMixin {
   CooldownCounterDao(super.db);
 
   /// 先确保行存在，再 used_count + 1。
-  Future<void> bump(String templateId, CooldownPeriod period) async {
-    final int existing = await count(templateId, period);
+  Future<void> bump(String templateId, CooldownPeriod period,
+      {String? childId}) async {
+    final int existing = await count(templateId, period, childId: childId);
     if (existing == 0) {
       await into(cooldownCounters).insert(
         CooldownCountersCompanion(
           templateId: Value(templateId),
           period: Value(period.index),
+          childId: childId == null ? const Value.absent() : Value(childId),
         ),
       );
     }
-    await customStatement(
-      'UPDATE cooldown_counters SET used_count = used_count + 1 '
-      'WHERE template_id = ? AND period = ?',
-      [templateId, period.index],
-    );
+    // 复合主键含 child_id：UPDATE 同键定位（与 resolveCheckInIfStatus 同款
+    // 「null = 不加过滤」约定，仅老调用点走该分支）。
+    if (childId == null) {
+      await customStatement(
+        'UPDATE cooldown_counters SET used_count = used_count + 1 '
+        'WHERE template_id = ? AND period = ?',
+        [templateId, period.index],
+      );
+    } else {
+      await customStatement(
+        'UPDATE cooldown_counters SET used_count = used_count + 1 '
+        'WHERE template_id = ? AND period = ? AND child_id = ?',
+        [templateId, period.index, childId],
+      );
+    }
   }
 
-  /// 返回该 (templateId, period) 行的 used_count（无记录视为 0）。
-  /// (templateId, period) 为月度池主键，至多一行。
-  Future<int> count(String templateId, CooldownPeriod period) async {
-    final CooldownCounter? row = await (select(cooldownCounters)
-          ..where((c) =>
-              c.templateId.equals(templateId) & c.period.equals(period.index)))
-          .getSingleOrNull();
+  /// 返回该 (templateId, period, childId) 行的 used_count（无记录视为 0）。
+  /// (templateId, period, childId) 为复合主键，每个孩子至多一行。
+  Future<int> count(String templateId, CooldownPeriod period,
+      {String? childId}) async {
+    final query = select(cooldownCounters)
+      ..where((c) =>
+          c.templateId.equals(templateId) & c.period.equals(period.index));
+    if (childId != null) {
+      query.where((c) => c.childId.equals(childId));
+    }
+    final CooldownCounter? row = await query.getSingleOrNull();
     return row?.usedCount ?? 0;
   }
 
@@ -679,14 +737,24 @@ class CooldownCounterDao extends DatabaseAccessor<AppDatabase>
   ///
   /// 行不存在时静默跳过（createRequest 一定先 bump 确保行存在，正常不会触发，
   /// 但拒绝路径独立调用以防边界情况下出现负计数）。
-  Future<void> decrement(String templateId, CooldownPeriod period) async {
-    final int existing = await count(templateId, period);
+  /// ⚠️ 按孩子过滤：冲减**绝不动**另一孩子的计数。
+  Future<void> decrement(String templateId, CooldownPeriod period,
+      {String? childId}) async {
+    final int existing = await count(templateId, period, childId: childId);
     if (existing <= 0) return; // 无记录即 0，无需操作
-    await customStatement(
-      'UPDATE cooldown_counters SET used_count = MAX(0, used_count - 1) '
-      'WHERE template_id = ? AND period = ?',
-      [templateId, period.index],
-    );
+    if (childId == null) {
+      await customStatement(
+        'UPDATE cooldown_counters SET used_count = MAX(0, used_count - 1) '
+        'WHERE template_id = ? AND period = ?',
+        [templateId, period.index],
+      );
+    } else {
+      await customStatement(
+        'UPDATE cooldown_counters SET used_count = MAX(0, used_count - 1) '
+        'WHERE template_id = ? AND period = ? AND child_id = ?',
+        [templateId, period.index, childId],
+      );
+    }
   }
 }
 

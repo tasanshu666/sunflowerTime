@@ -36,9 +36,11 @@ import 'package:sunflower_time/domain/services/redemption_service.dart';
 ///
 /// **C62（2026-10-13）**：删除 `queued`（不再产生排队），新增 `rejectedPool`
 /// （超周池直接拒绝）。本枚举**不落库**，故可安全增删。
+/// **C90-C（2026-10-18）**：`verified`（免确认自动放行）不再由 submit() 产生 ——
+/// 孩子端发起一律 pending；枚举成员保留（孩子端 store_page 分支仍需处理存量路径语义）。
 enum SubmitOutcome {
-  verified, // 免确认自动放行
-  pending, // 待家长核销
+  verified, // 已核销（仅 legacy 存量路径可达；C90-C 起 submit() 不再产生）
+  pending, // 待家长核销（C90-C：孩子端发起的唯一成功走向）
   rejectedCooldown, // 冷却中（每周限领 1 次）
   rejectedBalance, // 阳光余额不足
   rejectedPool, // C62：超周池，直接拒绝（不再排队）
@@ -49,13 +51,11 @@ class SubmitResult {
   final SubmitOutcome outcome;
   final String? requestId;
   final int? cost;
-  final bool autoApproved;
 
   const SubmitResult({
     required this.outcome,
     this.requestId,
     this.cost,
-    this.autoApproved = false,
   });
 }
 
@@ -107,13 +107,15 @@ class RedemptionOrchestrationService {
   }
 
   /// 孩子端发起一笔兑换（§4.1 时序）。
-  /// [forcePending]：孩子端发起时传 true，强制走「待家长核销」——不立即扣账本，
-  /// 阳光扣减延后到 [verify]（家长确认）时才发生。
+  ///
+  /// 🔴 C90-C：自动放行删除后，孩子端发起的兑换**一律 pending**（原「免确认
+  /// 双条件 → verified」与 `forcePending` 强转逻辑删除）；阳光扣减延后到
+  /// [verify]（家长确认）时才发生。形参保留以不动调用点与签名。
   Future<SubmitResult> submit(
     String templateId,
     AgeTier ageTier,
     DateTime now, {
-    bool forcePending = false,
+    bool forcePending = true,
   }) async {
     final List<RewardTemplate> templates = await _reward.templates();
     final RewardTemplate tpl = templates.firstWhere(
@@ -148,14 +150,9 @@ class RedemptionOrchestrationService {
       return SubmitResult(outcome: SubmitOutcome.rejectedPool, cost: cost);
     }
 
-    // 孩子端发起：即使是「免确认双条件」满足的便宜奖励，也强制进入 pending，
-    // 由家长在「今日」里显式确认后才扣阳光（C5 自动放行不再对孩子端生效）。
-    RequestStatus finalStatus = decision.status;
-    bool finalAuto = decision.autoApproved;
-    if (forcePending && finalStatus == RequestStatus.verified) {
-      finalStatus = RequestStatus.pending;
-      finalAuto = false;
-    }
+    // C90-C：自动放行（C5 免确认）已删除 —— 一律进入 pending，
+    // 由家长显式核销后才扣阳光（阳光扣减延后到 [verify]）。
+    const RequestStatus finalStatus = RequestStatus.pending;
 
     final String childId = _account.currentChildId();
 
@@ -167,7 +164,8 @@ class RedemptionOrchestrationService {
       requestedAt: now,
       cost: cost,
       status: finalStatus,
-      autoApproved: finalAuto,
+      // C90-C：auto_approved 列已废弃，恒 false（不再写 true）。
+      autoApproved: false,
     );
     await _reward.createRequest(req);
 
@@ -181,20 +179,11 @@ class RedemptionOrchestrationService {
         'cost_sun': cost,
         'category': tpl.category.name,
         'tier': ageTier.name,
-        'is_auto_pass': decision.autoApproved,
+        // C90-C：原 'is_auto_pass'（免确认自动放行）埋点键随功能删除。
       },
     ));
 
     switch (finalStatus) {
-      case RequestStatus.verified:
-        await _appendLedger(now, cost, SunlightType.redeem, req.id);
-        await _pools.applyRedemption(pool, cost, auto: true);
-        return SubmitResult(
-          outcome: SubmitOutcome.verified,
-          requestId: req.id,
-          cost: cost,
-          autoApproved: true,
-        );
       case RequestStatus.pending:
         return SubmitResult(
           outcome: SubmitOutcome.pending,
@@ -202,20 +191,26 @@ class RedemptionOrchestrationService {
           cost: cost,
         );
       case RequestStatus.queued:
+      case RequestStatus.verified:
       case RequestStatus.rejected:
-        // C62：queued 不再产生（超池已在上方早退）；rejected 仍只由显式 reject() 产生。
-        // 二者若走到这里 = submit 的前置判定被绕过 → 直接抛错（不静默失败）。
-        throw StateError('submit() 不应产生 $finalStatus 状态（C62 起超池直接拒绝）');
+        // C90-C：pending 是 decide() 通过后的唯一走向；queued/verified/rejected
+        // 若走到这里 = submit 的前置判定被绕过 → 直接抛错（不静默失败）。
+        throw StateError('submit() 不应产生 $finalStatus 状态');
     }
   }
 
   /// 家长核销一笔 pending 请求（§4.3 时序）。
+  ///
+  /// 🔴 **C91 / F123 跨孩子防护**：目标申请的 childId ≠ 当前孩子 → 抛
+  /// [StateError]（「不是当前孩子的申请」），不写账本 / 不扣池 / 不改状态。
+  /// 与仓储层按当前孩子过滤（`RewardLocalRepository`）互为双保险。
   Future<void> verify(String requestId, DateTime now) async {
     final List<RedemptionRequest> list = await _reward.pendingAndQueued();
     final RedemptionRequest req = list.firstWhere(
       (r) => r.id == requestId && r.status == RequestStatus.pending,
       orElse: () => throw StateError('no pending'),
     );
+    _guardCurrentChild(req);
 
     final AgeTier tier = (await _settings.getSettings()).ageTier;
 
@@ -249,7 +244,7 @@ class RedemptionOrchestrationService {
         'within_48h': within48,
         'amount': req.cost,
         'tier': tier.name,
-        'is_small': req.cost <= kAutoApproveMaxCostLow,
+        // C90-C：原 'is_small'（单笔免确认阈值）埋点键随功能删除。
       },
     ));
   }
@@ -259,6 +254,9 @@ class RedemptionOrchestrationService {
   /// pending / queued 状态**从不扣账本**，故拒绝 = 从不做扣减，无需回写 ledger；
   /// 仅将状态置 [RequestStatus.rejected]，使其退出 pendingAndQueued 列表
   /// （家长端核销卡消失、孩子端可在商店重新兑换）。埋点记一笔拒办。
+  ///
+  /// 🔴 **C91 / F123 跨孩子防护**：同 [verify] —— 目标申请 childId ≠ 当前孩子
+  /// → 抛 [StateError]，不回退冷却计数、不改状态。
   Future<void> reject(String requestId, DateTime now, {String? note}) async {
     final List<RedemptionRequest> list = await _reward.pendingAndQueued();
     final RedemptionRequest req = list.firstWhere(
@@ -268,6 +266,7 @@ class RedemptionOrchestrationService {
               r.status == RequestStatus.queued),
       orElse: () => throw StateError('no pending/queued'),
     );
+    _guardCurrentChild(req);
     final String source =
         req.status == RequestStatus.queued ? 'queued' : 'pending';
     // 拒绝 = 该次兑换不生效：回退落单时 bump 的本周冷却计数，
@@ -312,8 +311,11 @@ class RedemptionOrchestrationService {
     int deferred = 0;
 
     for (final RedemptionRequest req in queue) {
+      // C90-C：budget <= kWeeklyPoolBudgetUnlimited（0）= 不限额，不判超池。
       if ((await _ledger.balance()) >= req.cost &&
-          (newPool.used + newPool.autoReleased + req.cost) <= newPool.budget) {
+          (newPool.budget <= kWeeklyPoolBudgetUnlimited ||
+              (newPool.used + newPool.autoReleased + req.cost) <=
+                  newPool.budget)) {
         await _appendLedger(now, req.cost, SunlightType.queueRelease, req.id);
         await _pools.applyRedemption(newPool, req.cost, auto: false);
         await _reward.updateRequest(RedemptionRequest(
@@ -357,9 +359,12 @@ class RedemptionOrchestrationService {
       (r) => r.id == requestId && r.status == RequestStatus.queued,
       orElse: () => throw StateError('no queued'),
     );
+    _guardCurrentChild(req); // C91/F123：强制释放同样只作用于当前孩子的申请。
     final WeeklyPool newPool = await _pools.ensureAndReset(now);
     if ((await _ledger.balance()) < req.cost ||
-        (newPool.used + newPool.autoReleased + req.cost) > newPool.budget) {
+        (newPool.budget > kWeeklyPoolBudgetUnlimited &&
+            (newPool.used + newPool.autoReleased + req.cost) >
+                newPool.budget)) {
       throw StateError('余额或周池不足，无法立即释放');
     }
     await _appendLedger(now, req.cost, SunlightType.queueRelease, req.id);
@@ -394,6 +399,17 @@ class RedemptionOrchestrationService {
     final List<RedemptionRequest> list = await _reward.pendingAndQueued();
     list.sort((a, b) => a.requestedAt.compareTo(b.requestedAt));
     return list;
+  }
+
+  /// 🔴 **C91 / F123 跨孩子防护单点**：目标申请 [req] 的 childId ≠ 当前孩子
+  /// → 抛 [StateError]（核销 / 拒绝必须只作用于当前孩子的申请）。
+  void _guardCurrentChild(RedemptionRequest req) {
+    final String currentChildId = _account.currentChildId();
+    if (req.childId != currentChildId) {
+      throw StateError(
+          'cross-child request: ${req.id} 属于 ${req.childId}，'
+          '当前孩子是 $currentChildId（F123 隔离防护）');
+    }
   }
 
   /// 私有：写一条账本扣减（net = -cost），balanceAfter 由调用前余额推导。

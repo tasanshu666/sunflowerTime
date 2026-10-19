@@ -112,7 +112,7 @@ class _FakeFocusRepository implements FocusRepository {
       totalFocusMinutes: 0, totalSessions: 0, totalValidDays: 0);
 }
 
-class _FakeTaskRepository implements TaskRepository {
+class _FakeTaskRepository implements TaskRepository, CheckInAdminRepository {
   @override
   Future<List<Task>> tasks() async => <Task>[];
   @override
@@ -125,6 +125,28 @@ class _FakeTaskRepository implements TaskRepository {
   Future<List<CheckIn>> checkInsOfDay(String dayKey) async => <CheckIn>[];
   @override
   Future<int> totalCheckInCount() async => 0;
+
+  // C91：记录段新增「修订号自增 → 重拉」后，修订号 bump 会让
+  // HistoryActivitySection 走 TaskCheckInService.verifiedCheckIns() —— 该服务
+  // 强制要求仓储实现 CheckInAdminRepository（家长端核销能力）。本假仓储按
+  // C91 测试同款空实现补齐（空态，不影响本测试的重挂载断言）。
+  @override
+  Future<CheckIn?> checkInById(String id) async => null;
+  @override
+  Future<List<CheckIn>> checkInsByStatus(CheckInStatus status) async =>
+      <CheckIn>[];
+  @override
+  Future<void> updateCheckIn(CheckIn checkIn) async {}
+  @override
+  Future<bool> resolveCheckInIfStatus({
+    required String id,
+    required CheckInStatus from,
+    required CheckInStatus to,
+    required double sunlightGranted,
+    required DateTime resolvedAt,
+    String? parentNote,
+  }) async =>
+      false;
 }
 
 class _FakePlantRepository implements PlantRepository {

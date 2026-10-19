@@ -606,6 +606,10 @@ class RewardTemplateDao extends DatabaseAccessor<AppDatabase>
 }
 
 /// 兑换申请 DAO（§3.2）。
+///
+/// 🔴 **C91 / F123（玄参平板真机反馈：兑换申请按孩子串显）**：读路径全部支持
+/// 可选 [childId] 过滤（null = 不过滤，仅迁移/老调用点用；仓储层一律传当前孩子，
+/// 漏传即数据串孩子）。写路径（insert / updateRow）按行上 childId 落库不变。
 @DriftAccessor(tables: [RedemptionRequests])
 class RedemptionRequestDao extends DatabaseAccessor<AppDatabase>
     with _$RedemptionRequestDaoMixin {
@@ -619,31 +623,47 @@ class RedemptionRequestDao extends DatabaseAccessor<AppDatabase>
   Future<void> updateRow(RedemptionRequestsCompanion row) =>
       into(redemptionRequests).insertOnConflictUpdate(row);
 
-  /// 待核销 + 排队中的申请。
-  Future<List<RedemptionRequest>> pendingAndQueued() =>
-      (select(redemptionRequests)
-            ..where((r) => r.status.isIn(
-                [RequestStatus.pending.index, RequestStatus.queued.index])))
-          .get();
+  /// 待核销 + 排队中的申请（可选按孩子过滤）。
+  Future<List<RedemptionRequest>> pendingAndQueued({String? childId}) {
+    final query = select(redemptionRequests)
+      ..where((r) => r.status.isIn(
+          [RequestStatus.pending.index, RequestStatus.queued.index]));
+    if (childId != null) {
+      query.where((r) => r.childId.equals(childId));
+    }
+    return query.get();
+  }
 
   /// 已核销的申请（status==verified）；排序交给仓储层，避免 drift orderBy 抖动。
-  Future<List<RedemptionRequest>> verified() =>
-      (select(redemptionRequests)
-            ..where((r) => r.status.equals(RequestStatus.verified.index)))
-          .get();
+  Future<List<RedemptionRequest>> verified({String? childId}) {
+    final query = select(redemptionRequests)
+      ..where((r) => r.status.equals(RequestStatus.verified.index));
+    if (childId != null) {
+      query.where((r) => r.childId.equals(childId));
+    }
+    return query.get();
+  }
 
   /// 已拒绝的申请（status==rejected），供孩子端「拒绝对称通知」使用（B4）。
-  Future<List<RedemptionRequest>> rejected() =>
-      (select(redemptionRequests)
-            ..where((r) => r.status.equals(RequestStatus.rejected.index)))
-          .get();
+  Future<List<RedemptionRequest>> rejected({String? childId}) {
+    final query = select(redemptionRequests)
+      ..where((r) => r.status.equals(RequestStatus.rejected.index));
+    if (childId != null) {
+      query.where((r) => r.childId.equals(childId));
+    }
+    return query.get();
+  }
 
   /// 某周排队中的申请（status==queued 且 requestedAt >= 当周周一）。
-  Future<List<RedemptionRequest>> queuedOfWeek(String weekKey) {
+  Future<List<RedemptionRequest>> queuedOfWeek(String weekKey,
+      {String? childId}) {
     final query = select(redemptionRequests)
       ..where((r) =>
           r.status.equals(RequestStatus.queued.index) &
           r.requestedAt.isBiggerOrEqualValue(DateTime.parse(weekKey)));
+    if (childId != null) {
+      query.where((r) => r.childId.equals(childId));
+    }
     return query.get();
   }
 }
@@ -863,15 +883,19 @@ class ChildProfileDao extends DatabaseAccessor<AppDatabase>
   }
 
   /// 更新档案（改名 / 调年龄段；id 与 createdAt 不变，C90 期 1 追加）。
+  ///
+  /// C90-C：可选 [avatar]（null = 不改；[kChildAvatarSun] = 阳光，否则物种 id）。
   Future<void> updateProfile(
     String id, {
     required String name,
     required int ageTier,
+    String? avatar,
   }) =>
       (update(childProfiles)..where((t) => t.id.equals(id))).write(
         ChildProfilesCompanion(
           name: Value(name),
           ageTier: Value(ageTier),
+          avatar: avatar == null ? const Value.absent() : Value(avatar),
         ),
       );
 

@@ -1,7 +1,8 @@
 /// C90 期 2 第二批：孩子端「我的」页与当前孩子档案联动（玄参反馈）。
 ///
 /// 钉死三条口径：
-///  ① 显示**当前孩子档案** name + 年龄段文案（如「小明 · 低年级」）；
+///  ① 显示**当前孩子档案** name（🔴 C91 修订：只显示昵称本身，不再拼
+///     「· 低年级 / 8 岁及以下」档位后缀 —— 年龄段不是给孩子看的）；
 ///  ② 家长端改档（改名 / 调档）后 `childProfileRevisionProvider` 自增 →
 ///     本页经 ChildTabAutoRefresh 无条件刷新，展示即时跟档；
 ///  ③ 旧 SP 昵称键 `child_nickname` **停止读取**（留存不迁移）—— 即便盘上有
@@ -65,7 +66,7 @@ void main() {
     return (container, account, children);
   }
 
-  testWidgets('① 显示当前孩子档案 name + 年龄段文案（小明 · 低年级）', (tester) async {
+  testWidgets('① 显示当前孩子档案 name（C91：只有昵称本身，无档位后缀）', (tester) async {
     final (_, AccountService account, _) = await pumpPage(tester);
     final ChildProfile second = await account.createChild('小明', AgeTier.low);
     await account.switchTo(second.id);
@@ -76,9 +77,13 @@ void main() {
     container.read(childProfileRevisionProvider.notifier).state++;
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
 
-    expect(find.text('小明 · 低年级'), findsOneWidget);
+    expect(find.text('小明'), findsOneWidget, reason: 'C91：只显示昵称本身');
+    // 档位后缀（C90 期 2 旧展示）不得再出现。
+    expect(find.text('小明 · 低年级 · 8 岁及以下'), findsNothing);
+    expect(find.textContaining('低年级'), findsNothing,
+        reason: '年龄段不是给孩子看的，本页任何档位文案都不渲染');
     // 旧默认文案（无档案时的兜底）不得再出现。
-    expect(find.text('小朋友 · 高年级'), findsNothing);
+    expect(find.text('小朋友 · 高年级 · 13 岁及以上'), findsNothing);
   });
 
   testWidgets('② 家长改档（改名 + 调档）后随修订号刷新展示', (tester) async {
@@ -89,7 +94,7 @@ void main() {
     await account.switchTo(second.id);
     container.read(childProfileRevisionProvider.notifier).state++;
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
-    expect(find.text('小明 · 低年级'), findsOneWidget);
+    expect(find.text('小明'), findsOneWidget);
 
     // 家长端编辑：改名 + 调档（等价 child_profile_bar._openEditFlow：update 落库
     // 后对当前孩子 switchTo 刷新 AccountService 活跃快照，再 bump 修订号）。
@@ -98,7 +103,9 @@ void main() {
     container.read(childProfileRevisionProvider.notifier).state++;
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
 
-    expect(find.text('明明 · 中年级'), findsOneWidget);
+    // C91：调档后展示仍是纯昵称（档位变化不影响本页展示）。
+    expect(find.text('明明'), findsOneWidget);
+    expect(find.textContaining('中年级'), findsNothing);
   });
 
   testWidgets('③ 旧 SP 昵称键 child_nickname 停止读取（有旧值也不显示）', (tester) async {
@@ -107,7 +114,7 @@ void main() {
       spValues: <String, Object>{kPrefChildNicknameLegacy: '旧昵称'},
     );
     // 默认孩子档案 name = '孩子'（AccountService.initialize 空表补建）。
-    expect(find.text('孩子 · 高年级'), findsOneWidget);
+    expect(find.text('孩子'), findsOneWidget);
     expect(find.text('旧昵称'), findsNothing,
         reason: '旧 SP 昵称键已停止读取（历史值留存不迁移）');
     expect(find.byIcon(Icons.edit), findsNothing,

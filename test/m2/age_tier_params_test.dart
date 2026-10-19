@@ -1,4 +1,12 @@
-/// 三档 AgeTier 参数单点测试（§1.3 / §3.2）。
+/// 三档 AgeTier 参数单点测试（§1.3 / §3.2；**C90-C 修订**）。
+///
+/// C90-C（玄参 2026-10-18 拍板）：
+///  · 年级分界统一（12 岁归中）：**≤8 低 / 9–12 中 / ≥13 高**（8 / 12 / 13 边界钉死）；
+///  · 周阳光池默认额度：低 **300** / 中 **600** / 高**不限额**（哨兵 0）；
+///    **同日二次修订（玄参）**：200/400 → 300/600，且家长手动设额入口已删除
+///    （原「可调区间 50–500」常量 kWeeklyPoolBudgetMin/Max 随控件删除一并移除）；
+///  · 自动放行（C5 双条件 / capFor）已全删 —— 原 capFor 分组移除。
+library age_tier_params_test;
 ///
 /// 纯 Dart：仅依赖 domain/entities 与 core/constants，无 Flutter 依赖。
 import 'package:sunflower_time/core/constants/age_tier_params.dart';
@@ -7,25 +15,31 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('tierForAge 分档映射', () {
-    test('6–8 岁 = low', () {
+  group('tierForAge 分档映射（C90-C：12 岁归中）', () {
+    test('≤8 岁 = low（8 为边界）', () {
       expect(tierForAge(6), AgeTier.low);
       expect(tierForAge(7), AgeTier.low);
       expect(tierForAge(8), AgeTier.low);
     });
-    test('9–10 岁 = mid', () {
+    test('9–12 岁 = mid（9 / 12 均为边界）', () {
       expect(tierForAge(9), AgeTier.mid);
       expect(tierForAge(10), AgeTier.mid);
+      expect(tierForAge(11), AgeTier.mid);
+      expect(tierForAge(12), AgeTier.mid);
     });
-    test('11–12 岁 = high', () {
-      expect(tierForAge(11), AgeTier.high);
-      expect(tierForAge(12), AgeTier.high);
+    test('≥13 岁 = high（13 为边界）', () {
+      expect(tierForAge(13), AgeTier.high);
+      expect(tierForAge(14), AgeTier.high);
+      expect(tierForAge(18), AgeTier.high);
     });
     test('越界取最近端点', () {
       expect(tierForAge(0), AgeTier.low); // 下越界 → low
       expect(tierForAge(5), AgeTier.low);
-      expect(tierForAge(13), AgeTier.high); // 上越界 → high
       expect(tierForAge(99), AgeTier.high);
+    });
+    test('C90-C 关键回归：12 岁不再落高档（原口径 11–12 = high 已作废）', () {
+      expect(tierForAge(12), isNot(AgeTier.high));
+      expect(tierForAge(12), AgeTier.mid);
     });
   });
 
@@ -37,24 +51,9 @@ void main() {
     });
   });
 
-  group('capFor C5② 月度自动放行上限', () {
-    test('低档 160 → min(40, 160×25%)=40', () {
-      expect(capFor(AgeTier.low, 160), 40);
-    });
-    test('高档 400 → min(100, 400×25%)=100', () {
-      expect(capFor(AgeTier.high, 400), 100);
-    });
-    test('中档沿用低档值（160 → 40）', () {
-      expect(capFor(AgeTier.mid, 160), 40);
-    });
-    test('池调低时上限随池下降到 月池×25%', () {
-      // 低档天花板 40，但池 100 × 25% = 25 → 取 25
-      expect(capFor(AgeTier.low, 100), 25);
-    });
-  });
+  // ── C90-C：自动放行（C5 双条件 / capFor）已全删，原 capFor 分组移除 ──────
 
   // ── 玄参 2026-09-22 拍板：三档每日专注上限改为阶梯（低 60 / 中 90 / 高 120）──
-  // 原实现是「低=中=90、高=60」（中档沿用低档、高年段反而更少），已作废。
   group('每日专注上限三档阶梯', () {
     test('低 60 / 中 90 / 高 120', () {
       expect(kAgeTierParams[AgeTier.low]!.dailyFocusCap, 60);
@@ -88,20 +87,27 @@ void main() {
     });
   });
 
-  // ── 玄参 2026-09-22 拍板：周池可调上限 1200 → 500，并收敛为常量（不再写在 UI 里）──
-  group('周阳光池可调区间', () {
-    test('区间常量 = 50–500', () {
-      expect(kWeeklyPoolBudgetMin, 50);
-      expect(kWeeklyPoolBudgetMax, 500);
+  // ── C90-C：周阳光池默认额度（低 300 / 中 600 / 高不限额；同日二次修订）──
+  group('周阳光池默认额度（C90-C 同日二次修订）', () {
+    test('低 300 / 中 600（中档不再沿用低档值）', () {
+      expect(kPoolBudgetDefaultLow, 300);
+      expect(kPoolBudgetDefaultMid, 600);
+      expect(kAgeTierParams[AgeTier.low]!.poolBudgetDefault,
+          kPoolBudgetDefaultLow);
+      expect(kAgeTierParams[AgeTier.mid]!.poolBudgetDefault,
+          kPoolBudgetDefaultMid);
     });
-    test('两档默认预算都落在可调区间内（默认值必须合法）', () {
-      expect(kPoolBudgetDefaultLow >= kWeeklyPoolBudgetMin, isTrue);
-      expect(kPoolBudgetDefaultLow <= kWeeklyPoolBudgetMax, isTrue);
-      expect(kPoolBudgetDefaultHigh >= kWeeklyPoolBudgetMin, isTrue);
-      expect(kPoolBudgetDefaultHigh <= kWeeklyPoolBudgetMax, isTrue);
+    test('高年级默认不设上限（不限额哨兵 0，不预置额度）', () {
+      expect(kWeeklyPoolBudgetUnlimited, 0);
+      expect(kAgeTierParams[AgeTier.high]!.poolBudgetDefault,
+          kWeeklyPoolBudgetUnlimited);
     });
-    test('周池上限已收到比月池遗留上限小', () {
-      expect(kWeeklyPoolBudgetMax < kMonthlyPoolMax, isTrue);
+    test('低 / 中两档默认值有效且不等于不限额哨兵（无家长编辑入口的守卫）', () {
+      // C90-C 同日二次修订：手动设额控件删除后预算完全按年级默认值走，
+      // 默认值必须是有意义的限额（> 哨兵 0），否则低/中年级将退化为不限额。
+      expect(kPoolBudgetDefaultLow > kWeeklyPoolBudgetUnlimited, isTrue);
+      expect(kPoolBudgetDefaultMid > kWeeklyPoolBudgetUnlimited, isTrue);
+      expect(kPoolBudgetDefaultMid, isNot(kPoolBudgetDefaultLow));
     });
   });
 }

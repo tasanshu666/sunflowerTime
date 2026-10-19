@@ -18,6 +18,12 @@ import 'package:sunflower_time/domain/services/account_service.dart';
 /// C90 期 2 第二批：cooldown_counters（每周限领次数）按孩子隔离（v28）——
 /// bump / count / decrement 全部落当前孩子、按当前孩子过滤；AccountService 可选
 /// 注入（null → 恒按 kChildIdDefault，既有单测零改动）。🔴 仓储接口签名一律不变。
+///
+/// 🔴 **C91 / F123（玄参平板真机反馈）**：`redemption_requests` 的**全部读路径**
+/// （pendingAndQueued / verifiedRequests / rejectedRequests / queuedOfWeek）统一按
+/// 当前孩子过滤（沿批 1/2 `_childId` 单点可选注入模式）——孩子端「我的申请」与
+/// 家长端「今日待核销」都只看当前孩子；跨孩子核销由编排层防护
+/// （`RedemptionOrchestrationService.verify/reject` 目标 childId ≠ 当前孩子 → 报错）。
 class RewardLocalRepository implements RewardRepository {
   final db.AppDatabase _db;
   final AccountService? _account;
@@ -25,7 +31,8 @@ class RewardLocalRepository implements RewardRepository {
   RewardLocalRepository(this._db, {AccountService? account})
       : _account = account;
 
-  /// 当前孩子的 childId（C90 期 2：冷却计数隔离统一收口）。
+  /// 当前孩子的 childId（C90 期 2：冷却计数隔离统一收口；C91：兑换申请读路径
+  /// 隔离同源复用）。
   String get _childId => _account?.childId ?? kChildIdDefault;
 
   @override
@@ -65,15 +72,17 @@ class RewardLocalRepository implements RewardRepository {
 
   @override
   Future<List<RedemptionRequest>> pendingAndQueued() async {
+    // C91/F123：只看当前孩子（家长切孩子后 A 的申请绝不出现在 B 的待核销列表）。
     final List<db.RedemptionRequest> rows =
-        await _db.redemptionRequestDao.pendingAndQueued();
+        await _db.redemptionRequestDao.pendingAndQueued(childId: _childId);
     return rows.map(_toRequest).toList();
   }
 
   @override
   Future<List<RedemptionRequest>> verifiedRequests() async {
+    // C91/F123：只看当前孩子。
     final List<db.RedemptionRequest> rows =
-        await _db.redemptionRequestDao.verified();
+        await _db.redemptionRequestDao.verified(childId: _childId);
     final List<RedemptionRequest> list = rows.map(_toRequest).toList();
     // 按核销时间倒序（verifiedAt 为空时退回 requestedAt），最新在最前。
     list.sort((RedemptionRequest a, RedemptionRequest b) =>
@@ -84,15 +93,17 @@ class RewardLocalRepository implements RewardRepository {
 
   @override
   Future<List<RedemptionRequest>> rejectedRequests() async {
+    // C91/F123：只看当前孩子。
     final List<db.RedemptionRequest> rows =
-        await _db.redemptionRequestDao.rejected();
+        await _db.redemptionRequestDao.rejected(childId: _childId);
     return rows.map(_toRequest).toList();
   }
 
   @override
   Future<List<RedemptionRequest>> queuedOfWeek(String weekKey) async {
+    // C91/F123：只看当前孩子（跨周释放也只释放当前孩子的排队行）。
     final List<db.RedemptionRequest> rows =
-        await _db.redemptionRequestDao.queuedOfWeek(weekKey);
+        await _db.redemptionRequestDao.queuedOfWeek(weekKey, childId: _childId);
     return rows.map(_toRequest).toList();
   }
 

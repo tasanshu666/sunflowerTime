@@ -1,3 +1,6 @@
+// 🔴 C90-C（2026-10-18）：原 `autoConfirmSingleHigh/Low` / `autoConfirmMonthlyPct` /
+// `currencyRate`（C5 免确认自动放行的设置侧遗留字段）已随自动放行功能删除 ——
+// 全仓零业务消费点；settings 表同名历史列保留（默认值冻结为字面量，见 tables.dart）。
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 
@@ -11,17 +14,18 @@ class AppSettings {
   final int restAfterSessions; // 2
   final int restMinutes; // 10
   final int taskSunlight; // 12
-  final int poolBudget; // 周阳光池预算（家长可设定，默认低/中 160、高 400，可调区间 50–500）
+  /// 周阳光池预算（🔴 **C90-C 同日二次修订起废弃**：家长手动设额入口已删除，
+  /// 实际预算改由**当前孩子年级默认值**派生 —— `kAgeTierParams[tier].poolBudgetDefault`
+  /// （低 300 / 中 600 / 高 [kWeeklyPoolBudgetUnlimited] 哨兵 0 不限额），判定
+  /// 单点在 `WeeklyPoolService._budgetForCurrentTier`。实体字段与 DB 列保留
+  /// （兼容存量库，不做迁移），读写仅为存量兼容映射，**消费链已清零**）。
+  final int poolBudget;
   final bool quietMode;
   final bool soundOn;
   final bool bgmOn;
   // 🔴 C79（2026-10-15 玄参拍板）：原 `detectionOn`（在场检测）字段已删除 ——
   //  功能常开（专注页无条件启动 `PresenceDetector`，防挂机核心，逻辑一行不动），
   //  不再有可关的开关；schemaVersion 25 DROP COLUMN。
-  final int autoConfirmSingleHigh; // 130
-  final int autoConfirmSingleLow; // 50
-  final double autoConfirmMonthlyPct; // 0.25
-  final double currencyRate; // 0.25
   final bool themeDark;
   // 🔴 C79（2026-10-15 玄参拍板）：原 `autonomousMode`（自主模式/孩子自助核销）
   //  字段已**彻底删除** —— 全仓排查零业务消费点（自主核销从未实现）；
@@ -54,10 +58,6 @@ class AppSettings {
     this.soundOn = true,
     // 2026-09-29 玄参拍板：花园氛围音默认开启（家长端「背景音乐」可关）。
     this.bgmOn = true,
-    this.autoConfirmSingleHigh = kAutoApproveMaxCostHigh,
-    this.autoConfirmSingleLow = kAutoApproveMaxCostLow,
-    this.autoConfirmMonthlyPct = kAutoApprovePoolRatio,
-    this.currencyRate = kAutoApprovePoolRatio,
     this.themeDark = false, // 默认浅色（§4.1.4 明亮向日葵基调）；深色由家长显式开启
     this.gardenPotCapacity = kGardenPotCapacityDefault,
     this.eyeCareEnabled = kEyeCareEnabledDefault,
@@ -79,10 +79,6 @@ class AppSettings {
     bool? quietMode,
     bool? soundOn,
     bool? bgmOn,
-    int? autoConfirmSingleHigh,
-    int? autoConfirmSingleLow,
-    double? autoConfirmMonthlyPct,
-    double? currencyRate,
     bool? themeDark,
     int? gardenPotCapacity,
     bool? eyeCareEnabled,
@@ -102,10 +98,6 @@ class AppSettings {
       quietMode: quietMode ?? this.quietMode,
       soundOn: soundOn ?? this.soundOn,
       bgmOn: bgmOn ?? this.bgmOn,
-      autoConfirmSingleHigh: autoConfirmSingleHigh ?? this.autoConfirmSingleHigh,
-      autoConfirmSingleLow: autoConfirmSingleLow ?? this.autoConfirmSingleLow,
-      autoConfirmMonthlyPct: autoConfirmMonthlyPct ?? this.autoConfirmMonthlyPct,
-      currencyRate: currencyRate ?? this.currencyRate,
       themeDark: themeDark ?? this.themeDark,
       gardenPotCapacity: gardenPotCapacity ?? this.gardenPotCapacity,
       eyeCareEnabled: eyeCareEnabled ?? this.eyeCareEnabled,

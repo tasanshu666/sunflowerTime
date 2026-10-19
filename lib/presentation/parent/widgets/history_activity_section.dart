@@ -27,6 +27,17 @@
 ///  · 相同内容按 `taskId` / `templateId` 分组计数（这正是玄参要的「相同内容统计次数」）。
 ///  · 分组在段内做（数据量小、单孩子单机），**不新增 DAO / 不改表结构 / 不动既有接口**。
 ///
+/// ## C91 修订（玄参平板真机反馈：段内孩子选择栏下线，统一全局当前孩子）
+///  · 原段内「孩子选择胶囊」（C90-C-1 `_ChildSelectorBar`）**整块删除** ——
+///    家长天地顶部已有全局孩子胶囊（ChildProfileBar），切孩子统一走全局
+///    （家长端 5 tab ValueKey 重挂载已有，各段自然跟随）；段内不再自行拉全量再裁剪。
+///  · **兑换记录按当前孩子过滤下沉到仓储层**（C91/F123：
+///    `RewardLocalRepository.verifiedRequests()` 按 childId 单点过滤）——本段零过滤
+///    代码，拉到的即当前孩子的记录；汇总数字（本期兑换奖励 / 消耗阳光）自然按当前孩子。
+///  · 口径修订：C90-C-1「切孩子仅改本段过滤」**作废**，一律全局当前孩子。
+///  · 成长任务完成记录：打卡数据经仓储层已按当前孩子隔离（v27 `check_ins.childId`），
+///    口径不变。
+///
 /// 排版纪律：本段由 `ParentHistoryPage` 内嵌渲染（外层分段控件 + 外壳 `ParentHomePage`
 /// 已提供顶部栏），**不自带 Scaffold / AppBar / 分段控件**；本段自带
 /// `RefreshIndicator + ListView`，可独立滚动。
@@ -218,6 +229,9 @@ class _HistoryActivitySectionState
       for (final _Period p in _Period.values)
         if (_isLocked(p, unlocked)) p,
     };
+    // C91：家长改档 / 切孩子成功 → 修订号自增 → 重拉本段数据
+    //（仓储层已按新当前孩子过滤，兑换记录即时跟随全局当前孩子）。
+    ref.listen<int>(childProfileRevisionProvider, (_, __) => _reload());
 
     return FutureBuilder<_RawData>(
       future: _future,
@@ -241,6 +255,7 @@ class _HistoryActivitySectionState
         final _RawData raw = snap.data!;
         final DateTime start = _startOf(_period, _anchor);
         final DateTime end = _endOf(_period, start);
+        // C91：兑换记录已由仓储层按当前孩子过滤（F123），段内零裁剪。
         final _PeriodView view = _aggregate(raw, start, end);
         final bool canNext = !_endOf(_period, start).isAfter(_now);
 

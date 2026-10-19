@@ -58,7 +58,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 28;
+  int get schemaVersion => 29;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -770,6 +770,18 @@ class AppDatabase extends _$AppDatabase {
             await _rebuildMonthlyPoolsV28();
             await _rebuildCooldownCountersV28();
           }
+
+          // ㉙ v29（C90-C，玄参 2026-10-18 拍板）：child_profiles 新增 `avatar`
+          //    （TEXT NOT NULL DEFAULT 'sun'）—— 孩子头像（默认阳光 UI，可选该孩子
+          //    已种植过的植物物种 id）。
+          //    · 带默认值的 ALTER TABLE ADD COLUMN（写法对齐 v27 六列先例）：历史行
+          //      补列后落默认值 kChildAvatarSun（阳光头像），老用户升级零感知；
+          //    · 选择结果跟孩子档案存，切孩子各用各的（AccountService.switchTo
+          //      重读仓储即刷新）；
+          //    · 用 `_ensureColumn` 幂等补列，重复升级不报错。
+          //    ⚠️ 版本变更（28 → 29），必须配迁移测试（见
+          //       `test/m3/migration_v29_test.dart`）。
+          await _ensureColumn(m, childProfiles, childProfiles.avatar);
         },
       );
 

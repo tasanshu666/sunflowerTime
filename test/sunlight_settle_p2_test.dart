@@ -375,18 +375,4 @@ void main() {
       expect(await svc.todayCumulativeNet(DateTime(2026, 9, 15, 10)), 45);
     });
   });
-
-  group('O P2-3：autoApprovePoolCap 默认参数改可空后无语义漂移', () {
-    test('O7 周自动放行上限', () {
-      // 旧行为：ceiling=min(100,40)=40；返回 min(pool*0.25, 40)
-      expect(autoApprovePoolCap(400), closeTo(40.0, 1e-9));
-      expect(autoApprovePoolCap(100), closeTo(25.0, 1e-9));
-      expect(autoApprovePoolCap(0), closeTo(0.0, 1e-9));
-      // 显式传参路径仍可用
-      expect(autoApprovePoolCap(400, ceilingHigh: 100, ceilingLow: 40),
-          closeTo(40.0, 1e-9));
-      expect(autoApprovePoolCap(1000, ceilingHigh: 500, ceilingLow: 300),
-          closeTo(250.0, 1e-9));
-    });
-  });
 }

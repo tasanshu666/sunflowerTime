@@ -223,10 +223,12 @@ final childAgeTierProvider = FutureProvider.autoDispose<AgeTier>((ref) async {
   return (await ref.watch(settingsRepositoryProvider).getSettings()).ageTier;
 });
 
-/// 周阳光池服务（§3.2 / §4.1）：取/建/重置周池 + C5 上限计算。
+/// 周阳光池服务（§3.2 / §4.1）：取/建/重置周池；C90-C 同日二次修订起注入
+/// [AccountService] —— 周池预算按当前孩子年级默认值派生（300/600/不限）。
 final weeklyPoolServiceProvider = Provider<WeeklyPoolService>((ref) =>
     WeeklyPoolService(ref.watch(weeklyPoolRepositoryProvider),
-        ref.watch(settingsRepositoryProvider), ref.watch(trackingRepositoryProvider)));
+        ref.watch(settingsRepositoryProvider), ref.watch(trackingRepositoryProvider),
+        account: ref.watch(accountServiceProvider)));
 
 /// 经济数据修订号（M2 家长-孩子同步）。
 ///

@@ -222,12 +222,13 @@ const lowSettings = AppSettings(
   restAfterSessions: 2,
   restMinutes: 10,
   taskSunlight: 12,
-  poolBudget: 160,
+  // C90-C：低档周池默认额度 160 → 200；同日二次修订（玄参）200 → 300。
+  poolBudget: kPoolBudgetDefaultLow,
 );
 
 void main() {
   group('RedemptionOrchestrationService.submit', () {
-    test('(a) 低档小额 parentHandled → 自动放行 verified + 扣账本 + 埋 reward_redeem_request',
+    test('(a) parentHandled → pending 待核销（C90-C：免确认删除，不扣账本）+ 埋 reward_redeem_request',
         () async {
       final reward = FakeRewardRepository();
       reward.addTemplate(const RewardTemplate(
@@ -254,21 +255,18 @@ void main() {
         DateTime(2026, 9, 15),
       );
 
-      expect(res.outcome, SubmitOutcome.verified);
-      expect(res.autoApproved, isTrue);
+      expect(res.outcome, SubmitOutcome.pending);
       expect(res.cost, 20);
-      expect(ledger.entries, hasLength(1));
-      expect(ledger.entries.first.net, -20);
-      expect(ledger.entries.first.type, SunlightType.redeem);
+      expect(ledger.entries, isEmpty, reason: 'pending 不提前扣账本，核销时才扣');
       expect(
         tracking.events.any((e) => e.name == TrackingEventNames.rewardRedeemRequest),
         isTrue,
       );
-      // 周池 autoReleased 累计
+      // 申请进入 pending，出现在 pendingList 中
       expect(
         (await svc.pendingList()),
-        isEmpty,
-      ); // pendingList 仅含 pending/queued，verified 不在内
+        hasLength(1),
+      );
     });
 
     test('(b) selfService 类 → 待核销 pending（C5③）', () async {
@@ -295,7 +293,6 @@ void main() {
         DateTime(2026, 9, 15),
       );
       expect(res.outcome, SubmitOutcome.pending);
-      expect(res.autoApproved, isFalse);
       expect(ledger.entries, isEmpty); // pending 不提前扣账本
     });
 
@@ -324,7 +321,7 @@ void main() {
         AgeTier.low,
         DateTime(2026, 9, 15),
       );
-      expect(first.outcome, SubmitOutcome.verified);
+      expect(first.outcome, SubmitOutcome.pending);
 
       final second = await svc.submit(
         'seed_snack',
@@ -333,7 +330,7 @@ void main() {
       );
       expect(second.outcome, SubmitOutcome.rejectedCooldown);
       expect(reward.requests.length, 1); // 无新申请
-      // 仅首次提交了 reward_redeem_request（verified 分支），第二次未埋 reward_*
+      // 仅首次提交了 reward_redeem_request（pending 分支也埋点），第二次未埋 reward_*
       expect(
         tracking.events.where((e) => e.name == TrackingEventNames.rewardRedeemRequest).length,
         1,
@@ -459,8 +456,6 @@ void main() {
       expect(verifiedEvent.payload['within_48h'], isTrue);
       expect(verifiedEvent.payload['amount'], 50);
       expect(verifiedEvent.payload['tier'], 'low');
-      // is_small = cost <= 50 → 50<=50 为 true
-      expect(verifiedEvent.payload['is_small'], isTrue);
     });
 
     test('(e2) 超过 48h 核销 → within_48h=false', () async {
@@ -584,10 +579,14 @@ void main() {
         autoApproved: false,
         queuePosition: 1,
       );
-      // 预置已用满的当周池
+      // 预置已用满的当周池（C91：预算即时派生 —— 行 budget 列退出消费链，
+      // 派生预算 = settings.ageTier(low) 默认 300；used=300 把派生预算用满）。
       final poolRepo = FakeWeeklyPoolRepository();
-      poolRepo.store['2026-08-31'] =
-          WeeklyPool(weekKey: '2026-08-31', budget: 160, used: 160);
+      poolRepo.store['2026-08-31'] = const WeeklyPool(
+        weekKey: '2026-08-31',
+        budget: kPoolBudgetDefaultLow,
+        used: kPoolBudgetDefaultLow,
+      );
       final svc = build(
         reward: reward,
         poolRepo: poolRepo,

@@ -21,6 +21,9 @@ class SettingsLocalRepository implements SettingsRepository {
     final row = await _db.settingsDao.getRow();
     if (row == null) {
       // 首启用默认：高年段示例（实际应由首启引导选择，M1 落地）。
+      // C90-C 同日二次修订：`poolBudget` 字段已废弃（预算改由当前孩子年级
+      // 默认值派生），此处仅落不限额哨兵 0 保存量兼容；实际预算判定单点在
+      // `WeeklyPoolService._budgetForCurrentTier`。
       return const AppSettings(
         ageTier: AgeTier.high,
         dailyFocusCap: kDailyFocusCapHigh,
@@ -28,7 +31,7 @@ class SettingsLocalRepository implements SettingsRepository {
         restAfterSessions: 2,
         restMinutes: 10,
         taskSunlight: 12,
-        poolBudget: kPoolBudgetDefaultHigh,
+        poolBudget: kWeeklyPoolBudgetUnlimited,
       );
     }
     return AppSettings(
@@ -40,15 +43,13 @@ class SettingsLocalRepository implements SettingsRepository {
       restAfterSessions: row.restAfterSessions,
       restMinutes: row.restMinutes,
       taskSunlight: row.taskSunlight,
+      // C90-C 同日二次修订：`monthlyPoolBudget` 列保留但废弃（预算改由当前
+      // 孩子年级默认值派生，消费链清零），此处仅为存量兼容映射。
       poolBudget: row.monthlyPoolBudget,
       gardenPotCapacity: row.gardenPotCapacity,
       quietMode: row.quietMode,
       soundOn: row.soundOn,
       bgmOn: row.bgmOn,
-      autoConfirmSingleHigh: row.autoConfirmSingleHigh,
-      autoConfirmSingleLow: row.autoConfirmSingleLow,
-      autoConfirmMonthlyPct: row.autoConfirmMonthlyPct,
-      currencyRate: row.currencyRate,
       themeDark: row.themeDark,
       // C79（2026-10-15）：`detectionOn` / `autonomousMode` 已随死开关清理删除
       //  （schemaVersion 25 DROP COLUMN）；旧库两列由迁移幂等删除，读回不再映射。
@@ -78,10 +79,6 @@ class SettingsLocalRepository implements SettingsRepository {
         quietMode: Value(s.quietMode),
         soundOn: Value(s.soundOn),
         bgmOn: Value(s.bgmOn),
-        autoConfirmSingleHigh: Value(s.autoConfirmSingleHigh),
-        autoConfirmSingleLow: Value(s.autoConfirmSingleLow),
-        autoConfirmMonthlyPct: Value(s.autoConfirmMonthlyPct),
-        currencyRate: Value(s.currencyRate),
         themeDark: Value(s.themeDark),
         eyeCareEnabled: Value(s.eyeCareEnabled),
         eyeCareIntervalMin: Value(s.eyeCareIntervalMin),

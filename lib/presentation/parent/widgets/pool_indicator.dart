@@ -1,12 +1,39 @@
-/// 周阳光池用量指示（§5 T-F）：展示当周阳光池消耗进度与当前档免确认上限，
-/// 并允许家长直接在卡内设定每周预算。
+/// 周阳光池用量指示（§5 T-F；**C90-C 修订**）：展示当周阳光池消耗进度，
+/// 与每周兑换额度的静态说明。
 ///
 /// 合并卡 [WeeklyPoolCard]：原「每周阳光池预算」Card 与 `PoolIndicator` 两张卡合二为一，
-/// 自上而下为：标题（含 weekKey）→ 预算输入 + 保存 → 进度条 → 已用/池 → 当前档免确认上限。
+/// 自上而下为：标题（含 weekKey）→ 预算大字 → 进度条 → 已用/池 → 静态说明。
 ///
-/// 数据来源：`WeeklyPoolService.pool(weekKey(DateTime.now()))` + 设置中的 ageTier；
-/// 免确认上限经 `WeeklyPoolService.autoApproveCap(pool, tier)` 计算（§3.2 capFor）。
-/// 保存预算：写 settings.poolBudget + 当周池 budget，重载展示并自增 economyRevisionProvider。
+/// 🔴 **C90-C（玄参 2026-10-18 拍板）**：
+///  · 自动放行（C5 免确认）功能已删除 —— 原「当前档免确认上限」行与
+///    `WeeklyPoolService.autoApproveCap` 引用一并移除；
+///  · **高年级默认不限额**：`pool.budget <= kWeeklyPoolBudgetUnlimited`（0）时
+///    显示「不限额」，兑换只受阳光余额约束。
+///
+/// 🔴 **C90-C 同日二次修订（玄参 2026-10-18）**：原卡内「本周预算调整」手动输入
+/// 控件（50–500）**整块删除** —— 预算完全按年级默认值走，不再有编辑路径；
+/// 原「家长手动设额入口保留」口径作废。原位改为静态说明文字：每周兑换额度默认值
+/// —— 低年级 [kPoolBudgetDefaultLow] ☀ / 中年级 [kPoolBudgetDefaultMid] ☀ /
+/// 高年级不限（按哨兵 [kWeeklyPoolBudgetUnlimited] 显示「不限」）。
+/// `decide()/releaseQueue()/forceRelease()` 的
+/// `budget > kWeeklyPoolBudgetUnlimited` 不限额守卫逻辑不变。
+///
+/// 数据来源：`WeeklyPoolService.pool(weekKey(DateTime.now()))` + 设置中的 ageTier。
+///
+/// 🔴 **C91 修订（玄参平板真机反馈）**：预算**即时派生** —— 服务层 `pool()` 已
+/// 不再读池行 budget 列（年级默认值现算），本卡零改动即获得「存量 400 行立即纠正」；
+/// 展示同步两处：
+///  · 不限额（高年级）时「已用 x / 共 y」的 y 无意义 → **只显示已用**；
+///  · 所属页下方「每周阳光池：免确认自动放行上限」小字已随本修订整行删除
+///    （自动放行功能 C90-C 已废，见 `parent_reward_page.dart`）。
+///
+/// 🔴 **C91 二轮修订（玄参 iOS 模拟器反馈：不限额时进度横条一直闪烁）**：
+/// 闪烁根因 = `LinearProgressIndicator(value: null)` 走**不确定态无限循环动画**
+/// （AnimationController repeat，逐帧重绘永不收敛）→ 真机上表现为「进度条一直刷新」。
+/// 修法：不限额（高年级）时进度条**整块不渲染**（口径：无分母则无进度可言），
+/// 绝不做动画 / 循环刷新；限额时照常渲染确定性进度条（`value = used/budget`）。
+/// 守卫 `test/c91/pool_card_unlimited_static_test.dart`：不限额下连续 pump 后
+/// 不得再有未决帧（`hasScheduledFrame == false`）。
 library pool_indicator;
 
 import 'package:flutter/material.dart';
@@ -15,18 +42,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
-import 'package:sunflower_time/domain/entities/enums.dart';
-import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/weekly_pool.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
-/// 周阳光池合并卡：预算输入 + 进度 + 免确认上限（§5 T-F）。
+/// 周阳光池合并卡：预算展示 + 进度（C90-C 同日二次修订：手动输入控件删除）。
 ///
-/// 家长可直接在卡内改周预算并保存；保存同步 [AppSettings.poolBudget] 与当周池 budget，
-/// 重载展示后进度条与「已用/池」立即反映新预算，并自增 [economyRevisionProvider]
-/// 令其它页面重算（§3.2 家长-孩子同步）。
-///
-/// 校验：预算须为整数且落在 50–1200（[WeeklyPool] 文档区间），越界提示且不保存。
+/// 只读展示当周池预算与用量；说明行由 [kPoolBudgetDefaultLow] /
+/// [kPoolBudgetDefaultMid] / [kWeeklyPoolBudgetUnlimited] 三个单点常量派生，
+/// 页面不出现内联数字。
 class WeeklyPoolCard extends ConsumerStatefulWidget {
   const WeeklyPoolCard({super.key});
 
@@ -35,86 +58,25 @@ class WeeklyPoolCard extends ConsumerStatefulWidget {
 }
 
 class _WeeklyPoolCardState extends ConsumerState<WeeklyPoolCard> {
-  late final TextEditingController _budgetCtrl;
-  late Future<_PoolData> _future;
-  bool _saving = false;
+  late Future<WeeklyPool> _future;
 
   @override
   void initState() {
     super.initState();
-    _budgetCtrl = TextEditingController();
     _future = _load();
   }
 
-  Future<_PoolData> _load() async {
-    final WeeklyPool pool = await ref
+  Future<WeeklyPool> _load() async {
+    return ref
         .read(weeklyPoolServiceProvider)
         .pool(weekKey(DateTime.now()));
-    final AppSettings settings =
-        await ref.read(settingsRepositoryProvider).getSettings();
-    final int cap = ref
-        .read(weeklyPoolServiceProvider)
-        .autoApproveCap(pool, settings.ageTier);
-    return _PoolData(pool: pool, cap: cap, tier: settings.ageTier);
-  }
-
-  Future<void> _saveBudget() async {
-    final int? parsed = int.tryParse(_budgetCtrl.text.trim());
-    // 校验：必须是整数且落在可调区间（玄参 2026-09-22 拍板收到 50–500）。
-    // 区间来源 [kWeeklyPoolBudgetMin] / [kWeeklyPoolBudgetMax]（单点常量），
-    // 不再在 UI 里写裸字面量——此前 50/1200 只存在于本文件，常量体系里没有出处。
-    if (parsed == null ||
-        parsed < kWeeklyPoolBudgetMin ||
-        parsed > kWeeklyPoolBudgetMax) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '请输入 $kWeeklyPoolBudgetMin–$kWeeklyPoolBudgetMax 之间的整数预算值',
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() => _saving = true);
-    try {
-      final AppSettings current =
-          await ref.read(settingsRepositoryProvider).getSettings();
-      // 1) 写设置（家长设定价 source of truth）。
-      await ref
-          .read(settingsRepositoryProvider)
-          .saveSettings(current.copyWith(poolBudget: parsed));
-      // 2) 同步改写当周池 budget（保留 used / autoReleased / resetAt）。
-      await ref
-          .read(weeklyPoolServiceProvider)
-          .updateBudget(DateTime.now(), parsed);
-      if (mounted) {
-        // 3) 重载展示：进度条与「已用/池」立即反映新预算。
-        setState(() => _future = _load());
-        // 4) 自增经济修订号，令其它页面重算（§3.2 家长-孩子同步）。
-        ref.read(economyRevisionProvider.notifier).state++;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已保存每周阳光池预算')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _budgetCtrl.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<_PoolData>(
+    return FutureBuilder<WeeklyPool>(
       future: _future,
-      builder: (BuildContext context, AsyncSnapshot<_PoolData> snap) {
+      builder: (BuildContext context, AsyncSnapshot<WeeklyPool> snap) {
         if (snap.connectionState != ConnectionState.done) {
           return const Card(
             margin: EdgeInsets.all(16),
@@ -134,17 +96,22 @@ class _WeeklyPoolCardState extends ConsumerState<WeeklyPoolCard> {
           );
         }
 
-        final _PoolData data = snap.data!;
-        final WeeklyPool pool = data.pool;
+        final WeeklyPool pool = snap.data!;
         final int usedTotal = pool.used + pool.autoReleased;
+        // C90-C：budget <= kWeeklyPoolBudgetUnlimited（0）= 高年级默认不限额。
+        final bool unlimited =
+            pool.budget <= kWeeklyPoolBudgetUnlimited;
         final int budget = pool.budget;
-        final double ratio =
-            budget > 0 ? (usedTotal / budget).clamp(0.0, 1.0) : 0.0;
+        final double ratio = unlimited
+            ? 0.0
+            : budget > 0
+                ? (usedTotal / budget).clamp(0.0, 1.0)
+                : 0.0;
 
-        // 预算输入框初值跟随当周池 budget；保存重载后亦随之刷新。
-        if (_budgetCtrl.text != budget.toString()) {
-          _budgetCtrl.text = budget.toString();
-        }
+        // 高年级说明词：按哨兵常量派生（哨兵 <= 0 显示「不限」，否则显示其数值）。
+        const String highTierLabel = kWeeklyPoolBudgetUnlimited <= 0
+            ? '不限'
+            : '$kWeeklyPoolBudgetUnlimited☀';
 
         return Container(
           decoration: creamCardDecoration(),
@@ -164,62 +131,49 @@ class _WeeklyPoolCardState extends ConsumerState<WeeklyPoolCard> {
                 textBaseline: TextBaseline.alphabetic,
                 children: <Widget>[
                   Text(
-                    '$budget',
+                    unlimited ? '不限' : '$budget',
                     style: const TextStyle(
                       fontSize: 40,
                       fontWeight: FontWeight.w800,
                       color: Color(0xFF8D6E00),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  const Text('阳光',
-                      style: TextStyle(fontSize: 18, color: Colors.brown)),
+                  if (!unlimited) ...<Widget>[
+                    const SizedBox(width: 6),
+                    const Text('阳光',
+                        style: TextStyle(fontSize: 18, color: Colors.brown)),
+                  ],
                 ],
               ),
               const SizedBox(height: 12),
-              LinearProgressIndicator(
-                value: ratio,
-                minHeight: 12,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              const SizedBox(height: 6),
+              // 🔴 C91 二轮：不限额时进度条整块不渲染 —— 旧实现 value: null =
+              // 不确定态无限循环动画（真机「进度横条一直闪烁」的根因）。
+              if (!unlimited) ...<Widget>[
+                LinearProgressIndicator(
+                  value: ratio,
+                  minHeight: 12,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                const SizedBox(height: 6),
+              ],
+              // C91：不限额时「共 y」无意义 → 只显示已用；限额时保留「已用 x / 共 y」。
               Text(
-                '已用 $usedTotal / 共 $budget 阳光',
+                unlimited
+                    ? '本周不限额，已用 $usedTotal 阳光（兑换只受阳光余额约束）'
+                    : '已用 $usedTotal / 共 $budget 阳光',
                 style: const TextStyle(fontSize: 15),
               ),
-              const SizedBox(height: 8),
-              Text(
-                '孩子本周最多自己花 $budget 阳光；其中约 ${data.cap} 阳光能自动放行，'
-                '超出的兑换会等你点一下确认。',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Colors.grey.shade600),
-              ),
               const SizedBox(height: 14),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: TextFormField(
-                      controller: _budgetCtrl,
-                      decoration: const InputDecoration(
-                        labelText: '调整预算（50–1200）',
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton(
-                    onPressed: _saving ? null : _saveBudget,
-                    child: _saving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('保存'),
-                  ),
-                ],
+              // C90-C 同日二次修订：原「本周预算调整」输入控件（50–500）整块删除，
+              // 原位改为静态说明（数字一律引用单点常量，禁内联字面量）。
+              Text(
+                '每周兑换额度默认值：低年级 $kPoolBudgetDefaultLow☀ · '
+                '中年级 $kPoolBudgetDefaultMid☀ · 高年级$highTierLabel'
+                '（兑换只受阳光余额约束）',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Colors.brown,
+                ),
               ),
             ],
           ),
@@ -227,13 +181,4 @@ class _WeeklyPoolCardState extends ConsumerState<WeeklyPoolCard> {
       },
     );
   }
-}
-
-/// 周阳光池指示所需数据（池 + 免确认上限 + 档位）。
-class _PoolData {
-  final WeeklyPool pool;
-  final int cap;
-  final AgeTier tier;
-
-  const _PoolData({required this.pool, required this.cap, required this.tier});
 }

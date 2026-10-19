@@ -1,4 +1,3 @@
-import 'package:sunflower_time/core/constants/age_tier_params.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/weekly_pool.dart';
@@ -6,86 +5,62 @@ import 'package:sunflower_time/domain/entities/reward_template.dart';
 
 /// 兑换申请的判定结果（S2 纯逻辑，不落库）。
 class RedemptionDecision {
-  /// 判定走向。C62 起只会是 verified / pending / rejected；末者 = **超周池拒绝**，
+  /// 判定走向。C62 起只会是 pending / rejected；末者 = **超周池拒绝**，
   /// 调用方**不得把它落库**（见 [RedemptionService.decide] 与 orchestration.submit）。
+  ///
+  /// 🔴 C90-C：原 `verified`（免确认自动放行）分支已随自动放行功能删除 ——
+  /// 本判定**只会产生 pending / rejected**，核销一律由家长显式完成。
   final RequestStatus status;
-  final bool autoApproved;
   final String reason;
 
   const RedemptionDecision({
     required this.status,
-    required this.autoApproved,
     required this.reason,
   });
 }
 
-/// 兑换服务（S2 spike）：兑换申请状态机 + 免确认双条件判定。
+/// 兑换服务（S2 spike）：兑换申请状态机。
 ///
-/// 口径裁定 C5：免确认须**同时**满足
-///  ① 单笔价 ≤ 高 130 / 低 50
-///  ② 当月累计自动放行 ≤ 月池 × 25%，且上限 = min(固定天花板 100/40, 月池 × 25%)
-///  ③ 自服务类一律 0（不自动放行，走家长放行）
+/// 🔴 **C90-C（玄参 2026-10-18 拍板）：自动放行（C5 免确认双条件）设计全删**。
+/// 原「单笔 ≤ 130/50 + 周累计 ≤ min(天花板, 池×25%) → verified 自动放行」判定
+/// 整体移除；`template` / `ageTier` 形参保留以不动调用点与签名（当前不参与判定）。
 ///
-/// 状态机（**C62，2026-10-13 起停用排队**）：
-///  满足双条件        → verified（autoApproved = true）
-///  不满足 且 池未满  → pending（待家长显式核销）
-///  不满足 且 池已满  → **rejected**（超周池**直接拒绝**：不生成申请、不扣账本/不扣池）
+/// 状态机（**C62，2026-10-13 起停用排队**；C90-C 修订）：
+///  周池未超（或不限额）→ pending（待家长显式核销）
+///  周池超限（且家长设过额度）→ **rejected**（超周池**直接拒绝**：不生成申请、不扣账本/不扣池）
+///
+/// 「不设上限」口径（C90-C）：`pool.budget <= kWeeklyPoolBudgetUnlimited`（0）=
+/// 高年级默认不限额 —— 兑换只受阳光余额约束（余额闸门在编排层），不判超池。
 ///
 /// ⚠️ `RequestStatus.queued` 成员**保留不动**：它是**按 index 落库**的持久化枚举
 /// （pending=0 / queued=1 / verified=2 / rejected=3），删成员会让 verified/rejected
 /// 位移 → 存量数据全部错读。C62 只停用「产生新排队」；存量 queued 行仍由
-/// [RedemptionOrchestrationService.releaseQueue] 跨周释放。
+/// `RedemptionOrchestrationService.releaseQueue` 跨周释放。
 class RedemptionService {
   RedemptionService._();
 
   /// 计算本次兑换申请的判定结果（纯函数）。
   ///
-  /// [cost] 为已乘分龄系数 K 的消耗侧价（调用方负责 ×K，本服务不乘 K）。
+  /// [template] / [ageTier] 形参保留以不动调用点与签名（C90-C 删除自动放行后
+  /// 当前不参与判定；未来如需按类目/档位分流可复用）。
   static RedemptionDecision decide({
     required RewardTemplate template,
     required int cost,
     required AgeTier ageTier,
     required WeeklyPool pool,
   }) {
-    final bool isSelfService = template.category == RewardCategory.selfService;
-    final AgeTierParams p = kAgeTierParams[ageTier]!;
-    final int maxCost = p.autoApproveMaxCost; // C5① 单笔候选阈值（查表）
-    final int ceiling = p.autoApproveCapCeiling; // C5② 固定天花板（查表）
-
-    // ② 月累计自动放行上限 = min(固定天花板, 月池 × 25%)
-    final int capFromPool = (pool.budget * kAutoApprovePoolRatio).floor();
-    final int autoCap = capFromPool < ceiling ? capFromPool : ceiling;
-
-    // ②-a 月度自动放行子限额：当月累计自动放行不得超过 autoCap（C5 ②）
-    final bool withinMonthlyCap = (pool.autoReleased + cost) <= autoCap;
-    // ②-b 整体池余量：自动放行同样占用月池，池已被家长显式核销(used)占满时不得再自动放行
-    final bool withinPool = (pool.used + pool.autoReleased + cost) <= pool.budget;
-
-    final bool cond1 = cost <= maxCost; // ① 单笔价 ≤ 高 130 / 低 50
-    final bool cond2 = withinMonthlyCap && withinPool; // ② 双闸
-    final bool cond3 = !isSelfService; // ③ 自服务类一律不自动放行
-
-    if (cond1 && cond2 && cond3) {
-      return const RedemptionDecision(
-        status: RequestStatus.verified,
-        autoApproved: true,
-        reason: '免确认双条件满足，自动放行',
-      );
-    }
-
-    // 不满足自动放行 → 判断是否超池（**C62：池满直接拒绝，不再排队**）
+    // C90-C：家长设过额度（budget > 0）才做超池判断；0 = 不设上限。
     final int projected = pool.used + pool.autoReleased + cost;
-    if (projected <= pool.budget) {
+    if (pool.budget > kWeeklyPoolBudgetUnlimited &&
+        projected > pool.budget) {
       return const RedemptionDecision(
-        status: RequestStatus.pending,
-        autoApproved: false,
-        reason: '进入待核销队列，需家长显式核销',
+        status: RequestStatus.rejected,
+        reason: '超周池：C62 起不再排队，直接拒绝（不生成申请）',
       );
     }
     return const RedemptionDecision(
-      status: RequestStatus.rejected,
-      autoApproved: false,
-      reason: '超周池：C62 起不再排队，直接拒绝（不生成申请）',
+      status: RequestStatus.pending,
+      reason: '进入待核销队列，需家长显式核销',
     );
   }
 }

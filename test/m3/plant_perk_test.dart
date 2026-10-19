@@ -105,13 +105,13 @@ void main() {
       expect(pestRewardOf(perkOfLevel(20)), 3);
     });
 
-    test('TC-09 bloomInstantBaseOf(Lv.25) → 普通 7 / 精品 11', () {
+    test('TC-09 bloomInstantBaseOf(Lv.25) → 普通 8 / 精品 12（C91：绽放 +1 → +2）', () {
       expect(bloomInstantBaseOf(perkOfLevel(25), premium: false),
-          kBloomInstantSunlight + 1);
-      expect(bloomInstantBaseOf(perkOfLevel(25), premium: false), 7);
+          kBloomInstantSunlight + 2);
+      expect(bloomInstantBaseOf(perkOfLevel(25), premium: false), 8);
       expect(bloomInstantBaseOf(perkOfLevel(25), premium: true),
-          kBloomInstantSunlightPremium + 1);
-      expect(bloomInstantBaseOf(perkOfLevel(25), premium: true), 11);
+          kBloomInstantSunlightPremium + 2);
+      expect(bloomInstantBaseOf(perkOfLevel(25), premium: true), 12);
     });
 
     test('TC-10 eyeCareRewardOf(Lv.1) == 3（C78 基础 2 + 1；C78 前置）', () {
@@ -232,8 +232,8 @@ void main() {
       expect(perkShortTextOf(perkOfTitleNode(10)), '−1'); // ③ 施肥
       expect(perkShortTextOf(perkOfTitleNode(15)), '+1'); // ④ 除草
       expect(perkShortTextOf(perkOfTitleNode(20)), '+1'); // ⑤ 除虫
-      expect(perkShortTextOf(perkOfTitleNode(25)), '+1'); // ⑥ 绽放
-      expect(perkShortTextOf(perkOfTitleNode(30)), '+1'); // ⑦ 晨露
+      expect(perkShortTextOf(perkOfTitleNode(25)), '+2'); // ⑥ 绽放（C91：+1 → +2）
+      expect(perkShortTextOf(perkOfTitleNode(30)), '+2'); // ⑦ 晨露（C91：+1 → +2）
       expect(perkShortTextOf(perkOfTitleNode(35)), '−20'); // ⑧ 扩盆
       expect(perkShortTextOf(perkOfTitleNode(40)), '+20'); // ⑨ 铲除
       // 🔴 C81 ③：描述词（额外/消耗/返还）已全部去掉。
@@ -273,8 +273,8 @@ void main() {
         '施肥消耗 −1',
         '除草奖励 +1',
         '除虫奖励 +1',
-        '开花阳光 +1',
-        '晨露阳光 +1',
+        '开花阳光 +2',
+        '晨露阳光 +2',
         '护眼奖励 +1',
         '花盆扩容 −20',
         '铲除退款 +20',

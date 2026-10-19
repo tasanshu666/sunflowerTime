@@ -26,10 +26,14 @@ class Settings extends Table {
   // 🔴 C79（2026-10-15 玄参拍板）：原 `detection_on` 列已随「在场检测」设置项删除
   //  （schemaVersion 25 DROP COLUMN）—— 专注页 `PresenceDetector` **无条件启动、
   //  功能常开**（防挂机核心，逻辑一行不动），不再有可关的开关，故列无消费点。
-  IntColumn get autoConfirmSingleHigh => integer().withDefault(const Constant(kAutoApproveMaxCostHigh))();
-  IntColumn get autoConfirmSingleLow => integer().withDefault(const Constant(kAutoApproveMaxCostLow))();
-  RealColumn get autoConfirmMonthlyPct => real().withDefault(const Constant(kAutoApprovePoolRatio))();
-  RealColumn get currencyRate => real().withDefault(const Constant(kAutoApprovePoolRatio))();
+  //
+  // 🔴 C90-C（2026-10-18）：下列 4 列为 C5 免确认自动放行的**遗留列，已废弃**——
+  //  自动放行功能全删、AppSettings 实体字段已删（全仓零业务消费点），列保留
+  //（列删除不值得单独迁移），默认值冻结为字面量；新写入恒落列默认值。
+  IntColumn get autoConfirmSingleHigh => integer().withDefault(const Constant(130))();
+  IntColumn get autoConfirmSingleLow => integer().withDefault(const Constant(50))();
+  RealColumn get autoConfirmMonthlyPct => real().withDefault(const Constant(0.25))();
+  RealColumn get currencyRate => real().withDefault(const Constant(0.25))();
   BoolColumn get themeDark => boolean().withDefault(const Constant(false))();
   // 🔴 C79（2026-10-15 玄参拍板）：原 `autonomous_mode` 列已随「自主模式（孩子自助
   //  核销）」设置项彻底删除（schemaVersion 25 DROP COLUMN）—— 全仓排查该字段
@@ -238,6 +242,9 @@ class RedemptionRequests extends Table {
   DateTimeColumn get requestedAt => dateTime()();
   IntColumn get cost => integer()();
   IntColumn get status => integer()(); // RequestStatus index
+
+  // 🔴 **已废弃（C90-C，2026-10-18）**：自动放行功能全删，本列**不再写 true**
+  //（读方按恒 false 处理）。列保留（删除不值得单独迁移；历史行不动）。
   BoolColumn get autoApproved => boolean().withDefault(const Constant(false))();
   IntColumn get queuePosition => integer().nullable()();
   DateTimeColumn get verifiedAt => dateTime().nullable()();
@@ -404,6 +411,12 @@ class ChildProfiles extends Table {
   // AgeTier.index；默认 2 = high（与 settings 单行空表默认语义一致）。
   IntColumn get ageTier => integer().withDefault(const Constant(2))();
   DateTimeColumn get createdAt => dateTime()();
+
+  // ── C90-C（玄参 2026-10-18 拍板，schemaVersion 29 加列）：孩子头像 ──────────
+  // 取值：kChildAvatarSun（'sun'，默认 = 阳光 UI）或植物物种 id（speciesId，
+  // 表示植物头像）。选择结果跟孩子档案存，切孩子各用各的。
+  TextColumn get avatar =>
+      text().withDefault(const Constant(kChildAvatarSun))();
 
   @override
   Set<Column> get primaryKey => {id};

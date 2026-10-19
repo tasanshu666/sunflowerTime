@@ -249,8 +249,9 @@ void main() {
       expect(perk.fertilizeDiscount, 1);
       expect(perk.weedBonus, 1);
       expect(perk.pestBonus, 1);
-      expect(perk.bloomInstantBonus, 1);
-      expect(perk.dewBonus, 1);
+      // C91（玄参 2026-10-19 拍板）：绽放 / 晨露两条 +1 → +2，其余七条不变。
+      expect(perk.bloomInstantBonus, 2);
+      expect(perk.dewBonus, 2);
       expect(perk.expandDiscount, 20);
       expect(perk.shovelRefundBonus, 20);
     });

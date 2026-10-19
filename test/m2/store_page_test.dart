@@ -2,7 +2,7 @@
 ///
 /// 用 `ProviderScope` overrides 注入假实现，使 `StorePage` 无需真实 DB 即可渲染：
 ///  · `redemptionOrchestrationServiceProvider` → 假实现，`submit()` 返回固定
-///    `SubmitResult(outcome: verified, requestId:'x', cost:20, autoApproved:true)`；
+///    `SubmitResult(outcome: verified, requestId:'x', cost:20)`；
 ///  · `rewardRepositoryProvider` → 假实现，`templates()` 返回 2 条中文种子（含 name、
 ///    baseCost、category）；
 ///  · `settingsRepositoryProvider` → 假实现，`getSettings()` 返回低年段默认设置；
@@ -16,7 +16,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/domain/entities/child_profile.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
@@ -96,6 +98,34 @@ class _FakeSettingsRepository implements SettingsRepository {
   Future<AppSettings> getSettings() async => _lowSettings;
   @override
   Future<void> saveSettings(AppSettings s) async {}
+}
+
+/// 低档账号桩（C91：周池预算即时派生 —— 预算按注入账号的当前年级现算，
+/// 桩模式默认档为 high（不限额）会令「周池已满」用例失效，故显式钉低档）。
+class _LowTierAccountService implements AccountService {
+  @override
+  String get childId => 'single-child';
+  @override
+  String currentChildId() => childId;
+  @override
+  Future<void> ensureChild() async {}
+  @override
+  Future<void> initialize() async {}
+  @override
+  Future<void> switchTo(String id) async {}
+  @override
+  Future<ChildProfile> createChild(String name, AgeTier ageTier) =>
+      throw UnsupportedError('not used');
+  @override
+  Future<ChildProfile?> currentProfile() async => null;
+  @override
+  Future<AgeTier> currentAgeTier() async => AgeTier.low;
+  @override
+  Never signIn() => throw UnsupportedError('not used');
+  @override
+  Never linkFamily() => throw UnsupportedError('not used');
+  @override
+  Never syncProfile() => throw UnsupportedError('not used');
 }
 
 class _FakeSunlightRepository implements SunlightRepository {
@@ -203,7 +233,6 @@ class _FakeRedemptionOrchestrationService
         outcome: SubmitOutcome.verified,
         requestId: 'x',
         cost: 20,
-        autoApproved: true,
       );
 }
 
@@ -260,6 +289,9 @@ void main() {
               .overrideWithValue(_FakeRedemptionOrchestrationService()),
           rewardRepositoryProvider.overrideWithValue(reward),
           settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
+          // C90-C 同日二次修订：weeklyPoolServiceProvider 新依赖 accountServiceProvider，
+          // 打桩避免触达真实 Drift（AccountService 无参 = 桩模式，与既有口径一致）。
+          accountServiceProvider.overrideWithValue(AccountService()),
           sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
           // C62：商店页需读当周池余量（只读 pool()）→ 必须注入假池仓储与假埋点仓储。
           weeklyPoolRepositoryProvider
@@ -296,6 +328,9 @@ void main() {
             .overrideWithValue(_FakeRedemptionOrchestrationService()),
         rewardRepositoryProvider.overrideWithValue(reward),
         settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
+        // C90-C 同日二次修订：weeklyPoolServiceProvider 新依赖 accountServiceProvider，
+        // 打桩避免触达真实 Drift（AccountService 无参 = 桩模式，与既有口径一致）。
+        accountServiceProvider.overrideWithValue(AccountService()),
         sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
         // C62：商店页需读当周池余量（只读 pool()）→ 必须注入假池仓储与假埋点仓储。
         weeklyPoolRepositoryProvider
@@ -359,6 +394,9 @@ void main() {
             .overrideWithValue(_FakeRedemptionOrchestrationService()),
         rewardRepositoryProvider.overrideWithValue(reward),
         settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
+        // C90-C 同日二次修订：weeklyPoolServiceProvider 新依赖 accountServiceProvider，
+        // 打桩避免触达真实 Drift（AccountService 无参 = 桩模式，与既有口径一致）。
+        accountServiceProvider.overrideWithValue(AccountService()),
         sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
         weeklyPoolRepositoryProvider
             .overrideWithValue(_FakeWeeklyPoolRepository()),
@@ -402,6 +440,9 @@ void main() {
               .overrideWithValue(_FakeRedemptionOrchestrationService()),
           rewardRepositoryProvider.overrideWithValue(_MutableRewardRepository()),
           settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
+          // C90-C 同日二次修订：weeklyPoolServiceProvider 新依赖 accountServiceProvider，
+          // 打桩避免触达真实 Drift（AccountService 无参 = 桩模式，与既有口径一致）。
+          accountServiceProvider.overrideWithValue(AccountService()),
           // 余额 30 < 卡片价 60 → 可用阳光不足
           sunlightRepositoryProvider
               .overrideWithValue(_FakeSunlightRepository(balanceValue: 30)),
@@ -433,11 +474,22 @@ void main() {
               .overrideWithValue(_FakeRedemptionOrchestrationService()),
           rewardRepositoryProvider.overrideWithValue(_MutableRewardRepository()),
           settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
+          // C90-C 同日二次修订：weeklyPoolServiceProvider 新依赖 accountServiceProvider，
+          // 打桩避免触达真实 Drift（AccountService 无参 = 桩模式，与既有口径一致）。
+          accountServiceProvider.overrideWithValue(AccountService()),
+          // C91：周池预算即时派生 —— 预算按注入账号的年级默认值现算（低档
+          // kPoolBudgetDefaultLow=300），池行 budget 列已退出消费链。used=300
+          // 把派生预算用满 → 周池余量 0 < 卡片价 60 → 超池置灰。
+          accountServiceProvider.overrideWithValue(_LowTierAccountService()),
           // 余额充足（999），但周池余量 0 < 卡片价 60 → 超池
           sunlightRepositoryProvider.overrideWithValue(_FakeSunlightRepository()),
           weeklyPoolRepositoryProvider.overrideWithValue(
             _FakeWeeklyPoolRepository(
-              pool: const WeeklyPool(weekKey: '2026-09-14', budget: 160, used: 160),
+              pool: const WeeklyPool(
+                weekKey: '2026-09-14',
+                budget: kPoolBudgetDefaultLow,
+                used: kPoolBudgetDefaultLow,
+              ),
             ),
           ),
           trackingRepositoryProvider.overrideWithValue(_FakeTrackingRepository()),

@@ -107,7 +107,7 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       'auto_confirm_single_high', aliasedName, false,
       type: DriftSqlType.int,
       requiredDuringInsert: false,
-      defaultValue: const Constant(kAutoApproveMaxCostHigh));
+      defaultValue: const Constant(130));
   static const VerificationMeta _autoConfirmSingleLowMeta =
       const VerificationMeta('autoConfirmSingleLow');
   @override
@@ -115,7 +115,7 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       'auto_confirm_single_low', aliasedName, false,
       type: DriftSqlType.int,
       requiredDuringInsert: false,
-      defaultValue: const Constant(kAutoApproveMaxCostLow));
+      defaultValue: const Constant(50));
   static const VerificationMeta _autoConfirmMonthlyPctMeta =
       const VerificationMeta('autoConfirmMonthlyPct');
   @override
@@ -123,7 +123,7 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       GeneratedColumn<double>('auto_confirm_monthly_pct', aliasedName, false,
           type: DriftSqlType.double,
           requiredDuringInsert: false,
-          defaultValue: const Constant(kAutoApprovePoolRatio));
+          defaultValue: const Constant(0.25));
   static const VerificationMeta _currencyRateMeta =
       const VerificationMeta('currencyRate');
   @override
@@ -131,7 +131,7 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
       'currency_rate', aliasedName, false,
       type: DriftSqlType.double,
       requiredDuringInsert: false,
-      defaultValue: const Constant(kAutoApprovePoolRatio));
+      defaultValue: const Constant(0.25));
   static const VerificationMeta _themeDarkMeta =
       const VerificationMeta('themeDark');
   @override
@@ -7374,8 +7374,15 @@ class $ChildProfilesTable extends ChildProfiles
   late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
       'created_at', aliasedName, false,
       type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _avatarMeta = const VerificationMeta('avatar');
   @override
-  List<GeneratedColumn> get $columns => [id, name, ageTier, createdAt];
+  late final GeneratedColumn<String> avatar = GeneratedColumn<String>(
+      'avatar', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildAvatarSun));
+  @override
+  List<GeneratedColumn> get $columns => [id, name, ageTier, createdAt, avatar];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -7407,6 +7414,10 @@ class $ChildProfilesTable extends ChildProfiles
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('avatar')) {
+      context.handle(_avatarMeta,
+          avatar.isAcceptableOrUnknown(data['avatar']!, _avatarMeta));
+    }
     return context;
   }
 
@@ -7424,6 +7435,8 @@ class $ChildProfilesTable extends ChildProfiles
           .read(DriftSqlType.int, data['${effectivePrefix}age_tier'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      avatar: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}avatar'])!,
     );
   }
 
@@ -7438,11 +7451,13 @@ class ChildProfileRow extends DataClass implements Insertable<ChildProfileRow> {
   final String name;
   final int ageTier;
   final DateTime createdAt;
+  final String avatar;
   const ChildProfileRow(
       {required this.id,
       required this.name,
       required this.ageTier,
-      required this.createdAt});
+      required this.createdAt,
+      required this.avatar});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -7450,6 +7465,7 @@ class ChildProfileRow extends DataClass implements Insertable<ChildProfileRow> {
     map['name'] = Variable<String>(name);
     map['age_tier'] = Variable<int>(ageTier);
     map['created_at'] = Variable<DateTime>(createdAt);
+    map['avatar'] = Variable<String>(avatar);
     return map;
   }
 
@@ -7459,6 +7475,7 @@ class ChildProfileRow extends DataClass implements Insertable<ChildProfileRow> {
       name: Value(name),
       ageTier: Value(ageTier),
       createdAt: Value(createdAt),
+      avatar: Value(avatar),
     );
   }
 
@@ -7470,6 +7487,7 @@ class ChildProfileRow extends DataClass implements Insertable<ChildProfileRow> {
       name: serializer.fromJson<String>(json['name']),
       ageTier: serializer.fromJson<int>(json['ageTier']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      avatar: serializer.fromJson<String>(json['avatar']),
     );
   }
   @override
@@ -7480,16 +7498,22 @@ class ChildProfileRow extends DataClass implements Insertable<ChildProfileRow> {
       'name': serializer.toJson<String>(name),
       'ageTier': serializer.toJson<int>(ageTier),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'avatar': serializer.toJson<String>(avatar),
     };
   }
 
   ChildProfileRow copyWith(
-          {String? id, String? name, int? ageTier, DateTime? createdAt}) =>
+          {String? id,
+          String? name,
+          int? ageTier,
+          DateTime? createdAt,
+          String? avatar}) =>
       ChildProfileRow(
         id: id ?? this.id,
         name: name ?? this.name,
         ageTier: ageTier ?? this.ageTier,
         createdAt: createdAt ?? this.createdAt,
+        avatar: avatar ?? this.avatar,
       );
   ChildProfileRow copyWithCompanion(ChildProfilesCompanion data) {
     return ChildProfileRow(
@@ -7497,6 +7521,7 @@ class ChildProfileRow extends DataClass implements Insertable<ChildProfileRow> {
       name: data.name.present ? data.name.value : this.name,
       ageTier: data.ageTier.present ? data.ageTier.value : this.ageTier,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      avatar: data.avatar.present ? data.avatar.value : this.avatar,
     );
   }
 
@@ -7506,13 +7531,14 @@ class ChildProfileRow extends DataClass implements Insertable<ChildProfileRow> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('ageTier: $ageTier, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('avatar: $avatar')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, ageTier, createdAt);
+  int get hashCode => Object.hash(id, name, ageTier, createdAt, avatar);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -7520,7 +7546,8 @@ class ChildProfileRow extends DataClass implements Insertable<ChildProfileRow> {
           other.id == this.id &&
           other.name == this.name &&
           other.ageTier == this.ageTier &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.avatar == this.avatar);
 }
 
 class ChildProfilesCompanion extends UpdateCompanion<ChildProfileRow> {
@@ -7528,12 +7555,14 @@ class ChildProfilesCompanion extends UpdateCompanion<ChildProfileRow> {
   final Value<String> name;
   final Value<int> ageTier;
   final Value<DateTime> createdAt;
+  final Value<String> avatar;
   final Value<int> rowid;
   const ChildProfilesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.ageTier = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.avatar = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ChildProfilesCompanion.insert({
@@ -7541,6 +7570,7 @@ class ChildProfilesCompanion extends UpdateCompanion<ChildProfileRow> {
     required String name,
     this.ageTier = const Value.absent(),
     required DateTime createdAt,
+    this.avatar = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -7550,6 +7580,7 @@ class ChildProfilesCompanion extends UpdateCompanion<ChildProfileRow> {
     Expression<String>? name,
     Expression<int>? ageTier,
     Expression<DateTime>? createdAt,
+    Expression<String>? avatar,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -7557,6 +7588,7 @@ class ChildProfilesCompanion extends UpdateCompanion<ChildProfileRow> {
       if (name != null) 'name': name,
       if (ageTier != null) 'age_tier': ageTier,
       if (createdAt != null) 'created_at': createdAt,
+      if (avatar != null) 'avatar': avatar,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -7566,12 +7598,14 @@ class ChildProfilesCompanion extends UpdateCompanion<ChildProfileRow> {
       Value<String>? name,
       Value<int>? ageTier,
       Value<DateTime>? createdAt,
+      Value<String>? avatar,
       Value<int>? rowid}) {
     return ChildProfilesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       ageTier: ageTier ?? this.ageTier,
       createdAt: createdAt ?? this.createdAt,
+      avatar: avatar ?? this.avatar,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -7591,6 +7625,9 @@ class ChildProfilesCompanion extends UpdateCompanion<ChildProfileRow> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (avatar.present) {
+      map['avatar'] = Variable<String>(avatar.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -7604,6 +7641,7 @@ class ChildProfilesCompanion extends UpdateCompanion<ChildProfileRow> {
           ..write('name: $name, ')
           ..write('ageTier: $ageTier, ')
           ..write('createdAt: $createdAt, ')
+          ..write('avatar: $avatar, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -11279,6 +11317,7 @@ typedef $$ChildProfilesTableCreateCompanionBuilder = ChildProfilesCompanion
   required String name,
   Value<int> ageTier,
   required DateTime createdAt,
+  Value<String> avatar,
   Value<int> rowid,
 });
 typedef $$ChildProfilesTableUpdateCompanionBuilder = ChildProfilesCompanion
@@ -11287,6 +11326,7 @@ typedef $$ChildProfilesTableUpdateCompanionBuilder = ChildProfilesCompanion
   Value<String> name,
   Value<int> ageTier,
   Value<DateTime> createdAt,
+  Value<String> avatar,
   Value<int> rowid,
 });
 
@@ -11310,6 +11350,9 @@ class $$ChildProfilesTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get avatar => $composableBuilder(
+      column: $table.avatar, builder: (column) => ColumnFilters(column));
 }
 
 class $$ChildProfilesTableOrderingComposer
@@ -11332,6 +11375,9 @@ class $$ChildProfilesTableOrderingComposer
 
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get avatar => $composableBuilder(
+      column: $table.avatar, builder: (column) => ColumnOrderings(column));
 }
 
 class $$ChildProfilesTableAnnotationComposer
@@ -11354,6 +11400,9 @@ class $$ChildProfilesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get avatar =>
+      $composableBuilder(column: $table.avatar, builder: (column) => column);
 }
 
 class $$ChildProfilesTableTableManager extends RootTableManager<
@@ -11386,6 +11435,7 @@ class $$ChildProfilesTableTableManager extends RootTableManager<
             Value<String> name = const Value.absent(),
             Value<int> ageTier = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
+            Value<String> avatar = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ChildProfilesCompanion(
@@ -11393,6 +11443,7 @@ class $$ChildProfilesTableTableManager extends RootTableManager<
             name: name,
             ageTier: ageTier,
             createdAt: createdAt,
+            avatar: avatar,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -11400,6 +11451,7 @@ class $$ChildProfilesTableTableManager extends RootTableManager<
             required String name,
             Value<int> ageTier = const Value.absent(),
             required DateTime createdAt,
+            Value<String> avatar = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ChildProfilesCompanion.insert(
@@ -11407,6 +11459,7 @@ class $$ChildProfilesTableTableManager extends RootTableManager<
             name: name,
             ageTier: ageTier,
             createdAt: createdAt,
+            avatar: avatar,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

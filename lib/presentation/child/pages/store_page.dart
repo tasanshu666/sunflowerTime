@@ -131,7 +131,12 @@ final _storeLoadProvider = FutureProvider<_StoreLoad>((ref) async {
     hasActive: hasActive,
     pendingCount: pendingCount,
     availableSunlight: sunlightDisplayInt(balance - pendingTotal),
-    weeklyPoolRoom: pool.budget - pool.used - pool.autoReleased,
+    // C90-C 同日二次修订：budget <= 不限额哨兵（0，高年级默认 / 未建池占位）→
+    // 余量视为无穷大（1<<30 足够大），卡片不做周池置灰——不限额下兑换只受阳光
+    // 余额约束，超池判定单点在 RedemptionService.decide（编排层同样守卫）。
+    weeklyPoolRoom: pool.budget <= kWeeklyPoolBudgetUnlimited
+        ? 1 << 30
+        : pool.budget - pool.used - pool.autoReleased,
     hasQueued: hasQueued,
   );
 });

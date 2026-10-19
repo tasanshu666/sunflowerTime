@@ -132,17 +132,9 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
       padding: EdgeInsets.zero,
       children: <Widget>[
         const WeeklyPoolCard(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Text(
-            '每周阳光池：本周孩子可「免确认自动放行」的阳光上限（进度条）。'
-            '超出该上限的兑换需你在「今日」Tab 手动核销。',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: Theme.of(context).colorScheme.outline),
-          ),
-        ),
+        // C91（玄参平板真机反馈）：原「每周阳光池：本周孩子可「免确认自动放行」的
+        // 阳光上限……」说明小字**整行删除** —— 自动放行功能已随 C90-C 废除，
+        // 该文案对家长只剩误导；周池语义以 WeeklyPoolCard 卡内说明为准。
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: Column(

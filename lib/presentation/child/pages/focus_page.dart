@@ -17,6 +17,7 @@
 library focus_page;
 
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -108,6 +109,18 @@ class _FocusPageState extends ConsumerState<FocusPage>
   bool _absent = false;
   bool _paused = false;
   bool _finished = false;
+
+  /// 系统 UI（方向 / 沉浸）是否已由 [_handleOutcome] 复位（护眼竖屏竞速修复，玄参
+  /// 荣耀平板真机 2026-10-16）。
+  ///
+  /// `_handleOutcome` 在 `go('/settle')` **之前**已 `await _restoreSystemChrome()`
+  /// 复位竖屏；若 dispose 再无条件复位一次，这条迟到的 portrait 会落在**结算页插卡
+  /// 护眼卡的横屏指令之后**——go 替换路由后旧页要等路由退场过渡结束才 dispose，
+  /// 而护眼卡（SettlePage._openEyeCareIfPending 压入）的横屏指令在 push 首帧就发，
+  /// Android 平台通道「后发覆盖先发」→ 护眼整整 1 分钟被压回竖屏。置位后 dispose
+  /// 不再重复发方向指令；仅当 _handleOutcome 没走到复位（直接 pop / 异常中断 /
+  /// 进程被杀）时才由 dispose 兜底复位。
+  bool _chromeRestoreHandled = false;
   String? _bubbleKey;
 
   /// 进入专注时读到的「今日剩余专注额度」（分钟，1:1 于阳光）；null = 未读到。
@@ -624,6 +637,8 @@ class _FocusPageState extends ConsumerState<FocusPage>
     final int eyeCareReward = _sessionEyeCareReward;
 
     await _restoreSystemChrome(); // 护眼结束后才复位方向（新流程）/ 立即复位（旧流程）
+    // 已复位 → dispose 不再重复发 portrait（护眼横屏竞速修复，见字段注释）。
+    _chromeRestoreHandled = true;
 
     final DateTime start = _engine.startedAt ?? DateTime.now();
     final FocusSettlement settlement =
@@ -782,7 +797,11 @@ class _FocusPageState extends ConsumerState<FocusPage>
     // 拦腰杀掉。播放器为全局单例懒加载复用，保留不释放（资源开销可忽略）。
     // F01：万一 _handleOutcome 未跑（如进程被杀），退出时仍尝试恢复通知。
     unawaited(_dnd.setEnabled(false));
-    _restoreSystemChrome();
+    // 护眼竖屏竞速修复：_handleOutcome 已复位过就不再重复发——go('/settle') 替换
+    // 路由后本页 dispose 晚于结算页插的护眼卡横屏指令（路由退场过渡结束后才
+    // dispose），迟到的 portrait 会把护眼卡压回竖屏（后发覆盖先发）。
+    // 未复位过（直接 pop / 异常 / 进程被杀）才由此兜底复位。
+    if (!_chromeRestoreHandled) _restoreSystemChrome();
     super.dispose();
   }
 
@@ -821,7 +840,12 @@ class _FocusPageState extends ConsumerState<FocusPage>
     // 顶部计时区 / 中部向日葵(flex 自适应) / 底部提示胶囊，三段互不重叠；
     // 向日葵在 Expanded 内按可用高度动态缩放（参考 Forest / 番茄ToDo：
     // 时间在上、图案居中、提示沉底，分区清晰）。
-    final bool showBanner = _dndBanner && widget.dnd && !_finished;
+    // C91（玄参平板真机反馈）：勿扰（DND）是**安卓专属**能力 —— 苹果不允许三方
+    // App 控制系统勿扰（iOS 上 [DndController] 全 no-op、isGranted 恒 false），
+    // 若不判平台，iOS 专注页会常驻「未开启勿扰，通知仍会打扰」横条误导用户。
+    // 故 iOS 一律不渲染条幅（占位高度随 showBanner 同步为 0）；安卓维持现状。
+    final bool showBanner =
+        _dndBanner && widget.dnd && !_finished && Platform.isAndroid;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {

@@ -1,8 +1,5 @@
-/// 经济计算工具：专注阳光的有效值（§4.5）、分龄换算（K 仅作用于消耗侧）。
-/// 对应架构设计 §3.2（可追溯）、§4.5（公式③）。
+/// 经济计算工具：专注阳光的有效值（§4.5）。对应架构设计 §3.2（可追溯）、§4.5（公式③）。
 library math_ext;
-
-import 'package:sunflower_time/core/constants/prd_params.dart';
 
 /// 专注阳光的有效值（2026-09-23 口径，取代原「分段软顶」）。
 ///
@@ -32,20 +29,5 @@ double effectiveFocusSunlight({
   return focusSunlight < remainingAllowance ? focusSunlight : remainingAllowance;
 }
 
-/// 免确认周自动放行上限（C5）：
-/// `min(固定天花板 100/40, 周池 × 25%)`。
-///
-/// 天花板默认引用 prd_params 常量（[kAutoApproveCapCeilingHigh]/[kAutoApproveCapCeilingLow]）；
-/// 骨架阶段统一用 min，M2 按 `ageTier` 分流。
-double autoApprovePoolCap(
-  double poolBudget, {
-  double? ceilingHigh,
-  double? ceilingLow,
-}) {
-  final double hi = ceilingHigh ?? kAutoApproveCapCeilingHigh.toDouble();
-  final double lo = ceilingLow ?? kAutoApproveCapCeilingLow.toDouble();
-  final double capFromPool = poolBudget * kAutoApprovePoolRatio;
-  // 占位：实际按 ageTier 选 100（高）或 40（低），此处取较小者保守。
-  final double ceiling = hi < lo ? hi : lo;
-  return capFromPool < ceiling ? capFromPool : ceiling;
-}
+/// 🔴 **已随 C90-C 删除**：原 `autoApprovePoolCap`（C5 免确认上限 = min(天花板, 池×25%)）
+/// —— 自动放行功能整体移除；本注释仅为防「按旧文档找函数」的迷路指针。

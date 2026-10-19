@@ -388,28 +388,28 @@ void main() {
 
   // ── ③ 开花即时阳光（TC-18/19）────────────────────────────────────────────
   group('③ 开花即时（TC-18/19）', () {
-    test('TC-18 Lv.25 → 普通保底 7 / 精品 11（两笔合计 = 到手；C78 开花 → Lv.25）', () async {
+    test('TC-18 Lv.25 → 普通保底 8 / 精品 12（两笔合计 = 到手；C91：绽放 +1 → +2）', () async {
       final DateTime bloomAt = DateTime(2026, 10, 15, 8, 0);
       final _Ctx common = _make(minutesOfLevel: 25);
       await common.plants.savePlant(_readyToBloom('sp_common', bloomAt));
       await common.svc.tickAll(bloomAt);
       final PendingBloomReward ic =
           await _instantOf(common.bloom, bloomAt.add(const Duration(days: 1)));
-      expect(ic.rewardSunlight, 7, reason: 'Lv.25 → 保底 6 + 1');
+      expect(ic.rewardSunlight, 8, reason: 'Lv.25 → 保底 6 + 2（C91）');
       await common.svc.collectBloomReward(ic.id, bloomAt);
-      expect(_net(common.ledger, kBloomRewardRefType), 7);
+      expect(_net(common.ledger, kBloomRewardRefType), 8);
 
       final _Ctx prem = _make(minutesOfLevel: 25);
       await prem.plants.savePlant(_readyToBloom('sp_premium', bloomAt));
       await prem.svc.tickAll(bloomAt);
       final PendingBloomReward ip =
           await _instantOf(prem.bloom, bloomAt.add(const Duration(days: 1)));
-      expect(ip.rewardSunlight, 11, reason: 'Lv.25 → 精品保底 10 + 1');
+      expect(ip.rewardSunlight, 12, reason: 'Lv.25 → 精品保底 10 + 2（C91）');
       await prem.svc.collectBloomReward(ip.id, bloomAt);
-      expect(_net(prem.ledger, kBloomRewardRefType), 11);
+      expect(_net(prem.ledger, kBloomRewardRefType), 12);
     });
 
-    test('TC-19 拆分护栏：Lv.24 开花(base6) → 升级 Lv.25 后收集(base7) → 总发 6（不多发）', () async {
+    test('TC-19 拆分护栏：Lv.24 开花(base6) → 升级 Lv.25 后收集(base8) → 总发 6（不多发）', () async {
       final DateTime bloomAt = DateTime(2026, 10, 15, 8, 0);
       final _Ctx ctx = _make(minutesOfLevel: 24);
       await ctx.plants.savePlant(_readyToBloom('sp_common', bloomAt));
@@ -418,7 +418,7 @@ void main() {
           await _instantOf(ctx.bloom, bloomAt.add(const Duration(days: 1)));
       expect(instant.rewardSunlight, 6, reason: 'Lv.24 保底 base 6');
 
-      // 收集前换档：升到 Lv.25（收集时 base 变 7）。
+      // 收集前换档：升到 Lv.25（收集时 base 变 8，C91 绽放 +2）。
       ctx.focus.minutes = _minutesOfLevel(25);
       await ctx.svc.collectBloomReward(instant.id, bloomAt);
       expect(_net(ctx.ledger, kBloomRewardRefType), 6,
@@ -427,14 +427,16 @@ void main() {
   });
 
   // ── ④ 晨露（TC-20/21）────────────────────────────────────────────────────
-  group('④ 晨露 +1 在折损之后（TC-20/21，R2）', () {
+  // 🔴 C91 修订（玄参 2026-10-19 拍板）：晨露加成 +1 → **+2**（「先折损后加成」
+  // 顺序不变，加成值翻档 —— 本组全部断言按新数值钉死）。
+  group('④ 晨露 +2 在折损之后（TC-20/21，R2；C91 数值修订）', () {
     test('TC-20 dewSunlightOf = 折损后 + perk.dewBonus；flowerDewSunlight 不改', () {
       expect(PlantGrowthService.bloomDewSunlight(6, false), 3,
           reason: '折损纯函数保持原样（ceil(6×0.5)）');
-      expect(PlantGrowthService.dewSunlightOf(6, false, perkOfLevel(30)), 4,
-          reason: '折损后 + 1（C78 晨露 → Lv.30）');
-      expect(PlantGrowthService.dewSunlightOf(6, true, perkOfLevel(30)), 7,
-          reason: '未折损 + 1');
+      expect(PlantGrowthService.dewSunlightOf(6, false, perkOfLevel(30)), 5,
+          reason: '折损后 + 2（C91：晨露加成 +1 → +2；C78 晨露 → Lv.30）');
+      expect(PlantGrowthService.dewSunlightOf(6, true, perkOfLevel(30)), 8,
+          reason: '未折损 + 2（C91）');
       expect(PlantGrowthService.dewSunlightOf(6, false, perkOfLevel(29)), 3,
           reason: '未到 Lv.30 → 无加成');
     });
@@ -463,7 +465,7 @@ void main() {
       await ctx.svc.collectBloomReward(dew.id, far);
       // 晨露（非瞬间）走第二段账目 refType（[kBloomSecondPhaseRefType]），非开花瞬间的 refType。
       final double granted = _net(ctx.ledger, kBloomSecondPhaseRefType);
-      expect(shownAmount, 3, reason: 'Lv.30 晨露：折损 ceil(3×0.5)=2 + 称号 +1 = 3');
+      expect(shownAmount, 4, reason: 'Lv.30 晨露：折损 ceil(3×0.5)=2 + 称号 +2 = 4（C91）');
       expect(granted, shownAmount,
           reason: '头顶气泡数字必须 = 实际到手（同一 dewSunlightOf）');
     });

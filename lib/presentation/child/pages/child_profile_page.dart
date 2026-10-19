@@ -20,6 +20,8 @@ import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
+import 'package:sunflower_time/domain/services/account_service.dart'
+    show AccountService;
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
@@ -29,23 +31,12 @@ import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
+import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart'
     show levelOfMinutes, thresholdMinutesOfLevel;
+import 'package:sunflower_time/presentation/child/widgets/child_avatar.dart';
 import 'package:sunflower_time/presentation/child/widgets/level_up_fx_overlay.dart';
-
-/// 年龄段短文案（C90 期 2 第二批「我的」页展示用；完整档位文案见
-/// `child_profile_bar.dart`）。
-String _childTierLabel(AgeTier tier) {
-  switch (tier) {
-    case AgeTier.low:
-      return '低年级';
-    case AgeTier.mid:
-      return '中年级';
-    case AgeTier.high:
-      return '高年级';
-  }
-}
 
 /// 孩子端「我的」：累计成就。
 class ChildProfilePage extends ConsumerStatefulWidget {
@@ -72,8 +63,13 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
   /// 回落 [kDefaultChildNickname]，与旧展示兜底一致）。
   String _childName = kDefaultChildNickname;
 
-  /// 当前孩子年龄段（跟档案走；档案源不可用回落 high，与 settings 空表默认一致）。
-  AgeTier _childTier = AgeTier.high;
+  /// 当前孩子头像（**C90-C**：'sun' = 阳光；否则物种 id。跟档案走，
+  /// 档案源不可用回落阳光默认）。
+  String _childAvatar = kChildAvatarSun;
+
+  /// 当前孩子**已种植过**的物种 id 集合（C90-C：头像候选判定依据；
+  /// plants() 仓储层已按当前孩子过滤，此处只做 distinct）。
+  Set<String> _plantedSpecies = const <String>{};
 
   @override
   void initState() {
@@ -137,11 +133,55 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
           .currentProfile()
           .timeout(kChildProfileReadTimeout);
       if (profile == null) return;
+      // C91：只取 name + avatar（年龄段不再上屏——不是给孩子看的标签）。
       _childName = profile.name;
-      _childTier = profile.ageTier;
+      _childAvatar = profile.avatar;
     } catch (_) {
       // 档案源不可用 → 保旧展示值。
     }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // C90-C · 头像（默认阳光；点头像弹选择面板，可选项 = 已种植物种）
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// 打开头像选择卡片；选中可选项 → 落库（child_profiles.avatar）→ 刷新。
+  ///
+  /// 口径：卡片内未种植物种由 [showChildAvatarPickerDialog] 置灰加锁并提示，
+  /// 不会 pop；故走到这里的 value 必为可选项（阳光或已种植物种）。
+  /// C91：弹层从底部抽屉改为屏幕居中 Dialog 卡片（视觉美化，功能不变）。
+  Future<void> _openAvatarPicker() async {
+    final List<PlantSpecies> species =
+        await ref.read(plantRepositoryProvider).species();
+    if (!mounted) return;
+    final String? picked = await showChildAvatarPickerDialog(
+      context,
+      currentAvatar: _childAvatar,
+      plantedSpeciesIds: _plantedSpecies,
+      species: species,
+    );
+    if (picked == null || !mounted) return; // 收起未选 / 点遮罩关闭
+    if (picked == _childAvatar) return; // 重复选同一头像，无需落库
+    await _saveAvatar(picked);
+  }
+
+  /// 落库头像：update（改名/调档不变，仅 avatar 变）→ switchTo 刷新 AccountService
+  /// 活跃快照（仿家长天地编辑流程）→ 修订号自增 → 静默重拉。
+  Future<void> _saveAvatar(String avatar) async {
+    final AccountService account = ref.read(accountServiceProvider);
+    final ChildProfile? profile =
+        await account.currentProfile().timeout(kChildProfileReadTimeout);
+    if (profile == null) return; // 桩模式（无档案源）：无可存目标，静默返回
+    await ref.read(childProfileRepositoryProvider).update(
+          profile.id,
+          name: profile.name,
+          ageTier: profile.ageTier,
+          avatar: avatar,
+        );
+    // 刷新活跃快照（switchTo 重读仓储），使展示即时跟档（与家长编辑同套路）。
+    await account.switchTo(profile.id);
+    ref.read(childProfileRevisionProvider.notifier).state++;
+    await _reload(silent: true);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -254,6 +294,8 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
           await ref.read(taskRepositoryProvider).totalCheckInCount();
       final List<Plant> plants =
           await ref.read(plantRepositoryProvider).plants();
+      final List<PlantSpecies> species =
+          await ref.read(plantRepositoryProvider).species();
       final double balance =
           await ref.read(sunlightRepositoryProvider).balance();
       // 累计护眼次数（玄参 2026-10-09）：以**阳光账本**为权威口径
@@ -273,6 +315,13 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
         _totalCheckIns = checkIns;
         _bloomedPlants =
             plants.where((Plant p) => p.status == PlantStatus.bloomed).length;
+        // C90-C：当前孩子已种植过的物种（distinct speciesId）。
+        final Set<String> speciesIds =
+            species.map((PlantSpecies s) => s.id).toSet();
+        _plantedSpecies = plants
+            .map((Plant p) => p.speciesId)
+            .where(speciesIds.contains)
+            .toSet();
         _totalEyeCares = eyeCares;
         _balance = balance;
         _loading = false;
@@ -309,9 +358,13 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
               children: <Widget>[
                 Row(
                   children: <Widget>[
-                    const CircleAvatar(
-                      radius: 36,
-                      child: Icon(Icons.person, size: 40),
+                    // C90-C：头像默认阳光；点按弹选择面板（阳光 + 已种植物种可选，
+                    // 未种植置灰加锁可点提示）。稳定 Key 供测试定位。
+                    GestureDetector(
+                      key: const ValueKey<String>('child_avatar_tap'),
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _openAvatarPicker,
+                      child: ChildAvatarView(avatar: _childAvatar),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -319,11 +372,12 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          // C90 期 2：只读展示「名字 · 年龄段」（昵称跟档案走，
-                          // 改名只在家长天地；本页不再有改名入口）。
+                          // C91 修订（玄参）：只显示**昵称本身**，去掉
+                          // 「· 低年级 / 8 岁及以下」档位后缀（年龄段不是给孩子
+                          // 看的）。昵称跟档案走，改名只在家长天地。
                           Flexible(
                             child: Text(
-                              '$_childName · ${_childTierLabel(_childTier)}',
+                              _childName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(

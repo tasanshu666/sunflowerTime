@@ -38,15 +38,16 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 
-/// 年龄段展示名（玄参 2026-10-17 拍板文案；与 `AgeTier` 注释对应）。
+/// 年龄段展示名（**C90-C 修订**（玄参 2026-10-18 拍板「12 岁归中」）：
+/// 低 ≤8 / 中 9–12 / 高 ≥13；与 `tierForAge` 新分界一致）。
 String _tierLabel(AgeTier tier) {
   switch (tier) {
     case AgeTier.low:
-      return '低年级 · 小于 8 岁';
+      return '低年级 · 8 岁及以下';
     case AgeTier.mid:
-      return '中年级 · 8–12 岁';
+      return '中年级 · 9–12 岁';
     case AgeTier.high:
-      return '高年级 · 大于 12 岁';
+      return '高年级 · 13 岁及以上';
   }
 }
 

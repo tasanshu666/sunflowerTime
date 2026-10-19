@@ -30,6 +30,7 @@ class ChildProfileLocalRepository implements ChildProfileRepository {
       name: name,
       ageTier: Value(ageTier.index),
       createdAt: now,
+      // C90-C：新档案头像默认列默认值（阳光）；不显式传，落列默认 kChildAvatarSun。
     ));
     return ChildProfile(
       id: childId,
@@ -47,11 +48,14 @@ class ChildProfileLocalRepository implements ChildProfileRepository {
     String id, {
     required String name,
     required AgeTier ageTier,
+    String? avatar,
   }) =>
       _db.childProfileDao.updateProfile(
         id,
         name: name,
         ageTier: ageTier.index,
+        // C90-C：avatar 为 null = 不改（保持原值）；非 null 才写入。
+        avatar: avatar,
       );
 
   @override
@@ -64,5 +68,7 @@ class ChildProfileLocalRepository implements ChildProfileRepository {
         ageTier: AgeTier
             .values[row.ageTier.clamp(0, AgeTier.values.length - 1)],
         createdAt: row.createdAt,
+        // C90-C：头像跟档案走（v29 补列后历史行落默认阳光）。
+        avatar: row.avatar,
       );
 }

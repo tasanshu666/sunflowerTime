@@ -23,42 +23,36 @@ const int kMinFocusMinutes = 5;
 const double kCompletionRateThreshold = 0.90;
 
 // ───────────────────────────────────────────────────────────────────────────
-// C5 免确认月上限 vs 可调月池（口径裁定表 v1 C5）
-// 公式：monthlyAutoApproveCap = min(固定天花板, 当前月池 × 25%)
-//       固定天花板：高年级 100 / 低年级 40
-// 写死的 100/40 是天窗（上限），不是恒定值；池调低时上限随之降到 月池×25%。
+// C5 免确认（自动放行）—— 🔴 **C90-C 全删**（玄参 2026-10-18 拍板「此功能早已明确不要」）
+//
+// 原口径（月/周自动放行双条件、单笔阈值 130/50、天花板 100/40、池 × 25%）
+// 已整体删除：`kAutoApproveMaxCost*` / `kAutoApproveCapCeiling*` /
+// `kAutoApprovePoolRatio` 常量与 `capFor` / `autoApprovePoolCap` /
+// `WeeklyPoolService.autoApproveCap` 一并移除，兑换一律由家长显式核销。
+// ⚠️ `redemption_requests.auto_approved` 列**保留但废弃**（不再写 true，读方按恒
+// false 处理；列删除不值得单独迁移，见 tables.dart 注释）。
+// ⚠️ settings 表历史列 `auto_confirm_single_high/low` / `auto_confirm_monthly_pct`
+// 同为遗留列（无业务消费点），默认值改为裸字面量冻结、注释标废弃，不随本批删列。
 // ───────────────────────────────────────────────────────────────────────────
 
-/// 免确认单笔价上限 · 高年级（PRD §4.8 E6：单笔 ≤ 高 130）
-const int kAutoApproveMaxCostHigh = 130;
+/// 周阳光池默认预算 · 低年级（**C90-C 修订**（玄参 2026-10-18 拍板）：160 → 200；
+/// **同日二次修订（玄参）**：200 → **300** 阳光/周）
+const int kPoolBudgetDefaultLow = 300;
 
-/// 免确认单笔价上限 · 低年级（PRD §4.8 E6：单笔 ≤ 低 50）
-const int kAutoApproveMaxCostLow = 50;
+/// 周阳光池默认预算 · 中年级（**C90-C 修订**：中年级不再沿用低档值，独立为 400；
+/// **同日二次修订（玄参）**：400 → **600** 阳光/周）
+const int kPoolBudgetDefaultMid = 600;
 
-/// 月累计自动放行天花板 · 高年级（口径裁定 C5：固定天花板高 100）
-const int kAutoApproveCapCeilingHigh = 100;
-
-/// 月累计自动放行天花板 · 低年级（口径裁定 C5：固定天花板低 40）
-const int kAutoApproveCapCeilingLow = 40;
-
-/// 月池 25% 上限比例（口径裁定 C5：`月累计自动放行 ≤ 当月池 × 25%`）
-const double kAutoApprovePoolRatio = 0.25;
-
-/// 周阳光池默认预算 · 高年级（PRD §4.8 E9：400 阳光/周）
-const int kPoolBudgetDefaultHigh = 400;
-
-/// 周阳光池默认预算 · 低年级（PRD §4.8 E9：160 阳光/周）
-const int kPoolBudgetDefaultLow = 160;
-
-/// 周阳光池**可调下限**（玄参 2026-09-22 拍板：家长可自由调节，区间 50–500）。
+/// 周阳光池「**默认不设上限**」哨兵（**C90-C 修订**，玄参 2026-10-18 拍板）。
 ///
-/// 用于取代此前只写在 UI 里的裸字面量 50（`pool_indicator.dart`）。
-const int kWeeklyPoolBudgetMin = 50;
-
-/// 周阳光池**可调上限**（玄参 2026-09-22 拍板：原 1200 太大，收敛到 500）。
-///
-/// 注意与 [kMonthlyPoolMax]（月池遗留 1200）**不是同一回事**，勿混用。
-const int kWeeklyPoolBudgetMax = 500;
+/// 高年级（13 岁及以上）建档时周池**不预置额度**：`WeeklyPool.budget` 取本值（0），
+/// 兑换只受阳光余额约束（不判超池）。
+/// ⚠️ **同日二次修订（玄参 2026-10-18）**：家长端「本周阳光预算」卡的手动设额
+/// 输入控件（50–500）**已整块删除**，预算完全按年级默认值走，不再有编辑路径；
+/// 原 [kWeeklyPoolBudgetMin] / [kWeeklyPoolBudgetMax] 区间常量一并移除（死代码清理）。
+/// 判定单点：`RedemptionService.decide` 与编排层在 `budget > kWeeklyPoolBudgetUnlimited`
+/// 时才做超池判断，`<= 0` 一律视为不限额（该守卫逻辑不变）。
+const int kWeeklyPoolBudgetUnlimited = 0;
 
 /// 月度池可调下限（PRD §4.8 E9：100–1,200）
 const int kMonthlyPoolMin = 100;
@@ -125,6 +119,18 @@ const String kPendingReminderText = '这次的阳光奖励还在等你确认哦�
 
 /// 冷却默认每周限领次数（D4：每奖励每周限领 1 次）。
 const int kCooldownWeeklyDefault = 1;
+
+// ───────────────────────────────────────────────────────────────────────────
+// C90-C · 孩子头像（玄参 2026-10-18 拍板）：默认阳光，可选已种植植物物种。
+// 存储单点：`child_profiles.avatar`（TEXT，默认 'sun'；schemaVersion 29 加列）。
+// ───────────────────────────────────────────────────────────────────────────
+
+/// 孩子头像 · 默认值（阳光 UI；`child_profiles.avatar` 列默认值）。
+const String kChildAvatarSun = 'sun';
+
+/// 未种植物种当选头像时的提示文案（玄参口径：置灰 + 小锁图标，**可点给提示**，
+/// 绝不静默无反应）。
+const String kChildAvatarLockedHint = '种下这种植物后可以选它当头像';
 
 // ───────────────────────────────────────────────────────────────────────────
 // M3 植物养成 / 家长赠予 常量（U1，数值直引 PRD §4.5 / §4.6；禁止裸字面量）
@@ -1614,10 +1620,16 @@ const int kPerkWeedBonus = 1;
 const int kPerkPestBonus = 1;
 
 /// ⑥ 开花即时阳光加成（**Lv.25 · 守时小星使**，C78 前原 Lv.20）。
-const int kPerkBloomInstantBonus = 1;
+///
+/// 🔴 **C91 修订（玄参 2026-10-19 拍板）**：+1 → **+2**（花开奖励加成翻档；
+/// 单点真源 `kPlantPerkPerTitleNode` 同步，测试与边界断言随改）。
+const int kPerkBloomInstantBonus = 2;
 
 /// ⑦ 晨露阳光加成（**Lv.30 · 专注小法师**，C78 前原 Lv.25；**加在折损之后**，见 `dewSunlightOf`）。
-const int kPerkDewBonus = 1;
+///
+/// 🔴 **C91 修订（玄参 2026-10-19 拍板）**：+1 → **+2**（语义 = **折损后** +2，
+/// 「先折损后加成」顺序不变；单点真源 `kPlantPerkPerTitleNode` 同步）。
+const int kPerkDewBonus = 2;
 
 /// ⑧ 花盆扩容消耗减免（Lv.35 · 星辰守护者；一次性项）。
 const int kPerkExpandDiscount = 20;
@@ -1628,16 +1640,19 @@ const int kPerkShovelRefundBonus = 20;
 
 /// 9 称号节点属性的 **emoji**（索引与 [kFocusLevelTitleLevels] 一一对应；
 /// 🔴 C78 重排后与 `kPlantPerkPerTitleNode` **同索引对齐**）。
+///
+/// 🔴 **C91 修订（玄参 2026-10-19 拍板）**：铲除 emoji ⛏️ → **🗑️**（钉耙意象
+/// 与「铲除退款」不匹配且渲染不稳；施肥 🌾 维持不动）。
 const List<String> kPerkEmojis = <String>[
   '👁', // Lv.1  护眼 +1
   '💧', // Lv.5  浇水 −1
   '🌾', // Lv.10 施肥 −1
   '🌿', // Lv.15 除草 +1
   '🦗', // Lv.20 除虫 +1
-  '🌻', // Lv.25 开花 +1
-  '🌤', // Lv.30 晨露 +1
+  '🌻', // Lv.25 绽放 +2（C91：花开奖励 +1 → +2）
+  '🌤', // Lv.30 晨露 +2（C91：折损后加成 +1 → +2）
   '🪴', // Lv.35 扩容 −20
-  '⛏️', // Lv.40 铲除 +20
+  '🗑️', // Lv.40 铲除 +20（C91：⛏️ → 🗑️）
 ];
 
 /// 9 称号节点属性的**名称**（索引与 [kFocusLevelTitleLevels] 一一对应；

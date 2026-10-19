@@ -25,10 +25,14 @@ abstract class ChildProfileRepository {
 
   /// 更新档案（改名 / 调年龄段；id 与 createdAt 不变，C90 期 1 追加）。
   /// 编辑**不受门控配额限制**（不是新增，C69 只拦新增）。
+  ///
+  /// C90-C：可选 [avatar]（null = 不改头像；[kChildAvatarSun] = 阳光，
+  /// 否则为植物物种 id）。
   Future<void> update(
     String id, {
     required String name,
     required AgeTier ageTier,
+    String? avatar,
   });
 
   /// 按 id 删除档案（C90 期 1 追加，玄参拍板：需家长 PIN 复核）。

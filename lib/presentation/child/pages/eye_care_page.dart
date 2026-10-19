@@ -41,7 +41,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -56,6 +55,7 @@ import 'package:sunflower_time/domain/services/eye_care_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
+import 'package:sunflower_time/shared/orientation_bridge.dart';
 
 /// 护眼卡入参。
 ///
@@ -115,6 +115,24 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
   Timer? _timer;
   static const Uuid _uuid = Uuid();
 
+  /// 护眼横屏指令的完成信号（initState 发出，[_finish] 退场前 await）。
+  ///
+  /// 玄参荣耀平板竞速修复（2026-10-16）：横屏指令不再 `unawaited` 裸奔——await 它
+  /// 之后再 pop，调用方随后的竖屏复位（focus_page._restoreSystemChrome /
+  /// settle_page._lockPortrait）就严格排在本页横屏指令**之后**（平台通道后发覆盖
+  /// 先发 → 指令串行化即无敌）。统一走 [OrientationBridge.lockLandscape]（与打盹
+  /// 屏同源的横屏口径）。
+  Future<void>? _landscapeLock;
+
+  /// 横屏指令 await 的**有界等待上限**（Q-E 先例，仿
+  /// `kChildProfileReadTimeout` 200ms 有界等待纪律）。
+  ///
+  /// 正常路径 = 平台通道应答毫秒级返回；**仅在应答缺失**（真机极端卡顿 / 测试
+  /// 环境无 platform mock 时平台通道 Future 永不完成）超时放行——方向锁失败
+  /// 静默本就是既定纪律（体验优化不阻塞流程），绝不让退场 await 挂死。
+  /// 200ms 远大于正常应答耗时，真机上超时分支实际走不到。
+  static const Duration _landscapeLockTimeout = Duration(milliseconds: 200);
+
   @override
   void initState() {
     super.initState();
@@ -122,10 +140,7 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
     // 结算页（竖屏）进入，都切到横屏；退场方向由调用方恢复（focus 保持横、
     // settle 回竖，见两处 push 返回后的处理），本页不越权接管。
     try {
-      unawaited(SystemChrome.setPreferredOrientations(<DeviceOrientation>[
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]));
+      _landscapeLock = OrientationBridge.lockLandscape();
     } catch (_) {} // 方向锁失败静默：体验优化，不阻塞护眼流程。
     // 单段配音（initState 里 ref 仍可用；dispose 里才禁用 ref——本项目 Riverpod 铁律）。
     ref.read(audioServiceProvider).playSfx(AudioCue.eyeCare);
@@ -175,6 +190,14 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
     if (_finishing) return; // 幂等：完成与跳过只能各自生效一次
     setState(() => _finishing = true);
     _timer?.cancel();
+
+    // 退场前先等本页横屏指令落定（正常早已完成）→ 调用方随后的竖屏复位严格
+    // 晚于本页横屏指令，转场链上不出现两条方向指令竞速（荣耀平板竞速修复）。
+    // ⚠️ 有界等待（Q-E 纪律）：测试环境（无 platform mock）平台通道 Future
+    // 永不完成，裸 await 会挂死退场 → 超时放行，超时异常静默吞掉。
+    try {
+      await _landscapeLock?.timeout(_landscapeLockTimeout);
+    } catch (_) {} // 超时 / 失败静默：方向锁只是体验优化，不阻塞退场。
 
     if (type == EyeCareResultType.completed) {
       await _appendReward();

@@ -276,6 +276,11 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   ///
   /// 判定口径：`verifiedRequests()` 中 id 不在 shared_preferences 已读列表里的申请。
   /// C90 期 2：已读列表按当前孩子分键（历史全局键不迁移）。
+  /// 🔴 C91 二轮（玄参：核销确认卡跨孩子泄漏）：diff 的「待展示列表」与「已读
+  /// 快照键」必须**同属本次检查捕获的 childId** —— 数据源（F123 仓储级过滤）
+  /// 之外再按 childId 过滤一次；其他孩子的行（旧版本库 / 未过滤调用点 /
+  /// 切孩子瞬间的旧快照）绝不 diff 进当前孩子的快照键，也绝不会被当前孩子的
+  /// 「知道啦」写坏（已读状态双向串改 = 泄漏）。
   /// 任何异常都不阻塞首页（通知属增强能力）。
   Future<void> _checkVerifiedNotices() async {
     try {
@@ -284,13 +289,17 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
       final String childId = _currentChildId();
 
       final List<RedemptionRequest> verified = await repo.verifiedRequests();
-      if (verified.isEmpty) return;
+      // 🔴 C91 二轮：第二层跨孩子防线 —— 只认本次检查所属孩子的行。
+      final List<RedemptionRequest> mine = verified
+          .where((RedemptionRequest r) => r.childId == childId)
+          .toList();
+      if (mine.isEmpty) return;
 
       final List<String> acked =
           await store.acknowledgedVerifyIds(childId: childId);
       final Set<String> ackedSet = acked.toSet();
       final List<RedemptionRequest> news =
-          verified.where((RedemptionRequest r) => !ackedSet.contains(r.id)).toList();
+          mine.where((RedemptionRequest r) => !ackedSet.contains(r.id)).toList();
       if (news.isEmpty) return;
 
       final List<RewardTemplate> tpls = await repo.templates();
@@ -303,32 +312,137 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
           news.fold(0, (int s, RedemptionRequest r) => s + r.cost);
       await showDialog<void>(
         context: context,
-        builder: (BuildContext ctx) => AlertDialog(
-          title: const Text('🎉 家长已确认你的兑换'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              for (final RedemptionRequest r in news)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(
-                    '· ${names[r.templateId] ?? '奖励'}  -${r.cost} 阳光',
-                  ),
+        builder: (BuildContext ctx) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF9EC), // 米色卡底（与 App 奶油风同源）
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x2E000000),
+                  blurRadius: 28,
+                  offset: Offset(0, 10),
                 ),
-              const SizedBox(height: 4),
-              Text(
-                '共扣除 $total 阳光',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          actions: <Widget>[
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('知道啦'),
+              ],
             ),
-          ],
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  // 卡头庆祝元素：金色圆形奖杯徽 + 标题。
+                  Center(
+                    child: Column(
+                      children: <Widget>[
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFF6C445), // 阳光金
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.emoji_events,
+                              color: Colors.white, size: 30),
+                        ),
+                        const SizedBox(height: 10),
+                        // 标题文案保持字面不变（nav_structure_test 钉死）。
+                        const Text(
+                          '🎉 家长已确认你的兑换',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF8D6E00),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  // 奖励条目：图标块 + 名称 + 金色阳光数字 + 细分隔线。
+                  for (int i = 0; i < news.length; i++) ...<Widget>[
+                    if (i > 0)
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: Colors.brown.withValues(alpha: 0.10),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      child: Row(
+                        children: <Widget>[
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF1C2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.redeem,
+                                size: 20, color: Color(0xFFD98F00)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              names[news[i].templateId] ?? '奖励',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '-${news[i].cost} 阳光',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFD98F00), // 阳光金强调
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Colors.brown.withValues(alpha: 0.10),
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Text(
+                      '共扣除 $total 阳光',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFF6C445),
+                      foregroundColor: const Color(0xFF5D4200),
+                      minimumSize: const Size(0, 48),
+                      textStyle: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('知道啦'),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       );
 
@@ -346,6 +460,8 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   ///
   /// 判定口径：`rejectedRequests()` 中 id 不在 shared_preferences 已读列表里的申请。
   /// C90 期 2：已读列表按当前孩子分键（历史全局键不迁移）。
+  /// 🔴 C91 二轮：与 [_checkVerifiedNotices] 同款第二层跨孩子防线
+  ///（「待展示列表」与「已读快照键」同属本次检查捕获的 childId）。
   /// 任何异常都不阻塞首页（通知属增强能力）。
   Future<void> _checkRejectedNotices() async {
     try {
@@ -354,13 +470,17 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
       final String childId = _currentChildId();
 
       final List<RedemptionRequest> rejected = await repo.rejectedRequests();
-      if (rejected.isEmpty) return;
+      // 🔴 C91 二轮：第二层跨孩子防线 —— 只认本次检查所属孩子的行。
+      final List<RedemptionRequest> mine = rejected
+          .where((RedemptionRequest r) => r.childId == childId)
+          .toList();
+      if (mine.isEmpty) return;
 
       final List<String> acked =
           await store.acknowledgedRejectIds(childId: childId);
       final Set<String> ackedSet = acked.toSet();
       final List<RedemptionRequest> news =
-          rejected.where((RedemptionRequest r) => !ackedSet.contains(r.id)).toList();
+          mine.where((RedemptionRequest r) => !ackedSet.contains(r.id)).toList();
       if (news.isEmpty) return;
 
       final List<RewardTemplate> tpls = await repo.templates();

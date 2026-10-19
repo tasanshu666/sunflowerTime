@@ -190,7 +190,7 @@ void main() {
     test('schemaVersion 必须为最新 24（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openV22(seedSqls: const <String>[]);
       addTearDown(database.close);
-      expect(database.schemaVersion, 28);
+      expect(database.schemaVersion, 29);
     });
 
     test('成长任务同名重复行 → 删除 + 打卡历史重定向到内置 id', () async {
@@ -275,7 +275,7 @@ void main() {
     test('幂等：v23 库二次打开不报错、数据稳定', () async {
       final db.AppDatabase database = await _openV22();
       await database.customSelect('SELECT 1').get(); // 二次访问触发 schema 校验
-      expect(database.schemaVersion, 28);
+      expect(database.schemaVersion, 29);
       expect(await _taskRows(database), hasLength(9));
       expect(await _rewardRows(database), hasLength(6));
       await database.close();

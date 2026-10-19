@@ -296,11 +296,13 @@ void main() {
       expect(income, closeTo(33.8, 0.05), reason: 'PRD §1.4 (b) 12 盆最坏 ≈ 33.8');
 
       // 「单次一律 ±1」的增量约束（P1）：五条微收入单次加成**恒为 1**（不得调大）。
+      // 🔴 C91 修订（玄参 2026-10-19 拍板）：绽放（开花即时）与晨露两条例外调档
+      // +1 → **+2**；其余三条（除草 / 除虫 / 护眼）仍恒为 1。
       final PlantPerk full = perkOfLevel(40);
       expect(full.weedBonus, 1);
       expect(full.pestBonus, 1);
-      expect(full.bloomInstantBonus, 1);
-      expect(full.dewBonus, 1);
+      expect(full.bloomInstantBonus, 2);
+      expect(full.dewBonus, 2);
       expect(full.eyeCareBonus, 1);
     });
 

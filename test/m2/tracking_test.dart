@@ -95,7 +95,6 @@ void main() {
             'cost_sun': 20,
             'category': 'parentHandled',
             'tier': 'low',
-            'is_auto_pass': true,
           },
         ),
         TrackingEventNames.rewardVerified: TrackingEvent(
@@ -109,7 +108,6 @@ void main() {
             'within_48h': true,
             'amount': 20,
             'tier': 'low',
-            'is_small': true,
           },
         ),
         TrackingEventNames.rewardQueue: TrackingEvent(
@@ -175,13 +173,13 @@ void main() {
       final e = events[TrackingEventNames.rewardRedeemRequest]!;
       expect(e.name, 'reward_redeem_request');
       expect(e.payload.keys.toSet(),
-          {'reward_id', 'cost_sun', 'category', 'tier', 'is_auto_pass'});
+          {'reward_id', 'cost_sun', 'category', 'tier'});
     });
     test('reward_verified', () {
       final e = events[TrackingEventNames.rewardVerified]!;
       expect(e.name, 'reward_verified');
       expect(e.payload.keys.toSet(),
-          {'request_id', 'verify_ts', 'within_48h', 'amount', 'tier', 'is_small'});
+          {'request_id', 'verify_ts', 'within_48h', 'amount', 'tier'});
     });
     test('reward_queue', () {
       final e = events[TrackingEventNames.rewardQueue]!;

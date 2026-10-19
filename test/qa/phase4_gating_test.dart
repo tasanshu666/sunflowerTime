@@ -21,7 +21,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/di/providers.dart';
-import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -197,13 +196,8 @@ class _StaticWeeklyPoolService extends WeeklyPoolService {
   @override
   Future<WeeklyPool> pool(String weekKey) async =>
       WeeklyPool(weekKey: weekKey, budget: 160);
-
-  @override
-  int autoApproveCap(WeeklyPool pool, AgeTier tier) => 50;
-
-  @override
-  Future<WeeklyPool> updateBudget(DateTime now, int budget) async =>
-      WeeklyPool(weekKey: weekKey(now), budget: budget);
+  // C90-C 同日二次修订：`updateBudget` 已随「本周预算调整」控件删除一并移除，
+  // 原 Fake 覆写不再需要。
 }
 
 /// `TrackingRepository` 空壳（仅满足构造签名，方法不被调用）。

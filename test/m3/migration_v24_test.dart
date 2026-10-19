@@ -179,7 +179,7 @@ void main() {
       final db.AppDatabase database =
           await _openV23(seedSqls: const <String>[]);
       addTearDown(database.close);
-      expect(database.schemaVersion, 28);
+      expect(database.schemaVersion, 29);
     });
 
     test('真机态（3 任务 + 4 奖励）→ 补齐为 9 + 6，且补入行字段值正确', () async {
@@ -267,7 +267,7 @@ void main() {
     test('幂等：v24 库二次打开不报错、数据稳定', () async {
       final db.AppDatabase database = await _openV23();
       await database.customSelect('SELECT 1').get(); // 二次访问触发 schema 校验
-      expect(database.schemaVersion, 28);
+      expect(database.schemaVersion, 29);
       expect(await _tasks(database), hasLength(9));
       expect(await _rewards(database), hasLength(6));
       await database.close();
@@ -299,7 +299,7 @@ void main() {
       await database.customSelect('SELECT 1').get();
       addTearDown(database.close);
 
-      expect(database.schemaVersion, 28);
+      expect(database.schemaVersion, 29);
       expect(await _tasks(database), hasLength(9));
       expect(await _rewards(database), hasLength(6));
     });

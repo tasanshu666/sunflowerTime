@@ -143,16 +143,16 @@ void main() {
     await tester.pumpAndSettle();
 
     // 三档文案（拍板口径）逐字在屏；每档都在同一尺寸（48 高）的固定卡片里。
-    expect(find.text('低年级 · 小于 8 岁'), findsOneWidget);
-    expect(find.text('中年级 · 8–12 岁'), findsOneWidget);
-    expect(find.text('高年级 · 大于 12 岁'), findsOneWidget);
+    expect(find.text('低年级 · 8 岁及以下'), findsOneWidget);
+    expect(find.text('中年级 · 9–12 岁'), findsOneWidget);
+    expect(find.text('高年级 · 13 岁及以上'), findsOneWidget);
     final Finder card48 = find.byWidgetPredicate(
       (Widget w) => w is SizedBox && w.height == 48,
     );
     for (final String label in <String>[
-      '低年级 · 小于 8 岁',
-      '中年级 · 8–12 岁',
-      '高年级 · 大于 12 岁',
+      '低年级 · 8 岁及以下',
+      '中年级 · 9–12 岁',
+      '高年级 · 13 岁及以上',
     ]) {
       expect(
         find.ancestor(of: find.text(label), matching: card48),
@@ -161,7 +161,7 @@ void main() {
       );
     }
     final List<Size> sizes = <Size>[
-      for (final String label in <String>['低年级 · 小于 8 岁', '中年级 · 8–12 岁', '高年级 · 大于 12 岁'])
+      for (final String label in <String>['低年级 · 8 岁及以下', '中年级 · 9–12 岁', '高年级 · 13 岁及以上'])
         tester.getSize(find.ancestor(
           of: find.text(label),
           matching: card48,
@@ -171,7 +171,7 @@ void main() {
     expect(sizes[1].width, sizes[2].width, reason: '同宽（纵向并列）');
 
     // 选中第 2 档 → 选中态迁移（勾标恰 1 枚 = 单选）。
-    await tester.tap(find.text('中年级 · 8–12 岁'));
+    await tester.tap(find.text('中年级 · 9–12 岁'));
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.check), findsOneWidget, reason: '选中卡片带勾');
   });

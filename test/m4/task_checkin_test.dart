@@ -628,7 +628,7 @@ void main() {
       expect(await ctx.ledger.earnGrossOnDay(dayKey(day)), 24);
     });
 
-    test('当日已发成长奖励 55：再核销 12 全额发放（55+12=67 < 79）', () async {
+    test('当日已发成长奖励 55：再核销 12 全额发放（55+12=67 < 日上限）', () async {
       final ctx = _make();
       ctx.ledger.seedCheckInNet(dayKey(day), 55, day);
       final Task t = _task(id: 't1');
@@ -637,7 +637,8 @@ void main() {
 
       final TaskCheckInOutcome out = await ctx.svc.verifyCheckIn(id, day);
 
-      // 2026-09-23 口径：成长奖励日上限 79，额度内 1:1 全额发放，不再按分段打薄。
+      // 2026-09-23 口径：成长奖励日上限 = `kTaskCheckinDailyCap`（C94 起为 80），
+      // 额度内 1:1 全额发放，不再按分段打薄。
       expect(out.reward, 12);
       expect(out.granted, closeTo(12, 1e-9));
       expect(out.cappedByDailyCap, isFalse);
@@ -649,9 +650,11 @@ void main() {
       expect(await ctx.ledger.balance(), closeTo(67, 1e-9));
     });
 
-    test('当日已发成长奖励 75：核销 12 只补 4（撞 79 上限，capped=true）', () async {
+    test('当日已发成长奖励 = 上限 − 4：核销 12 只补 4（撞日上限，capped=true）', () async {
       final ctx = _make();
-      ctx.ledger.seedCheckInNet(dayKey(day), 75, day);
+      // 只留 4 格额度；预置量用常量算式表达，随 `kTaskCheckinDailyCap` 一起漂移。
+      const double alreadyGranted = kTaskCheckinDailyCap - 4;
+      ctx.ledger.seedCheckInNet(dayKey(day), alreadyGranted, day);
       final Task t = _task(id: 't1');
       await ctx.svc.checkIn(task: t, now: day);
       final String id = ctx.tasks.checkIns.single.id;
@@ -659,12 +662,12 @@ void main() {
       final TaskCheckInOutcome out = await ctx.svc.verifyCheckIn(id, day);
 
       expect(out.reward, 12);
-      expect(out.granted, closeTo(4, 1e-9));
+      expect(out.granted, closeTo(kTaskCheckinDailyCap - alreadyGranted, 1e-9));
       expect(out.cappedByDailyCap, isTrue);
-      expect(await ctx.ledger.balance(), closeTo(79, 1e-9));
+      expect(await ctx.ledger.balance(), closeTo(kTaskCheckinDailyCap, 1e-9));
     });
 
-    test('当日成长奖励已触顶（79）：核销 granted=0、capped=true，账本仍新增 gross=12/net=0',
+    test('当日成长奖励已触顶（kTaskCheckinDailyCap）：核销 granted=0、capped=true，账本仍新增 gross=12/net=0',
         () async {
       final ctx = _make();
       ctx.ledger.seedCheckInNet(dayKey(day), kTaskCheckinDailyCap, day);
@@ -684,7 +687,56 @@ void main() {
       expect(e.type, SunlightType.earn);
       expect(e.gross, 12);
       expect(e.net, 0);
-      expect(await ctx.ledger.balance(), closeTo(79.0, 1e-9));
+      expect(await ctx.ledger.balance(), closeTo(kTaskCheckinDailyCap, 1e-9));
+    });
+
+    // 边界 ①（C94，2026-10-19：日上限 **79 → 80**）：只差 1 格额度时核销 12 阳光的任务，
+    // 实发必须是 **1** —— 既不能是 0（还有额度没发出去），也不能是 12（上限被绕过）。
+    // ⚠️ 所有数值一律用 `kTaskCheckinDailyCap` 算式表达，禁止硬编码 79/80/1：
+    // 否则下次再调常量时本用例会静默失真（C94 就是把 79 硬编码在用例里才需要返工）。
+    test('边界 ①：当日已发 kTaskCheckinDailyCap - 1 → 核销 12 只补 1（差一格撞上限）',
+        () async {
+      final ctx = _make();
+      const double alreadyGranted = kTaskCheckinDailyCap - 1;
+      ctx.ledger.seedCheckInNet(dayKey(day), alreadyGranted, day);
+      final Task t = _task(id: 't1'); // 奖励 12 阳光
+      await ctx.svc.checkIn(task: t, now: day);
+      final String id = ctx.tasks.checkIns.single.id;
+
+      final TaskCheckInOutcome out = await ctx.svc.verifyCheckIn(id, day);
+
+      expect(out.reward, 12);
+      expect(out.granted, closeTo(kTaskCheckinDailyCap - alreadyGranted, 1e-9),
+          reason: '只剩 1 格额度 → 只补 1');
+      expect(out.granted, greaterThan(0), reason: '还有额度，不能发 0');
+      expect(out.cappedByDailyCap, isTrue);
+      expect(await ctx.ledger.balance(), closeTo(kTaskCheckinDailyCap, 1e-9),
+          reason: '补完差额后当日打卡净额恰好落满上限');
+    });
+
+    // 边界 ②（C94）：额度已发满时核销 12 阳光的任务 → 实发 **0**（不是 12）。
+    // 同一套常量算式表达，见边界 ① 的说明。
+    test('边界 ②：当日已发 kTaskCheckinDailyCap → 核销 12 实发 0（额度用尽）', () async {
+      final ctx = _make();
+      const double alreadyGranted = kTaskCheckinDailyCap;
+      ctx.ledger.seedCheckInNet(dayKey(day), alreadyGranted, day);
+      final Task t = _task(id: 't1'); // 奖励 12 阳光
+      await ctx.svc.checkIn(task: t, now: day);
+      final String id = ctx.tasks.checkIns.single.id;
+
+      final TaskCheckInOutcome out = await ctx.svc.verifyCheckIn(id, day);
+
+      expect(out.reward, 12);
+      expect(out.granted, closeTo(kTaskCheckinDailyCap - alreadyGranted, 1e-9),
+          reason: '额度已满 → 实发 0');
+      expect(out.granted, lessThan(out.reward), reason: '绝不允许照发 12');
+      expect(out.cappedByDailyCap, isTrue);
+      expect(
+        await ctx.ledger
+            .netByRefTypeOnDay(TaskCheckInService.checkInRefType, dayKey(day)),
+        closeTo(kTaskCheckinDailyCap, 1e-9),
+        reason: '当日打卡净额不得突破上限',
+      );
     });
 
     // 回归（2026-09-23 解耦）：这正是本次修掉的 bug ——
@@ -1168,7 +1220,8 @@ void main() {
   group('修复 8（P0 补充）：写路径串行化闸门（额度并发绕过 / 连点双打卡）', () {
     test('两条不同记录并发核销：当日成长奖励净额不突破 kTaskCheckinDailyCap', () async {
       final ctx = _make();
-      // 预置「已发成长奖励」70：只剩 9 额度，两条各 12 的核销必然互相抢额度。
+      // 预置「已发成长奖励」70：只剩「上限 − 70」额度（C94 上限 80 → 剩 10），
+      // 两条各 12 的核销必然互相抢额度（下面的断言一律用 `kTaskCheckinDailyCap - 70` 算）。
       ctx.ledger.seedCheckInNet(dayKey(day), 70, day);
       final Task t1 = _task(id: 't1');
       final Task t2 = _task(id: 't2');
@@ -1190,7 +1243,7 @@ void main() {
       // 关键不变式：并发核销绝不能把当日成长奖励总额顶穿上限。
       expect(net, lessThanOrEqualTo(kTaskCheckinDailyCap + 1e-9),
           reason: '上限被突破：net=$net > cap=$kTaskCheckinDailyCap');
-      // 串行化后恰好落满 79（第二条只补 9，余下 3 不发）。
+      // 串行化后恰好落满上限（第二条只补「上限 − 70 − 12」的余数，超出的不发）。
       expect(net, closeTo(kTaskCheckinDailyCap, 1e-9));
       final double grantedSum =
           outs.fold(0.0, (double a, TaskCheckInOutcome o) => a + o.granted);

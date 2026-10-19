@@ -625,20 +625,42 @@ class _StatCard extends StatelessWidget {
                         style: const TextStyle(
                             fontSize: 13, color: Color(0xFF8A7A66))),
                     const SizedBox(height: 2),
+                    // 🔴 F127（2026-10-20）：本行**必须**保持可收缩 —— 此前两个
+                    // `Text` 都是「不可压缩」子项，父级 `Row` 在
+                    // 320×568 + `textScaler: 1.3` 下装不下就整体溢出
+                    // （`A RenderFlex overflowed by 14 pixels on the right.`：
+                    //  `今日专注` 卡的值 119.6 + 间距 6 + 单位 84.5 = 210.1 > 可用 198）。
+                    // 修法：两个 `Text` 各自套 `Flexible`（默认 flex 1 / loose）+
+                    // 单行省略 —— 空间不够时**收缩**，而不是撑破父级。
+                    // ⚠️ 刻意**不**用 `FittedBox` / `AutoSizeText` / 压 `fontSize`：
+                    // 大字号是用户的**无障碍设置**，压字等于对抗用户选择；这里只做
+                    // 结构性收敛。等分（1:1）而非按比例倾斜，是为了让「宽屏 / 常规字号」
+                    // 下两者都拿得到自然宽度（`Flexible` 是 loose：装得下就用自然宽度），
+                    // 零像素回归。
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.baseline,
                       textBaseline: TextBaseline.alphabetic,
                       children: <Widget>[
-                        Text(
-                          value,
-                          style: const TextStyle(
-                              fontSize: 23, fontWeight: FontWeight.bold),
+                        Flexible(
+                          child: Text(
+                            value,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 23, fontWeight: FontWeight.bold),
+                          ),
                         ),
                         if (unit.isNotEmpty) ...<Widget>[
                           const SizedBox(width: 6),
-                          Text(unit,
+                          Flexible(
+                            child: Text(
+                              unit,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                  fontSize: 13, color: Color(0xFF8A7A66))),
+                                  fontSize: 13, color: Color(0xFF8A7A66)),
+                            ),
+                          ),
                         ],
                       ],
                     ),

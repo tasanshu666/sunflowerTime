@@ -21,6 +21,8 @@ import 'package:sunflower_time/presentation/parent/widgets/pool_indicator.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
+// F130：平板 UI 倍率（文字之外的定尺寸元素一律乘 `uiScaleOf(context)`）。
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 「奖励」页：每周阳光池指示（含预算设定）+ 可编辑模板列表。
 class ParentRewardPage extends ConsumerStatefulWidget {
@@ -120,6 +122,14 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
 
   @override
   Widget build(BuildContext context) {
+    // F130（2026-10-19 玄参 iPad Pro 13″ 实测截图）：平板 UI 放大倍率
+    //（手机 1.0 / iPad 11″ 1.3 / iPad 13″ 1.6）。
+    //
+    // 为什么在 build 顶部取一次：`responsive.dart` 铁律——文字走 textScaler 自动
+    // 放大，**文字之外的定尺寸元素（图标 / 方块 / 圆角 / 间距）必须自己乘
+    // `uiScaleOf`**。此前本页价格胶囊里的阳光图标写死 16pt，1.6 倍下数字放大到
+    // 22.4pt 而图标仍是 16pt → 真机截图「图标明显偏小」。
+    final double s = uiScaleOf(context);
     // 阶段 4 门控：新增奖励受 `rewardTemplateCount` 配额约束（免费 5 条）。
     // 🔴 C69：只拦「新增」，编辑 / 删除照常（存量超额可编辑 / 可删、不能新增）。
     final EntitlementTier tier = ref.watch(entitlementProvider).tier;
@@ -209,24 +219,27 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                   weeklyRedeemLabel(t.frequencyLimitPerWeek, _weeklyUsed[t.id] ?? 0);
               return Container(
                 decoration: creamCardDecoration(),
-                padding: const EdgeInsets.all(14),
+                // F130：卡片内边距 / 图标块 / 间距一律乘 `s` —— 1.6 倍下文字已放大，
+                // 图标块若仍 56pt 就成了「字大图标小」；手机 s=1.0 逐位不变（零回归）。
+                padding: EdgeInsets.all(14 * s),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
                     // C48（玄参 2026-10-10）：图标与孩子端商店同款 UI 素材
                     // （按奖励名关键词映射，见 growth_icons），失败回退马卡龙色块 + emoji。
                     Container(
-                      width: 56,
-                      height: 56,
+                      width: 56 * s,
+                      height: 56 * s,
                       decoration: BoxDecoration(
                         color: macaronColorById(t.id).bg,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(14 * s),
                       ),
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(14 * s),
                         child: Image.asset(
                           rewardIconAssetFor(t),
                           fit: BoxFit.cover,
+                          // F130：emoji 回退只跟随 textScaler（字号不动），不乘 s。
                           errorBuilder: (_, __, ___) => Center(
                             child: Text(t.contentCategory.icon,
                                 style: const TextStyle(fontSize: 28)),
@@ -234,7 +247,7 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12 * s),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -246,7 +259,7 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                                 .titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
-                          const SizedBox(height: 6),
+                          SizedBox(height: 6 * s),
                           Wrap(
                             spacing: 6,
                             runSpacing: 4,
@@ -275,40 +288,46 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: <Widget>[
+                        // F130（玄参 iPad 13″ 实测截图）：价格胶囊里的阳光图标
+                        // **明显偏小** —— 数字经 textScaler 放大到 22.4pt，图标却仍
+                        // 写死 16pt。此处把「内边距 / 圆角 / 间距 / 图标」全部乘 `s`，
+                        // 与文字同源等比（手机 s=1.0 逐位不变）。
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 12 * s, vertical: 6 * s),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFFF1C2),
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(20 * s),
                           ),
                           // C48：「N 阳光」→ 数字 + 阳光 UI 图标（与孩子端同款）。
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: <Widget>[
+                              // 字号不动（走 textScaler，大字号是无障碍需求）。
                               Text(
                                 '${t.baseCost}',
+                                maxLines: 1,
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFF8D6E00),
                                 ),
                               ),
-                              const SizedBox(width: 4),
+                              SizedBox(width: 4 * s),
                               Image.asset(
                                 'assets/rewards/sunlight.png',
-                                width: 16,
-                                height: 16,
+                                width: 16 * s,
+                                height: 16 * s,
                                 fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Icon(
+                                errorBuilder: (_, __, ___) => Icon(
                                     Icons.wb_sunny,
-                                    color: Color(0xFFE8A600),
-                                    size: 16),
+                                    color: const Color(0xFFE8A600),
+                                    size: 16 * s),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8 * s),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[

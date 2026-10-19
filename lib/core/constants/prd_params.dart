@@ -75,8 +75,12 @@ const int kMonthlyPoolMax = 1200;
 ///     （见 [kDailyFocusCapLow] / [kDailyFocusCapMid] / [kDailyFocusCapHigh]）；
 ///   · 成长奖励侧改为**按自身当日累计净额**直接封顶本值，与专注、家长赠予互不影响。
 ///
-/// 取值沿用原软顶硬顶 79，保持奖励力度连续（不改数值，只改作用范围）。
-const double kTaskCheckinDailyCap = 79;
+/// 取值沿用原软顶硬顶 79，保持奖励力度连续（不改数值，只改作用范围）；
+/// 现已在该上限基础上**取整为 80**（见下条 2026-10-19 拍板），故实际生效值为 80。
+///
+/// **2026-10-19 玄参拍板 79 → 80**：取整、不分阶段；仅调数值，封顶规则与作用范围不变
+/// （仍只读 `task_checkin` 自身当日净额，仍与专注额度 / 家长赠予互不挤占）。
+const double kTaskCheckinDailyCap = 80;
 
 /// 有效专注成长速度系数（PRD §4.6 H2：当日有效专注 ≥15min → ×1.3，否则 ×1.0）
 const double kGrowthFactorFocused = 1.3;
@@ -1104,7 +1108,8 @@ const double kGardenGridMaxWidth = 620;
 /// 两侧用导航栏同色补满，保持「通栏底栏」视觉，避免被拉散）。
 const double kNavBarMaxWidth = 600;
 
-/// 平板 **UI 放大倍率**（C65，2026-10-13 玄参 iPad 实测拍板）。
+/// 平板 **基准 UI 放大倍率**（C65，2026-10-13 玄参 iPad 实测拍板；
+/// **F129 起语义改为「锚点屏上的取值」，不再是所有平板的固定值**）。
 ///
 /// ## 为什么需要
 /// 平板逻辑宽 834 是手机 402 的 2.07 倍、逻辑高 1210 是 874 的 1.38 倍 —— 字号却仍是
@@ -1115,9 +1120,20 @@ const double kNavBarMaxWidth = 600;
 /// 与上一轮「盆栽放大 480 → 620」（**1.29×**）同比例 → 取 **1.3**，文字与图形同比，
 /// 不会出现「花盆变大了字还那么小」的错位。
 ///
-/// ## 消费路径（**两条都必须用本常量**，防孪生）
-///  ① **文字** → `responsive.tabletTextScaler()` 注入 `MediaQuery.textScaler`
-///     （全局生效，见 `app.dart` 的 `MaterialApp.router(builder:)`）；
+/// ## F129（大尺寸平板上字号仍偏小）：本常量降级为**基准值**
+/// 玄参 iPad Pro 13″（1032×1376）实测「字体和内容都很小」，而**同一份代码**在
+/// iPad Pro 11″（834×1194）上正常。根因：原先平板倍率是**固定常量 1.3**，只按
+/// `shortestSide >= 600` 二分，与设备实际尺寸无关 → 两台 iPad 拿到相同的**绝对**字号，
+/// 13″ 物理屏更大，视觉上就偏小。玄参要求「任何尺寸的平板都自动按比例放大，不能换一台
+/// 平板就重新配置一次」。
+///
+/// 现语义：本常量 = **锚点屏 [kTabletUiScaleBaseShortestSide] 上的倍率**；
+/// 更大屏由 `responsive.tabletUiScaleFor(shortestSide)` 按短边比例上调（钳到
+/// [kTabletTextScaleMax]）—— **只放不缩**，故 iPad 11″ 及更小的平板逐位零回归。
+///
+/// ## 消费路径（**两条都必须走 `responsive.dart` 的派生函数**，防孪生）
+///  ① **文字** → `responsive.tabletTextScaler(device, shortestSide:)` 注入
+///     `MediaQuery.textScaler`（全局生效，见 `app.dart` 的 `MaterialApp.router(builder:)`）；
 ///  ② **素材图形**（图片/徽标等文字之外的定尺寸元素）→ `responsive.uiScaleOf(context)`
 ///     乘在各自的 width/height 上（文字会自动缩放，图片不会）。
 ///
@@ -1127,9 +1143,23 @@ const double kNavBarMaxWidth = 600;
 /// `kGardenPotFooterHeight`（花盆标签胶囊底栏）与 `BloomRewardIcon`（产物徽标）。
 const double kTabletUiScale = 1.3;
 
-/// 平板文字缩放**总倍率上限**（设备自带缩放 × [kTabletUiScale] 后钳制）。
+/// 平板 UI 放大倍率的**锚点屏短边**：iPad Pro 11″ 竖屏 = 834pt（F129）。
 ///
-/// 系统「超大字体」用户（iOS 最大 ≈1.35×）× 1.3 = 1.76 → 截到 1.6 防止极端撑破布局。
+/// 该尺寸下放大倍率恰为 [kTabletUiScale]（1.3，**iPad 11″ 零回归**）；
+/// 更大屏按 `shortestSide / 本值` 等比上调，上限 [kTabletTextScaleMax]。
+///
+/// 为什么锚 iPad 11″ 而不是「荣耀平板 9 的 800」：玄参实机验证「11″ 上 1.3 倍正常」，
+/// 把 1.3 钉在**已被确认正确**的那块屏上，其余尺寸向它对齐才不会有回归风险
+/// （800 视口靠「只放不缩」的 `max(1.3, …)` 兜底，仍得 1.3）。
+const double kTabletUiScaleBaseShortestSide = 834;
+
+/// 平板放大倍率**上限**（F129 起同时是「文字总倍率上限」）。
+///
+/// 双重含义，两处都钳到本值：
+///  · 尺寸放大：`tabletUiScaleFor()` 随短边线性上调后截到这里 → iPad 13″（1032）
+///    算得 1.609 被截成 **1.6**（+23% 相对 1.3，玄参可感知但不撑破布局）；
+///  · 文字总倍率：设备自带缩放（iOS 超大字体 ≈1.35×）× 倍率后截到这里，
+///    否则 1.35 × 1.3 = 1.755 会把既有布局撑破。
 const double kTabletTextScaleMax = 1.6;
 
 // ───────────────────────────────────────────────────────────────────────────

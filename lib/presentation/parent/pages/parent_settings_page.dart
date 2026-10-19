@@ -408,7 +408,13 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
         // 🐞 C85 · Debug 专用区：真机预览付费内容（月 / 年报告、热力图、深度报告）。
         // `kDebugMode` 为编译期常量 → release 构建里整段被 tree-shake，
         // 且本分支内的 widget / 文案在 release 包中**完全不存在**（不可见、不可触达）。
-        if (kDebugMode) ...<Widget>[
+        // 🔴 2026-10-19（C95）：截商店图时调试区会入镜 → 显示条件统一走
+        // `shouldShowDebugUi`，截图构建（`--dart-define=HIDE_DEBUG_UI=true`）可隐藏；
+        // release 恒不显示（debugMode == false → 判据 false），安全性不变。
+        if (shouldShowDebugUi(
+          debugMode: kDebugMode,
+          hideForScreenshots: kHideDebugUi,
+        )) ...<Widget>[
           const SizedBox(height: 12),
           const _SectionTitle('调试（仅 Debug 构建）'),
           const DebugUnlockSwitch(),

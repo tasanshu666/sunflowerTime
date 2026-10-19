@@ -42,6 +42,23 @@ class SettingsStore {
   }) async =>
       _sp.setStringList(ackedRejectIdsKey(childId), ids);
 
+  /// 孩子端已展示过的「家长审批成长任务」打卡 id（F126 补缺口；默认空，
+  /// 按 [childId] 分键）。
+  ///
+  /// 与 [acknowledgedVerifyIds] **刻意分开**：装的是不同实体（打卡 id vs 兑换
+  /// 申请 id），去重必须互不干扰。方向同 C90 期 2：历史全局键不迁移。
+  Future<List<String>> acknowledgedTaskCheckInIds({
+    required String childId,
+  }) async =>
+      _sp.getStringList(ackedTaskCheckInIdsKey(childId)) ?? <String>[];
+
+  /// 覆写「家长审批成长任务」已读打卡 id 列表（按 [childId] 分键）。
+  Future<void> setAcknowledgedTaskCheckInIds(
+    List<String> ids, {
+    required String childId,
+  }) async =>
+      _sp.setStringList(ackedTaskCheckInIdsKey(childId), ids);
+
   // ── P0 · A App 总使用时长（§6.1）：日键 + 当日累计秒 ──────────────────
 
   /// App 当日累计时长所属自然日 key（yyyy-MM-dd；无记录返回 null）。

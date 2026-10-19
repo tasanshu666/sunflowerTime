@@ -237,15 +237,22 @@ void main() {
     expect(page.existsSync(), isTrue, reason: '设置页源码缺失，守卫失效');
 
     final String src = page.readAsStringSync();
-    expect(src.contains('if (kDebugMode)'), isTrue,
-        reason: '调试区必须包在 `if (kDebugMode)` 内（release 整段 tree-shake）');
+    // 🔴 2026-10-19（C95）：守卫从内联 `if (kDebugMode)` 统一为
+    // `if (shouldShowDebugUi(debugMode: kDebugMode, hideForScreenshots: kHideDebugUi))`
+    // —— 截图构建可额外隐藏调试区。两条断言仍钉住「必须传 kDebugMode」，
+    // 有人把 debugMode 写死成 true 时本用例同样会红。
+    const String guard = 'if (shouldShowDebugUi(';
+    expect(src.contains(guard), isTrue,
+        reason: '调试区必须包在调试守卫内（release 整段 tree-shake）');
+    expect(src.contains('debugMode: kDebugMode'), isTrue,
+        reason: '守卫必须真的传 kDebugMode，否则 release 也会渲染调试区');
     expect(src.contains('DebugUnlockSwitch'), isTrue,
         reason: '设置页必须真的挂载调试开关（否则上面那条断言形同虚设）');
-    // 弱但有效的顺序证据：`kDebugMode` 出现在 `DebugUnlockSwitch()` **之前**。
+    // 弱但有效的顺序证据：守卫出现在 `DebugUnlockSwitch()` **之前**。
     expect(
-      src.indexOf('if (kDebugMode)') < src.indexOf('DebugUnlockSwitch()'),
+      src.indexOf(guard) < src.indexOf('DebugUnlockSwitch()'),
       isTrue,
-      reason: '`DebugUnlockSwitch` 必须出现在 `kDebugMode` 分支**内部**',
+      reason: '`DebugUnlockSwitch` 必须出现在调试守卫分支**内部**',
     );
   });
 }

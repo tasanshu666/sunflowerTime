@@ -14,6 +14,8 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
+// F130：平板 UI 倍率（文字之外的定尺寸元素一律乘 `uiScaleOf(context)`）。
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// refType → 中文来源文案（单点收口，避免 UI 层散落字面量）。
 ///
@@ -146,13 +148,19 @@ class _BalanceBanner extends StatelessWidget {
         child: Row(
           children: <Widget>[
             // 阳光美术图（2026-10-06 玄参交付；缺失/失败回退内置图标）。
+            // F130（QA 二轮）：图标尺寸 **24 → 24×倍率** —— 同卡的文案已走
+            // textScaler（1.6 倍下「当前拥有阳光」放大到 ≈22pt），图标却写死 24pt，
+            // 就是「字大图标不动」的同款病。⚠️ 只改图标尺寸：卡片 padding / 圆角
+            // 属另一类改动（无报障、无测试），本轮不动。
             Image.asset(
               'assets/rewards/sunlight.png',
-              width: 24,
-              height: 24,
+              width: 24 * uiScaleOf(context),
+              height: 24 * uiScaleOf(context),
               fit: BoxFit.contain,
               errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
-                  const Icon(Icons.wb_sunny, color: Color(0xFFE8A600)),
+                  Icon(Icons.wb_sunny,
+                      color: const Color(0xFFE8A600),
+                      size: 24 * uiScaleOf(context)),
             ),
             const SizedBox(width: 10),
             const Expanded(

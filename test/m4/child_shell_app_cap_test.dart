@@ -355,18 +355,25 @@ void main() {
     testWidgets('C 清理回归：调试入口必须受 kDebugMode 约束（release 自动隐藏）',
         (WidgetTester tester) async {
       // ⚠️ widget 测试**恒在 debug 模式**下运行，无法直接断言「release 下不渲染」，
-      // 故改为**源码守卫**：断言「DEBUG 加1000阳光」入口确实被 `if (kDebugMode)`
-      // 包裹。一旦有人改成裸入口（release 也会渲染 → 提审事故），本用例立刻变红。
+      // 故改为**源码守卫**：断言「DEBUG 加1000阳光」入口确实被调试守卫包裹。
+      // 一旦有人改成裸入口（release 也会渲染 → 提审事故），本用例立刻变红。
       // 玄参 2026-09-24 要求把调试入口**加回**用于调试，故不再断言「查无 DEBUG」。
+      // 🔴 2026-10-19（F128）：守卫写法从内联 `if (kDebugMode)` 统一为单点判据
+      // `shouldShowDebugUi(debugMode: kDebugMode, hideForScreenshots: kHideDebugUi)`
+      // —— 截图构建可额外隐藏调试区。本守卫同步认新写法，但**仍然钉住
+      // 「必须传 kDebugMode」**：有人把 debugMode 写死成 true，本用例同样变红。
       final String src = File(
         'lib/presentation/child/pages/child_profile_page.dart',
       ).readAsStringSync();
       expect(src.contains("import 'package:flutter/foundation.dart';"), isTrue,
           reason: 'kDebugMode 来自 foundation.dart');
       expect(
-        RegExp(r'if \(kDebugMode\)[\s\S]{0,600}?DEBUG 加1000阳光').hasMatch(src),
+        RegExp(r'if \(shouldShowDebugUi\([\s\S]{0,200}?debugMode: kDebugMode'
+                r'[\s\S]{0,600}?DEBUG 加1000阳光')
+            .hasMatch(src),
         isTrue,
-        reason: '调试入口必须写在 if (kDebugMode) 块内，release 才不会渲染',
+        reason: '调试入口必须写在 shouldShowDebugUi(debugMode: kDebugMode, …) 块内，'
+            'release 才不会渲染',
       );
     });
 

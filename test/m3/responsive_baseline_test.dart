@@ -129,36 +129,82 @@ void main() {
     });
   });
 
-  group('C65 平板 UI 放大：文字缩放的注入与钳制', () {
-    test('常量锁定：倍率 1.3 / 总倍率上限 1.6', () {
-      expect(kTabletUiScale, 1.3, reason: 'C65 拍板值（与 C64 盆栽 1.29× 同比）');
-      expect(kTabletTextScaleMax, 1.6, reason: '防「iOS 超大字体 ×1.3」撑破布局');
+  group('C65 + F129 平板 UI 放大：倍率随屏短边派生 + 文字缩放注入与钳制', () {
+    test('常量锁定：基准倍率 1.3 / 锚点短边 834 / 总倍率上限 1.6', () {
+      expect(kTabletUiScale, 1.3, reason: 'F129 起为「锚点屏（iPad 11″）上的倍率」');
+      expect(kTabletUiScaleBaseShortestSide, 834, reason: 'iPad Pro 11″ 竖屏短边');
+      expect(kTabletTextScaleMax, 1.6, reason: '防「iOS 超大字体 × 倍率」撑破布局');
     });
 
-    test('设备默认字号 → 平板 1.3×', () {
-      expect(tabletTextScaler(TextScaler.noScaling).scale(1.0), kTabletUiScale);
+    test('⚠️ F129 真值表：倍率随短边线性上调，锚点零回归、上限钳制', () {
+      // (shortestSide, 期望倍率, 说明)
+      const List<(double, double, String)> table = <(double, double, String)>[
+        (390, 1.0, '手机 iPhone 17 → 恒 1.0（零回归红线）'),
+        (600, 1.3, '平板阈值边界 → 800/834 之前外推 < 1.3，由 max 兜底'),
+        (744, 1.3, 'iPad mini → 只放不缩，仍 1.3'),
+        (834, 1.3, 'iPad Pro 11″ → 锚点，逐位 1.3（**零回归**）'),
+        (1024, 1024 / 834 * 1.3, 'iPad Pro 12.9″ → 线性外推 ≈1.596'),
+        (1032, 1.6, '**iPad Pro 13″ → 外推 1.609 钳到 1.6**（本次修复目标）'),
+        (1200, 1.6, '理论大屏 → 上限 1.6'),
+      ];
+      for (final (double s, double want, String why) in table) {
+        expect(tabletUiScaleFor(s), closeTo(want, 1e-9), reason: '$s：$why');
+      }
+    });
+
+    test('⚠️ 单调不减 + 值域有界（任意尺寸都不得 < 1.3 或 > 1.6）', () {
+      double prev = 0;
+      for (double s = 600; s <= 2000; s += 8) {
+        final double v = tabletUiScaleFor(s);
+        expect(v, greaterThanOrEqualTo(kTabletUiScale));
+        expect(v, lessThanOrEqualTo(kTabletTextScaleMax));
+        expect(v, greaterThanOrEqualTo(prev), reason: '短边 $s：倍率必须单调不减');
+        prev = v;
+      }
+    });
+
+    test('设备默认字号 → 平板按尺寸 1.3 / 1.6', () {
+      expect(
+        tabletTextScaler(TextScaler.noScaling, shortestSide: 834).scale(1.0),
+        kTabletUiScale,
+      );
+      expect(
+        tabletTextScaler(TextScaler.noScaling, shortestSide: 1032).scale(1.0),
+        kTabletTextScaleMax,
+        reason: 'iPad 13″ + 设备默认字号必须得到 1.6',
+      );
     });
 
     test('⚠️ 与设备自带缩放**相乘**后再钳上限（不覆盖无障碍设置）', () {
-      // 1.2 × 1.3 = 1.56 < 1.6 → 原样保留用户的放大
+      // 锚点屏 834：1.2 × 1.3 = 1.56 < 1.6 → 原样保留用户的放大
       expect(
-        tabletTextScaler(const TextScaler.linear(1.2)).scale(1.0),
+        tabletTextScaler(const TextScaler.linear(1.2), shortestSide: 834)
+            .scale(1.0),
         closeTo(1.56, 1e-9),
       );
       // 1.3 × 1.3 = 1.69 → 钳到 1.6；1.35 × 1.3 = 1.755 → 同样钳到 1.6
       expect(
-        tabletTextScaler(const TextScaler.linear(1.3)).scale(1.0),
+        tabletTextScaler(const TextScaler.linear(1.3), shortestSide: 834)
+            .scale(1.0),
         kTabletTextScaleMax,
       );
       expect(
-        tabletTextScaler(const TextScaler.linear(1.35)).scale(1.0),
+        tabletTextScaler(const TextScaler.linear(1.35), shortestSide: 834)
+            .scale(1.0),
+        kTabletTextScaleMax,
+      );
+      // iPad 13″（倍率已 1.6）：1.1 × 1.6 = 1.76 → 仍钳到 1.6（不会叠加爆表）
+      expect(
+        tabletTextScaler(const TextScaler.linear(1.1), shortestSide: 1032)
+            .scale(1.0),
         kTabletTextScaleMax,
       );
     });
 
     test('下限：平板文字不得小于手机基准（倍率 < 1 的设备档被抬到 1.0）', () {
       expect(
-        tabletTextScaler(const TextScaler.linear(0.5)).scale(1.0),
+        tabletTextScaler(const TextScaler.linear(0.5), shortestSide: 834)
+            .scale(1.0),
         greaterThanOrEqualTo(1.0),
       );
     });
@@ -176,12 +222,13 @@ void main() {
       const MediaQueryData tablet = MediaQueryData(size: Size(834, 1210));
       final MediaQueryData out = applyTabletTextScaling(tablet);
       expect(identical(out, tablet), isFalse, reason: '必须有变化');
-      expect(out.textScaler.scale(1.0), kTabletUiScale);
+      expect(out.textScaler.scale(1.0), kTabletUiScale,
+          reason: 'iPad 11″ 锚点：仍 1.3（零回归）');
       expect(out.size, tablet.size);
       expect(out.devicePixelRatio, tablet.devicePixelRatio);
     });
 
-    test('注入点边界：短边 599.9 不注入 / 600 注入', () {
+    test('注入点边界：短边 599.9 不注入 / 600 注入（倍率仍 1.3）', () {
       const MediaQueryData just = MediaQueryData(size: Size(599.9, 900));
       const MediaQueryData edge = MediaQueryData(size: Size(600, 900));
       expect(identical(applyTabletTextScaling(just), just), isTrue);

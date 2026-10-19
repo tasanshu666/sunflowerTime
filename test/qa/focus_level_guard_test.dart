@@ -159,11 +159,15 @@ void main() {
         expect(src.contains('FocusLevelBadge'), isFalse,
             reason: '$path 不得引用等级徽章（调试区只允许结算/演出，不展示徽章）');
         // 调试 helper 可以**定义**在守卫之外（Dart 方法必须定义在类体里），
-        // 但**调用点**必须全部落在 `if (kDebugMode)` 区块内 —— 否则 release 构建
+        // 但**调用点**必须全部落在调试守卫区块内 —— 否则 release 构建
         // 也会有代码路径触发结算/演出。
+        // 🔴 2026-10-19（F128）：守卫从内联 `if (kDebugMode)` 统一为单点判据
+        // `if (shouldShowDebugUi(debugMode: kDebugMode, hideForScreenshots: kHideDebugUi))`
+        // （截图构建可额外隐藏调试区）。两种写法都认，但「必须受 kDebugMode 约束」
+        // 这条红线不变 —— 新写法里 debugMode 传的就是 kDebugMode。
         final List<String> lines = src.split('\n');
-        final int guardLine =
-            lines.indexWhere((String l) => l.contains('if (kDebugMode)'));
+        final int guardLine = lines.indexWhere((String l) =>
+            l.contains('if (kDebugMode)') || l.contains('if (shouldShowDebugUi('));
         expect(guardLine, greaterThan(-1),
             reason: '$path 必须有 kDebugMode 守卫');
         // `Future<void> _debugXxx(` 起 → 进入某个调试 helper 的方法体；

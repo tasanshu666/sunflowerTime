@@ -384,7 +384,7 @@ void main() {
       final double net = await ctx.ledger
           .netByRefTypeOnDay(TaskCheckInService.checkInRefType, dayKey(day));
       // 核心不变量：当日成长奖励净额合计不得超过 kTaskCheckinDailyCap。
-      // 未加串行闸门时：两条同时读 grantedSoFar=70 → 各补 9 → net=88 > 79。
+      // 未加串行闸门时：两条同时读 grantedSoFar=70 → 各补 9 → net=88 > 上限（= cap 79 时）。
       // （2026-09-23 前这里断言的是「当日全部 earn 过分段软顶」，该口径已作废。）
       expect(net, lessThanOrEqualTo(kTaskCheckinDailyCap + 1e-9),
           reason: '成长奖励上限被突破：net=$net > cap=$kTaskCheckinDailyCap');

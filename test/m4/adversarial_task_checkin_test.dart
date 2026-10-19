@@ -456,9 +456,10 @@ void main() {
       expect(ctx.ledger.entries, hasLength(1));
     });
 
-    test('I9 成长奖励上限只补差额：当日已发 72 → 核销 12 只补 7（撞 79）', () async {
+    test('I9 成长奖励上限只补差额：当日已发 上限−7 → 核销 12 只补 7（撞日上限）', () async {
       final ctx = _make();
-      ctx.ledger.seedCheckInNet(dayKey(day), 72, day);
+      // 只留 7 格额度；预置量用 `kTaskCheckinDailyCap` 算式表达（C94：上限 79 → 80）。
+      ctx.ledger.seedCheckInNet(dayKey(day), kTaskCheckinDailyCap - 7, day);
       final Task t = _task(id: 't1');
       await ctx.svc.checkIn(task: t, now: day);
       final TaskCheckInOutcome out =
@@ -707,18 +708,18 @@ void main() {
       expect(o.granted, 0); // pending
     });
 
-    test('对抗：成长奖励上限仍在削（联动固定 6，当日已发 76 → 只补 3）',
+    test('对抗：成长奖励上限仍在削（联动固定 6，当日已发 上限−3 → 只补 3）',
         () async {
       final ctx = _make();
       final Task f1 =
           _task(id: 'f1', requiresFocus: true, minFocus: 15, reward: 12);
-      // 当日已发成长奖励 76（只剩 3 额度）。
-      ctx.ledger.seedCheckInNet(dayKey(day), 76, day);
+      // 当日已发成长奖励 = 上限 − 3（只剩 3 额度）；算式随常量漂移，C94：79 → 80。
+      ctx.ledger.seedCheckInNet(dayKey(day), kTaskCheckinDailyCap - 3, day);
       final FocusSession s =
           ctx.focus.addSession(actualMin: 20, plannedMin: 20, start: day);
       final TaskCheckInOutcome o =
           await ctx.svc.settleFocusLinked(task: f1, session: s, now: day);
-      // 2026-09-23 口径：grant = min(6, 79-76) = 3
+      // 2026-09-23 口径：grant = min(6, kTaskCheckinDailyCap − 当日已发) = min(6, 3) = 3
       expect(o.reward, closeTo(6.0, 1e-9));
       expect(o.granted, closeTo(3.0, 1e-9));
       expect(o.cappedByDailyCap, isTrue);

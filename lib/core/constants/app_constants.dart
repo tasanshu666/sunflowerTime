@@ -22,6 +22,33 @@ const int kDailyAppCapMinutes = 30;
 const int kRestAfterSessions = 2;
 const int kRestMinutes = 10;
 
+// ── 构建期开关（截图 / 演示包）──────────────────────────────────────
+/// 隐藏所有调试 UI 的**构建期开关**：`--dart-define=HIDE_DEBUG_UI=true` 时为 true。
+///
+/// 用途：用 debug 包截商店图 / 宣传图时，避免「DEBUG 加1000阳光」这类按钮入镜
+/// （玄参 2026-10-19 要求：iPad「我的」页与家长端「今日」页的调试入口不得出现在截图里）。
+///
+/// 与 `kDebugMode` 的关系：调试 UI 本来的守卫是 `kDebugMode`（release 包天然不渲染），
+/// 本开关是**给 debug 包再做一次显式关闭**。当前三个调用点（我的页 / 家长今日页 /
+/// 家长设置页）统一走 [shouldShowDebugUi]。默认 `false` = 保留现有调试能力，
+/// 只有截图 / 演示构建才加 define；**不改变任何业务行为**。
+const bool kHideDebugUi = bool.fromEnvironment('HIDE_DEBUG_UI');
+
+/// 调试 UI 是否显示 —— **唯一判定入口**（禁止页面里各写一份 `kDebugMode && ...`）。
+///
+/// 规则：release（`kDebugMode == false`）恒不显示；debug 下由 [kHideDebugUi] 决定。
+///
+/// 为什么参数必传、不在此读 `kDebugMode`：本文件是**纯 Dart 常量文件**（零 flutter
+/// 依赖），且两个开关都是编译期常量、测试无法在运行时改。把判据抽成纯函数后，
+/// 调用点显式传入 `kDebugMode` / [kHideDebugUi]，测试即可直接验证**完整真值表**
+/// （release 恒 false / debug 默认 true / debug+截图开关 false），而不是只靠源码
+/// 字符串守卫「看起来写了」。
+bool shouldShowDebugUi({
+  required bool debugMode,
+  required bool hideForScreenshots,
+}) =>
+    debugMode && !hideForScreenshots;
+
 // ── 阳光经济（PRD §4.4 / §4.5 / §4.8 / C5）─────────────────────────
 /// 单任务打卡阳光奖励（默认 12，区间 5–40，§4.4）。
 const int kTaskSunlightReward = 12;
@@ -112,6 +139,29 @@ String ackedVerifyIdsKey(String childId) => 'acked_verify_ids_read_$childId';
 
 /// 孩子端已读「家长拒绝」通知键（B4 对称通知去重；按孩子分键口径同上）。
 String ackedRejectIdsKey(String childId) => 'acked_reject_ids_read_$childId';
+
+/// 孩子端已读「家长审批成长任务」通知的**打卡 id**列表键（F126 补缺口；按孩子
+/// 分键口径同上）。
+///
+/// 为什么单开一个键而不复用 [ackedVerifyIdsKey]：两个键装的是**不同实体**的主键
+/// （兑换申请 id vs 打卡 id），且两套通知独立去重 —— 混用会让「已读兑换」把同
+/// uuid 空间的打卡误判成已读（也可能相反）。
+/// 🔴 键名生成走本 helper 单点，禁止散写字面量。
+String ackedTaskCheckInIdsKey(String childId) =>
+    'acked_task_checkin_ids_read_$childId';
+
+/// 「家长审批任务」确认卡的**展示时间窗**（F126）。
+///
+/// 为什么必须加窗：`verified` 状态里躺着**全部历史**打卡（老库升级默认即
+/// verified），不限窗首次上线会一次弹几十条。只认「最近 24 小时内被处理」的，
+/// 语义 = 「今天家长刚确认的那些」，与孩子的记忆对齐。
+const Duration kTaskVerifiedNoticeWindow = Duration(hours: 24);
+
+/// 「家长审批任务」确认卡单次最多列出的条目数（F126）。
+///
+/// 打卡量远大于兑换申请（一天可能十几条）→ 卡片超过 3 条会撑满屏幕且孩子根本
+/// 读不进去；超出的条目仍留在未读快照外，下一次进入再逐批补弹（不丢通知）。
+const int kTaskVerifiedNoticeMaxItems = 3;
 
 /// 家长 PIN 是否已在安全区落库的标记键（flutter_secure_storage）。
 const String kSecurePinHash = 'parent_pin_hash';

@@ -57,6 +57,8 @@ import 'package:sunflower_time/presentation/parent/widgets/report_stability_card
 import 'package:sunflower_time/presentation/parent/widgets/report_upsell_bar.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
+// F130：平板 UI 倍率（文字之外的定尺寸元素一律乘 `uiScaleOf(context)`）。
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 记录页「专注报告」段。
 class FocusReportSection extends ConsumerStatefulWidget {
@@ -618,16 +620,19 @@ class _HeroCard extends StatelessWidget {
           Row(
             children: <Widget>[
               // 阳光美术图（缺失 / 失败回退内置图标，与老页一致）。
+              // F130（QA 二轮）：图标尺寸 **18 → 18×倍率** —— 紧邻的「本期间专注」
+              // 文案走 textScaler（1.6 倍下 ≈20.8pt），图标写死 18pt 即「字大图标不动」。
+              // ⚠️ 只改图标：本 hero 卡的 padding / 圆角属另一类改动，本轮不动。
               Image.asset(
                 'assets/rewards/sunlight.png',
-                width: 18,
-                height: 18,
+                width: 18 * uiScaleOf(context),
+                height: 18 * uiScaleOf(context),
                 fit: BoxFit.contain,
                 errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
-                    const Icon(
+                    Icon(
                   Icons.wb_sunny_rounded,
-                  size: 18,
-                  color: Color(0xFFD9A21A),
+                  size: 18 * uiScaleOf(context),
+                  color: const Color(0xFFD9A21A),
                 ),
               ),
               const SizedBox(width: 6),

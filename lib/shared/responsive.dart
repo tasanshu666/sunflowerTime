@@ -31,24 +31,46 @@ bool isTabletShortestSide(double shortestSide) =>
 bool isTabletOf(BuildContext context) =>
     isTabletShortestSide(MediaQuery.sizeOf(context).shortestSide);
 
-/// 平板 **UI 放大倍率**（C65）：平板 = [kTabletUiScale]，手机 = 1.0。
+/// 平板 UI 放大倍率（F129：**随屏短边线性放大**，取代原固定 1.3）。
+///
+/// 锚点 = [kTabletUiScaleBaseShortestSide]（834 → 1.3，iPad 11″ 零回归）；
+/// 更大屏按 `834 的比例` 上调，钳到 [kTabletTextScaleMax]（1.6）；
+/// **只放不缩**：小平板（如 iPad mini 744）仍为 1.3，不因本次改动变小。
+/// 手机（< 600）恒 1.0。
+///
+/// 举例：834 → 1.3 ／ 1024 → 1.596 ／ **1032（iPad 13″）→ 1.6**（钳制）／ 1200 → 1.6。
+double tabletUiScaleFor(double shortestSide) {
+  if (!isTabletShortestSide(shortestSide)) return 1.0;
+  // 线性外推：短边越大，屏越大，同一绝对字号「相对屏幕」越小 → 必须继续放大。
+  final double scaled =
+      kTabletUiScale * (shortestSide / kTabletUiScaleBaseShortestSide);
+  // max：只放不缩（iPad mini 744 / 荣耀平板 800 都是 1.3，不因外推变小）；
+  // min：上限 1.6，否则 1032 会算成 1.609、大屏会一路飙到 2.0+ 撑破布局。
+  return math.max(kTabletUiScale, math.min(scaled, kTabletTextScaleMax));
+}
+
+/// 平板 **UI 放大倍率**：按当前屏短边派生 [tabletUiScaleFor]，手机 = 1.0。
 ///
 /// 用于「文字之外的定尺寸元素」——素材图片 / 徽标 / 图标等的 width/height。
 /// 文字不经过这里（走 [tabletTextScaler] 注入的 `MediaQuery.textScaler` 自动缩放），
-/// 但两者**同源同一常量**，故文字与图形恒等比，不会漂移。
+/// 但两者**同源同函数**，故文字与图形恒等比，不会漂移。
 ///
 /// ⚠️ 乘在尺寸上的写法：`width: 16 * uiScaleOf(context)`。不要改宽度常量本身
 /// （那些常量被测试与路由尺寸复用）。
 double uiScaleOf(BuildContext context) =>
-    isTabletOf(context) ? kTabletUiScale : 1.0;
+    tabletUiScaleFor(MediaQuery.sizeOf(context).shortestSide);
 
-/// 平板文字缩放器（C65）：`设备自带缩放 × kTabletUiScale`，并钳到 [kTabletTextScaleMax]。
+/// 平板文字缩放器（C65；F129 加 `shortestSide` 入参）：
+/// `设备自带缩放 × tabletUiScaleFor(shortestSide)`，并钳到 [kTabletTextScaleMax]。
 ///
 /// 手机端应**不要**调用本函数（调用方 `app.dart` 已带平板闸门）；返回值恒 ≥ 1.0，
 /// 保证「平板上文字一定不小于手机」。
-TextScaler tabletTextScaler(TextScaler device) {
-  final double total =
-      (device.scale(1.0) * kTabletUiScale).clamp(1.0, kTabletTextScaleMax);
+///
+/// [shortestSide] 必须由调用方传入（而非在此内部读 `MediaQuery`）：本函数是纯函数，
+/// 才能被无宿主的单测直接覆盖真值表。
+TextScaler tabletTextScaler(TextScaler device, {required double shortestSide}) {
+  final double total = (device.scale(1.0) * tabletUiScaleFor(shortestSide))
+      .clamp(1.0, kTabletTextScaleMax);
   return TextScaler.linear(total);
 }
 
@@ -59,14 +81,21 @@ TextScaler tabletTextScaler(TextScaler device) {
 ///
 /// 行为：
 ///  - `shortestSide < 600`（手机）→ **原样返回**（调用方不包 `MediaQuery`，零回归）；
-///  - 平板 → `copyWith(textScaler: tabletTextScaler(...))`。
+///  - 平板 → `copyWith(textScaler: tabletTextScaler(..., shortestSide: mq.size.shortestSide))`，
+///    倍率随屏短边派生（F129：iPad 11″ 1.3 ／ iPad 13″ 1.6）。
 ///
 /// ⚠️ 调用点必须位于「尚未注入」的那一层。`MaterialApp.router` 的 `builder` 每次
 /// 都用**外壳 context**（在注入子树之上）回调，故不会叠加复用；**禁止**在已注入的
-/// 子树里再调一次（会把 1.3 累乘成 1.69）。
+/// 子树里再调一次（会把 1.3 累乘成 1.69、1.6 累乘成 2.56）。
 MediaQueryData applyTabletTextScaling(MediaQueryData mq) {
   if (!isTabletShortestSide(mq.size.shortestSide)) return mq;
-  return mq.copyWith(textScaler: tabletTextScaler(mq.textScaler));
+  return mq.copyWith(
+    textScaler: tabletTextScaler(
+      mq.textScaler,
+      // F129：倍率随屏短边派生 —— 注入点在这里把尺寸交给纯函数，调用方（app.dart）无感。
+      shortestSide: mq.size.shortestSide,
+    ),
+  );
 }
 
 /// 花盆底部区（细进度条 + 标签胶囊）高度（C65）。

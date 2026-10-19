@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
@@ -137,7 +138,14 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
           ));
         }
         // 调试期临时开关（仅 debug 构建渲染，release 自动消失）。
-        if (kDebugMode) cards.add(const _DebugCapSwitchCard());
+        // 🔴 2026-10-19（玄参）：截商店图时这张卡会入镜 → 构建期开关 [kHideDebugUi]
+        // （`--dart-define=HIDE_DEBUG_UI=true`）可显式关闭；默认仍显示。
+        if (shouldShowDebugUi(
+          debugMode: kDebugMode,
+          hideForScreenshots: kHideDebugUi,
+        )) {
+          cards.add(const _DebugCapSwitchCard());
+        }
 
         return RefreshIndicator(
           onRefresh: () async {

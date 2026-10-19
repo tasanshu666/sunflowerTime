@@ -34,3 +34,7 @@ build/
 # 美术归一化前的原图备份（由 tools/normalize_plant_art.py 生成，可再生的中间产物，不入库）
 # ⚠️ 该目录也不在 pubspec.yaml 的 assets 声明内 → 不会被 Flutter 打进 APK
 assets/_originals/
+
+# App Store 商店截图的原始/成品目录（约 30MB PNG，仅用于上架后台上传，非源码、非资产）
+# 需要时从本地运营目录 `/Users/wangjunchao/OH_WorkSpace/码农爸爸AI养娃运营/assets/产品截图/向日葵专注` 取
+docs/商店截图/

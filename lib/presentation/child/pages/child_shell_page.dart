@@ -21,13 +21,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
+import 'package:sunflower_time/domain/entities/check_in.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
+import 'package:sunflower_time/domain/repositories/task_repository.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
 import 'package:sunflower_time/presentation/child/pages/child_task_page.dart';
@@ -36,6 +42,7 @@ import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/pages/store_page.dart';
 import 'package:sunflower_time/presentation/child/state/app_usage_controller.dart';
 import 'package:sunflower_time/presentation/child/widgets/app_cap_dialog.dart';
+import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/parent_entry_action.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 import 'package:sunflower_time/shared/adaptive_nav_bar.dart';
@@ -310,140 +317,22 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
 
       final int total =
           news.fold(0, (int s, RedemptionRequest r) => s + r.cost);
-      await showDialog<void>(
-        context: context,
-        builder: (BuildContext ctx) => Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF9EC), // 米色卡底（与 App 奶油风同源）
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: const <BoxShadow>[
-                BoxShadow(
-                  color: Color(0x2E000000),
-                  blurRadius: 28,
-                  offset: Offset(0, 10),
-                ),
-              ],
+      // F126：卡片视觉/布局改走 `gold_notice_dialog.dart` 的**统一实现** ——
+      // 兑换核销卡与任务审批卡共用一份壳，避免两份近似布局各自漂移。
+      await showGoldNoticeDialog(
+        context,
+        // ⚠️ 标题字面量被 nav_structure_test 钉死，不要改（F126 只**新增**任务审批
+        // 卡，既有兑换卡文案一字不动）。
+        title: '🎉 家长已确认你的兑换',
+        items: <GoldNoticeItem>[
+          for (final RedemptionRequest r in news)
+            GoldNoticeItem(
+              icon: Icons.redeem,
+              name: names[r.templateId] ?? '奖励',
+              amountText: '-${r.cost} 阳光',
             ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  // 卡头庆祝元素：金色圆形奖杯徽 + 标题。
-                  Center(
-                    child: Column(
-                      children: <Widget>[
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFF6C445), // 阳光金
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.emoji_events,
-                              color: Colors.white, size: 30),
-                        ),
-                        const SizedBox(height: 10),
-                        // 标题文案保持字面不变（nav_structure_test 钉死）。
-                        const Text(
-                          '🎉 家长已确认你的兑换',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF8D6E00),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  // 奖励条目：图标块 + 名称 + 金色阳光数字 + 细分隔线。
-                  for (int i = 0; i < news.length; i++) ...<Widget>[
-                    if (i > 0)
-                      Divider(
-                        height: 1,
-                        thickness: 1,
-                        color: Colors.brown.withValues(alpha: 0.10),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 9),
-                      child: Row(
-                        children: <Widget>[
-                          Container(
-                            width: 34,
-                            height: 34,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF1C2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.redeem,
-                                size: 20, color: Color(0xFFD98F00)),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              names[news[i].templateId] ?? '奖励',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            '-${news[i].cost} 阳光',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFD98F00), // 阳光金强调
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: Colors.brown.withValues(alpha: 0.10),
-                  ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: Text(
-                      '共扣除 $total 阳光',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFF6C445),
-                      foregroundColor: const Color(0xFF5D4200),
-                      minimumSize: const Size(0, 48),
-                      textStyle: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: const Text('知道啦'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+        ],
+        footerText: '共扣除 $total 阳光',
       );
 
       // 标记已读（去重合并），下次进入不再重复弹窗（按当前孩子分键）。
@@ -530,10 +419,150 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     }
   }
 
-  /// 汇总检查：家长已核销（M2）+ 家长拒绝（B4）两类通知。
+  /// 进入孩子端即检查「家长审批成长任务」通知（F126 补体验缺口）：家长在
+  /// 「今日」页点「确认发放」后，孩子端也要看到一张金色确认卡 —— 与兑换核销卡
+  /// 完全对称，否则孩子**感知不到任务被确认了**（此前只有家长端一条 SnackBar）。
+  ///
+  /// ## 判定口径（为什么是这几条）
+  /// 数据源 = `checkInsByStatus(CheckInStatus.verified)`，再按下列三条件筛：
+  ///  · **`resolvedAt != null`**：`verified` 同时装「家长手动审批通过」与「联动项
+  ///    自动结算」（如专注联动自动打卡），后者 `resolvedAt == null` —— 自动结算
+  ///    不是家长的动作，绝不能弹「家长已确认」卡（否则孩子会以为家长一直在看）；
+  ///  · **最近 [kTaskVerifiedNoticeWindow]（24 小时）内被处理**：`verified` 里躺着
+  ///    全部历史打卡（老库升级默认即 verified），不限窗首次上线会一次弹几十条；
+  ///  · **最多 [kTaskVerifiedNoticeMaxItems] 条**：按 `resolvedAt` 倒序取最新几条，
+  ///    超出部分**不写已读快照**，留到下次进入逐批补弹（不丢通知、不撑爆屏幕）。
+  ///
+  /// ## 跨孩子防线（C91 二轮口径的边界说明）
+  /// `CheckIn` 实体**没有** `childId` 字段（构造器被大量测试夹具直接调用，加字段
+  /// 会牵连一大片签名），故本方法**无法**像 [_checkVerifiedNotices] 那样再做一次
+  /// `where(childId == childId)`。当前层依赖的是：
+  ///  · 数据源侧的仓储级过滤 —— `TaskLocalRepository.checkInsByStatus` 内部按
+  ///    注入的 `AccountService.childId` 过滤（F123 同源，与 `_currentChildId()`
+  ///    读的是**同一个** AccountService 实例，快照键因此与数据同属一个孩子）；
+  ///  · 已读快照键按 `childId` 分键（`acked_task_checkin_ids_read_$childId`）。
+  /// ⚠️ 残留风险：若将来出现**未过滤**的 `CheckInAdminRepository` 实现（测试桩 /
+  /// 新数据源把整表吐出来），本层拦不住跨孩子泄漏 —— 到那时正确的修法是给
+  /// `CheckIn` 补 `childId` 字段并照 C91 二轮再过滤一次，而不是在 UI 层猜。
+  ///
+  /// 任何异常都不阻塞首页（通知属增强能力）。
+  Future<void> _checkTaskVerifiedNotices() async {
+    try {
+      final TaskRepository taskRepo = ref.read(taskRepositoryProvider);
+      // 能力探测（先例：`TaskCheckInService`）：打卡核销接口与 TaskRepository
+      // 刻意分离，测试用的轻量 Fake 不实现它 → 直接跳过，不报错。
+      // ⚠️ 两个接口**无继承关系**，Dart 不会自动 promote，故显式转型。
+      if (taskRepo is! CheckInAdminRepository) return;
+      final CheckInAdminRepository admin = taskRepo as CheckInAdminRepository;
+      final SettingsStore store = ref.read(settingsStoreProvider);
+      final String childId = _currentChildId();
+
+      final List<CheckIn> verified =
+          await admin.checkInsByStatus(CheckInStatus.verified);
+      // 时间窗与「当前时刻」各取一次快照：避免循环内多次 `DateTime.now()` 漂移，
+      // 也让「24 小时内」的边界判定可复现（测试夹具一律相对 `DateTime.now()`）。
+      final DateTime now = DateTime.now();
+      final DateTime windowStart = now.subtract(kTaskVerifiedNoticeWindow);
+
+      final List<CheckIn> recentlyResolved = verified
+          // ⚠️ 自动结算（resolvedAt == null）绝不算「家长审批」，必须排除。
+          .where((CheckIn c) => c.resolvedAt != null)
+          .where((CheckIn c) => !c.resolvedAt!.isBefore(windowStart))
+          .toList()
+        ..sort((CheckIn a, CheckIn b) =>
+            b.resolvedAt!.compareTo(a.resolvedAt!)); // 最新处理在前。
+      if (recentlyResolved.isEmpty) return;
+
+      final List<String> acked =
+          await store.acknowledgedTaskCheckInIds(childId: childId);
+      final Set<String> ackedSet = acked.toSet();
+      // 先剔除已读再截断：否则「最新 3 条已读」会永久挡住后面的未读条目。
+      final List<CheckIn> news = recentlyResolved
+          .where((CheckIn c) => !ackedSet.contains(c.id))
+          .take(kTaskVerifiedNoticeMaxItems)
+          .toList();
+      if (news.isEmpty) return;
+
+      // 任务名映射：任务可能已被删除 → 回退「成长任务」，绝不给空标题。
+      final List<Task> allTasks = await taskRepo.tasks();
+      final Map<String, String> taskNames = <String, String>{
+        for (final Task t in allTasks) t.id: t.name,
+      };
+      if (!mounted) return;
+
+      // 每条金额**一律取 `sunlightGranted`（实发）**，绝不回退 `sunlightGross`。
+      // 为什么（F126 二轮 QA 抓到的口径错误）：`verified` 状态下 `sunlightGranted`
+      // 就是真实入账额；当日成长奖励额度用尽（`kTaskCheckinDailyCap`）时
+      // `verifyCheckIn` 仍以 `granted = 0 + gross = 12` 落库，若回退成 gross 就会
+      // 对孩子**虚报**「+12 阳光」而实际入账 0 —— 这是钱，必须说实发。
+      // ⚠️ 老库 `granted = 0 && resolvedAt == null` 的历史行**走不到这里**：上面的
+      // `resolvedAt != null` 已把它们全部滤掉，故「取 granted 会误伤老数据」不成立。
+      int grantedOf(CheckIn c) => sunlightDisplayInt(c.sunlightGranted);
+
+      // 🔴 F126 三轮：**封顶判据与显示取整解耦**。
+      // 「是否封顶」必须看**原始 double**（`<= 0`）；`grantedOf` 只负责「显示取整」
+      // （F105 向下取整口径）。若拿 `grantedOf(c) == 0` 当判据，`granted = 0.4`
+      // 这种「入了账但不足 1」的行会被误判成封顶 → 条目误报「今日额度已满」、
+      // 合计误报「本次没有新增阳光」（QA 二轮实测）。
+      // 注：当前写路径（`_rewardFor` 全整数 + `_dailyRewardGrant` 只补差额）实际
+      // 产不出 0.4，本解耦是防「判据坏耦合」，不是修一个已可达的 bug。
+      bool isCapped(CheckIn c) => c.sunlightGranted <= 0;
+
+      final int total = news.fold(0, (int s, CheckIn c) => s + grantedOf(c));
+      final int cappedCount = news.where(isCapped).length;
+
+      // 底部合计三档（确认这件事一定发生了，但钱可能没到）：
+      //  · 全部实发 > 0 → 共获得 N 阳光；
+      //  · 部分封顶      → 共获得 N 阳光（X 项今日额度已满，未发放）；
+      //  · 全部封顶      → 今日成长奖励已达上限，本次没有新增阳光。
+      // ⚠️ 「全部封顶」判据用 `cappedCount == news.length`（按条数），**不能**用
+      // `total == 0`：全是 0.4 时 total 也等于 0，但那不是封顶（实际入了账）。
+      final String footer;
+      if (cappedCount == news.length) {
+        footer = '今日成长奖励已达上限，本次没有新增阳光';
+      } else if (cappedCount > 0) {
+        footer = '共获得 $total 阳光（$cappedCount 项今日额度已满，未发放）';
+      } else {
+        footer = '共获得 $total 阳光';
+      }
+
+      await showGoldNoticeDialog(
+        context,
+        title: '🎉 家长已确认你的成长任务',
+        items: <GoldNoticeItem>[
+          for (final CheckIn c in news)
+            GoldNoticeItem(
+              // 图标不随「是否封顶」变化：确认这件事本身成立，只是钱没到。
+              icon: Icons.task_alt,
+              name: taskNames[c.taskId] ?? '成长任务',
+              amountText:
+                  isCapped(c) ? '今日额度已满' : '+${grantedOf(c)} 阳光',
+              amountMuted: isCapped(c),
+            ),
+        ],
+        footerText: footer,
+      );
+
+      // 标记已读（去重合并；按当前孩子分键）。⚠️ 必须在弹窗关闭**之后**写，
+      // 否则「未看先读」会把卡片永久吞掉。
+      await store.setAcknowledgedTaskCheckInIds(
+        <String>{...acked, ...news.map((CheckIn c) => c.id)}.toList(),
+        childId: childId,
+      );
+    } catch (_) {
+      // 通知检查失败不阻塞孩子端首页。
+    }
+  }
+
+  /// 汇总检查：家长已核销（M2）+ 家长拒绝（B4）+ 家长审批成长任务（F126）。
+  ///
+  /// 顺序**刻意**把新增的任务审批卡放在最后：既有两条卡片的弹出次序 / 去重口径
+  /// 保持一字不变（已被 `nav_structure_test` / `c91` 钉死），新卡只在它们都无未读
+  /// 时才轮到，避免打断既有体验。
   Future<void> _checkAllNotices() async {
     await _checkVerifiedNotices();
     await _checkRejectedNotices();
+    await _checkTaskVerifiedNotices();
   }
 
   @override

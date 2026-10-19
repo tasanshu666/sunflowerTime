@@ -19,6 +19,8 @@ import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/parent/widgets/task_editor_dialog.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
+// F130：平板 UI 倍率（文字之外的定尺寸元素一律乘 `uiScaleOf(context)`）。
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 任务配置页：家长管理学习任务模板。
 ///
@@ -206,23 +208,28 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
   /// 单张成长项卡（图标 + 名称 + 标签 + 编辑 / 删除）。
   Widget _taskCard(Task t) {
     final ({Color bg, Color fg}) cat = macaronColorById(t.id);
+    // F130（2026-10-19 玄参 iPad Pro 13″ 实测）：本卡与「奖励」页卡片同款版式，
+    // 同样是「文字之外的定尺寸元素没跟随放大」——1.6 倍下字变大、图标块仍 56pt，
+    // 价格胶囊里的阳光图标（13pt）明显偏小。故与奖励页同一口径统一乘 `s`
+    //（手机 s=1.0 逐位不变；emoji 回退字号不动 —— 文字走 textScaler，不能乘两次）。
+    final double s = uiScaleOf(context);
     return Container(
       decoration: creamCardDecoration(),
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14 * s),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           // C48（玄参 2026-10-10）：图标与孩子端成长页同款 UI 素材
           //（联动项一律 focus 闹钟，见 growth_icons），失败回退色块 + emoji。
           Container(
-            width: 56,
-            height: 56,
+            width: 56 * s,
+            height: 56 * s,
             decoration: BoxDecoration(
               color: cat.bg,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14 * s),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14 * s),
               child: Image.asset(
                 growthIconAssetFor(t),
                 fit: BoxFit.cover,
@@ -233,7 +240,7 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12 * s),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,7 +252,7 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                       .titleMedium
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6 * s),
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
@@ -261,34 +268,36 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                       fg: Colors.grey.shade700,
                     ),
                     // C48：「N 阳光」→ 数字 + 阳光 UI 图标。
+                    // F130：胶囊内边距 / 圆角 / 间距 / 图标同一口径乘 `s`。
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                      padding: EdgeInsets.symmetric(
+                          horizontal: 8 * s, vertical: 3 * s),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFF1C2),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(20 * s),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
                           Text(
                             '${t.effectiveSunlightReward}',
+                            maxLines: 1,
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                               color: Color(0xFF8D6E00),
                             ),
                           ),
-                          const SizedBox(width: 3),
+                          SizedBox(width: 3 * s),
                           Image.asset(
                             'assets/rewards/sunlight.png',
-                            width: 13,
-                            height: 13,
+                            width: 13 * s,
+                            height: 13 * s,
                             fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Icon(
+                            errorBuilder: (_, __, ___) => Icon(
                               Icons.wb_sunny,
-                              color: Color(0xFFE8A600),
-                              size: 13,
+                              color: const Color(0xFFE8A600),
+                              size: 13 * s,
                             ),
                           ),
                         ],

@@ -452,10 +452,16 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
           isLast: true,
         ),
         // ── 调试区（玄参 2026-09-24 要求加回，供调试验收）────────────────────
-        // ⚠️ 受 kDebugMode 约束：**release 构建自动不渲染** —— 既满足调试需要，
+        // ⚠️ 受 `kDebugMode` 约束：**release 构建自动不渲染** —— 既满足调试需要，
         // 又不必再担心「提审前忘了删」。测试用源码守卫锁住这条约束
         // （test/m4/child_shell_app_cap_test.dart 的「C 清理回归」）。
-        if (kDebugMode) ...<Widget>[
+        // 🔴 2026-10-19（玄参）：截商店图时 debug 包的调试按钮会入镜 → 增加构建期
+        // 开关 [kHideDebugUi]（`--dart-define=HIDE_DEBUG_UI=true`）显式关闭。
+        // 两个条件并列：release 恒不渲染；debug 仅在截图构建时隐藏。
+        if (shouldShowDebugUi(
+          debugMode: kDebugMode,
+          hideForScreenshots: kHideDebugUi,
+        )) ...<Widget>[
           const SizedBox(height: 24),
           const _SectionTitle('调试区'),
           OutlinedButton(

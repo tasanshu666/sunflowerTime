@@ -8,7 +8,7 @@
 ///    [rejectCheckIn] 驳回则不入账。
 ///  - **按自身当日累计净额封顶**：入账时
 ///    `grant = max(0, min(reward, kTaskCheckinDailyCap - 当日已发打卡阳光))`
-///    （[kTaskCheckinDailyCap] = 79，唯一定义在 prd_params）。
+///    （[kTaskCheckinDailyCap] = 80，唯一定义在 prd_params；C94 于 2026-10-19 由 79 取整为 80）。
 ///  - ⚠️ **成长奖励不占专注额度**（玄参 2026-09-23 拍板）：核算只读
 ///    `refType='task_checkin'` 自己的当日净额，**不再**读当日全部 `earn` 的
 ///    gross/net。旧口径下专注拿满（或家长赠予）会把当日 earn 合计顶到旧的

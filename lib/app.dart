@@ -28,7 +28,9 @@ class App extends ConsumerWidget {
       themeMode: dark ? ThemeMode.dark : ThemeMode.light,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
-      // C65（2026-10-13 玄参 iPad 实测拍板）：**平板全局放大字号 1.3×**。
+      // C65（2026-10-13 玄参 iPad 实测拍板）：**平板全局放大字号**。
+      // F129（2026-10-19 玄参 iPad Pro 13″ 实测）：倍率不再固定 1.3，改为
+      // **随屏短边派生**（834 = iPad 11″ → 1.3 ／ 1032 = iPad 13″ → 1.6）。
       //
       // 为什么放在这里（单点）：平板逻辑尺寸远大于手机而字号不变 → 一切文字「相对
       // 屏幕」偏小。用 `MediaQuery.textScaler` 一处注入 → 全 App（孩子端 5 tab +
@@ -39,8 +41,10 @@ class App extends ConsumerWidget {
       //  ② 与设备自带缩放**相乘**再钳上限（见 `tabletTextScaler`），不覆盖无障碍设置；
       // ③ 只放大**文字**：素材图片/徽标等定尺寸元素要各自乘 `uiScaleOf(context)`
       //     （文字会自动缩、图片不会），否则出现「字大了图标还那么小」。
-      // ④ **判定与钳制全部收口在 `applyTabletTextScaling`**（纯函数，可单测），
+      // ④ **判定、倍率派生与钳制全部收口在 `applyTabletTextScaling`**（纯函数，可单测），
       //     本处只负责把它包成 `MediaQuery`；写在这里的只有「壳」。
+      //     ⚠️ F129 起**不要**在这里自行算倍率 —— 尺寸（`mq.size`）必须交给注入点，
+      //     否则又会出现「换台大平板就重新配一次」的老问题。
       builder: (BuildContext context, Widget? child) {
         final Widget content = child ?? const SizedBox.shrink();
         final MediaQueryData mq =

@@ -36,6 +36,17 @@
 ///  · 三类格子底部文案统一加半透明白胶囊底 + 加深字色（原先 11px 彩字直接压在草地上，
 ///    不可点态的浅灰几乎看不清）。
 ///
+/// ## 🔴 测试禁令：本组件含**无限动画**（F135 `_PestIdleWobble`）
+/// 害虫浮标带待机微动（`AnimationController(1400ms)..repeat(reverse: true)`），
+/// 加上花园页木牌的呼吸动画，本子树**永不 settle**。
+///  · 任何挂载「含害虫花盆」的用例**禁用 `pumpAndSettle`** —— 它会一直等到超时挂死；
+///  · 改用 `pump(Duration)` 定量推进（或 `pumpUntil` 条件推进），见
+///    `test/m3/garden_pest_idle_animation_test.dart` 头注释与
+///    `one_click_batch_hint_center_test` 的同款纪律；
+///  · 注：隐藏 tab 已被外壳 `TickerMode(enabled: false)` 包住，`SingleTickerProviderStateMixin`
+///    会自动 mute —— 那只保证「切走的 tab 不耗电」，**不改变**上面那条禁令
+///    （只要害虫在可见帧里，`pumpAndSettle` 就等不到 settle）。
+///
 /// ## 职责边界（重要）
 /// 本文件**只负责「长什么样」+ 点击回调**，不持有任何业务逻辑：
 /// 养护动作、额度校验、扣费全部由 [PlantCareCard] / `PlantGrowthService` 承担。
@@ -44,6 +55,8 @@
 /// 植物外观走 [PlantArtwork]（美术资源到位即自动替换）；空盆仍优先使用
 /// `assets/pots/pot.png`，缺失或加载失败时回退到 [CustomPaint] 自绘陶盆。
 library garden_pot;
+
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -333,18 +346,33 @@ class GardenPot extends StatelessWidget {
                               duration: const Duration(
                                 milliseconds: kPestFadeOutMs,
                               ),
-                              child: _PestChip(
-                                assetPath: kGardenPestAsset,
-                                emoji: kGardenPestEmoji,
-                                glyphWidth:
-                                    artW * kPlantPotWidthFraction * kPestSizeToPotRatio,
-                                glyphHeight: artW *
-                                    kPlantPotWidthFraction *
-                                    kPestSizeToPotRatio *
-                                    (30 / 52),
-                                tooltip:
-                                    '有害虫，点我除掉 +${pestRewardOf(perk).toInt()} ☀',
-                                onTap: onClearPest,
+                              // 蝗虫**待机微动**（玄参 2026-10-19：「你说的给蝗虫做一个
+                              // 动画，你做一下，我看看效果」）：只加在害虫上，杂草保持静止
+                              // —— 草丛本来就该是不动的，动了反而像 bug。
+                              child: _PestIdleWobble(
+                                // 浮动行程按浮标**外接高**（= max(命中区 48, 视觉图高)）算，
+                                // 与 `_PestChip.build` 的 `SizedBox` 高同源。
+                                span: math.max(
+                                  _PestChip.hitSize,
+                                  artW *
+                                      kPlantPotWidthFraction *
+                                      kPestSizeToPotRatio *
+                                      (30 / 52),
+                                ),
+                                child: _PestChip(
+                                  assetPath: kGardenPestAsset,
+                                  emoji: kGardenPestEmoji,
+                                  glyphWidth: artW *
+                                      kPlantPotWidthFraction *
+                                      kPestSizeToPotRatio,
+                                  glyphHeight: artW *
+                                      kPlantPotWidthFraction *
+                                      kPestSizeToPotRatio *
+                                      (30 / 52),
+                                  tooltip:
+                                      '有害虫，点我除掉 +${pestRewardOf(perk).toInt()} ☀',
+                                  onTap: onClearPest,
+                                ),
                               ),
                             ),
                           ),
@@ -437,6 +465,12 @@ class GardenPot extends StatelessWidget {
   }
 }
 
+/// 害虫待机动画根 [Transform] 的 Key（供测试直接取 `Transform.transform` 矩阵）。
+///
+/// 用 Key 而不是 `find.byType(Transform)`：花盆树里 `PlantArtwork` 等组件也可能
+/// 内含 `Transform`（膨胀/缩放），按类型找会拿到不相关的那个。
+const Key kPestIdleAnimKey = Key('garden_pest_idle_anim');
+
 /// 花园干扰物浮标「杂草 / 害虫」（口径 C26；2026-10-03 图片化 + 去白圆底）。
 ///
 /// **直接显示美术图**（[assetPath]，`assets/garden/weed.png` / `pest.png`）——
@@ -508,6 +542,89 @@ class _PestChip extends StatelessWidget {
       );
     }
     return Text(emoji, style: const TextStyle(fontSize: 26));
+  }
+}
+
+/// 害虫「待机微动」（玄参 2026-10-19：「你说的给蝗虫做一个动画，你做一下，我看看效果」）。
+///
+/// ## 效果口径
+/// 蝗虫是**趴在盆沿上**的活物，完全静止看起来像贴纸。故给一条**若隐若现**的待机动作：
+///  · 上下浮动：总行程 = 浮标外接高的 **5%**（±2.5%），慢到像呼吸，不像弹跳；
+///  · 左右微摆：**±4°**，与浮动同一个 1400ms 周期、同一条 [Curves.easeInOut]；
+///  · 两者叠加（[Transform.translate] 外套 [Transform.rotate]），一次往返 2.8s。
+///
+/// ## 为什么只有害虫有、杂草没有
+/// 杂草是「植物的一部分」，动起来像渲染抖动；害虫是独立活物，「动 = 还活着、还能点掉」
+/// 是可读的正向信号。故 [GardenPot] 只在 `plant.hasPest` 分支包本组件。
+///
+/// ## 三条硬约束
+///  1. **必须 dispose**（无限 `repeat` 的 controller 不 dispose 会漏 ticker，测试
+///     结束时 `flutter_test` 会直接报 "A Ticker was active when its widget was disposed"）；
+///  2. **必须尊重 `TickerMode`**：外壳用 `IndexedStack` 保活 tab，隐藏 tab 被
+///     `TickerMode(enabled: false)` 包住 —— `SingleTickerProviderStateMixin` 创建的
+///     Ticker 会自动 mute，隐藏页因此**零帧回调、不耗电**（本类无需手写判断）。
+///  3. **不能改变布局**：[Transform] 只作用于绘制与命中变换，`Positioned` 的
+///     right/top 与 `_PestChip` 的命中区尺寸**逐像素不变**，故
+///     `garden_interference_anchor_test` 的锚点断言不受影响。
+class _PestIdleWobble extends StatefulWidget {
+  /// 被包裹的浮标（`_PestChip`）。
+  final Widget child;
+
+  /// 幅度基准 = 浮标外接高（浮动行程 = 本值 × [floatRatio]）。
+  final double span;
+
+  /// 单程时长（`repeat(reverse: true)` → 一次完整往返 = 2 个周期）。
+  static const Duration period = Duration(milliseconds: 1400);
+
+  /// 上下浮动的**总行程**占比（5%：再大就像「跳」，玄参口径要「若隐若现」）。
+  static const double floatRatio = 0.05;
+
+  /// 左右摆动的**峰值角度**（±4°，弧度）。
+  static const double tiltRadians = 4 * math.pi / 180;
+
+  const _PestIdleWobble({required this.child, required this.span});
+
+  @override
+  State<_PestIdleWobble> createState() => _PestIdleWobbleState();
+}
+
+class _PestIdleWobbleState extends State<_PestIdleWobble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: _PestIdleWobble.period,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (BuildContext context, Widget? child) {
+        // t 在 0..1 之间往复（repeat reverse），easeInOut 让两端「停一下」更自然。
+        final double t = Curves.easeInOut.transform(_controller.value);
+        final double dy =
+            -(t - 0.5) * widget.span * _PestIdleWobble.floatRatio;
+        final double angle = (t - 0.5) * 2 * _PestIdleWobble.tiltRadians;
+        return Transform.translate(
+          key: kPestIdleAnimKey,
+          offset: Offset(0, dy),
+          child: Transform.rotate(angle: angle, child: child),
+        );
+      },
+      child: widget.child,
+    );
   }
 }
 

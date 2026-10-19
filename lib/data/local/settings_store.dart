@@ -2,6 +2,8 @@
 /// 当前仅承载「首次启动同意」标记；其余设置走 Drift settings 表。
 library settings_store;
 
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sunflower_time/core/constants/app_constants.dart';
 
@@ -58,6 +60,38 @@ class SettingsStore {
     required String childId,
   }) async =>
       _sp.setStringList(ackedTaskCheckInIdsKey(childId), ids);
+
+  // ── 花园：孩子上次**看到**的植物阶段快照（按孩子分键）─────────────────────
+
+  /// 孩子上次在花园里**看到**的各植物阶段：`plantId → 'stage.name:status.name'`。
+  ///
+  /// 用于「离开期间升级 → 回来补播一次成长演出」。默认空表（= 没有可比对的基线，
+  /// 首次安装 / 新建植物都不补播）。解析失败 / 脏数据（手工改 SP、老版本遗留）一律
+  /// 返回空表，**绝不抛异常** —— 花园页的刷新链路不能被一段坏 JSON 打断。
+  Future<Map<String, String>> lastSeenPlantPhases({
+    required String childId,
+  }) async {
+    final String? raw = _sp.getString(lastSeenPlantPhasesKey(childId));
+    if (raw == null || raw.isEmpty) return <String, String>{};
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is! Map) return <String, String>{};
+      final Map<String, String> out = <String, String>{};
+      decoded.forEach((Object? k, Object? v) {
+        if (k is String && v is String) out[k] = v;
+      });
+      return out;
+    } catch (_) {
+      return <String, String>{};
+    }
+  }
+
+  /// 覆写「孩子上次看到的植物阶段」快照（按 [childId] 分键；空表也照写，能正确往返）。
+  Future<void> setLastSeenPlantPhases(
+    Map<String, String> phases, {
+    required String childId,
+  }) async =>
+      _sp.setString(lastSeenPlantPhasesKey(childId), jsonEncode(phases));
 
   // ── P0 · A App 总使用时长（§6.1）：日键 + 当日累计秒 ──────────────────
 

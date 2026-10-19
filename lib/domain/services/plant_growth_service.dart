@@ -371,6 +371,13 @@ class PlantGrowthService {
       // C29：铲除返还额在种下时即定好落列（普通 150 / 精英 250 / 免费 0），
       // 铲除时按本值返还，不随其后调价变化。
       shovelRefund: shovelRefund,
+      // 🔴 F135 / C100-1（玄参 2026-10-19「种下新植物时杂草和虫子总会一起跟着出现」）：
+      // 种植当天写入「今日已 roll」→ **新株当天不参与掷骰**，次日才开始正常长草长虫。
+      // 不改的话：`weed_pest_roll_day` 留空 → 种下后页面立刻 `tickAll` 就把新株当
+      // 「今天还没掷过」的普通株，当场掷一次 —— **55%** 的概率至少中一个
+      // （`1 − 0.60×0.70`，C100-2 把害虫提到 30% 后），且中招当天**直接不成长**，
+      // 孩子看到的是「刚种下就长草卡住」。
+      weedPestRollDay: DateTime(now.year, now.month, now.day),
     );
     await _plants.savePlant(plant);
     // 种植可能改变经济（碎片 / 阳光）→ 通知 UI 刷新。

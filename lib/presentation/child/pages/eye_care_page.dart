@@ -361,9 +361,34 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints c) {
               final bool landscape = c.maxWidth >= c.maxHeight;
+              // 正方形图卡边长 = **高度 / 宽度双约束**（2026-10-19 平板「只占上半屏」修复，
+              // 缺陷台账 **F131**）。
+              //
+              // 旧实现横屏为 `min(360.0, max(160.0, maxHeight * 0.85))`：360 是
+              // 「720×720 素材在 DPR 2.0 下 1:1 不放大」的经验绝对值，但它只读高度、
+              // 与宽度无关 —— 平板横屏 1280×800 时 0.85×800=680 被永久截到 360，
+              // 内容块高 360+24=384 ≈ 屏高 48%（手机横屏 844×390 时 0.85×390=331.5
+              // 低于 360 未触发封顶，故手机上一直「看着是满的」）。本轮用户明确要求
+              // 铺满，接受有限倍率上采样，改用**屏尺寸派生**：
+              //   ① 高度侧 `maxHeight * 0.85`：留上下各 ~7.5% 呼吸；
+              //   ② 宽度侧 `maxWidth * 0.58`：宽屏上给右栏（文案/进度/按钮）留够空间；
+              //   ③ 下限 200：防极端窄屏（横屏但很矮）算出过小/负数尺寸。
+              // ⚠️ 双约束逐档验算（frameSide / 内容块高 = frameSide + 24 padding / 占屏高）：
+              //    844×390  手机  →331.5 / 355.5 / 91%（与旧实现逐位一致，零回归红线）
+              //    1280×800 平板 →680.0 / 704.0 / 88%
+              //    1200×800      →680.0 / 704.0 / 88%
+              //    1024×768       →593.9 / 617.9 / 80%（宽度侧 1024×0.58=593.9 生效）
+              //    1366×1024 iPad 13 →792.3 / 816.3 / 80%（宽度侧 1366×0.58=792.3 生效）
+              //    1194×834  iPad 11 →692.5 / 716.5 / 86%
               final double frameSide = landscape
-                  ? math.min(360.0, math.max(160.0, c.maxHeight * 0.85))
-                  : 340.0;
+                  ? math.max(200.0,
+                      math.min(c.maxHeight * 0.85, c.maxWidth * 0.58))
+                  // 竖屏兜底（宽度 ≤ 高度）：宽度侧 0.86 留左右边距、高度侧 0.45 给
+                  // 标题/倒计时/按钮留位；旧实现写死 340 → 平板竖屏只占屏宽 42%。
+                  // 390×844 → min(335.4, 379.8)=335.4（与旧 340 接近，不溢出）；
+                  // 800×1280 → min(688, 576)=576。
+                  : math.max(200.0,
+                      math.min(c.maxWidth * 0.86, c.maxHeight * 0.45));
 
               // 动画画面（素材 720×720 带背景；圆角卡裁切）——两布局共用。
               final Widget player = ConstrainedBox(
@@ -371,7 +396,9 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                 child: AspectRatio(
                   aspectRatio: 1,
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
+                    // 圆角随边长等比派生：比例 28/360 取自旧「360 方块配 28 圆角」的
+                    // 视觉基准，平板上图卡放大到 680 时圆角同步放大，否则会显得过于方正。
+                    borderRadius: BorderRadius.circular(28 * (frameSide / 360)),
                     child: FrameSequencePlayer(
                       // C43（2026-10-09）：单段 640 帧一次播完（63.974s），
                       // 无槽位切换 → 无需 playToken；整组预热已被播放器的
@@ -428,85 +455,98 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
 
               if (landscape) {
                 // C50 方案 A：左右双栏（动画左，控件右）。
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  child: Row(
-                    children: <Widget>[
-                      player,
-                      const SizedBox(width: 24),
-                      Expanded(
-                        child: Column(
-                          // C51（玄参 2026-10-10）：右栏上下居中——Expanded 的交叉轴
-                          // 是 tight 约束，Column 实际占满全高，不加 center 时内容
-                          // 顶对齐、底部留一大块空白（真机反馈「整体偏上」的根因）。
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            const Text(
-                              '眼睛休息一下吧',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF5A4A2F),
+                // 2026-10-19：外层 `Center` 负责整块**垂直居中**——Scaffold.body 给的是
+                // 宽松约束（minHeight = 0）且顶对齐，Row 交叉轴只拿 maxHeight、自身
+                // shrink-wrap，不包 Center 时整块贴顶、下方留大片空白（平板实测）。
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                    child: Row(
+                      children: <Widget>[
+                        player,
+                        const SizedBox(width: 24),
+                        Expanded(
+                          child: Column(
+                            // C51 / C52（2026-10-10 / 2026-10-19）：右栏**不需要**
+                            // mainAxisAlignment——Row 的 Expanded 只对主轴（宽）是
+                            // tight，交叉轴仍是 loose；Column 又是 mainAxisSize.min，
+                            // 高度 = 内容高，free space 恒为 0，`center` 分配不到任何
+                            // 空间（之前那句「交叉轴是 tight、Column 占满全高」是与
+                            // SDK 行为相反的错注释）。真正的垂直居中是外层 `Center`。
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Text(
+                                '眼睛休息一下吧',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF5A4A2F),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            // 段标题（配音已含口令，这里只做同步字幕）。
-                            Text(
-                              seg.label,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF8A7A5F),
+                              const SizedBox(height: 4),
+                              // 段标题（配音已含口令，这里只做同步字幕）。
+                              Text(
+                                seg.label,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF8A7A5F),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                            countdownAndProgress,
-                            const SizedBox(height: 16),
-                            finishButton,
-                          ],
+                              const SizedBox(height: 16),
+                              countdownAndProgress,
+                              const SizedBox(height: 16),
+                              finishButton,
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               }
 
               // 竖屏兜底：原竖排（C50 起单按钮）。
-              return SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const SizedBox(height: 12),
-                    const Text(
-                      '眼睛休息一下吧',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF5A4A2F),
+              // 2026-10-19：外包 `Center` 让内容在竖向空白时居中（与横屏分支同口径）；
+              // 仍保留 `SingleChildScrollView`——大字号 / 极矮屏时内容超高可滚动，
+              // 不会溢出（此时 Center 的 loose 约束被撑满，居中自然失效）。
+              return Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const SizedBox(height: 12),
+                      const Text(
+                        '眼睛休息一下吧',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF5A4A2F),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    // 段标题（配音已含口令，这里只做同步字幕）。
-                    Text(
-                      seg.label,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: Color(0xFF8A7A5F),
+                      const SizedBox(height: 4),
+                      // 段标题（配音已含口令，这里只做同步字幕）。
+                      Text(
+                        seg.label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Color(0xFF8A7A5F),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Center(child: player),
-                    const SizedBox(height: 16),
-                    countdownAndProgress,
-                    const SizedBox(height: 16),
-                    finishButton,
-                    const SizedBox(height: 12),
-                  ],
+                      const SizedBox(height: 16),
+                      Center(child: player),
+                      const SizedBox(height: 16),
+                      countdownAndProgress,
+                      const SizedBox(height: 16),
+                      finishButton,
+                      const SizedBox(height: 12),
+                    ],
+                  ),
                 ),
               );
             },

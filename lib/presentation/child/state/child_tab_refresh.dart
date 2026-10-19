@@ -110,6 +110,12 @@ mixin ChildTabAutoRefresh<T extends ConsumerStatefulWidget> on ConsumerState<T> 
   /// 本页当前是否可见（与花园氛围音**同源**判据：外壳 tab 索引）。
   bool _visible = false;
 
+  /// [\_visible] 的**只读**出口（F132 花园成长补播用：不可见时不能播动画，只能入队）。
+  ///
+  /// ⚠️ 只加 getter、不改任何既有行为：值的写入时机 / 判据 / 生命周期全部保持原样。
+  @protected
+  bool get tabVisible => _visible;
+
   /// 刷新在途闸门（连发触发只跑一次）。
   bool _refreshInFlight = false;
 

@@ -738,6 +738,24 @@ const int kAmbientStartAttempts = 3;
 /// 花园氛围音启动重试间隔（毫秒）· 首次失败后等待再重试（够首次解码就绪，又不拖沓）。
 const int kAmbientRetryDelayMs = 400;
 
+/// 氛围音 `setAsset`（加载/拷贝资源）的**超时上限**（毫秒）· F133。
+///
+/// 🔴 根因（玄参 2026-10-19 iPad 13 真机日志锁定）：just_audio 的 `setAsset` 返回的
+/// Future **只在拿到 `ready` 时完成**；若加载途中被 `stop()` 打断，平台侧的等待会被
+/// **丢弃**——既不完成也不抛错，**永远挂着**。而 [_ambientStarting] 重入闸门只在
+/// `finally` 里复位 → 闸门**永久关死** → 该进程内氛围音再也不起播（只能杀 App）。
+/// 正常加载实测 30~80ms（慢设备也就几百 ms），5s 已是极宽松上限。取 5s 而非更大值，
+/// 是为了让「单次起播最坏耗时」（3 次尝试 × 5s + 2×400ms ≈ 15.8s）**稳稳小于**
+/// [kAmbientStartGateStuckMs]，僵尸门兜底不会误伤正常重试。
+const int kAmbientSetAssetTimeoutMs = 5000;
+
+/// 氛围音「起播闸门」僵尸持有上限（毫秒）· F133。
+///
+/// 兜底 [kAmbientSetAssetTimeoutMs] 之外的**任何**平台卡死路径（不止 `setAsset`）：
+/// 闸门被持有超过本值即视为僵尸，下一次 [playGardenAmbient] 强制复位并记 `zombie gate`
+/// 日志。取 20s > 单次起播最坏耗时 15.8s，既兜住僵尸又绝不误伤正常重试。
+const int kAmbientStartGateStuckMs = 20000;
+
 /// SFX 播放期间花园氛围音被压低的音量（ducking）· 玄参 2026-10-07 真机：
 /// 「种植/养护音效会打断花园背景音；需要优化，背景音正常播放，**或者**降低音量」。
 ///
@@ -865,6 +883,8 @@ const double kGrowFxCardRadius = 24;
 // 每株**活的**植物每天各自 roll 一次：杂草 [kGardenWeedRate] / 害虫 [kGardenPestRate]
 // 互相独立、**可同时出现**（同一天同一盆可以既有草又有虫）。
 //  · 杂草 / 害虫只在其出现的**当天**有效：次日每日 roll 时自动清掉（不会永久卡成长）；
+//  · **新种下的植株当天免疫**（C100-1）：`plant()` 直接写入「今日已 roll」，次日才参与
+//    ——否则种下即被当场掷一次（55% 中招），孩子看到的是「刚种下就长草、当天不成长」；
 //  · 存在期间该株**成长暂停**（当天不涨进度），点掉图标即恢复；
 //  · 拔草 +[kGardenWeedReward] 阳光 / 除虫 +[kGardenPestReward] 阳光，走账本入账。
 
@@ -872,7 +892,12 @@ const double kGrowFxCardRadius = 24;
 const double kGardenWeedRate = 0.40;
 
 /// 害虫出现概率（每株每天独立 roll，与 [kGardenWeedRate] 互不排斥 → 可同时出现）。
-const double kGardenPestRate = 0.25;
+///
+/// 🔴 **2026-10-19 由 0.25 调到 0.30**（C100-2，玄参拍板）：孩子反馈「养了好几天向日葵，
+/// 种子阶段杂草经常见、从来没见过害虫」——25% 下连续 7 天一只不出的概率仍有 13%，
+/// 加上蝗虫素材高度只有宽度的 0.577（趴在盆沿右侧），视觉上比杂草小得多，很容易被忽略。
+/// 玄参明确**不放大素材、不加待机动画**，只把概率提到 30%（杂草保持 40%）。
+const double kGardenPestRate = 0.30;
 
 /// 拔草奖励阳光。
 const double kGardenWeedReward = 1;

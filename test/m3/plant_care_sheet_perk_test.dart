@@ -31,6 +31,8 @@ import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
+import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart'
+    show ChildConfirmCard, ChildConfirmStyle;
 import 'package:sunflower_time/presentation/child/widgets/plant_care_sheet.dart';
 
 final DateTime _t = DateTime(2026, 10, 15, 8);
@@ -174,7 +176,14 @@ Future<void> _pumpFrames(WidgetTester tester, int frames) async {
   }
 }
 
-/// 打开养护卡 → 等就绪 → 点「铲除」→ 弹出二次确认卡 → 返回确认卡正文文本。
+/// 打开养护卡 → 等就绪 → 点「铲除」→ 弹出二次确认卡 → 返回确认卡**全部文案拼接**。
+///
+/// F135（2026-10-19）确认卡统一换壳：`AlertDialog` → 共享的 [ChildConfirmCard]
+/// （奶油底卡壳，见 `child_confirm_card.dart`），查找范围跟着换类型；返回值改成
+/// **整卡所有 Text 拼接**——因为「返还额」从原先的一句话里挪到了明细行
+/// （行名 `返还种植阳光` / 行值 `+170 ☀` 是两个 Text），下面三条断言因此改为
+/// 「拼接串里同时出现行名与行值」，语义仍是原口径：
+/// **确认卡上显示的返还数字必须 == 实际入账数字（同源 `shovelRefundOf`）**。
 Future<String> _openShovelConfirm(
   WidgetTester tester, {
   required int shovelRefund,
@@ -196,13 +205,11 @@ Future<String> _openShovelConfirm(
 
   final Iterable<Text> texts = tester.widgetList<Text>(
     find.descendant(
-      of: find.byType(AlertDialog),
+      of: find.byType(ChildConfirmCard),
       matching: find.byType(Text),
     ),
   );
-  return texts
-      .map((Text t) => t.data ?? '')
-      .firstWhere((String s) => s.contains('铲除后这株植物会消失'));
+  return texts.map((Text t) => t.data ?? '').join(' ｜ ');
 }
 
 void main() {
@@ -218,7 +225,10 @@ void main() {
 
     final int expected = shovelRefundOf(150, perkOfLevel(40));
     expect(expected, 170, reason: '基础额 150 + 铲除加成 20');
-    expect(body, contains('返还种植阳光：$expected ☀'),
+    expect(body, contains('铲除后这株植物会消失'),
+        reason: '后果说明（warning）不得在改版中丢失');
+    expect(body, contains('返还种植阳光'), reason: '确认卡必须有返还明细行');
+    expect(body, contains('+$expected ☀'),
         reason: '🔴 确认卡必须显示 shovelRefundOf(...)（防「显示 150 / 实返 170」）');
 
     // 确认执行 → 实际入账。
@@ -238,7 +248,7 @@ void main() {
       onShoveled: (int r) => granted = r,
     );
 
-    expect(body, contains('返还种植阳光：150 ☀'),
+    expect(body, contains('+150 ☀'),
         reason: '无称号 → 基础额原样（C29 §2 逐位不变）');
 
     await tester.tap(find.text('确定铲除'));
@@ -258,10 +268,61 @@ void main() {
 
     expect(body, contains('本次铲除不返还阳光'),
         reason: 'base == 0 不加成（免费首株不享铲除加成，天然防「免费种→铲」刷分）');
-    expect(body, isNot(contains('返还种植阳光')));
+    // 0 返还一律**不带「+」号**（旧写法是「不出现「返还种植阳光」整句」；
+    // 改版后返还额进明细行，行名恒为「返还种植阳光」、行值才是数字）。
+    expect(body, isNot(contains('+')), reason: '0 返还不许画成「+0 ☀」');
+    // QA 复核补强（2026-10-19）：只断言「没有 + 号」会漏掉「行值渲染成裸错值」——
+    // 例如把 `refund > 0 ? '+$refund ☀' : '0 ☀'` 误写成 `'$refund ☀'`，
+    // 则 0 返还显示 `170 ☀`（无 + 号）也能过上面那条。故补两条**精确值**断言：
+    //  ① 行值必须精确等于 '0 ☀'；② 全卡不得出现 `+数字` 形态。
+    final List<String> allTexts = tester
+        .widgetList<Text>(find.descendant(
+          of: find.byType(ChildConfirmCard),
+          matching: find.byType(Text),
+        ))
+        .map((Text t) => t.data ?? '')
+        .toList();
+    expect(allTexts, contains('0 ☀'),
+        reason: '0 返还时明细行值必须精确等于「0 ☀」（不得显示任何非 0 数字）');
+    expect(
+      allTexts.where((String s) => RegExp(r'^\+\s*\d').hasMatch(s)),
+      isEmpty,
+      reason: '0 返还不许画成「+N ☀」冒充到账',
+    );
 
     await tester.tap(find.text('确定铲除'));
     await _pumpFrames(tester, 20);
     expect(granted, 0);
+  });
+
+  // QA 复核补强（2026-10-19）：F135 把铲除卡从 `AlertDialog` 换成统一卡壳后，
+  // 「红档（破坏性操作）」只在 `child_confirm_card_test` ④ 做过**组件层**验证
+  // （该用例自己传 `tone: danger`），**没有任何用例**验证 `plant_care_sheet._shovel()`
+  // 真的把 `confirmTone: danger` 传了下去。
+  // 变异实测（QA M3）：把调用方的 `confirmTone: ConfirmCardTone.danger` 删掉，
+  // 全量 1635 条**仍然全绿** —— 红色警示退化成金色也无人报警。
+  // 本用例把这条接线钉死（真实养护卡 → 点铲除 → 量确认按钮底色）。
+  testWidgets('F135 铲除确认卡必须走红档（confirmTone 接线守）', (WidgetTester tester) async {
+    await _openShovelConfirm(
+      tester,
+      shovelRefund: 150,
+      perkLevel: 40,
+      onShoveled: (int _) {},
+    );
+
+    final FilledButton confirm = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, '确定铲除'),
+    );
+    expect(
+      confirm.style?.backgroundColor?.resolve(<WidgetState>{}),
+      ChildConfirmStyle.danger,
+      reason: '🔴 破坏性操作（铲除）的确认按钮必须渲染成警示红；'
+          '退化成金色 = 调用方漏传 `confirmTone: ConfirmCardTone.danger`',
+    );
+    expect(
+      confirm.style?.foregroundColor?.resolve(<WidgetState>{}),
+      Colors.white,
+      reason: '红底必须白字（对比度）',
+    );
   });
 }

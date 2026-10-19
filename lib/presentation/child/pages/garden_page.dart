@@ -42,6 +42,7 @@ import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/species_lore.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/domain/entities/bloom_reward_outcome.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -58,6 +59,8 @@ import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart
 import 'package:sunflower_time/presentation/child/widgets/bloom_reward_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_artwork.dart';
 import 'package:sunflower_time/presentation/child/widgets/care_effect_overlay.dart';
+import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart'
+    show ConfirmCardBadge, ConfirmCardRow, showChildConfirmCard;
 import 'package:sunflower_time/presentation/child/widgets/child_snack.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_background_layout.dart';
@@ -66,6 +69,7 @@ import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_fx_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_sign_hotspot.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_care_sheet.dart';
+import 'package:sunflower_time/presentation/child/widgets/plant_confirm_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
@@ -190,8 +194,18 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   int? get refreshTabIndex =>
       widget.embedded ? kChildTabIndexOfGarden : null;
 
+  /// 切回本 tab / 回前台 / 跨时间边界时的刷新入口。
+  ///
+  /// F132（玄参 2026-10-19「专注回来种子直接变幼芽、没有过渡动画」）：
+  /// 顺序**不可交换** —— 先消费「不可见期间攒下的补播」，再 `_reload`。因为
+  /// `_reload` 里的 `tickAll` 会把植物结算到最新，并把持久化快照推进到最新，
+  /// 先刷就再也 diff 不出这次升级了。`_consumeQueuedGrowthFx` 只 await「写快照」，
+  /// **不 await 演出时长**（4s+），不拖住数据刷新。
   @override
-  Future<void> onTabRefreshRequested() => _reload(silent: true);
+  Future<void> onTabRefreshRequested() async {
+    await _consumeQueuedGrowthFx();
+    return _reload(silent: true);
+  }
 
   List<Plant> _plants = <Plant>[];
   List<PlantSpecies> _species = <PlantSpecies>[];
@@ -331,10 +345,26 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 期间的后续请求一律忽略 —— 口径「一帧只播一场演出」。
   bool _growthFxInFlight = false;
 
-  /// 上一轮快照：`plantId → 'stage.name:status.name'`，用于在 [_reload] 后 diff 出
-  /// 「升级」（种子→幼苗 / 幼苗→成株 / 成株→盛开）并触发生长演出。首次加载为空表
-  /// → 不触发（进花园不该看到满屏动画）。
+  /// 上一轮快照：`plantId → 'stage.name:status.name'`。
+  ///
+  /// 🔴 F132 起**不再是主数据源**：跨会话 / 外壳重建的「上次看到」快照持久化在
+  /// [SettingsStore.lastSeenPlantPhases]（SP，按孩子分键），见 [_detectGrowthTransitions]。
+  /// 本字段只在 SP **不可用**时兜底（纯 widget 测试 / 极端环境），行为与修复前一致。
   Map<String, String> _lastPhases = <String, String>{};
+
+  /// 不可见期间检测到、还没播过的补播项：`plantId|transition.name`。
+  ///
+  /// `Set` 天然去重：同一次升级被多条刷新路径各观测一次也只入队一条。孩子真正切到
+  /// 花园（或回到前台）时由 [_consumeQueuedGrowthFx] 一次性消费（只播第一个）。
+  /// 刻意放内存：进程活着就够用；进程被杀则持久化快照**没被推进**，下次进花园仍会
+  /// 重新 diff 出这次升级（见 [_detectGrowthTransitions] 的不可见分支）。
+  final Set<String> _queuedGrowthFx = <String>{};
+
+  /// 本页祖先的 [TickerMode] 是否启用（外壳对隐藏 tab 包 `enabled: false`）。
+  ///
+  /// 在 [didChangeDependencies] 读取（合法的依赖读取时机，早于首次 `_reload` 的
+  /// 异步结算完成），用作 [_gardenVisible] 的第二判据。见其注释。
+  bool _tickerEnabled = true;
 
   /// 花园氛围音计时器（玄参 2026-09-28：进入花园立即播一次 background.mp3，
   /// 之后每 [kGardenAmbientIntervalSeconds] 秒一次；离开花园 tab 停止并取消）。
@@ -354,6 +384,14 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   void initState() {
     super.initState();
     _reload();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // TickerMode 必须在这里读（build 之前、initState 之后的合法依赖读取时机）；
+    // 外壳切 tab 时它会显式变化 → 本回调重跑 → [_tickerEnabled] 跟上。
+    _tickerEnabled = TickerMode.valuesOf(context).enabled;
   }
 
   @override
@@ -445,8 +483,9 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         _paymentButtonsCache[sp.id] = await _plantPaymentButtons(sp, svcForButtons);
       }
       _error = null;
-      // 升级检测：与上一轮快照 diff，发现「阶段/开花」推进 → 播放成长过渡演出。
-      _detectGrowthTransitions();
+      // 升级检测：与「孩子上次看到」的持久化快照 diff，发现「阶段/开花」推进 →
+      // 可见就播、不可见就入队（F132）。
+      await _detectGrowthTransitions();
       // 花谢自动到账提示（有则可，无则静默）。
       if (autoSettled.isNotEmpty && mounted) {
         _snack('花朵凋谢，奖励已自动收下：${autoSettled.map(_outcomeParts).join('；')}');
@@ -930,66 +969,254 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         ));
   }
 
-  /// 与上一轮快照 diff 出「升级」并触发生长演出（玄参 2026-09-28 拍板三段全播）。
+  /// 本页此刻是否真的「在屏幕上」（决定成长演出**现在播**还是**入队**）。
   ///
-  /// 判定（每株植物 `stage:status` 快照对比）：
-  ///  · `seed → sprout` → [GrowTransition.seedToSprout]；
-  ///  · `sprout → adult` → [GrowTransition.sproutToAdult]；
-  ///  · adult 且 `growing → bloomed` → [GrowTransition.adultToBloomed]（开花也算升级）。
-  /// 花谢回落（`bloomed → growing`）与枯萎/死亡**不播**（欢快动画配上蔫花很怪）；
-  /// 同帧多株升级只播第一株（现实里几乎不会同 tick 多株推进）。
-  void _detectGrowthTransitions() {
-    final Map<String, String> current = <String, String>{};
-    for (final Plant p in _plants) {
-      current[p.id] = '${p.stage.name}:${p.status.name}';
+  /// 判据 = 外壳 tab 可见（[ChildTabAutoRefresh.tabVisible]）**或**祖先 TickerMode 启用：
+  ///  · 非嵌入（路由直推 `/garden`）→ 恒可见；
+  ///  · 生产外壳对隐藏 tab 包 `TickerMode(enabled: false)`（见 `child_shell_page` 的
+  ///    `IndexedStack`）→ 隐藏时两个判据皆 false，演出不会浪费在看不见的页面上
+  ///    （F132 的核心：新外壳在「今日」tab 就把花园页建好了）；
+  ///  · ⚠️ 纯 widget 测试把 `GardenPage(embedded: true)` 直接挂在**无外壳**的
+  ///    MaterialApp 下，`childShellTabIndexProvider` 恒为默认 0（今日）→ 只认
+  ///    `tabVisible` 会把这类既有守卫（`garden_care_repro` / `garden_growth_sfx_no_care`）
+  ///    误判成隐藏，成长演出全被入队 → 假红。TickerMode 兜底与「孩子在屏幕上看不看得到」
+  ///    同义，正好覆盖「独立挂载」形态，且不影响生产判据。
+  bool get _gardenVisible =>
+      !widget.embedded || tabVisible || _tickerEnabled;
+
+  /// 阶段里程碑序号（跨级跃迁取「最接近当前状态的那一段」用）：
+  /// `seed = 0`、`sprout = 1`、`adult:growing = 2`、`adult:bloomed = 3`。
+  ///
+  /// 未知 / 脏数据一律按 0（= 没有可比对的基线，不补播），见 [_transitionOf]。
+  int _milestoneRank(String stage, String status) {
+    if (stage == PlantStage.adult.name) {
+      return status == PlantStatus.bloomed.name ? 3 : 2;
     }
-    final Map<String, String> prev = _lastPhases;
-    _lastPhases = current;
-    if (prev.isEmpty) return; // 首次加载：不触发
+    if (stage == PlantStage.sprout.name) return 1;
+    return 0;
+  }
+
+  /// 由「上次看到的阶段」「当前植株」推出要补播的过渡；null = 不播。
+  ///
+  /// 只认**前进**（当前里程碑 > 上次）：花谢回落（`bloomed → growing`）、救活以外的
+  /// 状态抖动都不播。
+  ///
+  /// 🔴 跨级取舍（F132）：一次结算跨多级时只播**最接近当前状态的那最后一段** ——
+  /// `seed → adult` 播 `sproutToAdult`、`sprout → adult+bloomed` 与
+  /// `seed → adult+bloomed` 都播 `adultToBloomed`。理由是孩子离开期间可能过了好几天，
+  /// 让他连等 2~3 段演出（每段 4s+）体验更差；播「最新的那一步」信息量最大。
+  GrowTransition? _transitionOf(String before, Plant p) {
+    final List<String> parts = before.split(':');
+    if (parts.length != 2) return null; // 脏数据：当作没有基线
+    final int beforeRank = _milestoneRank(parts[0], parts[1]);
+    final int nowRank = _milestoneRank(p.stage.name, p.status.name);
+    if (nowRank <= beforeRank) return null;
+    // 里程碑序号 ↔ 枚举顺序一一对应（0→? 1→seedToSprout 2→sproutToAdult
+    // 3→adultToBloomed），故直接取 `values[nowRank - 1]`。
+    return GrowTransition.values[nowRank - 1];
+  }
+
+  /// 与「孩子上次看到」的快照 diff 出「升级」并触发生长演出（玄参 2026-09-28 拍板三段全播）。
+  ///
+  /// ## 数据源（F132，2026-10-19）
+  /// 快照 = [SettingsStore.lastSeenPlantPhases]（SP，按孩子分键），**不再是内存
+  /// `_lastPhases`**。原因：专注结束 `context.go('/')` 会重建整个外壳 → 旧
+  /// `_GardenPageState` 连同 `_lastPhases` 一起销毁，而新外壳在「今日」tab 就构建
+  /// 花园页并 `_reload()`（`tickAll` 在这里把 seed 结算成 sprout）→ 内存基线为空的
+  /// 首次加载把升级静默吞掉，孩子回到花园只看到「已经是幼芽」。
+  ///
+  /// ## 判定
+  ///  · **prev 里没有该 plantId → 不播**（首次安装 / 新种植物；保住「进花园不该看到
+  ///    满屏动画」的反向行为）；
+  ///  · 只播前进的里程碑（种子→幼苗 / 幼苗→成株 / 成株→盛开），跨级取舍见 [_transitionOf]；
+  ///  · 枯萎 / 死亡态不播（欢快动画配蔫花很怪）；植物被铲除（prev 有、current 无）静默；
+  ///  · 一帧只播一场演出：多株同时升级只播第一个，其余丢弃。
+  ///
+  /// ## 可见性（F132 的核心）
+  /// 不可见时**不播**（否则演在 `TickerMode(enabled: false)` 的隐藏页上，孩子仍然
+  /// 看不到），只入队 [_queuedGrowthFx]，且**不推进持久化快照** —— 保持「孩子还没
+  /// 看过」的事实：即使此时 App 被杀，下次进花园仍会重新 diff 出这次升级。
+  /// 真正可见时才播，播完（= 发起播放后）才把快照推进到 current。
+  Future<void> _detectGrowthTransitions() async {
+    final String childId = ref.read(accountServiceProvider).childId;
+    final Map<String, String> current = <String, String>{
+      for (final Plant p in _plants) p.id: '${p.stage.name}:${p.status.name}',
+    };
+
+    Map<String, String> prev;
+    bool persistable = true;
+    try {
+      prev = await ref
+          .read(settingsStoreProvider)
+          .lastSeenPlantPhases(childId: childId);
+    } catch (_) {
+      // SP 未注入（纯 widget 测试 / 极端环境）→ 退化为内存快照（= 修复前行为）。
+      persistable = false;
+      prev = _lastPhases;
+    }
+    if (!mounted) return;
+
+    // 找出**第一株**可补播的植物（一帧只播一场演出）。
+    Plant? hitPlant;
+    String? hitBefore;
+    GrowTransition? hitTransition;
     for (final Plant p in _plants) {
       final String? before = prev[p.id];
+      // prev 无该 id → 首次安装 / 新植物：没有「上次看到」的基线，不补播。
       if (before == null || before == current[p.id]) continue;
       if (p.status == PlantStatus.wilting || p.status == PlantStatus.dead) {
         continue; // 枯萎/死亡态不播欢快动画
       }
-      final List<String> parts = before.split(':');
-      final String prevStage = parts[0];
-      final String prevStatus = parts[1];
-      GrowTransition? t;
-      if (prevStage == PlantStage.seed.name &&
-          p.stage == PlantStage.sprout) {
-        t = GrowTransition.seedToSprout;
-      } else if (prevStage == PlantStage.sprout.name &&
-          p.stage == PlantStage.adult) {
-        t = GrowTransition.sproutToAdult;
-      } else if (p.stage == PlantStage.adult &&
-          prevStage == PlantStage.adult.name &&
-          prevStatus != PlantStatus.bloomed.name &&
-          p.status == PlantStatus.bloomed) {
-        t = GrowTransition.adultToBloomed;
-      }
-      if (t != null) {
-        // 「同一动作」判定（C82）：养护动作可能同时触发成长跃迁——
-        //  · 浇水 / 施肥把枯萎的盛开成株**救活** → `wilting → bloomed`（救活回跳）；
-        //  · 浇水 / 施肥把幼苗推进成株 → `sprout → adult`。
-        // 这两种情况下，**同一个动作已经播了养护音效**，若再发起成长音效，会因 SFX 只有
-        // 一个共享播放器、口径「后发起者赢」（F116）把先发起的养护音效**静默作废**
-        // （真机「有动画没声音」）。故此时**不播成长音效**、保留该动作本来的养护音效；
-        // 演出动画照常播放。判定 = 救活回跳 || 养护动效正屏上（同一动作）。
-        final bool recoveryReEntry = prevStatus == PlantStatus.wilting.name;
-        // 「同一动作」= 本株的养护动效正屏上（其音效已随同一动作发起）→ 不再发起成长音效。
-        // 用 `plant.id` 对齐，避免「A 株养护动效在屏时误伤 B 株的自然成长音效」。
-        final bool sameActionCareSound =
-            recoveryReEntry || (_activeEffect?.plant?.id == p.id);
+      final GrowTransition? t = _transitionOf(before, p);
+      if (t == null) continue;
+      hitPlant = p;
+      hitBefore = before;
+      hitTransition = t;
+      break;
+    }
+
+    if (!_gardenVisible) {
+      if (hitPlant != null && hitTransition != null && hitBefore != null) {
+        // 同株后来者覆盖前者（基线与观测时刻都取最新）；Set 键按 plantId 前缀去重。
+        //
+        // 🔴 队列里存的是**基线**（`plantId|stage:status`）而不是算好的 transition：
+        // 隐藏期间植物还可能继续跨级，若把 transition 定死在入队时刻，孩子回来时会先播
+        // 「过时的前一段」，并因 `_growthFxInFlight` 闸门把真正的新跃迁吃掉
+        // （QA 复核 P2-2 实测构造：入队 seedToSprout → 期间长成 adult → 回来只播发芽）。
+        // 存基线则消费时用 [_transitionOf] 现算，跨级自然取「最接近当前状态的那一段」。
+        final String plantId = hitPlant.id;
+        _queuedGrowthFx.removeWhere((String k) => k.startsWith('$plantId|'));
+        _queuedGrowthFx.add('$plantId|$hitBefore');
         _gfxDbg('GROWTHFX',
-            'detect plant=${p.id} $before → ${current[p.id]} → transition=${t.name} bloomCount=${p.bloomCount} recoveryReEntry=$recoveryReEntry sameActionCareSound=$sameActionCareSound');
-        _playGrowthFx(
-          t,
-          growSpeciesDir(p.speciesId),
-          playGrowthSfx: !sameActionCareSound,
-        );
-        return; // 一帧只播一场演出
+            'detect(不可见) plant=$plantId $hitBefore → ${current[plantId]} '
+            '→ 入队（基线 $hitBefore，不推进快照）');
       }
+      if (!persistable) _lastPhases = current;
+      return;
+    }
+
+    if (hitPlant != null && hitTransition != null && hitBefore != null) {
+      // 「同一动作」判定（C82）：养护动作可能同时触发成长跃迁——
+      //  · 浇水 / 施肥把枯萎的盛开成株**救活** → `wilting → bloomed`（救活回跳）；
+      //  · 浇水 / 施肥把幼苗推进成株 → `sprout → adult`。
+      // 这两种情况下，**同一个动作已经播了养护音效**，若再发起成长音效，会因 SFX 只有
+      // 一个共享播放器、口径「后发起者赢」（F116）把先发起的养护音效**静默作废**
+      // （真机「有动画没声音」）。故此时**不播成长音效**、保留该动作本来的养护音效；
+      // 演出动画照常播放。判定 = 救活回跳 || 养护动效正屏上（同一动作）。
+      final bool recoveryReEntry =
+          hitBefore.split(':')[1] == PlantStatus.wilting.name;
+      // 「同一动作」= 本株的养护动效正屏上（其音效已随同一动作发起）→ 不再发起成长音效。
+      // 用 `plant.id` 对齐，避免「A 株养护动效在屏时误伤 B 株的自然成长音效」。
+      final bool sameActionCareSound =
+          recoveryReEntry || (_activeEffect?.plant?.id == hitPlant.id);
+      _gfxDbg('GROWTHFX',
+          'detect plant=${hitPlant.id} $hitBefore → ${current[hitPlant.id]} '
+          '→ transition=${hitTransition.name} bloomCount=${hitPlant.bloomCount} '
+          'recoveryReEntry=$recoveryReEntry sameActionCareSound=$sameActionCareSound');
+      _playGrowthFx(
+        hitTransition,
+        growSpeciesDir(hitPlant.speciesId),
+        playGrowthSfx: !sameActionCareSound,
+      );
+    }
+
+    // 可见 → 孩子马上就能看到（或已经没升级）：快照推进到 current。
+    await _rememberPhases(childId, current, persistable: persistable);
+  }
+
+  /// 消费「不可见期间攒下的补播」——只在页面真正可见时播，一次只播一个。
+  ///
+  /// 由 [onTabRefreshRequested] 在 `_reload` **之前**调用（顺序见其注释）。
+  /// 播放**不 await**：只 await「把快照推进到 current」，避免 4s+ 的演出时长
+  /// 拖住数据刷新。队列里指向的植物已被铲除 / 枚举未知 → 静默丢弃。
+  ///
+  /// 🔴 三条必须守住的规则（QA 复核 P2-2 / P2-3 实测构造出来的）：
+  ///  1. **入场先看闸门**：上一场演出仍在飞（`_growthFxInFlight`）时**直接返回**，
+  ///     保留队列且**不推进快照** —— 否则队列被清、快照前进，这次补播永久丢失。
+  ///  2. **消费时重新判定**：队列存的是基线，`_transitionOf` 现场重算。这样隐藏期间
+  ///     继续跨级的植物播的是「最新那一段」，而不是入队时算出的旧段落。
+  ///  3. **枯萎 / 死亡不播**：与 [_detectGrowthTransitions] 口径一致（欢快动画配蔫花
+  ///     很怪）。跳过但仍推进快照，否则该株会永久滞留在队列里反复入队。
+  Future<void> _consumeQueuedGrowthFx() async {
+    if (_queuedGrowthFx.isEmpty) return;
+    // 仍不可见（如家长改档触发的无条件刷新）→ 留着，等真正可见再播。
+    if (!_gardenVisible) return;
+    // 规则 1：演出在飞 → 保留队列 + 不推进快照，等下一次可见刷新重试。
+    if (_growthFxInFlight) {
+      _gfxDbg('GROWTHFX', 'consume 延后：演出在飞（保留队列 ${_queuedGrowthFx.length} 项）');
+      return;
+    }
+
+    final List<String> keys = _queuedGrowthFx.toList();
+    for (final String key in keys) {
+      final int sep = key.indexOf('|');
+      if (sep <= 0) continue;
+      final String plantId = key.substring(0, sep);
+      final String before = key.substring(sep + 1);
+      Plant? plant;
+      for (final Plant p in _plants) {
+        if (p.id == plantId) {
+          plant = p;
+          break;
+        }
+      }
+      if (plant == null) continue; // 已被铲除 → 静默
+      // 规则 3：枯萎 / 死亡态不播欢快动画。
+      if (plant.status == PlantStatus.wilting ||
+          plant.status == PlantStatus.dead) {
+        _gfxDbg('GROWTHFX',
+            'consume SKIP plant=$plantId status=${plant.status.name}（不播欢快动画）');
+        continue;
+      }
+      // 规则 2：用基线现场重算，跨级自动取「最接近当前状态的那一段」。
+      final GrowTransition? transition = _transitionOf(before, plant);
+      if (transition == null) continue;
+      _gfxDbg('GROWTHFX',
+          'consume 补播 plant=$plantId 基线=$before → ${plant.stage.name}:${plant.status.name} '
+          'transition=${transition.name}（可见，开始播放）');
+      // 补播是「孩子没看到的那一次」，没有对应的养护动作 → 正常播成长音效。
+      final bool started = _playGrowthFx(
+        transition,
+        growSpeciesDir(plant.speciesId),
+        playGrowthSfx: true,
+      );
+      if (!started) {
+        // 闸门恰好在这几行之间被别的路径置位（极窄窗口）→ 保留队列，下次重试。
+        _gfxDbg('GROWTHFX', 'consume 未起播（闸门拒绝）→ 保留队列 ${_queuedGrowthFx.length} 项');
+        return;
+      }
+      break;
+    }
+
+    // 无论播没播（含全部被跳过），都清队列 + 把快照推进到 current：
+    //  · 一次只播一个（见 [_detectGrowthTransitions]），其余项本就丢弃；
+    //  · 被跳过的枯萎株也必须推进，否则会永久滞留队列反复入队。
+    _queuedGrowthFx.clear();
+    await _rememberPhases(
+      ref.read(accountServiceProvider).childId,
+      <String, String>{
+        for (final Plant p in _plants) p.id: '${p.stage.name}:${p.status.name}',
+      },
+    );
+  }
+
+  /// 把「孩子已看到」的阶段快照推进到 [phases]（内存兜底 + SP 持久化）。
+  ///
+  /// 写失败（SP 不可用）**绝不外抛**：调用方在 `_reload` 的 try 里，抛出去会变成
+  /// 整页「加载失败」。
+  Future<void> _rememberPhases(
+    String childId,
+    Map<String, String> phases, {
+    bool persistable = true,
+  }) async {
+    _lastPhases = phases;
+    if (!persistable) return;
+    try {
+      await ref
+          .read(settingsStoreProvider)
+          .setLastSeenPlantPhases(phases, childId: childId);
+    } catch (_) {
+      // SP 不可用：内存快照已写好，行为与修复前一致。
     }
   }
 
@@ -1014,19 +1241,24 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 作第二道防线，但**实测无法构造任何触发路径**（除 `_growthFxInFlight` 闸门外，同一株的
   /// 同一 `transition` 必然伴随 `bloomCount` 变化 → token 恒不同；且 `_lastPhases` 只会前进、
   /// 不会让同一跃迁被 diff 出第二次）→ 经 team-lead 复核确认是**零覆盖死代码**，已移除。
-  void _playGrowthFx(
+  /// 返回值 = **是否真的起播了**（`true` 表示闸门已置位、动画会上屏）。
+  ///
+  /// 为什么要有返回值（F132 QA 复核 P2-3）：补播的调用方需要区分「已起播」与
+  /// 「被在飞闸门挡掉」——挡掉时必须**保留队列与快照**等下次重试，否则这次补播
+  /// 会被静默吞掉、再无机会。普通调用点忽略返回值即可。
+  bool _playGrowthFx(
     GrowTransition transition,
     String speciesDir, {
     bool playGrowthSfx = true,
   }) {
-    if (!mounted) return;
+    if (!mounted) return false;
     // ⚠️ 去重闸门（2026-10-13 玄参实测「开花动画播了两次」）：同一个阶段跃迁可能被
     // 多条刷新路径各观测一次，若两次都上屏就会重播。演出是幂等的 → 在飞/在屏期间
     // 一律忽略后续请求（口径「一帧只播一场演出」）。
     if (_growthFxInFlight) {
       _gfxDbg('GROWTHFX',
           'BLOCKED by in-flight 闸门 transition=${transition.name}（演出进行中，忽略本次请求）');
-      return;
+      return false;
     }
     _gfxDbg('GROWTHFX',
         'play requested transition=${transition.name} dir=$speciesDir playSfx=$playGrowthSfx inFlight(旧)=false → 置位 true');
@@ -1060,6 +1292,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         rethrow;
       }
     }());
+    return true;
   }
 
   /// 成长演出卡片标题文案（单一真源，勿散在 build 里）。
@@ -1136,26 +1369,28 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       _snack('阳光不足，还差 ${(cost - _balance).ceil()} ☀ —— 去专注赚阳光吧');
       return;
     }
-    final bool? ok = await showDialog<bool>(
+    // F135：改用**统一确认卡**（奶油底 + 阳光金 + 明细面板 + 收窄宽度），
+    // 标题 / 按钮字面量逐字不变；明细拆成「本次扩容 / 当前阳光」两行，
+    // 容量变化作为底部高亮小结（保留原文案片段「A 盆 → B 盆」）。
+    final bool? ok = await showChildConfirmCard(
       context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('要给花园腾一个花盆吗？'),
-        content: Text(
-          '当前阳光：${_balance.toInt()} ☀\n'
-          '本次扩容将扣除：$cost ☀\n'
-          '花园容量：$_capacity 盆 → ${_capacity + 1} 盆',
+      title: '要给花园腾一个花盆吗？',
+      hero: const ConfirmCardBadge(icon: Icons.yard),
+      rows: <ConfirmCardRow>[
+        ConfirmCardRow(
+          icon: Icons.wb_sunny,
+          name: '本次扩容',
+          value: '−$cost ☀',
         ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('确定，扣除'),
-          ),
-        ],
-      ),
+        ConfirmCardRow(
+          icon: Icons.account_balance_wallet_outlined,
+          name: '当前阳光',
+          value: '${_balance.toInt()} ☀',
+          muted: true,
+        ),
+      ],
+      note: '花园容量：$_capacity 盆 → ${_capacity + 1} 盆',
+      confirmLabel: '确定，扣除',
     );
     if (ok != true) return; // 取消 / 关闭对话框 → 不扣任何阳光
     await _run(() =>
@@ -1233,40 +1468,77 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       );
       return;
     }
-    // 确认卡：明示合计价 / 奖励口径。
-    final String content = switch (kind) {
-      PlantOneClickKind.water =>
-        '将对 ${plan.plantIds.length} 盆植物各浇 1 次水\n'
-            '合计扣除：${plan.totalCost} ☀（每盆 ${waterCostOf(_perk)} ☀）\n'
-            '当前阳光：${_balance.toInt()} ☀',
-      PlantOneClickKind.fertilize =>
-        '将对 ${plan.plantIds.length} 盆植物各施 1 次肥\n'
-            '合计扣除：${plan.totalCost} ☀（每盆 ${fertilizeCostOf(_perk)} ☀）\n'
-            '当前阳光：${_balance.toInt()} ☀',
-      PlantOneClickKind.care =>
-        '将清除 ${plan.actionCount} 处杂草 / 害虫\n'
-            '奖励照常发放：除草 +${weedRewardOf(_perk).toInt()} ☀ / 除虫 +${pestRewardOf(_perk).toInt()} ☀',
+    // 确认卡（F135 起走**统一确认卡**卡壳）：明细 = 合计扣除 + 当前阳光，
+    // 底部小结说明「对几盆各做几次」，标题三选一与按钮 `取消` / `确定` 逐字不变
+    // （`one_click_batch_hint_center_test` / `qa_independent_p0_ui_test` 用 find.text 钉死）。
+    final ({List<ConfirmCardRow> rows, String note, IconData icon}) brief =
+        switch (kind) {
+      PlantOneClickKind.water => (
+          rows: <ConfirmCardRow>[
+            ConfirmCardRow(
+              icon: Icons.wb_sunny,
+              name: '本次合计扣除',
+              value: '−${plan.totalCost} ☀',
+            ),
+            ConfirmCardRow(
+              icon: Icons.account_balance_wallet_outlined,
+              name: '当前阳光',
+              value: '${_balance.toInt()} ☀',
+              muted: true,
+            ),
+          ],
+          note: '将对 ${plan.plantIds.length} 盆植物各浇 1 次水'
+              '（每盆 ${waterCostOf(_perk)} ☀）',
+          icon: Icons.water_drop_outlined,
+        ),
+      PlantOneClickKind.fertilize => (
+          rows: <ConfirmCardRow>[
+            ConfirmCardRow(
+              icon: Icons.wb_sunny,
+              name: '本次合计扣除',
+              value: '−${plan.totalCost} ☀',
+            ),
+            ConfirmCardRow(
+              icon: Icons.account_balance_wallet_outlined,
+              name: '当前阳光',
+              value: '${_balance.toInt()} ☀',
+              muted: true,
+            ),
+          ],
+          note: '将对 ${plan.plantIds.length} 盆植物各施 1 次肥'
+              '（每盆 ${fertilizeCostOf(_perk)} ☀）',
+          icon: Icons.eco_outlined,
+        ),
+      PlantOneClickKind.care => (
+          rows: <ConfirmCardRow>[
+            ConfirmCardRow(
+              icon: Icons.cleaning_services_outlined,
+              name: '本次清理',
+              value: '${plan.actionCount} 处',
+            ),
+            ConfirmCardRow(
+              icon: Icons.account_balance_wallet_outlined,
+              name: '当前阳光',
+              value: '${_balance.toInt()} ☀',
+              muted: true,
+            ),
+          ],
+          note: '奖励照常发放：除草 +${weedRewardOf(_perk).toInt()} ☀ / '
+              '除虫 +${pestRewardOf(_perk).toInt()} ☀',
+          icon: Icons.cleaning_services_outlined,
+        ),
     };
-    final bool? ok = await showDialog<bool>(
+    final bool? ok = await showChildConfirmCard(
       context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: Text(switch (kind) {
-          PlantOneClickKind.water => '要一键浇水吗？',
-          PlantOneClickKind.fertilize => '要一键施肥吗？',
-          PlantOneClickKind.care => '要一键护理吗？',
-        }),
-        content: Text(content),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
+      title: switch (kind) {
+        PlantOneClickKind.water => '要一键浇水吗？',
+        PlantOneClickKind.fertilize => '要一键施肥吗？',
+        PlantOneClickKind.care => '要一键护理吗？',
+      },
+      hero: ConfirmCardBadge(icon: brief.icon),
+      rows: brief.rows,
+      note: brief.note,
+      confirmLabel: '确定',
     );
     if (ok != true) return; // 取消 → 分毫不扣
     // 一键浇水 / 施肥各播**一次**对应养护音效（玄参 2026-10-06「对应着播放一次音效」；
@@ -1562,32 +1834,80 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       }
     }
     if (opt == null || !mounted) return;
-    final String costLine = switch (kind) {
-      PlantCostKind.free => '本次种植：免费',
-      PlantCostKind.seed =>
-        // 玄参 2026-10-07「文案精简」：不再点明物种名与「（免费）」后缀。
-        '将使用 1 张${sp.isPremium ? '精英' : '普通'}种子\n当前种子：${sp.isPremium ? _premiumSeedCount : _commonSeedCount} 张',
-      PlantCostKind.sunlight =>
-        '本次种植将扣除：${opt.amount} ☀\n当前阳光：${_balance.toInt()} ☀',
-      PlantCostKind.fragments =>
-        '本次将使用：${opt.amount} 片植物碎片\n当前碎片：$_fragmentBalance 片',
+    // F134：改走统一「种植确认卡」（奶油底 + 阳光金 + 物种预览 + 明细面板），
+    // 文案与语义与旧 AlertDialog 完全一致（标题 / 按钮被测试钉死，见组件头注释）。
+    // 每种支付方式给两行明细 + 一句「种下后剩余」，让孩子一眼看出扣完还剩多少。
+    final ({List<PlantConfirmRow> rows, String? remaining}) brief = switch (kind) {
+      PlantCostKind.free => (
+          rows: const <PlantConfirmRow>[
+            PlantConfirmRow(icon: Icons.spa, name: '本次种植', value: '免费'),
+          ],
+          remaining: null,
+        ),
+      PlantCostKind.seed => () {
+          final int left = sp.isPremium ? _premiumSeedCount : _commonSeedCount;
+          return (
+            rows: <PlantConfirmRow>[
+              PlantConfirmRow(
+                icon: Icons.confirmation_number_outlined,
+                name: '使用${sp.isPremium ? '精英' : '普通'}种子',
+                value: '1 张',
+              ),
+              PlantConfirmRow(
+                icon: Icons.inventory_2_outlined,
+                name: '当前种子',
+                value: '$left 张',
+                muted: true,
+              ),
+            ],
+            remaining: '种下后剩余 ${left > 0 ? left - 1 : 0} 张',
+          );
+        }(),
+      PlantCostKind.sunlight => () {
+          final int balance = _balance.toInt();
+          final int remain = balance - opt!.amount;
+          return (
+            rows: <PlantConfirmRow>[
+              PlantConfirmRow(
+                icon: Icons.wb_sunny,
+                name: '本次种植',
+                value: '−${opt.amount} ☀',
+              ),
+              PlantConfirmRow(
+                icon: Icons.account_balance_wallet_outlined,
+                name: '当前阳光',
+                value: '$balance ☀',
+                muted: true,
+              ),
+            ],
+            remaining: '种下后剩余 ${remain > 0 ? remain : 0} ☀',
+          );
+        }(),
+      PlantCostKind.fragments => () {
+          final int remain = _fragmentBalance - opt!.amount;
+          return (
+            rows: <PlantConfirmRow>[
+              PlantConfirmRow(
+                icon: Icons.extension_outlined,
+                name: '使用植物碎片',
+                value: '−${opt.amount} 片',
+              ),
+              PlantConfirmRow(
+                icon: Icons.inventory_2_outlined,
+                name: '当前碎片',
+                value: '$_fragmentBalance 片',
+                muted: true,
+              ),
+            ],
+            remaining: '种下后剩余 ${remain > 0 ? remain : 0} 片',
+          );
+        }(),
     };
-    final bool? ok = await showDialog<bool>(
+    final bool? ok = await showPlantConfirmDialog(
       context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: Text('要种下${sp.name}吗？'),
-        content: Text(costLine),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('确定种植'),
-          ),
-        ],
-      ),
+      species: sp,
+      rows: brief.rows,
+      remainingText: brief.remaining,
     );
     if (ok != true) return; // 取消 / 关闭 → 不扣任何资源
     // 种植音效（玄参 2026-10-07 交付 `cultivate.mp3`）：**仅种下成功后播放一次**

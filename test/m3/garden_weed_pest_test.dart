@@ -421,6 +421,33 @@ void main() {
       expect(p.hasPest, isFalse);
     });
 
+    test('C100-1 新种下的植株**当天免疫**（种下即「已 roll」，次日才参与）', () async {
+      final DateTime now = DateTime(2026, 10, 3, 9, 0);
+      // seed 3 = 正常 roll 时杂草 + 害虫**必同时中**（见 _make 注释）；
+      // 新株若照常参与掷骰，下面第一个 tickAll 就会长出两样 —— 这正是玄参反馈的
+      // 「种下新植物时杂草和虫子总会一起跟着出现」。
+      final ({PlantGrowthService svc, _MemPlantRepo plants, _MemLedgerRepo ledger}) f =
+          _make(3);
+
+      final Plant created = await f.svc.plant('sp_test', 0, now);
+      expect(created.weedPestRollDay, _todayOf(now),
+          reason: '种植即写入「今日已 roll」= 当天免疫的唯一实现');
+      expect(created.hasWeed, isFalse);
+      expect(created.hasPest, isFalse);
+
+      // 模拟「种下后页面立刻 tickAll」——改前就是这一步让新株当场中招。
+      final List<Plant> sameDay =
+          await f.svc.tickAll(now.add(const Duration(seconds: 2)));
+      expect(sameDay.single.hasWeed, isFalse, reason: '种下当天不得长草');
+      expect(sameDay.single.hasPest, isFalse, reason: '种下当天不得长虫');
+
+      // 次日恢复正常博弈（seed 3 必中）→ 证明确实只是「当天豁免」而非永久免疫。
+      final List<Plant> nextDay =
+          await f.svc.tickAll(now.add(const Duration(days: 1)));
+      expect(nextDay.single.hasWeed || nextDay.single.hasPest, isTrue,
+          reason: '次日必须恢复掷骰（豁免只限种下当天）');
+    });
+
     test('Plant.copyWith：kClear 哨兵能置空，默认不动（历史坑的护栏）', () {
       final DateTime d = DateTime(2026, 10, 3);
       final Plant p = _livePlant(d).copyWith(weedAt: d, pestAt: d, weedPestRollDay: d);
@@ -437,7 +464,7 @@ void main() {
 
     test('常量口径护栏：概率 / 奖励 / emoji 全部单点收敛', () {
       expect(kGardenWeedRate, 0.40);
-      expect(kGardenPestRate, 0.25);
+      expect(kGardenPestRate, 0.30); // C100-2（2026-10-19 由 0.25 上调）
       expect(kGardenWeedReward, 1);
       expect(kGardenPestReward, 2);
       expect(kGardenWeedEmoji, '🌿');

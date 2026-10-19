@@ -23,6 +23,8 @@ import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 
 import 'care_effect_overlay.dart';
+import 'child_confirm_card.dart'
+    show ConfirmCardBadge, ConfirmCardRow, ConfirmCardTone, showChildConfirmCard;
 import 'child_snack.dart';
 import 'plant_card.dart';
 
@@ -192,27 +194,30 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
     final int refund = plant.status == PlantStatus.dead
         ? 0
         : shovelRefundOf(plant.shovelRefund, _perk);
-    final bool? ok = await showDialog<bool>(
+    // F135：确认卡改用**统一卡壳** [showChildConfirmCard]（红档 = 破坏性操作）。
+    // 标题 `要铲除「名」吗？` / 按钮 `取消` / `确定铲除` 逐字不变
+    // （`plant_care_sheet_perk_test` 用 find.text 钉死）；
+    // 「铲除后这株植物会消失。」作为 warning 保留（后果说明，红色小字紧贴标题），
+    // 返还额进明细行，`浇水施肥的阳光不返还` / `本次铲除不返还阳光` 作底部小结。
+    final bool? ok = await showChildConfirmCard(
       context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: Text('要铲除「${_species?.name ?? '这株植物'}」吗？'),
-        content: Text(
-          refund > 0
-              ? '铲除后这株植物会消失。\n返还种植阳光：$refund ☀（浇水施肥的阳光不返还）'
-              : '铲除后这株植物会消失。\n本次铲除不返还阳光。',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade400),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('确定铲除'),
-          ),
-        ],
+      title: '要铲除「${_species?.name ?? '这株植物'}」吗？',
+      hero: const ConfirmCardBadge(
+        icon: Icons.delete_outline,
+        tone: ConfirmCardTone.danger,
       ),
+      warning: '铲除后这株植物会消失。',
+      rows: <ConfirmCardRow>[
+        ConfirmCardRow(
+          icon: Icons.savings_outlined,
+          name: '返还种植阳光',
+          value: refund > 0 ? '+$refund ☀' : '0 ☀',
+          muted: refund <= 0,
+        ),
+      ],
+      note: refund > 0 ? '浇水施肥的阳光不返还' : '本次铲除不返还阳光',
+      confirmLabel: '确定铲除',
+      confirmTone: ConfirmCardTone.danger,
     );
     if (ok != true) return; // 取消 → 什么都不做
     await _run(

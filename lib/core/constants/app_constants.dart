@@ -150,6 +150,14 @@ String ackedRejectIdsKey(String childId) => 'acked_reject_ids_read_$childId';
 String ackedTaskCheckInIdsKey(String childId) =>
     'acked_task_checkin_ids_read_$childId';
 
+/// 花园「孩子上次**看到**的植物阶段」快照键（按孩子分键口径同上）。
+///
+/// 值 = JSON 编码的 `{plantId: 'stage:status'}`。用途：孩子离开花园期间植物升级
+/// （专注结算 / 隔天成长）后，回到花园时补播一次成长过渡演出 —— 纯内存快照活不过
+/// 「外壳重建」（专注结束 `context.go('/')` 会重建整个 `ChildShellPage`），必须持久化。
+/// 🔴 键名生成走本 helper 单点，禁止散写字面量。
+String lastSeenPlantPhasesKey(String childId) => 'last_seen_plant_phases_$childId';
+
 /// 「家长审批任务」确认卡的**展示时间窗**（F126）。
 ///
 /// 为什么必须加窗：`verified` 状态里躺着**全部历史**打卡（老库升级默认即

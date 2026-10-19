@@ -307,6 +307,14 @@ class AudioService {
   /// （`just_audio.dart:1331`）→ 首播彻底失败、只能等 30s 定时器。
   bool _ambientStarting = false;
 
+  /// 起播闸门 [_ambientStarting] 的**置位时刻**（F133 僵尸门兜底）。
+  ///
+  /// 🔴 玄参 2026-10-19 iPad 13 真机日志：`setAsset` 被打断后**永不返回** → [_playGardenAmbientGuarded]
+  /// 卡在 `try` 内 → `finally` 永不执行 → 闸门永久 `true`，之后每次补播都被自己的闸门挡掉
+  /// （日志每 30s 一条 `skip: _ambientStarting`，直到杀 App 才恢复）。
+  /// 故记录置位时刻：[_playGardenAmbient] 见到「已持有且超时」时强制复位（见 [kAmbientStartGateStuckMs]）。
+  DateTime? _ambientStartingSince;
+
   /// 氛围音**代际**计数（F71 v3，玄参 2026-10-07「切 tab 后音乐停一下又继续」）：
   /// 每次 [stopGardenAmbient] 递增；[_playGardenAmbient] 在每个 await 间隙后校验，
   /// 被 stop 过的在途加载/启动一律作废（竞态修复，见该函数注释）。
@@ -563,7 +571,15 @@ class AudioService {
             abandon('after-stop');
             return;
           }
-          await player.setAsset(path);
+          // F133：同款**有界加载**——SFX 与氛围音共患同一个 just_audio 缺陷（`setAsset` 在
+          // 「加载途中被 `stop()`」时永不返回）。SFX 侧虽不致命（代际闸门让后来者赢），
+          // 但卡住的协程会一直占着**同一个**共享 SFX 播放器，后续每次 `player.stop()` 都可能
+          // 跟着挂住 → 音效整体永久哑。超时即当该候选失败，试下一个。
+          if (!await loadAssetBounded(() => player.setAsset(path))) {
+            _adbg('sfx',
+                'setAsset 超时（${kAmbientSetAssetTimeoutMs}ms）→ 试下一候选: $path');
+            continue;
+          }
           _adbg('sfx', 'loaded gen=$gen path=$path');
           if (stale()) {
             abandon('after-setAsset');
@@ -1002,6 +1018,47 @@ class AudioService {
     return player.playing;
   }
 
+  /// **有界**加载资源（F133）：把「可能永不返回」的 `setAsset` 变成「有界失败」。
+  ///
+  /// 🔴 根因见 [_playGardenAmbientGuarded] 内注释：just_audio 的 `setAsset` Future 只在
+  /// 拿到 `ready` 时完成；加载途中被 `stop()` 打断会被平台**丢弃**——既不完成也不抛错。
+  /// 不加超时 → 整个起播协程永久挂起 → `finally` 不执行 → 重入闸门永久关死
+  /// （iPad 13 实测：此后每 30s 一条 `skip: _ambientStarting`，只能杀 App 恢复）。
+  ///
+  /// 返回 `true` = 加载完成（或加载失败但**已抛错**，由 [startAmbientWithRetries] 的
+  /// `try/catch` 兜）；`false` = **超时**，调用方必须丢弃该播放器（它仍卡在 `loading`，
+  /// 会继续占着共享音频会话）。
+  ///
+  /// 独立成静态纯函数便于 headless 单测（真机才有的「平台永不返回」用永不完成的
+  /// Future 即可复现）。
+  @visibleForTesting
+  static Future<bool> loadAssetBounded(
+    Future<void> Function() load, {
+    int timeoutMs = kAmbientSetAssetTimeoutMs,
+  }) async {
+    try {
+      await load().timeout(Duration(milliseconds: timeoutMs));
+      return true;
+    } on TimeoutException {
+      return false;
+    }
+  }
+
+  /// 丢弃一个**卡死**的氛围音播放器（F133）：解引用 + 取消状态订阅 + 异步释放。
+  ///
+  /// ⚠️ 仅在 `identical(_ambientPlayer, player)` 时生效——僵尸体复位后可能已由新流程
+  /// 建了新播放器，绝不能误杀。
+  /// ⚠️ 释放一律 fire-and-forget：卡住的平台调用可能连 `dispose()` 一起挂住，`await`
+  /// 会让本轮起播重新陷入「永不返回」。
+  void _discardAmbientPlayer(AudioPlayer player) {
+    if (!identical(_ambientPlayer, player)) return;
+    _adbg('_discardAmbientPlayer', '丢弃卡死的氛围音播放器并解引用（待下轮重建）');
+    _ambientPlayer = null;
+    unawaited(_ambientStateSub?.cancel() ?? Future<void>.value());
+    _ambientStateSub = null; // 置空 → 新播放器会重新挂自愈监听
+    unawaited(_disposeQuietly(player));
+  }
+
   Future<void> _playGardenAmbient() async {
     // F70 v2：直呼路径（自愈监听）兜底闸门——挂起态一律不进入加载流程。
     if (_suspendedForBackground) {
@@ -1010,16 +1067,50 @@ class AudioService {
     }
     // D1-v3 重入闸门：同一时刻只允许**一个**起播流程在跑。必须同步置位——下面第一个
     // await（取播放器）会让出事件循环，并发调用方会在这段时间里同时进入。
+    //
+    // F133 僵尸门兜底（玄参 2026-10-19 iPad 13 真机）：平台侧卡死会让 `finally` 永不执行
+    // → 闸门永久 `true`。此处按「置位时刻」判僵尸：持有超过 [kAmbientStartGateStuckMs]
+    // 即强制复位（正常起播最慢也就 ~1s，20s 绝不误伤）——把「只能杀 App」降级为「等一轮」。
     if (_ambientStarting) {
-      _adbg('_playGardenAmbient', 'skip: _ambientStarting（已有起播流程在跑，勿并发）');
-      return;
+      final DateTime? since = _ambientStartingSince;
+      final Duration held =
+          since == null ? Duration.zero : DateTime.now().difference(since);
+      if (since != null &&
+          held > const Duration(milliseconds: kAmbientStartGateStuckMs)) {
+        _adbg('_playGardenAmbient',
+            'zombie gate: 闸门已持有 ${held.inMilliseconds}ms（疑似平台卡死）→ 强制复位并作废在途流程');
+        _ambientStarting = false;
+        _ambientStartingSince = null;
+        // 递增代际 → 那个僵死的在途流程（若它真的醒来了）在每个 await 间隙都会被判作废，
+        // 绝不允许它和新流程同时操作同一个播放器。⚠️ 刻意**不**动 `_ambientShouldPlay`：
+        // 用户意图仍是「要播」，只是这一轮卡住了。
+        _ambientGeneration++;
+      } else {
+        _adbg('_playGardenAmbient', 'skip: _ambientStarting（已有起播流程在跑，勿并发）');
+        return;
+      }
     }
     _ambientStarting = true;
+    _ambientStartingSince = DateTime.now();
     try {
       await _playGardenAmbientGuarded();
     } finally {
       _ambientStarting = false;
+      _ambientStartingSince = null;
     }
+  }
+
+  /// 仅供测试：把起播闸门伪造成「已被持有 [ago]」的僵尸态（覆盖 F133 兜底路径）。
+  ///
+  /// 不能用 `tester.pump(duration)` 推进——`fake_async` 不代理 `DateTime.now()`，
+  /// 故直接改写「置位时刻」而不是等真实时间流逝。
+  @visibleForTesting
+  void debugSetAmbientGateStuck({
+    bool stuck = true,
+    Duration ago = const Duration(seconds: 30),
+  }) {
+    _ambientStarting = stuck;
+    _ambientStartingSince = stuck ? DateTime.now().subtract(ago) : null;
   }
 
   /// [_playGardenAmbient] 的真正实现（由重入闸门 [_ambientStarting] 串行化后调用）。
@@ -1057,19 +1148,51 @@ class AudioService {
       final bool started = await startAmbientWithRetries(
         start: () async {
           startCalls++;
+          // F133：每次尝试都**重新取**播放器——上一次尝试可能因 `setAsset` 超时被丢弃
+          // （见下方 `on TimeoutException`），重建后必须换成新实例，否则会对已释放的
+          // 播放器继续操作。
+          final AudioPlayer? p = await _ambient;
+          if (p == null) {
+            _adbg('ambientStart', 'attempt #$startCalls: abort（播放器构造失败）');
+            polledStarted = false;
+            return;
+          }
+          _attachAmbientHeal(p); // 幂等；重建后会重新挂到新播放器上
           _adbg('ambientStart',
               'attempt #$startCalls: stop→setAsset→seek→setVolume→play');
-          await player.stop();
-          await player.setAsset(kGardenAmbientAsset);
-          await player.seek(Duration.zero);
+          await p.stop();
+          // 🔴 F133（玄参 2026-10-19 iPad 13 真机日志锁定）：`setAsset` 返回的 Future
+          // **只在拿到 `ready` 时完成**；加载途中被 `stop()`（= 孩子退出花园 / 切 tab）
+          // 打断后，平台侧的等待被**丢弃**——既不完成也不抛错，`await` 永远不返回。
+          // 后果链：本函数卡在 `try` 内 → `finally` 不执行 → [_ambientStarting] 永久 true
+          // （且 `stopGardenAmbient` 只清 `_ambientPlaying`、不清闸门）→ 该进程内氛围音
+          // 再也不起播，**只能杀 App**（真机日志：此后每 30s 一条 `skip: _ambientStarting`）。
+          // 故加载一律**有界**：超时即当本次失败。
+          final bool loaded = await loadAssetBounded(
+            () => p.setAsset(kGardenAmbientAsset),
+          );
+          if (!loaded) {
+            _adbg('ambientStart',
+                'attempt #$startCalls: setAsset 超时（${kAmbientSetAssetTimeoutMs}ms）→ 丢弃播放器待重建');
+            // 丢弃：卡在 `loading` 的播放器会一直占着共享音频会话，连 SFX 都可能被堵
+            // （iPad 13 实测「花园里所有操作都没声」）。下一轮 `await _ambient` 会重建。
+            if (shouldAbort()) {
+              polledStarted = false;
+              return; // 已被 stop / 僵尸体复位作废 → 绝不误杀新流程的播放器
+            }
+            _discardAmbientPlayer(p);
+            polledStarted = false;
+            return;
+          }
+          await p.seek(Duration.zero);
           // A 项：每次重新起播都从**满音量**开始（清掉上一轮可能残留的 duck 压低）。
-          await player.setVolume(1.0);
+          await p.setVolume(1.0);
           _ambientDucked = false; // 起播即视作退出 duck 压低态
           // F70 v2：setAsset 是几百 ms 的异步间隙，期间可能退后台或离开花园 tab
           // → play() 前二次复查，命中则停播、绝不发声。
           if (shouldAbort()) {
             _adbg('ambientStart', 'attempt #$startCalls: abort（后台/代际）→ stop');
-            await player.stop();
+            await p.stop();
             polledStarted = false;
             return;
           }
@@ -1081,9 +1204,9 @@ class AudioService {
           // 回花园的再次起播被 [playGardenAmbient] 的 `skip: _ambientPlaying` 静默吞掉 →
           // 「首进花园不响」。改为「发起播放（不 await）」+ **有限轮询**判定是否真的起播
           // （[_pollPlaybackStarted]，约 20ms × ≤10 ≈ 200ms 内返回）。
-          unawaited(player.play());
+          unawaited(p.play());
           _adbg('ambientStart', 'attempt #$startCalls: play() 已发起（不 await）');
-          polledStarted = await _pollPlaybackStarted(player);
+          polledStarted = await _pollPlaybackStarted(p);
           _adbg('ambientStart',
               'attempt #$startCalls: poll→started=$polledStarted');
         },
@@ -1093,7 +1216,17 @@ class AudioService {
           return polledStarted; // D1：用「有限轮询结果」判定，而非阻塞后的 readback
         },
         shouldAbort: shouldAbort,
-        onAbort: () => player.stop(),
+        // F133：播放器可能已在上一轮被丢弃重建 → 取**当前**实例，缺失即无操作
+        // （原实现闭包捕获首个 `player`，重建后会去 stop 一个已释放的实例）。
+        onAbort: () async {
+          final AudioPlayer? p = _ambientPlayer;
+          if (p == null) return;
+          try {
+            await p.stop();
+          } catch (_) {
+            // 静默降级。
+          }
+        },
         onError: (int attempt, Object e) {
           _adbg('ambientStart', 'attempt #${attempt + 1} start() 抛错: $e');
         },
@@ -1236,6 +1369,7 @@ class AudioService {
     _ambientShouldPlay = false;
     _ambientReloading = false;
     _ambientStarting = false; // D1-v3：闸门复位，避免残留态卡死后续起播
+    _ambientStartingSince = null; // F133：闸门置位时刻同步清空（字段维护约定）
     _suspendedForBackground = false;
     _bgmWasPlayingBeforeBackground = false;
     _ambientShouldPlayBeforeBackground = false;
@@ -1289,6 +1423,7 @@ class AudioService {
     _ambientShouldPlay = false;
     _ambientReloading = false;
     _ambientStarting = false;
+    _ambientStartingSince = null; // F133：闸门置位时刻（与 dispose 字段清单对齐）
     _ambientGeneration++;
     _sessionConfigured = false;
     _sessionConfigFuture = null;

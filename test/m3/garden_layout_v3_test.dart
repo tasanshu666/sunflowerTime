@@ -1050,4 +1050,52 @@ void main() {
           reason: 'free 档仍隐藏一键 FAB');
     });
   });
+
+  // F135（2026-10-19）：扩容确认卡改版为**统一卡壳**（`child_confirm_card.dart`）后，
+  // 文案红线仍必须成立 —— 标题 / 按钮逐字不变，「A 盆 → B 盆」这句容量小结一字不改
+  // （PRD 口径，主理人明确要求保留），且取消 = 一分不扣。
+  group('F135 扩容确认卡（统一卡壳）', () {
+    testWidgets('点扩容格 → 弹卡：标题 / 容量小结 / 按钮文案逐字不变；取消不扩容',
+        (WidgetTester tester) async {
+      _setScreen(tester, 360, 780);
+      await tester.pumpWidget(_realGardenTier(
+        capacity: 4,
+        tier: EntitlementTier.premium,
+        plants: _sprouts(4),
+      ));
+      final bool appeared = await _pumpUntil(
+        tester,
+        () => find.byType(ExpandPotSlot).evaluate().isNotEmpty,
+      );
+      expect(appeared, isTrue, reason: 'premium 档 cap4 → 应出现扩容格');
+
+      await tester.ensureVisible(find.byType(ExpandPotSlot));
+      await tester.pump();
+      await tester.tap(find.byType(ExpandPotSlot));
+      final bool cardShown = await _pumpUntil(
+        tester,
+        () => find.text('要给花园腾一个花盆吗？').evaluate().isNotEmpty,
+      );
+      expect(cardShown, isTrue, reason: '点扩容格必须弹确认卡（不能静默）');
+
+      expect(find.text('要给花园腾一个花盆吗？'), findsOneWidget,
+          reason: '🔴 标题逐字不变');
+      expect(find.text('本次扩容'), findsOneWidget, reason: '本次动作明细行');
+      expect(find.text('当前阳光'), findsOneWidget, reason: '参考值明细行（弱化）');
+      expect(find.text('花园容量：4 盆 → 5 盆'), findsOneWidget,
+          reason: '🔴「A 盆 → B 盆」原文案片段必须保留');
+      expect(find.text('确定，扣除'), findsOneWidget, reason: '🔴 按钮逐字不变');
+      expect(find.text('取消'), findsOneWidget, reason: '🔴 按钮逐字不变');
+
+      // 取消 → 关卡、不扩容（扩容格仍在 = 容量没变）。
+      await tester.tap(find.text('取消'));
+      final bool closed = await _pumpUntil(
+        tester,
+        () => find.text('要给花园腾一个花盆吗？').evaluate().isEmpty,
+      );
+      expect(closed, isTrue, reason: '点取消必须关卡');
+      expect(find.byType(ExpandPotSlot), findsOneWidget,
+          reason: '取消 → 分毫不扣、不扩容，扩容格仍在');
+    });
+  });
 }

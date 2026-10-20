@@ -1133,6 +1133,28 @@ const double kGardenGridMaxWidth = 620;
 /// 两侧用导航栏同色补满，保持「通栏底栏」视觉，避免被拉散）。
 const double kNavBarMaxWidth = 600;
 
+/// 底部导航栏 **label 基准字号**（= M3 `NavigationBar` 的默认 `labelMedium` 12sp）。
+///
+/// F142（玄参 2026-10-20 拍板，iPad 13″ 真机反馈「底部 5 个 tab 的文字太小」）：
+/// 平板下实际字号 = `本值 × uiScaleOf(context)`（iPad 11″ ×1.3 → 15.6，
+/// iPad 13″ ×1.6 → 19.2）；手机端**不参与本次放大**，走 M3 默认值（= 本值）。
+///
+/// ⚠️ 这是 C97「文字只走 textScaler」的**唯一豁免点**，见
+/// `child_shell_page.dart` 的 `_navBar` 注释。
+const double kNavBarLabelFontSize = 12;
+
+/// 底部导航栏 **icon 基准尺寸**（= M3 `NavigationBar` 默认 24）。
+///
+/// F142：平板下实际尺寸 = `本值 × uiScaleOf(context)`；手机端不变。
+const double kNavBarIconSize = 24;
+
+/// 底部导航栏 **基准栏高**（= M3 `NavigationBar` 默认 80）。
+///
+/// F142：平板下实际栏高 = `本值 × uiScaleOf(context)`（iPad 11″ 104 / iPad 13″ 128）；
+/// 手机端不变（仍是 80）。栏高必须与 label / icon **同乘同一个倍率**，否则
+/// 放大的文字会被 80pt 的栏高裁掉。
+const double kNavBarHeight = 80;
+
 /// 平板 **基准 UI 放大倍率**（C65，2026-10-13 玄参 iPad 实测拍板；
 /// **F129 起语义改为「锚点屏上的取值」，不再是所有平板的固定值**）。
 ///
@@ -1186,6 +1208,34 @@ const double kTabletUiScaleBaseShortestSide = 834;
 ///  · 文字总倍率：设备自带缩放（iOS 超大字体 ≈1.35×）× 倍率后截到这里，
 ///    否则 1.35 × 1.3 = 1.755 会把既有布局撑破。
 const double kTabletTextScaleMax = 1.6;
+
+/// 平板**内容整体下移量**（逻辑点 pt，F142，玄参 2026-10-20 拍板）。
+///
+/// ## 来源与口径
+/// 玄参 iPad Pro 13″ 真机反馈：「今日」页的背景图、中间内容卡片、漂浮的阳光胶囊
+/// **都比手机偏上**，要求平板整体下移一点点。他明确拍板：
+///  · 单位 = **逻辑点 40pt**（不是屏高百分比）；
+///  · **iPad 11″ 与 iPad 13″ 同量**，不做屏高比例换算（大屏小屏都下移 40，不随屏高漂移）。
+///
+/// ## 生效范围（**手机恒不生效**）
+/// 只有 `isTabletOf(context) == true`（`shortestSide >= kTabletShortestSideThreshold`）
+/// 时，消费方才加这个偏移量；手机端一律加 0（下面这些页面在手机上因此**逐像素零回归**）：
+///  · `child_today_page.dart`：场景留白 `sceneGap` / 阳光气泡 `top` / 专注等级徽章 `top`
+///    三处 +40，且底图锚点比例同步 `+ 40 / 屏高`（等效把底图也下移 40pt）；
+///  · `child_task_page.dart`：「成长」页列表起点 `sceneGap` +40，底图锚点同比换算
+///    —— 与今日页**同量下移**，保证切 tab 时两页背景分界线不跳动（玄参要求）。
+///
+/// ## 与 C67 冻结常量的关系（**不许改它们**）
+/// [kTodayCardTopRatio]（0.40）/ [kTodayBgPanelTargetRatio]（0.37）/
+/// [kGrowthListTopRatio]（0.34）是**手机与平板共同基线**，被
+/// `test/m3/tab_bg_alignment_test.dart` 与 `test/qa/focus_level_guard_test.dart`
+/// 逐值冻结。本常量是**叠加在基线之上的平板增量**，绝不替代/修改基线
+/// —— 改基线必破手机零回归，故一律「基线 + 平板增量」两段式表达。
+///
+/// ⚠️ 为什么底图要跟着动而不是只动卡片：玄参这次抱怨的是「**背景图也偏上**」，
+/// 与 C67 那轮「只动卡片、不动底图」的结论不同 —— 故平板下底图锚点比例也要
+/// `+ kTabletContentDownshift / 屏高`（手机仍原样传 0.37 / 0.34）。
+const double kTabletContentDownshift = 40.0;
 
 // ───────────────────────────────────────────────────────────────────────────
 // 孩子端 tab「时间边界」兜底刷新（C68，玄参 2026-10-14 反馈后拍板）

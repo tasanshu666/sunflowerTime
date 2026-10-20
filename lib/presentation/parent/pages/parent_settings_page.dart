@@ -11,7 +11,7 @@
 ///
 /// C85 变更：① 删除「专注报告」入口卡（报告自 C76 起已在「记录」tab 内，双入口冗余）；
 /// ② 原「数据入口」分区标题改为「数据与隐私」（只剩删除入口）；
-/// ③ 末尾新增 **仅 Debug** 的「模拟已解锁」开关（`if (kDebugMode)` 包裹，release 无）。
+/// ③ 末尾新增 **仅 Debug** 的「会员模式」开关（`if (kDebugMode)` 包裹，release 无）。
 library parent_settings_page;
 
 import 'package:flutter/foundation.dart';

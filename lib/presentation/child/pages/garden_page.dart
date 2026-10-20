@@ -75,23 +75,6 @@ import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 
-/// 花园页真机诊断日志统一 tag（`[GARDENFX][毫秒时间戳][位置] 内容`）。
-///
-/// 与 `audio_service.dart` 的 `_kAmbientDiagTag` 同风格：**仅 `kDebugMode` 打印**，
-/// release 包零噪声。用途 = 玄参下一轮真机复测时，凭日志判定一次养护动作里
-/// 「养护动效/音效走了哪条分支」「成长演出被请求了几次、闸门怎么变」「SFX 是否被作废」。
-///
-/// ⚠️ 用 [debugPrint]：`flutter test` 会把它指向 `debugPrintSynchronously`
-/// （不挂节流 Timer），FakeAsync widget 测试里也不会留下 pending timer。
-const String _kGardenFxDiagTag = 'GARDENFX';
-
-/// 打印一行花园页诊断日志（**仅 `kDebugMode`**，release 包零噪声）。
-void _gfxDbg(String where, String msg) {
-  if (!kDebugMode) return;
-  debugPrint(
-      '[$_kGardenFxDiagTag][${DateTime.now().millisecondsSinceEpoch}][$where] $msg');
-}
-
 /// 养护动效浮层 / 成长演出浮层的**稳定 Key**（C82）。
 ///
 /// ## 真要防的 bug（玄参 2026-10-16 小米真机「盛开帧播两次」）
@@ -905,13 +888,9 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   }) {
     final BuildContext? potCtx = _potKey(potIndex).currentContext;
     final BuildContext? stackCtx = _pageStackKey.currentContext;
-    _gfxDbg('CAREFX',
-        'entry pot=$potIndex type=${type.name} potCtx=${potCtx != null} stackCtx=${stackCtx != null} mounted=$mounted');
     if (potCtx == null || stackCtx == null || !mounted) {
       // 拿不到坐标（极端情况）也要保证业务收尾不丢：直接执行并退出。
       // 🔴 早退分支①：拿不到花盆/页面 Stack 的 context（无动效、无音效，仅业务收尾）。
-      _gfxDbg('CAREFX',
-          'EARLY-RETURN-① context 缺失 → 跳过动效与音效 pot=$potIndex type=${type.name}');
       onFinished?.call();
       return;
     }
@@ -919,8 +898,6 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     final RenderBox? stackBox = stackCtx.findRenderObject() as RenderBox?;
     if (potBox == null || stackBox == null) {
       // 🔴 早退分支②：RenderBox 缺失。
-      _gfxDbg('CAREFX',
-          'EARLY-RETURN-② RenderBox 缺失 → 跳过动效与音效 pot=$potIndex type=${type.name}');
       onFinished?.call();
       return;
     }
@@ -930,8 +907,6 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         plant == null ? null : _speciesOf(plant);
     if (!mounted) {
       // 🔴 早退分支③：坐标换算后组件已卸载。
-      _gfxDbg('CAREFX',
-          'EARLY-RETURN-③ 坐标换算后已卸载 → 跳过动效与音效 pot=$potIndex type=${type.name}');
       return;
     }
     final List<String> frames;
@@ -955,8 +930,6 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         durationMs = kCarePestDurationMs;
         cue = AudioCue.carePest;
     }
-    _gfxDbg('CAREFX',
-        'play careSound pot=$potIndex type=${type.name} cue=${cue.name} → ${cue.assetPath}');
     AudioService.instance.playSfx(cue);
     setState(() => _activeEffect = _CareEffectSpec(
           type: type,
@@ -1096,9 +1069,6 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         final String plantId = hitPlant.id;
         _queuedGrowthFx.removeWhere((String k) => k.startsWith('$plantId|'));
         _queuedGrowthFx.add('$plantId|$hitBefore');
-        _gfxDbg('GROWTHFX',
-            'detect(不可见) plant=$plantId $hitBefore → ${current[plantId]} '
-            '→ 入队（基线 $hitBefore，不推进快照）');
       }
       if (!persistable) _lastPhases = current;
       return;
@@ -1118,10 +1088,6 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       // 用 `plant.id` 对齐，避免「A 株养护动效在屏时误伤 B 株的自然成长音效」。
       final bool sameActionCareSound =
           recoveryReEntry || (_activeEffect?.plant?.id == hitPlant.id);
-      _gfxDbg('GROWTHFX',
-          'detect plant=${hitPlant.id} $hitBefore → ${current[hitPlant.id]} '
-          '→ transition=${hitTransition.name} bloomCount=${hitPlant.bloomCount} '
-          'recoveryReEntry=$recoveryReEntry sameActionCareSound=$sameActionCareSound');
       _playGrowthFx(
         hitTransition,
         growSpeciesDir(hitPlant.speciesId),
@@ -1152,7 +1118,6 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     if (!_gardenVisible) return;
     // 规则 1：演出在飞 → 保留队列 + 不推进快照，等下一次可见刷新重试。
     if (_growthFxInFlight) {
-      _gfxDbg('GROWTHFX', 'consume 延后：演出在飞（保留队列 ${_queuedGrowthFx.length} 项）');
       return;
     }
 
@@ -1173,16 +1138,11 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       // 规则 3：枯萎 / 死亡态不播欢快动画。
       if (plant.status == PlantStatus.wilting ||
           plant.status == PlantStatus.dead) {
-        _gfxDbg('GROWTHFX',
-            'consume SKIP plant=$plantId status=${plant.status.name}（不播欢快动画）');
         continue;
       }
       // 规则 2：用基线现场重算，跨级自动取「最接近当前状态的那一段」。
       final GrowTransition? transition = _transitionOf(before, plant);
       if (transition == null) continue;
-      _gfxDbg('GROWTHFX',
-          'consume 补播 plant=$plantId 基线=$before → ${plant.stage.name}:${plant.status.name} '
-          'transition=${transition.name}（可见，开始播放）');
       // 补播是「孩子没看到的那一次」，没有对应的养护动作 → 正常播成长音效。
       final bool started = _playGrowthFx(
         transition,
@@ -1191,7 +1151,6 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       );
       if (!started) {
         // 闸门恰好在这几行之间被别的路径置位（极窄窗口）→ 保留队列，下次重试。
-        _gfxDbg('GROWTHFX', 'consume 未起播（闸门拒绝）→ 保留队列 ${_queuedGrowthFx.length} 项');
         return;
       }
       break;
@@ -1265,12 +1224,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     // 多条刷新路径各观测一次，若两次都上屏就会重播。演出是幂等的 → 在飞/在屏期间
     // 一律忽略后续请求（口径「一帧只播一场演出」）。
     if (_growthFxInFlight) {
-      _gfxDbg('GROWTHFX',
-          'BLOCKED by in-flight 闸门 transition=${transition.name}（演出进行中，忽略本次请求）');
       return false;
     }
-    _gfxDbg('GROWTHFX',
-        'play requested transition=${transition.name} dir=$speciesDir playSfx=$playGrowthSfx inFlight(旧)=false → 置位 true');
     _growthFxInFlight = true;
     if (playGrowthSfx) {
       AudioService.instance.playSfxPaths(growSfxAssetCandidates(
@@ -1280,8 +1235,6 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       ));
     } else {
       // 同一动作已播养护音效 → 不再发起成长音效（避免共享播放器互相作废）。
-      _gfxDbg('GROWTHFX',
-          'SKIP growth SFX（同一动作保留养护音效）transition=${transition.name}');
     }
     unawaited(() async {
       try {
@@ -1295,8 +1248,6 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             ));
       } catch (_) {
         // 帧解析异常（资源缺失等）：解除闸门，避免后续演出被永久挡住。
-        _gfxDbg('GROWTHFX',
-            'resolveGrowFxAssets 异常 → 闸门复位 false transition=${transition.name}');
         _growthFxInFlight = false;
         rethrow;
       }
@@ -2365,12 +2316,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                         _activeGrowth = null;
                         _growthFxInFlight = false;
                       });
-                      _gfxDbg('GROWTHFX',
-                          'onComplete → _activeGrowth=null, 闸门复位 false');
                     } else {
                       _growthFxInFlight = false;
-                      _gfxDbg('GROWTHFX',
-                          'onComplete(已卸载) → 闸门复位 false');
                     }
                   },
                 ),

@@ -17,6 +17,6 @@ library build_flags;
 /// ⚠️ 不传该 define 时值为 `false` → 正式包（App Store / 各安卓商店）**不受影响**；
 /// ⚠️ 只在冷启动回填阶段生效，**不写任何持久化票据** —— 是否会员由
 ///    「这个包构建时带没带该 define」决定，而不是由机器上残留的票据决定；
-/// ⚠️ 与设置页那个「模拟已解锁（仅调试）」开关**互不相干**：后者 `kDebugMode`
+/// ⚠️ 与设置页那个「会员模式（仅调试）」开关**互不相干**：后者 `kDebugMode`
 ///    门控、只写内存态、重启即失效；本开关在 release 包里也能生效。
 const bool kForceUnlockAll = bool.fromEnvironment('FORCE_UNLOCK_ALL');

@@ -22,6 +22,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
@@ -46,6 +47,7 @@ import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dar
 import 'package:sunflower_time/presentation/child/widgets/parent_entry_action.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 import 'package:sunflower_time/shared/adaptive_nav_bar.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 孩子端外壳：底部导航 + 5 个 tab。
 class ChildShellPage extends ConsumerStatefulWidget {
@@ -806,38 +808,99 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
       ),
       // C61 平板适配：平板下限宽居中，避免 5 个 destination 被拉散；手机端原样（零变化）。
       bottomNavigationBar: AdaptiveNavBarHost(
-        child: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: _onSelectTab,
-          destinations: const <NavigationDestination>[
-            NavigationDestination(
-              icon: Icon(Icons.today_outlined),
-              selectedIcon: Icon(Icons.today),
-              label: '今日',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.checklist_outlined),
-              selectedIcon: Icon(Icons.checklist),
-              label: '成长',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.yard_outlined),
-              selectedIcon: Icon(Icons.yard),
-              label: '花园',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.storefront_outlined),
-              selectedIcon: Icon(Icons.storefront),
-              label: '商店',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: '我的',
-            ),
-          ],
+        child: _navBar(context),
+      ),
+    );
+  }
+
+  /// 底部 5 tab 导航栏本体。
+  ///
+  /// ## F142（玄参 2026-10-20 拍板，iPad 13″ 真机反馈「底部 5 个 tab 的文字太小」）
+  /// **平板**下 label 字号 / icon 尺寸 / 栏高三者**同乘同一个倍率** [uiScaleOf]
+  /// （iPad 11″ ×1.3 / iPad 13″ ×1.6），故文字与图标恒等比、不会被 80pt 栏高裁掉。
+  ///
+  /// **手机端原样返回裸 [NavigationBar]**（不包任何 Theme 覆盖）→ 手机零回归：
+  /// label 仍 12sp / icon 24 / 栏高 80，全部走 M3 默认。
+  ///
+  /// ## 🔴 与 C97 铁律的关系（豁免范围写清楚，防被照抄）
+  /// C97 的口径是「**文字只走 `MediaQuery.textScaler`，不许乘 uiScale**」（否则
+  /// 字号被放大两次、撑破布局）。本次 tab label 放大是玄参**明确点名的破例**，
+  /// 豁免范围**仅限底部导航栏 label**——因为 M3 `NavigationBar` 的默认样式不参与
+  /// 任何倍率放大，是唯一「文字不跟着变大」的组件。
+  ///
+  /// ⚠️ 注意本处的实际观感：注入的 `textScaler`（平板 1.3 / 1.6）**仍会**作用在
+  /// 这个 `fontSize` 上，故 iPad 11″ 上绘制的 label ≈ 12 × 1.3 × 1.3 ≈ 20.3 逻辑像素
+  /// —— 这是玄参要的「明显变大」；换成 `TextScaler.noScaling` 反而会砸掉
+  /// 「系统大字体」无障碍能力，故不做。
+  ///
+  /// ⚠️ **其余任何文字**仍必须走 textScaler，不许在本文件之外照抄这里的写法。
+  Widget _navBar(BuildContext context) {
+    const List<NavigationDestination> destinations = <NavigationDestination>[
+      NavigationDestination(
+        icon: Icon(Icons.today_outlined),
+        selectedIcon: Icon(Icons.today),
+        label: '今日',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.checklist_outlined),
+        selectedIcon: Icon(Icons.checklist),
+        label: '成长',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.yard_outlined),
+        selectedIcon: Icon(Icons.yard),
+        label: '花园',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.storefront_outlined),
+        selectedIcon: Icon(Icons.storefront),
+        label: '商店',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.person_outline),
+        selectedIcon: Icon(Icons.person),
+        label: '我的',
+      ),
+    ];
+
+    final Widget bar = NavigationBar(
+      selectedIndex: _index,
+      onDestinationSelected: _onSelectTab,
+      destinations: destinations,
+    );
+
+    // 手机（含全面屏小屏）：**原样返回**，零 Theme 覆盖 ⇒ 逐像素零回归。
+    if (!isTabletOf(context)) return bar;
+
+    final double s = uiScaleOf(context);
+    final ColorScheme cs = Theme.of(context).colorScheme;
+    return NavigationBarTheme(
+      data: NavigationBarThemeData(
+        height: kNavBarHeight * s,
+        // 图标：沿用 M3 语义色（选中 onSecondaryContainer / 未选中 onSurfaceVariant），
+        // 只放大尺寸，不改配色。
+        iconTheme: WidgetStateProperty.resolveWith(
+          (Set<WidgetState> states) => IconThemeData(
+            size: kNavBarIconSize * s,
+            color: states.contains(WidgetState.selected)
+                ? cs.onSecondaryContainer
+                : cs.onSurfaceVariant,
+          ),
+        ),
+        // label：**必须保留 M3 语义色**（选中 onSurface / 未选中 onSurfaceVariant），
+        // 否则覆盖 labelTextStyle 时把 color 一起丢掉 → 选中态看不出来。
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (Set<WidgetState> states) {
+            final bool selected = states.contains(WidgetState.selected);
+            return TextStyle(
+              fontSize: kNavBarLabelFontSize * s,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              color: selected ? cs.onSurface : cs.onSurfaceVariant,
+            );
+          },
         ),
       ),
+      child: bar,
     );
   }
 }

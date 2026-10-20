@@ -450,21 +450,89 @@ final entitlementProvider = StateProvider<Entitlement>(
 final StateProvider<bool> debugPremiumUnlockProvider =
     StateProvider<bool>((ref) => false);
 
-/// 🐞 **仅 Debug**：切换模拟解锁（写内存态 [entitlementProvider]，不落库）。
+/// 调试解锁的假票据产品号（一眼可辨，便于真机上排查「为什么我解锁了」）。
+const String kDebugSimulatedProductId = 'debug.simulated.unlock';
+
+/// 🐞 **仅 Debug**：切换「会员模式」（写内存态 [entitlementProvider] + 领域层
+/// 内存态，**不落库、不写票据**）。
 ///
-/// [enabled] 为 `true` → 记一个 `productId: 'debug.simulated.unlock'` 的假票据
-/// （`productId` 一眼可辨，便于真机上排查「为什么我解锁了」）；为 `false` → 回
-/// [Entitlement.free]。
+/// [enabled] 为 `true` → 记一个 `productId: [kDebugSimulatedProductId]` 的假票据；
+/// 为 `false` → 回 [Entitlement.free]。
 ///
 /// 🔴 本函数是「调试态 → 权益态」的**唯一转换点**：UI 侧（`DebugUnlockSwitch`）
 /// 只碰 [debugPremiumUnlockProvider] 与本函数，故调试控件文件内零权益标识符
 /// （`test/qa/entitlement_gate_guard_test.dart` 守卫仍紧）。
+///
+/// ## F142：必须同时覆盖**两个**内存源，否则「看着是会员，一按就被打回」
+///
+/// 权益态有**两个独立内存源**：
+///  1. [entitlementProvider] —— **UI 层**判定（按钮亮不亮、报告段取不取数据）；
+///  2. [`MatrixEntitlementService`] 的私有 `_current` —— **领域层**判定
+///     （`can()` / `quotaOf()`，如 `PlantGrowthService.expandPot` 的花盆容量上限）。
+///
+/// 旧实现只写 ①，于是花园扩容按钮亮着，一按却被域层按 free 的 4 盆上限拒绝。
+/// 现在补上 ②（经 [DebugEntitlementOverride] 能力接口），两源同向。
 void debugSetPremiumUnlock(WidgetRef ref, bool enabled) {
-  ref.read(debugPremiumUnlockProvider.notifier).state = enabled;
-  ref.read(entitlementProvider.notifier).state = enabled
+  _applyDebugPremiumMode(
+    enabled: enabled,
+    setSwitchState: (bool next) =>
+        ref.read(debugPremiumUnlockProvider.notifier).state = next,
+    setEntitlement: (Entitlement next) =>
+        ref.read(entitlementProvider.notifier).state = next,
+    readService: () => ref.read(entitlementServiceProvider),
+  );
+}
+
+/// 🐞 **仅 Debug**：[debugSetPremiumUnlock] 的 [ProviderContainer] 版本。
+///
+/// 语义与 [debugSetPremiumUnlock] **逐字节一致**，只是取 state 的入口从
+/// [WidgetRef] 换成 [ProviderContainer] —— 供纯 Dart 上下文与 widget 测试调用
+/// （真实入口用例 `test/m3/f142_premium_mode_switch_test.dart` 用它开开关）。
+void debugSetPremiumUnlockIn(ProviderContainer container, bool enabled) {
+  _applyDebugPremiumMode(
+    enabled: enabled,
+    setSwitchState: (bool next) =>
+        container.read(debugPremiumUnlockProvider.notifier).state = next,
+    setEntitlement: (Entitlement next) =>
+        container.read(entitlementProvider.notifier).state = next,
+    readService: () => container.read(entitlementServiceProvider),
+  );
+}
+
+/// [debugSetPremiumUnlock] / [debugSetPremiumUnlockIn] 的共用实现。
+///
+/// 用三个回调抽掉「从哪里取 state」的差异，保证两个公开入口**只有一份逻辑**，
+/// 不会出现「widget 入口修了、container 入口忘了修」的孪生漂移。
+void _applyDebugPremiumMode({
+  required bool enabled,
+  required void Function(bool next) setSwitchState,
+  required void Function(Entitlement next) setEntitlement,
+  required EntitlementService Function() readService,
+}) {
+  final Entitlement target = enabled
       ? Entitlement.lifetime(
           acquiredAt: DateTime.now(),
-          productId: 'debug.simulated.unlock',
+          productId: kDebugSimulatedProductId,
         )
       : Entitlement.free;
+
+  // ① 开关布尔值（UI 控件回读）。
+  setSwitchState(enabled);
+
+  // ② UI 层权益快照。
+  setEntitlement(target);
+
+  // ③ 领域层内存态（F142 修复点）。
+  //
+  // 用 `is` 做**能力探测**而非要求所有实现都加方法：测试里的 Fake
+  // （`implements EntitlementService`）不需要实现新接口也能编译；
+  // 不实现 → 判定为「无调试能力」，静默跳过（生产路径不受影响）。
+  final EntitlementService service = readService();
+  if (service is DebugEntitlementOverride) {
+    // ⚠️ 必须显式 down-cast：Dart 的 `is` 只在「被测类型是声明类型的子类型」时
+    // 才做类型提升，而 [DebugEntitlementOverride] 与 [EntitlementService] 是
+    // **平级的两条接口**（谁也不是谁的子类型）→ 不 cast 直接调会编译报
+    // `undefined_method`（F142 首次实现即踩）。
+    (service as DebugEntitlementOverride).debugOverrideCurrent(target);
+  }
 }

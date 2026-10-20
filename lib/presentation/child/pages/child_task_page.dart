@@ -277,20 +277,25 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
 
   @override
   Widget build(BuildContext context) {
+    // F142（玄参 2026-10-20 拍板）：**平板**整页内容与底图同时下移
+    // [kTabletContentDownshift]（40pt），与「今日」页**同量**——保证切 tab 时
+    // 背景分界线不跳动。手机端 `_panelTargetRatio` 逐位等于 [kGrowthListTopRatio]，
+    // 即**零回归**；且 C46d/C47e 的基线常量本身不改（只叠加平板增量）。
+    final double panelRatio = _panelTargetRatio;
     // 暖奶油底 + 整页背景（C44：上半场景 + 下半留白，白卡浮在留白区上）。
     // 图片失败回退纯色（TabBackground.fallbackColor），所有状态都铺底。
     if (_loading) {
-      return const TabBackground(
+      return TabBackground(
         asset: kGrowthBgAsset,
-        panelTargetRatio: kGrowthListTopRatio,
+        panelTargetRatio: panelRatio,
         fallbackColor: _kCream,
-        child: Center(child: CircularProgressIndicator()),
+        child: const Center(child: CircularProgressIndicator()),
       );
     }
     if (_error != null) {
       return TabBackground(
         asset: kGrowthBgAsset,
-        panelTargetRatio: kGrowthListTopRatio,
+        panelTargetRatio: panelRatio,
         fallbackColor: _kCream,
         child: Center(
           child: Column(
@@ -306,11 +311,11 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
     }
     final TodayTaskBoard board = _board!;
     if (board.items.isEmpty) {
-      return const TabBackground(
+      return TabBackground(
         asset: kGrowthBgAsset,
-        panelTargetRatio: kGrowthListTopRatio,
+        panelTargetRatio: panelRatio,
         fallbackColor: _kCream,
-        child: Center(
+        child: const Center(
           child: Text('今天没有成长项，去玩吧 🌻', style: TextStyle(fontSize: 16)),
         ),
       );
@@ -318,13 +323,33 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
 
     return TabBackground(
       asset: kGrowthBgAsset,
-      panelTargetRatio: kGrowthListTopRatio,
+      panelTargetRatio: panelRatio,
       fallbackColor: _kCream,
       // C46d（玄参 2026-10-09 四轮反馈）：取消悬浮胶囊（盖住插画且观感差），
       // 进度条并入列表首行、落在奶油面板顶部（深棕字在面板上 100% 清晰，
       // 不遮任何场景元素），随列表滚动。
       child: _taskList(board),
     );
+  }
+
+  /// F142：**平板**内容整体下移量（逻辑点）；手机恒 `0`（手机逐像素零回归）。
+  ///
+  /// 口径见 [kTabletContentDownshift]（玄参 2026-10-20 拍板：40 逻辑点、
+  /// iPad 11″ 与 13″ 同量、不做屏高比例换算）。
+  double get _contentDownshift =>
+      isTabletOf(context) ? kTabletContentDownshift : 0.0;
+
+  /// 底图锚点比例：平板按 [kTabletContentDownshift] **等效下移**（比例 = pt / 屏高）。
+  ///
+  /// 手机（`_contentDownshift == 0`）→ **逐位等于** [kGrowthListTopRatio]（0.34）。
+  /// 平板 iPad 11″（1210）→ 0.34 + 40/1210 ≈ 0.3731；iPad 13″（1376）→ ≈ 0.3691。
+  ///
+  /// 🔴 [build]（底图怎么画）与 [_taskList]（列表裁剪上沿 / 起点）**必须**同源，
+  /// 否则平板下列表会与面板上缘错开 40pt（要么露出草地、要么文字压在插画上）。
+  double get _panelTargetRatio {
+    final double h = MediaQuery.sizeOf(context).height;
+    if (h <= 0) return kGrowthListTopRatio;
+    return kGrowthListTopRatio + _contentDownshift / h;
   }
 
   /// 「今日成长 x/y」百分比进度条（C46d）：奶油面板顶部第一行，随列表滚动。
@@ -430,8 +455,11 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
     // C47e（玄参 2026-10-09）：列表整体套 [ClipRect]，**裁剪上沿 = 列表起点**——
     // 手指拖动时卡片在面板上沿被裁掉，不会压到上方向日葵 / 书桌场景
     //（与商店页 kStoreListTopRatio 同款处理）。
+    //
+    // F142：平板下与底图**同源**下移 40pt（手机 +0，逐像素零回归）。
     final double sceneGap =
-        MediaQuery.sizeOf(context).height * kGrowthListTopRatio;
+        MediaQuery.sizeOf(context).height * kGrowthListTopRatio +
+            _contentDownshift;
 
     final List<Widget> children = <Widget>[
       _progressHeader(board),

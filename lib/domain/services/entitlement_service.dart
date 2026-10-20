@@ -42,6 +42,38 @@ abstract class EntitlementService {
   int quotaOf(FeatureKey f);
 }
 
+/// 🐞 **仅调试**：把内存态权益**原地**覆盖（不落库、不写票据，重启即失效）。
+///
+/// ## 为什么需要这条独立接口（F142 真 Bug 修复）
+///
+/// 权益态在运行期存在**两个独立内存源**：
+///  1. `entitlementProvider`（`core/di/providers.dart`）—— **UI 层**门控读取的唯一来源
+///     （花园页扩容按钮亮不亮、报告段要不要取热力图…）；
+///  2. [`MatrixEntitlementService`] 的私有字段 `_current` —— **领域层**判定
+///     （[EntitlementService.can] / [EntitlementService.quotaOf]）读取的唯一来源
+///     （`PlantGrowthService.expandPot` 的花盆容量上限就卡在这里）。
+///
+/// 旧版调试开关只写了 ①（外加开关布尔值），完全没碰 ②：于是 UI 把扩容按钮点亮，
+/// 一按就落到域层 `quotaOf(gardenPotCapacity)`，仍按 `free` 的 4 盆判定 →
+/// 「看着是会员，一按就被打回」（玄参真机复现）。
+///
+/// ## 为什么是**独立接口**而不是加进 [EntitlementService]
+///
+/// [EntitlementService] 有测试 Fake（`test/m3/plant_perk_gating_test.dart` 的
+/// `_FixedTierEntitlementService implements EntitlementService`）。给它加方法会让
+/// 所有 Fake 编译失败。故沿用本项目既有的**能力扩展模式**（如
+/// `implements FocusRangeQuery`）：调用方用 `is DebugEntitlementOverride` 做能力探测，
+/// 不实现本接口的 Fake 自动降级为「无调试能力」，零编译影响。
+abstract interface class DebugEntitlementOverride {
+  /// 把内存态权益覆盖为 [entitlement]（**同步、原地**）。
+  ///
+  /// 🔴 与 [EntitlementService.purchaseLifetime] 的区别：本方法**绝不调**
+  /// `_repository.write`，不产生任何票据、不触碰安全区存储 —— 纯调试态，
+  /// 进程重启（或任意一次 [EntitlementService.load] / [EntitlementService.refresh]）
+  /// 即被真实票据覆盖回真实档位。
+  void debugOverrideCurrent(Entitlement entitlement);
+}
+
 /// 基于**本地票据 + 门控矩阵**的纯逻辑判定实现。
 ///
 /// - 内存态 [_current] 默认 [Entitlement.free]（安全默认，构造即可用，不触平台）；
@@ -49,7 +81,11 @@ abstract class EntitlementService {
 /// - [clock] 可注入以便单测固定时间（默认系统时钟）。
 ///
 /// ⚠️ 阶段 1 矩阵全放开，故对 free 用户 [can] 亦返回 true —— 行为零变化。
-class MatrixEntitlementService implements EntitlementService {
+///
+/// F142：额外实现 [DebugEntitlementOverride]，让仅调试用的「会员模式」开关
+/// （`debugSetPremiumUnlock`）能同时覆盖**领域层**判定源。
+class MatrixEntitlementService
+    implements EntitlementService, DebugEntitlementOverride {
   MatrixEntitlementService({
     required EntitlementRepository repository,
     IapClient? iap,
@@ -150,4 +186,14 @@ class MatrixEntitlementService implements EntitlementService {
   @override
   int quotaOf(FeatureKey f) =>
       featureQuotaFor(f, _current.tier, matrix: _matrix);
+
+  /// 🐞 仅调试：把内存态 [_current] 原地覆盖为 [entitlement]。
+  ///
+  /// 🔴 **与 [purchaseLifetime] 的关键区别**：本方法**不调 `_repository.write`**，
+  /// 不写票据、不碰安全区存储；因此它只会影响**当前进程**的判定结果
+  /// （[can] / [quotaOf] 立即生效），重启即失效。
+  @override
+  void debugOverrideCurrent(Entitlement entitlement) {
+    _current = entitlement;
+  }
 }

@@ -12,34 +12,12 @@ import 'dart:async';
 // ⚠️ `AudioSessionConfiguration` 于 D1-v2（冷启动首次 play() 卡 ready 的根因修复）加入：
 // 必须声明 Android/iOS 音频会话，否则首次 `play()` 渲染管道不启动（真机日志实锤）。
 import 'package:audio_session/audio_session.dart' // ignore: depend_on_referenced_packages
-    show
-        AudioInterruptionEvent,
-        AudioSession,
-        AudioSessionConfiguration;
-import 'package:flutter/foundation.dart'
-    show debugPrint, kDebugMode, visibleForTesting;
+    show AudioSession, AudioSessionConfiguration;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:just_audio/just_audio.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
-
-/// 真机音频诊断日志统一 tag（`[AMBDIAG][毫秒时间戳][位置] 内容`）。
-const String _kAmbientDiagTag = 'AMBDIAG';
-
-/// 打印一行真机音频诊断日志（**仅 `kDebugMode`**，release 包零噪声）。
-///
-/// 背景（玄参 2026-10-07 真机复测）：headless 测试覆盖不到**真机音频管线**——
-/// 「首进花园 BGM 不响」「种植音效打断背景音」在 872 全绿下真机仍红。故埋点取证：
-/// 每次音频决策都能回答「为什么没播 / 为什么停了」。
-///
-/// ⚠️ 用 [debugPrint]：`flutter test` 会把全局 `debugPrint` 指向
-/// `debugPrintSynchronously`（`flutter_test/binding.dart`），**不挂节流 Timer**，
-/// 故在 FakeAsync widget 测试里也不会留下 pending timer。
-void _adbg(String where, String msg) {
-  if (!kDebugMode) return;
-  debugPrint(
-      '[$_kAmbientDiagTag][${DateTime.now().millisecondsSinceEpoch}][$where] $msg');
-}
 
 /// 氛围音「有限次尝试全部失败」后的**有界重试**间隔（毫秒）。
 ///
@@ -379,17 +357,6 @@ class AudioService {
   /// 已触发的失败重试次数（成功起播 / stop / dispose 复位）。
   int _ambientRetryCount = 0;
 
-  // ── 真机诊断：系统音频会话事件（仅 debug）──
-
-  /// 是否已订阅 [AudioSession] 事件（幂等位）。
-  bool _sessionDiagAttached = false;
-
-  /// 打断事件订阅（真机诊断用，[dispose] 取消）。
-  StreamSubscription<AudioInterruptionEvent>? _sessionInterruptSub;
-
-  /// becomingNoisy（耳机拔出等）事件订阅（真机诊断用，[dispose] 取消）。
-  StreamSubscription<void>? _sessionNoisySub;
-
   /// 应用设置：决定 SFX / BGM 是否生效。
   ///
   /// 若关闭 BGM 且正在播放，则立即停止；开启由调用方在 [startBgm] 触发。
@@ -401,12 +368,6 @@ class AudioService {
         !_suspendedForBackground &&
         _ambientShouldPlay &&
         !_ambientRunning;
-    _adbg(
-      'applySettings',
-      'in soundOn=$soundOn bgmOn=$bgmOn | shouldPlay=$_ambientShouldPlay '
-      'playing=$_ambientPlaying running=$_ambientRunning '
-      'suspended=$_suspendedForBackground lateRepay=$lateRepay',
-    );
     if (!_bgmOn && _bgmPlaying) {
       unawaited(stopBgm());
     }
@@ -419,7 +380,6 @@ class AudioService {
     // ⚠️ 判据用 [_ambientRunning]（已在运行就不重复补播）——不能用 [_ambientPlaying]（加载
     // 窗口标记，稳态恒 false），否则每次设置同步都会把氛围音**从头重启**（QA 同源②反证）。
     if (lateRepay) {
-      _adbg('applySettings', 'late补播 → _playGardenAmbient()');
       unawaited(_playGardenAmbient());
     }
   }
@@ -534,19 +494,12 @@ class AudioService {
     final int gen = ++_sfxGeneration;
     // 本次请求是否已过期（已有更新的请求发起过）——过期一律让位，**绝不**再碰播放器。
     bool stale() => gen != _sfxGeneration;
-    // 🔴 C82 真机日志：养护 cue 被随后发起的成长 cue「静默作废」是「有动画没声音」的机制，
-    //    故把「作废点」全部日志化（release 下 _adbg 直接短路，零噪声）。
-    _adbg('sfx', 'begin gen=$gen paths=$paths');
-    void abandon(String stage) =>
-        _adbg('sfx', 'abandon gen=$gen @$stage（已被更新的 SFX 超越）now=$_sfxGeneration');
-
     final AudioPlayer? player = await _sfx;
     if (player == null) return; // 播放器构造失败：静默降级
     // 🔴 F116 核心（真机事故点）：`_sfx` 首次要连做三步平台调用（配会话 / 建播放器 / 清资产
     // 缓存，几百 ms 级）。若在这期间有更新的 SFX **抢先起播**，本协程醒来后**必须让位**——
     // 否则下面那句 `player.stop()` 会把对方刚起播的音频掐断（= 护眼卡「有动画没声音」）。
     if (stale()) {
-      _adbg('sfx', 'abandon gen=$gen（取播放器期间已有更新的 SFX）now=$_sfxGeneration');
       return;
     }
     // A 项（玄参 2026-10-07）：播放 SFX 前把花园氛围音**压低**（ducking），播完恢复；
@@ -561,18 +514,15 @@ class AudioService {
     for (int round = 0; round < 2; round++) {
       if (round > 0) {
         if (stale()) {
-          abandon('retry-round');
           return;
         }
         await Future<void>.delayed(const Duration(milliseconds: 600));
         if (stale()) {
-          abandon('retry-delay');
           return;
         }
       }
       for (final String path in paths) {
         if (stale()) {
-          abandon('before-path');
           return;
         }
         try {
@@ -580,7 +530,6 @@ class AudioService {
           // 既不把对方掐断，也不白播（F116）。
           await player.stop();
           if (stale()) {
-            abandon('after-stop');
             return;
           }
           // F133：同款**有界加载**——SFX 与氛围音共患同一个 just_audio 缺陷（`setAsset` 在
@@ -588,18 +537,13 @@ class AudioService {
           // 但卡住的协程会一直占着**同一个**共享 SFX 播放器，后续每次 `player.stop()` 都可能
           // 跟着挂住 → 音效整体永久哑。超时即当该候选失败，试下一个。
           if (!await loadAssetBounded(() => player.setAsset(path))) {
-            _adbg('sfx',
-                'setAsset 超时（${kAmbientSetAssetTimeoutMs}ms）→ 试下一候选: $path');
             continue;
           }
-          _adbg('sfx', 'loaded gen=$gen path=$path');
           if (stale()) {
-            abandon('after-setAsset');
             return;
           }
           await player.seek(Duration.zero);
           if (stale()) {
-            abandon('after-seek');
             return;
           }
           // D1 同款（玄参 2026-10-07 真机日志锁定）：**绝不 await `player.play()`**——
@@ -610,11 +554,9 @@ class AudioService {
           unawaited(player.play());
           final bool started = await _pollPlaybackStarted(player);
           if (stale()) {
-            abandon('after-play');
             return;
           }
           if (started) return; // 确已起播 → 成功返回（F116-C：不再「发起即认为成功」）
-          _adbg('sfx', 'not started（有限轮询未起播）→ 试下一候选 / 下一轮: $path');
         } catch (_) {
           // 该候选缺失 / 播放启动失败：试下一个候选（本轮全碰壁则下一轮再试一遍）。
         }
@@ -648,21 +590,13 @@ class AudioService {
   /// 返回 `true` 表示**处于压低态**（调用方据此决定是否挂恢复逻辑）。
   bool _duckAmbientForSfx() {
     if (_ambientDucked) {
-      _adbg('duck', 'skip: already ducked（不堆叠 setVolume）');
       return true; // 已在压低态：不重复压低
     }
     if (!_ambientAudible) {
-      _adbg(
-        'duck',
-        'no duck: ambient not audible (playing=${_ambientPlayer?.playing} '
-        'shouldPlay=$_ambientShouldPlay bgmOn=$_bgmOn)',
-      );
       return false;
     }
     _ambientDucked = true;
     _duckAmbientGeneration = _ambientGeneration;
-    _adbg('duck',
-        'duck → setVolume($kSfxDuckAmbientVolume) gen=$_ambientGeneration');
     unawaited(_ambientPlayer!.setVolume(kSfxDuckAmbientVolume));
     return true;
   }
@@ -674,8 +608,6 @@ class AudioService {
       const Duration(milliseconds: kSfxDuckMaxMs),
       _restoreAmbientVolume,
     );
-    _adbg('duck',
-        'arm restore: Timer(${kSfxDuckMaxMs}ms) + SFX completed listener');
     unawaited(_sfxDuckSub?.cancel());
     // D2 修复（玄参 2026-10-07 真机日志锁定）：只在 processingState **真正跃迁到 completed**
     // 时才恢复。**比单纯 `.skip(1)` 更强**——D2 护栏测试 D2-① 实证 `.skip(1)` 不够：
@@ -713,27 +645,15 @@ class AudioService {
     unawaited(_sfxDuckSub?.cancel());
     _sfxDuckSub = null;
     if (!_ambientDucked) {
-      _adbg('restore', 'no-op: never ducked');
       return; // 从未压低：无需恢复
     }
     _ambientDucked = false;
     if (_duckAmbientGeneration != _ambientGeneration) {
-      _adbg(
-        'restore',
-        'skip: generation changed duckGen=$_duckAmbientGeneration '
-        'now=$_ambientGeneration（已 stop，不复活）',
-      );
       return;
     }
     if (!_ambientAudible) {
-      _adbg(
-        'restore',
-        'skip: ambient not audible (playing=${_ambientPlayer?.playing} '
-        'shouldPlay=$_ambientShouldPlay bgmOn=$_bgmOn)',
-      );
       return;
     }
-    _adbg('restore', 'restore → setVolume(1.0)');
     unawaited(_ambientPlayer!.setVolume(1.0));
   }
 
@@ -791,14 +711,6 @@ class AudioService {
   /// 同响、互不打断」的用户口径（F67）。
   void _attachAmbientHeal(AudioPlayer player) {
     _ambientStateSub ??= player.playerStateStream.listen((PlayerState st) {
-      // 真机诊断（item 6）：每次状态变化留痕——这是判断「背景音到底是被**暂停**了，
-      // 还是只是**变轻 / 播完**」的唯一硬证据。
-      _adbg(
-        'ambientState',
-        'playing=${st.playing} processingState=${st.processingState} '
-        '(reloading=$_ambientReloading shouldPlay=$_ambientShouldPlay '
-        'bgmOn=$_bgmOn ducked=$_ambientDucked)',
-      );
       if (_ambientReloading || !_ambientShouldPlay || !_bgmOn) return;
       if (!ambientNeedsHeal(
         isPlaying: st.playing,
@@ -811,11 +723,8 @@ class AudioService {
         return; // 节流：1s 内不重复重启
       }
       _lastAmbientHealAt = now;
-      _adbg('ambientHeal', 'needs heal → 从头续播 _playGardenAmbient()');
       unawaited(_playGardenAmbient()); // 从头续播
     });
-    // 真机诊断（item 7）：订阅系统音频会话事件（幂等、仅 debug）。
-    unawaited(_attachSessionDiagnostics());
   }
 
   /// 🔴 **首次播放前必须配置 Android 音频会话**（D1-v2 根因修复，2026-10-07 真机日志实锤）。
@@ -854,41 +763,15 @@ class AudioService {
       final AudioSession session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
       _sessionConfigured = true; // 成功才置位（幂等：并发/后续调用都不会重复配置）
-      _adbg('session', 'AudioSession configured（music）——冷启动首次 play() 不再卡 ready');
-    } catch (e) {
+    } catch (_) {
       // 🔴 F116-C：失败**不置位**。原实现把 `_audioSessionConfigured = true` 写在 try
       // **之前**（「先置位：并发调用只真正配置一次，且失败不反复重试」），代价是**一次冷启动
       // 失败 = 本进程此后所有播放都可能「哑起播」且永不重试**——而「会话未声明 → 冷启动首次
       // `play()` 卡 ready 不渲染」正是 F86 的真机根因。改为：失败即保持未配置态（下次调用
       // 重新尝试），成功才置位（仍只配置一次）。
-      _adbg('session', 'configure failed（下次调用重试）: $e');
     } finally {
       // 在途标记用完即清：后续路径一律由 [_sessionConfigured] 决定（成功短路 / 失败重试）。
       _sessionConfigFuture = null;
-    }
-  }
-
-  /// 订阅系统音频会话的「打断 / becomingNoisy」事件（**仅 debug**、幂等）。
-  ///
-  /// 用于判定真机「背景音断掉」是否由**系统级**打断（来电 / 耳机拔出 / 其它 App 抢占）
-  /// 介入。[AudioSession.instance] 内部已 try/catch 平台缺失 → headless 测试安全
-  /// （无事件则永不触发）；release 下 [kDebugMode] 为 false 直接短路，零噪声。
-  Future<void> _attachSessionDiagnostics() async {
-    if (!kDebugMode || _sessionDiagAttached) return;
-    _sessionDiagAttached = true;
-    try {
-      final AudioSession session = await AudioSession.instance;
-      _sessionInterruptSub =
-          session.interruptionEventStream.listen((AudioInterruptionEvent e) {
-        _adbg('session', 'interruption type=${e.type} begin=${e.begin}');
-      });
-      _sessionNoisySub = session.becomingNoisyEventStream.listen((_) {
-        _adbg('session', 'becomingNoisy（耳机拔出等）');
-      });
-      _adbg('session',
-          'subscribed interruptionEventStream + becomingNoisyEventStream');
-    } catch (e) {
-      _adbg('session', 'attach failed: $e');
     }
   }
 
@@ -916,7 +799,6 @@ class AudioService {
   Future<void> playGardenAmbientAndWait() async {
     // F70：挂起态（退后台 / 锁屏）一律不记意图、不发声。
     if (_suspendedForBackground) {
-      _adbg('playGardenAmbient', 'skip: suspendedForBackground（后台/锁屏闸门）');
       return;
     }
     // D 修复（玄参 2026-10-07 复测「首次进花园仍不响」）：「花园要播」这一**意图/事实**
@@ -925,15 +807,11 @@ class AudioService {
     // 记意图后若开关未允许则直接返回（不发声）；设置迟到由 [applySettings] 补播。
     _ambientShouldPlay = true;
     if (!_bgmOn) {
-      _adbg('playGardenAmbient',
-          'intent=play recorded; skip: !_bgmOn（等 applySettings 迟到补播）');
       return;
     }
     if (_ambientPlaying) {
-      _adbg('playGardenAmbient', 'skip: _ambientPlaying（加载窗口内，勿重复起播）');
       return;
     }
-    _adbg('playGardenAmbient', 'launch → _playGardenAmbient()');
     await _playGardenAmbient();
   }
 
@@ -1066,7 +944,6 @@ class AudioService {
   /// 会让本轮起播重新陷入「永不返回」。
   void _discardAmbientPlayer(AudioPlayer player) {
     if (!identical(_ambientPlayer, player)) return;
-    _adbg('_discardAmbientPlayer', '丢弃卡死的氛围音播放器并解引用（待下轮重建）');
     _ambientPlayer = null;
     unawaited(_ambientStateSub?.cancel() ?? Future<void>.value());
     _ambientStateSub = null; // 置空 → 新播放器会重新挂自愈监听
@@ -1076,7 +953,6 @@ class AudioService {
   Future<void> _playGardenAmbient() async {
     // F70 v2：直呼路径（自愈监听）兜底闸门——挂起态一律不进入加载流程。
     if (_suspendedForBackground) {
-      _adbg('_playGardenAmbient', 'abort: suspendedForBackground');
       return;
     }
     // D1-v3 重入闸门：同一时刻只允许**一个**起播流程在跑。必须同步置位——下面第一个
@@ -1091,8 +967,6 @@ class AudioService {
           since == null ? Duration.zero : DateTime.now().difference(since);
       if (since != null &&
           held > const Duration(milliseconds: kAmbientStartGateStuckMs)) {
-        _adbg('_playGardenAmbient',
-            'zombie gate: 闸门已持有 ${held.inMilliseconds}ms（疑似平台卡死）→ 强制复位并作废在途流程');
         _ambientStarting = false;
         _ambientStartingSince = null;
         // 递增代际 → 那个僵死的在途流程（若它真的醒来了）在每个 await 间隙都会被判作废，
@@ -1100,7 +974,6 @@ class AudioService {
         // 用户意图仍是「要播」，只是这一轮卡住了。
         _ambientGeneration++;
       } else {
-        _adbg('_playGardenAmbient', 'skip: _ambientStarting（已有起播流程在跑，勿并发）');
         return;
       }
     }
@@ -1135,25 +1008,18 @@ class AudioService {
     final int gen = _ambientGeneration;
     final AudioPlayer? player = await _ambient;
     if (player == null) {
-      _adbg('_playGardenAmbient', 'abort: player==null（构造失败 / 无音频后端）');
       return; // 播放器构造失败：静默降级
     }
     if (!_bgmOn) {
-      _adbg('_playGardenAmbient', 'abort: !_bgmOn（设置已关）');
       return;
     }
     if (gen != _ambientGeneration) {
-      _adbg(
-        '_playGardenAmbient',
-        'abort: generation changed gen=$gen now=$_ambientGeneration（已被 stop）',
-      );
       return; // 等待播放器构造期间已被 stop：作废
     }
     _attachAmbientHeal(player); // 首次拿到播放器时挂自愈监听（幂等）
     _ambientPlaying = true;
     _ambientReloading = true; // 主动重载窗口：自愈监听忽略期间的暂停事件
     bool shouldAbort() => _suspendedForBackground || gen != _ambientGeneration;
-    int startCalls = 0;
     // D1 修复：本次 `start()` **有界轮询**的起播判定结果——[startAmbientWithRetries] 的
     // `isPlaying()` 即取此值（不再取 `await player.play()` 之后的 `player.playing`，因为
     // 我们**不再 await play()**，见 [start] 内注释）。
@@ -1161,19 +1027,15 @@ class AudioService {
     try {
       final bool started = await startAmbientWithRetries(
         start: () async {
-          startCalls++;
           // F133：每次尝试都**重新取**播放器——上一次尝试可能因 `setAsset` 超时被丢弃
           // （见下方 `on TimeoutException`），重建后必须换成新实例，否则会对已释放的
           // 播放器继续操作。
           final AudioPlayer? p = await _ambient;
           if (p == null) {
-            _adbg('ambientStart', 'attempt #$startCalls: abort（播放器构造失败）');
             polledStarted = false;
             return;
           }
           _attachAmbientHeal(p); // 幂等；重建后会重新挂到新播放器上
-          _adbg('ambientStart',
-              'attempt #$startCalls: stop→setAsset→seek→setVolume→play');
           await p.stop();
           // 🔴 F133（玄参 2026-10-19 iPad 13 真机日志锁定）：`setAsset` 返回的 Future
           // **只在拿到 `ready` 时完成**；加载途中被 `stop()`（= 孩子退出花园 / 切 tab）
@@ -1186,8 +1048,6 @@ class AudioService {
             () => p.setAsset(kGardenAmbientAsset),
           );
           if (!loaded) {
-            _adbg('ambientStart',
-                'attempt #$startCalls: setAsset 超时（${kAmbientSetAssetTimeoutMs}ms）→ 丢弃播放器待重建');
             // 丢弃：卡在 `loading` 的播放器会一直占着共享音频会话，连 SFX 都可能被堵
             // （iPad 13 实测「花园里所有操作都没声」）。下一轮 `await _ambient` 会重建。
             if (shouldAbort()) {
@@ -1205,7 +1065,6 @@ class AudioService {
           // F70 v2：setAsset 是几百 ms 的异步间隙，期间可能退后台或离开花园 tab
           // → play() 前二次复查，命中则停播、绝不发声。
           if (shouldAbort()) {
-            _adbg('ambientStart', 'attempt #$startCalls: abort（后台/代际）→ stop');
             await p.stop();
             polledStarted = false;
             return;
@@ -1219,14 +1078,9 @@ class AudioService {
           // 「首进花园不响」。改为「发起播放（不 await）」+ **有限轮询**判定是否真的起播
           // （[_pollPlaybackStarted]，约 20ms × ≤10 ≈ 200ms 内返回）。
           unawaited(p.play());
-          _adbg('ambientStart', 'attempt #$startCalls: play() 已发起（不 await）');
           polledStarted = await _pollPlaybackStarted(p);
-          _adbg('ambientStart',
-              'attempt #$startCalls: poll→started=$polledStarted');
         },
         isPlaying: () {
-          _adbg('ambientStart',
-              'attempt #$startCalls: isPlaying(poll)=$polledStarted');
           return polledStarted; // D1：用「有限轮询结果」判定，而非阻塞后的 readback
         },
         shouldAbort: shouldAbort,
@@ -1242,7 +1096,6 @@ class AudioService {
           }
         },
         onError: (int attempt, Object e) {
-          _adbg('ambientStart', 'attempt #${attempt + 1} start() 抛错: $e');
         },
       );
       // F82：仅「确已启动」才置应播标记；未成功则静默放弃（等自愈监听 / 下一轮定时器）。
@@ -1251,13 +1104,10 @@ class AudioService {
         _ambientRetryCount = 0;
         _ambientRetryTimer?.cancel();
         _ambientRetryTimer = null;
-        _adbg('ambientStart', 'started=true（已发声；清除失败重试计数）');
       } else if (shouldAbort()) {
         // 起播失败但根因是「已退后台 / 已被 stop / 代际已变」→ 这不是「冷启动起不来」，
         // **绝不挂重试**（否则遗留一个 1.5s Timer：真机无意义、测试会判 pending timer）。
-        _adbg('ambientStart', 'started=false 但仍处 abort 态（后台/代际）→ 不挂重试');
       } else {
-        _adbg('ambientStart', 'started=false（有限次仍失败）→ 挂有界重试');
         _scheduleAmbientFailureRetry(gen);
       }
     } finally {
@@ -1277,40 +1127,26 @@ class AudioService {
   /// （已被 stop / dispose 作废 → 不遗留无意义定时器）。
   void _scheduleAmbientFailureRetry(int gen) {
     if (gen != _ambientGeneration) {
-      _adbg('ambientRetry', 'skip arm: generation already changed');
       return;
     }
     if (_ambientRetryCount >= _kAmbientFailureRetryAttempts) {
-      _adbg('ambientRetry',
-          'give up（已达上限 $_kAmbientFailureRetryAttempts 次，等 30s 定时器/自愈）');
       return;
     }
     _ambientRetryTimer?.cancel();
-    final int next = _ambientRetryCount + 1;
-    _adbg('ambientRetry',
-        'armed #$next in ${_kAmbientFailureRetryDelayMs}ms gen=$gen');
     _ambientRetryTimer = Timer(
       const Duration(milliseconds: _kAmbientFailureRetryDelayMs),
       () {
         _ambientRetryTimer = null;
         if (gen != _ambientGeneration) {
-          _adbg('ambientRetry', 'abort: generation changed');
           return;
         }
         if (_suspendedForBackground || !_bgmOn || !_ambientShouldPlay) {
-          _adbg(
-            'ambientRetry',
-            'abort: suspended=$_suspendedForBackground bgmOn=$_bgmOn '
-            'shouldPlay=$_ambientShouldPlay',
-          );
           return;
         }
         if (_ambientRunning) {
-          _adbg('ambientRetry', 'abort: already running');
           return;
         }
         _ambientRetryCount++;
-        _adbg('ambientRetry', 'fire #$_ambientRetryCount');
         unawaited(_playGardenAmbient());
       },
     );
@@ -1326,12 +1162,6 @@ class AudioService {
   /// 各调用点传入便于日志区分：`'leave'`（离开花园 tab）/ `'bgmOff'`（设置关 BGM）/
   /// `'suspend'`（退后台 / 锁屏）/ `'dispose'`。
   Future<void> stopGardenAmbient({String reason = 'unspecified'}) async {
-    _adbg(
-      'stopGardenAmbient',
-      'reason=$reason | gen $_ambientGeneration→${_ambientGeneration + 1} '
-      'shouldPlay(before)=$_ambientShouldPlay playing(before)=$_ambientPlaying '
-      'ducked(before)=$_ambientDucked',
-    );
     _ambientRetryTimer?.cancel(); // 离开/停播即作废失败重试
     _ambientRetryTimer = null;
     _ambientRetryCount = 0;
@@ -1350,16 +1180,9 @@ class AudioService {
 
   /// 释放所有播放器（专注页 [dispose] 时调用；下次使用懒加载重建）。
   Future<void> dispose() async {
-    _adbg('dispose',
-        'release players; gen $_ambientGeneration→${_ambientGeneration + 1}');
     _ambientRetryTimer?.cancel();
     _ambientRetryTimer = null;
     _ambientRetryCount = 0;
-    await _sessionInterruptSub?.cancel();
-    _sessionInterruptSub = null;
-    await _sessionNoisySub?.cancel();
-    _sessionNoisySub = null;
-    _sessionDiagAttached = false;
     await _ambientStateSub?.cancel();
     _ambientStateSub = null;
     _duckRestoreTimer?.cancel();

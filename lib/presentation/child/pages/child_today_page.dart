@@ -310,34 +310,68 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
           );
 
     // C44：整页背景（上半场景 + 下半留白，白卡浮在留白区上）。
+    //
+    // F142（玄参 2026-10-20 拍板）：**平板**下底图整体再下移
+    // [kTabletContentDownshift]（40pt）—— 换算成比例（`0.37 + 40 / 屏高`）后传给
+    // [TabBackground]，手机仍原样传 [kTodayBgPanelTargetRatio]（0.37）。
+    // ⚠️ 只改**传进去的**比例，不改 C67 冻结常量本身（见 `test/qa/focus_level_guard_test.dart`）。
     return TabBackground(
       asset: kTodayBgAsset,
       // C67：底图锚点**冻结**在 [kTodayBgPanelTargetRatio]（=0.37），**不跟**卡片下移
       // —— 玄参明确「背景图片的位置已经比较合适了」（互相关实证背景像素零变化）。
-      panelTargetRatio: kTodayBgPanelTargetRatio,
+      // F142 平板例外：玄参新反馈「背景图也偏上」→ 平板下按 40pt 等效下移。
+      panelTargetRatio: _panelTargetRatio,
       fallbackColor: const Color(0xFFFBF4E4),
       child: body,
     );
+  }
+
+  /// F142：**平板**内容整体下移量（逻辑点）；手机恒 `0`（手机逐像素零回归）。
+  ///
+  /// 见 [kTabletContentDownshift] 的口径（玄参 2026-10-20 拍板：40 逻辑点、
+  /// iPad 11″ 与 13″ 同量、不做屏高比例换算）。
+  double get _contentDownshift =>
+      isTabletOf(context) ? kTabletContentDownshift : 0.0;
+
+  /// 底图锚点比例：平板按 [kTabletContentDownshift] **等效下移**（比例 = pt / 屏高）。
+  ///
+  /// 手机（`_contentDownshift == 0`）→ **逐位等于** [kTodayBgPanelTargetRatio]（0.37）。
+  /// 平板 iPad 11″（1210）→ 0.37 + 40/1210 ≈ 0.4033；iPad 13″（1376）→ 0.37 + 40/1376 ≈ 0.3991。
+  ///
+  /// 🔴 [build] 与 [_buildLayout] **必须**共用本 getter：前者决定底图怎么画，
+  /// 后者用它反算分界线；两处不同源会让「卡片呼吸带」与真实分界线错位。
+  double get _panelTargetRatio {
+    final double h = MediaQuery.sizeOf(context).height;
+    if (h <= 0) return kTodayBgPanelTargetRatio;
+    return kTodayBgPanelTargetRatio + _contentDownshift / h;
   }
 
   /// 布局：`Stack[ 场景留白 + 卡片滚动区 + 钉底按钮 , 悬浮阳光气泡 ]`。
   Widget _buildLayout({required Size box}) {
     final double screenH = MediaQuery.sizeOf(context).height;
     final double screenW = MediaQuery.sizeOf(context).width;
+    // F142：平板内容整体下移 40pt（手机恒 0，见 [kTabletContentDownshift]）。
+    final double downshift = _contentDownshift;
     // 底图分界线（**实测反算**，与 TabBackground 同源；未登记几何 ⇒ -inf）。
+    // ⚠️ 必须传 [_panelTargetRatio]（含平板 40pt 等效下移）而不是裸常量，
+    //    否则平板下「量到的分界线」与「画出来的分界线」会差 40pt。
     final double panelLineY = TabBackground.panelLineY(
       context: context,
       box: box,
       asset: kTodayBgAsset,
-      targetRatio: kTodayBgPanelTargetRatio,
+      targetRatio: _panelTargetRatio,
     );
     // 第一张卡起点：C67 冻结值 `0.40 × 屏高` **与**「实测分界线 + 3% 呼吸带」取大。
     // 平板上两者相等（⇒ iPad 零变化）；手机上分界线被 cover 抬高，取大即把卡片
     // 压回分界线下方，恢复呼吸带（见 [kTodayBreathingBandRatio] 的推导）。
     // 直接用屏高比例定位（实测模拟器 padding.top ≈118pt
     // 双倍计入，减 topInset 反而会把卡片顶回 20%，故与 topInset 解耦）。
+    //
+    // F142：下移量只加在**第一条**（冻结基线）上，而不是加在 `max()` 之后 ——
+    // 第二条已经因底图锚点同步下移而自动含了这 40pt，两者在平板上恰好相等
+    // （0.40H + 40），加在 max 之后会变成 +80pt（卡片压掉半张统计卡）。
     final double sceneGap = math.max(
-      screenH * kTodayCardTopRatio,
+      screenH * kTodayCardTopRatio + downshift,
       panelLineY + screenH * kTodayBreathingBandRatio,
     );
 
@@ -417,9 +451,10 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         // 悬浮阳光气泡：飘在向日葵右侧书架前空地（玄参 2026-10-09 三轮反馈
         // 蓝框标注，cv2 模板匹配实测屏幕区域 x 65.5-89.5% / y 23.9-29.8%，
         // 匹配置信度 0.92）。锚点=蓝框中心回推气泡左上角（气泡 ~98×34pt）。
+        // F142：平板下与卡片/底图**同向下移** [kTabletContentDownshift]（手机 +0）。
         Positioned(
           left: screenW * 0.65,
-          top: screenH * 0.25,
+          top: screenH * 0.25 + downshift,
           child: _FloatingSunBubble(
             capsuleKey: ChildTodayPage.sunBubbleKey,
             balance: _balance,
@@ -437,15 +472,17 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         //   既在透明 AppBar 家长图标之下、又在右侧阳光胶囊飘动区之上，两个都不压）。
         //   根因：iPad 上底图 cover 把向日葵花头抬到屏 y≈44，左上角墙区被花头/窗/
         //   书架占满，徽章虽渲染但视觉丢失 —— 移到右侧墙区是唯一根治解（手机不动）。
+        // F142：平板下徽章与场景/卡片**同向下移** [kTabletContentDownshift]（手机 +0）。
         Positioned(
           right: isTabletOf(context) ? kTodayBadgeRightInsetTablet : null,
           left: isTabletOf(context)
               ? null
               : screenW * kTodayBadgeLeftRatio,
           top: screenH *
-              (isTabletOf(context)
-                  ? kTodayBadgeTopRatioTablet
-                  : kTodayBadgeTopRatio),
+                  (isTabletOf(context)
+                      ? kTodayBadgeTopRatioTablet
+                      : kTodayBadgeTopRatio) +
+              downshift,
           child: FocusLevelBadge(
             progress: progressOf(_totalFocusMinutes),
             totalMinutes: _totalFocusMinutes,

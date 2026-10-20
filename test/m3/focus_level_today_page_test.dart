@@ -551,8 +551,11 @@ void main() {
         reason: '平板徽章右缘 = 屏宽 − kTodayBadgeRightInsetTablet(100pt) ≈ 734pt');
     expect(badgeRect.left, greaterThan(834 * 0.50),
         reason: 'v4 平板徽章在右侧墙区（左缘过半屏），不再是左上');
-    expect(badgeRect.top, closeTo(1194 * kTodayBadgeTopRatioTablet, 1.0),
-        reason: 'top = kTodayBadgeTopRatioTablet(0.10) × 屏高 ≈ 119pt（红框带）');
+    // F142（玄参 2026-10-20 拍板）：平板内容整体下移 40 逻辑点
+    // （kTabletContentDownshift）→ 徽章 top 也要 +40。手机端恒 +0（零回归）。
+    expect(badgeRect.top,
+        closeTo(1194 * kTodayBadgeTopRatioTablet + kTabletContentDownshift, 1.0),
+        reason: 'top = kTodayBadgeTopRatioTablet(0.10) × 屏高 + 40 ≈ 159pt（红框带下移）');
     expect(badgeRect.right, lessThanOrEqualTo(834), reason: '不越屏右');
   });
 }

@@ -26,7 +26,6 @@
 /// 逐层一致（`test/m3/growth_fx_overlay_test.dart` 等既有用例锁定）。
 library growth_fx_overlay;
 
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
@@ -74,22 +73,11 @@ class _GrowthFxOverlayState extends State<GrowthFxOverlay>
   @override
   void initState() {
     super.initState();
-    // C82 真机诊断（仅 kDebugMode）：每次**挂载**打印一次——用于判定「盛开帧播两次」
-    // 是「被重复请求」还是「同一演出被 remount（State 重建 → 动画从头重放）」。
-    if (kDebugMode) {
-      debugPrint('[GARDENFX][${DateTime.now().millisecondsSinceEpoch}]'
-          '[GROWTHFX-UI] GrowthFxOverlay initState（挂载）title=${widget.title} '
-          'frames=${widget.frames.length} durationMs=${widget.durationMs}');
-    }
     _envelope.startEnter();
   }
 
   @override
   void dispose() {
-    if (kDebugMode) {
-      debugPrint('[GARDENFX][${DateTime.now().millisecondsSinceEpoch}]'
-          '[GROWTHFX-UI] GrowthFxOverlay dispose（卸载）title=${widget.title}');
-    }
     _envelope.dispose();
     super.dispose();
   }

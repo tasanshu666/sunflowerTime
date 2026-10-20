@@ -392,10 +392,14 @@ void main() {
         }
 
         final Rect badge = _badgeRect(tester);
-        // top = kTodayBadgeTopRatioTablet(0.10) × 屏高（落在红框 y 116~161pt 带）。
+        // F142（玄参 2026-10-20 拍板）：平板内容整体下移 40 逻辑点 →
+        // top = kTodayBadgeTopRatioTablet(0.10) × 屏高 + kTabletContentDownshift(40)。
         expect(badge.top,
-            closeTo(screen.height * kTodayBadgeTopRatioTablet, 1.0),
-            reason: 'top = 0.10 × 屏高（移到今日 pill 右下方红框带）');
+            closeTo(
+                screen.height * kTodayBadgeTopRatioTablet +
+                    kTabletContentDownshift,
+                1.0),
+            reason: 'top = 0.10 × 屏高 + 40pt（红框带随本次整体下移同步）');
         // ① 徽章 ∩ 「今日」标题 pill = ∅。
         final Rect title = _titleRect(tester);
         expect(badge.overlaps(title), isFalse,

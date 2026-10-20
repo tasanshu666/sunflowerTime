@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -293,8 +294,8 @@ Future<void> _pumpToday(WidgetTester tester, Size screen,
 const Size _iPadScreen = Size(834, 1210);
 
 void main() {
-  // ── ①a 平板：C67 冻结值**逐像素不变**（修手机的 bug 不许动 iPad）──────────
-  testWidgets('iPad 834×1210 · ①a 零变化：卡顶 == 屏高 × 0.40（C67 冻结）',
+  // ── ①a 平板：C67 冻结常量**本身不动**，内容整体下移 40pt（F142）───────────
+  testWidgets('iPad 834×1210 · ①a 卡顶 == 屏高 × 0.40 + 40（F142 平板下移）',
       (WidgetTester tester) async {
     await _pumpToday(tester, _iPadScreen);
 
@@ -302,13 +303,17 @@ void main() {
     final double panelTop = _panelLineY(tester);
 
     // 独立列出期望值（不引用被测常量，防自指）。
-    expect(cardTop, closeTo(1210 * 0.40, 0.5),
-        reason: 'iPad 上卡片必须仍在 C67 冻结的 0.40 × 屏高，实测 $cardTop');
-    // 顺带证明平板上「0.40 − 0.37 = 3%」这条减法成立 ⇒ 呼吸带 36pt 原样。
-    expect(panelTop, closeTo(1210 * 0.37, 0.5),
-        reason: 'iPad 上分界线必须真的落在 0.37 × 屏高，实测 $panelTop');
+    // F142（玄参 2026-10-20 拍板）：平板内容与底图**同时**下移 40 逻辑点
+    // （kTabletContentDownshift）→ 卡顶 / 分界线各 +40，呼吸带仍是 36.3pt。
+    // 🔴 C67 冻结常量 0.40 / 0.37 **一个都没改**（见 tab_bg_alignment_test），
+    //    这里加的是叠加在基线之上的平板增量。
+    expect(cardTop, closeTo(1210 * 0.40 + kTabletContentDownshift, 0.5),
+        reason: 'iPad 上卡片 = 0.40 × 屏高 + 40 = 524.0，实测 $cardTop');
+    // 顺带证明平板上「0.40 − 0.37 = 3%」这条减法仍成立 ⇒ 呼吸带 36.3pt 原样。
+    expect(panelTop, closeTo(1210 * 0.37 + kTabletContentDownshift, 0.5),
+        reason: 'iPad 上分界线 = 0.37 × 屏高 + 40 = 487.7，实测 $panelTop');
     expect(cardTop - panelTop, closeTo(1210 * 0.03, 0.5),
-        reason: 'iPad 呼吸带必须是 3% 屏高（C67 实测 36pt）');
+        reason: 'iPad 呼吸带仍是 3% 屏高（C67 实测 36.3pt）');
   });
 
   // 各机型**真实状态栏高**（insets，非同值假数据）：非全面屏 SE 只有 20pt，

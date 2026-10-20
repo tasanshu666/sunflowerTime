@@ -1,4 +1,4 @@
-/// C85 · 🐞 Debug「模拟已解锁」开关的证据性测试。
+/// C85 · 🐞 Debug「会员模式」开关的证据性测试。
 ///
 /// 钉住四件事：
 ///  ① **可渲染**：`DebugUnlockSwitch` 出现在树上，默认关闭（`value == false`）；
@@ -7,6 +7,11 @@
 ///     （证明调试开关**真的**能预览买断态，而不只是改了个布尔值）；
 ///  ④ **release 不可见**：直读 `parent_settings_page.dart` 源码，调试区必须被
 ///     `if (kDebugMode)` 包裹（release 构建整段 tree-shake，用户不会看到调试项）。
+///
+/// F142：文案由「模拟已解锁（仅调试）」改为「会员模式（仅调试）」，副标题改为
+/// 「打开即解锁全部付费功能；重启 App 后失效」——作用范围从「预览月/年报告与热力图」
+/// 扩展为**全部付费功能**（因为本次修复同时覆盖了领域层配额判定，见
+/// `test/m3/f142_premium_mode_switch_test.dart`）。
 ///
 /// ⚠️ 本测试自身跑在 Debug 下，故 ①③ 依赖 `kDebugMode` 的「真」分支是**预期的**，
 /// 不做环境绕道（绕道反而会把「开关只在 Debug 挂载」这条约束测丢）。
@@ -135,8 +140,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('模拟已解锁（仅调试）'), findsOneWidget);
-    expect(find.text('预览月/年报告与热力图；重启 App 后失效'), findsOneWidget);
+    expect(find.text('会员模式（仅调试）'), findsOneWidget);
+    expect(find.text('打开即解锁全部付费功能；重启 App 后失效'), findsOneWidget);
     expect(find.byType(SwitchListTile), findsOneWidget);
 
     final SwitchListTile tile =

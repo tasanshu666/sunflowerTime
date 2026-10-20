@@ -38,6 +38,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/species_lore.dart';
@@ -2291,10 +2292,21 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
               ),
             // 一键操作汇总提示（C29）已于 2026-10-07 改为**根 Overlay 全屏浮层**
             // （见 [_showBatchHint]）——不再挂在根 Stack 内，避免真机「贴底」问题。
-            // 「花期调试」入口（**仅 kDebugMode**）：同样为根 Stack 浮层——紧凑、不占布局
+            // 「花期调试」入口（**仅调试构建**）：同样为根 Stack 浮层——紧凑、不占布局
             // 高度（避免把矮屏用例顶出视口 / 触发 overflow），release 构建自动不渲染。
             // 摆在右上角（左上角是阳光胶囊、左下角木牌、右下角碎片入口）。
-            if (kDebugMode && !_loading && _error == null)
+            //
+            // F139（玄参 2026-10-20 截图清单）：**截图会入镜**——花园页是商店图的主场景，
+            // 这个 bug 图标就在右上角。故与「我的」页 / 家长今日页 / 家长设置页统一走
+            // [shouldShowDebugUi] 单点判据（截图构建加 `--dart-define=HIDE_DEBUG_UI=true`
+            // 即可隐藏）；未加 define 时 `kHideDebugUi` 为 false → 行为**与修前逐位一致**，
+            // 日常调试能力不衰减。
+            if (shouldShowDebugUi(
+                  debugMode: kDebugMode,
+                  hideForScreenshots: kHideDebugUi,
+                ) &&
+                !_loading &&
+                _error == null)
               Positioned(
                 top: 12,
                 right: 12,

@@ -179,6 +179,15 @@ class ChildConfirmCard extends StatelessWidget {
   /// 明细行（0..N 条；空列表时只显示标题 + 小结 + 按钮）。
   final List<ConfirmCardRow> rows;
 
+  /// **中性正文**（可选）：纯陈述句，既不是警告也不是数字小结。
+  ///
+  /// F141 新增：退出专注确认（`向日葵还在这儿陪着你，要现在结束专注吗？`）、
+  /// 护眼提前结束确认、付费引导正文本质都是**中性陈述**，塞进 [warning] 会变
+  /// 红字警告、塞进 [note] 会变成金色加粗小结 —— 按 C103 口径两者**禁混用**。
+  /// 故单独开一槽，位置在 [title] 与 [warning] 之间，取
+  /// [GoldNoticeStyle.buttonFg]（App 既有深棕正文色）而非新造色值。
+  final String? message;
+
   /// **后果说明**（可选）：破坏性操作必填（如 `铲除后这株植物会消失。`）。
   ///
   /// 与 [note] 分开是因为两者语义不同：warning 讲「会发生什么」（警示色、小字、紧贴
@@ -202,6 +211,7 @@ class ChildConfirmCard extends StatelessWidget {
     required this.title,
     this.hero,
     this.rows = const <ConfirmCardRow>[],
+    this.message,
     this.warning,
     this.note,
     required this.confirmLabel,
@@ -252,6 +262,19 @@ class ChildConfirmCard extends StatelessWidget {
                           : GoldNoticeStyle.goldDeep,
                     ),
                   ),
+                  // F141：中性正文槽（在标题与 warning 之间；两者正交，可同时出现）。
+                  if (message != null) ...<Widget>[
+                    SizedBox(height: 8 * s),
+                    Text(
+                      message!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.45,
+                        color: GoldNoticeStyle.buttonFg.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ],
                   if (warning != null) ...<Widget>[
                     SizedBox(height: 6 * s),
                     Text(
@@ -425,23 +448,31 @@ class _RowLine extends StatelessWidget {
 ///
 /// 返回 `true` = 确认；`false` = 取消；`null` = 点外部 / 系统返回。
 /// 调用方一律写 `if (ok != true) return;` —— 「取消分毫不扣」是硬契约。
+///
+/// [barrierDismissible] 默认 true（与 `showDialog` 默认一致）；原实现里
+/// `barrierDismissible: false` 的两处（专注退出 / 护眼提前结束）**逐字透传 false**，
+/// 保证「点卡外不误关」的既有语义不变。
 Future<bool?> showChildConfirmCard({
   required BuildContext context,
   required String title,
   Widget? hero,
   List<ConfirmCardRow> rows = const <ConfirmCardRow>[],
+  String? message,
   String? warning,
   String? note,
   required String confirmLabel,
   String cancelLabel = ChildConfirmStyle.cancelLabel,
   ConfirmCardTone confirmTone = ConfirmCardTone.gold,
+  bool barrierDismissible = true,
 }) {
   return showDialog<bool>(
     context: context,
+    barrierDismissible: barrierDismissible,
     builder: (BuildContext ctx) => ChildConfirmCard(
       title: title,
       hero: hero,
       rows: rows,
+      message: message,
       warning: warning,
       note: note,
       confirmLabel: confirmLabel,

@@ -26,6 +26,15 @@ import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
+// ⚠️ **跨层引用说明（F141 ⑥）**：`shared/` 引用 `child/widgets/` 属跨层。
+// 允许的理由：付费引导弹窗是**家长端与孩子端共用**的二次确认卡，而「确认卡壳」
+// 目前只在孩子端落地（`ChildConfirmCard`，F135）。为了不让同一 App 出现两套
+// 弹窗样式，此处直接复用孩子端卡壳 —— Dart 层**无循环依赖**
+// （`child_confirm_card.dart` 只依赖 `gold_notice_dialog.dart` 与
+// `shared/responsive.dart`，不反向依赖本文件），且 `flutter analyze` 无告警。
+// 后续若要在 `shared/` 长期使用，可把卡壳迁到 `shared/`（需同步改所有调用方）。
+import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart'
+    show showChildConfirmCard;
 
 /// 能力点的展示名（付费引导文案用）。
 String _featureLabel(FeatureKey f) {
@@ -231,27 +240,22 @@ class PremiumUpsellCard extends StatelessWidget {
 }
 
 /// 弹出付费引导对话框（家长端可跳 `/parent/premium` 购买页）。
-Future<void> showPremiumUpsell(BuildContext context, FeatureKey feature) {
-  return showDialog<void>(
+///
+/// F141 ⑥：改走孩子端**统一确认卡壳** `ChildConfirmCard`（文案逐字不变：
+/// 「升级解锁」/「「X」需要一次性买断解锁。」/「稍后」/「解锁全部功能」）。
+/// 返回语义不变：只有点「解锁全部功能」才 `push('/parent/premium')`。
+Future<void> showPremiumUpsell(BuildContext context, FeatureKey feature) async {
+  final bool? ok = await showChildConfirmCard(
     context: context,
-    builder: (BuildContext ctx) => AlertDialog(
-      title: const Text('升级解锁'),
-      content: Text('「${_featureLabel(feature)}」需要一次性买断解锁。'),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('稍后'),
-        ),
-        FilledButton(
-          onPressed: () {
-            Navigator.of(ctx).pop();
-            context.push('/parent/premium');
-          },
-          child: const Text('解锁全部功能'),
-        ),
-      ],
-    ),
+    title: '升级解锁',
+    message: '「${_featureLabel(feature)}」需要一次性买断解锁。',
+    cancelLabel: '稍后',
+    confirmLabel: '解锁全部功能',
   );
+  if (ok != true) return;
+  // 卡壳已 pop 后再跳：`await` 之后 context 可能已失效（页面被销毁），故先查 mounted。
+  if (!context.mounted) return;
+  context.push('/parent/premium');
 }
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -54,6 +54,8 @@ import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
+import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart'
+    show showChildConfirmCard;
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/shared/orientation_bridge.dart';
 
@@ -299,26 +301,22 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
   }
 
   /// 未走完就手点「完成休息」的二次确认卡（无奖励明示 + 爱护眼睛提示）。
+  ///
+  /// F141 ④：改走孩子端**统一确认卡壳** `ChildConfirmCard`；文案全部取
+  /// `prd_params.dart` 的单点常量（逐字不变，`eye_care_page_test` 钉死）。
+  /// 返回语义 / 时序均不变：`_confirmOpen` 先置 true 防重入（在 `showDialog`
+  /// 之前同步置位），关闭后再复位；`ok != true`（含 null）＝继续休息。
   void _showEarlyFinishConfirm() {
     if (_confirmOpen) return;
     setState(() => _confirmOpen = true);
-    showDialog<bool>(
+    showChildConfirmCard(
       context: context,
+      // 原语义保留：点卡外不关（防误触，护眼页在横屏 + 手势容易擦到边缘）。
       barrierDismissible: false,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text(kEyeCareEarlyFinishTitle),
-        content: const Text(kEyeCareEarlyFinishConfirmText),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(kEyeCareEarlyFinishStayLabel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(kEyeCareEarlyFinishQuitLabel),
-          ),
-        ],
-      ),
+      title: kEyeCareEarlyFinishTitle,
+      message: kEyeCareEarlyFinishConfirmText,
+      cancelLabel: kEyeCareEarlyFinishStayLabel,
+      confirmLabel: kEyeCareEarlyFinishQuitLabel,
     ).then((bool? ok) {
       if (!mounted) return;
       setState(() => _confirmOpen = false);

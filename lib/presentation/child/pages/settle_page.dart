@@ -34,6 +34,7 @@ import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 专注时长格式化（B25 修复）：[minutes] 单位为**分钟**。
 ///
@@ -482,6 +483,14 @@ class _SettlePageState extends ConsumerState<SettlePage>
           animation: _anim,
           builder: (context, _) {
             final t = Curves.easeInOut.transform(_anim.value);
+            // F140（玄参 2026-10-20）平板等比例放大：中央向日葵此前写死
+            // 260×260（光晕 300×300），从未乘 `uiScaleOf` —— 平板上文字随
+            // textScaler 放大 1.6× 而花纹丝不动，视觉占比坍缩：
+            //   iPad 13″（1032）实测可见区 170.6 pt = 屏宽 16.5%，同尺寸在
+            //   手机 390 上占 43.7%（只剩 38%），观感「花变小了」。
+            // 现按 C97 口径乘倍率：iPad 11″(1.3) → 338 / iPad 13″(1.6) → 416；
+            // 手机倍率恒 1.0 → 260 逐位不变（零回归）。
+            final double uiS = uiScaleOf(context);
             return Column(
               children: [
                 const SizedBox(height: 16),
@@ -506,41 +515,53 @@ class _SettlePageState extends ConsumerState<SettlePage>
                     // 后者防序列帧在护眼卡背后播完：卡收口后本处重建为 FrameSequencePlayer，
                     // 新 State 从第 1 帧起播，孩子回来即可看到完整庆祝。
                     child: settlement != null && !_eyeCareBlocking
-                        ? Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // 柔和暖金光晕（庆祝氛围，不与帧特效抢戏）。
-                              Container(
-                                width: 300,
-                                height: 300,
-                                decoration: const BoxDecoration(
-                                  gradient: RadialGradient(
-                                    colors: <Color>[
-                                      Color(0x30FFE082),
-                                      Color(0x00FFE082),
-                                    ],
+                        // F140：FittedBox(scaleDown) = 放得下时恒等变换（手机零像素变化），
+                        // 放不下时（手机横屏瞬间 / 未来更高倍率）等比收缩而非溢出报错。
+                        ? FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // 柔和暖金光晕（庆祝氛围，不与帧特效抢戏）。
+                                Container(
+                                  width: 300 * uiS,
+                                  height: 300 * uiS,
+                                  decoration: const BoxDecoration(
+                                    gradient: RadialGradient(
+                                      colors: <Color>[
+                                        Color(0x30FFE082),
+                                        Color(0x00FFE082),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                              SizedBox(
-                                width: 260,
-                                height: 260,
-                                child: FrameSequencePlayer(
-                                  frames: fxFrameAssets(
-                                      kFocusSettleFxDir, kFocusSettleFrameCount),
-                                  durationMs: kFocusSettleDurationMs,
-                                  loop: false,
-                                  holdLastFrame: true, // 播一次定格末帧（不循环、不渐隐）
+                                SizedBox(
+                                  // 稳定 Key（F140）：平板倍率守卫测试按它量真实渲染矩形。
+                                  key: const ValueKey<String>('settle-sunflower-fx'),
+                                  width: 260 * uiS,
+                                  height: 260 * uiS,
+                                  child: FrameSequencePlayer(
+                                    frames: fxFrameAssets(
+                                        kFocusSettleFxDir, kFocusSettleFrameCount),
+                                    durationMs: kFocusSettleDurationMs,
+                                    loop: false,
+                                    holdLastFrame: true, // 播一次定格末帧（不循环、不渐隐）
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           )
-                        : const SizedBox(
-                            width: 260,
-                            height: 260,
-                            child: SunflowerCanvas(
-                              level: FeedbackLevel.lvl1,
-                              celebrating: false,
+                        : FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: SizedBox(
+                              // 稳定 Key（F140）：同 `settle-sunflower-fx`。
+                              key: const ValueKey<String>('settle-sunflower'),
+                              width: 260 * uiS,
+                              height: 260 * uiS,
+                              child: const SunflowerCanvas(
+                                level: FeedbackLevel.lvl1,
+                                celebrating: false,
+                              ),
                             ),
                           ),
                   ),
@@ -741,7 +762,12 @@ class _PraiseCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.auto_awesome, color: Color(0xFFFFE082), size: 20),
+          // F140：图标同属「定尺寸元素」，按 C97 乘倍率（文字走 textScaler）。
+          Icon(
+            Icons.auto_awesome,
+            color: const Color(0xFFFFE082),
+            size: 20 * uiScaleOf(context),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

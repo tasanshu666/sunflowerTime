@@ -28,6 +28,7 @@ import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/weekly_pool.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
+import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/reward_card.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
@@ -287,7 +288,12 @@ class _StorePageState extends ConsumerState<StorePage>
                   sunlightShort ||
                   weeklyQuotaFull)
               ? null
-              : () => _onRedeem(tpl, cost, load.tier),
+              : () => _onRedeem(
+                    tpl,
+                    cost,
+                    load.tier,
+                    load.availableSunlight,
+                  ),
         ));
         children.add(const SizedBox(height: 12));
       }
@@ -348,27 +354,61 @@ class _StorePageState extends ConsumerState<StorePage>
       );
 
   /// 发起一笔兑换：先弹窗二次确认（防误点）→ 写 submitting 态 → submit → 反馈 → 刷新。
-  Future<void> _onRedeem(RewardTemplate tpl, int cost, AgeTier tier) async {
+  ///
+  /// F139（玄参 2026-10-20 截图反馈「商店页面兑换确认卡片也需要美化一下」）：
+  /// 弹窗从裸 `AlertDialog`（白底 Material 默认样式）改为走 [showChildConfirmCard]
+  /// —— 与花园四张确认卡（种植 / 扩容 / 铲除 / 一键护理）共用同一个奶油底卡壳，
+  /// 不再「同一个 App 里点不同按钮弹出两种截然不同的卡片」。
+  ///
+  /// ## 槽位映射（字面量与含义均按 F139 红线逐字保留）
+  ///  · `hero`：[ConfirmCardBadge] 金档圆形徽标（`Icons.redeem`）；
+  ///  · `title`：`确认兑换？`；
+  ///  · `rows`：兑换物品「小零食」/ 消耗阳光 `−30 ☀` / 可用阳光 `742 ☀`（弱化）；
+  ///  · `warning`：`提交后需家长核销，核销通过才会扣除阳光。`
+  ///    —— 这句讲的是「会发生什么」（后果/流程），按卡壳语义归 `warning`，**不是**
+  ///    `note`（`note` 专讲数字小结，本卡没有数字小结）；金档下它是暖棕小字而非红字。
+  ///  · `confirmLabel`：`确认兑换`；`cancelLabel`：`再想想`。
+  ///
+  /// ## 为什么多一个 [availableSunlight]
+  /// 修前正文只有一句「确定要用 N 阳光兑换「X」吗？」，孩子看不到「换完还剩多少」。
+  /// 明细里补一行**可用阳光**（弱化行，参考值语义），口径直接取 [_StoreLoad.availableSunlight]
+  /// —— 它与外壳 AppBar 金色数字 [StoreBalancePill] **同源**（账本余额 − 待核销总额，
+  /// 且已由 [sunlightDisplayInt] 向下取整），本处**不再二次格式化**，避免两处口径漂移。
+  ///
+  /// 宽度上限由卡壳内部 `ChildConfirmStyle.maxWidth × uiScaleOf` 收口，本处**不再套宽度**
+  /// （C96/C97：调用方再包一层会用错倍率，平板上撑宽）。
+  Future<void> _onRedeem(
+    RewardTemplate tpl,
+    int cost,
+    AgeTier tier,
+    int availableSunlight,
+  ) async {
     if (ref.read(_submittingProvider) != null) return; // 防并发
-    final bool? ok = await showDialog<bool>(
+    final bool? ok = await showChildConfirmCard(
       context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('确认兑换？'),
-        content: Text(
-          '确定要用 $cost 阳光兑换「${tpl.name}」吗？\n'
-          '提交后需家长核销，核销通过才会扣除阳光。',
+      hero: const ConfirmCardBadge(icon: Icons.redeem),
+      title: '确认兑换？',
+      rows: <ConfirmCardRow>[
+        ConfirmCardRow(
+          icon: Icons.card_giftcard,
+          name: '兑换物品',
+          value: '「${tpl.name}」',
         ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('再想想'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('确认兑换'),
-          ),
-        ],
-      ),
+        ConfirmCardRow(
+          icon: Icons.wb_sunny,
+          name: '消耗阳光',
+          value: '−$cost ☀',
+        ),
+        ConfirmCardRow(
+          icon: Icons.account_balance_wallet,
+          name: '可用阳光',
+          value: '$availableSunlight ☀',
+          muted: true,
+        ),
+      ],
+      warning: '提交后需家长核销，核销通过才会扣除阳光。',
+      confirmLabel: '确认兑换',
+      cancelLabel: '再想想',
     );
     if (ok != true || !mounted) return;
 

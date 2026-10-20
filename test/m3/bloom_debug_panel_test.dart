@@ -206,17 +206,32 @@ Widget _host(PlantRepository plants, {InMemoryBloomRewardRepository? bloom}) =>
     );
 
 void main() {
-  testWidgets('源码守卫：入口必须写在 if (kDebugMode …) 内（release 自动隐藏）',
+  testWidgets('源码守卫：入口必须写在 shouldShowDebugUi(debugMode: kDebugMode…) 内（release 自动隐藏）',
       (WidgetTester tester) async {
     final String src = File('lib/presentation/child/pages/garden_page.dart')
         .readAsStringSync();
     expect(src.contains("import 'package:flutter/foundation.dart';"), isTrue,
         reason: 'kDebugMode 来自 foundation.dart');
+    // 🔴 F139（2026-10-20）：守卫从内联 `if (kDebugMode …)` 统一为单点判据
+    // `if (shouldShowDebugUi(debugMode: kDebugMode, hideForScreenshots: kHideDebugUi) && …)`
+    // —— 花园页是商店图主场景，调试入口会直接入镜，故截图构建须能隐藏。
+    // 两条红线不变：① 必须在调试开关控制下（现由判据函数承担）；② 必须传 kDebugMode
+    // （有人把 debugMode 写死成 true，本用例必红 → release 会渲染调试入口）。
     expect(
-      RegExp(r'if \(kDebugMode[\s\S]{0,400}?BloomDebugEntry').hasMatch(src),
+      RegExp(r'if \(shouldShowDebugUi\([\s\S]{0,200}?debugMode: kDebugMode'
+              r'[\s\S]{0,400}?BloomDebugEntry')
+          .hasMatch(src),
       isTrue,
-      reason: '调试入口必须被 if (kDebugMode …) 包裹，release 才不会渲染',
+      reason: '调试入口必须被 shouldShowDebugUi(debugMode: kDebugMode, …) 包裹，'
+          'release 才不会渲染、截图构建才隐藏得了',
     );
+    // 🔴 F139 收口第 2 轮（QA M8）：反查正则必须**抓得住纯 `if (kDebugMode)`**——
+    // 初版写成 `if \(kDebugMode\s*&&` 要求必须有 `&&`，于是「追加第二个纯裸入口」
+    // 两组守卫同时假绿。放宽为 `if \(\s*kDebugMode\b` 后：命中 `&&` 形态也命中纯裸，
+    // 且**不命中** `if (!kDebugMode)`（`!` 不在 `\s*` 内，那是合法日志闸门）。
+    expect(RegExp(r'if \(\s*kDebugMode\b').hasMatch(src), isFalse,
+        reason: '不得回退成内联 `if (kDebugMode …)`（含 `&&` 与纯裸两种）'
+            '—— 那样截图开关对入口无效');
   });
 
   testWidgets('debug 下入口渲染 → 点击弹出面板，含 5 个动作按钮', (WidgetTester tester) async {

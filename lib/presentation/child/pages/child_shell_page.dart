@@ -538,36 +538,27 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
       };
       if (!mounted) return;
 
-      await showDialog<void>(
-        context: context,
-        builder: (BuildContext ctx) => AlertDialog(
-          title: const Text('🚫 兑换未被通过'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              for (final RedemptionRequest r in news)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(
-                    '· ${names[r.templateId] ?? '奖励'}'
-                    '（${r.parentNote ?? '家长拒绝了该申请'}）',
-                  ),
-                ),
-              const SizedBox(height: 4),
-              const Text(
-                '本次阳光未被扣除，可重新兑换其他奖励',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          actions: <Widget>[
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('知道啦'),
+      // F141 ②：改走孩子端统一**通知卡**壳（`gold_notice_dialog.dart`）。
+      // 语义档位用 [NoticeTone.warn]：这是**坏消息**（申请被拒），经金色奖杯
+      // 庆祝卡告知是反语义的；warn 档复用 App 既有警示红（不新造色值）。
+      await showGoldNoticeDialog(
+        context,
+        tone: NoticeTone.warn,
+        badgeIcon: Icons.block,
+        title: '🚫 兑换未被通过',
+        items: <GoldNoticeItem>[
+          for (final RedemptionRequest r in news)
+            GoldNoticeItem(
+              icon: Icons.redeem,
+              // ⚠️ 兜底串 '奖励' / '家长拒绝了该申请' 保持语义不变（原实现同款兜底）。
+              name: '· ${names[r.templateId] ?? '奖励'}',
+              // F141 修 1（QA 探针 F141-BUG-01）：家长备注是**说明**不是金额 ——
+              // 走 `subtitle`（名称下方小字、可自由折行），不再塞右侧 amountText，
+              // 也不再用 `amountMuted` 借位表达「备注」。小屏 + 长备注不再溢出。
+              subtitle: '（${r.parentNote ?? '家长拒绝了该申请'}）',
             ),
-          ],
-        ),
+        ],
+        footerText: '本次阳光未被扣除，可重新兑换其他奖励',
       );
 
       await store.setAcknowledgedRejectIds(
@@ -695,9 +686,14 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
               // 图标不随「是否封顶」变化：确认这件事本身成立，只是钱没到。
               icon: Icons.task_alt,
               name: taskNames[c.taskId] ?? '成长任务',
-              amountText:
-                  isCapped(c) ? '今日额度已满' : '+${grantedOf(c)} 阳光',
-              amountMuted: isCapped(c),
+              // NEW-F141-01（QA 二轮）：`今日额度已满` 是**说明**不是金额 ——
+              // 塞进金额位（行内剩余宽度的 40%，390 屏 = 87.2px）会被 6 个汉字
+              // 顶成两行（96px > 87.2px），断在第 5 个字上（右对齐「今日额度已」/「满」）。
+              // 改为：封顶行金额位留空（`amountText: ''` → 该列整块不渲染），
+              // 说明走 `subtitle`（名称下方小字、可自由折行）。
+              // ⚠️ 文案逐字不变：`今日额度已满` 仍出现，只是换了槽位。
+              amountText: isCapped(c) ? '' : '+${grantedOf(c)} 阳光',
+              subtitle: isCapped(c) ? '今日额度已满' : null,
             ),
         ],
         footerText: footer,

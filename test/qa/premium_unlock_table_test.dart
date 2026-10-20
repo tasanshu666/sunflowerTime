@@ -243,7 +243,10 @@ void main() {
           reason: '设置页分区标题应为「解锁全部功能」');
       expect(gate.contains("label: '解锁全部功能',"), isTrue,
           reason: '配额轻提示动作应为「解锁全部功能」');
-      expect(gate.contains("const Text('解锁全部功能'),"), isTrue,
+      // F141 ⑥：升级引导弹窗改走孩子端统一卡壳 `showChildConfirmCard`（文案逐字
+      // 未变，仅写法从 `const Text('解锁全部功能'),` 变成卡壳的 `confirmLabel:`）。
+      // 本守卫的意图是「文案不得回归」，故匹配**当前**调用形态的同一字面量。
+      expect(gate.contains("confirmLabel: '解锁全部功能',"), isTrue,
           reason: '升级引导弹窗按钮应为「解锁全部功能」');
       // 2 处标题统一（Q2）
       expect(premium.contains("'解锁全部功能',"), isTrue,
@@ -256,7 +259,9 @@ void main() {
       final String gate = _read(root, 'lib/presentation/shared/premium_gate.dart');
       expect(gate.contains('一次买断，永久解锁全部功能'), isTrue,
           reason: '引导卡描述句应保留原样');
-      expect(gate.contains("const Text('升级解锁')"), isTrue,
+      // F141 ⑥：同上，标题从 `const Text('升级解锁')` 变为卡壳的 `title:` 入参，
+      // 文案字面量本身一字未改。
+      expect(gate.contains("title: '升级解锁',"), isTrue,
           reason: '弹窗标题「升级解锁」应保留原样');
     });
   });

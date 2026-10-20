@@ -20,6 +20,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
+import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -250,20 +251,19 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
   String _fmtSun(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 
+  /// 「完美日」庆祝卡（F141 ③：改走孩子端统一**通知卡**壳）。
+  ///
+  /// 文案逐字不变；按钮用 [GoldNoticeStyle.confirmLabel] 的定制值「太棒啦」。
+  /// 只有祝贺、没有任何选择，故仍走单按钮通知卡（不套二次确认卡）。
   Future<void> _celebratePerfectDay() async {
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('🌻 今日成长项全部完成！'),
-        content: const Text('你今天把全部成长项都做完啦，获得「完美日」标记！'),
-        actions: <Widget>[
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('太棒啦'),
-          ),
-        ],
-      ),
+    await showGoldNoticeDialog(
+      context,
+      title: '🌻 今日成长项全部完成！',
+      items: const <GoldNoticeItem>[],
+      footerText: '你今天把全部成长项都做完啦，获得「完美日」标记！',
+      confirmLabel: '太棒啦',
+      badgeIcon: Icons.emoji_events,
     );
   }
 

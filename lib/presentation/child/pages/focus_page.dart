@@ -47,8 +47,11 @@ import 'package:sunflower_time/platform/dnd_controller.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
+import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart'
+    show showChildConfirmCard;
 import 'package:sunflower_time/presentation/child/widgets/feedback_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/focus_sunflower_stage.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 本场是否已把「今日剩余额度」用尽（供专注页轻提示判定）。
 ///
@@ -563,34 +566,46 @@ class _FocusPageState extends ConsumerState<FocusPage>
     if (_finished || _paused || _eyeCareActive) return;
     setState(() => _paused = true);
     _engine.pause();
-    _showExitConfirm();
+    unawaited(_showExitConfirm());
   }
 
-  void _showExitConfirm() {
-    showDialog<void>(
+  /// 退出确认卡（F141：改走孩子端**统一卡壳** `ChildConfirmCard`）。
+  ///
+  /// 文案逐字不变（`eye_care_orientation_guard_test` 用 `find.text` 钉死）：
+  /// 「确定结束吗？」/「向日葵还在这儿陪着你，要现在结束专注吗？」/
+  /// 「再坐一会」/「结束」。
+  ///
+  /// 返回语义：**`ok == false` = 明确点了「结束」**（`_engine.stop()` → 引擎发
+  /// finished → 结算）；`true`（点了主按钮「再坐一会」）**或 null**（系统返回键 /
+  /// 点外）一律 `_resume()` 恢复计时。
+  ///
+  /// 🔴 按钮权重（F141 修 2，玄参/主理人拍板）：主按钮（金色实心）＝「再坐一会」，
+  /// 次按钮（弱化）＝「结束」。原实现两个 `TextButton` 同权重，而这是**孩子专注页**
+  /// —— 误点「结束」会直接中断专注，向日葵是陪伴语义（不催不赶），默认期望必须是
+  /// 「继续坐」。文案逐字不变（「再坐一会」「结束」都还在，只换权重）。
+  ///
+  /// 🔴 顺带修掉原实现的一个**边界缺陷**：原代码是 `showDialog<void>` + 两个
+  /// 按钮各自 `pop()`。`barrierDismissible: false` 只挡「点卡外」，**挡不住系统
+  /// 返回键** —— 返回键 pop 出 `null` 时原实现什么都不做，专注就停在
+  /// `_paused = true`（计时冻结、又没进结算）＝ 卡死。现按「只有 `false` 才算
+  /// 结束」判定：任何非确认路径（含 null）都能恢复计时，不存在卡死分支。
+  Future<void> _showExitConfirm() async {
+    final bool? ok = await showChildConfirmCard(
       context: context,
+      // 原语义保留：点卡外不关（只允许明确点「再坐一会 / 结束」）。
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text('确定结束吗？'),
-        content: const Text('向日葵还在这儿陪着你，要现在结束专注吗？'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _resume();
-            },
-            child: const Text('再坐一会'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _engine.stop(); // 手动结束 → 引擎发 finished → 结算
-            },
-            child: const Text('结束'),
-          ),
-        ],
-      ),
+      title: '确定结束吗？',
+      message: '向日葵还在这儿陪着你，要现在结束专注吗？',
+      confirmLabel: '再坐一会', // 主按钮：金色实心（默认期望）
+      cancelLabel: '结束', // 次按钮：弱化（中断专注不是默认动作）
     );
+    if (!mounted) return;
+    // ⚠️ 只有 `false`（点了次按钮「结束」）才结束；`true` / `null` 都恢复计时。
+    if (ok == false) {
+      _engine.stop(); // 手动结束 → 引擎发 finished → 结算
+      return;
+    }
+    _resume();
   }
 
   void _resume() {
@@ -874,7 +889,18 @@ class _FocusPageState extends ConsumerState<FocusPage>
             ),
             // 【仅 debug 构建】护眼调试角标：每次点击快进 5 分钟场内时长，
             // 用于真机/模拟器免等待验证 C28 护眼触发节奏（release 无此按钮）。
-            if (kDebugMode && !_finished)
+            //
+            // F139（玄参 2026-10-20 截图清单）：**专注页截图会入镜**——这个 bug 角标
+            // 就压在右上角，会直接出现在商店图里。故与「我的」页 / 家长今日页 /
+            // 家长设置页统一走 [shouldShowDebugUi] 单点判据（截图构建加
+            // `--dart-define=HIDE_DEBUG_UI=true` 即可隐藏）；未加 define 时行为不变。
+            // ⚠️ 只改**可见性**：下方 `_debugFastForward()` 里的 `if (!kDebugMode …) return;`
+            // 保留不动 —— 那是处理函数的领域闸门，按钮藏了函数留着无害。
+            if (shouldShowDebugUi(
+                  debugMode: kDebugMode,
+                  hideForScreenshots: kHideDebugUi,
+                ) &&
+                !_finished)
               Positioned(
                 top: 8,
                 right: 8,
@@ -945,12 +971,19 @@ class _FocusPageState extends ConsumerState<FocusPage>
                   Expanded(
                     child: LayoutBuilder(
                       builder: (BuildContext ctx, BoxConstraints constraints) {
-                        final double s =
-                            constraints.biggest.height.clamp(110.0, 230.0);
+                        // F140（玄参 2026-10-20）平板等比例放大：上限原为死值 230，
+                        // 平板上 Expanded 再高也撑不过 230 → 与手机同尺寸，视觉占比
+                        // 随屏宽坍缩（与结算页中央向日葵同一类漏乘，同批修复）。
+                        // 下限 110 是「极小屏地板」（手机横屏兜底），不乘倍率；
+                        // 手机倍率恒 1.0 → 行为逐位不变（零回归）。
+                        final double s = constraints.biggest.height
+                            .clamp(110.0, 230.0 * uiScaleOf(ctx));
                         // 以向日葵为中心的 s×s 子 Stack：气泡锚在**向日葵头右上旁**，
                         // 而不是贴屏幕右缘（玄参 2026-09-30：太远不像向日葵说的话）。
                         return Center(
                           child: SizedBox(
+                            // 稳定 Key（F140）：平板倍率守卫测试按它量真实渲染矩形。
+                            key: const ValueKey<String>('focus-sunflower-stage'),
                             width: s,
                             height: s,
                             child: Stack(

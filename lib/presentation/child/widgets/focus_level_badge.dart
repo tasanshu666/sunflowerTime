@@ -49,6 +49,8 @@ import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart'
     show nextLevelGapTextOf, titleOfLevel, titleRowsOfLevel;
 import 'package:sunflower_time/domain/services/plant_perk.dart';
+import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart'
+    show GoldNoticeItem, showGoldNoticeDialog;
 import 'package:sunflower_time/shared/responsive.dart';
 
 /// 徽章展示档位（空间紧张时的三级降级，§5.24.5）。
@@ -673,19 +675,19 @@ class _PerkPill extends StatelessWidget {
   /// 锁标态点按 → 弹「请升级到完整版本功能」提示卡（C81 ①）。
   ///
   /// 只提示、**不** pop 详情卡、**不** push 购买页（V3-Q1 结案：孩子端已无购买入口）。
+  ///
+  /// F141 ⑤：改走孩子端统一**通知卡**壳 `GoldNoticeDialog`。原 `AlertDialog`
+  /// 只有一句 content、**没有标题** ⇒ `title` 传 null（壳内不渲染标题行）。
+  /// `key` 必须落在弹窗根 Widget 上：`focus_level_detail_dialog_test` 用
+  /// `find.byKey(perkLockedHintKey)` 断言「在场 / 关闭后不在场」。
   static Future<void> _showLockedHint(BuildContext context) {
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        key: FocusLevelDetailDialog.perkLockedHintKey,
-        content: const Text(kPremiumUpsellHintText),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(kLevelDetailHintConfirmText),
-          ),
-        ],
-      ),
+    return showGoldNoticeDialog(
+      context,
+      dialogKey: FocusLevelDetailDialog.perkLockedHintKey,
+      badgeIcon: Icons.lock,
+      items: const <GoldNoticeItem>[],
+      footerText: kPremiumUpsellHintText,
+      confirmLabel: kLevelDetailHintConfirmText,
     );
   }
 

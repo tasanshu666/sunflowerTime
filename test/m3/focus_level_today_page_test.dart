@@ -243,6 +243,10 @@ class _TodayHarness {
       ],
     );
     container.read(childShellTabIndexProvider.notifier).state = tab;
+    // F138：可见性判据改为「外壳在台前 **且** tab 是今日」。本用例把外壳的「上台」
+    // 信号直接摆好（真实外壳由 `ChildShellPage.initState` 发布）—— 否则默认
+    // onStage=false 会把今日页判成不可见，演出永不上屏（假红）。
+    container.read(childShellOnStageProvider.notifier).state = true;
     return _TodayHarness._(container);
   }
 

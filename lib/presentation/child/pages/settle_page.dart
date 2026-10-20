@@ -31,6 +31,7 @@ import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
+import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunflower_canvas.dart';
 
@@ -416,6 +417,17 @@ class _SettlePageState extends ConsumerState<SettlePage>
   String _fmtSun(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 
+  /// 结算页的两条返回路径（系统返回手势 / 「回首页」按钮）**共用**的出口：回孩子端「今日」。
+  ///
+  /// 🔴 F138（玄参 2026-10-19 口径）：外壳重建时会**恢复离开前的 tab**（例如专注是在
+  /// 花园里发起的 → 记忆值是 2）——若不先把记忆归 0，专注结束回到孩子端会落在花园，
+  /// 与「专注结束回今日」的既有观感相悖。故 `go('/')` 之前**必须**把 tab 记忆写回 0。
+  /// ⚠️ 写 provider 放在 `go` 之前：外壳 `initState` 读到的就是 0（顺序颠倒会读到旧值）。
+  void _backToToday() {
+    ref.read(childShellTabIndexProvider.notifier).state = kChildTabIndexOfToday;
+    context.go('/');
+  }
+
   @override
   Widget build(BuildContext context) {
     final settlement = widget.args?.settlement;
@@ -437,7 +449,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) context.go('/');
+        if (!didPop) _backToToday();
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF141426),
@@ -653,7 +665,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
                     width: double.infinity,
                     child: FilledButton(
                       // 结算页经 go('/settle') 进入 = 路由栈底；退出必须 go('/')（B20）。
-                      onPressed: () => context.go('/'),
+                      onPressed: _backToToday,
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         textStyle: const TextStyle(fontSize: 18),

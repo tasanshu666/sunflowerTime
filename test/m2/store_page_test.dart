@@ -415,6 +415,10 @@ void main() {
     expect(find.text('待核销 60'), findsOneWidget);
 
     // 外壳当前停在「今日」→ 商店不可见（默认 tab 索引 0）。
+    // F138：可见性判据 = 外壳**在台前** 且 tab 索引是本页 —— 本用例直接把真实外壳
+    // 的「上台」信号摆好（真实外壳由 `ChildShellPage.initState` 写入），否则商店页
+    // 会被判成「不在台上」而永不刷新（假红）。
+    container.read(childShellOnStageProvider.notifier).state = true;
     expect(container.read(childShellTabIndexProvider), kChildTabIndexOfToday);
 
     // 背面数据变化，但**不**自增 economyRevision（模拟「无经济信号的陈旧」）。

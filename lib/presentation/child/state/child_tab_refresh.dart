@@ -53,7 +53,8 @@ bool shouldRefreshForTimeBoundary(DateTime last, DateTime now) {
 /// （触发 ③）→ 重算可收集集合 → 气泡出现。**奖励一直没丢，只是界面不知道要更新。**
 ///
 /// ## 本 mixin 补什么（方案 A + B，玄参拍板）
-///   · **A** 本 tab 由隐藏变可见（[childShellTabIndexProvider] 切到本页下标）→ 刷新；
+///   · **A** 本 tab 由隐藏变可见（外壳**在台前**且 [childShellTabIndexProvider] 切到
+///     本页下标，F138 起两条同时成立才算可见）→ 刷新；
 ///   · **A** App `resumed` 且本页可见 → 刷新；
 ///   · **B** 可见期间每 [kChildTabBoundaryCheckSeconds] 秒检查一次
 ///     [shouldRefreshForTimeBoundary]，**跨过才真刷新**（不跨边界不碰数据库）。
@@ -127,7 +128,10 @@ mixin ChildTabAutoRefresh<T extends ConsumerStatefulWidget> on ConsumerState<T> 
     WidgetsBinding.instance.addObserver(_lifecycle);
     if (refreshTabIndex != null) {
       ref.listenManual(childShellTabIndexProvider,
-          (int? _, int next) => _onTabIndexChanged(next));
+          (int? _, int next) => _recomputeVisibility());
+      // F138：外壳上下台 → 可见性同样变化（新外壳上台 = 本页可能重新可见）。
+      ref.listenManual(childShellOnStageProvider,
+          (bool? _, bool next) => _recomputeVisibility());
     }
     // C90 期 2（玄参 2026-10-17 拍板）：家长端切换 / 新建 / 编辑 / 删除孩子后
     // `childProfileRevisionProvider` 自增 → **无条件刷新**（⚠️ 不要求本 tab 可见）。
@@ -147,15 +151,26 @@ mixin ChildTabAutoRefresh<T extends ConsumerStatefulWidget> on ConsumerState<T> 
     super.dispose();
   }
 
-  /// 本页此刻是否可见（不在外壳里 → 恒可见）。
+  /// 本页此刻是否可见（F138 起与花园氛围音**同源**判据：外壳在台前 **且** tab 索引是本页）。
+  ///
+  /// ⚠️ 只看 tab 索引是不够的：外壳被 `context.go('/parent')` 销毁后索引记忆仍停在
+  /// 孩子离开前那个 tab，重建出来的页面会误判「可见」而白跑重活（花园页同源缺陷还
+  /// 会持续补播背景音，见 `shell_tab.dart` 的 F138 记录）。
   bool _isVisibleNow() {
     final int? index = refreshTabIndex;
-    return index == null || ref.read(childShellTabIndexProvider) == index;
+    return index == null ||
+        (ref.read(childShellOnStageProvider) &&
+            ref.read(childShellTabIndexProvider) == index);
   }
 
-  /// 外壳 tab 索引变化：切到本页 → 起定时器 + **立即刷一次**（方案 A）；切走 → 停定时器。
-  void _onTabIndexChanged(int next) {
-    final bool nowVisible = next == refreshTabIndex;
+  /// 重新推导可见性；**由隐藏变可见**时起定时器 + 立即刷一次（方案 A）。
+  ///
+  /// 两个输入都要听（F138）：
+  ///  · tab 索引变化（切 tab）；
+  ///  · 外壳上下台变化（退出家长天地 / 新外壳挂载）—— 外壳重新上台同样意味着
+  ///    「本页可能重新可见」，必须补刷一次，否则回到花园看到的是离开前的旧快照。
+  void _recomputeVisibility() {
+    final bool nowVisible = _isVisibleNow();
     if (nowVisible == _visible) return;
     _visible = nowVisible;
     if (_visible) {

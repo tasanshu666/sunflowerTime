@@ -57,7 +57,28 @@ class ChildShellPage extends ConsumerStatefulWidget {
 
 class _ChildShellPageState extends ConsumerState<ChildShellPage>
     with WidgetsBindingObserver {
-  int _index = 0;
+  /// 当前 tab 索引。**初值来自 [childShellTabIndexProvider] 的记忆值**（F138 口径 B）：
+  /// 孩子在花园点「家长天地」→ `context.go('/parent')` 销毁整个外壳 → 退出家长天地时
+  /// `context.go('/')` 重建外壳 —— 必须回到离开前那个 tab，而不是无条件回「今日」。
+  ///
+  /// ⚠️ 只能在 [initState] 赋值（`ref.read` 在 initState 合法，在字段初始化器里不合法）。
+  late int _index;
+
+  /// 台前信号 notifier 的字段引用（[initState] 抓取）。
+  ///
+  /// ⚠️ 与 [_usageCtrl] 同因：`dispose()` 阶段 `ref` 已不可用（element 先被标 disposed），
+  /// 用 `ref.read(...)` 会抛 `Bad state: Cannot use "ref" after the widget was disposed.`。
+  StateController<bool>? _onStageCtrl;
+
+  /// 本外壳的挂载序号；[_shellMountSeq] 全局单调递增。
+  ///
+  /// 🔴 为什么需要：「下台」信号是**延后**发布的（见 [_publishOnStage]），而路由切换时
+  /// 旧外壳 `dispose()` 可能晚于新外壳 `initState()`（`go()` 有转场动画时更晚）——
+  /// 若旧外壳的下台信号无条件写入，会把**新外壳**刚发布的「在台前」覆盖成 false
+  /// → 花园页永久不可见 → 背景音乐再也不响（把 F138 修成另一个 bug）。
+  /// 故下台前校验「我还是最新的外壳吗」。
+  static int _shellMountSeq = 0;
+  int _mountSeq = 0;
 
   /// 调试期「跳过 30 分钟限时」开关（仅 kDebugMode 消费；默认 true = 绕过）。
   ///
@@ -102,12 +123,46 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     // 预热 App 时长控制器：触发一次异步 hydrate，使「是否到顶」在首次点击前就绪。
     // 同时**抓住 notifier 引用**留给 dispose 停表（见 [_usageCtrl] 注释：dispose 里 ref 已不可用）。
     _usageCtrl = ref.read(appUsageControllerProvider.notifier);
+    // F138 口径 B：恢复上次离开时的 tab（记忆值）。越界值（脏数据 / 未来 tab 数变化）
+    // 一律回落「今日」，绝不把外壳索引设到 `_tabs` 之外（IndexedStack 会抛区间断言）。
+    //
+    // 🔴 P1（玄参复核）：**娱乐 tab 必须先过防沉迷闸门才允许恢复**，且闸门要读**已 hydrate**
+    // 的 usage —— 未就绪时读到的「0 秒 / 未锁定」不是真状态，默认放行等于又开一条通道。
+    // 故唯一安全顺序是：**先停在「今日」（安全侧）** → 等 hydrate → 过 [_guardEntertainmentTab]
+    // → 放行才切过去。绝不「先上娱乐 tab 再补拦截」（那会给孩子一个可见的绕过窗口）。
+    final int remembered = ref.read(childShellTabIndexProvider);
+    final bool rememberedValid = remembered >= 0 && remembered < kChildTabCount;
+    _index = kChildTabIndexOfToday;
+    // F138 口径 C：上台信号。⚠️ 必须在 initState 抓住 notifier 引用（dispose 不能再碰 ref），
+    // 且**延后一微任务**发布 —— Riverpod 禁止在 initState / dispose 等 widget 生命周期里
+    // 直接改 provider（会抛「Tried to modify a provider while the widget tree was building.」），
+    // 延后发布同时避开「别的页正在卸载时被通知重建」的风险。
+    _mountSeq = ++_shellMountSeq;
+    _onStageCtrl = ref.read(childShellOnStageProvider.notifier);
+    // 调试期限时开关：读 shared_preferences（默认 true = 绕过；异步失败保持默认）。
+    // 🔴 必须先于「恢复娱乐 tab 的闸门」发起、并把 Future 留给它 await —— 否则会出现
+    // 竞态：usage hydrate 先完成（或先被读到）而 `_debugCapBypass` 仍是默认 true →
+    // 闸门在 debug 构建里被误判成「绕过」→ 恢复路径直接放行（P1 又漏）。
+    final Future<void> capBypassReady = _loadDebugCapBypass();
+    unawaited(capBypassReady);
+    if (rememberedValid &&
+        remembered != kChildTabIndexOfToday &&
+        _usageCtrl!.isEntertainmentTab(remembered)) {
+      // 娱乐 tab：异步过闸（hydrate 期间界面待在「今日」）。
+      //
+      // 🔴 「上台」信号**也一并延后**到闸门给出结论之后（见 [_restoreEntertainmentTab]
+      // 的 finally）：若此刻就发布 `onStage=true`，在「记忆=2 + 刚上台」的那个窗口里
+      // 花园页会先判自己可见并起播一次背景音（P1 用例实测抓到 1 次多余起播），
+      // 而孩子其实被拦在「今日」。
+      unawaited(_restoreEntertainmentTab(remembered, capBypassReady));
+    } else {
+      if (rememberedValid) _index = remembered; // 今日 / 成长等：无闸门，直接恢复。
+      _publishOnStage(true);
+    }
     // ⚠️ 2026-09-29 修复「花园背景音从来没响」：`AudioService.applySettings` 此前
     // **全项目无调用点** → 服务内 `_bgmOn` 恒为 false → 花园氛围音一进门就被 return。
     // 孩子端是家长设置的唯一消费端，故在此把设置真正接到音频服务（音效 / 背景音乐开关）。
     unawaited(_syncAudioSettings());
-    // 调试期限时开关：读 shared_preferences（默认 true = 绕过；异步失败保持默认）。
-    unawaited(_loadDebugCapBypass());
     // 首帧后再弹窗，避免在 build 期间触发路由/覆盖层变更。
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkAllNotices());
   }
@@ -134,7 +189,94 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     WidgetsBinding.instance.removeObserver(this);
     // 离开外壳务必停表（同步取消 ticker），否则定时器泄漏 → 测试 pending timer 断言红。
     _stopAppUsageCounting();
+    // F138 口径 C：下台信号（延后发布；只会被「更新的外壳」覆盖，见 [_publishOnStage]）。
+    _publishOnStage(false);
     super.dispose();
+  }
+
+  /// 发布「外壳在台前 / 已下台」信号（**延后一微任务**，`try/catch` 静默）。
+  ///
+  /// 三条硬约束（F138）：
+  ///  1. **绝不能同步写**：Riverpod 的 `debugCanModifyProviders` 守卫会在
+  ///     `initState` / `dispose` 这类 widget 生命周期里直接抛
+  ///     「Tried to modify a provider while the widget tree was building.」；
+  ///     而 `dispose` 里连 `ref` 都不能用（element 已标 disposed）→ 只能走
+  ///     [initState] 抓到的 [_onStageCtrl] 字段。
+  ///  2. **延缓到微任务**：同步写会立刻通知监听者，可能在别的页正卸载时触发重建。
+  ///  3. **下台要校验挂载序号**：路由切换时旧外壳的 `dispose` 可能晚于新外壳的
+  ///     `initState`（转场动画期间尤甚），无条件写入会把新外壳的「在台前」覆盖掉。
+  ///  4. **静默兜底**：测试里 `ProviderScope` 与外壳一起卸载时容器可能已 dispose，
+  ///     写 provider 会抛 `StateError` —— 那属预期，不该炸测试。
+  void _publishOnStage(bool onStage) {
+    scheduleMicrotask(() {
+      try {
+        if (!onStage && _mountSeq != _shellMountSeq) return; // 已有更新的外壳接管台前。
+        _onStageCtrl?.state = onStage;
+      } catch (_) {
+        // 容器 / provider 已随外壳一起销毁：无需（也无法）发布，静默即可。
+      }
+    });
+  }
+
+  /// 恢复上次停留的**娱乐 tab**（花园 / 商店 / 我的）——先等 usage hydrate，再走
+  /// 与点 tab **同一道闸门** [_guardEntertainmentTab]（F138 P1）。
+  ///
+  /// 为什么必须异步：
+  ///  · `AppUsageController` 的状态是**异步 hydrate** 出来的（`_hydrate()` 里读 SP + 设置）。
+  ///    `initState` 阶段读到的还是 `AppUsageState.initial`（0 秒 / 未锁定）——**不可能是真状态**，
+  ///    拿它判拦截等于默认放行；
+  ///  · 所以 `_index` 起步恒为「今日」，本方法在 hydrate 完成后才决定是否切过去。
+  ///    ⚠️ 顺序反过来（先切过去再补拦截）会给被锁定的孩子一个「先看到花园、再被弹卡」的
+  ///    可见绕过窗口，等于没拦。
+  ///
+  /// 就绪探针用 [AppUsageController.startCounting]：它内部 `await _ensureHydrated()`，
+  /// 且**在到顶 / 单次锁定态下直接返回、不会起 ticker**（见其实现）——
+  /// 正好「只等就绪、不越权放行」。
+  ///
+  /// [capBypassReady] = `_debugCapBypass` 的读取 Future（见 `initState` 的竞态说明）。
+  ///
+  /// 本方法**同时负责发布「上台」信号**（`finally`）：这是为了让 `onStage=true` 与
+  /// 「tab 记忆与真实 `_index` 一致」在同一个时刻成立 —— 中间任何一帧两者不一致，
+  /// 花园页都会把自己判成可见（记忆=2 + 在台上）而多起播一次。
+  Future<void> _restoreEntertainmentTab(
+    int target,
+    Future<void> capBypassReady,
+  ) async {
+    try {
+      // 先等「调试绕过开关」落地，再等 usage hydrate —— 闸门读的两个输入都必须就绪。
+      await capBypassReady;
+      await _usageCtrl!.startCounting(); // ← 仅作为 hydrate 探针（被拦时不会起表）
+      if (!mounted) return;
+      // 🔴 P2-a（QA 探针 Q6 实测复现）：恢复是**异步**的（等 SP + 等 usage hydrate）。
+      // 这段窗口里孩子完全可能自己点了别的 tab —— 记忆已被 [_onSelectTab] 改写成新选择，
+      // 此时异步恢复**必须放弃**，理由两条：
+      //  · 否则会把人从「成长」硬拽回「花园」—— 抢用户操作，观感像 bug；
+      //  · 而且我们不会回写记忆 → 形成 `_index=2 / 记忆=1` 分叉 → 花园页按
+      //    「在台前 && 记忆==2」判自己不可见 → **回花园反而没背景音**
+      //    （F138 的镜像形态，比原 bug 更难查）。
+      // 口径：**记忆是「孩子最后一次主动选择」的真源**，异步恢复只允许在没人动过时生效。
+      if (ref.read(childShellTabIndexProvider) != target) return;
+      // 此刻 usage 已就绪 → 同步闸门判定是可信的（与点 tab 完全同一条路径）。
+      if (_guardEntertainmentTab(target)) {
+        setState(() => _index = target);
+        // 记忆值本来就是 target（外壳 `_onSelectTab` 写过），无需回写；
+        // 计时必须显式起（探针那次在「未到顶」时已起表，这里幂等兜一层）。
+        unawaited(_usageCtrl!.startCounting());
+      } else {
+        // 被拦下：孩子实际落在「今日」→ **tab 记忆必须同步成今日**。
+        // 可见性判据是「在台前 && 记忆 == 本页下标」，若记忆仍停在娱乐 tab，
+        // 花园页会认为可见 → 又在「今日」上补播背景音（正是 F138 那个 bug 的翻版）。
+        // 与 [_onUsageStateChanged] 把被踢回的人同步成 0 完全同口径。
+        ref.read(childShellTabIndexProvider.notifier).state =
+            kChildTabIndexOfToday;
+      }
+    } catch (_) {
+      // 等就绪失败：保持「今日」，不放行（安全侧）。
+    } finally {
+      // 放行 / 拦下 / 异常三种结局都必须发布上台信号 —— 否则整个外壳永久「不在台上」，
+      // 所有 tab 的可见即刷新与花园氛围音会一起哑掉。
+      if (mounted) _publishOnStage(true);
+    }
   }
 
   // ── P0 · A App 总时长：生命周期 + 拦截 ───────────────────────────────
@@ -184,29 +326,9 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
 
   /// 点底部 tab：到顶 / 单次锁定则**只拦娱乐 tab**（不切换 + 温和提示），其余照常切换并启停计时。
   void _onSelectTab(int i) {
-    final AppUsageState usage = ref.read(appUsageControllerProvider);
     final AppUsageController ctrl = ref.read(appUsageControllerProvider.notifier);
-
-    // 防沉迷拦截口径：
-    //  · release（!kDebugMode）→ 照常拦截；
-    //  · debug → 调试开关 [_debugCapBypass]（默认 true = 绕过）或
-    //    `--dart-define=DISABLE_APP_CAP=true` 任一命中即不拦；测试可把
-    //    `kPrefDebugCapBypass` 写 false 恢复拦截（child_shell_app_cap_test）。
-    const bool defineBypass =
-        bool.fromEnvironment('DISABLE_APP_CAP', defaultValue: false);
-    final bool capEnforced = !kDebugMode || (!_debugCapBypass && !defineBypass);
-    if (capEnforced && ctrl.isEntertainmentTab(i)) {
-      // F99：先判单次锁定（比「到顶」更早触发：玩满 10 分钟即锁，与日总量无关）。
-      final bool sessionLocked = usage.sessionLockedAt(DateTime.now());
-      if (sessionLocked) {
-        unawaited(_showSessionLockDialog()); // 单次到点：不切换索引，仅给引导。
-        return;
-      }
-      if (usage.reached) {
-        unawaited(_showAppCapDialog(usage.capMinutes)); // 到顶：不切换索引，仅给引导。
-        return;
-      }
-    }
+    // F138 P1：拦截口径抽成 [_guardEntertainmentTab]，与「恢复上次 tab」**同一道闸门**。
+    if (!_guardEntertainmentTab(i)) return; // 拦下：不切 tab，卡片已弹。
 
     setState(() => _index = i);
     // F71：同步 tab 索引 provider——花园页据此**确定性**启停氛围音
@@ -217,6 +339,44 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     } else {
       unawaited(ctrl.stopCounting());
     }
+  }
+
+  /// **进入娱乐 tab 的唯一闸门**（F138 P1 收口：点 tab 与「恢复上次 tab」共用）。
+  ///
+  /// 返回 `true` = 放行（调用方负责切 tab + `startCounting()`）；
+  /// 返回 `false` = 已拦下（本函数**已弹**对应卡片；调用方必须把 `_index` 留在/回落
+  /// 「今日」且**不得** `startCounting()`）。
+  ///
+  /// 🔴 为什么必须共用：`initState` 恢复上次 tab 时若只补「开始计时」不补「能不能进」，
+  /// 孩子就得到一条稳定通道 —— 玩花园玩到单次锁定 / 日总量到顶 → 被踢回今日 →
+  /// 进家长天地转一圈出来 → **直接落回花园且免拦截**。
+  ///
+  /// ⚠️ 本函数**同步读** usage 状态，调用方必须自行保证已 hydrate（`initState` 路径由
+  /// [_restoreEntertainmentTab] 先等就绪；点 tab 路径沿用既有行为：控制器在 `initState`
+  /// 已预热，且状态未就绪时读到的初始态与改动前完全一致）。
+  bool _guardEntertainmentTab(int i) {
+    final AppUsageController ctrl = ref.read(appUsageControllerProvider.notifier);
+    // 防沉迷拦截口径：
+    //  · release（!kDebugMode）→ 照常拦截；
+    //  · debug → 调试开关 [_debugCapBypass]（默认 true = 绕过）或
+    //    `--dart-define=DISABLE_APP_CAP=true` 任一命中即不拦；测试可把
+    //    `kPrefDebugCapBypass` 写 false 恢复拦截（child_shell_app_cap_test）。
+    const bool defineBypass =
+        bool.fromEnvironment('DISABLE_APP_CAP', defaultValue: false);
+    final bool capEnforced = !kDebugMode || (!_debugCapBypass && !defineBypass);
+    if (!capEnforced || !ctrl.isEntertainmentTab(i)) return true;
+
+    final AppUsageState usage = ref.read(appUsageControllerProvider);
+    // F99：先判单次锁定（比「到顶」更早触发：玩满 10 分钟即锁，与日总量无关）。
+    if (usage.sessionLockedAt(DateTime.now())) {
+      unawaited(_showSessionLockDialog()); // 单次到点：不切换索引，仅给引导。
+      return false;
+    }
+    if (usage.reached) {
+      unawaited(_showAppCapDialog(usage.capMinutes)); // 到顶：不切换索引，仅给引导。
+      return false;
+    }
+    return true;
   }
 
   /// F99：娱乐 tab 前台**中途**触发单次锁定 → 自动踢回「今日」tab 并给引导卡。

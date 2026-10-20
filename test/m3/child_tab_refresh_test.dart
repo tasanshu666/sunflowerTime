@@ -256,6 +256,36 @@ void main() {
       await tester.pump();
       expect(h.calls, 0);
     });
+
+    // ── F138：外壳上下台是**独立的**可见性输入 ────────────────────────────
+    testWidgets('F138：外壳下台 → 本页不可见（不刷）；重新上台 → 立即刷一次',
+        (WidgetTester tester) async {
+      final _Harness h = _Harness(tester);
+      await h.mount(initialTab: kChildTabIndexOfGarden);
+      expect(h.calls, 0, reason: '首帧不算「由隐藏变可见」，不刷新');
+
+      h.setOnStage(false); // 外壳被 go('/parent') 销毁（tab 记忆仍是花园）
+      await tester.pump();
+      expect(h.calls, 0, reason: '外壳不在台前 → 没人看得到本页，不刷新');
+
+      h.setOnStage(true); // 新外壳挂载上台（记忆值恢复成花园 → 本页重新可见）
+      await tester.pump();
+      expect(h.calls, 1,
+          reason: 'F138：外壳重新上台 = 可见性变化，必须补刷一次（否则看到离开前的旧快照）');
+    });
+
+    testWidgets('F138：外壳下台后再切 tab 不刷（不可见期间不白跑重活）',
+        (WidgetTester tester) async {
+      final _Harness h = _Harness(tester);
+      await h.mount(initialTab: kChildTabIndexOfToday);
+      h.setOnStage(false);
+      await tester.pump();
+
+      h.goTab(kChildTabIndexOfGarden); // 记忆值变了，但外壳不在台前
+      await tester.pump();
+      expect(h.calls, 0,
+          reason: 'F138 真机 bug 同源：只有 tab 索引（记忆）不能证明本页在被人看');
+    });
   });
 }
 
@@ -308,8 +338,13 @@ class _Harness {
   Future<void> mount({
     required int initialTab,
     bool standalone = false,
+    bool onStage = true,
   }) async {
     container.read(childShellTabIndexProvider.notifier).state = initialTab;
+    // F138：可见性判据 = 「外壳在台前 **且** tab 索引是本页」。真实外壳由
+    // `ChildShellPage.initState` 发布上台信号；本探针用例模拟「外壳在台上」，
+    // 故显式摆好 —— 否则所有用例都会被判成不可见（假红）。
+    container.read(childShellOnStageProvider.notifier).state = onStage;
     addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -331,6 +366,10 @@ class _Harness {
 
   void goTab(int index) =>
       container.read(childShellTabIndexProvider.notifier).state = index;
+
+  /// F138：外壳上台 / 下台（真实外壳由 `ChildShellPage.initState` / `dispose` 发布）。
+  void setOnStage(bool value) =>
+      container.read(childShellOnStageProvider.notifier).state = value;
 
   /// 模拟家长端切换 / 新建 / 编辑 / 删除孩子（C90 期 1：修订号自增）。
   void bumpChildProfileRevision() =>

@@ -224,7 +224,9 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
       }
       // 演出只在**今日页可见**时上屏（§5.24.4：不可见 ⇒ 只结算不播；
       // 演出属庆祝不补播）。
-      final bool visible =
+      // F138：可见性 = 外壳在台前 **且** 当前 tab 是今日（只看索引会把「外壳已销毁、
+      // 记忆仍停在今日」误判成可见 —— 与花园氛围音同源的口径缺陷）。
+      final bool visible = ref.read(childShellOnStageProvider) &&
           ref.read(childShellTabIndexProvider) == kChildTabIndexOfToday;
       if (visible) await _showLevelUpFx(result, kind);
     } catch (e) {

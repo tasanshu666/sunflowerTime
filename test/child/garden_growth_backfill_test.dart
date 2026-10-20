@@ -275,14 +275,22 @@ class _Harness {
 
   final ProviderContainer container;
 
-  Widget widget({bool shell = false}) => UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          home: shell
-              ? const _ShellHost()
-              : const Scaffold(body: GardenPage(embedded: true)),
-        ),
-      );
+  /// F138：可见性判据 = 「外壳在台前 **且** tab 索引是本页」。
+  ///
+  /// 本文件的 `_ShellHost` / 独立挂载都模拟「外壳在台上」，故在装配时显式发布上台
+  /// 信号（真实外壳由 `ChildShellPage.initState` 写入）。不写会让 `tabVisible` 恒
+  /// false ——「切到花园 tab 才补播」两条用例会假红。
+  Widget widget({bool shell = false}) {
+    container.read(childShellOnStageProvider.notifier).state = true;
+    return UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        home: shell
+            ? const _ShellHost()
+            : const Scaffold(body: GardenPage(embedded: true)),
+      ),
+    );
+  }
 
   void goTab(int index) =>
       container.read(childShellTabIndexProvider.notifier).state = index;

@@ -981,6 +981,14 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   ///    `tabVisible` 会把这类既有守卫（`garden_care_repro` / `garden_growth_sfx_no_care`）
   ///    误判成隐藏，成长演出全被入队 → 假红。TickerMode 兜底与「孩子在屏幕上看不看得到」
   ///    同义，正好覆盖「独立挂载」形态，且不影响生产判据。
+  ///
+  /// 🔴 `embedded: false` 的**未来风险**（F138 P2-d 备忘，勿删）：
+  /// `/garden`、`/store` 这类「独立整屏路由」目前是**死路由** —— lib 内**没有任何**
+  /// `go('/garden')` / `go('/store')` 调用点，只有深链（deep link）可达。它们
+  /// `embedded: false` → 本判据与氛围音判据的 `!widget.embedded` 分支都恒为可见，
+  /// **因此完全不过外壳的防沉迷闸门**（防沉迷只在 `ChildShellPage._onSelectTab` /
+  /// 恢复路径上拦娱乐 tab）。将来若给它们加入口（按钮 / 深链推广 / 新引导流），
+  /// **必须同时补闸门**，否则等于凭空开一条免计时通道。
   bool get _gardenVisible =>
       !widget.embedded || tabVisible || _tickerEnabled;
 
@@ -2174,13 +2182,15 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       if (mounted) _reload(silent: true);
     });
 
-    // 花园氛围音可见性（玄参 2026-09-28；F71 2026-10-05 修订）。
+    // 花园氛围音可见性（玄参 2026-09-28；F71 2026-10-05 修订；F138 2026-10-19 再修订）。
     // ⚠️ 原实现按 TickerMode 依赖重建判可见性，但 IndexedStack 更新隐藏子树的
     // 时机不保证本页立即重建 → 切 tab 后氛围音继续播完整曲（玄参实测）。
-    // 现改 **watch 外壳 tab 索引 provider**（外壳 _onSelectTab 同步写入），
-    // 确定性推导：本 provider 变化必然触发本页重建 → 必然启停。
+    // F138 追加「外壳在台前」判据：外壳被 `context.go('/parent')` 销毁重建后，
+    // tab **记忆**仍是 2（花园），若只看索引，重建出来的本页会误判自己可见 →
+    // 孩子在「今日」tab 上听到花园背景音每 30s 无限补播（玄参真机反馈）。
     final bool gardenVisible = !widget.embedded ||
-        ref.watch(childShellTabIndexProvider) == kChildTabIndexOfGarden;
+        (ref.watch(childShellOnStageProvider) &&
+            ref.watch(childShellTabIndexProvider) == kChildTabIndexOfGarden);
     if (gardenVisible != _ambientActive) {
       _ambientActive = gardenVisible;
       _syncAmbientTimer();

@@ -271,6 +271,18 @@ class AudioService {
   @visibleForTesting
   bool get ambientShouldPlay => _ambientShouldPlay;
 
+  /// 氛围音**起播请求**累计次数（测试可见性，F138 新增）。
+  ///
+  /// 用途：断言「花园页没有在后台持续补播」。生产路径的每一次
+  /// [playGardenAmbient]（进入花园首播 + 每 `kGardenAmbientIntervalSeconds` 秒的
+  /// 定时补播）都会让本计数 +1；它**不受开关状态 / 起播成败影响**（在入口处递增），
+  /// 因此是「页面认为自己可见」最直接、最不受 stop / applySettings 时序干扰的观测点。
+  /// ⚠️ 只增不减；与其它跨用例状态一样由 [resetForTest] 复位。
+  @visibleForTesting
+  int get gardenAmbientPlayCalls => _gardenAmbientPlayCalls;
+
+  int _gardenAmbientPlayCalls = 0;
+
   /// [_ambientPlaying]（测试可见性）：氛围音**加载/起播窗口**标记（**非**稳态在播）。
   ///
   /// D1 回归护栏据此断言：起播流程返回后本标记必须已复位为 false（否则再次起播会被
@@ -890,6 +902,8 @@ class AudioService {
   /// 后台挂起（[_suspendedForBackground]）期间一律跳过（F70 闸门）：否则花园页 30s
   /// 定时器会在退后台/锁屏后把氛围音重新拉起（玄参 2026-10-05 实测 bug）。
   void playGardenAmbient() {
+    // F138：测试可见的「起播请求」计数（入口处同步递增，与开关 / 成败无关）。
+    _gardenAmbientPlayCalls++;
     // fire-and-forget：生产路径不阻塞 UI（起播流程自身已在几百毫秒内返回，见 D1 修复）。
     unawaited(playGardenAmbientAndWait());
   }
@@ -1425,6 +1439,7 @@ class AudioService {
     _ambientStarting = false;
     _ambientStartingSince = null; // F133：闸门置位时刻（与 dispose 字段清单对齐）
     _ambientGeneration++;
+    _gardenAmbientPlayCalls = 0; // F138：起播请求计数（跨用例必须复位）
     _sessionConfigured = false;
     _sessionConfigFuture = null;
     _assetCacheCleared = false;

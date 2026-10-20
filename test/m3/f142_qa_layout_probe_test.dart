@@ -6,10 +6,15 @@
 /// 渲染盒实测。本探针补齐这四块，且期望值全部写成**字面算式**（不引用被测常量）。
 ///
 /// ## 「max 陷阱」的证伪设计
-/// 若实现把 +40 加在 `max()` **之后**，卡顶会是 `0.40H + 80`；本探针用
-/// `closeTo(0.40H + 40, 0.5)` 与 `lessThan(0.40H + 79)` 双断言把 80 / 0 两个
-/// 错误值同时排除；呼吸带用「卡顶 − 分界线」实测，排除「−4」（底图没同步下移
-/// 时 band = 3%H − 40 < 0）与「76」（卡片多移了一次 40）。
+/// 若实现把增量加在 `max()` **之后**，卡顶会是 `0.40H + 2×增量`；本探针用
+/// `closeTo(0.40H + 增量, 0.5)` 与 `lessThan(0.40H + 2×增量 − 20)` 双断言把
+/// 双倍 / 0 两个错误值同时排除；呼吸带用「卡顶 − 分界线」实测，排除「−4」
+/// （底图没同步下移时 band = 3%H − 增量 < 0）与「多移一次增量」的形态。
+///
+/// ⚠️ 增量三轮口径：一轮 40（玄参实测感知弱）→ 二轮总量 100（玄参拍板）→
+/// 三轮**随屏宽线性放大**（834 宽 = 100 基准，见 `kTabletDownshiftReferenceWidth`；
+/// 13″ 宽 1032 → 100×1032/834 ≈ 123.7）。本探针按
+/// `100 × 屏宽 / 834` **字面算式**断言（不引用被测常量，保持独立性）。
 ///
 /// ⚠️ 全程禁用 `pumpAndSettle`（今日页无限动画）。
 library f142_qa_layout_probe_test;
@@ -415,36 +420,39 @@ void main() {
 
   final _QaProbeHarness h = _QaProbeHarness();
 
-  // ── Q3-①：平板卡顶 == 0.40H + 40（不是 +80 / +0）；呼吸带仍是 3%H ──────────
+  // ── Q3-①：平板卡顶 == 0.40H + 增量（不是双倍 / +0）；呼吸带仍是 3%H ────────
+  // 增量 = 100 × 屏宽/834（三轮随屏宽；834 档 = 100，1032 档 ≈ 123.7）。
   for (final (String tag, Size screen) in <(String, Size)>[
     ('ipad11_1194', _kIpad11A),
     ('ipad11_1210', _kIpad11B),
     ('ipad13', _kIpad13),
   ]) {
     final double hgt = screen.height;
-    testWidgets('$tag · 卡顶 = 0.40H+40（排除 +80/+0），分界线 = 0.37H+40，呼吸带 = 3%H',
+    final double w = screen.width;
+    final double ds = 100.0 * w / 834; // 字面算式（不引用被测常量）
+    testWidgets('$tag · 卡顶 = 0.40H+增量（排除双倍/+0），分界线同步，呼吸带 = 3%H',
         (WidgetTester tester) async {
       await h.pumpToday(tester, screen);
 
       final double cardTop = h.todayCardTop(tester);
       final double panelTop = h.todayPanelLineY(tester);
 
-      expect(cardTop, closeTo(hgt * 0.40 + 40, 0.5),
-          reason: '$tag 卡顶必须 = ${hgt * 0.40 + 40}（+80 ⇒ ${hgt * 0.40 + 80}；'
-              '+0 ⇒ ${hgt * 0.40}；实测 $cardTop）');
-      expect(cardTop, lessThan(hgt * 0.40 + 79),
-          reason: '$tag 排除「max 之后又加一次 40」的 +80 实现（实测 $cardTop）');
-      expect(panelTop, closeTo(hgt * 0.37 + 40, 0.5),
-          reason: '$tag 底图分界线必须同步 +40 = ${hgt * 0.37 + 40}（实测 $panelTop）');
-      // 呼吸带：仍 = 3% 屏高（不是 3%H+40=76、也不是 3%H−40=−4）。
+      expect(cardTop, closeTo(hgt * 0.40 + ds, 0.5),
+          reason: '$tag 卡顶必须 = ${hgt * 0.40 + ds}'
+              '（双倍 ⇒ ${hgt * 0.40 + 2 * ds}；+0 ⇒ ${hgt * 0.40}；实测 $cardTop）');
+      expect(cardTop, lessThan(hgt * 0.40 + 2 * ds - 20),
+          reason: '$tag 排除「max 之后又加一次增量」的双倍实现（实测 $cardTop）');
+      expect(panelTop, closeTo(hgt * 0.37 + ds, 0.5),
+          reason: '$tag 底图分界线必须同步下移 = ${hgt * 0.37 + ds}（实测 $panelTop）');
+      // 呼吸带：仍 = 3% 屏高（不是 3%H+增量、也不是 3%H−增量<0）。
       expect(cardTop - panelTop, closeTo(hgt * 0.03, 0.5),
           reason: '$tag 呼吸带必须仍是 3%H = ${hgt * 0.03}（实测 ${cardTop - panelTop}）');
       expect(h.exceptions, isEmpty);
     });
   }
 
-  // ── Q3-②：手机今日页零回归（卡顶 = 分界线 + 3%H，绝不吃 40pt）────────────
-  testWidgets('phone 390×844 · 卡顶 = 分界线 + 3%H（HEAD 同式），无 40pt 下移',
+  // ── Q3-②：手机今日页零回归（卡顶 = 分界线 + 3%H，绝不吃 100pt）────────────
+  testWidgets('phone 390×844 · 卡顶 = 分界线 + 3%H（HEAD 同式），无平板下移',
       (WidgetTester tester) async {
     const Size screen = Size(390, 844);
     await h.pumpToday(tester, screen);
@@ -456,9 +464,10 @@ void main() {
         reason: '手机卡顶必须仍是「分界线 + 3% 屏高」= ${panelTop + 844 * 0.03}'
             '（实测 $cardTop；这是 HEAD 的同一条公式）');
     expect(cardTop, lessThan(844 * 0.40 + 40),
-        reason: '手机绝不许吃平板 40pt 下移（实测 $cardTop）');
+        reason: '手机绝不许吃平板 100pt 下移（实测 $cardTop；'
+            '0.40H+40 上界与 +0 仍差 40pt，足以区分）');
     // 阳光气泡：手机 top = 0.25H（+0）。⚠️ 气泡带漂浮动画（实测振幅 ≈±12pt），
-    // 容差取 20pt —— 仍足以区分 +0（211）/ +40（251）/ +80（291）三档。
+    // 容差取 20pt —— 足以区分 +0（211）/ +100（311）两档。
     final RenderBox bubble = tester.renderObject<RenderBox>(
       find.byKey(ChildTodayPage.sunBubbleKey),
     );
@@ -468,35 +477,50 @@ void main() {
     expect(h.exceptions, isEmpty);
   });
 
-  // ── Q3-③：平板阳光气泡 / 徽章同向下移（+40 只加一次）────────────────────
+  // ── Q3-③：平板阳光气泡与向日葵**花头齐平**（F142 四轮）；手机 0.25H 不动 ───
+  // 独立推导（字面算式，不引用被测常量）：
+  //   花脸中心屏上 y = 分界线 − (0.399 − 700/3200) × drawnH，
+  //   drawnH = 屏宽/1440 × 3200（平板宽主导 cover），
+  //   分界线 = 0.37H + 100×屏宽/834（F142 三轮）。
+  //   气泡 top = 花脸中心 − 17（气泡半高）。
+  const double headFrac = 700.0 / 3200.0; // 花脸中心归一化 y（标定 0.21875）
+  const double panelFrac = 0.399; // 今日底图分界线归一化 y
+  const double bubbleHalf = 17.0; // 气泡 ~34pt 高的一半
   for (final (String tag, Size screen) in <(String, Size)>[
     ('ipad11_1210', _kIpad11B),
     ('ipad13', _kIpad13),
   ]) {
     final double hgt = screen.height;
-    testWidgets('$tag · 阳光气泡 top = 0.25H + 40（同向下移一次）',
-        (WidgetTester tester) async {
+    final double w = screen.width;
+    final double panelLine = hgt * 0.37 + 100.0 * w / 834;
+    final double drawnH = w / 1440.0 * 3200.0;
+    final double headY = panelLine - (panelFrac - headFrac) * drawnH;
+    final double expectedTop = headY - bubbleHalf;
+    testWidgets('$tag · 阳光气泡与花头齐平（top = 花脸中心 − 17 ≈ '
+        '${expectedTop.toStringAsFixed(1)}）', (WidgetTester tester) async {
       await h.pumpToday(tester, screen);
 
       final RenderBox bubble = tester.renderObject<RenderBox>(
         find.byKey(ChildTodayPage.sunBubbleKey),
       );
       final double top = bubble.localToGlobal(Offset.zero).dy;
-      // ⚠️ 气泡带漂浮动画（实测振幅 ≈±12pt）→ 容差 20pt，仍可区分 +0/+40/+80。
-      expect(top, closeTo(hgt * 0.25 + 40, 20),
-          reason: '$tag 气泡 top 必须 = ${hgt * 0.25 + 40}'
-              '（+80 ⇒ ${hgt * 0.25 + 80}；+0 ⇒ ${hgt * 0.25}；实测 $top）');
+      // ⚠️ 气泡带漂浮动画（实测振幅 ≈±12pt）→ 容差 20pt。
+      expect(top, closeTo(expectedTop, 20),
+          reason: '$tag 气泡 top 必须 = 花脸中心(≈${headY.toStringAsFixed(1)})'
+              ' − 17 = ${expectedTop.toStringAsFixed(1)}'
+              '（若仍 = 0.25H+增量 ⇒ ${hgt * 0.25 + 100.0 * w / 834}；实测 $top）');
       expect(h.exceptions, isEmpty);
     });
   }
 
-  // ── Q3-④：成长页 sceneGap = 0.34H + 40（平板）/ 0.34H（手机）──────────────
-  testWidgets('ipad13 · 成长页列表起点 = 0.34H + 40 = 507.84',
+  // ── Q3-④：成长页 sceneGap = 0.34H + 增量（平板）/ 0.34H（手机）─────────────
+  testWidgets('ipad13 · 成长页列表起点 = 0.34H + 123.741 = 591.58',
       (WidgetTester tester) async {
     await h.pumpTask(tester, _kIpad13);
     final double gap = h.taskSceneGap(tester);
-    expect(gap, closeTo(1376 * 0.34 + 40, 0.5),
-        reason: 'iPad 13″ 成长页起点必须 = 467.84 + 40 = 507.84（实测 $gap）');
+    // 三轮：13″ 下移 = 100 × 1032/834 ≈ 123.741（字面算式，不引用被测常量）。
+    expect(gap, closeTo(1376 * 0.34 + 100.0 * 1032 / 834, 0.5),
+        reason: 'iPad 13″ 成长页起点必须 = 467.84 + 123.741 = 591.581（实测 $gap）');
     expect(h.exceptions, isEmpty);
   });
 

@@ -4,7 +4,7 @@
 /// 只**打印**实测数值、不做 F142 断言 —— 同一份文件在两个树上跑：
 ///  · 本树（工作区，含 F142 改动）→ 得到「改后」数值表；
 ///  · /tmp 私有副本（lib 全部回退 HEAD）→ 得到「改前」数值表；
-/// 两表逐行 diff ⇒ 手机端「逐像素一致」与平板端「恰 +40」的**实测**证据。
+/// 两表逐行 diff ⇒ 手机端「逐像素一致」与平板端「恰 +100」的**实测**证据。
 ///
 /// 只依赖 HEAD 就存在的冻结常量（kTodayCardTopRatio / kTodayBgPanelTargetRatio /
 /// kGrowthListTopRatio / kTodayBgSrcSize / kTodayBgPanelTopFraction），

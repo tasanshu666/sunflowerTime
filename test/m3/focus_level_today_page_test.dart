@@ -37,6 +37,8 @@ import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/focus_level_badge.dart';
 import 'package:sunflower_time/presentation/child/widgets/level_up_fx_overlay.dart';
+import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
+import 'package:sunflower_time/shared/tab_bg_layout.dart';
 
 // ── 夹具 ──────────────────────────────────────────────────────────────────
 
@@ -530,7 +532,7 @@ void main() {
         reason: '徽章不得侵占右下阳光气泡活动区（x 241–379pt）');
   });
 
-  testWidgets('⑦b 平板适配：徽章尺寸 × uiScaleOf(1.3)，移今日 pill 右下方红框',
+  testWidgets('⑦b 平板适配：徽章尺寸 × uiScaleOf(1.3)，回左上角贴花头上方（F142 四轮）',
       (WidgetTester tester) async {
     await enterTodayPage(
       tester,
@@ -545,17 +547,28 @@ void main() {
         tester.getRect(find.byKey(FocusLevelBadge.badgeKey));
     expect(circleRect.width, closeTo(kLevelBadgeDiameter * kTabletUiScale, 0.8),
         reason: '平板：圆形徽章直径 × [kTabletUiScale]');
-    // v4（玄参拍板「移今日 pill 右下方红框」）：平板徽章右缘 = 屏宽 −
-    // kTodayBadgeRightInsetTablet(100pt) ≈ 734pt（落在红框右端，与家长图标留 ≥16pt）。
-    expect(badgeRect.right, closeTo(834 - kTodayBadgeRightInsetTablet, 1.0),
-        reason: '平板徽章右缘 = 屏宽 − kTodayBadgeRightInsetTablet(100pt) ≈ 734pt');
-    expect(badgeRect.left, greaterThan(834 * 0.50),
-        reason: 'v4 平板徽章在右侧墙区（左缘过半屏），不再是左上');
-    // F142（玄参 2026-10-20 拍板）：平板内容整体下移 40 逻辑点
-    // （kTabletContentDownshift）→ 徽章 top 也要 +40。手机端恒 +0（零回归）。
-    expect(badgeRect.top,
-        closeTo(1194 * kTodayBadgeTopRatioTablet + kTabletContentDownshift, 1.0),
-        reason: 'top = kTodayBadgeTopRatioTablet(0.10) × 屏高 + 40 ≈ 159pt（红框带下移）');
+    // F142 四轮（玄参拍板「按 iPhone 的布局放回左上角」）：left 与手机同款比例。
+    expect(badgeRect.left, closeTo(834 * kTodayBadgeLeftRatio, 1.0),
+        reason: '平板徽章 left = 屏宽 × kTodayBadgeLeftRatio(0.04) ≈ 33.4pt');
+    // top 锚「花头立绘顶 − kTodayBadgeHeadGap(8)」再上移自身高度 ⇒
+    // 渲染后**底边 = 花头顶 − 8**（花头矩形由真实 DecorationImage.alignment
+    // 反算，与生产 cover 几何同源，不猜数值）。
+    final Rect decorationBox = tester.getRect(
+        find.byKey(TabBackground.decorationKey));
+    final DecoratedBox decorated = tester.widget<DecoratedBox>(
+        find.byKey(TabBackground.decorationKey));
+    final Alignment alignment =
+        (decorated.decoration as BoxDecoration).image!.alignment as Alignment;
+    final Rect plant = todayBgSunflowerScreenRect(
+      box: decorationBox.size,
+      alignmentY: alignment.y,
+    ).shift(decorationBox.topLeft);
+    expect(badgeRect.bottom, closeTo(plant.top - kTodayBadgeHeadGap, 1.0),
+        reason: '平板徽章底边 = 花头顶 − 8pt（贴花头上方）'
+            '(徽章底 ${badgeRect.bottom.toStringAsFixed(1)} / '
+            '花头顶 ${plant.top.toStringAsFixed(1)})');
+    expect(badgeRect.overlaps(plant), isFalse,
+        reason: '平板徽章 ∩ 向日葵立绘 = ∅ (徽章 $badgeRect / 立绘 $plant)');
     expect(badgeRect.right, lessThanOrEqualTo(834), reason: '不越屏右');
   });
 }

@@ -278,7 +278,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
   @override
   Widget build(BuildContext context) {
     // F142（玄参 2026-10-20 拍板）：**平板**整页内容与底图同时下移
-    // [kTabletContentDownshift]（40pt），与「今日」页**同量**——保证切 tab 时
+    // [tabletContentDownshiftOf]（随屏宽），与「今日」页**同量**——保证切 tab 时
     // 背景分界线不跳动。手机端 `_panelTargetRatio` 逐位等于 [kGrowthListTopRatio]，
     // 即**零回归**；且 C46d/C47e 的基线常量本身不改（只叠加平板增量）。
     final double panelRatio = _panelTargetRatio;
@@ -332,20 +332,21 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
     );
   }
 
-  /// F142：**平板**内容整体下移量（逻辑点）；手机恒 `0`（手机逐像素零回归）。
+  /// 平板内容下移量（**随屏宽线性放大**，F142 三轮）；手机恒 `0`（逐像素零回归）。
   ///
-  /// 口径见 [kTabletContentDownshift]（玄参 2026-10-20 拍板：40 逻辑点、
-  /// iPad 11″ 与 13″ 同量、不做屏高比例换算）。
-  double get _contentDownshift =>
-      isTabletOf(context) ? kTabletContentDownshift : 0.0;
+  /// 与今日页同口径（成组同移、切 tab 不跳动）：底图 cover 缩放 ∝ 屏宽，
+  /// 同量下移在 iPad 13″ 被稀释 → 按 `屏宽/834` 放大拉平两代平板的
+  /// 「成长胶囊 ↔ 向日葵头顶」孔隙（玄参 2026-10-20 截图实证）。
+  /// 见 `responsive.tabletContentDownshiftOf`：iPad 11″ = 100 / iPad 13″ ≈ 123.7。
+  double get _contentDownshift => tabletContentDownshiftOf(context);
 
-  /// 底图锚点比例：平板按 [kTabletContentDownshift] **等效下移**（比例 = pt / 屏高）。
+  /// 底图锚点比例：平板按下移量**等效换算**（比例 = pt / 屏高）。
   ///
   /// 手机（`_contentDownshift == 0`）→ **逐位等于** [kGrowthListTopRatio]（0.34）。
-  /// 平板 iPad 11″（1210）→ 0.34 + 40/1210 ≈ 0.3731；iPad 13″（1376）→ ≈ 0.3691。
+  /// 平板 iPad 11″（1210）→ 0.34 + 100/1210 ≈ 0.4226；iPad 13″（1376）→ ≈ 0.4299。
   ///
   /// 🔴 [build]（底图怎么画）与 [_taskList]（列表裁剪上沿 / 起点）**必须**同源，
-  /// 否则平板下列表会与面板上缘错开 40pt（要么露出草地、要么文字压在插画上）。
+  /// 否则平板下列表会与面板上缘错开一个下移量（要么露出草地、要么文字压在插画上）。
   double get _panelTargetRatio {
     final double h = MediaQuery.sizeOf(context).height;
     if (h <= 0) return kGrowthListTopRatio;
@@ -456,7 +457,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
     // 手指拖动时卡片在面板上沿被裁掉，不会压到上方向日葵 / 书桌场景
     //（与商店页 kStoreListTopRatio 同款处理）。
     //
-    // F142：平板下与底图**同源**下移 40pt（手机 +0，逐像素零回归）。
+    // F142：平板下与底图**同源**下移（随屏宽，手机 +0，逐像素零回归）。
     final double sceneGap =
         MediaQuery.sizeOf(context).height * kGrowthListTopRatio +
             _contentDownshift;

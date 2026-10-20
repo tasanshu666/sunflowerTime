@@ -111,6 +111,33 @@ double panelTopScreenY({
 const Rect kTodayBgSunflowerNormalizedRect =
     Rect.fromLTRB(0.13889, 0.18125, 0.39931, 0.37813);
 
+/// 「今日」底图里向日葵**花脸中心**的归一化 y（F142 四轮标定）。
+///
+/// 依据既有逐像素标定（[kTodayBgSunflowerNormalizedRect] 注释）：花脸中心列带
+/// x[340,420]、花头行带 y[640,760] → 花脸中心 y ≈ **700** / 3200 = 0.21875。
+/// 用途：平板「漂浮阳光」气泡与花头**齐平**（F142 四轮，玄参拍板）——
+/// 手机端气泡位置是 2026-10-09 cv2 蓝框定稿（0.25H，花头右侧偏下的书架空地），
+/// **不动**；平板底图 cover 放大后气泡若仍用 0.25H 会远低于花头。
+const double kTodayBgSunflowerHeadCenterYFraction = 0.21875;
+
+/// 已知「分界线屏上 y」时，反算底图内归一化 [fraction] 处的**屏上 y**。
+///
+/// 推导：分界线屏上 y = 绘制顶 + `panelTopFraction × drawnH`，同一张图里任何
+/// 归一化点的屏上 y = 绘制顶 + `fraction × drawnH`，两式相减消去绘制顶。
+/// 与 [todayBgSunflowerScreenRect] 同一套 cover 几何，只是入口是「分界线」
+/// 而不是 alignmentY（页面里分界线已由 `TabBackground.panelLineY` 实测算出，
+/// 无需再反解 alignment）。测试可用 [todayBgSunflowerScreenRect] 交叉验证。
+double bgScreenYFromPanelLine({
+  required double panelLineScreenY,
+  required Size box,
+  required Size src,
+  required double panelTopFraction,
+  required double fraction,
+}) {
+  final double drawnH = coverDrawnHeight(box: box, src: src);
+  return panelLineScreenY - (panelTopFraction - fraction) * drawnH;
+}
+
 /// 向日葵立绘在给定容器与对齐值下的**屏幕矩形**（容器坐标系）。
 ///
 /// 与 [panelTopScreenY] 同一套 cover 几何：`scale = max(box.w/src.w, box.h/src.h)`、

@@ -9,8 +9,9 @@
 ///  · v2（2026-10-14 下午拍板「**摘要 + 点按详情**」）：徽章降级为摘要 ——
 ///    只剩「圆徽 + 称号 + 细进度条」（≈**144×44pt**，旧版 220×54），提示文案
 ///    整体撤出、改由点按后的**详情卡**承载 ⇒ 墙区余量随之翻倍。
-///  · 锚点机制不变：手机 [kTodayBadgeTopRatio]=0.11 / 平板
-///    [kTodayBadgeTopRatioTablet]=0.17。
+///  · 锚点机制：手机 [kTodayBadgeTopRatio]=0.11（left 两端共用
+///    [kTodayBadgeLeftRatio]）；平板 F142 四轮起锚「花头立绘顶 −
+///    [kTodayBadgeHeadGap]」再上移自身高度（贴花头上方，见下）。
 ///
 /// ## 本文件用 RenderBox 实测钉死三条硬约束（team-lead 拍板）
 ///  a) **徽章整体 bounds 与向日葵立绘 bounds 不相交** —— 立绘矩形来自
@@ -25,27 +26,21 @@
 ///  c) **摘要尺寸**：宽 ≤ [kLevelBadgeMaxWidth] 且 < 160（明显小于旧版 220）、
 ///     高 ≈44（旧版 54）—— 「大幅缩小」是拍板项，必须有数。
 ///
-/// ## 平板（iPad Pro 11″ 834×1194）v4：移「今日 pill 右下方红框」+ 修溢出
-/// 平板上底图被主动对齐到 0.37 × 屏高（C64/C67），花头被 cover 抬到屏 y≈44
-/// —— 在透明 AppBar **之后**；左上角墙区被花头/窗/书架占满，徽章虽渲染但
-/// 视觉丢失（玄参 iPad 真机截图看不到徽章）。根因：手机上调 left/top 参数
-/// 永远调不好 iPad（花头几何不同）。
+/// ## 平板：v4 右对齐（已废弃）→ F142 四轮回左上角「贴花头上方」
+/// v4 时代（2026-10-15）：平板底图对齐到 0.37 × 屏高（C64/C67），花头被 cover
+/// 抬到屏 y≈44、左上墙区被占 → 徽章曾移到「今日 pill 右下方红框」。
 ///
-/// v4（玄参 iPad Pro 11″ M5 实测拍板）两修：
-///  · **位置**：徽章移到「今日」pill 右下方红框区（红框约 x 447~734pt、
-///    y 116~161pt）。`top = kTodayBadgeTopRatioTablet`(0.10) × 屏高 ≈119pt；
-///    `right = kTodayBadgeRightInsetTablet`(100pt) ⇒ 徽章右缘 ≈ 屏宽−100，
-///    与家长入口图标左缘留 ≥16pt 间距。
-///  · **溢出**：iPad 1.3×uiScale + textScaler 上限 1.6 下，徽章内 Row 的 6 字
-///    称号会撑爆 maxWidth → RenderFlex overflow（竖排窄条文字）。根因是称号
-///    字号**双重缩放**（旧版 `fontSize × uiScale` 又被 textScaler 再乘一遍）。
-///    修复：① 称号字号去掉 `× uiScale`（C65：文字只走 textScaler，不双缩）；
-///    ② 文案列包进 `Flexible`，超量走 ellipsis 而非溢出。
+/// **F142 四轮（2026-10-20 玄参拍板「按 iPhone 的布局放回左上角」）**：平板
+/// 内容整体下移（随屏宽）后花头顶回落到 ≈140pt，pill 与花头之间放得下徽章；
+/// 平板改锚「花头立绘顶 − [kTodayBadgeHeadGap]」+ `FractionalTranslation(0,-1)`
+/// 上移自身高度 = **徽章底边贴在花头上方**（等比复刻手机的相对关系；挂分界线
+/// 实测值，下移/切 tab 自动同步）。
 ///
 /// 本文件对 iPad 锁**五条硬约束**（RenderBox 度量，pump 在 textScaler 1.6 下）：
-/// ① ∩ 今日 pill = ∅、② ∩ 家长图标 = ∅（留 ≥16pt）、③ ∩ 阳光胶囊 = ∅、
-/// ④ 完全在屏内、⑤ 无 RenderFlex overflow。手机端约束一条不松（不压立绘 /
-/// 不压「今日」pill / 右缘 < 0.60 屏宽 / 锚点=0.11）。
+/// ① ∩ 今日 pill = ∅、② ∩ 家长图标 = ∅、③ ∩ 阳光胶囊 = ∅、
+/// ④ 完全在屏内、⑤ 无 RenderFlex overflow；外加「底边 = 花头顶 − 8pt」的
+/// 几何锚定断言（花头矩形来自真实 DecorationImage.alignment 反算，不猜数值）。
+/// 手机端约束一条不松（不压立绘 / 不压「今日」pill / 右缘 < 0.60 屏宽 / 锚点=0.11）。
 ///
 /// 🟢 夹具纪律：不依赖网络 / 不依赖真机，纯 widget 度量；夹具与
 /// `today_card_breathing_band_test.dart` 同源。
@@ -372,8 +367,8 @@ void main() {
       expect(find.text(kLevelBadgeLockedTitle), findsOneWidget);
     });
 
-    // 平板不做「不压花头」断言（几何上不可能，见文件头「平板」节），
-    // 改锁 v4 五条硬约束（手机仍是「不压立绘」）。
+    // 平板（F142 四轮）：徽章贴花头上方（底边 = 花头顶 − 8pt），恢复「不压
+    // 立绘」禁区 + 平板特有约束；手机仍是「不压立绘」（锚点 0.11 不变）。
     testWidgets(
         '$name · ${tablet ? '⑤ 平板五条硬约束（含无溢出）' : 'a 徽章不压向日葵立绘'}',
         (WidgetTester tester) async {
@@ -392,26 +387,27 @@ void main() {
         }
 
         final Rect badge = _badgeRect(tester);
-        // F142（玄参 2026-10-20 拍板）：平板内容整体下移 40 逻辑点 →
-        // top = kTodayBadgeTopRatioTablet(0.10) × 屏高 + kTabletContentDownshift(40)。
-        expect(badge.top,
-            closeTo(
-                screen.height * kTodayBadgeTopRatioTablet +
-                    kTabletContentDownshift,
-                1.0),
-            reason: 'top = 0.10 × 屏高 + 40pt（红框带随本次整体下移同步）');
+        // F142 四轮：平板徽章回左上角，「贴花头上方」—— 底边 = 花头立绘顶 −
+        // kTodayBadgeHeadGap(8pt)（FractionalTranslation(0,-1) 上移自身高度；
+        // 花头矩形来自真实 DecorationImage.alignment 反算，与生产同源）。
+        final Rect plant = _plantRect(tester);
+        expect(badge.bottom, closeTo(plant.top - kTodayBadgeHeadGap, 1.0),
+            reason: '平板徽章底边必须 = 花头顶 − 8pt（贴花头上方）'
+                '(徽章底 ${badge.bottom.toStringAsFixed(1)} / '
+                '花头顶 ${plant.top.toStringAsFixed(1)})');
+        expect(badge.left, closeTo(screen.width * kTodayBadgeLeftRatio, 1.0),
+            reason: '平板 left 与手机同款比例 kTodayBadgeLeftRatio(0.04)');
+        // 徽章整体必须落在花头**上方**（四轮起几何上可能，恢复手机同款禁区）。
+        expect(badge.overlaps(plant), isFalse,
+            reason: '平板徽章 ∩ 向日葵立绘 = ∅ (徽章 $badge / 立绘 $plant)');
         // ① 徽章 ∩ 「今日」标题 pill = ∅。
         final Rect title = _titleRect(tester);
         expect(badge.overlaps(title), isFalse,
             reason: '平板徽章 ∩ 今日 pill = ∅ (徽章 $badge / 标题 $title)');
-        // ② 徽章 ∩ 家长入口图标 = ∅，且水平间距 ≥ 16pt（红框在家长图标左侧）。
+        // ② 徽章 ∩ 家长入口图标 = ∅（四轮起徽章在左上角，水平间距自然极大）。
         final Rect parentIcon = _parentIconRect(tester);
         expect(badge.overlaps(parentIcon), isFalse,
             reason: '平板徽章 ∩ 家长图标 = ∅ (徽章 $badge / 家长图标 $parentIcon)');
-        expect(parentIcon.left - badge.right, greaterThanOrEqualTo(16),
-            reason: '徽章右缘与家长图标左缘留 ≥16pt 间距 '
-                '(家长图标左 ${parentIcon.left.toStringAsFixed(1)} / '
-                '徽章右 ${badge.right.toStringAsFixed(1)})');
         // ③ 徽章 ∩ 阳光胶囊 = ∅（胶囊会飘动，单帧实测即可——间隙足够大）。
         final Rect bubble = _bubbleRect(tester);
         expect(badge.overlaps(bubble), isFalse,

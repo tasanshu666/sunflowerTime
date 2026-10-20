@@ -387,55 +387,61 @@ void main() {
     });
   });
 
-  // ── ② 平板：整体下移 40 逻辑点 ──────────────────────────────────────────
-  group('② 平板下移 40pt（含底图同步，切 tab 不跳动）', () {
-    testWidgets('iPad 11″ 834×1210 · 今日：卡顶 == 0.40×屏高 + 40 = 524.0',
+  // ── ② 平板下移（三轮：随屏宽比例化，834 宽 = 100 基准，13″ ≈ 123.7）──────
+  group('② 平板下移随屏宽（含底图同步，切 tab 不跳动）', () {
+    testWidgets('iPad 11″ 834×1210 · 今日：卡顶 == 0.40×屏高 + 100 = 584.0',
         (WidgetTester tester) async {
       await _pumpToday(tester, _kIpad11);
 
       final double cardTop = _todayCardTop(tester);
       final double panelTop = _todayPanelLineY(tester);
 
-      expect(kTabletContentDownshift, 40.0, reason: '玄参拍板：单位逻辑点 40');
-      expect(cardTop, closeTo(1210 * 0.40 + 40, 0.5),
-          reason: 'iPad 11″ 卡顶必须 = 484.0 + 40 = 524.0（实测 $cardTop）');
-      // 底图同步下移 → 分界线 = 447.7 + 40 = 487.7（呼吸带仍是 36.3pt）。
-      expect(panelTop, closeTo(1210 * 0.37 + 40, 0.5),
-          reason: 'iPad 11″ 分界线必须 = 447.7 + 40 = 487.7（实测 $panelTop）');
+      expect(kTabletContentDownshift, 100.0,
+          reason: '玄参二轮拍板：总量 100 逻辑点');
+      expect(cardTop, closeTo(1210 * 0.40 + 100, 0.5),
+          reason: 'iPad 11″ 卡顶必须 = 484.0 + 100 = 584.0（实测 $cardTop）');
+      // 底图同步下移 → 分界线 = 447.7 + 100 = 547.7（呼吸带仍是 36.3pt）。
+      expect(panelTop, closeTo(1210 * 0.37 + 100, 0.5),
+          reason: 'iPad 11″ 分界线必须 = 447.7 + 100 = 547.7（实测 $panelTop）');
       expect(cardTop - panelTop, closeTo(36.3, 0.5),
           reason: 'C67 的 36.3pt 呼吸带必须原样保住');
       expect(_drainExceptions(tester), isEmpty);
     });
 
-    testWidgets('iPad 13″ 1032×1376 · 今日：卡顶 == 0.40×屏高 + 40 = 590.4',
+    testWidgets('iPad 13″ 1032×1376 · 今日：卡顶 == 0.40×屏高 + 100×1032/834 ≈ 674.14',
         (WidgetTester tester) async {
       await _pumpToday(tester, _kIpad13);
 
       final double cardTop = _todayCardTop(tester);
       final double panelTop = _todayPanelLineY(tester);
 
-      expect(cardTop, closeTo(1376 * 0.40 + 40, 0.5),
-          reason: 'iPad 13″ 卡顶必须 = 550.4 + 40 = 590.4（实测 $cardTop）');
-      expect(panelTop, closeTo(1376 * 0.37 + 40, 0.5),
-          reason: 'iPad 13″ 分界线必须 = 509.1 + 40 = 549.1（实测 $panelTop）');
+      // F142 三轮：下移量随屏宽比例化（834 宽 = 100 基准）→ 13″ 宽 1032
+      // → 100 × 1032/834 ≈ 123.741（cover 缩放 ∝ 屏宽，同量下移在大屏被稀释）。
+      const double d13 = 100.0 * 1032 / 834; // ≈ 123.741
+      expect(cardTop, closeTo(1376 * 0.40 + d13, 0.5),
+          reason: 'iPad 13″ 卡顶必须 = 550.4 + 123.741 = 674.141（实测 $cardTop）');
+      expect(panelTop, closeTo(1376 * 0.37 + d13, 0.5),
+          reason: 'iPad 13″ 分界线必须 = 509.12 + 123.741 = 632.861（实测 $panelTop）');
       expect(_drainExceptions(tester), isEmpty);
     });
 
-    testWidgets('iPad 11″ · 成长：列表起点 == 0.34×屏高 + 40 = 451.4',
+    testWidgets('iPad 11″ · 成长：列表起点 == 0.34×屏高 + 100 = 511.4',
         (WidgetTester tester) async {
       await _pumpTask(tester, _kIpad11);
 
-      expect(_taskSceneGap(tester), closeTo(1210 * 0.34 + 40, 0.5),
-          reason: 'iPad 11″ 成长页起点必须 = 411.4 + 40 = 451.4pt');
+      expect(_taskSceneGap(tester), closeTo(1210 * 0.34 + 100, 0.5),
+          reason: 'iPad 11″ 成长页起点必须 = 411.4 + 100 = 511.4pt');
       expect(_drainExceptions(tester), isEmpty);
     });
 
-    testWidgets('iPad 13″ · 成长：列表起点 == 0.34×屏高 + 40 = 507.84',
+    testWidgets('iPad 13″ · 成长：列表起点 == 0.34×屏高 + 123.741 = 591.58',
         (WidgetTester tester) async {
       await _pumpTask(tester, _kIpad13);
 
-      expect(_taskSceneGap(tester), closeTo(1376 * 0.34 + 40, 0.5),
-          reason: 'iPad 13″ 成长页起点必须 = 467.84 + 40 = 507.84pt');
+      // F142 三轮：13″ 下移 = 100 × 1032/834 ≈ 123.741（随屏宽比例化）。
+      const double d13 = 100.0 * 1032 / 834;
+      expect(_taskSceneGap(tester), closeTo(1376 * 0.34 + d13, 0.5),
+          reason: 'iPad 13″ 成长页起点必须 = 467.84 + 123.741 = 591.581pt');
       expect(_drainExceptions(tester), isEmpty);
     });
   });
@@ -567,15 +573,17 @@ void main() {
   });
 
   // ── ④ 常量自检（防「改基线常量代替叠加增量」）──────────────────────────────
-  test('④ C67/C46d 冻结基线常量不得被本次改动（只允许叠加 40pt 增量）', () {
+  test('④ C67/C46d 冻结基线常量不得被本次改动（只允许叠加 100pt 增量）', () {
     expect(kTodayCardTopRatio, 0.40, reason: 'C67 冻结值不许动');
     expect(kTodayBgPanelTargetRatio, 0.37, reason: 'C67 冻结值不许动');
     expect(kGrowthListTopRatio, 0.34, reason: 'C46d 标定值不许动');
-    expect(kTabletContentDownshift, 40.0, reason: 'F142 增量 = 40 逻辑点');
+    expect(kTabletContentDownshift, 100.0,
+        reason: 'F142 三轮：本值是 iPad 11″（834 宽）档位的基准量');
     // 增量与基线是两个独立概念：增量绝不该被折进基线。
+    // 1210 高对应的 834 宽 = 基准档 → 下移恰为 100。
     expect(kTodayCardTopRatio * 1210 + kTabletContentDownshift,
-        closeTo(524.0, 0.001));
+        closeTo(584.0, 0.001));
     expect(kGrowthListTopRatio * 1210 + kTabletContentDownshift,
-        closeTo(451.4, 0.001));
+        closeTo(511.4, 0.001));
   });
 }

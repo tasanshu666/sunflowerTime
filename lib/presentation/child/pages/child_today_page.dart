@@ -40,6 +40,7 @@ import 'package:sunflower_time/presentation/child/widgets/focus_level_badge.dart
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/level_up_fx_overlay.dart';
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/shared/tab_bg_layout.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 
 /// 本页卡片（状态卡）起点占**屏高**的比例。
@@ -312,31 +313,38 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
     // C44：整页背景（上半场景 + 下半留白，白卡浮在留白区上）。
     //
     // F142（玄参 2026-10-20 拍板）：**平板**下底图整体再下移
-    // [kTabletContentDownshift]（40pt）—— 换算成比例（`0.37 + 40 / 屏高`）后传给
+    // [tabletContentDownshiftOf]（随屏宽等效 pt）—— 换算成比例后传给
     // [TabBackground]，手机仍原样传 [kTodayBgPanelTargetRatio]（0.37）。
     // ⚠️ 只改**传进去的**比例，不改 C67 冻结常量本身（见 `test/qa/focus_level_guard_test.dart`）。
     return TabBackground(
       asset: kTodayBgAsset,
       // C67：底图锚点**冻结**在 [kTodayBgPanelTargetRatio]（=0.37），**不跟**卡片下移
       // —— 玄参明确「背景图片的位置已经比较合适了」（互相关实证背景像素零变化）。
-      // F142 平板例外：玄参新反馈「背景图也偏上」→ 平板下按 40pt 等效下移。
+      // F142 平板例外：玄参新反馈「背景图也偏上」→ 平板下随屏宽等效下移。
       panelTargetRatio: _panelTargetRatio,
       fallbackColor: const Color(0xFFFBF4E4),
       child: body,
     );
   }
 
-  /// F142：**平板**内容整体下移量（逻辑点）；手机恒 `0`（手机逐像素零回归）。
-  ///
-  /// 见 [kTabletContentDownshift] 的口径（玄参 2026-10-20 拍板：40 逻辑点、
-  /// iPad 11″ 与 13″ 同量、不做屏高比例换算）。
-  double get _contentDownshift =>
-      isTabletOf(context) ? kTabletContentDownshift : 0.0;
+  /// 平板「漂浮阳光」气泡的**半高**（F142 四轮）：气泡总高 ~34pt（白底胶囊，
+  /// 见 `_FloatingSunBubble`），「与花头齐平」= 气泡中心 ≈ 花脸中心 →
+  /// `top = 花脸中心屏上 y − 本值`。
+  static const double _kSunBubbleHalfHeight = 17.0;
 
-  /// 底图锚点比例：平板按 [kTabletContentDownshift] **等效下移**（比例 = pt / 屏高）。
+  /// 平板内容下移量（**随屏宽线性放大**，F142 三轮）；手机恒 `0`（逐像素零回归）。
+  ///
+  /// 一轮 40 / 二轮 100（玄参实测「感知不到」后加码）→ 三轮按屏宽比例化：
+  /// 底图 cover 缩放 ∝ 屏宽，同量下移在 iPad 13″ 被「图放得更大」稀释
+  /// （头顶比 11″ 反而高 ≈16pt，玄参截图实证「胶囊和向日葵头顶还是那么近」）。
+  /// 见 `responsive.tabletContentDownshiftOf` / `kTabletDownshiftReferenceWidth`：
+  /// iPad 11″ = 100（基准不变）/ iPad 13″ ≈ 123.7 / 手机 = 0（零回归）。
+  double get _contentDownshift => tabletContentDownshiftOf(context);
+
+  /// 底图锚点比例：平板按下移量**等效换算**（比例 = pt / 屏高）。
   ///
   /// 手机（`_contentDownshift == 0`）→ **逐位等于** [kTodayBgPanelTargetRatio]（0.37）。
-  /// 平板 iPad 11″（1210）→ 0.37 + 40/1210 ≈ 0.4033；iPad 13″（1376）→ 0.37 + 40/1376 ≈ 0.3991。
+  /// 平板 iPad 11″（1210）→ 0.37 + 100/1210 ≈ 0.4527；iPad 13″（1376）→ 0.37 + 123.7/1376 ≈ 0.4599。
   ///
   /// 🔴 [build] 与 [_buildLayout] **必须**共用本 getter：前者决定底图怎么画，
   /// 后者用它反算分界线；两处不同源会让「卡片呼吸带」与真实分界线错位。
@@ -350,11 +358,11 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   Widget _buildLayout({required Size box}) {
     final double screenH = MediaQuery.sizeOf(context).height;
     final double screenW = MediaQuery.sizeOf(context).width;
-    // F142：平板内容整体下移 40pt（手机恒 0，见 [kTabletContentDownshift]）。
+    // F142：平板内容整体下移（随屏宽，手机恒 0，见 [tabletContentDownshiftOf]）。
     final double downshift = _contentDownshift;
     // 底图分界线（**实测反算**，与 TabBackground 同源；未登记几何 ⇒ -inf）。
-    // ⚠️ 必须传 [_panelTargetRatio]（含平板 40pt 等效下移）而不是裸常量，
-    //    否则平板下「量到的分界线」与「画出来的分界线」会差 40pt。
+    // ⚠️ 必须传 [_panelTargetRatio]（含平板下移等效比例）而不是裸常量，
+    //    否则平板下「量到的分界线」与「画出来的分界线」会错开一个下移量。
     final double panelLineY = TabBackground.panelLineY(
       context: context,
       box: box,
@@ -368,8 +376,8 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
     // 双倍计入，减 topInset 反而会把卡片顶回 20%，故与 topInset 解耦）。
     //
     // F142：下移量只加在**第一条**（冻结基线）上，而不是加在 `max()` 之后 ——
-    // 第二条已经因底图锚点同步下移而自动含了这 40pt，两者在平板上恰好相等
-    // （0.40H + 40），加在 max 之后会变成 +80pt（卡片压掉半张统计卡）。
+    // 第二条已经因底图锚点同步下移而自动含了这个下移量，两者在平板上恰好相等
+    // （0.40H + downshift），加在 max 之后会变成 +2×downshift（卡片压掉半张统计卡）。
     final double sceneGap = math.max(
       screenH * kTodayCardTopRatio + downshift,
       panelLineY + screenH * kTodayBreathingBandRatio,
@@ -451,10 +459,23 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         // 悬浮阳光气泡：飘在向日葵右侧书架前空地（玄参 2026-10-09 三轮反馈
         // 蓝框标注，cv2 模板匹配实测屏幕区域 x 65.5-89.5% / y 23.9-29.8%，
         // 匹配置信度 0.92）。锚点=蓝框中心回推气泡左上角（气泡 ~98×34pt）。
-        // F142：平板下与卡片/底图**同向下移** [kTabletContentDownshift]（手机 +0）。
+        // F142 二/三轮：平板与卡片/底图同向下移（随屏宽，手机 +0）。
+        // F142 四轮（玄参拍板「平板的漂浮阳光往上移到与向日葵头部齐平」）：
+        // 平板改为**气泡中心 ≈ 花脸中心 y**——经分界线实测值反算（cover 几何，
+        // 下移/切 tab 自动同步，见 [bgScreenYFromPanelLine]）；手机保持 cv2
+        // 蓝框定稿 0.25H（花头右侧偏下的书架空地）**零回归**。
         Positioned(
           left: screenW * 0.65,
-          top: screenH * 0.25 + downshift,
+          top: isTabletOf(context)
+              ? bgScreenYFromPanelLine(
+                  panelLineScreenY: panelLineY,
+                  box: box,
+                  src: kTodayBgSrcSize,
+                  panelTopFraction: kTodayBgPanelTopFraction,
+                  fraction: kTodayBgSunflowerHeadCenterYFraction,
+                ) -
+                  _kSunBubbleHalfHeight
+              : screenH * 0.25 + downshift,
           child: _FloatingSunBubble(
             capsuleKey: ChildTodayPage.sunBubbleKey,
             balance: _balance,
@@ -466,27 +487,39 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         // [kTodayBgPanelTargetRatio] 均未改动，徽章只是场景区上方的**新增元素**。
         //
         // · 手机：左上角（[kTodayBadgeLeftRatio] / [kTodayBadgeTopRatio]）—— 零回归。
-        // · 平板（v3 右对齐 / v4 落红框，玄参真机拍板）：右对齐到
-        //   [kTodayBadgeRightInsetTablet]（100pt，与右上家长入口图标的右内边距取齐成一条竖线）；
-        //   top = [kTodayBadgeTopRatioTablet]（0.10，落在「今日」pill 右下方的空白墙区，
-        //   既在透明 AppBar 家长图标之下、又在右侧阳光胶囊飘动区之上，两个都不压）。
-        //   根因：iPad 上底图 cover 把向日葵花头抬到屏 y≈44，左上角墙区被花头/窗/
-        //   书架占满，徽章虽渲染但视觉丢失 —— 移到右侧墙区是唯一根治解（手机不动）。
-        // F142：平板下徽章与场景/卡片**同向下移** [kTabletContentDownshift]（手机 +0）。
+        //   手机上徽章底边 ≈ 花头顶（0.11H + 徽章高 ≈ 花头 cover 顶 134pt）。
+        // · 平板（F142 四轮，玄参拍板「按 iPhone 的布局放回左上角」）：**弃用 v4
+        //   右对齐锚点**，同款左上比例；top 锚「花头立绘顶 − [kTodayBadgeHeadGap]」
+        //   再用 `FractionalTranslation(0,-1)` 整体上移自身高度 = **贴在花头上方**。
+        //   为什么不直接用 0.11H+downshift：cover 放大把「0.11H vs 花头 0.18 图内」
+        //   的手机相对关系拉散（平板 0.11H+100 ≈ 219 会压进花脸 140~505），
+        //   故平板必须跟花头**几何**走；挂到分界线实测值上，下移/切 tab 自动同步。
+        //   （v4 右对齐的根因「花头抬到 y≈44 墙区被占」已被 F142 平板整体下移
+        //   缓解——花头顶回到 ≈140，pill 与花头之间放得下徽章。）
         Positioned(
-          right: isTabletOf(context) ? kTodayBadgeRightInsetTablet : null,
-          left: isTabletOf(context)
-              ? null
-              : screenW * kTodayBadgeLeftRatio,
-          top: screenH *
-                  (isTabletOf(context)
-                      ? kTodayBadgeTopRatioTablet
-                      : kTodayBadgeTopRatio) +
-              downshift,
-          child: FocusLevelBadge(
-            progress: progressOf(_totalFocusMinutes),
-            totalMinutes: _totalFocusMinutes,
-          ),
+          left: screenW * kTodayBadgeLeftRatio,
+          top: isTabletOf(context)
+              ? bgScreenYFromPanelLine(
+                  panelLineScreenY: panelLineY,
+                  box: box,
+                  src: kTodayBgSrcSize,
+                  panelTopFraction: kTodayBgPanelTopFraction,
+                  fraction: kTodayBgSunflowerNormalizedRect.top,
+                ) -
+                  kTodayBadgeHeadGap
+              : screenH * kTodayBadgeTopRatio + downshift,
+          child: isTabletOf(context)
+              ? FractionalTranslation(
+                  translation: const Offset(0, -1),
+                  child: FocusLevelBadge(
+                    progress: progressOf(_totalFocusMinutes),
+                    totalMinutes: _totalFocusMinutes,
+                  ),
+                )
+              : FocusLevelBadge(
+                  progress: progressOf(_totalFocusMinutes),
+                  totalMinutes: _totalFocusMinutes,
+                ),
         ),
       ],
     );

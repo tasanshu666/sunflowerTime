@@ -60,6 +60,22 @@ double tabletUiScaleFor(double shortestSide) {
 double uiScaleOf(BuildContext context) =>
     tabletUiScaleFor(MediaQuery.sizeOf(context).shortestSide);
 
+/// 平板**内容整体下移量**（F142 · C106-6，三轮口径）：随屏宽线性放大，手机 = 0。
+///
+/// 为什么不直接用常量：底图是 **cover 铺满宽度**，缩放倍数 ∝ 屏宽 —— 同样的绝对
+/// 下移量在 iPad 13″ 上被「图放得更大」稀释，向日葵头顶反而比 11″ 更靠上
+/// （玄参 2026-10-20 截图实证：+100 时 11″ 的「成长」胶囊 ↔ 向日葵头顶孔隙正好、
+/// 13″ 仍贴得很近）。推导与数值见 [kTabletDownshiftReferenceWidth] 的文档注释。
+///
+/// 实际值：iPad 11″（834 宽）= **100**（基准，逐位不变）；iPad 13″（1032 宽）≈ **123.7**；
+/// 手机 = **0**（逐像素零回归）。
+double tabletContentDownshiftOf(BuildContext context) {
+  if (!isTabletOf(context)) return 0.0;
+  return kTabletContentDownshift *
+      MediaQuery.widthOf(context) /
+      kTabletDownshiftReferenceWidth;
+}
+
 /// 平板文字缩放器（C65；F129 加 `shortestSide` 入参）：
 /// `设备自带缩放 × tabletUiScaleFor(shortestSide)`，并钳到 [kTabletTextScaleMax]。
 ///

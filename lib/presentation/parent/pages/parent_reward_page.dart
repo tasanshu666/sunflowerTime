@@ -12,10 +12,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/parent/widgets/pool_indicator.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
@@ -93,15 +95,17 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
   }
 
   Future<void> _deleteTemplate(RewardTemplate t) async {
+    // i18n B2 🔴 弹窗纪律：文案在页级 scope 内取好，经参数槽位传入弹窗。
+    final AppLocalizations l10n = l10nOf(context);
     final bool? ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('删除奖励'),
-        content: Text('确定删除「${t.name}」？孩子端阳光商店将不再展示该奖励。'),
+        title: Text(l10n.parent_reward_delete_title),
+        content: Text(l10n.parent_reward_delete_body(t.name)),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n.shared_cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -109,7 +113,7 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('删除'),
+            child: Text(l10n.shared_delete),
           ),
         ],
       ),
@@ -138,7 +142,11 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
       FeatureKey.rewardTemplateCount,
       _templates.length,
     );
-    return ListView(
+    // 🔴 页级 L10nScope（i18n B2）：全页文案经 AppLocalizations 解析。
+    return L10nScope(
+      child: Builder(builder: (BuildContext context) {
+        final AppLocalizations l10n = AppLocalizations.of(context);
+        return ListView(
       padding: EdgeInsets.zero,
       children: <Widget>[
         const WeeklyPoolCard(),
@@ -152,11 +160,16 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
             children: <Widget>[
               Row(
                 children: <Widget>[
-                  const Text(
-                    '奖励模板',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  // i18n B2：英文标题比中文长（`Reward templates` vs `奖励模板`）→
+                  // 标题吃 `Expanded` 换行，按钮保持自然宽度，避免窄屏溢出。
+                  Expanded(
+                    child: Text(
+                      l10n.parent_reward_templates_title,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   OutlinedButton.icon(
                     onPressed: () => PremiumQuotaGate.onTap(
                       context: context,
@@ -171,7 +184,7 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                         : OutlinedButton.styleFrom(
                             foregroundColor: Colors.grey,
                           ),
-                    label: const Text('新增奖励'),
+                    label: Text(l10n.parent_reward_btn_add),
                   ),
                 ],
               ),
@@ -179,19 +192,23 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    '${PremiumQuotaGate.inlineReason(tier, FeatureKey.rewardTemplateCount, _templates.length)}'
-                    '，删除多余条目后即可新增',
+                    l10n.parent_reward_quota_hint(PremiumQuotaGate.inlineReason(
+                      tier,
+                      FeatureKey.rewardTemplateCount,
+                      _templates.length,
+                      l10n: l10n,
+                    )),
                     style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
                   ),
                 ),
             ],
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
           child: Text(
-            '点按某条可编辑名称/价格/分类；右侧垃圾桶可删除。改动会同步到孩子端阳光商店。',
-            style: TextStyle(fontSize: 13, color: Colors.grey),
+            l10n.parent_reward_edit_hint,
+            style: const TextStyle(fontSize: 13, color: Colors.grey),
           ),
         ),
         if (_loading)
@@ -200,9 +217,9 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
             child: Center(child: CircularProgressIndicator()),
           )
         else if (_templates.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: Text('暂无奖励模板，点「新增奖励」创建')),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(child: Text(l10n.parent_reward_empty)),
           )
         else
           ListView.separated(
@@ -270,7 +287,7 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                                 fg: macaronColorById(t.id).fg,
                               ),
                               pillLabel(
-                                text: categoryLabel(t.category),
+                                text: categoryLabel(t.category, l10n),
                                 bg: Colors.grey.shade100,
                                 fg: Colors.grey.shade700,
                               ),
@@ -334,13 +351,13 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                             IconButton(
                               icon: const Icon(Icons.edit_outlined,
                                   color: Colors.blueGrey),
-                              tooltip: '编辑',
+                              tooltip: l10n.shared_edit,
                               onPressed: () => _editTemplate(t),
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete_outline,
                                   color: Colors.red),
-                              tooltip: '删除',
+                              tooltip: l10n.shared_delete,
                               onPressed: () => _deleteTemplate(t),
                             ),
                           ],
@@ -353,6 +370,8 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
             },
           ),
       ],
+        );
+      }),
     );
   }
 }
@@ -424,8 +443,15 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.initial == null ? '新增奖励' : '编辑奖励'),
+    // 弹窗 builder 在页级 scope 之外 → 本弹窗**内部自带** [L10nScope]
+    // （B1 先例：PlantConfirmDialog / TaskEditorDialog），文案经内部上下文取。
+    return L10nScope(
+      child: Builder(builder: (BuildContext context) {
+        final AppLocalizations l10n = AppLocalizations.of(context);
+        return AlertDialog(
+      title: Text(widget.initial == null
+          ? l10n.parent_reward_edit_title_new
+          : l10n.parent_reward_edit_title_edit),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -434,22 +460,27 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
             children: <Widget>[
               TextFormField(
                 controller: _nameCtrl,
-                decoration: const InputDecoration(labelText: '奖励名称'),
-                validator: (String? v) =>
-                    (v == null || v.trim().isEmpty) ? '必填' : null,
+                decoration: InputDecoration(
+                  labelText: l10n.parent_reward_name_label,
+                ),
+                validator: (String? v) => (v == null || v.trim().isEmpty)
+                    ? l10n.parent_reward_err_required
+                    : null,
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<RewardCategory>(
                 initialValue: _category,
-                decoration: const InputDecoration(labelText: '分类'),
-                items: const <DropdownMenuItem<RewardCategory>>[
+                decoration: InputDecoration(
+                  labelText: l10n.parent_reward_category_label,
+                ),
+                items: <DropdownMenuItem<RewardCategory>>[
                   DropdownMenuItem(
                     value: RewardCategory.parentHandled,
-                    child: Text('家长经手'),
+                    child: Text(l10n.parent_verify_cat_parent_handled),
                   ),
                   DropdownMenuItem(
                     value: RewardCategory.selfService,
-                    child: Text('自服务（看电视/玩平板）'),
+                    child: Text(l10n.parent_reward_cat_self_full),
                   ),
                 ],
                 onChanged: (RewardCategory? v) =>
@@ -458,7 +489,9 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
               const SizedBox(height: 8),
               DropdownButtonFormField<RewardContentCategory>(
                 initialValue: _contentCategory,
-                decoration: const InputDecoration(labelText: '内容分类'),
+                decoration: InputDecoration(
+                  labelText: l10n.parent_reward_content_label,
+                ),
                 items: RewardContentCategory.values
                     .map(_contentCategoryDropdownItem)
                     .toList(),
@@ -468,38 +501,51 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
               const SizedBox(height: 8),
               TextFormField(
                 initialValue: _baseCost.toString(),
-                decoration: const InputDecoration(labelText: '阳光价格'),
+                decoration: InputDecoration(
+                  labelText: l10n.parent_reward_cost_label,
+                ),
                 keyboardType: TextInputType.number,
                 validator: (String? v) {
                   final int? n = int.tryParse(v ?? '');
-                  return (n == null || n <= 0) ? '请输入正整数' : null;
+                  return (n == null || n <= 0)
+                      ? l10n.parent_reward_err_positive
+                      : null;
                 },
                 onSaved: (String? v) => _baseCost = int.parse(v!),
               ),
               const SizedBox(height: 8),
               TextFormField(
                 initialValue: _freq.toString(),
-                decoration: const InputDecoration(labelText: '每周限领次数'),
+                decoration: InputDecoration(
+                  labelText: l10n.parent_reward_freq_label,
+                ),
                 keyboardType: TextInputType.number,
                 validator: (String? v) {
                   final int? n = int.tryParse(v ?? '');
-                  return (n == null || n < 0) ? '请输入非负整数' : null;
+                  return (n == null || n < 0)
+                      ? l10n.parent_reward_err_nonneg
+                      : null;
                 },
                 onSaved: (String? v) => _freq = int.parse(v!),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<CooldownRule>(
                 initialValue: _cooldown,
-                decoration: const InputDecoration(labelText: '冷却规则'),
-                items: const <DropdownMenuItem<CooldownRule>>[
-                  DropdownMenuItem(value: CooldownRule.none, child: Text('无冷却')),
+                decoration: InputDecoration(
+                  labelText: l10n.parent_reward_cooldown_label,
+                ),
+                items: <DropdownMenuItem<CooldownRule>>[
+                  DropdownMenuItem(
+                    value: CooldownRule.none,
+                    child: Text(l10n.parent_reward_cooldown_none),
+                  ),
                   DropdownMenuItem(
                     value: CooldownRule.weekly,
-                    child: Text('每周限领'),
+                    child: Text(l10n.parent_reward_cooldown_weekly),
                   ),
                   DropdownMenuItem(
                     value: CooldownRule.monthly,
-                    child: Text('每月限领'),
+                    child: Text(l10n.parent_reward_cooldown_monthly),
                   ),
                 ],
                 onChanged: (CooldownRule? v) => setState(() => _cooldown = v!),
@@ -511,7 +557,7 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
       actions: <Widget>[
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(l10n.shared_cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -529,9 +575,11 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
               Navigator.of(context).pop(tpl);
             }
           },
-          child: const Text('保存'),
+          child: Text(l10n.parent_task_edit_btn_save),
         ),
       ],
+        );
+      }),
     );
   }
 }

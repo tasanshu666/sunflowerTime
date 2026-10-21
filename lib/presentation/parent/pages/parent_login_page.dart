@@ -13,8 +13,10 @@ import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/tracking_event.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 class ParentLoginPage extends ConsumerStatefulWidget {
   const ParentLoginPage({super.key});
@@ -55,9 +57,10 @@ class _ParentLoginPageState extends ConsumerState<ParentLoginPage> {
   }
 
   Future<void> _submit() async {
+    final AppLocalizations t = l10nOf(context);
     final pin = _pinController.text.trim();
     if (pin.length < 4) {
-      setState(() => _error = 'PIN 至少 4 位');
+      setState(() => _error = t.parent_login_err_short);
       return;
     }
     setState(() {
@@ -84,7 +87,7 @@ class _ParentLoginPageState extends ConsumerState<ParentLoginPage> {
     } else {
       setState(() {
         _busy = false;
-        _error = 'PIN 不正确';
+        _error = t.parent_login_err_wrong;
       });
     }
   }
@@ -95,56 +98,68 @@ class _ParentLoginPageState extends ConsumerState<ParentLoginPage> {
     // 返回栈纪律（B19/B38 同类缺陷）：进入本页用的是 `go`（替换路由栈），栈内没有
     // 上级页面 —— 未输入 PIN 直接按系统返回键会**直接退出 App**。此处显式拦下并回孩子端，
     // 与 AppBar 的返回箭头行为一致。
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? _) {
-        if (didPop) return;
-        context.go('/');
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('家长天地'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            tooltip: '返回孩子端',
-            onPressed: () => context.go('/'),
-          ),
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                hasPin ? '请输入家长 PIN' : '首次进入，请设置家长 PIN',
-                style: const TextStyle(fontSize: 20),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _pinController,
-                keyboardType: TextInputType.number,
-                obscureText: true,
-                maxLength: 6,
-                decoration: InputDecoration(
-                  labelText: 'PIN',
-                  errorText: _error,
-                  border: const OutlineInputBorder(),
+    // 🔴 页级 L10nScope（i18n B2）：全页文案经 AppLocalizations 解析。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          final AppLocalizations l10n = AppLocalizations.of(context);
+          return PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (bool didPop, Object? _) {
+              if (didPop) return;
+              context.go('/');
+            },
+            child: Scaffold(
+              appBar: AppBar(
+                title: Text(l10n.parent_home_title),
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: l10n.parent_home_back_tooltip,
+                  onPressed: () => context.go('/'),
                 ),
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _busy ? null : _submit,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(hasPin ? '进入' : '设置并进入'),
-                  ),
+              body: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      hasPin
+                          ? l10n.parent_login_enter_pin
+                          : l10n.parent_login_setup_pin,
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: _pinController,
+                      keyboardType: TextInputType.number,
+                      obscureText: true,
+                      maxLength: 6,
+                      decoration: InputDecoration(
+                        labelText: 'PIN',
+                        errorText: _error,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _busy ? null : _submit,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(hasPin
+                              ? l10n.parent_login_btn_enter
+                              : l10n.parent_login_btn_setup),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

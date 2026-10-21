@@ -16,6 +16,8 @@ library report_eye_care_card;
 import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/report_palette.dart';
 
 /// 护眼统计卡（四项指标：完成 / 跳过 / 累计时长 / 跳过率）。
@@ -39,14 +41,17 @@ class ReportEyeCareCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ReportPalette palette = ReportPalette.of(context);
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
 
     final int totalSeconds =
         completed * kEyeCareDurationSeconds + skippedWatchedSeconds;
     final String durationText = totalSeconds <= 0
         ? '—'
         : totalSeconds < 60
-            ? '$totalSeconds 秒'
-            : '${(totalSeconds / 60).toStringAsFixed(1)} 分钟';
+            ? t.parent_report_secs(totalSeconds)
+            : t.parent_report_minutes_1f(
+                (totalSeconds / 60).toStringAsFixed(1));
     final int totalEvents = completed + skipped;
     final String skipRateText = totalEvents <= 0
         ? '—'
@@ -64,15 +69,15 @@ class ReportEyeCareCard extends StatelessWidget {
             children: <Widget>[
               Expanded(
                 child: _EyeCareMetric(
-                  label: '完成护眼',
-                  value: '$completed 次',
+                  label: t.parent_report_eyecare_completed,
+                  value: t.parent_report_times(completed),
                   palette: palette,
                 ),
               ),
               Expanded(
                 child: _EyeCareMetric(
-                  label: '跳过护眼',
-                  value: '$skipped 次',
+                  label: t.parent_report_eyecare_skipped,
+                  value: t.parent_report_times(skipped),
                   palette: palette,
                   highlight: skipped > 0,
                 ),
@@ -84,14 +89,14 @@ class ReportEyeCareCard extends StatelessWidget {
             children: <Widget>[
               Expanded(
                 child: _EyeCareMetric(
-                  label: '累计护眼时长',
+                  label: t.parent_report_eyecare_duration,
                   value: durationText,
                   palette: palette,
                 ),
               ),
               Expanded(
                 child: _EyeCareMetric(
-                  label: '跳过率',
+                  label: t.parent_report_eyecare_rate,
                   value: skipRateText,
                   palette: palette,
                 ),
@@ -103,7 +108,7 @@ class ReportEyeCareCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '有 $skipped 次护眼被跳过（跳过的观看时长已如实计入）。',
+                t.parent_report_eyecare_skip_note(skipped),
                 style: TextStyle(fontSize: 12, color: palette.inkAt(0.65)),
               ),
             ),

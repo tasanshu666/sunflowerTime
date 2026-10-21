@@ -1300,4 +1300,1143 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get fx_level_up_perk_locked => ' · 🔒付费解锁';
+
+  @override
+  String get shared_edit => '编辑';
+
+  @override
+  String get shared_delete => '删除';
+
+  @override
+  String get parent_home_title => '家长天地';
+
+  @override
+  String get parent_home_back_tooltip => '返回孩子端';
+
+  @override
+  String get parent_home_tab_today => '今日';
+
+  @override
+  String get parent_home_tab_reward => '奖励';
+
+  @override
+  String get parent_home_tab_growth => '成长';
+
+  @override
+  String get parent_home_tab_history => '记录';
+
+  @override
+  String get parent_home_tab_settings => '设置';
+
+  @override
+  String get parent_login_enter_pin => '请输入家长 PIN';
+
+  @override
+  String get parent_login_setup_pin => '首次进入，请设置家长 PIN';
+
+  @override
+  String get parent_login_btn_enter => '进入';
+
+  @override
+  String get parent_login_btn_setup => '设置并进入';
+
+  @override
+  String get parent_login_err_short => 'PIN 至少 4 位';
+
+  @override
+  String get parent_login_err_wrong => 'PIN 不正确';
+
+  @override
+  String get parent_delete_title => '删除入口';
+
+  @override
+  String get parent_delete_right_title => '数据删除权（§10.4 C5）';
+
+  @override
+  String get parent_delete_right_body => '你拥有删除全部本地数据的权利。删除后所有进度与设置将不可恢复。';
+
+  @override
+  String get parent_delete_dlg_title => '删除全部本地数据？';
+
+  @override
+  String get parent_delete_dlg_body =>
+      '此操作将永久删除：专注记录、阳光账本、植物、成长项、奖励模板、家长 PIN 与所有本地设置，且无法恢复。\n\n建议先「导出成册」留存（导出功能将在 V2 上线）。';
+
+  @override
+  String get parent_delete_btn_ok => '确认删除';
+
+  @override
+  String get parent_delete_btn_export => '导出成册（V2 上线）';
+
+  @override
+  String get parent_delete_export_snack => '导出成册功能将在 V2 上线，请先截图留存';
+
+  @override
+  String get parent_delete_btn_all => '删除全部本地数据';
+
+  @override
+  String get parent_delete_btn_deleting => '删除中…';
+
+  @override
+  String get parent_delete_done_snack => '已删除全部本地数据';
+
+  @override
+  String parent_delete_fail_snack(Object error) {
+    return '删除失败：$error';
+  }
+
+  @override
+  String get parent_today_unknown_reward => '未知奖励';
+
+  @override
+  String get parent_today_empty => '暂无待确认奖励 🎉';
+
+  @override
+  String get parent_today_pending_title => '待确认的成长项';
+
+  @override
+  String parent_today_count(int count) {
+    return '$count 项';
+  }
+
+  @override
+  String get parent_today_deleted_task => '（已删除的成长项）';
+
+  @override
+  String parent_today_submitted_at(Object time) {
+    return '提交于 $time';
+  }
+
+  @override
+  String parent_today_should_grant(String sun) {
+    return '应发 $sun 阳光';
+  }
+
+  @override
+  String get parent_today_btn_confirm => '确认发放';
+
+  @override
+  String get parent_today_btn_reject => '驳回';
+
+  @override
+  String get parent_today_reject_title => '驳回这项成长？';
+
+  @override
+  String parent_today_reject_body(String name) {
+    return '将不发放「$name」的阳光。';
+  }
+
+  @override
+  String get parent_today_reject_reason => '理由（选填）';
+
+  @override
+  String get parent_today_reject_ok => '确认驳回';
+
+  @override
+  String parent_today_confirm_ok_snack(String sun, String capped) {
+    return '已确认发放，+$sun 阳光 🌻$capped';
+  }
+
+  @override
+  String parent_today_capped_note(String sun) {
+    return '（今日成长奖励已达上限，本次只到账 $sun ☀）';
+  }
+
+  @override
+  String parent_today_confirm_fail_snack(Object error) {
+    return '确认失败：$error';
+  }
+
+  @override
+  String get parent_today_rejected_snack => '已驳回 🌞 这项不会发阳光';
+
+  @override
+  String parent_today_reject_fail_snack(Object error) {
+    return '驳回失败：$error';
+  }
+
+  @override
+  String get parent_today_debug_cap_title => '🧪 调试：跳过 30 分钟限时';
+
+  @override
+  String get parent_today_debug_cap_subtitle =>
+      '调试期间默认开启（不进限时状态）；关闭后恢复防沉迷拦截。仅调试包可见。';
+
+  @override
+  String get parent_today_debug_cap_on_snack => '已跳过 30 分钟限时（调试）';
+
+  @override
+  String get parent_today_debug_cap_off_snack => '已恢复 30 分钟限时拦截';
+
+  @override
+  String get parent_today_debug_save_fail_snack => '保存失败，请重试';
+
+  @override
+  String get parent_verify_cat_self_service => '自服务';
+
+  @override
+  String get parent_verify_cat_parent_handled => '家长经手';
+
+  @override
+  String parent_verify_cost(int cost) {
+    return '$cost 阳光';
+  }
+
+  @override
+  String parent_verify_meta(String category, String time) {
+    return '分类：$category · 申请于 $time';
+  }
+
+  @override
+  String parent_verify_queue_note(Object pos) {
+    return '排队第 $pos 位 · 下月自动释放';
+  }
+
+  @override
+  String get parent_verify_confirm_title => '确认核销？';
+
+  @override
+  String parent_verify_confirm_body(String name, int cost) {
+    return '确认为「$name」核销 $cost 阳光？\n核销后将立即从孩子阳光中扣除，且不可撤销。';
+  }
+
+  @override
+  String get parent_verify_confirm_ok => '确认核销';
+
+  @override
+  String get parent_verify_reject_title => '确认拒绝？';
+
+  @override
+  String parent_verify_reject_body(String name, int cost) {
+    return '拒绝「$name」（$cost 阳光）后将不核销该奖励。\n待核销期间阳光从未被扣除，故孩子阳光不受影响。\n此操作不可撤销。';
+  }
+
+  @override
+  String get parent_verify_reject_ok => '确认拒绝';
+
+  @override
+  String get parent_verify_verified_snack => '已确认兑换 🎉 阳光已扣除';
+
+  @override
+  String parent_verify_verify_fail_snack(Object error) {
+    return '核销失败：$error';
+  }
+
+  @override
+  String get parent_verify_rejected_snack => '已拒绝该兑换 🌞 阳光未被扣除';
+
+  @override
+  String parent_verify_reject_fail_snack(Object error) {
+    return '拒绝失败：$error';
+  }
+
+  @override
+  String get parent_verify_release_title => '立即发放？';
+
+  @override
+  String parent_verify_release_body(String name, int cost) {
+    return '确认为「$name」立即发放 $cost 阳光？\n将跳过排队等待，立即从孩子阳光中扣除。';
+  }
+
+  @override
+  String get parent_verify_release_ok => '立即发放';
+
+  @override
+  String get parent_verify_released_snack => '已立即发放 🎉 阳光已扣除';
+
+  @override
+  String parent_verify_release_state_fail_snack(Object error) {
+    return '无法立即发放：$error';
+  }
+
+  @override
+  String parent_verify_release_fail_snack(Object error) {
+    return '发放失败：$error';
+  }
+
+  @override
+  String get parent_task_edit_title_new => '新增成长项';
+
+  @override
+  String get parent_task_edit_title_edit => '编辑成长项';
+
+  @override
+  String get parent_task_edit_name_label => '成长项名称';
+
+  @override
+  String get parent_task_edit_subject_label => '科目';
+
+  @override
+  String get parent_task_edit_subject_general => '通用';
+
+  @override
+  String get parent_task_edit_subject_chinese => '语文';
+
+  @override
+  String get parent_task_edit_subject_math => '数学';
+
+  @override
+  String get parent_task_edit_subject_english => '英语';
+
+  @override
+  String get parent_task_edit_subject_custom => '自定义…';
+
+  @override
+  String get parent_task_edit_custom_label => '自定义科目名称';
+
+  @override
+  String get parent_task_edit_custom_hint => '例如：科学 / 书法 / 编程';
+
+  @override
+  String get parent_task_edit_category_label => '分类';
+
+  @override
+  String get parent_task_edit_link_title => '专注联动（自动结算）';
+
+  @override
+  String get parent_task_edit_link_subtitle =>
+      '勾选后，孩子从这一项点「开始专注」，达标会自动完成并发放阳光，无需手动打卡。';
+
+  @override
+  String get parent_task_edit_min_focus_label => '最少专注';
+
+  @override
+  String parent_task_edit_minutes(int minutes) {
+    return '$minutes 分钟';
+  }
+
+  @override
+  String parent_task_edit_reward_fixed(int minutes, int cap) {
+    return '奖励固定 = 专注 $minutes 分钟 × 40% = $cap ☀（无需调整）';
+  }
+
+  @override
+  String get parent_task_edit_reward_label => '阳光奖励';
+
+  @override
+  String parent_task_edit_reward_slider(int reward) {
+    return '$reward 阳光';
+  }
+
+  @override
+  String parent_task_edit_reward_range(int min, int max, int def) {
+    return '区间 $min–$max ☀（默认 $def）';
+  }
+
+  @override
+  String get parent_task_edit_repeat_label => '重复规则';
+
+  @override
+  String get parent_task_edit_repeat_none => '不重复';
+
+  @override
+  String get parent_task_edit_repeat_daily => '每天';
+
+  @override
+  String get parent_task_edit_repeat_weekly => '每周';
+
+  @override
+  String get parent_task_edit_err_name => '请填写成长项名称';
+
+  @override
+  String parent_task_edit_err_reward(int min, int max) {
+    return '阳光奖励需在 $min–$max 之间';
+  }
+
+  @override
+  String get parent_task_edit_err_subject => '请填写自定义科目名称';
+
+  @override
+  String parent_task_edit_err_save(Object error) {
+    return '保存失败：$error';
+  }
+
+  @override
+  String get parent_task_edit_btn_save => '保存';
+
+  @override
+  String get parent_task_config_title => '成长配置';
+
+  @override
+  String get parent_task_config_list_title => '成长任务';
+
+  @override
+  String get parent_task_config_empty => '还没有成长项，点右上角「新增成长项」创建一个吧';
+
+  @override
+  String get parent_task_config_delete_title => '删除成长项？';
+
+  @override
+  String parent_task_config_delete_body(String name) {
+    return '确定删除「$name」？已生成的打卡记录会保留。';
+  }
+
+  @override
+  String parent_task_config_focus_pill(int minutes) {
+    return '专注 $minutes 分';
+  }
+
+  @override
+  String get parent_reward_templates_title => '奖励模板';
+
+  @override
+  String get parent_reward_btn_add => '新增奖励';
+
+  @override
+  String parent_reward_quota_hint(String reason) {
+    return '$reason，删除多余条目后即可新增';
+  }
+
+  @override
+  String get parent_reward_edit_hint =>
+      '点按某条可编辑名称/价格/分类；右侧垃圾桶可删除。改动会同步到孩子端阳光商店。';
+
+  @override
+  String get parent_reward_empty => '暂无奖励模板，点「新增奖励」创建';
+
+  @override
+  String get parent_reward_delete_title => '删除奖励';
+
+  @override
+  String parent_reward_delete_body(String name) {
+    return '确定删除「$name」？孩子端阳光商店将不再展示该奖励。';
+  }
+
+  @override
+  String get parent_reward_edit_title_new => '新增奖励';
+
+  @override
+  String get parent_reward_edit_title_edit => '编辑奖励';
+
+  @override
+  String get parent_reward_name_label => '奖励名称';
+
+  @override
+  String get parent_reward_err_required => '必填';
+
+  @override
+  String get parent_reward_cat_self_full => '自服务（看电视/玩平板）';
+
+  @override
+  String get parent_reward_content_label => '内容分类';
+
+  @override
+  String get parent_reward_cost_label => '阳光价格';
+
+  @override
+  String get parent_reward_err_positive => '请输入正整数';
+
+  @override
+  String get parent_reward_freq_label => '每周限领次数';
+
+  @override
+  String get parent_reward_err_nonneg => '请输入非负整数';
+
+  @override
+  String get parent_reward_cooldown_label => '冷却规则';
+
+  @override
+  String get parent_reward_cooldown_none => '无冷却';
+
+  @override
+  String get parent_reward_cooldown_weekly => '每周限领';
+
+  @override
+  String get parent_reward_cooldown_monthly => '每月限领';
+
+  @override
+  String get parent_reward_pool_title => '本周阳光预算';
+
+  @override
+  String get parent_reward_pool_unit => '阳光';
+
+  @override
+  String parent_reward_pool_used_line(int used, int budget) {
+    return '已用 $used / 共 $budget 阳光';
+  }
+
+  @override
+  String parent_reward_pool_unlimited_line(int used) {
+    return '本周不限额，已用 $used 阳光（兑换只受阳光余额约束）';
+  }
+
+  @override
+  String parent_reward_pool_default_note(int low, int mid, String high) {
+    return '每周兑换额度默认值：低年级 $low☀ · 中年级 $mid☀ · 高年级$high（兑换只受阳光余额约束）';
+  }
+
+  @override
+  String parent_reward_pool_load_failed(Object error) {
+    return '周阳光池加载失败：$error';
+  }
+
+  @override
+  String get parent_settings_section_screentime => '防沉迷与作息';
+
+  @override
+  String get parent_settings_switch_quiet => '免打扰模式';
+
+  @override
+  String get parent_settings_night_title => '夜间边界';
+
+  @override
+  String parent_settings_night_subtitle(String time) {
+    return '$time 起进入夜间（夜锁生效时间）';
+  }
+
+  @override
+  String get parent_settings_daily_focus_cap => '每日专注上限（分钟）';
+
+  @override
+  String get parent_settings_daily_app_cap => '每日花园、商店使用时长（分钟）';
+
+  @override
+  String get parent_settings_rest_after => '每 N 次专注后休息';
+
+  @override
+  String get parent_settings_rest_minutes => '休息时长（分钟）';
+
+  @override
+  String get parent_settings_section_eyecare => '护眼休息';
+
+  @override
+  String get parent_settings_switch_eyecare => '护眼提醒';
+
+  @override
+  String get parent_settings_eyecare_subtitle =>
+      '专注每满一定时间弹出护眼卡，帮孩子歇歇眼睛（固定 60 秒）';
+
+  @override
+  String get parent_settings_eyecare_interval => '护眼触发间隔（每 N 分钟）';
+
+  @override
+  String get parent_settings_switch_eyecare_skip => '允许孩子跳过护眼';
+
+  @override
+  String get parent_settings_eyecare_skip_subtitle => '关掉后孩子只能完成休息，跳过按钮不生效';
+
+  @override
+  String get parent_settings_section_sound => '环境与音效';
+
+  @override
+  String get parent_settings_switch_sound => '音效';
+
+  @override
+  String get parent_settings_switch_bgm => '背景音乐';
+
+  @override
+  String get parent_settings_switch_dark => '深色主题';
+
+  @override
+  String get parent_settings_section_lock => '家长锁与赠予';
+
+  @override
+  String get parent_settings_reset_pin => '重设家长 PIN';
+
+  @override
+  String get parent_settings_grant_title => '赠予阳光';
+
+  @override
+  String parent_settings_grant_subtitle(Object daily, Object monthly) {
+    return '日上限 $daily / 月上限 $monthly';
+  }
+
+  @override
+  String get parent_settings_section_data => '数据与隐私';
+
+  @override
+  String get parent_settings_entry_delete => '删除入口';
+
+  @override
+  String get parent_settings_entry_delete_sub => '删除全部本地数据（§10.4 C5）';
+
+  @override
+  String get parent_settings_section_debug => '调试（仅 Debug 构建）';
+
+  @override
+  String get parent_settings_pin_dlg_title => '重设家长 PIN';
+
+  @override
+  String get parent_settings_pin_dlg_old => '当前 PIN';
+
+  @override
+  String get parent_settings_pin_dlg_new => '新 PIN（≥4 位）';
+
+  @override
+  String get parent_settings_pin_dlg_ok => '重设';
+
+  @override
+  String get parent_settings_pin_too_short_snack => '新 PIN 至少 4 位';
+
+  @override
+  String get parent_settings_pin_wrong_snack => '当前 PIN 不正确';
+
+  @override
+  String get parent_settings_pin_ok_snack => 'PIN 已重设';
+
+  @override
+  String get parent_settings_gift_dlg_title => '赠予阳光';
+
+  @override
+  String parent_settings_gift_daily_line(int given, int daily, int remain) {
+    return '今日已赠 $given / $daily ☀，还可赠 $remain ☀';
+  }
+
+  @override
+  String parent_settings_gift_monthly_line(int given, int monthly, int remain) {
+    return '本月已赠 $given / $monthly ☀，还可赠 $remain ☀';
+  }
+
+  @override
+  String get parent_settings_gift_amount_label => '赠予数量';
+
+  @override
+  String get parent_settings_gift_err_positive => '请输入正数';
+
+  @override
+  String parent_settings_gift_err_over(int max, int day, int month) {
+    return '最多可赠 $max ☀（今日剩 $day / 本月剩 $month）';
+  }
+
+  @override
+  String get parent_settings_gift_btn => '赠予';
+
+  @override
+  String parent_settings_gift_daily_cap_snack(int daily) {
+    return '今日赠予已达上限（$daily ☀/天），明天再来';
+  }
+
+  @override
+  String parent_settings_gift_monthly_cap_snack(int monthly) {
+    return '本月赠予已达上限（$monthly ☀/月）';
+  }
+
+  @override
+  String parent_settings_gift_over_snack(int remain) {
+    return '超出赠予上限，未赠予（今日剩 $remain ☀）';
+  }
+
+  @override
+  String parent_settings_gift_ok_snack(int amount, int remain) {
+    return '已赠予 $amount ☀，孩子端已到账（今日剩 $remain ☀）';
+  }
+
+  @override
+  String get parent_settings_debug_member_title => '会员模式（仅调试）';
+
+  @override
+  String get parent_settings_debug_member_subtitle => '打开即解锁全部付费功能；重启 App 后失效';
+
+  @override
+  String get parent_profile_tier_low => '低年级 · 8 岁及以下';
+
+  @override
+  String get parent_profile_tier_mid => '中年级 · 9–12 岁';
+
+  @override
+  String get parent_profile_tier_high => '高年级 · 13 岁及以上';
+
+  @override
+  String get parent_profile_menu_edit => '编辑';
+
+  @override
+  String get parent_profile_menu_delete => '删除';
+
+  @override
+  String get parent_profile_menu_create => '新建孩子';
+
+  @override
+  String parent_profile_toast_switched(String name) {
+    return '已切换到「$name」';
+  }
+
+  @override
+  String parent_profile_toast_added(String name) {
+    return '已添加「$name」';
+  }
+
+  @override
+  String parent_profile_toast_updated(String name) {
+    return '已更新「$name」';
+  }
+
+  @override
+  String parent_profile_toast_deleted(String name) {
+    return '已删除「$name」';
+  }
+
+  @override
+  String parent_profile_max_toast(int count) {
+    return '最多支持 $count 个孩子账户';
+  }
+
+  @override
+  String get parent_profile_min_toast => '至少保留一个孩子档案';
+
+  @override
+  String get parent_profile_create_title => '新建孩子';
+
+  @override
+  String get parent_profile_edit_title => '编辑孩子';
+
+  @override
+  String get parent_profile_name_label => '孩子名字';
+
+  @override
+  String get parent_profile_name_hint => '比如：小向日葵';
+
+  @override
+  String get parent_profile_btn_create => '创建';
+
+  @override
+  String parent_profile_delete_title(String name) {
+    return '删除「$name」？';
+  }
+
+  @override
+  String get parent_profile_delete_body => '删除后该孩子的档案设置将被移除，且无法恢复。';
+
+  @override
+  String get parent_profile_pin_label => '家长 PIN';
+
+  @override
+  String get parent_profile_pin_err_empty => '请输入家长 PIN';
+
+  @override
+  String get parent_profile_pin_err_wrong => 'PIN 不正确，请重试';
+
+  @override
+  String get parent_history_seg_report => '专注报告';
+
+  @override
+  String get parent_history_seg_activity => '任务与奖励';
+
+  @override
+  String get parent_hist_section_tasks => '成长任务完成记录';
+
+  @override
+  String parent_hist_task_tail(int count) {
+    return '共 $count 次';
+  }
+
+  @override
+  String get parent_hist_empty_tasks => '本期间还没有成长项完成记录';
+
+  @override
+  String get parent_hist_section_rewards => '奖励兑换记录';
+
+  @override
+  String parent_hist_reward_tail(int count, int cost) {
+    return '共 $count 次 · 消耗 $cost 阳光';
+  }
+
+  @override
+  String get parent_hist_empty_rewards => '本期间还没有奖励兑换记录';
+
+  @override
+  String get parent_hist_deleted_task => '（已删除的成长项）';
+
+  @override
+  String get parent_hist_deleted_reward => '（已删除的奖励）';
+
+  @override
+  String parent_hist_done_badge(int count) {
+    return '完成 $count 次';
+  }
+
+  @override
+  String parent_hist_redeem_badge(int count) {
+    return '兑换 $count 次';
+  }
+
+  @override
+  String parent_hist_range_multi(String first, String last) {
+    return '首次 $first ～ 最近 $last';
+  }
+
+  @override
+  String parent_hist_cost_line(String range, int cost) {
+    return '$range · 消耗 $cost 阳光';
+  }
+
+  @override
+  String get parent_hist_summary_done => '本期完成成长项';
+
+  @override
+  String get parent_hist_summary_redeem => '本期兑换奖励';
+
+  @override
+  String get parent_hist_summary_cost => '本期消耗阳光';
+
+  @override
+  String get parent_report_error_hint => '报告生成失败，请下拉重试';
+
+  @override
+  String get parent_report_period_day => '日';
+
+  @override
+  String get parent_report_period_week => '周';
+
+  @override
+  String get parent_report_period_month => '月';
+
+  @override
+  String get parent_report_period_year => '年';
+
+  @override
+  String get parent_report_prev_tooltip => '上一期间';
+
+  @override
+  String get parent_report_next_tooltip => '下一期间';
+
+  @override
+  String get parent_report_hero_title => '本期间专注';
+
+  @override
+  String parent_report_minutes(int minutes) {
+    return '$minutes 分钟';
+  }
+
+  @override
+  String parent_report_valid_days(int days) {
+    return '有效专注日 $days 天';
+  }
+
+  @override
+  String parent_report_avg_daily(int minutes) {
+    return '平均每日 $minutes 分钟';
+  }
+
+  @override
+  String get parent_report_trend_day => '近 7 日专注分布';
+
+  @override
+  String get parent_report_trend_week => '本周专注分布';
+
+  @override
+  String get parent_report_trend_month => '本月专注分布（按周）';
+
+  @override
+  String get parent_report_trend_year => '本年专注分布（按月）';
+
+  @override
+  String get parent_report_stability_title => '专注稳定性 · 近 4 周';
+
+  @override
+  String get parent_report_heatmap_title => '专注热力图 · 近 1 年';
+
+  @override
+  String get parent_report_eyecare_title => '护眼统计';
+
+  @override
+  String get parent_report_eyecare_loading => '护眼统计读取中…';
+
+  @override
+  String get parent_report_trend_empty => '本期间还没有专注记录。陪孩子完成一次 15 分钟专注，这里就会亮起来。';
+
+  @override
+  String parent_report_label_today(String date) {
+    return '今天 · $date';
+  }
+
+  @override
+  String parent_report_label_yesterday(String date) {
+    return '昨天 · $date';
+  }
+
+  @override
+  String parent_report_label_range(String start, String end) {
+    return '$start ～ $end';
+  }
+
+  @override
+  String parent_report_label_month(int year, int month) {
+    return '$year 年 $month 月';
+  }
+
+  @override
+  String parent_report_label_year(int year) {
+    return '$year 年';
+  }
+
+  @override
+  String get parent_report_wd_mon => '一';
+
+  @override
+  String get parent_report_wd_tue => '二';
+
+  @override
+  String get parent_report_wd_wed => '三';
+
+  @override
+  String get parent_report_wd_thu => '四';
+
+  @override
+  String get parent_report_wd_fri => '五';
+
+  @override
+  String get parent_report_wd_sat => '六';
+
+  @override
+  String get parent_report_wd_sun => '日';
+
+  @override
+  String get parent_report_heat_empty => '近 1 年还没有专注记录。';
+
+  @override
+  String parent_report_heat_tip(String date, int minutes) {
+    return '$date · $minutes 分钟';
+  }
+
+  @override
+  String parent_report_month_tick(int month) {
+    return '$month月';
+  }
+
+  @override
+  String get parent_report_legend_less => '少';
+
+  @override
+  String get parent_report_legend_more => '多';
+
+  @override
+  String parent_report_streak_current(int days) {
+    return '当前连续 $days 天';
+  }
+
+  @override
+  String parent_report_streak_longest(int days) {
+    return '最长连续 $days 天';
+  }
+
+  @override
+  String get parent_report_stability_empty => '近 4 周还没有专注记录。';
+
+  @override
+  String parent_report_weeks_ago(int count) {
+    return '$count 周前';
+  }
+
+  @override
+  String get parent_report_week_this => '本周';
+
+  @override
+  String parent_report_stability_score(int percent) {
+    return '稳定性 $percent%';
+  }
+
+  @override
+  String get parent_report_upsell_title => '解锁深度专注报告';
+
+  @override
+  String get parent_report_upsell_subtitle => '近 4 周稳定性 · 全年热力图';
+
+  @override
+  String get parent_report_eyecare_completed => '完成护眼';
+
+  @override
+  String get parent_report_eyecare_skipped => '跳过护眼';
+
+  @override
+  String get parent_report_eyecare_duration => '累计护眼时长';
+
+  @override
+  String get parent_report_eyecare_rate => '跳过率';
+
+  @override
+  String parent_report_times(int count) {
+    return '$count 次';
+  }
+
+  @override
+  String parent_report_secs(int count) {
+    return '$count 秒';
+  }
+
+  @override
+  String parent_report_minutes_1f(String value) {
+    return '$value 分钟';
+  }
+
+  @override
+  String parent_report_eyecare_skip_note(int count) {
+    return '有 $count 次护眼被跳过（跳过的观看时长已如实计入）。';
+  }
+
+  @override
+  String get premium_table_free_pill => '免费版';
+
+  @override
+  String get premium_table_gold_pill => '解锁全部功能 ★';
+
+  @override
+  String get premium_table_owned => '已拥有';
+
+  @override
+  String get premium_table_band_free => '免费就能用';
+
+  @override
+  String get premium_table_band_unlock => '买断后解锁';
+
+  @override
+  String get premium_table_row_pomodoro => '专注番茄钟';
+
+  @override
+  String get premium_table_row_screentime => '防沉迷与作息';
+
+  @override
+  String get premium_table_row_eyecare => '少儿护眼休息';
+
+  @override
+  String get premium_table_row_garden => '花园养成';
+
+  @override
+  String get premium_table_row_economy => '阳光经济与账本';
+
+  @override
+  String get premium_table_row_store => '商店兑换';
+
+  @override
+  String get premium_table_row_levels => '专注等级 + 9 称号';
+
+  @override
+  String get premium_table_row_report => '家长专注报告';
+
+  @override
+  String get premium_table_report_days => '近 7 天';
+
+  @override
+  String get premium_table_footnote_report => '更多报告能力开发中';
+
+  @override
+  String get premium_table_row_one_click => '花园「一键操作」';
+
+  @override
+  String get premium_table_row_pots => '花盆上限';
+
+  @override
+  String get premium_table_row_tasks => '成长项模板';
+
+  @override
+  String get premium_table_row_rewards => '奖励模板';
+
+  @override
+  String get premium_table_row_perks => '称号属性';
+
+  @override
+  String premium_table_free_pots(int count) {
+    return '$count 个';
+  }
+
+  @override
+  String premium_table_free_items(int count) {
+    return '$count 条';
+  }
+
+  @override
+  String get premium_table_unlimited => '✓ 不限';
+
+  @override
+  String premium_table_max(int count) {
+    return '最多 $count';
+  }
+
+  @override
+  String get premium_table_pots_note => '扩容仍需花阳光';
+
+  @override
+  String premium_table_perks_count(int count) {
+    return '✓ $count 条';
+  }
+
+  @override
+  String premium_quota_inline_reason(String limit, int count) {
+    return '免费上限 $limit（当前 $count）';
+  }
+
+  @override
+  String get parent_premium_title => '解锁全部功能';
+
+  @override
+  String get parent_premium_hero_subtitle => '一次买断 · 永久解锁，陪孩子一起专注成长';
+
+  @override
+  String get parent_premium_pill_unlocked => '已解锁';
+
+  @override
+  String get parent_premium_pill_locked => '未解锁';
+
+  @override
+  String get parent_premium_gold_pill => '一次买断 · 永久';
+
+  @override
+  String get parent_premium_unavailable_title => '暂时连不上商店';
+
+  @override
+  String get parent_premium_unavailable_body =>
+      '现在无法获取商品信息，不影响你继续使用 App 的其他功能。请检查网络后再试。';
+
+  @override
+  String get parent_premium_btn_unlocked_done => '已解锁 · 感谢支持';
+
+  @override
+  String get parent_premium_btn_buying => '购买中…';
+
+  @override
+  String get parent_premium_btn_unavailable => '暂不可购买';
+
+  @override
+  String parent_premium_btn_unlock_now(String price) {
+    return '立即解锁 · $price';
+  }
+
+  @override
+  String get parent_premium_restoring => '恢复中…';
+
+  @override
+  String get parent_premium_restore => '恢复购买';
+
+  @override
+  String get parent_premium_notes_title => '购买前请知悉';
+
+  @override
+  String get parent_premium_note_1 => '一次买断、永久解锁 —— 不是订阅，不会自动续费。';
+
+  @override
+  String get parent_premium_note_2 => '同一 Apple ID 换手机 / 卸载重装后，点「恢复购买」即可找回。';
+
+  @override
+  String get parent_premium_note_3 =>
+      '⚠️ 在 iOS 上购买的内容，无法在 Android 设备上「恢复购买」（反之亦然）。';
+
+  @override
+  String get parent_premium_note_4 =>
+      '支付通过 Apple App Store 完成，开发者不会接触到你的任何支付信息。';
+
+  @override
+  String get parent_premium_snack_unlocked => '已解锁，感谢支持 🌻';
+
+  @override
+  String get parent_premium_snack_incomplete => '购买未完成，可稍后再试';
+
+  @override
+  String get parent_premium_snack_buy_failed => '购买失败，请稍后重试';
+
+  @override
+  String get parent_premium_snack_restored => '已恢复购买，欢迎回来 🌻';
+
+  @override
+  String get parent_premium_snack_nothing => '没有找到可恢复的购买记录';
+
+  @override
+  String get parent_premium_snack_restore_net => '恢复失败，请检查网络后重试';
+
+  @override
+  String get parent_premium_snack_restore_failed => '恢复失败，请稍后重试';
+
+  @override
+  String get parent_reward_category_label => '分类';
+
+  @override
+  String get shared_lang_zh_name => '简体中文';
 }

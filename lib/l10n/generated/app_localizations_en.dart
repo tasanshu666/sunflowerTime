@@ -1326,4 +1326,1169 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fx_level_up_perk_locked => ' · 🔒 paid unlock';
+
+  @override
+  String get shared_edit => 'Edit';
+
+  @override
+  String get shared_delete => 'Delete';
+
+  @override
+  String get parent_home_title => 'Parent Hub';
+
+  @override
+  String get parent_home_back_tooltip => 'Back to kid zone';
+
+  @override
+  String get parent_home_tab_today => 'Today';
+
+  @override
+  String get parent_home_tab_reward => 'Rewards';
+
+  @override
+  String get parent_home_tab_growth => 'Growth';
+
+  @override
+  String get parent_home_tab_history => 'Records';
+
+  @override
+  String get parent_home_tab_settings => 'Settings';
+
+  @override
+  String get parent_login_enter_pin => 'Enter parent PIN';
+
+  @override
+  String get parent_login_setup_pin => 'First time here — set a parent PIN';
+
+  @override
+  String get parent_login_btn_enter => 'Enter';
+
+  @override
+  String get parent_login_btn_setup => 'Set PIN & enter';
+
+  @override
+  String get parent_login_err_short => 'PIN must be at least 4 digits';
+
+  @override
+  String get parent_login_err_wrong => 'Incorrect PIN';
+
+  @override
+  String get parent_delete_title => 'Delete Data';
+
+  @override
+  String get parent_delete_right_title => 'Data deletion right (§10.4 C5)';
+
+  @override
+  String get parent_delete_right_body =>
+      'You have the right to delete all local data. Once deleted, progress and settings cannot be recovered.';
+
+  @override
+  String get parent_delete_dlg_title => 'Delete all local data?';
+
+  @override
+  String get parent_delete_dlg_body =>
+      'This permanently deletes focus records, the sunlight ledger, plants, growth items, reward templates, the parent PIN and all local settings. It cannot be undone.\n\nTip: export a memoir first (export arrives in v2).';
+
+  @override
+  String get parent_delete_btn_ok => 'Delete';
+
+  @override
+  String get parent_delete_btn_export => 'Export memoir (coming in v2)';
+
+  @override
+  String get parent_delete_export_snack =>
+      'Export arrives in v2 — take screenshots for now';
+
+  @override
+  String get parent_delete_btn_all => 'Delete all local data';
+
+  @override
+  String get parent_delete_btn_deleting => 'Deleting…';
+
+  @override
+  String get parent_delete_done_snack => 'All local data deleted';
+
+  @override
+  String parent_delete_fail_snack(Object error) {
+    return 'Delete failed: $error';
+  }
+
+  @override
+  String get parent_today_unknown_reward => 'Unknown reward';
+
+  @override
+  String get parent_today_empty => 'Nothing waiting 🎉';
+
+  @override
+  String get parent_today_pending_title => 'Items to confirm';
+
+  @override
+  String parent_today_count(int count) {
+    return '$count items';
+  }
+
+  @override
+  String get parent_today_deleted_task => '(deleted growth item)';
+
+  @override
+  String parent_today_submitted_at(Object time) {
+    return 'Submitted $time';
+  }
+
+  @override
+  String parent_today_should_grant(String sun) {
+    return 'Grant $sun ☀';
+  }
+
+  @override
+  String get parent_today_btn_confirm => 'Confirm';
+
+  @override
+  String get parent_today_btn_reject => 'Reject';
+
+  @override
+  String get parent_today_reject_title => 'Reject this item?';
+
+  @override
+  String parent_today_reject_body(String name) {
+    return 'No sunlight will be granted for \"$name\".';
+  }
+
+  @override
+  String get parent_today_reject_reason => 'Reason (optional)';
+
+  @override
+  String get parent_today_reject_ok => 'Reject';
+
+  @override
+  String parent_today_confirm_ok_snack(String sun, String capped) {
+    return 'Confirmed, +$sun ☀ 🌻$capped';
+  }
+
+  @override
+  String parent_today_capped_note(String sun) {
+    return ' (daily cap reached — only $sun ☀ credited)';
+  }
+
+  @override
+  String parent_today_confirm_fail_snack(Object error) {
+    return 'Confirm failed: $error';
+  }
+
+  @override
+  String get parent_today_rejected_snack => 'Rejected 🌞 No sunlight granted';
+
+  @override
+  String parent_today_reject_fail_snack(Object error) {
+    return 'Reject failed: $error';
+  }
+
+  @override
+  String get parent_today_debug_cap_title => '🧪 Debug: skip 30-min limit';
+
+  @override
+  String get parent_today_debug_cap_subtitle =>
+      'On by default while debugging (no screen-time lock); turning off restores the limit. Debug builds only.';
+
+  @override
+  String get parent_today_debug_cap_on_snack => '30-min limit skipped (debug)';
+
+  @override
+  String get parent_today_debug_cap_off_snack =>
+      '30-min screen-time limit restored';
+
+  @override
+  String get parent_today_debug_save_fail_snack => 'Save failed, try again';
+
+  @override
+  String get parent_verify_cat_self_service => 'Self-service';
+
+  @override
+  String get parent_verify_cat_parent_handled => 'Parent-handled';
+
+  @override
+  String parent_verify_cost(int cost) {
+    return '$cost ☀';
+  }
+
+  @override
+  String parent_verify_meta(String category, String time) {
+    return '$category · requested $time';
+  }
+
+  @override
+  String parent_verify_queue_note(Object pos) {
+    return 'Queue #$pos · auto-releases next month';
+  }
+
+  @override
+  String get parent_verify_confirm_title => 'Confirm redemption?';
+
+  @override
+  String parent_verify_confirm_body(String name, int cost) {
+    return 'Redeem \"$name\" for $cost ☀?\nSunlight is deducted from your kid\'s balance immediately and cannot be undone.';
+  }
+
+  @override
+  String get parent_verify_confirm_ok => 'Confirm';
+
+  @override
+  String get parent_verify_reject_title => 'Reject this request?';
+
+  @override
+  String parent_verify_reject_body(String name, int cost) {
+    return 'Rejecting \"$name\" ($cost ☀) means no redemption.\nSunlight was never deducted while pending, so your kid\'s balance is unaffected.\nThis cannot be undone.';
+  }
+
+  @override
+  String get parent_verify_reject_ok => 'Reject';
+
+  @override
+  String get parent_verify_verified_snack => 'Redeemed 🎉 Sunlight deducted';
+
+  @override
+  String parent_verify_verify_fail_snack(Object error) {
+    return 'Redeem failed: $error';
+  }
+
+  @override
+  String get parent_verify_rejected_snack =>
+      'Rejected 🌞 Sunlight not deducted';
+
+  @override
+  String parent_verify_reject_fail_snack(Object error) {
+    return 'Reject failed: $error';
+  }
+
+  @override
+  String get parent_verify_release_title => 'Release now?';
+
+  @override
+  String parent_verify_release_body(String name, int cost) {
+    return 'Release \"$name\" for $cost ☀ right now?\nThis skips the queue wait and deducts sunlight immediately.';
+  }
+
+  @override
+  String get parent_verify_release_ok => 'Release now';
+
+  @override
+  String get parent_verify_released_snack => 'Released 🎉 Sunlight deducted';
+
+  @override
+  String parent_verify_release_state_fail_snack(Object error) {
+    return 'Can\'t release yet: $error';
+  }
+
+  @override
+  String parent_verify_release_fail_snack(Object error) {
+    return 'Release failed: $error';
+  }
+
+  @override
+  String get parent_task_edit_title_new => 'New growth item';
+
+  @override
+  String get parent_task_edit_title_edit => 'Edit growth item';
+
+  @override
+  String get parent_task_edit_name_label => 'Item name';
+
+  @override
+  String get parent_task_edit_subject_label => 'Subject';
+
+  @override
+  String get parent_task_edit_subject_general => 'General';
+
+  @override
+  String get parent_task_edit_subject_chinese => 'Chinese';
+
+  @override
+  String get parent_task_edit_subject_math => 'Math';
+
+  @override
+  String get parent_task_edit_subject_english => 'English';
+
+  @override
+  String get parent_task_edit_subject_custom => 'Custom…';
+
+  @override
+  String get parent_task_edit_custom_label => 'Custom subject name';
+
+  @override
+  String get parent_task_edit_custom_hint =>
+      'e.g. Science / Calligraphy / Coding';
+
+  @override
+  String get parent_task_edit_category_label => 'Category';
+
+  @override
+  String get parent_task_edit_link_title => 'Focus-linked (auto settle)';
+
+  @override
+  String get parent_task_edit_link_subtitle =>
+      'When on, tapping \"Start focus\" on this item settles and grants sunlight automatically — no manual check-in needed.';
+
+  @override
+  String get parent_task_edit_min_focus_label => 'Min focus';
+
+  @override
+  String parent_task_edit_minutes(int minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String parent_task_edit_reward_fixed(int minutes, int cap) {
+    return 'Fixed reward = $minutes min × 40% = $cap ☀ (no adjustment needed)';
+  }
+
+  @override
+  String get parent_task_edit_reward_label => 'Sunlight reward';
+
+  @override
+  String parent_task_edit_reward_slider(int reward) {
+    return '$reward ☀';
+  }
+
+  @override
+  String parent_task_edit_reward_range(int min, int max, int def) {
+    return 'Range $min–$max ☀ (default $def)';
+  }
+
+  @override
+  String get parent_task_edit_repeat_label => 'Repeat';
+
+  @override
+  String get parent_task_edit_repeat_none => 'Never';
+
+  @override
+  String get parent_task_edit_repeat_daily => 'Daily';
+
+  @override
+  String get parent_task_edit_repeat_weekly => 'Weekly';
+
+  @override
+  String get parent_task_edit_err_name => 'Please enter a name';
+
+  @override
+  String parent_task_edit_err_reward(int min, int max) {
+    return 'Reward must be $min–$max';
+  }
+
+  @override
+  String get parent_task_edit_err_subject => 'Please enter the custom subject';
+
+  @override
+  String parent_task_edit_err_save(Object error) {
+    return 'Save failed: $error';
+  }
+
+  @override
+  String get parent_task_edit_btn_save => 'Save';
+
+  @override
+  String get parent_task_config_title => 'Growth Setup';
+
+  @override
+  String get parent_task_config_list_title => 'Growth tasks';
+
+  @override
+  String get parent_task_config_empty =>
+      'No items yet — tap \"New growth item\" to add one';
+
+  @override
+  String get parent_task_config_delete_title => 'Delete this item?';
+
+  @override
+  String parent_task_config_delete_body(String name) {
+    return 'Delete \"$name\"? Existing check-in records will be kept.';
+  }
+
+  @override
+  String parent_task_config_focus_pill(int minutes) {
+    return 'Focus $minutes min';
+  }
+
+  @override
+  String get parent_reward_templates_title => 'Reward templates';
+
+  @override
+  String get parent_reward_btn_add => 'Add reward';
+
+  @override
+  String parent_reward_quota_hint(String reason) {
+    return '$reason. Delete extras to add more';
+  }
+
+  @override
+  String get parent_reward_edit_hint =>
+      'Tap an item to edit name/price/type; the trash icon deletes. Changes sync to your kid\'s store.';
+
+  @override
+  String get parent_reward_empty =>
+      'No templates yet — tap \"Add reward\" to create one';
+
+  @override
+  String get parent_reward_delete_title => 'Delete reward';
+
+  @override
+  String parent_reward_delete_body(String name) {
+    return 'Delete \"$name\"? It will disappear from your kid\'s store.';
+  }
+
+  @override
+  String get parent_reward_edit_title_new => 'New reward';
+
+  @override
+  String get parent_reward_edit_title_edit => 'Edit reward';
+
+  @override
+  String get parent_reward_name_label => 'Reward name';
+
+  @override
+  String get parent_reward_err_required => 'Required';
+
+  @override
+  String get parent_reward_cat_self_full => 'Self-service (TV/tablet time)';
+
+  @override
+  String get parent_reward_content_label => 'Content type';
+
+  @override
+  String get parent_reward_cost_label => 'Sunlight price';
+
+  @override
+  String get parent_reward_err_positive => 'Enter a positive whole number';
+
+  @override
+  String get parent_reward_freq_label => 'Weekly redemption limit';
+
+  @override
+  String get parent_reward_err_nonneg => 'Enter a non-negative whole number';
+
+  @override
+  String get parent_reward_cooldown_label => 'Cooldown rule';
+
+  @override
+  String get parent_reward_cooldown_none => 'None';
+
+  @override
+  String get parent_reward_cooldown_weekly => 'Weekly limit';
+
+  @override
+  String get parent_reward_cooldown_monthly => 'Monthly limit';
+
+  @override
+  String get parent_reward_pool_title => 'This week\'s sunlight budget';
+
+  @override
+  String get parent_reward_pool_unit => '☀';
+
+  @override
+  String parent_reward_pool_used_line(int used, int budget) {
+    return 'Used $used of $budget ☀';
+  }
+
+  @override
+  String parent_reward_pool_unlimited_line(int used) {
+    return 'No weekly cap — $used ☀ used (redemptions only bounded by balance)';
+  }
+
+  @override
+  String parent_reward_pool_default_note(int low, int mid, String high) {
+    return 'Weekly default limits — lower grade $low☀ · middle $mid☀ · upper $high (redemptions only bounded by balance)';
+  }
+
+  @override
+  String parent_reward_pool_load_failed(Object error) {
+    return 'Failed to load weekly pool: $error';
+  }
+
+  @override
+  String get parent_settings_section_screentime => 'Screen time & routines';
+
+  @override
+  String get parent_settings_switch_quiet => 'Do not disturb';
+
+  @override
+  String get parent_settings_night_title => 'Night boundary';
+
+  @override
+  String parent_settings_night_subtitle(String time) {
+    return 'Night lock takes effect from $time';
+  }
+
+  @override
+  String get parent_settings_daily_focus_cap => 'Daily focus limit (min)';
+
+  @override
+  String get parent_settings_daily_app_cap => 'Daily garden & store time (min)';
+
+  @override
+  String get parent_settings_rest_after => 'Rest after N focus sessions';
+
+  @override
+  String get parent_settings_rest_minutes => 'Break length (min)';
+
+  @override
+  String get parent_settings_section_eyecare => 'Eye-care breaks';
+
+  @override
+  String get parent_settings_switch_eyecare => 'Eye-care reminder';
+
+  @override
+  String get parent_settings_eyecare_subtitle =>
+      'An eye-care card pops up after enough focus time to rest little eyes (fixed 60 s)';
+
+  @override
+  String get parent_settings_eyecare_interval =>
+      'Eye-care interval (every N min)';
+
+  @override
+  String get parent_settings_switch_eyecare_skip => 'Allow skipping eye-care';
+
+  @override
+  String get parent_settings_eyecare_skip_subtitle =>
+      'When off, kids must finish the break — the skip button does nothing';
+
+  @override
+  String get parent_settings_section_sound => 'Sound & ambience';
+
+  @override
+  String get parent_settings_switch_sound => 'Sound effects';
+
+  @override
+  String get parent_settings_switch_bgm => 'Background music';
+
+  @override
+  String get parent_settings_switch_dark => 'Dark theme';
+
+  @override
+  String get parent_settings_section_lock => 'Parent lock & gifts';
+
+  @override
+  String get parent_settings_reset_pin => 'Reset parent PIN';
+
+  @override
+  String get parent_settings_grant_title => 'Gift sunlight';
+
+  @override
+  String parent_settings_grant_subtitle(Object daily, Object monthly) {
+    return 'Daily cap $daily · monthly $monthly';
+  }
+
+  @override
+  String get parent_settings_section_data => 'Data & privacy';
+
+  @override
+  String get parent_settings_entry_delete => 'Delete data';
+
+  @override
+  String get parent_settings_entry_delete_sub =>
+      'Delete all local data (§10.4 C5)';
+
+  @override
+  String get parent_settings_section_debug => 'Debug (debug builds only)';
+
+  @override
+  String get parent_settings_pin_dlg_title => 'Reset parent PIN';
+
+  @override
+  String get parent_settings_pin_dlg_old => 'Current PIN';
+
+  @override
+  String get parent_settings_pin_dlg_new => 'New PIN (≥4 digits)';
+
+  @override
+  String get parent_settings_pin_dlg_ok => 'Reset';
+
+  @override
+  String get parent_settings_pin_too_short_snack =>
+      'New PIN must be at least 4 digits';
+
+  @override
+  String get parent_settings_pin_wrong_snack => 'Current PIN is incorrect';
+
+  @override
+  String get parent_settings_pin_ok_snack => 'PIN has been reset';
+
+  @override
+  String get parent_settings_gift_dlg_title => 'Gift sunlight';
+
+  @override
+  String parent_settings_gift_daily_line(int given, int daily, int remain) {
+    return 'Today gifted $given/$daily ☀ — $remain ☀ left';
+  }
+
+  @override
+  String parent_settings_gift_monthly_line(int given, int monthly, int remain) {
+    return 'This month gifted $given/$monthly ☀ — $remain ☀ left';
+  }
+
+  @override
+  String get parent_settings_gift_amount_label => 'Amount';
+
+  @override
+  String get parent_settings_gift_err_positive => 'Enter a positive number';
+
+  @override
+  String parent_settings_gift_err_over(int max, int day, int month) {
+    return 'Up to $max ☀ (today $day / month $month left)';
+  }
+
+  @override
+  String get parent_settings_gift_btn => 'Gift';
+
+  @override
+  String parent_settings_gift_daily_cap_snack(int daily) {
+    return 'Daily gift cap reached ($daily ☀/day) — come back tomorrow';
+  }
+
+  @override
+  String parent_settings_gift_monthly_cap_snack(int monthly) {
+    return 'Monthly gift cap reached ($monthly ☀/month)';
+  }
+
+  @override
+  String parent_settings_gift_over_snack(int remain) {
+    return 'Over the gift cap — nothing gifted ($remain ☀ left today)';
+  }
+
+  @override
+  String parent_settings_gift_ok_snack(int amount, int remain) {
+    return 'Gifted $amount ☀ to your kid ($remain ☀ left today)';
+  }
+
+  @override
+  String get parent_settings_debug_member_title => 'Member mode (debug only)';
+
+  @override
+  String get parent_settings_debug_member_subtitle =>
+      'Unlocks all premium features; resets after app restart';
+
+  @override
+  String get parent_profile_tier_low => 'Lower grade · age ≤8';
+
+  @override
+  String get parent_profile_tier_mid => 'Middle grade · age 9–12';
+
+  @override
+  String get parent_profile_tier_high => 'Upper grade · age ≥13';
+
+  @override
+  String get parent_profile_menu_edit => 'Edit';
+
+  @override
+  String get parent_profile_menu_delete => 'Delete';
+
+  @override
+  String get parent_profile_menu_create => 'New child';
+
+  @override
+  String parent_profile_toast_switched(String name) {
+    return 'Switched to \"$name\"';
+  }
+
+  @override
+  String parent_profile_toast_added(String name) {
+    return 'Added \"$name\"';
+  }
+
+  @override
+  String parent_profile_toast_updated(String name) {
+    return 'Updated \"$name\"';
+  }
+
+  @override
+  String parent_profile_toast_deleted(String name) {
+    return 'Deleted \"$name\"';
+  }
+
+  @override
+  String parent_profile_max_toast(int count) {
+    return 'Up to $count child profiles';
+  }
+
+  @override
+  String get parent_profile_min_toast => 'Keep at least one child profile';
+
+  @override
+  String get parent_profile_create_title => 'New child';
+
+  @override
+  String get parent_profile_edit_title => 'Edit child';
+
+  @override
+  String get parent_profile_name_label => 'Child\'s name';
+
+  @override
+  String get parent_profile_name_hint => 'e.g. Little Sunflower';
+
+  @override
+  String get parent_profile_btn_create => 'Create';
+
+  @override
+  String parent_profile_delete_title(String name) {
+    return 'Delete \"$name\"?';
+  }
+
+  @override
+  String get parent_profile_delete_body =>
+      'The profile and its settings will be removed and cannot be restored.';
+
+  @override
+  String get parent_profile_pin_label => 'Parent PIN';
+
+  @override
+  String get parent_profile_pin_err_empty => 'Enter the parent PIN';
+
+  @override
+  String get parent_profile_pin_err_wrong => 'Wrong PIN — try again';
+
+  @override
+  String get parent_history_seg_report => 'Focus report';
+
+  @override
+  String get parent_history_seg_activity => 'Tasks & rewards';
+
+  @override
+  String get parent_hist_section_tasks => 'Growth task completions';
+
+  @override
+  String parent_hist_task_tail(int count) {
+    return '$count in total';
+  }
+
+  @override
+  String get parent_hist_empty_tasks => 'No completions in this period';
+
+  @override
+  String get parent_hist_section_rewards => 'Reward redemptions';
+
+  @override
+  String parent_hist_reward_tail(int count, int cost) {
+    return '$count in total · $cost ☀ spent';
+  }
+
+  @override
+  String get parent_hist_empty_rewards => 'No redemptions in this period';
+
+  @override
+  String get parent_hist_deleted_task => '(deleted growth item)';
+
+  @override
+  String get parent_hist_deleted_reward => '(deleted reward)';
+
+  @override
+  String parent_hist_done_badge(int count) {
+    return 'Done ×$count';
+  }
+
+  @override
+  String parent_hist_redeem_badge(int count) {
+    return 'Redeemed ×$count';
+  }
+
+  @override
+  String parent_hist_range_multi(String first, String last) {
+    return 'First $first – latest $last';
+  }
+
+  @override
+  String parent_hist_cost_line(String range, int cost) {
+    return '$range · $cost ☀ spent';
+  }
+
+  @override
+  String get parent_hist_summary_done => 'Items completed';
+
+  @override
+  String get parent_hist_summary_redeem => 'Rewards redeemed';
+
+  @override
+  String get parent_hist_summary_cost => 'Sunlight spent';
+
+  @override
+  String get parent_report_error_hint =>
+      'Couldn\'t build the report — pull down to retry';
+
+  @override
+  String get parent_report_period_day => 'D';
+
+  @override
+  String get parent_report_period_week => 'W';
+
+  @override
+  String get parent_report_period_month => 'M';
+
+  @override
+  String get parent_report_period_year => 'Y';
+
+  @override
+  String get parent_report_prev_tooltip => 'Previous period';
+
+  @override
+  String get parent_report_next_tooltip => 'Next period';
+
+  @override
+  String get parent_report_hero_title => 'Focus this period';
+
+  @override
+  String parent_report_minutes(int minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String parent_report_valid_days(int days) {
+    return '$days valid focus days';
+  }
+
+  @override
+  String parent_report_avg_daily(int minutes) {
+    return '$minutes min/day average';
+  }
+
+  @override
+  String get parent_report_trend_day => 'Last 7 days';
+
+  @override
+  String get parent_report_trend_week => 'This week';
+
+  @override
+  String get parent_report_trend_month => 'This month (by week)';
+
+  @override
+  String get parent_report_trend_year => 'This year (by month)';
+
+  @override
+  String get parent_report_stability_title => 'Focus stability · last 4 weeks';
+
+  @override
+  String get parent_report_heatmap_title => 'Focus heatmap · last year';
+
+  @override
+  String get parent_report_eyecare_title => 'Eye-care stats';
+
+  @override
+  String get parent_report_eyecare_loading => 'Loading eye-care stats…';
+
+  @override
+  String get parent_report_trend_empty =>
+      'Nothing here yet. Complete one 15-minute focus session with your kid and this will light up.';
+
+  @override
+  String parent_report_label_today(String date) {
+    return 'Today · $date';
+  }
+
+  @override
+  String parent_report_label_yesterday(String date) {
+    return 'Yesterday · $date';
+  }
+
+  @override
+  String parent_report_label_range(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String parent_report_label_month(int year, int month) {
+    return '$month/$year';
+  }
+
+  @override
+  String parent_report_label_year(int year) {
+    return '$year';
+  }
+
+  @override
+  String get parent_report_wd_mon => 'M';
+
+  @override
+  String get parent_report_wd_tue => 'T';
+
+  @override
+  String get parent_report_wd_wed => 'W';
+
+  @override
+  String get parent_report_wd_thu => 'T';
+
+  @override
+  String get parent_report_wd_fri => 'F';
+
+  @override
+  String get parent_report_wd_sat => 'S';
+
+  @override
+  String get parent_report_wd_sun => 'S';
+
+  @override
+  String get parent_report_heat_empty => 'No focus records in the last year.';
+
+  @override
+  String parent_report_heat_tip(String date, int minutes) {
+    return '$date · $minutes min';
+  }
+
+  @override
+  String parent_report_month_tick(int month) {
+    return '$month';
+  }
+
+  @override
+  String get parent_report_legend_less => 'Less';
+
+  @override
+  String get parent_report_legend_more => 'More';
+
+  @override
+  String parent_report_streak_current(int days) {
+    return '$days-day current streak';
+  }
+
+  @override
+  String parent_report_streak_longest(int days) {
+    return '$days-day best streak';
+  }
+
+  @override
+  String get parent_report_stability_empty =>
+      'No focus records in the last 4 weeks.';
+
+  @override
+  String parent_report_weeks_ago(int count) {
+    return '${count}w ago';
+  }
+
+  @override
+  String get parent_report_week_this => 'This week';
+
+  @override
+  String parent_report_stability_score(int percent) {
+    return 'Stability $percent%';
+  }
+
+  @override
+  String get parent_report_upsell_title => 'Unlock the in-depth report';
+
+  @override
+  String get parent_report_upsell_subtitle =>
+      '4-week stability · full-year heatmap';
+
+  @override
+  String get parent_report_eyecare_completed => 'Breaks done';
+
+  @override
+  String get parent_report_eyecare_skipped => 'Skipped';
+
+  @override
+  String get parent_report_eyecare_duration => 'Total eye-care time';
+
+  @override
+  String get parent_report_eyecare_rate => 'Skip rate';
+
+  @override
+  String parent_report_times(int count) {
+    return '×$count';
+  }
+
+  @override
+  String parent_report_secs(int count) {
+    return '$count s';
+  }
+
+  @override
+  String parent_report_minutes_1f(String value) {
+    return '$value min';
+  }
+
+  @override
+  String parent_report_eyecare_skip_note(int count) {
+    return '$count breaks were skipped (watched time still counted honestly).';
+  }
+
+  @override
+  String get premium_table_free_pill => 'Free';
+
+  @override
+  String get premium_table_gold_pill => 'Unlock All ★';
+
+  @override
+  String get premium_table_owned => 'Owned';
+
+  @override
+  String get premium_table_band_free => 'Free to use';
+
+  @override
+  String get premium_table_band_unlock => 'Unlock by one-time buy';
+
+  @override
+  String get premium_table_row_pomodoro => 'Focus timer';
+
+  @override
+  String get premium_table_row_screentime => 'Screen time & routines';
+
+  @override
+  String get premium_table_row_eyecare => 'Eye-care breaks';
+
+  @override
+  String get premium_table_row_garden => 'Garden growing';
+
+  @override
+  String get premium_table_row_economy => 'Sunlight economy & ledger';
+
+  @override
+  String get premium_table_row_store => 'Store redemption';
+
+  @override
+  String get premium_table_row_levels => 'Focus levels + 9 titles';
+
+  @override
+  String get premium_table_row_report => 'Parent focus report';
+
+  @override
+  String get premium_table_report_days => 'Last 7 days';
+
+  @override
+  String get premium_table_footnote_report =>
+      'More report features in development';
+
+  @override
+  String get premium_table_row_one_click => 'Garden one-tap care';
+
+  @override
+  String get premium_table_row_pots => 'Pot capacity';
+
+  @override
+  String get premium_table_row_tasks => 'Growth templates';
+
+  @override
+  String get premium_table_row_rewards => 'Reward templates';
+
+  @override
+  String get premium_table_row_perks => 'Title perks';
+
+  @override
+  String premium_table_free_pots(int count) {
+    return '$count pots';
+  }
+
+  @override
+  String premium_table_free_items(int count) {
+    return '$count items';
+  }
+
+  @override
+  String get premium_table_unlimited => '✓ Unlimited';
+
+  @override
+  String premium_table_max(int count) {
+    return 'Up to $count';
+  }
+
+  @override
+  String get premium_table_pots_note => 'Extra pots still cost sunlight';
+
+  @override
+  String premium_table_perks_count(int count) {
+    return '✓ $count perks';
+  }
+
+  @override
+  String premium_quota_inline_reason(String limit, int count) {
+    return 'Free limit $limit (now $count)';
+  }
+
+  @override
+  String get parent_premium_title => 'Unlock All';
+
+  @override
+  String get parent_premium_hero_subtitle =>
+      'One-time purchase · unlock forever, grow together';
+
+  @override
+  String get parent_premium_pill_unlocked => 'Unlocked';
+
+  @override
+  String get parent_premium_pill_locked => 'Locked';
+
+  @override
+  String get parent_premium_gold_pill => 'One-time · forever';
+
+  @override
+  String get parent_premium_unavailable_title => 'Store is unreachable';
+
+  @override
+  String get parent_premium_unavailable_body =>
+      'Product info is unavailable right now; everything else in the app still works. Check your network and retry.';
+
+  @override
+  String get parent_premium_btn_unlocked_done => 'Unlocked · thank you';
+
+  @override
+  String get parent_premium_btn_buying => 'Purchasing…';
+
+  @override
+  String get parent_premium_btn_unavailable => 'Not available now';
+
+  @override
+  String parent_premium_btn_unlock_now(String price) {
+    return 'Unlock now · $price';
+  }
+
+  @override
+  String get parent_premium_restoring => 'Restoring…';
+
+  @override
+  String get parent_premium_restore => 'Restore purchases';
+
+  @override
+  String get parent_premium_notes_title => 'Before you buy';
+
+  @override
+  String get parent_premium_note_1 =>
+      'One-time buy, unlocked forever — not a subscription, no auto-renewal.';
+
+  @override
+  String get parent_premium_note_2 =>
+      'Same Apple ID on a new phone or after reinstall: tap \"Restore purchases\" to get it back.';
+
+  @override
+  String get parent_premium_note_3 =>
+      '⚠️ Purchases made on iOS cannot be restored on Android devices (and vice versa).';
+
+  @override
+  String get parent_premium_note_4 =>
+      'Payment is handled by Apple App Store; developers never see your payment details.';
+
+  @override
+  String get parent_premium_snack_unlocked => 'Unlocked — thank you 🌻';
+
+  @override
+  String get parent_premium_snack_incomplete =>
+      'Purchase not completed — try again later';
+
+  @override
+  String get parent_premium_snack_buy_failed =>
+      'Purchase failed — try again later';
+
+  @override
+  String get parent_premium_snack_restored =>
+      'Purchases restored — welcome back 🌻';
+
+  @override
+  String get parent_premium_snack_nothing => 'No purchases found to restore';
+
+  @override
+  String get parent_premium_snack_restore_net =>
+      'Restore failed — check your network and retry';
+
+  @override
+  String get parent_premium_snack_restore_failed =>
+      'Restore failed — try again later';
+
+  @override
+  String get parent_reward_category_label => 'Type';
+
+  @override
+  String get shared_lang_zh_name => '简体中文';
 }

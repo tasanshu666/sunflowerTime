@@ -21,6 +21,8 @@ library report_upsell_bar;
 
 import 'package:flutter/material.dart';
 
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/report_palette.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 
@@ -31,20 +33,13 @@ class ReportUpsellBar extends StatelessWidget {
   /// 点「查看详情」的回调（上层绑定 `showPremiumUpsell(context, ...)`）。
   final VoidCallback onTap;
 
-  /// 主文案（免费档唯一一处重复出现也不会嫌吵的那句）。
-  static const String titleText = '解锁深度专注报告';
-
-  /// 副文案（一行说清买断后能多看到什么）。
-  static const String subtitleText = '近 4 周稳定性 · 全年热力图';
-
-  /// 右侧按钮文案。
-  static const String actionText = '查看详情';
-
   @override
   Widget build(BuildContext context) {
     final ReportPalette palette = ReportPalette.of(context);
     // 尺寸类缩放（文字**不**乘，见文件头 C65/F118 说明）。
     final double ui = uiScaleOf(context);
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
 
     return Container(
       padding: EdgeInsets.fromLTRB(14 * ui, 12, 10 * ui, 12),
@@ -68,7 +63,7 @@ class ReportUpsellBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
-                  titleText,
+                  t.parent_report_upsell_title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -79,7 +74,7 @@ class ReportUpsellBar extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  subtitleText,
+                  t.parent_report_upsell_subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -100,11 +95,11 @@ class ReportUpsellBar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               foregroundColor: palette.accent,
             ),
-            child: const Text(
-              actionText,
+            child: Text(
+              t.premium_gate_upsell_btn,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
         ],

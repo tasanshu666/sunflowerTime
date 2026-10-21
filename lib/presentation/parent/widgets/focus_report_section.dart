@@ -44,11 +44,13 @@ import 'package:intl/intl.dart';
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/report_period.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
 import 'package:sunflower_time/domain/services/focus_report_service.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/report_eye_care_card.dart';
 import 'package:sunflower_time/presentation/parent/widgets/report_heatmap.dart';
 import 'package:sunflower_time/presentation/parent/widgets/report_palette.dart';
@@ -75,16 +77,17 @@ class _FocusReportSectionState extends ConsumerState<FocusReportSection> {
   /// 趋势柱最大高度（pt，与老页 `_WeekChartCard` 一致）。
   static const double _kBarMaxHeight = 112;
 
-  /// 周内短标签（索引 = `DateTime.weekday - 1`）。
-  static const List<String> _kWeekdayShort = <String>[
-    '一',
-    '二',
-    '三',
-    '四',
-    '五',
-    '六',
-    '日',
-  ];
+  /// 周内短标签（索引 = `DateTime.weekday - 1`；i18n B2：文案经 ARB，
+  /// 由 [_weekdayShorts] 按 locale 解析）。
+  List<String> _weekdayShorts(AppLocalizations t) => <String>[
+        t.parent_report_wd_mon,
+        t.parent_report_wd_tue,
+        t.parent_report_wd_wed,
+        t.parent_report_wd_thu,
+        t.parent_report_wd_fri,
+        t.parent_report_wd_sat,
+        t.parent_report_wd_sun,
+      ];
 
   /// 当前周期（**默认周**——玄参要的是「这周怎么样」，日太碎、月年需付费）。
   ReportPeriod _period = ReportPeriod.week;
@@ -261,57 +264,70 @@ class _FocusReportSectionState extends ConsumerState<FocusReportSection> {
     return !_period.endOf(_anchor).isAfter(today);
   }
 
-  /// 期间标题（口径与记录页 `history_activity_section` 的 `_Period.label` 一致）。
-  String _label(DateTime now) {
+  /// 期间标题（口径与记录页 `history_activity_section` 的 `_label` 一致）。
+  ///
+  /// i18n B2：日期部件（年/月/日）由 `DateFormat` 按 locale 出模式
+  /// （zh 逐字节保留现网 `M月d日` / `yyyy年M月d日`；en 用 `MMM d` / `yyyy MMM d`）。
+  String _label(DateTime now, AppLocalizations t) {
+    final bool isEn = t.localeName == 'en';
+    final DateFormat monthDay = DateFormat(isEn ? 'MMM d' : 'M月d日');
+    final DateFormat fullDay = DateFormat(isEn ? 'yyyy MMM d' : 'yyyy年M月d日');
     final DateTime start = _period.startOf(_anchor);
     final DateTime end = _period.endOf(_anchor);
     final DateTime today = startOfDay(now);
     final DateTime yesterday = DateTime(today.year, today.month, today.day - 1);
-    final DateFormat monthDay = DateFormat('M月d日');
     switch (_period) {
       case ReportPeriod.day:
-        if (start == today) return '今天 · ${monthDay.format(start)}';
-        if (start == yesterday) return '昨天 · ${monthDay.format(start)}';
-        return DateFormat('yyyy年M月d日').format(start);
+        if (start == today) {
+          return t.parent_report_label_today(monthDay.format(start));
+        }
+        if (start == yesterday) {
+          return t.parent_report_label_yesterday(monthDay.format(start));
+        }
+        return fullDay.format(start);
       case ReportPeriod.week:
         final DateTime lastDay =
             DateTime(end.year, end.month, end.day - 1);
-        return '${DateFormat('yyyy年M月d日').format(start)} ～ '
-            '${monthDay.format(lastDay)}';
+        return t.parent_report_label_range(
+          fullDay.format(start),
+          monthDay.format(lastDay),
+        );
       case ReportPeriod.month:
-        return '${start.year} 年 ${start.month} 月';
+        return t.parent_report_label_month(start.year, start.month);
       case ReportPeriod.year:
-        return '${start.year} 年';
+        return t.parent_report_label_year(start.year);
     }
   }
 
   /// 趋势卡标题（四档各异，直说「看的是哪个范围」）。
-  String _trendTitle() {
+  String _trendTitle(AppLocalizations t) {
     switch (_period) {
       case ReportPeriod.day:
-        return '近 7 日专注分布';
+        return t.parent_report_trend_day;
       case ReportPeriod.week:
-        return '本周专注分布';
+        return t.parent_report_trend_week;
       case ReportPeriod.month:
-        return '本月专注分布（按周）';
+        return t.parent_report_trend_month;
       case ReportPeriod.year:
-        return '本年专注分布（按月）';
+        return t.parent_report_trend_year;
     }
   }
 
   /// 趋势柱数据：日档吃「近 7 日」；其余三档吃服务端算好的 [PeriodBucket]。
-  List<_TrendBar> _trendBarsOf(_ReportData data) {
+  List<_TrendBar> _trendBarsOf(_ReportData data, AppLocalizations t) {
     if (_period == ReportPeriod.day) {
+      final List<String> wd = _weekdayShorts(t);
       return <_TrendBar>[
         for (final DailyFocusPoint p in data.trend)
           _TrendBar(
-            label: _kWeekdayShort[p.date.weekday - 1],
+            label: wd[p.date.weekday - 1],
             minutes: p.focusMinutes,
             valid: p.isWfd,
           ),
       ];
     }
     // 月 / 年桶没有「有效专注日」概念（一个桶含多天），故「有专注即亮」。
+    // ⚠️ 桶标签（`第2周` / `10月`）由域层 FocusReportService 派生（i18n B3 处理）。
     return <_TrendBar>[
       for (final PeriodBucket b in data.report.buckets)
         _TrendBar(
@@ -370,6 +386,7 @@ class _FocusReportSectionState extends ConsumerState<FocusReportSection> {
 
   /// 错误态：一句人话 + 重试按钮（不把异常堆栈丢给家长看）。
   Widget _buildError(bool unlocked, ReportPalette palette) {
+    final AppLocalizations t = l10nOf(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -379,14 +396,14 @@ class _FocusReportSectionState extends ConsumerState<FocusReportSection> {
             Icon(Icons.error_outline, size: 36, color: palette.warn),
             const SizedBox(height: 12),
             Text(
-              '报告生成失败，请下拉重试',
+              t.parent_report_error_hint,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, color: palette.ink),
             ),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () => _reload(unlocked),
-              child: const Text('重试'),
+              child: Text(t.shared_retry),
             ),
           ],
         ),
@@ -401,9 +418,10 @@ class _FocusReportSectionState extends ConsumerState<FocusReportSection> {
     required Widget lockedBar,
     required ReportPalette palette,
   }) {
+    final AppLocalizations t = l10nOf(context);
     final DateTime now = _now;
     final bool canNext = _canNext(now);
-    final List<_TrendBar> bars = _trendBarsOf(data);
+    final List<_TrendBar> bars = _trendBarsOf(data, t);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
@@ -417,7 +435,7 @@ class _FocusReportSectionState extends ConsumerState<FocusReportSection> {
         const SizedBox(height: 6),
         // 2. 期间导航（◀ 标题 ▶；到顶 ▶ 置空 → disabled）。
         _PeriodNav(
-          label: _label(now),
+          label: _label(now, t),
           onPrev: () => _shift(-1, unlocked),
           onNext: canNext ? () => _shift(1, unlocked) : null,
         ),
@@ -426,12 +444,12 @@ class _FocusReportSectionState extends ConsumerState<FocusReportSection> {
         _HeroCard(report: data.report, palette: palette),
         const SizedBox(height: 20),
         // 4. 趋势卡。
-        _SectionTitle(text: _trendTitle(), palette: palette),
+        _SectionTitle(text: _trendTitle(t), palette: palette),
         _TrendCard(bars: bars, palette: palette),
         const SizedBox(height: 20),
         // 5. 稳定性卡（🔒 付费）。
         //    C85：未解锁时渲染**一条引导横条**（替代原先的大引导卡），全段仅此一处。
-        _SectionTitle(text: '专注稳定性 · 近 4 周', palette: palette),
+        _SectionTitle(text: t.parent_report_stability_title, palette: palette),
         if (data.stability == null)
           lockedBar
         else
@@ -446,7 +464,7 @@ class _FocusReportSectionState extends ConsumerState<FocusReportSection> {
         //    解锁档 `data.heat` 非空 → 标题 + 热力图照旧。
         if (data.heat != null) ...<Widget>[
           const SizedBox(height: 20),
-          _SectionTitle(text: '专注热力图 · 近 1 年', palette: palette),
+          _SectionTitle(text: t.parent_report_heatmap_title, palette: palette),
           ReportHeatmap(
             unlocked: unlocked,
             lockedPlaceholder: lockedBar,
@@ -455,7 +473,7 @@ class _FocusReportSectionState extends ConsumerState<FocusReportSection> {
         ],
         const SizedBox(height: 20),
         // 7. 护眼统计（**免费可见**，不吃 unlocked；独立 FutureBuilder，永不拖住主链）。
-        _SectionTitle(text: '护眼统计', palette: palette),
+        _SectionTitle(text: t.parent_report_eyecare_title, palette: palette),
         FutureBuilder<_EyeCareStats>(
           future: _eyeCare,
           builder: (BuildContext context, AsyncSnapshot<_EyeCareStats> snap) {
@@ -473,7 +491,7 @@ class _FocusReportSectionState extends ConsumerState<FocusReportSection> {
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Text(
-                  '护眼统计读取中…',
+                  t.parent_report_eyecare_loading,
                   style: TextStyle(fontSize: 12.5, color: palette.inkAt(0.7)),
                 ),
               );
@@ -565,11 +583,13 @@ class _PeriodNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
     return Row(
       children: <Widget>[
         IconButton(
           icon: const Icon(Icons.chevron_left),
-          tooltip: '上一期间',
+          tooltip: t.parent_report_prev_tooltip,
           onPressed: onPrev,
         ),
         Expanded(
@@ -584,7 +604,7 @@ class _PeriodNav extends StatelessWidget {
         ),
         IconButton(
           icon: const Icon(Icons.chevron_right),
-          tooltip: '下一期间',
+          tooltip: t.parent_report_next_tooltip,
           onPressed: onNext,
         ),
       ],
@@ -603,6 +623,8 @@ class _HeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final int minutes = report.totalFocusMinutes.round();
     final int avgMinutes = report.avgFocusMinutesPerDay.round();
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       decoration: BoxDecoration(
@@ -637,7 +659,7 @@ class _HeroCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                '本期间专注',
+                t.parent_report_hero_title,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -652,7 +674,7 @@ class _HeroCard extends StatelessWidget {
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
-              '$minutes 分钟',
+              t.parent_report_minutes(minutes),
               style: TextStyle(
                 fontSize: 40,
                 height: 1.1,
@@ -671,7 +693,7 @@ class _HeroCard extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    '有效专注日 ${report.validFocusDays} 天',
+                    t.parent_report_valid_days(report.validFocusDays),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -686,7 +708,7 @@ class _HeroCard extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerRight,
                   child: Text(
-                    '平均每日 $avgMinutes 分钟',
+                    t.parent_report_avg_daily(avgMinutes),
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       fontSize: 13,
@@ -716,6 +738,8 @@ class _TrendCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
     final double peak = bars.fold<double>(
       0,
       (double a, _TrendBar b) => b.minutes > a ? b.minutes : a,
@@ -814,7 +838,7 @@ class _TrendCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                '本期间还没有专注记录。陪孩子完成一次 15 分钟专注，这里就会亮起来。',
+                t.parent_report_trend_empty,
                 style: TextStyle(fontSize: 12.5, color: palette.inkAt(0.85)),
               ),
             ),

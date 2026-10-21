@@ -22,7 +22,9 @@ library report_period_bar;
 
 import 'package:flutter/material.dart';
 
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/report_period.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/report_palette.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 
@@ -54,17 +56,17 @@ class ReportPeriodBar extends StatelessWidget {
     ReportPeriod.year,
   ];
 
-  /// 档位短标签（`日 / 周 / 月 / 年`）。
-  static String _labelOf(ReportPeriod p) {
+  /// 档位短标签（`日 / 周 / 月 / 年`，i18n B2 经 ARB 取）。
+  static String _labelOf(AppLocalizations t, ReportPeriod p) {
     switch (p) {
       case ReportPeriod.day:
-        return '日';
+        return t.parent_report_period_day;
       case ReportPeriod.week:
-        return '周';
+        return t.parent_report_period_week;
       case ReportPeriod.month:
-        return '月';
+        return t.parent_report_period_month;
       case ReportPeriod.year:
-        return '年';
+        return t.parent_report_period_year;
     }
   }
 
@@ -83,6 +85,8 @@ class ReportPeriodBar extends StatelessWidget {
     // 选中档文字色：浅色档配白字；深色档 accent 偏亮，改配深字（避免白字压浅蓝）。
     final Color onSelected = isDark ? const Color(0xFF152329) : Colors.white;
     final double iconScale = uiScaleOf(context);
+    // i18n B2：档位标签经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
 
     return Container(
       padding: const EdgeInsets.all(4),
@@ -116,7 +120,7 @@ class ReportPeriodBar extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         Text(
-                          _labelOf(p),
+                          _labelOf(t, p),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14,

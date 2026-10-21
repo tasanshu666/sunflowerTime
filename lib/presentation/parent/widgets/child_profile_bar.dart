@@ -33,21 +33,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/child_profile.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 
 /// 年龄段展示名（**C90-C 修订**（玄参 2026-10-18 拍板「12 岁归中」）：
 /// 低 ≤8 / 中 9–12 / 高 ≥13；与 `tierForAge` 新分界一致）。
-String _tierLabel(AgeTier tier) {
+///
+/// i18n B2：文案经 ARB 取（调用方传入已解析的 [AppLocalizations]）。
+String _tierLabel(AppLocalizations t, AgeTier tier) {
   switch (tier) {
     case AgeTier.low:
-      return '低年级 · 8 岁及以下';
+      return t.parent_profile_tier_low;
     case AgeTier.mid:
-      return '中年级 · 9–12 岁';
+      return t.parent_profile_tier_mid;
     case AgeTier.high:
-      return '高年级 · 13 岁及以上';
+      return t.parent_profile_tier_high;
   }
 }
 
@@ -197,6 +201,9 @@ class _ChildProfileBarState extends ConsumerState<ChildProfileBar> {
   /// 下拉菜单：档案列表（行尾编辑 / 删除）+ 分隔线 +「新建孩子」。
   List<PopupMenuEntry<String>> _buildMenuItems(BuildContext context) {
     final Color hint = Theme.of(context).hintColor;
+    // i18n B2：菜单文案在**调用方上下文**（页级 scope 内）解析好 ——
+    // showMenu 的 overlay 上下文在页级 scope 之外，不得在那里直调本地化。
+    final AppLocalizations t = l10nOf(context);
     return <PopupMenuEntry<String>>[
       for (final ChildProfile p in _profiles)
         PopupMenuItem<String>(
@@ -213,7 +220,7 @@ class _ChildProfileBarState extends ConsumerState<ChildProfileBar> {
                     children: <Widget>[
                       Text(p.name, style: const TextStyle(fontSize: 15)),
                       Text(
-                        _tierLabel(p.ageTier),
+                        _tierLabel(t, p.ageTier),
                         style: TextStyle(fontSize: 12, color: hint),
                       ),
                     ],
@@ -221,13 +228,13 @@ class _ChildProfileBarState extends ConsumerState<ChildProfileBar> {
                 ),
                 _MenuIconButton(
                   icon: Icons.edit_outlined,
-                  tooltip: '编辑',
+                  tooltip: t.shared_edit,
                   color: hint,
                   onTap: () => _onEdit(p),
                 ),
                 _MenuIconButton(
                   icon: Icons.delete_outline,
-                  tooltip: '删除',
+                  tooltip: t.shared_delete,
                   color: hint,
                   onTap: () => _onDelete(p),
                 ),
@@ -241,16 +248,16 @@ class _ChildProfileBarState extends ConsumerState<ChildProfileBar> {
           ),
         ),
       const PopupMenuDivider(),
-      const PopupMenuItem<String>(
+      PopupMenuItem<String>(
         value: _kCreateAction,
         padding: EdgeInsets.zero,
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: <Widget>[
-              Icon(Icons.add),
-              SizedBox(width: 8),
-              Text('新建孩子'),
+              const Icon(Icons.add),
+              const SizedBox(width: 8),
+              Text(t.parent_profile_menu_create),
             ],
           ),
         ),
@@ -300,7 +307,7 @@ class _ChildProfileBarState extends ConsumerState<ChildProfileBar> {
     ref.read(childProfileRevisionProvider.notifier).state++;
     await _reload();
     if (!mounted) return;
-    _showCenterToast('已切换到「${p.name}」');
+    _showCenterToast(l10nOf(context).parent_profile_toast_switched(p.name));
   }
 
   /// 新建孩子流程：对话框收名字 + 年龄段 → 矩阵单点判配额 → 创建或提示。
@@ -321,7 +328,8 @@ class _ChildProfileBarState extends ConsumerState<ChildProfileBar> {
       if (tier == EntitlementTier.free) {
         showPremiumUpsell(context, FeatureKey.multiChildProfile);
       } else {
-        _showCenterToast('最多支持 $kPremiumChildProfileCount 个孩子账户');
+        _showCenterToast(l10nOf(context)
+            .parent_profile_max_toast(kPremiumChildProfileCount));
       }
       return;
     }
@@ -332,7 +340,7 @@ class _ChildProfileBarState extends ConsumerState<ChildProfileBar> {
     ref.read(childProfileRevisionProvider.notifier).state++;
     await _reload();
     if (!mounted) return;
-    _showCenterToast('已添加「${created.name}」');
+    _showCenterToast(l10nOf(context).parent_profile_toast_added(created.name));
   }
 
   /// 编辑孩子流程：预填对话框 → 更新落库（改名 / 调年龄段，不受门控）。
@@ -355,7 +363,7 @@ class _ChildProfileBarState extends ConsumerState<ChildProfileBar> {
     ref.read(childProfileRevisionProvider.notifier).state++;
     await _reload();
     if (!mounted) return;
-    _showCenterToast('已更新「${result.name}」');
+    _showCenterToast(l10nOf(context).parent_profile_toast_updated(result.name));
   }
 
   /// 删除孩子流程（玄参拍板：家长 PIN 复核）：
@@ -363,7 +371,7 @@ class _ChildProfileBarState extends ConsumerState<ChildProfileBar> {
   /// ③ 删的是当前孩子 → 自动切到剩余第一个。
   Future<void> _openDeleteFlow(ChildProfile p) async {
     if (_profiles.length <= 1) {
-      _showCenterToast('至少保留一个孩子档案');
+      _showCenterToast(l10nOf(context).parent_profile_min_toast);
       return;
     }
     final bool? confirmed = await showDialog<bool>(
@@ -388,7 +396,7 @@ class _ChildProfileBarState extends ConsumerState<ChildProfileBar> {
     ref.read(childProfileRevisionProvider.notifier).state++;
     await _reload();
     if (!mounted) return;
-    _showCenterToast('已删除「${p.name}」');
+    _showCenterToast(l10nOf(context).parent_profile_toast_deleted(p.name));
   }
 
   /// 屏幕正中轻提示：显示 1 秒后 250ms 淡出、随后自摘（新提示顶掉旧提示）。
@@ -485,8 +493,15 @@ class _CreateChildDialogState extends State<_CreateChildDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.isEdit ? '编辑孩子' : '新建孩子'),
+    // 弹窗 builder 在页级 scope 之外 → 本弹窗**内部自带** [L10nScope]
+    // （B1 先例：PlantConfirmDialog / TaskEditorDialog）。
+    return L10nScope(
+      child: Builder(builder: (BuildContext context) {
+        final AppLocalizations l10n = AppLocalizations.of(context);
+        return AlertDialog(
+      title: Text(widget.isEdit
+          ? l10n.parent_profile_edit_title
+          : l10n.parent_profile_create_title),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -494,33 +509,33 @@ class _CreateChildDialogState extends State<_CreateChildDialog> {
             controller: _name,
             autofocus: true,
             maxLength: kChildNicknameMaxLength,
-            decoration: const InputDecoration(
-              labelText: '孩子名字',
-              hintText: '比如：小向日葵',
+            decoration: InputDecoration(
+              labelText: l10n.parent_profile_name_label,
+              hintText: l10n.parent_profile_name_hint,
             ),
           ),
           const SizedBox(height: 4),
           // 三档卡片：纵向并列、固定尺寸（同宽 48 高）、选中高亮（玄参反馈）。
-          for (final AgeTier t in AgeTier.values)
+          for (final AgeTier tier in AgeTier.values)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: SizedBox(
                 width: double.infinity,
                 height: 48,
                 child: Material(
-                  color: _tier == t
+                  color: _tier == tier
                       ? Theme.of(context).colorScheme.primaryContainer
                       : Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () => setState(() => _tier = t),
+                    onTap: () => setState(() => _tier = tier),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: _tier == t
+                          color: _tier == tier
                               ? Theme.of(context).colorScheme.primary
                               : Theme.of(context).dividerColor,
                         ),
@@ -529,16 +544,16 @@ class _CreateChildDialogState extends State<_CreateChildDialog> {
                         children: <Widget>[
                           Expanded(
                             child: Text(
-                              _tierLabel(t),
+                              _tierLabel(l10n, tier),
                               style: TextStyle(
                                 fontSize: 14,
-                                fontWeight: _tier == t
+                                fontWeight: _tier == tier
                                     ? FontWeight.w600
                                     : FontWeight.w400,
                               ),
                             ),
                           ),
-                          if (_tier == t)
+                          if (_tier == tier)
                             Icon(
                               Icons.check,
                               size: 18,
@@ -556,7 +571,7 @@ class _CreateChildDialogState extends State<_CreateChildDialog> {
       actions: <Widget>[
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(l10n.shared_cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -564,9 +579,13 @@ class _CreateChildDialogState extends State<_CreateChildDialog> {
             if (name.isEmpty) return; // 空名不提交
             Navigator.of(context).pop(_CreateResult(name, _tier));
           },
-          child: Text(widget.isEdit ? '保存' : '创建'),
+          child: Text(widget.isEdit
+              ? l10n.parent_task_edit_btn_save
+              : l10n.parent_profile_btn_create),
         ),
       ],
+        );
+      }),
     );
   }
 }
@@ -604,9 +623,10 @@ class _DeleteConfirmDialogState extends State<_DeleteConfirmDialog> {
 
   Future<void> _submit() async {
     if (_busy) return;
+    final AppLocalizations t = l10nOf(context);
     final String pin = _pin.text.trim();
     if (pin.isEmpty) {
-      setState(() => _error = '请输入家长 PIN');
+      setState(() => _error = t.parent_profile_pin_err_empty);
       return;
     }
     setState(() {
@@ -618,7 +638,7 @@ class _DeleteConfirmDialogState extends State<_DeleteConfirmDialog> {
     if (!ok) {
       setState(() {
         _busy = false;
-        _error = 'PIN 不正确，请重试';
+        _error = t.parent_profile_pin_err_wrong;
       });
       return;
     }
@@ -627,15 +647,20 @@ class _DeleteConfirmDialogState extends State<_DeleteConfirmDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('删除「${widget.name}」？'),
+    // 弹窗 builder 在页级 scope 之外 → 本弹窗**内部自带** [L10nScope]
+    // （B1 先例：PlantConfirmDialog / TaskEditorDialog）。
+    return L10nScope(
+      child: Builder(builder: (BuildContext context) {
+        final AppLocalizations l10n = AppLocalizations.of(context);
+        return AlertDialog(
+      title: Text(l10n.parent_profile_delete_title(widget.name)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Text(
-            '删除后该孩子的档案设置将被移除，且无法恢复。',
-            style: TextStyle(fontSize: 14),
+          Text(
+            l10n.parent_profile_delete_body,
+            style: const TextStyle(fontSize: 14),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -648,7 +673,7 @@ class _DeleteConfirmDialogState extends State<_DeleteConfirmDialog> {
             enabled: !_busy,
             onSubmitted: (_) => _submit(),
             decoration: InputDecoration(
-              labelText: '家长 PIN',
+              labelText: l10n.parent_profile_pin_label,
               errorText: _error,
               border: const OutlineInputBorder(),
               counterText: '',
@@ -659,16 +684,18 @@ class _DeleteConfirmDialogState extends State<_DeleteConfirmDialog> {
       actions: <Widget>[
         TextButton(
           onPressed: _busy ? null : () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(l10n.shared_cancel),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
           onPressed: _busy ? null : _submit,
-          child: const Text('删除'),
+          child: Text(l10n.shared_delete),
         ),
       ],
+        );
+      }),
     );
   }
 }

@@ -76,12 +76,15 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
   }
 
   Future<void> _resetPin() async {
+    // i18n B2 🔴 弹窗纪律：builder 上下文在页级 scope 之外 → 文案在此处（页级
+    // scope 内的 context）取好，经参数槽位传入弹窗。
+    final AppLocalizations t = l10nOf(context);
     final TextEditingController oldCtrl = TextEditingController();
     final TextEditingController newCtrl = TextEditingController();
     final bool? ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('重设家长 PIN'),
+        title: Text(t.parent_settings_pin_dlg_title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
@@ -90,25 +93,29 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
               obscureText: true,
               keyboardType: TextInputType.number,
               maxLength: 6,
-              decoration: const InputDecoration(labelText: '当前 PIN'),
+              decoration: InputDecoration(
+                labelText: t.parent_settings_pin_dlg_old,
+              ),
             ),
             TextField(
               controller: newCtrl,
               obscureText: true,
               keyboardType: TextInputType.number,
               maxLength: 6,
-              decoration: const InputDecoration(labelText: '新 PIN（≥4 位）'),
+              decoration: InputDecoration(
+                labelText: t.parent_settings_pin_dlg_new,
+              ),
             ),
           ],
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child: Text(t.shared_cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('重设'),
+            child: Text(t.parent_settings_pin_dlg_ok),
           ),
         ],
       ),
@@ -117,16 +124,16 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
     final String oldPin = oldCtrl.text.trim();
     final String newPin = newCtrl.text.trim();
     if (newPin.length < 4) {
-      _snack('新 PIN 至少 4 位');
+      _snack(t.parent_settings_pin_too_short_snack);
       return;
     }
     final bool verified = await ref.read(secureStoreProvider).verify(oldPin);
     if (!verified) {
-      _snack('当前 PIN 不正确');
+      _snack(t.parent_settings_pin_wrong_snack);
       return;
     }
     await ref.read(secureStoreProvider).resetPin(newPin);
-    _snack('PIN 已重设');
+    _snack(t.parent_settings_pin_ok_snack);
   }
 
   /// 家长赠予阳光。
@@ -139,6 +146,8 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
   ///  · 输入超过剩余额度 → **实时报错 + 「赠予」按钮禁用**，根本点不下去；
   ///  · 额度已耗尽 → 直接分因 SnackBar，不弹窗空跑。
   Future<void> _grantGift() async {
+    // i18n B2 🔴 弹窗纪律：文案在页级 scope 内取好，经参数槽位传入弹窗。
+    final AppLocalizations t = l10nOf(context);
     final DateTime now0 = DateTime.now();
     final SunlightRepository ledger0 = ref.read(sunlightRepositoryProvider);
     final double dayTotal0 =
@@ -152,11 +161,14 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
     final double maxGrant =
         dayRemain < monthRemain ? dayRemain : monthRemain;
 
+    // 跨 await 后仍要用 context（提示条 / 弹窗）：先确认页面还在。
+    if (!mounted) return;
+
     // 额度耗尽：分因提示，不弹窗空跑（点了才发现赠不了 = 静默失败）。
     if (maxGrant <= 0) {
       _snack(dayRemain <= 0
-          ? '今日赠予已达上限（$kParentGiftDaily ☀/天），明天再来'
-          : '本月赠予已达上限（$kParentGiftMonthly ☀/月）');
+          ? t.parent_settings_gift_daily_cap_snack(kParentGiftDaily)
+          : t.parent_settings_gift_monthly_cap_snack(kParentGiftMonthly));
       return;
     }
 
@@ -170,26 +182,38 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           final double? parsed = double.tryParse(amountCtrl.text.trim());
           // 分因：空/非正数 vs 超额 —— 文案点明「最多可赠多少」，可执行。
           final String? error = parsed == null || parsed <= 0
-              ? '请输入正数'
+              ? t.parent_settings_gift_err_positive
               : parsed > maxGrant
-                  ? '最多可赠 ${maxGrant.toInt()} ☀（今日剩 ${dayRemain.toInt()} / 本月剩 ${monthRemain.toInt()}）'
+                  ? t.parent_settings_gift_err_over(
+                      maxGrant.toInt(),
+                      dayRemain.toInt(),
+                      monthRemain.toInt(),
+                    )
                   : null;
           return AlertDialog(
-            title: const Text('赠予阳光'),
+            title: Text(t.parent_settings_gift_dlg_title),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text('今日已赠 ${dayTotal0.toInt()} / $kParentGiftDaily ☀'
-                    '，还可赠 ${dayRemain.toInt()} ☀'),
+                Text(t.parent_settings_gift_daily_line(
+                  dayTotal0.toInt(),
+                  kParentGiftDaily,
+                  dayRemain.toInt(),
+                )),
                 const SizedBox(height: 4),
-                Text('本月已赠 ${monthTotal0.toInt()} / $kParentGiftMonthly ☀'
-                    '，还可赠 ${monthRemain.toInt()} ☀'),
+                Text(t.parent_settings_gift_monthly_line(
+                  monthTotal0.toInt(),
+                  kParentGiftMonthly,
+                  monthRemain.toInt(),
+                )),
                 const SizedBox(height: 8),
                 TextField(
                   controller: amountCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: '赠予数量'),
+                  decoration: InputDecoration(
+                    labelText: t.parent_settings_gift_amount_label,
+                  ),
                   onChanged: (_) => setState(() {}),
                 ),
                 if (error != null) ...<Widget>[
@@ -207,13 +231,13 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
             actions: <Widget>[
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('取消'),
+                child: Text(t.shared_cancel),
               ),
               FilledButton(
                 onPressed: error == null
                     ? () => Navigator.of(ctx).pop(true)
                     : null, // 超额 → 禁用（点不下去，不会静默失败）
-                child: const Text('赠予'),
+                child: Text(t.parent_settings_gift_btn),
               ),
             ],
           );
@@ -232,8 +256,9 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
     // 二次校验（弹窗可能被绕过）：仍然拒绝超额，绝不静默入账。
     if (dayTotal + amount > kParentGiftDaily ||
         monthTotal + amount > kParentGiftMonthly) {
-      _snack('超出赠予上限，未赠予（今日剩 '
-          '${(kParentGiftDaily - dayTotal).toInt()} ☀）');
+      _snack(t.parent_settings_gift_over_snack(
+        (kParentGiftDaily - dayTotal).toInt(),
+      ));
       return;
     }
     final double balance = await ledger.balance();
@@ -250,8 +275,10 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
     ));
     // 关键：自增经济修订号 → 孩子端（花园胶囊 / 商店 / 我的）立即重算。
     ref.read(economyRevisionProvider.notifier).state++;
-    _snack('已赠予 ${amount.toInt()} ☀，孩子端已到账'
-        '（今日剩 ${(kParentGiftDaily - dayTotal - amount).toInt()} ☀）');
+    _snack(t.parent_settings_gift_ok_snack(
+      amount.toInt(),
+      (kParentGiftDaily - dayTotal - amount).toInt(),
+    ));
   }
 
   void _snack(String msg) {
@@ -267,24 +294,29 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
       return const Center(child: CircularProgressIndicator());
     }
     final AppSettings s = _s!;
-    return ListView(
+    // 🔴 页级 L10nScope（i18n B2）：全页文案经 AppLocalizations 解析；Builder 的
+    // 上下文在 scope **之内**，故可直调 `AppLocalizations.of`。
+    return L10nScope(
+      child: Builder(builder: (BuildContext context) {
+        final AppLocalizations l10n = AppLocalizations.of(context);
+        return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
         // 🔴 2026-10-14 玄参截图反馈：「解锁全部功能」**上移到最顶部**第一个分区
         // （原话「放在最上面，更显眼」）。其余分区顺序不变。
-        const _SectionTitle('解锁全部功能'),
+        _SectionTitle(l10n.premium_gate_unlock_all),
         // C78（V2-4）：唯一**金令牌视觉**入口（仅样式；路由 / PIN 门控 / 副标题不变）。
         _EntryCard(
           icon: Icons.star_rounded,
-          title: '解锁全部功能',
+          title: l10n.premium_gate_unlock_all,
           subtitle: const PremiumStatusText(),
           gold: true,
           onTap: () => context.push('/parent/premium'),
         ),
         const SizedBox(height: 12),
-        _SectionTitle('防沉迷与作息'),
+        _SectionTitle(l10n.parent_settings_section_screentime),
         _SwitchTile(
-          title: '免打扰模式',
+          title: l10n.parent_settings_switch_quiet,
           value: s.quietMode,
           onChanged: (v) => _update(s.copyWith(quietMode: v)),
         ),
@@ -292,6 +324,7 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
         //    功能**常开**（专注页无条件启动 PresenceDetector，防挂机核心，
         //    逻辑一行不动），不再有可关的开关。
         _NightBoundaryTile(
+          l10n: l10n,
           hour: s.nightBoundaryHour,
           minute: s.nightBoundaryMinute,
           onChanged: (int h, int m) => _update(
@@ -299,7 +332,7 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           ),
         ),
         _IntTile(
-          title: '每日专注上限（分钟）',
+          title: l10n.parent_settings_daily_focus_cap,
           value: s.dailyFocusCap,
           options: const <int>[
             kDailyFocusCapLow,
@@ -311,19 +344,19 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
         _IntTile(
           // C48（玄参 2026-10-10）：原「每日 App 使用时长」有歧义（看似整个 App，
           // 实际只限花园/商店等娱乐 tab 的累计时长）→ 文案写准。
-          title: '每日花园、商店使用时长（分钟）',
+          title: l10n.parent_settings_daily_app_cap,
           value: s.dailyAppCapMinutes,
           options: kDailyAppCapOptions,
           onChanged: (v) => _update(s.copyWith(dailyAppCapMinutes: v)),
         ),
         _IntTile(
-          title: '每 N 次专注后休息',
+          title: l10n.parent_settings_rest_after,
           value: s.restAfterSessions,
           options: const <int>[1, 2, 3],
           onChanged: (v) => _update(s.copyWith(restAfterSessions: v)),
         ),
         _IntTile(
-          title: '休息时长（分钟）',
+          title: l10n.parent_settings_rest_minutes,
           value: s.restMinutes,
           options: const <int>[5, 10, 15],
           onChanged: (v) => _update(s.copyWith(restMinutes: v)),
@@ -334,45 +367,45 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
         // ⚠️ 刻意**没有「护眼时长」设置项**：单次护眼固定 60 秒（前 30 秒闭眼 + 口令
         // 转眼球、后 30 秒睁眼远眺），玄参拍板「家长端不设、不可调」；时长常量单点
         // 收口在 `kEyeCareDurationSeconds`。加这个开关等于把已拍板的口径改回去。
-        _SectionTitle('护眼休息'),
+        _SectionTitle(l10n.parent_settings_section_eyecare),
         _SwitchTile(
-          title: '护眼提醒',
-          subtitle: const Text(
-            '专注每满一定时间弹出护眼卡，帮孩子歇歇眼睛（固定 60 秒）',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+          title: l10n.parent_settings_switch_eyecare,
+          subtitle: Text(
+            l10n.parent_settings_eyecare_subtitle,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
           value: s.eyeCareEnabled,
           onChanged: (v) => _update(s.copyWith(eyeCareEnabled: v)),
         ),
         _IntTile(
-          title: '护眼触发间隔（每 N 分钟）',
+          title: l10n.parent_settings_eyecare_interval,
           value: s.eyeCareIntervalMin,
           options: kEyeCareIntervalOptions,
           onChanged: (v) => _update(s.copyWith(eyeCareIntervalMin: v)),
         ),
         _SwitchTile(
-          title: '允许孩子跳过护眼',
-          subtitle: const Text(
-            '关掉后孩子只能完成休息，跳过按钮不生效',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+          title: l10n.parent_settings_switch_eyecare_skip,
+          subtitle: Text(
+            l10n.parent_settings_eyecare_skip_subtitle,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
           value: s.eyeCareSkipAllowed,
           onChanged: (v) => _update(s.copyWith(eyeCareSkipAllowed: v)),
         ),
         const SizedBox(height: 12),
-        _SectionTitle('环境与音效'),
+        _SectionTitle(l10n.parent_settings_section_sound),
         _SwitchTile(
-          title: '音效',
+          title: l10n.parent_settings_switch_sound,
           value: s.soundOn,
           onChanged: (v) => _update(s.copyWith(soundOn: v)),
         ),
         _SwitchTile(
-          title: '背景音乐',
+          title: l10n.parent_settings_switch_bgm,
           value: s.bgmOn,
           onChanged: (v) => _update(s.copyWith(bgmOn: v)),
         ),
         _SwitchTile(
-          title: '深色主题',
+          title: l10n.parent_settings_switch_dark,
           value: s.themeDark,
           onChanged: (v) => _update(s.copyWith(themeDark: v)),
         ),
@@ -382,17 +415,20 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
         //    **彻底删除** —— 全仓排查该字段零业务消费点（自主核销从未实现），
         //    实体字段 + DB 列（schemaVersion 25 DROP COLUMN）一并移除。
         const SizedBox(height: 12),
-        _SectionTitle('家长锁与赠予'),
+        _SectionTitle(l10n.parent_settings_section_lock),
         ListTile(
           leading: const Icon(Icons.pin),
-          title: const Text('重设家长 PIN'),
+          title: Text(l10n.parent_settings_reset_pin),
           trailing: const Icon(Icons.chevron_right),
           onTap: _resetPin,
         ),
         ListTile(
           leading: const Icon(Icons.workspace_premium),
-          title: const Text('赠予阳光'),
-          subtitle: Text('日上限 $kParentGiftDaily / 月上限 $kParentGiftMonthly'),
+          title: Text(l10n.parent_settings_grant_title),
+          subtitle: Text(l10n.parent_settings_grant_subtitle(
+            kParentGiftDaily,
+            kParentGiftMonthly,
+          )),
           trailing: const Icon(Icons.chevron_right),
           onTap: _grantGift,
         ),
@@ -402,12 +438,12 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
         // 「记录」tab 的分段（`FocusReportSection`），「记录」tab 底部即入口，
         // 设置页再放一张属于双入口冗余（玄参 2026-10-17 反馈「设置里那张报告卡点
         // 进去还是记录页，多一层」）。故本节只剩删除入口 → 标题改为「数据与隐私」。
-        _SectionTitle('数据与隐私'),
+        _SectionTitle(l10n.parent_settings_section_data),
         // 🔴 保留（隐私合规）：本地数据删除权——§10.4 C5 要求家长随时可清空本机数据。
         _EntryCard(
           icon: Icons.delete_forever,
-          title: '删除入口',
-          subtitle: const Text('删除全部本地数据（§10.4 C5）'),
+          title: l10n.parent_settings_entry_delete,
+          subtitle: Text(l10n.parent_settings_entry_delete_sub),
           danger: true,
           onTap: () => context.push('/parent/delete'),
         ),
@@ -422,10 +458,12 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           hideForScreenshots: kHideDebugUi,
         )) ...<Widget>[
           const SizedBox(height: 12),
-          const _SectionTitle('调试（仅 Debug 构建）'),
+          _SectionTitle(l10n.parent_settings_section_debug),
           const DebugUnlockSwitch(),
         ],
       ],
+        );
+      }),
     );
   }
 }
@@ -530,11 +568,13 @@ class _IntTile extends StatelessWidget {
 /// 夜间锁的**唯一取值来源**（§6.1 不变式），但设置页从未暴露 → 真机反馈「没看到
 /// 夜间边界开关」。此处补上，取值档位见 [kNightBoundaryOptions]。
 class _NightBoundaryTile extends StatelessWidget {
+  final AppLocalizations l10n;
   final int hour;
   final int minute;
   final void Function(int hour, int minute) onChanged;
 
   const _NightBoundaryTile({
+    required this.l10n,
     required this.hour,
     required this.minute,
     required this.onChanged,
@@ -552,8 +592,8 @@ class _NightBoundaryTile extends StatelessWidget {
       options.add(<int>[hour, minute]);
     }
     return ListTile(
-      title: const Text('夜间边界'),
-      subtitle: Text('${_fmt(hour, minute)} 起进入夜间（夜锁生效时间）'),
+      title: Text(l10n.parent_settings_night_title),
+      subtitle: Text(l10n.parent_settings_night_subtitle(_fmt(hour, minute))),
       trailing: DropdownButton<int>(
         value: hour * 60 + minute,
         items: options

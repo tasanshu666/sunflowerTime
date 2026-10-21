@@ -25,7 +25,10 @@ import 'package:go_router/go_router.dart';
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 // ⚠️ **跨层引用说明（F141 ⑥）**：`shared/` 引用 `child/widgets/` 属跨层。
 // 允许的理由：付费引导弹窗是**家长端与孩子端共用**的二次确认卡，而「确认卡壳」
 // 目前只在孩子端落地（`ChildConfirmCard`，F135）。为了不让同一 App 出现两套
@@ -36,31 +39,31 @@ import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart'
     show showChildConfirmCard;
 
-/// 能力点的展示名（付费引导文案用）。
-String _featureLabel(FeatureKey f) {
+/// 能力点的展示名（付费引导文案用，i18n B2 经 ARB 取）。
+String _featureLabel(AppLocalizations t, FeatureKey f) {
   switch (f) {
     case FeatureKey.oneClickCare:
-      return '花园一键操作';
+      return t.premium_gate_feature_one_click_care;
     case FeatureKey.gardenPotCapacity:
-      return '更多花盆';
+      return t.premium_gate_feature_pot_capacity;
     case FeatureKey.parentReport:
-      return '家长专注报告';
+      return t.premium_gate_feature_parent_report;
     case FeatureKey.taskTemplateCount:
-      return '更多成长项模板';
+      return t.premium_gate_feature_task_templates;
     case FeatureKey.rewardTemplateCount:
-      return '更多奖励模板';
+      return t.premium_gate_feature_reward_templates;
     case FeatureKey.multiChildProfile:
-      return '多孩子档案';
+      return t.premium_gate_feature_multi_child;
     case FeatureKey.deepReport:
-      return '深度专注报告';
+      return t.premium_gate_feature_deep_report;
     case FeatureKey.exportShare:
-      return '数据导出与分享';
+      return t.premium_gate_feature_export_share;
     case FeatureKey.memoirExport:
-      return '纪念册导出';
+      return t.premium_gate_feature_memoir_export;
     case FeatureKey.familySharing:
-      return '家庭共享';
+      return t.premium_gate_feature_family_sharing;
     case FeatureKey.titlePerks:
-      return '称号专属属性';
+      return t.premium_gate_feature_title_perks;
   }
 }
 
@@ -150,16 +153,20 @@ class PremiumQuotaGate {
       return;
     }
     final int quota = featureQuotaFor(feature, entitlement.tier);
-    final String limit = quota == kUnlimitedQuota ? '不限' : '$quota';
+    // i18n B2：文案在**调用方上下文**（页级 scope 内）取好再进 SnackBar/弹窗 ——
+    // SnackBar 的 content 在 overlay 里重建，不得直调 `AppLocalizations.of`。
+    final AppLocalizations t = l10nOf(context);
+    final String limit =
+        quota == kUnlimitedQuota ? t.shared_unlimited : '$quota';
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
-        content: Text('免费版最多 $limit（当前 $currentCount），删除多余内容后即可新增'),
+        content: Text(t.premium_quota_snack(limit, currentCount)),
         duration: const Duration(milliseconds: 1000),
         action: allowUpsell
             ? SnackBarAction(
-                label: '解锁全部功能',
+                label: t.premium_gate_unlock_all,
                 onPressed: () => context.push('/parent/premium'),
               )
             : null,
@@ -171,11 +178,14 @@ class PremiumQuotaGate {
   static String inlineReason(
     EntitlementTier tier,
     FeatureKey feature,
-    int currentCount,
-  ) {
+    int currentCount, {
+    AppLocalizations? l10n,
+  }) {
+    final AppLocalizations t = l10n ?? AppLocalizationsZh();
     final int quota = featureQuotaFor(feature, tier);
-    final String limit = quota == kUnlimitedQuota ? '不限' : '$quota';
-    return '免费上限 $limit（当前 $currentCount）';
+    final String limit =
+        quota == kUnlimitedQuota ? t.shared_unlimited : '$quota';
+    return t.premium_quota_inline_reason(limit, currentCount);
   }
 }
 
@@ -190,6 +200,8 @@ class PremiumUpsellCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -212,7 +224,7 @@ class PremiumUpsellCard extends StatelessWidget {
               const Text('🌻', style: TextStyle(fontSize: 40)),
               const SizedBox(height: 12),
               Text(
-                '解锁「${_featureLabel(feature)}」',
+                t.premium_gate_upsell_title(_featureLabel(t, feature)),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 17,
@@ -221,15 +233,16 @@ class PremiumUpsellCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                '一次买断，永久解锁全部功能',
+              Text(
+                t.premium_gate_upsell_subtitle,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Color(0xFF9C917E)),
+                style: const TextStyle(
+                    fontSize: 13, color: Color(0xFF9C917E)),
               ),
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () => showPremiumUpsell(context, feature),
-                child: const Text('查看详情'),
+                child: Text(t.premium_gate_upsell_btn),
               ),
             ],
           ),
@@ -244,13 +257,17 @@ class PremiumUpsellCard extends StatelessWidget {
 /// F141 ⑥：改走孩子端**统一确认卡壳** `ChildConfirmCard`（文案逐字不变：
 /// 「升级解锁」/「「X」需要一次性买断解锁。」/「稍后」/「解锁全部功能」）。
 /// 返回语义不变：只有点「解锁全部功能」才 `push('/parent/premium')`。
+///
+/// i18n B2 🔴 **弹窗纪律**：卡壳 builder 在页级 scope 之外 → 文案在此处（调用方
+/// 上下文）解析好，经**参数槽位**传入卡壳。
 Future<void> showPremiumUpsell(BuildContext context, FeatureKey feature) async {
+  final AppLocalizations t = l10nOf(context);
   final bool? ok = await showChildConfirmCard(
     context: context,
-    title: '升级解锁',
-    message: '「${_featureLabel(feature)}」需要一次性买断解锁。',
-    cancelLabel: '稍后',
-    confirmLabel: '解锁全部功能',
+    title: t.premium_gate_upsell_dialog_title,
+    message: t.premium_gate_upsell_dialog_message(_featureLabel(t, feature)),
+    cancelLabel: t.premium_gate_later,
+    confirmLabel: t.premium_gate_unlock_all,
   );
   if (ok != true) return;
   // 卡壳已 pop 后再跳：`await` 之后 context 可能已失效（页面被销毁），故先查 mounted。
@@ -317,9 +334,14 @@ class PremiumUnlockRow {
 ///    （[kUnlimitedQuota] → `'不限'`）。
 ///
 /// [matrix] 仅供测试注入自定义矩阵（生产恒用 [kEntitlementMatrix]）。
+///
+/// i18n B2：[l10n] 缺省回退中文（[AppLocalizationsZh]）—— 纯数据层（单测 / 守卫）
+/// 不依赖 BuildContext 也能拿到与现网逐字节一致的中文展示串。
 List<PremiumUnlockRow> unlockRowsFor({
   Map<FeatureKey, FeatureRule> matrix = kEntitlementMatrix,
+  AppLocalizations? l10n,
 }) {
+  final AppLocalizations t = l10n ?? AppLocalizationsZh();
   final int freePot =
       featureQuotaFor(FeatureKey.gardenPotCapacity, EntitlementTier.free, matrix: matrix);
   final int premiumPot =
@@ -340,43 +362,49 @@ List<PremiumUnlockRow> unlockRowsFor({
   return <PremiumUnlockRow>[
     PremiumUnlockRow(
       key: FeatureKey.oneClickCare,
-      label: '花园「一键操作」',
+      label: t.premium_table_row_one_click,
       freeText: freeOneClick ? '✓' : '✗',
       freeOk: freeOneClick,
-      premiumText: premiumOneClick ? '✓ 不限' : '✗',
+      premiumText: premiumOneClick ? t.premium_table_unlimited : '✗',
       premiumOk: premiumOneClick,
     ),
     PremiumUnlockRow(
       key: FeatureKey.gardenPotCapacity,
-      label: '花盆上限',
-      freeText: _quotaText(freePot, unit: '个'),
+      label: t.premium_table_row_pots,
+      freeText: _quotaPots(t, freePot),
       freeOk: true,
-      premiumText: premiumPot == kUnlimitedQuota ? '✓ 不限' : '最多 $premiumPot',
+      premiumText: premiumPot == kUnlimitedQuota
+          ? t.premium_table_unlimited
+          : t.premium_table_max(premiumPot),
       premiumOk: true,
       // C70：买断只解锁「扩容资格」，扩容仍需花阳光 —— 必须如实标注。
-      note: '扩容仍需花阳光',
+      note: t.premium_table_pots_note,
     ),
     PremiumUnlockRow(
       key: FeatureKey.taskTemplateCount,
-      label: '成长项模板',
-      freeText: _quotaText(freeTask, unit: '条'),
+      label: t.premium_table_row_tasks,
+      freeText: _quotaItems(t, freeTask),
       freeOk: true,
-      premiumText: premiumTask == kUnlimitedQuota ? '✓ 不限' : '最多 $premiumTask',
+      premiumText: premiumTask == kUnlimitedQuota
+          ? t.premium_table_unlimited
+          : t.premium_table_max(premiumTask),
       premiumOk: true,
     ),
     PremiumUnlockRow(
       key: FeatureKey.rewardTemplateCount,
-      label: '奖励模板',
-      freeText: _quotaText(freeReward, unit: '条'),
+      label: t.premium_table_row_rewards,
+      freeText: _quotaItems(t, freeReward),
       freeOk: true,
-      premiumText: premiumReward == kUnlimitedQuota ? '✓ 不限' : '最多 $premiumReward',
+      premiumText: premiumReward == kUnlimitedQuota
+          ? t.premium_table_unlimited
+          : t.premium_table_max(premiumReward),
       premiumOk: true,
     ),
     // C80 第 5 行：称号专属属性。freeOk 派生自矩阵（与其余布尔行同款），
     // premiumText 由 [kFocusLevelTitleLevels.length] 派生（9 派生，防漂移）。
     PremiumUnlockRow(
       key: FeatureKey.titlePerks,
-      label: '称号属性',
+      label: t.premium_table_row_perks,
       freeText: featureAllowedFor(
               FeatureKey.titlePerks, EntitlementTier.free,
               matrix: matrix)
@@ -384,13 +412,22 @@ List<PremiumUnlockRow> unlockRowsFor({
           : '✗',
       freeOk: featureAllowedFor(
           FeatureKey.titlePerks, EntitlementTier.free, matrix: matrix),
-      premiumText: '✓ ${kFocusLevelTitleLevels.length} 条',
+      premiumText:
+          t.premium_table_perks_count(kFocusLevelTitleLevels.length),
       premiumOk: featureAllowedFor(
           FeatureKey.titlePerks, EntitlementTier.premium, matrix: matrix),
     ),
   ];
 }
 
-/// 配额展示串：`kUnlimitedQuota` → `'不限'`，否则 `'$quota $unit'`（如 `'4 个'`）。
-String _quotaText(int quota, {required String unit}) =>
-    quota == kUnlimitedQuota ? '不限' : '$quota $unit';
+/// 配额展示串（花盆）：`kUnlimitedQuota` → 不限，否则 `'$quota 个'`。
+String _quotaPots(AppLocalizations t, int quota) =>
+    quota == kUnlimitedQuota
+        ? t.shared_unlimited
+        : t.premium_table_free_pots(quota);
+
+/// 配额展示串（模板类）：`kUnlimitedQuota` → 不限，否则 `'$quota 条'`。
+String _quotaItems(AppLocalizations t, int quota) =>
+    quota == kUnlimitedQuota
+        ? t.shared_unlimited
+        : t.premium_table_free_items(quota);

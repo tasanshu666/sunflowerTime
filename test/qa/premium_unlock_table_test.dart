@@ -25,10 +25,16 @@ import 'package:sunflower_time/core/constants/iap_product_ids.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/repositories/entitlement_repository.dart';
+import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/services/entitlement_service.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/platform/iap_service.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
+import 'package:sunflower_time/presentation/parent/pages/parent_settings_page.dart';
 import 'package:sunflower_time/presentation/parent/widgets/premium_unlock_table.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 
@@ -213,11 +219,59 @@ Future<void> _pumpTable(
   await tester.pump();
 }
 
+/// 家长设置页的最小夹具（i18n B2：T1 守卫改「真实入口」渲染后需要泵整页）。
+///
+/// 只覆盖 [ParentSettingsPage] **build 期**真正读到的依赖：
+/// `settingsRepositoryProvider`（`initState` 拉一次设置）与 `entitlementProvider`
+/// （`PremiumStatusText` / `DebugUnlockSwitch`）。PIN 重设（`secureStoreProvider`）
+/// 与阳光赠予（`sunlightRepositoryProvider`）只在点按时读，本守卫不点，故不装配。
+class _FakeSettingsRepo implements SettingsRepository {
+  @override
+  Future<AppSettings> getSettings() async => const AppSettings(
+        ageTier: AgeTier.low,
+        dailyFocusCap: 90,
+        dailyAppCapMinutes: 30,
+        restAfterSessions: 2,
+        restMinutes: 10,
+        taskSunlight: 12,
+        poolBudget: 160,
+        gardenPotCapacity: 6,
+      );
+
+  @override
+  Future<void> saveSettings(AppSettings s) async {}
+}
+
+/// 泵家长设置页（视口调高使 `ListView` 一次性布局，避免懒加载漏建控件）。
+Future<void> _pumpSettingsPage(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(400, 5000);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  final ProviderContainer container = ProviderContainer(
+    overrides: <Override>[
+      settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepo()),
+      entitlementProvider.overrideWith((Ref ref) => Entitlement.free),
+    ],
+  );
+  addTearDown(container.dispose);
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: ParentSettingsPage())),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 50));
+}
+
 void main() {
   final String root = _projectRoot();
 
   // ───────────────────────────── T1 更名守卫 ─────────────────────────────
-  group('阶段5 · T1 更名守卫（源码）', () {
+  group('阶段5 · T1 更名守卫（源码 + 真实入口渲染）', () {
     test('lib/** 不再出现旧名「会员与购买」/「了解会员」', () {
       final List<String> hits =
           _scanLib(root, <String>['会员与购买', '了解会员']);
@@ -229,40 +283,155 @@ void main() {
       expect(hits, isEmpty, reason: 'Q2 标题统一未落地：\n${hits.join('\n')}');
     });
 
-    test('6 处 UI 文案均为「解锁全部功能」', () {
-      final String premium = _read(
-          root, 'lib/presentation/parent/pages/parent_premium_page.dart');
-      final String settings =
-          _read(root, 'lib/presentation/parent/pages/parent_settings_page.dart');
-      final String gate = _read(root, 'lib/presentation/shared/premium_gate.dart');
-
-      // 4 处更名
-      expect(premium.contains("AppBar(title: const Text('解锁全部功能'))"), isTrue,
-          reason: '购买页 AppBar 标题应为「解锁全部功能」');
-      expect(settings.contains("_SectionTitle('解锁全部功能')"), isTrue,
-          reason: '设置页分区标题应为「解锁全部功能」');
-      expect(gate.contains("label: '解锁全部功能',"), isTrue,
-          reason: '配额轻提示动作应为「解锁全部功能」');
-      // F141 ⑥：升级引导弹窗改走孩子端统一卡壳 `showChildConfirmCard`（文案逐字
-      // 未变，仅写法从 `const Text('解锁全部功能'),` 变成卡壳的 `confirmLabel:`）。
-      // 本守卫的意图是「文案不得回归」，故匹配**当前**调用形态的同一字面量。
-      expect(gate.contains("confirmLabel: '解锁全部功能',"), isTrue,
-          reason: '升级引导弹窗按钮应为「解锁全部功能」');
-      // 2 处标题统一（Q2）
-      expect(premium.contains("'解锁全部功能',"), isTrue,
-          reason: '主卡标题应为「解锁全部功能」');
-      expect(settings.contains("title: '解锁全部功能',"), isTrue,
-          reason: '设置入口卡标题应为「解锁全部功能」');
+    // ── i18n B2：文案已全部迁入 ARB，源码里**不再有中文字面量**可钉 ──
+    //
+    // 守卫改为**两段式**（原文「逐字钉死 6 处中文」已随迁移失效）：
+    //  ③-1 ARB 模板（zh）的文案槽位必须逐字为「解锁全部功能」——防译文回归 / 被改写；
+    //  ③-2 从**真实入口**（购买页 / 设置页 / 门控 API）渲染出来的文案必须是该值
+    //       ——防「ARB 对了但接线断了」。组件层自己传参不算验证（`confirmLabel:`
+    //       是 `showPremiumUpsell` 从 ARB 取好再传进卡壳的，属实现细节），故一律
+    //       走真入口泵页面 / 触发真 API 后断言屏幕上出现了什么。
+    test('③-1 ARB 模板：文案槽位逐字为「解锁全部功能」', () {
+      final AppLocalizations zh = AppLocalizationsZh();
+      expect(zh.parent_premium_title, '解锁全部功能',
+          reason: '购买页 AppBar 标题 + 主卡标题（2 处，Q2 标题统一）');
+      expect(zh.premium_gate_unlock_all, '解锁全部功能',
+          reason: '设置页分区标题 + 设置入口卡标题 + 配额轻提示动作 + 升级弹窗按钮'
+              '（4 处，4 处更名）');
     });
 
-    test('保留文案未被误改（描述句 / 升级动作）', () {
-      final String gate = _read(root, 'lib/presentation/shared/premium_gate.dart');
-      expect(gate.contains('一次买断，永久解锁全部功能'), isTrue,
+    testWidgets('③-2 真实入口①购买页：AppBar 标题与主卡标题均为「解锁全部功能」',
+        (WidgetTester tester) async {
+      final _Env env = _buildEnv();
+      addTearDown(env.container.dispose);
+      addTearDown(env.adapter.dispose);
+
+      await _pumpPage(tester, env);
+      // 有界 pump 至商品加载完成（价格串来自商店，加载完才渲染主按钮）。
+      await _pumpUntil(
+        tester,
+        () => find.textContaining('立即解锁').evaluate().isNotEmpty,
+        maxFrames: 200,
+      );
+
+      expect(find.widgetWithText(AppBar, '解锁全部功能'), findsOneWidget,
+          reason: '购买页 AppBar 标题应渲染「解锁全部功能」');
+      expect(find.text('解锁全部功能'), findsNWidgets(2),
+          reason: '购买页恰好 2 处：AppBar 标题 + 主卡标题（不得回归旧名）');
+    });
+
+    testWidgets('③-2 真实入口②设置页：分区标题与入口卡标题均为「解锁全部功能」',
+        (WidgetTester tester) async {
+      await _pumpSettingsPage(tester);
+
+      expect(find.text('解锁全部功能'), findsNWidgets(2),
+          reason: '设置页恰好 2 处：分区标题 + 金令牌入口卡标题（不得回归旧名）');
+    });
+
+    testWidgets('③-2 真实入口③门控 API：升级弹窗 4 处文案为迁移后取值',
+        (WidgetTester tester) async {
+      // 走 `PremiumGate.onTap`（生产页面调用的**唯一**回调型门控入口）：
+      // `oneClickCare` 在免费档由矩阵**关闭**（布尔能力），应弹升级引导。
+      // （注意不能选 `gardenPotCapacity` —— 它是**计数**能力，免费档仍放行，
+      //  达上限才由 `PremiumQuotaGate` 拦，见下一用例。）
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: ProviderContainer(
+            overrides: <Override>[
+              entitlementProvider.overrideWith((Ref ref) => Entitlement.free),
+            ],
+          ),
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (BuildContext context) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => PremiumGate.onTap(
+                      context,
+                      FeatureKey.oneClickCare,
+                      () {},
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('升级解锁'), findsOneWidget, reason: '弹窗标题');
+      expect(find.text('「花园一键操作」需要一次性买断解锁。'), findsOneWidget,
+          reason: '能力点名 + 一次性买断说明（带参 key，防占位符顺序漂移）');
+      expect(find.text('稍后'), findsOneWidget, reason: '取消按钮');
+      expect(find.text('解锁全部功能'), findsOneWidget, reason: '确认按钮');
+    });
+  });
+
+  testWidgets('③-2 真实入口④配额门控：达上限轻提示动作文案已迁移',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: ProviderContainer(
+          overrides: <Override>[
+            entitlementProvider.overrideWith((Ref ref) => Entitlement.free),
+          ],
+        ),
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (BuildContext context) => Center(
+                child: ElevatedButton(
+                  // 生产调用点：`parent_task_config_page` 的「新增」按钮。
+                  onPressed: () => PremiumQuotaGate.onTap(
+                    context: context,
+                    feature: FeatureKey.taskTemplateCount,
+                    currentCount: 5,
+                    onAllowed: () {},
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pump();
+
+    expect(find.text('免费版最多 5（当前 5），删除多余内容后即可新增'), findsOneWidget,
+        reason: '轻提示正文（带参 key，limit / count 顺序不得漂移）');
+    expect(find.text('解锁全部功能'), findsOneWidget,
+        reason: '轻提示动作应渲染「解锁全部功能」');
+  });
+
+  group('阶段5 · T1 保留文案未被误改（描述句 / 升级动作）', () {
+    test('ARB 模板：引导卡描述句与弹窗标题逐字保留', () {
+      final AppLocalizations zh = AppLocalizationsZh();
+      expect(zh.premium_gate_upsell_subtitle, '一次买断，永久解锁全部功能',
           reason: '引导卡描述句应保留原样');
-      // F141 ⑥：同上，标题从 `const Text('升级解锁')` 变为卡壳的 `title:` 入参，
-      // 文案字面量本身一字未改。
-      expect(gate.contains("title: '升级解锁',"), isTrue,
+      expect(zh.premium_gate_upsell_dialog_title, '升级解锁',
           reason: '弹窗标题「升级解锁」应保留原样');
+    });
+
+    testWidgets('真实入口：引导卡渲染出的描述句为原文（不得被误改）',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: PremiumUpsellCard(feature: FeatureKey.oneClickCare)),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('解锁「花园一键操作」'), findsOneWidget,
+          reason: '标题带能力点名（带参 key）');
+      expect(find.text('一次买断，永久解锁全部功能'), findsOneWidget,
+          reason: '描述句应保留原样');
     });
   });
 
@@ -536,15 +705,32 @@ void main() {
   });
 
   group('阶段5 · T9 Apple 硬性要求存活（源码 + widget）', () {
-    test('源码守卫：恢复购买入口 + 诚实说明卡 4 条仍在', () {
+    test('源码守卫：恢复购买入口 + 诚实说明卡 4 条仍在（i18n B2：钉 ARB key 接线）', () {
       final String src = _read(
           root, 'lib/presentation/parent/pages/parent_premium_page.dart');
       expect(src.contains('kPremiumRestoreButtonKey'), isTrue,
           reason: '「恢复购买」按钮 Key 不得删除');
-      expect(src.contains('恢复购买'), isTrue);
-      expect(src.contains('不是订阅'), isTrue, reason: '第 1 条：非订阅');
-      expect(src.contains('Android'), isTrue, reason: '第 3 条：跨平台不互通');
-      expect(src.contains('支付信息'), isTrue, reason: '第 4 条：支付由 Apple 处理');
+      // i18n B2：文案已迁入 ARB，源码里钉的是**接线**（页内必须消费这些 key），
+      // 文案本体由下面的 ARB 模板断言兜底 —— 两段合起来才等价于原来的「文案不得
+      // 删除」，且不会因为「迁到 ARB」而误判为回归。
+      expect(src.contains('t.parent_premium_restore'), isTrue,
+          reason: '「恢复购买」文案必须来自 ARB');
+      expect(src.contains('t.parent_premium_note_1'), isTrue,
+          reason: '第 1 条：非订阅');
+      expect(src.contains('t.parent_premium_note_3'), isTrue,
+          reason: '第 3 条：跨平台不互通');
+      expect(src.contains('t.parent_premium_note_4'), isTrue,
+          reason: '第 4 条：支付由 Apple 处理');
+
+      final AppLocalizations zh = AppLocalizationsZh();
+      expect(zh.parent_premium_restore, '恢复购买',
+          reason: 'Apple 对可恢复内购（非消耗型）硬性要求「恢复购买」入口');
+      expect(zh.parent_premium_note_1.contains('不是订阅'), isTrue,
+          reason: '第 1 条：非订阅');
+      expect(zh.parent_premium_note_3.contains('Android'), isTrue,
+          reason: '第 3 条：跨平台不互通');
+      expect(zh.parent_premium_note_4.contains('支付信息'), isTrue,
+          reason: '第 4 条：支付由 Apple 处理');
     });
 
     testWidgets('渲染守卫：恢复购买入口存在', (WidgetTester tester) async {

@@ -21,10 +21,12 @@ import 'package:intl/intl.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
@@ -71,11 +73,12 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
 
   /// 单张待核销奖励卡（模板可能缺失 → 兜底「未知奖励」）。
   Widget _requestCard(_TodayData data, RedemptionRequest req) {
+    final AppLocalizations t = l10nOf(context);
     final RewardTemplate? tpl = data.templates[req.templateId];
     final RewardTemplate template = tpl ??
         RewardTemplate(
           id: req.templateId,
-          name: '未知奖励',
+          name: t.parent_today_unknown_reward,
           category: RewardCategory.parentHandled,
           baseCost: req.cost,
           frequencyLimitPerWeek: 1,
@@ -89,74 +92,84 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<_TodayData>(
-      future: _future,
-      builder: (BuildContext context, AsyncSnapshot<_TodayData> snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snap.hasError) {
-          // §7.5：DAO 异常向上抛，UI 降级提示 + 重试。
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Text('加载失败：${snap.error}'),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: _reload,
-                  child: const Text('重试'),
+    // 🔴 页级 L10nScope（i18n B2）：全页文案经 AppLocalizations 解析；Builder 的
+    // context 位于 scope 之下。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          final AppLocalizations l10n = AppLocalizations.of(context);
+          return FutureBuilder<_TodayData>(
+            future: _future,
+            builder: (BuildContext context, AsyncSnapshot<_TodayData> snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                // §7.5：DAO 异常向上抛，UI 降级提示 + 重试。
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Text(l10n.shared_load_failed('${snap.error}')),
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: _reload,
+                        child: Text(l10n.shared_retry),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final _TodayData data = snap.data!;
+              final bool hasPending = data.pendingCheckIns.isNotEmpty;
+              final bool hasRequests = data.requests.isNotEmpty;
+
+              final List<Widget> cards = <Widget>[
+                if (hasPending)
+                  _PendingCheckInsCard(
+                    items: data.pendingCheckIns,
+                    onResolved: _reload,
+                  ),
+                if (hasPending && hasRequests) const SizedBox(height: 20),
+                for (final RedemptionRequest req in data.requests)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _requestCard(data, req),
+                  ),
+              ];
+              if (!hasPending && !hasRequests) {
+                cards.add(Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: Text(l10n.parent_today_empty,
+                        style: const TextStyle(fontSize: 18)),
+                  ),
+                ));
+              }
+              // 调试期临时开关（仅 debug 构建渲染，release 自动消失）。
+              // 🔴 2026-10-19（玄参）：截商店图时这张卡会入镜 → 构建期开关 [kHideDebugUi]
+              // （`--dart-define=HIDE_DEBUG_UI=true`）可显式关闭；默认仍显示。
+              if (shouldShowDebugUi(
+                debugMode: kDebugMode,
+                hideForScreenshots: kHideDebugUi,
+              )) {
+                cards.add(const _DebugCapSwitchCard());
+              }
+
+              return RefreshIndicator(
+                onRefresh: () async {
+                  _reload();
+                },
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: cards,
                 ),
-              ],
-            ),
+              );
+            },
           );
-        }
-
-        final _TodayData data = snap.data!;
-        final bool hasPending = data.pendingCheckIns.isNotEmpty;
-        final bool hasRequests = data.requests.isNotEmpty;
-
-        final List<Widget> cards = <Widget>[
-          if (hasPending)
-            _PendingCheckInsCard(
-              items: data.pendingCheckIns,
-              onResolved: _reload,
-            ),
-          if (hasPending && hasRequests) const SizedBox(height: 20),
-          for (final RedemptionRequest req in data.requests)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _requestCard(data, req),
-            ),
-        ];
-        if (!hasPending && !hasRequests) {
-          cards.add(const Padding(
-            padding: EdgeInsets.symmetric(vertical: 32),
-            child: Center(
-              child: Text('暂无待确认奖励 🎉', style: TextStyle(fontSize: 18)),
-            ),
-          ));
-        }
-        // 调试期临时开关（仅 debug 构建渲染，release 自动消失）。
-        // 🔴 2026-10-19（玄参）：截商店图时这张卡会入镜 → 构建期开关 [kHideDebugUi]
-        // （`--dart-define=HIDE_DEBUG_UI=true`）可显式关闭；默认仍显示。
-        if (shouldShowDebugUi(
-          debugMode: kDebugMode,
-          hideForScreenshots: kHideDebugUi,
-        )) {
-          cards.add(const _DebugCapSwitchCard());
-        }
-
-        return RefreshIndicator(
-          onRefresh: () async {
-            _reload();
-          },
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: cards,
-          ),
-        );
-      },
+        },
+      ),
     );
   }
 }
@@ -208,23 +221,27 @@ class _DebugCapSwitchCardState extends ConsumerState<_DebugCapSwitchCard> {
 
   Future<void> _toggle(bool v) async {
     setState(() => _bypass = v);
+    final AppLocalizations t = l10nOf(context);
     try {
       await ref.read(settingsStoreProvider).setDebugCapBypass(v);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(v ? '已跳过 30 分钟限时（调试）' : '已恢复 30 分钟限时拦截'),
+        content: Text(v
+            ? t.parent_today_debug_cap_on_snack
+            : t.parent_today_debug_cap_off_snack),
       ));
     } catch (_) {
       if (!mounted) return;
       setState(() => _bypass = !v); // 写失败回滚。
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('保存失败，请重试')),
+        SnackBar(content: Text(t.parent_today_debug_save_fail_snack)),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations t = l10nOf(context);
     return Padding(
       padding: const EdgeInsets.only(top: 24),
       child: Container(
@@ -240,13 +257,13 @@ class _DebugCapSwitchCardState extends ConsumerState<_DebugCapSwitchCard> {
             value: _bypass,
             onChanged: _toggle,
             activeThumbColor: const Color(0xFF64B5F6),
-            title: const Text(
-              '🧪 调试：跳过 30 分钟限时',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            title: Text(
+              t.parent_today_debug_cap_title,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
-            subtitle: const Text(
-              '调试期间默认开启（不进限时状态）；关闭后恢复防沉迷拦截。仅调试包可见。',
-              style: TextStyle(fontSize: 12),
+            subtitle: Text(
+              t.parent_today_debug_cap_subtitle,
+              style: const TextStyle(fontSize: 12),
             ),
           ),
         ),
@@ -266,6 +283,7 @@ class _PendingCheckInsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations t = l10nOf(context);
     return Container(
       decoration: creamCardDecoration(),
       child: Padding(
@@ -277,13 +295,14 @@ class _PendingCheckInsCard extends StatelessWidget {
               children: <Widget>[
                 const Icon(Icons.hourglass_top, color: Colors.orange),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    '待确认的成长项',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    t.parent_today_pending_title,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
-                Text('${items.length} 项',
+                Text(t.parent_today_count(items.length),
                     style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
@@ -322,45 +341,53 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
   Future<void> _confirm() async {
     if (_busy) return;
     setState(() => _busy = true);
+    final AppLocalizations t = l10nOf(context);
     try {
       final TaskCheckInOutcome outcome = await ref
           .read(taskCheckInServiceProvider)
           .verifyCheckIn(widget.item.checkIn.id, DateTime.now());
       if (!mounted) return;
       final String capped = outcome.cappedByDailyCap
-          ? '（今日成长奖励已达上限，本次只到账 ${_fmtSun(outcome.granted)} ☀）'
+          ? t.parent_today_capped_note(_fmtSun(outcome.granted))
           : '';
-      _snack('已确认发放，+${_fmtSun(outcome.granted)} 阳光 🌻$capped');
+      _snack(t.parent_today_confirm_ok_snack(
+        _fmtSun(outcome.granted),
+        capped,
+      ));
       // 同步孩子端：自增经济修订号 → 今日卡 / 成长 / 商店 / 花园刷新。
       ref.read(economyRevisionProvider.notifier).state++;
       widget.onResolved?.call();
     } on TaskCheckInException catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
-      _snack('确认失败：${e.message}');
+      _snack(t.parent_today_confirm_fail_snack(e.message));
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
-      _snack('确认失败：$e');
+      _snack(t.parent_today_confirm_fail_snack(e));
     }
   }
 
   /// 驳回：可选理由 → 不发放、状态置 rejected、从待办消失。
   Future<void> _reject() async {
     if (_busy) return;
+    final AppLocalizations t = l10nOf(context);
     String note = '';
     final bool? ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('驳回这项成长？'),
+        title: Text(t.parent_today_reject_title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('将不发放「${widget.item.task?.name ?? '（已删除的成长项）'}」的阳光。'),
+            Text(t.parent_today_reject_body(
+              widget.item.task?.name ?? t.parent_today_deleted_task,
+            )),
             const SizedBox(height: 8),
             TextField(
-              decoration: const InputDecoration(labelText: '理由（选填）'),
+              decoration:
+                  InputDecoration(labelText: t.parent_today_reject_reason),
               maxLines: 2,
               onChanged: (String v) => note = v,
             ),
@@ -369,12 +396,12 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child: Text(t.shared_cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('确认驳回'),
+            child: Text(t.parent_today_reject_ok),
           ),
         ],
       ),
@@ -388,17 +415,17 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
             now: DateTime.now(),
           );
       if (!mounted) return;
-      _snack('已驳回 🌞 这项不会发阳光');
+      _snack(t.parent_today_rejected_snack);
       ref.read(economyRevisionProvider.notifier).state++;
       widget.onResolved?.call();
     } on TaskCheckInException catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
-      _snack('驳回失败：${e.message}');
+      _snack(t.parent_today_reject_fail_snack(e.message));
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
-      _snack('驳回失败：$e');
+      _snack(t.parent_today_reject_fail_snack(e));
     }
   }
 
@@ -409,8 +436,9 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations t = l10nOf(context);
     final PendingCheckIn p = widget.item;
-    final String name = p.task?.name ?? '（已删除的成长项）';
+    final String name = p.task?.name ?? t.parent_today_deleted_task;
     final String submitted =
         DateFormat('yyyy-MM-dd HH:mm').format(p.checkIn.completedAt);
     return Padding(
@@ -437,14 +465,14 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  '应发 ${_fmtSun(p.checkIn.sunlightGross)} 阳光',
+                  t.parent_today_should_grant(_fmtSun(p.checkIn.sunlightGross)),
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          Text('提交于 $submitted',
+          Text(t.parent_today_submitted_at(submitted),
               style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 8),
           Row(
@@ -460,7 +488,7 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text('驳回'),
+                  child: Text(t.parent_today_btn_reject),
                 ),
               ),
               const SizedBox(width: 12),
@@ -476,7 +504,7 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('确认发放'),
+                      : Text(t.parent_today_btn_confirm),
                 ),
               ),
             ],

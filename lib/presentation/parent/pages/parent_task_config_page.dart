@@ -12,9 +12,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/parent/widgets/task_editor_dialog.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
@@ -54,7 +56,7 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('加载失败：$e')));
+            .showSnackBar(SnackBar(content: Text(l10nOf(context).shared_load_failed('$e'))));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -74,20 +76,22 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
   }
 
   Future<void> _delete(Task t) async {
+    // i18n B2 🔴 弹窗纪律：文案在页级 scope 内取好，经参数槽位传入弹窗。
+    final AppLocalizations l10n = l10nOf(context);
     final bool? ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('删除成长项？'),
-        content: Text('确定删除「${t.name}」？已生成的打卡记录会保留。'),
+        title: Text(l10n.parent_task_config_delete_title),
+        content: Text(l10n.parent_task_config_delete_body(t.name)),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n.shared_cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('删除'),
+            child: Text(l10n.shared_delete),
           ),
         ],
       ),
@@ -108,17 +112,21 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
       FeatureKey.taskTemplateCount,
       _tasks.length,
     );
-    return Scaffold(
+    // 🔴 页级 L10nScope（i18n B2）：全页文案经 AppLocalizations 解析。
+    return L10nScope(
+      child: Builder(builder: (BuildContext context) {
+        final AppLocalizations l10n = AppLocalizations.of(context);
+        return Scaffold(
       // 内嵌（任务 tab）时不叠加第二层 AppBar：外层家长端 AppBar 已在顶部。
       // 独立路由形态下，把「新增」放到 AppBar 右上角（内嵌形态则用列表内工具条）。
       appBar: widget.embedded
           ? null
           : AppBar(
-              title: const Text('成长配置'),
+              title: Text(l10n.parent_task_config_title),
               actions: <Widget>[
                 IconButton(
                   icon: const Icon(Icons.add),
-                  tooltip: '新增成长项',
+                  tooltip: l10n.parent_task_edit_title_new,
                   // 达上限 → 置灰；但仍可点（走分因提示，C62：不可点 ≠ onTap:null）。
                   color: canAdd ? null : Colors.grey,
                   onPressed: () => PremiumQuotaGate.onTap(
@@ -135,21 +143,23 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
           : ListView(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
               children: <Widget>[
-                _headerBar(canAdd, tier),
+                _headerBar(l10n, canAdd, tier),
                 if (_tasks.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32),
                     child: Center(
-                      child: Text('还没有成长项，点右上角「新增成长项」创建一个吧'),
+                      child: Text(l10n.parent_task_config_empty),
                     ),
                   )
                 else
                   for (int i = 0; i < _tasks.length; i++) ...<Widget>[
                     if (i > 0) const SizedBox(height: 8),
-                    _taskCard(_tasks[i]),
+                    _taskCard(l10n, _tasks[i]),
                   ],
               ],
             ),
+        );
+      }),
     );
   }
 
@@ -157,7 +167,11 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
   ///
   /// 阶段 4：达免费上限时按钮**置灰 + 内联原因**，点击走 [PremiumQuotaGate.onTap]
   /// （1s 轻提示 + 「解锁全部功能」），**不置空回调**（C62）。
-  Widget _headerBar(bool canAdd, EntitlementTier tier) {
+  Widget _headerBar(
+    AppLocalizations l10n,
+    bool canAdd,
+    EntitlementTier tier,
+  ) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
       child: Column(
@@ -165,13 +179,14 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
         children: <Widget>[
           Row(
             children: <Widget>[
-              const Text(
-                '成长任务',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Text(
+                l10n.parent_task_config_list_title,
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(width: 8),
               Text(
-                '${_tasks.length} 项',
+                l10n.parent_today_count(_tasks.length),
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
               const Spacer(),
@@ -187,7 +202,7 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                 style: canAdd
                     ? null
                     : OutlinedButton.styleFrom(foregroundColor: Colors.grey),
-                label: const Text('新增成长项'),
+                label: Text(l10n.parent_task_edit_title_new),
               ),
             ],
           ),
@@ -195,8 +210,12 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                '${PremiumQuotaGate.inlineReason(tier, FeatureKey.taskTemplateCount, _tasks.length)}'
-                '，删除多余条目后即可新增',
+                l10n.parent_reward_quota_hint(PremiumQuotaGate.inlineReason(
+                  tier,
+                  FeatureKey.taskTemplateCount,
+                  _tasks.length,
+                  l10n: l10n,
+                )),
                 style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
               ),
             ),
@@ -206,7 +225,7 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
   }
 
   /// 单张成长项卡（图标 + 名称 + 标签 + 编辑 / 删除）。
-  Widget _taskCard(Task t) {
+  Widget _taskCard(AppLocalizations l10n, Task t) {
     final ({Color bg, Color fg}) cat = macaronColorById(t.id);
     // F130（2026-10-19 玄参 iPad Pro 13″ 实测）：本卡与「奖励」页卡片同款版式，
     // 同样是「文字之外的定尺寸元素没跟随放大」——1.6 倍下字变大、图标块仍 56pt，
@@ -305,7 +324,7 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                     ),
                     if (t.requiresFocus)
                       pillLabel(
-                        text: '专注 ${t.minFocusMin} 分',
+                        text: l10n.parent_task_config_focus_pill(t.minFocusMin),
                         bg: Colors.teal.shade50,
                         fg: Colors.teal.shade700,
                       ),
@@ -319,12 +338,12 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
             children: <Widget>[
               IconButton(
                 icon: const Icon(Icons.edit, color: Colors.blueGrey),
-                tooltip: '编辑',
+                tooltip: l10n.shared_edit,
                 onPressed: () => _openEditor(initial: t),
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: Colors.red),
-                tooltip: '删除',
+                tooltip: l10n.shared_delete,
                 onPressed: () => _delete(t),
               ),
             ],

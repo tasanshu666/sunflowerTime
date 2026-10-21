@@ -22,6 +22,7 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/repositories/entitlement_repository.dart';
 import 'package:sunflower_time/domain/services/entitlement_service.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/platform/iap_service.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
 
@@ -394,12 +395,17 @@ void main() {
   });
 
   group('购买页 · 「恢复购买」入口守卫（防拒审）', () {
-    test('源码守卫：购买页必须含「恢复购买」入口文案', () {
+    test('源码守卫：购买页必须接线「恢复购买」ARB 文案（i18n B2 后不再有字面量）',
+        () {
       final String src = File(
         '$root/lib/presentation/parent/pages/parent_premium_page.dart',
       ).readAsStringSync();
-      expect(src.contains('恢复购买'), isTrue,
+      // i18n B2：文案已迁入 ARB，源码里钉**接线**（页内消费该 key），文案本体由
+      // ARB 模板断言兜底；二者合起来等价于原来的字面量守卫。
+      expect(src.contains('t.parent_premium_restore'), isTrue,
           reason: 'Apple 对可恢复内购（非消耗型）硬性要求「恢复购买」入口，缺了必被拒审');
+      expect(AppLocalizationsZh().parent_premium_restore, '恢复购买',
+          reason: 'ARB 模板必须逐字为「恢复购买」');
     });
 
     test('源码守卫：购买页不得硬编码货币金额（价格只来自商店）', () {

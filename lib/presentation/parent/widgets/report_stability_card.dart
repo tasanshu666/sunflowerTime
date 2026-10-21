@@ -15,7 +15,9 @@ library report_stability_card;
 
 import 'package:flutter/material.dart';
 
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/services/focus_report_service.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/report_palette.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
@@ -45,6 +47,8 @@ class ReportStabilityCard extends StatelessWidget {
     if (!unlocked) return lockedPlaceholder;
 
     final ReportPalette palette = ReportPalette.of(context);
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
     final List<int> trend = report.weeklyValidDayTrend;
 
     if (trend.isEmpty) {
@@ -56,7 +60,7 @@ class ReportStabilityCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
-          '近 4 周还没有专注记录。',
+          t.parent_report_stability_empty,
           style: TextStyle(fontSize: 12.5, color: palette.inkAt(0.8)),
         ),
       );
@@ -94,7 +98,9 @@ class ReportStabilityCard extends StatelessWidget {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      i == trend.length - 1 ? '本周' : '${trend.length - i - 1} 周前',
+                      i == trend.length - 1
+                          ? t.parent_report_week_this
+                          : t.parent_report_weeks_ago(trend.length - i - 1),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 11.5,
@@ -128,7 +134,7 @@ class ReportStabilityCard extends StatelessWidget {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      '稳定性 $stabilityPercent%',
+                      t.parent_report_stability_score(stabilityPercent),
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,

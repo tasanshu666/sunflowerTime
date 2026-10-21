@@ -946,5 +946,760 @@
       }
     }
   },
-  "fx_level_up_perk_locked": " · 🔒付费解锁"
+  "fx_level_up_perk_locked": " · 🔒付费解锁",
+  "shared_edit": "编辑",
+  "shared_delete": "删除",
+
+  "parent_home_title": "家长天地",
+  "parent_home_back_tooltip": "返回孩子端",
+  "parent_home_tab_today": "今日",
+  "parent_home_tab_reward": "奖励",
+  "parent_home_tab_growth": "成长",
+  "parent_home_tab_history": "记录",
+  "parent_home_tab_settings": "设置",
+  "parent_login_enter_pin": "请输入家长 PIN",
+  "parent_login_setup_pin": "首次进入，请设置家长 PIN",
+  "parent_login_btn_enter": "进入",
+  "parent_login_btn_setup": "设置并进入",
+  "parent_login_err_short": "PIN 至少 4 位",
+  "parent_login_err_wrong": "PIN 不正确",
+
+  "parent_delete_title": "删除入口",
+  "parent_delete_right_title": "数据删除权（§10.4 C5）",
+  "parent_delete_right_body": "你拥有删除全部本地数据的权利。删除后所有进度与设置将不可恢复。",
+  "parent_delete_dlg_title": "删除全部本地数据？",
+  "parent_delete_dlg_body": "此操作将永久删除：专注记录、阳光账本、植物、成长项、奖励模板、家长 PIN 与所有本地设置，且无法恢复。\n\n建议先「导出成册」留存（导出功能将在 V2 上线）。",
+  "parent_delete_btn_ok": "确认删除",
+  "parent_delete_btn_export": "导出成册（V2 上线）",
+  "parent_delete_export_snack": "导出成册功能将在 V2 上线，请先截图留存",
+  "parent_delete_btn_all": "删除全部本地数据",
+  "parent_delete_btn_deleting": "删除中…",
+  "parent_delete_done_snack": "已删除全部本地数据",
+  "parent_delete_fail_snack": "删除失败：{error}",
+  "@parent_delete_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+
+  "parent_today_unknown_reward": "未知奖励",
+  "parent_today_empty": "暂无待确认奖励 🎉",
+  "parent_today_pending_title": "待确认的成长项",
+  "parent_today_count": "{count} 项",
+  "@parent_today_count": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_today_deleted_task": "（已删除的成长项）",
+  "parent_today_submitted_at": "提交于 {time}",
+  "@parent_today_submitted_at": {
+    "placeholders": {
+      "time": { "type": "Object" }
+    }
+  },
+  "parent_today_should_grant": "应发 {sun} 阳光",
+  "@parent_today_should_grant": {
+    "placeholders": {
+      "sun": { "type": "String" }
+    }
+  },
+  "parent_today_btn_confirm": "确认发放",
+  "parent_today_btn_reject": "驳回",
+  "parent_today_reject_title": "驳回这项成长？",
+  "parent_today_reject_body": "将不发放「{name}」的阳光。",
+  "@parent_today_reject_body": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_today_reject_reason": "理由（选填）",
+  "parent_today_reject_ok": "确认驳回",
+  "parent_today_confirm_ok_snack": "已确认发放，+{sun} 阳光 🌻{capped}",
+  "@parent_today_confirm_ok_snack": {
+    "placeholders": {
+      "sun": { "type": "String" },
+      "capped": { "type": "String" }
+    }
+  },
+  "parent_today_capped_note": "（今日成长奖励已达上限，本次只到账 {sun} ☀）",
+  "@parent_today_capped_note": {
+    "placeholders": {
+      "sun": { "type": "String" }
+    }
+  },
+  "parent_today_confirm_fail_snack": "确认失败：{error}",
+  "@parent_today_confirm_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_today_rejected_snack": "已驳回 🌞 这项不会发阳光",
+  "parent_today_reject_fail_snack": "驳回失败：{error}",
+  "@parent_today_reject_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_today_debug_cap_title": "🧪 调试：跳过 30 分钟限时",
+  "parent_today_debug_cap_subtitle": "调试期间默认开启（不进限时状态）；关闭后恢复防沉迷拦截。仅调试包可见。",
+  "parent_today_debug_cap_on_snack": "已跳过 30 分钟限时（调试）",
+  "parent_today_debug_cap_off_snack": "已恢复 30 分钟限时拦截",
+  "parent_today_debug_save_fail_snack": "保存失败，请重试",
+
+  "parent_verify_cat_self_service": "自服务",
+  "parent_verify_cat_parent_handled": "家长经手",
+  "parent_verify_cost": "{cost} 阳光",
+  "@parent_verify_cost": {
+    "placeholders": {
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_verify_meta": "分类：{category} · 申请于 {time}",
+  "@parent_verify_meta": {
+    "placeholders": {
+      "category": { "type": "String" },
+      "time": { "type": "String" }
+    }
+  },
+  "parent_verify_queue_note": "排队第 {pos} 位 · 下月自动释放",
+  "@parent_verify_queue_note": {
+    "placeholders": {
+      "pos": { "type": "Object" }
+    }
+  },
+  "parent_verify_confirm_title": "确认核销？",
+  "parent_verify_confirm_body": "确认为「{name}」核销 {cost} 阳光？\n核销后将立即从孩子阳光中扣除，且不可撤销。",
+  "@parent_verify_confirm_body": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_verify_confirm_ok": "确认核销",
+  "parent_verify_reject_title": "确认拒绝？",
+  "parent_verify_reject_body": "拒绝「{name}」（{cost} 阳光）后将不核销该奖励。\n待核销期间阳光从未被扣除，故孩子阳光不受影响。\n此操作不可撤销。",
+  "@parent_verify_reject_body": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_verify_reject_ok": "确认拒绝",
+  "parent_verify_verified_snack": "已确认兑换 🎉 阳光已扣除",
+  "parent_verify_verify_fail_snack": "核销失败：{error}",
+  "@parent_verify_verify_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_verify_rejected_snack": "已拒绝该兑换 🌞 阳光未被扣除",
+  "parent_verify_reject_fail_snack": "拒绝失败：{error}",
+  "@parent_verify_reject_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_verify_release_title": "立即发放？",
+  "parent_verify_release_body": "确认为「{name}」立即发放 {cost} 阳光？\n将跳过排队等待，立即从孩子阳光中扣除。",
+  "@parent_verify_release_body": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_verify_release_ok": "立即发放",
+  "parent_verify_released_snack": "已立即发放 🎉 阳光已扣除",
+  "parent_verify_release_state_fail_snack": "无法立即发放：{error}",
+  "@parent_verify_release_state_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_verify_release_fail_snack": "发放失败：{error}",
+  "@parent_verify_release_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+
+  "parent_task_edit_title_new": "新增成长项",
+  "parent_task_edit_title_edit": "编辑成长项",
+  "parent_task_edit_name_label": "成长项名称",
+  "parent_task_edit_subject_label": "科目",
+  "parent_task_edit_subject_general": "通用",
+  "parent_task_edit_subject_chinese": "语文",
+  "parent_task_edit_subject_math": "数学",
+  "parent_task_edit_subject_english": "英语",
+  "parent_task_edit_subject_custom": "自定义…",
+  "parent_task_edit_custom_label": "自定义科目名称",
+  "parent_task_edit_custom_hint": "例如：科学 / 书法 / 编程",
+  "parent_task_edit_category_label": "分类",
+  "parent_task_edit_link_title": "专注联动（自动结算）",
+  "parent_task_edit_link_subtitle": "勾选后，孩子从这一项点「开始专注」，达标会自动完成并发放阳光，无需手动打卡。",
+  "parent_task_edit_min_focus_label": "最少专注",
+  "parent_task_edit_minutes": "{minutes} 分钟",
+  "@parent_task_edit_minutes": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "parent_task_edit_reward_fixed": "奖励固定 = 专注 {minutes} 分钟 × 40% = {cap} ☀（无需调整）",
+  "@parent_task_edit_reward_fixed": {
+    "placeholders": {
+      "minutes": { "type": "int" },
+      "cap": { "type": "int" }
+    }
+  },
+  "parent_task_edit_reward_label": "阳光奖励",
+  "parent_task_edit_reward_slider": "{reward} 阳光",
+  "@parent_task_edit_reward_slider": {
+    "placeholders": {
+      "reward": { "type": "int" }
+    }
+  },
+  "parent_task_edit_reward_range": "区间 {min}–{max} ☀（默认 {def}）",
+  "@parent_task_edit_reward_range": {
+    "placeholders": {
+      "min": { "type": "int" },
+      "max": { "type": "int" },
+      "def": { "type": "int" }
+    }
+  },
+  "parent_task_edit_repeat_label": "重复规则",
+  "parent_task_edit_repeat_none": "不重复",
+  "parent_task_edit_repeat_daily": "每天",
+  "parent_task_edit_repeat_weekly": "每周",
+  "parent_task_edit_err_name": "请填写成长项名称",
+  "parent_task_edit_err_reward": "阳光奖励需在 {min}–{max} 之间",
+  "@parent_task_edit_err_reward": {
+    "placeholders": {
+      "min": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
+  "parent_task_edit_err_subject": "请填写自定义科目名称",
+  "parent_task_edit_err_save": "保存失败：{error}",
+  "@parent_task_edit_err_save": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_task_edit_btn_save": "保存",
+
+  "parent_task_config_title": "成长配置",
+  "parent_task_config_list_title": "成长任务",
+  "parent_task_config_empty": "还没有成长项，点右上角「新增成长项」创建一个吧",
+  "parent_task_config_delete_title": "删除成长项？",
+  "parent_task_config_delete_body": "确定删除「{name}」？已生成的打卡记录会保留。",
+  "@parent_task_config_delete_body": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_task_config_focus_pill": "专注 {minutes} 分",
+  "@parent_task_config_focus_pill": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+
+  "parent_reward_templates_title": "奖励模板",
+  "parent_reward_btn_add": "新增奖励",
+  "parent_reward_quota_hint": "{reason}，删除多余条目后即可新增",
+  "@parent_reward_quota_hint": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "parent_reward_edit_hint": "点按某条可编辑名称/价格/分类；右侧垃圾桶可删除。改动会同步到孩子端阳光商店。",
+  "parent_reward_empty": "暂无奖励模板，点「新增奖励」创建",
+  "parent_reward_delete_title": "删除奖励",
+  "parent_reward_delete_body": "确定删除「{name}」？孩子端阳光商店将不再展示该奖励。",
+  "@parent_reward_delete_body": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_reward_edit_title_new": "新增奖励",
+  "parent_reward_edit_title_edit": "编辑奖励",
+  "parent_reward_name_label": "奖励名称",
+  "parent_reward_err_required": "必填",
+  "parent_reward_cat_self_full": "自服务（看电视/玩平板）",
+  "parent_reward_content_label": "内容分类",
+  "parent_reward_cost_label": "阳光价格",
+  "parent_reward_err_positive": "请输入正整数",
+  "parent_reward_freq_label": "每周限领次数",
+  "parent_reward_err_nonneg": "请输入非负整数",
+  "parent_reward_cooldown_label": "冷却规则",
+  "parent_reward_cooldown_none": "无冷却",
+  "parent_reward_cooldown_weekly": "每周限领",
+  "parent_reward_cooldown_monthly": "每月限领",
+  "parent_reward_pool_title": "本周阳光预算",
+  "parent_reward_pool_unit": "阳光",
+  "parent_reward_pool_used_line": "已用 {used} / 共 {budget} 阳光",
+  "@parent_reward_pool_used_line": {
+    "placeholders": {
+      "used": { "type": "int" },
+      "budget": { "type": "int" }
+    }
+  },
+  "parent_reward_pool_unlimited_line": "本周不限额，已用 {used} 阳光（兑换只受阳光余额约束）",
+  "@parent_reward_pool_unlimited_line": {
+    "placeholders": {
+      "used": { "type": "int" }
+    }
+  },
+  "parent_reward_pool_default_note": "每周兑换额度默认值：低年级 {low}☀ · 中年级 {mid}☀ · 高年级{high}（兑换只受阳光余额约束）",
+  "@parent_reward_pool_default_note": {
+    "placeholders": {
+      "low": { "type": "int" },
+      "mid": { "type": "int" },
+      "high": { "type": "String" }
+    }
+  },
+  "parent_reward_pool_load_failed": "周阳光池加载失败：{error}",
+  "@parent_reward_pool_load_failed": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+
+  "parent_settings_section_screentime": "防沉迷与作息",
+  "parent_settings_switch_quiet": "免打扰模式",
+  "parent_settings_night_title": "夜间边界",
+  "parent_settings_night_subtitle": "{time} 起进入夜间（夜锁生效时间）",
+  "@parent_settings_night_subtitle": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "parent_settings_daily_focus_cap": "每日专注上限（分钟）",
+  "parent_settings_daily_app_cap": "每日花园、商店使用时长（分钟）",
+  "parent_settings_rest_after": "每 N 次专注后休息",
+  "parent_settings_rest_minutes": "休息时长（分钟）",
+  "parent_settings_section_eyecare": "护眼休息",
+  "parent_settings_switch_eyecare": "护眼提醒",
+  "parent_settings_eyecare_subtitle": "专注每满一定时间弹出护眼卡，帮孩子歇歇眼睛（固定 60 秒）",
+  "parent_settings_eyecare_interval": "护眼触发间隔（每 N 分钟）",
+  "parent_settings_switch_eyecare_skip": "允许孩子跳过护眼",
+  "parent_settings_eyecare_skip_subtitle": "关掉后孩子只能完成休息，跳过按钮不生效",
+  "parent_settings_section_sound": "环境与音效",
+  "parent_settings_switch_sound": "音效",
+  "parent_settings_switch_bgm": "背景音乐",
+  "parent_settings_switch_dark": "深色主题",
+  "parent_settings_section_lock": "家长锁与赠予",
+  "parent_settings_reset_pin": "重设家长 PIN",
+  "parent_settings_grant_title": "赠予阳光",
+  "parent_settings_grant_subtitle": "日上限 {daily} / 月上限 {monthly}",
+  "@parent_settings_grant_subtitle": {
+    "placeholders": {
+      "daily": { "type": "Object" },
+      "monthly": { "type": "Object" }
+    }
+  },
+  "parent_settings_section_data": "数据与隐私",
+  "parent_settings_entry_delete": "删除入口",
+  "parent_settings_entry_delete_sub": "删除全部本地数据（§10.4 C5）",
+  "parent_settings_section_debug": "调试（仅 Debug 构建）",
+  "parent_settings_pin_dlg_title": "重设家长 PIN",
+  "parent_settings_pin_dlg_old": "当前 PIN",
+  "parent_settings_pin_dlg_new": "新 PIN（≥4 位）",
+  "parent_settings_pin_dlg_ok": "重设",
+  "parent_settings_pin_too_short_snack": "新 PIN 至少 4 位",
+  "parent_settings_pin_wrong_snack": "当前 PIN 不正确",
+  "parent_settings_pin_ok_snack": "PIN 已重设",
+  "parent_settings_gift_dlg_title": "赠予阳光",
+  "parent_settings_gift_daily_line": "今日已赠 {given} / {daily} ☀，还可赠 {remain} ☀",
+  "@parent_settings_gift_daily_line": {
+    "placeholders": {
+      "given": { "type": "int" },
+      "daily": { "type": "int" },
+      "remain": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_monthly_line": "本月已赠 {given} / {monthly} ☀，还可赠 {remain} ☀",
+  "@parent_settings_gift_monthly_line": {
+    "placeholders": {
+      "given": { "type": "int" },
+      "monthly": { "type": "int" },
+      "remain": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_amount_label": "赠予数量",
+  "parent_settings_gift_err_positive": "请输入正数",
+  "parent_settings_gift_err_over": "最多可赠 {max} ☀（今日剩 {day} / 本月剩 {month}）",
+  "@parent_settings_gift_err_over": {
+    "placeholders": {
+      "max": { "type": "int" },
+      "day": { "type": "int" },
+      "month": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_btn": "赠予",
+  "parent_settings_gift_daily_cap_snack": "今日赠予已达上限（{daily} ☀/天），明天再来",
+  "@parent_settings_gift_daily_cap_snack": {
+    "placeholders": {
+      "daily": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_monthly_cap_snack": "本月赠予已达上限（{monthly} ☀/月）",
+  "@parent_settings_gift_monthly_cap_snack": {
+    "placeholders": {
+      "monthly": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_over_snack": "超出赠予上限，未赠予（今日剩 {remain} ☀）",
+  "@parent_settings_gift_over_snack": {
+    "placeholders": {
+      "remain": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_ok_snack": "已赠予 {amount} ☀，孩子端已到账（今日剩 {remain} ☀）",
+  "@parent_settings_gift_ok_snack": {
+    "placeholders": {
+      "amount": { "type": "int" },
+      "remain": { "type": "int" }
+    }
+  },
+  "parent_settings_debug_member_title": "会员模式（仅调试）",
+  "parent_settings_debug_member_subtitle": "打开即解锁全部付费功能；重启 App 后失效",
+
+  "parent_profile_tier_low": "低年级 · 8 岁及以下",
+  "parent_profile_tier_mid": "中年级 · 9–12 岁",
+  "parent_profile_tier_high": "高年级 · 13 岁及以上",
+  "parent_profile_menu_edit": "编辑",
+  "parent_profile_menu_delete": "删除",
+  "parent_profile_menu_create": "新建孩子",
+  "parent_profile_toast_switched": "已切换到「{name}」",
+  "@parent_profile_toast_switched": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_profile_toast_added": "已添加「{name}」",
+  "@parent_profile_toast_added": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_profile_toast_updated": "已更新「{name}」",
+  "@parent_profile_toast_updated": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_profile_toast_deleted": "已删除「{name}」",
+  "@parent_profile_toast_deleted": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_profile_max_toast": "最多支持 {count} 个孩子账户",
+  "@parent_profile_max_toast": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_profile_min_toast": "至少保留一个孩子档案",
+  "parent_profile_create_title": "新建孩子",
+  "parent_profile_edit_title": "编辑孩子",
+  "parent_profile_name_label": "孩子名字",
+  "parent_profile_name_hint": "比如：小向日葵",
+  "parent_profile_btn_create": "创建",
+  "parent_profile_delete_title": "删除「{name}」？",
+  "@parent_profile_delete_title": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_profile_delete_body": "删除后该孩子的档案设置将被移除，且无法恢复。",
+  "parent_profile_pin_label": "家长 PIN",
+  "parent_profile_pin_err_empty": "请输入家长 PIN",
+  "parent_profile_pin_err_wrong": "PIN 不正确，请重试",
+
+  "parent_history_seg_report": "专注报告",
+  "parent_history_seg_activity": "任务与奖励",
+  "parent_hist_section_tasks": "成长任务完成记录",
+  "parent_hist_task_tail": "共 {count} 次",
+  "@parent_hist_task_tail": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_hist_empty_tasks": "本期间还没有成长项完成记录",
+  "parent_hist_section_rewards": "奖励兑换记录",
+  "parent_hist_reward_tail": "共 {count} 次 · 消耗 {cost} 阳光",
+  "@parent_hist_reward_tail": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_hist_empty_rewards": "本期间还没有奖励兑换记录",
+  "parent_hist_deleted_task": "（已删除的成长项）",
+  "parent_hist_deleted_reward": "（已删除的奖励）",
+  "parent_hist_done_badge": "完成 {count} 次",
+  "@parent_hist_done_badge": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_hist_redeem_badge": "兑换 {count} 次",
+  "@parent_hist_redeem_badge": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_hist_range_multi": "首次 {first} ～ 最近 {last}",
+  "@parent_hist_range_multi": {
+    "placeholders": {
+      "first": { "type": "String" },
+      "last": { "type": "String" }
+    }
+  },
+  "parent_hist_cost_line": "{range} · 消耗 {cost} 阳光",
+  "@parent_hist_cost_line": {
+    "placeholders": {
+      "range": { "type": "String" },
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_hist_summary_done": "本期完成成长项",
+  "parent_hist_summary_redeem": "本期兑换奖励",
+  "parent_hist_summary_cost": "本期消耗阳光",
+
+  "parent_report_error_hint": "报告生成失败，请下拉重试",
+  "parent_report_period_day": "日",
+  "parent_report_period_week": "周",
+  "parent_report_period_month": "月",
+  "parent_report_period_year": "年",
+  "parent_report_prev_tooltip": "上一期间",
+  "parent_report_next_tooltip": "下一期间",
+  "parent_report_hero_title": "本期间专注",
+  "parent_report_minutes": "{minutes} 分钟",
+  "@parent_report_minutes": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "parent_report_valid_days": "有效专注日 {days} 天",
+  "@parent_report_valid_days": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "parent_report_avg_daily": "平均每日 {minutes} 分钟",
+  "@parent_report_avg_daily": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "parent_report_trend_day": "近 7 日专注分布",
+  "parent_report_trend_week": "本周专注分布",
+  "parent_report_trend_month": "本月专注分布（按周）",
+  "parent_report_trend_year": "本年专注分布（按月）",
+  "parent_report_stability_title": "专注稳定性 · 近 4 周",
+  "parent_report_heatmap_title": "专注热力图 · 近 1 年",
+  "parent_report_eyecare_title": "护眼统计",
+  "parent_report_eyecare_loading": "护眼统计读取中…",
+  "parent_report_trend_empty": "本期间还没有专注记录。陪孩子完成一次 15 分钟专注，这里就会亮起来。",
+  "parent_report_label_today": "今天 · {date}",
+  "@parent_report_label_today": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "parent_report_label_yesterday": "昨天 · {date}",
+  "@parent_report_label_yesterday": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "parent_report_label_range": "{start} ～ {end}",
+  "@parent_report_label_range": {
+    "placeholders": {
+      "start": { "type": "String" },
+      "end": { "type": "String" }
+    }
+  },
+  "parent_report_label_month": "{year} 年 {month} 月",
+  "@parent_report_label_month": {
+    "placeholders": {
+      "year": { "type": "int" },
+      "month": { "type": "int" }
+    }
+  },
+  "parent_report_label_year": "{year} 年",
+  "@parent_report_label_year": {
+    "placeholders": {
+      "year": { "type": "int" }
+    }
+  },
+  "parent_report_wd_mon": "一",
+  "parent_report_wd_tue": "二",
+  "parent_report_wd_wed": "三",
+  "parent_report_wd_thu": "四",
+  "parent_report_wd_fri": "五",
+  "parent_report_wd_sat": "六",
+  "parent_report_wd_sun": "日",
+  "parent_report_heat_empty": "近 1 年还没有专注记录。",
+  "parent_report_heat_tip": "{date} · {minutes} 分钟",
+  "@parent_report_heat_tip": {
+    "placeholders": {
+      "date": { "type": "String" },
+      "minutes": { "type": "int" }
+    }
+  },
+  "parent_report_month_tick": "{month}月",
+  "@parent_report_month_tick": {
+    "placeholders": {
+      "month": { "type": "int" }
+    }
+  },
+  "parent_report_legend_less": "少",
+  "parent_report_legend_more": "多",
+  "parent_report_streak_current": "当前连续 {days} 天",
+  "@parent_report_streak_current": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "parent_report_streak_longest": "最长连续 {days} 天",
+  "@parent_report_streak_longest": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "parent_report_stability_empty": "近 4 周还没有专注记录。",
+  "parent_report_weeks_ago": "{count} 周前",
+  "@parent_report_weeks_ago": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_report_week_this": "本周",
+  "parent_report_stability_score": "稳定性 {percent}%",
+  "@parent_report_stability_score": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "parent_report_upsell_title": "解锁深度专注报告",
+  "parent_report_upsell_subtitle": "近 4 周稳定性 · 全年热力图",
+  "parent_report_eyecare_completed": "完成护眼",
+  "parent_report_eyecare_skipped": "跳过护眼",
+  "parent_report_eyecare_duration": "累计护眼时长",
+  "parent_report_eyecare_rate": "跳过率",
+  "parent_report_times": "{count} 次",
+  "@parent_report_times": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_report_secs": "{count} 秒",
+  "@parent_report_secs": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_report_minutes_1f": "{value} 分钟",
+  "@parent_report_minutes_1f": {
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+  "parent_report_eyecare_skip_note": "有 {count} 次护眼被跳过（跳过的观看时长已如实计入）。",
+  "@parent_report_eyecare_skip_note": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "premium_table_free_pill": "免费版",
+  "premium_table_gold_pill": "解锁全部功能 ★",
+  "premium_table_owned": "已拥有",
+  "premium_table_band_free": "免费就能用",
+  "premium_table_band_unlock": "买断后解锁",
+  "premium_table_row_pomodoro": "专注番茄钟",
+  "premium_table_row_screentime": "防沉迷与作息",
+  "premium_table_row_eyecare": "少儿护眼休息",
+  "premium_table_row_garden": "花园养成",
+  "premium_table_row_economy": "阳光经济与账本",
+  "premium_table_row_store": "商店兑换",
+  "premium_table_row_levels": "专注等级 + 9 称号",
+  "premium_table_row_report": "家长专注报告",
+  "premium_table_report_days": "近 7 天",
+  "premium_table_footnote_report": "更多报告能力开发中",
+  "premium_table_row_one_click": "花园「一键操作」",
+  "premium_table_row_pots": "花盆上限",
+  "premium_table_row_tasks": "成长项模板",
+  "premium_table_row_rewards": "奖励模板",
+  "premium_table_row_perks": "称号属性",
+  "premium_table_free_pots": "{count} 个",
+  "@premium_table_free_pots": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "premium_table_free_items": "{count} 条",
+  "@premium_table_free_items": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "premium_table_unlimited": "✓ 不限",
+  "premium_table_max": "最多 {count}",
+  "@premium_table_max": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "premium_table_pots_note": "扩容仍需花阳光",
+  "premium_table_perks_count": "✓ {count} 条",
+  "@premium_table_perks_count": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "premium_quota_inline_reason": "免费上限 {limit}（当前 {count}）",
+  "@premium_quota_inline_reason": {
+    "placeholders": {
+      "limit": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+
+  "parent_premium_title": "解锁全部功能",
+  "parent_premium_hero_subtitle": "一次买断 · 永久解锁，陪孩子一起专注成长",
+  "parent_premium_pill_unlocked": "已解锁",
+  "parent_premium_pill_locked": "未解锁",
+  "parent_premium_gold_pill": "一次买断 · 永久",
+  "parent_premium_unavailable_title": "暂时连不上商店",
+  "parent_premium_unavailable_body": "现在无法获取商品信息，不影响你继续使用 App 的其他功能。请检查网络后再试。",
+  "parent_premium_btn_unlocked_done": "已解锁 · 感谢支持",
+  "parent_premium_btn_buying": "购买中…",
+  "parent_premium_btn_unavailable": "暂不可购买",
+  "parent_premium_btn_unlock_now": "立即解锁 · {price}",
+  "@parent_premium_btn_unlock_now": {
+    "placeholders": {
+      "price": { "type": "String" }
+    }
+  },
+  "parent_premium_restoring": "恢复中…",
+  "parent_premium_restore": "恢复购买",
+  "parent_premium_notes_title": "购买前请知悉",
+  "parent_premium_note_1": "一次买断、永久解锁 —— 不是订阅，不会自动续费。",
+  "parent_premium_note_2": "同一 Apple ID 换手机 / 卸载重装后，点「恢复购买」即可找回。",
+  "parent_premium_note_3": "⚠️ 在 iOS 上购买的内容，无法在 Android 设备上「恢复购买」（反之亦然）。",
+  "parent_premium_note_4": "支付通过 Apple App Store 完成，开发者不会接触到你的任何支付信息。",
+  "parent_premium_snack_unlocked": "已解锁，感谢支持 🌻",
+  "parent_premium_snack_incomplete": "购买未完成，可稍后再试",
+  "parent_premium_snack_buy_failed": "购买失败，请稍后重试",
+  "parent_premium_snack_restored": "已恢复购买，欢迎回来 🌻",
+  "parent_premium_snack_nothing": "没有找到可恢复的购买记录",
+  "parent_premium_snack_restore_net": "恢复失败，请检查网络后重试",
+  "parent_premium_snack_restore_failed": "恢复失败，请稍后重试",
+  "parent_reward_category_label": "分类",
+  "shared_lang_zh_name": "简体中文"
 }

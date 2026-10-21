@@ -23,6 +23,8 @@ library premium_unlock_table;
 
 import 'package:flutter/material.dart';
 
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 import 'package:sunflower_time/shared/responsive.dart';
@@ -55,30 +57,41 @@ class PremiumUnlockTable extends StatelessWidget {
   /// 🔴 「家长专注报告」行**如实写**「近 7 天 / 近 7 天」（矩阵里两栏同值）——
   /// 绝不夸大为"买断解锁更多报告能力"（Apple 3.1.1）；更深的分层能力由表下极简
   /// 脚注如实覆盖。
-  static const List<({String label, String free, String premium})> _kFreeRows =
+  ///
+  /// i18n B2：行文案经 ARB 取（故从 `static const` 改为按 [t] 现算）。
+  static List<({String label, String free, String premium})> _freeRows(
+    AppLocalizations t,
+  ) =>
       <({String label, String free, String premium})>[
-    (label: '专注番茄钟', free: '✓', premium: '✓'),
-    (label: '防沉迷与作息', free: '✓', premium: '✓'),
-    (label: '少儿护眼休息', free: '✓', premium: '✓'),
-    (label: '花园养成', free: '✓', premium: '✓'),
-    (label: '阳光经济与账本', free: '✓', premium: '✓'),
-    (label: '商店兑换', free: '✓', premium: '✓'),
-    (label: '专注等级 + 9 称号', free: '✓', premium: '✓'),
-    (label: '家长专注报告', free: '近 7 天', premium: '近 7 天'),
-  ];
+        (label: t.premium_table_row_pomodoro, free: '✓', premium: '✓'),
+        (label: t.premium_table_row_screentime, free: '✓', premium: '✓'),
+        (label: t.premium_table_row_eyecare, free: '✓', premium: '✓'),
+        (label: t.premium_table_row_garden, free: '✓', premium: '✓'),
+        (label: t.premium_table_row_economy, free: '✓', premium: '✓'),
+        (label: t.premium_table_row_store, free: '✓', premium: '✓'),
+        (label: t.premium_table_row_levels, free: '✓', premium: '✓'),
+        (
+          label: t.premium_table_row_report,
+          free: t.premium_table_report_days,
+          premium: t.premium_table_report_days,
+        ),
+      ];
 
   @override
   Widget build(BuildContext context) {
     final double s = uiScaleOf(context);
-    final List<PremiumUnlockRow> derived = unlockRowsFor();
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
+    final List<PremiumUnlockRow> derived = unlockRowsFor(l10n: t);
 
     final List<Widget> body = <Widget>[
-      _headerRow(s),
-      _groupBand('免费就能用', s),
-      for (final ({String label, String free, String premium}) r in _kFreeRows)
+      _headerRow(s, t),
+      _groupBand(t.premium_table_band_free, s),
+      for (final ({String label, String free, String premium}) r
+          in _freeRows(t))
         _dataRow(r.label, r.free, r.premium, true, s, premiumOk: true),
-      _footNote('更多报告能力开发中', s),
-      _groupBand('买断后解锁', s),
+      _footNote(t.premium_table_footnote_report, s),
+      _groupBand(t.premium_table_band_unlock, s),
       // C80：**遍历全部 `unlockRowsFor()` 行**（而非逐行写死 `derived[0..3]`）——
       // 第 5 行「称号属性」（能力键 `titlePerks`）随数据层追加即自动入表，
       // 从此「改数据层 = 改表」真正成立（原写死下标会漏掉新增行）。行的 [note]
@@ -154,7 +167,7 @@ class PremiumUnlockTable extends StatelessWidget {
   }
 
   /// 表头行：左列留白 / 中列「免费版」中性胶囊 / 右列「解锁全部功能 ★」金胶囊。
-  Widget _headerRow(double s) {
+  Widget _headerRow(double s, AppLocalizations t) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 10 * s),
       child: Row(
@@ -164,7 +177,7 @@ class PremiumUnlockTable extends StatelessWidget {
           Expanded(
             flex: 10,
             child: Center(
-              child: _chip('免费版', _kFreePillBg, _kFreePillFg, s),
+              child: _chip(t.premium_table_free_pill, _kFreePillBg, _kFreePillFg, s),
             ),
           ),
           Expanded(
@@ -173,12 +186,12 @@ class PremiumUnlockTable extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  _goldChip('解锁全部功能 ★', s),
+                  _goldChip(t.premium_table_gold_pill, s),
                   if (isUnlocked) ...<Widget>[
                     SizedBox(height: 4 * s),
-                    const Text(
-                      '已拥有',
-                      style: TextStyle(
+                    Text(
+                      t.premium_table_owned,
+                      style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: _kGoldText,

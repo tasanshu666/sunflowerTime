@@ -41,8 +41,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/weekly_pool.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
 /// 周阳光池合并卡：预算展示 + 进度（C90-C 同日二次修订：手动输入控件删除）。
@@ -74,6 +76,8 @@ class _WeeklyPoolCardState extends ConsumerState<WeeklyPoolCard> {
 
   @override
   Widget build(BuildContext context) {
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
     return FutureBuilder<WeeklyPool>(
       future: _future,
       builder: (BuildContext context, AsyncSnapshot<WeeklyPool> snap) {
@@ -91,7 +95,7 @@ class _WeeklyPoolCardState extends ConsumerState<WeeklyPoolCard> {
             margin: const EdgeInsets.all(16),
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('周阳光池加载失败：${snap.error}'),
+              child: Text(t.parent_reward_pool_load_failed('${snap.error}')),
             ),
           );
         }
@@ -109,8 +113,8 @@ class _WeeklyPoolCardState extends ConsumerState<WeeklyPoolCard> {
                 : 0.0;
 
         // 高年级说明词：按哨兵常量派生（哨兵 <= 0 显示「不限」，否则显示其数值）。
-        const String highTierLabel = kWeeklyPoolBudgetUnlimited <= 0
-            ? '不限'
+        final String highTierLabel = kWeeklyPoolBudgetUnlimited <= 0
+            ? t.shared_unlimited
             : '$kWeeklyPoolBudgetUnlimited☀';
 
         return Container(
@@ -120,30 +124,40 @@ class _WeeklyPoolCardState extends ConsumerState<WeeklyPoolCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const Text(
-                '本周阳光预算',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Text(
+                t.parent_reward_pool_title,
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
               // 大号预算数字，一眼可见（家长最关心的「这周孩子能自己花多少」）。
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: <Widget>[
-                  Text(
-                    unlimited ? '不限' : '$budget',
-                    style: const TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF8D6E00),
+              // i18n B2：英文「Unlimited」远宽于中文「不限」（大号 40pt 下尤甚）→
+              // 整行用 [FittedBox] 兜底：放得下按原尺寸渲染，放不下才等比缩小，
+              // 避免 320 窄屏 / 系统大字号下 RenderFlex 溢出。
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: <Widget>[
+                    Text(
+                      unlimited ? t.shared_unlimited : '$budget',
+                      style: const TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF8D6E00),
+                      ),
                     ),
-                  ),
-                  if (!unlimited) ...<Widget>[
-                    const SizedBox(width: 6),
-                    const Text('阳光',
-                        style: TextStyle(fontSize: 18, color: Colors.brown)),
+                    if (!unlimited) ...<Widget>[
+                      const SizedBox(width: 6),
+                      Text(t.parent_reward_pool_unit,
+                          style: const TextStyle(
+                              fontSize: 18, color: Colors.brown)),
+                    ],
                   ],
-                ],
+                ),
               ),
               const SizedBox(height: 12),
               // 🔴 C91 二轮：不限额时进度条整块不渲染 —— 旧实现 value: null =
@@ -159,17 +173,19 @@ class _WeeklyPoolCardState extends ConsumerState<WeeklyPoolCard> {
               // C91：不限额时「共 y」无意义 → 只显示已用；限额时保留「已用 x / 共 y」。
               Text(
                 unlimited
-                    ? '本周不限额，已用 $usedTotal 阳光（兑换只受阳光余额约束）'
-                    : '已用 $usedTotal / 共 $budget 阳光',
+                    ? t.parent_reward_pool_unlimited_line(usedTotal)
+                    : t.parent_reward_pool_used_line(usedTotal, budget),
                 style: const TextStyle(fontSize: 15),
               ),
               const SizedBox(height: 14),
               // C90-C 同日二次修订：原「本周预算调整」输入控件（50–500）整块删除，
               // 原位改为静态说明（数字一律引用单点常量，禁内联字面量）。
               Text(
-                '每周兑换额度默认值：低年级 $kPoolBudgetDefaultLow☀ · '
-                '中年级 $kPoolBudgetDefaultMid☀ · 高年级$highTierLabel'
-                '（兑换只受阳光余额约束）',
+                t.parent_reward_pool_default_note(
+                  kPoolBudgetDefaultLow,
+                  kPoolBudgetDefaultMid,
+                  highTierLabel,
+                ),
                 style: const TextStyle(
                   fontSize: 13,
                   color: Colors.brown,

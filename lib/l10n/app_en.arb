@@ -946,5 +946,760 @@
       }
     }
   },
-  "fx_level_up_perk_locked": " · 🔒 paid unlock"
+  "fx_level_up_perk_locked": " · 🔒 paid unlock",
+  "shared_edit": "Edit",
+  "shared_delete": "Delete",
+
+  "parent_home_title": "Parent Hub",
+  "parent_home_back_tooltip": "Back to kid zone",
+  "parent_home_tab_today": "Today",
+  "parent_home_tab_reward": "Rewards",
+  "parent_home_tab_growth": "Growth",
+  "parent_home_tab_history": "Records",
+  "parent_home_tab_settings": "Settings",
+  "parent_login_enter_pin": "Enter parent PIN",
+  "parent_login_setup_pin": "First time here — set a parent PIN",
+  "parent_login_btn_enter": "Enter",
+  "parent_login_btn_setup": "Set PIN & enter",
+  "parent_login_err_short": "PIN must be at least 4 digits",
+  "parent_login_err_wrong": "Incorrect PIN",
+
+  "parent_delete_title": "Delete Data",
+  "parent_delete_right_title": "Data deletion right (§10.4 C5)",
+  "parent_delete_right_body": "You have the right to delete all local data. Once deleted, progress and settings cannot be recovered.",
+  "parent_delete_dlg_title": "Delete all local data?",
+  "parent_delete_dlg_body": "This permanently deletes focus records, the sunlight ledger, plants, growth items, reward templates, the parent PIN and all local settings. It cannot be undone.\n\nTip: export a memoir first (export arrives in v2).",
+  "parent_delete_btn_ok": "Delete",
+  "parent_delete_btn_export": "Export memoir (coming in v2)",
+  "parent_delete_export_snack": "Export arrives in v2 — take screenshots for now",
+  "parent_delete_btn_all": "Delete all local data",
+  "parent_delete_btn_deleting": "Deleting…",
+  "parent_delete_done_snack": "All local data deleted",
+  "parent_delete_fail_snack": "Delete failed: {error}",
+  "@parent_delete_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+
+  "parent_today_unknown_reward": "Unknown reward",
+  "parent_today_empty": "Nothing waiting 🎉",
+  "parent_today_pending_title": "Items to confirm",
+  "parent_today_count": "{count} items",
+  "@parent_today_count": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_today_deleted_task": "(deleted growth item)",
+  "parent_today_submitted_at": "Submitted {time}",
+  "@parent_today_submitted_at": {
+    "placeholders": {
+      "time": { "type": "Object" }
+    }
+  },
+  "parent_today_should_grant": "Grant {sun} ☀",
+  "@parent_today_should_grant": {
+    "placeholders": {
+      "sun": { "type": "String" }
+    }
+  },
+  "parent_today_btn_confirm": "Confirm",
+  "parent_today_btn_reject": "Reject",
+  "parent_today_reject_title": "Reject this item?",
+  "parent_today_reject_body": "No sunlight will be granted for \"{name}\".",
+  "@parent_today_reject_body": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_today_reject_reason": "Reason (optional)",
+  "parent_today_reject_ok": "Reject",
+  "parent_today_confirm_ok_snack": "Confirmed, +{sun} ☀ 🌻{capped}",
+  "@parent_today_confirm_ok_snack": {
+    "placeholders": {
+      "sun": { "type": "String" },
+      "capped": { "type": "String" }
+    }
+  },
+  "parent_today_capped_note": " (daily cap reached — only {sun} ☀ credited)",
+  "@parent_today_capped_note": {
+    "placeholders": {
+      "sun": { "type": "String" }
+    }
+  },
+  "parent_today_confirm_fail_snack": "Confirm failed: {error}",
+  "@parent_today_confirm_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_today_rejected_snack": "Rejected 🌞 No sunlight granted",
+  "parent_today_reject_fail_snack": "Reject failed: {error}",
+  "@parent_today_reject_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_today_debug_cap_title": "🧪 Debug: skip 30-min limit",
+  "parent_today_debug_cap_subtitle": "On by default while debugging (no screen-time lock); turning off restores the limit. Debug builds only.",
+  "parent_today_debug_cap_on_snack": "30-min limit skipped (debug)",
+  "parent_today_debug_cap_off_snack": "30-min screen-time limit restored",
+  "parent_today_debug_save_fail_snack": "Save failed, try again",
+
+  "parent_verify_cat_self_service": "Self-service",
+  "parent_verify_cat_parent_handled": "Parent-handled",
+  "parent_verify_cost": "{cost} ☀",
+  "@parent_verify_cost": {
+    "placeholders": {
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_verify_meta": "{category} · requested {time}",
+  "@parent_verify_meta": {
+    "placeholders": {
+      "category": { "type": "String" },
+      "time": { "type": "String" }
+    }
+  },
+  "parent_verify_queue_note": "Queue #{pos} · auto-releases next month",
+  "@parent_verify_queue_note": {
+    "placeholders": {
+      "pos": { "type": "Object" }
+    }
+  },
+  "parent_verify_confirm_title": "Confirm redemption?",
+  "parent_verify_confirm_body": "Redeem \"{name}\" for {cost} ☀?\nSunlight is deducted from your kid's balance immediately and cannot be undone.",
+  "@parent_verify_confirm_body": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_verify_confirm_ok": "Confirm",
+  "parent_verify_reject_title": "Reject this request?",
+  "parent_verify_reject_body": "Rejecting \"{name}\" ({cost} ☀) means no redemption.\nSunlight was never deducted while pending, so your kid's balance is unaffected.\nThis cannot be undone.",
+  "@parent_verify_reject_body": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_verify_reject_ok": "Reject",
+  "parent_verify_verified_snack": "Redeemed 🎉 Sunlight deducted",
+  "parent_verify_verify_fail_snack": "Redeem failed: {error}",
+  "@parent_verify_verify_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_verify_rejected_snack": "Rejected 🌞 Sunlight not deducted",
+  "parent_verify_reject_fail_snack": "Reject failed: {error}",
+  "@parent_verify_reject_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_verify_release_title": "Release now?",
+  "parent_verify_release_body": "Release \"{name}\" for {cost} ☀ right now?\nThis skips the queue wait and deducts sunlight immediately.",
+  "@parent_verify_release_body": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_verify_release_ok": "Release now",
+  "parent_verify_released_snack": "Released 🎉 Sunlight deducted",
+  "parent_verify_release_state_fail_snack": "Can't release yet: {error}",
+  "@parent_verify_release_state_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_verify_release_fail_snack": "Release failed: {error}",
+  "@parent_verify_release_fail_snack": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+
+  "parent_task_edit_title_new": "New growth item",
+  "parent_task_edit_title_edit": "Edit growth item",
+  "parent_task_edit_name_label": "Item name",
+  "parent_task_edit_subject_label": "Subject",
+  "parent_task_edit_subject_general": "General",
+  "parent_task_edit_subject_chinese": "Chinese",
+  "parent_task_edit_subject_math": "Math",
+  "parent_task_edit_subject_english": "English",
+  "parent_task_edit_subject_custom": "Custom…",
+  "parent_task_edit_custom_label": "Custom subject name",
+  "parent_task_edit_custom_hint": "e.g. Science / Calligraphy / Coding",
+  "parent_task_edit_category_label": "Category",
+  "parent_task_edit_link_title": "Focus-linked (auto settle)",
+  "parent_task_edit_link_subtitle": "When on, tapping \"Start focus\" on this item settles and grants sunlight automatically — no manual check-in needed.",
+  "parent_task_edit_min_focus_label": "Min focus",
+  "parent_task_edit_minutes": "{minutes} min",
+  "@parent_task_edit_minutes": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "parent_task_edit_reward_fixed": "Fixed reward = {minutes} min × 40% = {cap} ☀ (no adjustment needed)",
+  "@parent_task_edit_reward_fixed": {
+    "placeholders": {
+      "minutes": { "type": "int" },
+      "cap": { "type": "int" }
+    }
+  },
+  "parent_task_edit_reward_label": "Sunlight reward",
+  "parent_task_edit_reward_slider": "{reward} ☀",
+  "@parent_task_edit_reward_slider": {
+    "placeholders": {
+      "reward": { "type": "int" }
+    }
+  },
+  "parent_task_edit_reward_range": "Range {min}–{max} ☀ (default {def})",
+  "@parent_task_edit_reward_range": {
+    "placeholders": {
+      "min": { "type": "int" },
+      "max": { "type": "int" },
+      "def": { "type": "int" }
+    }
+  },
+  "parent_task_edit_repeat_label": "Repeat",
+  "parent_task_edit_repeat_none": "Never",
+  "parent_task_edit_repeat_daily": "Daily",
+  "parent_task_edit_repeat_weekly": "Weekly",
+  "parent_task_edit_err_name": "Please enter a name",
+  "parent_task_edit_err_reward": "Reward must be {min}–{max}",
+  "@parent_task_edit_err_reward": {
+    "placeholders": {
+      "min": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
+  "parent_task_edit_err_subject": "Please enter the custom subject",
+  "parent_task_edit_err_save": "Save failed: {error}",
+  "@parent_task_edit_err_save": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+  "parent_task_edit_btn_save": "Save",
+
+  "parent_task_config_title": "Growth Setup",
+  "parent_task_config_list_title": "Growth tasks",
+  "parent_task_config_empty": "No items yet — tap \"New growth item\" to add one",
+  "parent_task_config_delete_title": "Delete this item?",
+  "parent_task_config_delete_body": "Delete \"{name}\"? Existing check-in records will be kept.",
+  "@parent_task_config_delete_body": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_task_config_focus_pill": "Focus {minutes} min",
+  "@parent_task_config_focus_pill": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+
+  "parent_reward_templates_title": "Reward templates",
+  "parent_reward_btn_add": "Add reward",
+  "parent_reward_quota_hint": "{reason}. Delete extras to add more",
+  "@parent_reward_quota_hint": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "parent_reward_edit_hint": "Tap an item to edit name/price/type; the trash icon deletes. Changes sync to your kid's store.",
+  "parent_reward_empty": "No templates yet — tap \"Add reward\" to create one",
+  "parent_reward_delete_title": "Delete reward",
+  "parent_reward_delete_body": "Delete \"{name}\"? It will disappear from your kid's store.",
+  "@parent_reward_delete_body": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_reward_edit_title_new": "New reward",
+  "parent_reward_edit_title_edit": "Edit reward",
+  "parent_reward_name_label": "Reward name",
+  "parent_reward_err_required": "Required",
+  "parent_reward_cat_self_full": "Self-service (TV/tablet time)",
+  "parent_reward_content_label": "Content type",
+  "parent_reward_cost_label": "Sunlight price",
+  "parent_reward_err_positive": "Enter a positive whole number",
+  "parent_reward_freq_label": "Weekly redemption limit",
+  "parent_reward_err_nonneg": "Enter a non-negative whole number",
+  "parent_reward_cooldown_label": "Cooldown rule",
+  "parent_reward_cooldown_none": "None",
+  "parent_reward_cooldown_weekly": "Weekly limit",
+  "parent_reward_cooldown_monthly": "Monthly limit",
+  "parent_reward_pool_title": "This week's sunlight budget",
+  "parent_reward_pool_unit": "☀",
+  "parent_reward_pool_used_line": "Used {used} of {budget} ☀",
+  "@parent_reward_pool_used_line": {
+    "placeholders": {
+      "used": { "type": "int" },
+      "budget": { "type": "int" }
+    }
+  },
+  "parent_reward_pool_unlimited_line": "No weekly cap — {used} ☀ used (redemptions only bounded by balance)",
+  "@parent_reward_pool_unlimited_line": {
+    "placeholders": {
+      "used": { "type": "int" }
+    }
+  },
+  "parent_reward_pool_default_note": "Weekly default limits — lower grade {low}☀ · middle {mid}☀ · upper {high} (redemptions only bounded by balance)",
+  "@parent_reward_pool_default_note": {
+    "placeholders": {
+      "low": { "type": "int" },
+      "mid": { "type": "int" },
+      "high": { "type": "String" }
+    }
+  },
+  "parent_reward_pool_load_failed": "Failed to load weekly pool: {error}",
+  "@parent_reward_pool_load_failed": {
+    "placeholders": {
+      "error": { "type": "Object" }
+    }
+  },
+
+  "parent_settings_section_screentime": "Screen time & routines",
+  "parent_settings_switch_quiet": "Do not disturb",
+  "parent_settings_night_title": "Night boundary",
+  "parent_settings_night_subtitle": "Night lock takes effect from {time}",
+  "@parent_settings_night_subtitle": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "parent_settings_daily_focus_cap": "Daily focus limit (min)",
+  "parent_settings_daily_app_cap": "Daily garden & store time (min)",
+  "parent_settings_rest_after": "Rest after N focus sessions",
+  "parent_settings_rest_minutes": "Break length (min)",
+  "parent_settings_section_eyecare": "Eye-care breaks",
+  "parent_settings_switch_eyecare": "Eye-care reminder",
+  "parent_settings_eyecare_subtitle": "An eye-care card pops up after enough focus time to rest little eyes (fixed 60 s)",
+  "parent_settings_eyecare_interval": "Eye-care interval (every N min)",
+  "parent_settings_switch_eyecare_skip": "Allow skipping eye-care",
+  "parent_settings_eyecare_skip_subtitle": "When off, kids must finish the break — the skip button does nothing",
+  "parent_settings_section_sound": "Sound & ambience",
+  "parent_settings_switch_sound": "Sound effects",
+  "parent_settings_switch_bgm": "Background music",
+  "parent_settings_switch_dark": "Dark theme",
+  "parent_settings_section_lock": "Parent lock & gifts",
+  "parent_settings_reset_pin": "Reset parent PIN",
+  "parent_settings_grant_title": "Gift sunlight",
+  "parent_settings_grant_subtitle": "Daily cap {daily} · monthly {monthly}",
+  "@parent_settings_grant_subtitle": {
+    "placeholders": {
+      "daily": { "type": "Object" },
+      "monthly": { "type": "Object" }
+    }
+  },
+  "parent_settings_section_data": "Data & privacy",
+  "parent_settings_entry_delete": "Delete data",
+  "parent_settings_entry_delete_sub": "Delete all local data (§10.4 C5)",
+  "parent_settings_section_debug": "Debug (debug builds only)",
+  "parent_settings_pin_dlg_title": "Reset parent PIN",
+  "parent_settings_pin_dlg_old": "Current PIN",
+  "parent_settings_pin_dlg_new": "New PIN (≥4 digits)",
+  "parent_settings_pin_dlg_ok": "Reset",
+  "parent_settings_pin_too_short_snack": "New PIN must be at least 4 digits",
+  "parent_settings_pin_wrong_snack": "Current PIN is incorrect",
+  "parent_settings_pin_ok_snack": "PIN has been reset",
+  "parent_settings_gift_dlg_title": "Gift sunlight",
+  "parent_settings_gift_daily_line": "Today gifted {given}/{daily} ☀ — {remain} ☀ left",
+  "@parent_settings_gift_daily_line": {
+    "placeholders": {
+      "given": { "type": "int" },
+      "daily": { "type": "int" },
+      "remain": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_monthly_line": "This month gifted {given}/{monthly} ☀ — {remain} ☀ left",
+  "@parent_settings_gift_monthly_line": {
+    "placeholders": {
+      "given": { "type": "int" },
+      "monthly": { "type": "int" },
+      "remain": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_amount_label": "Amount",
+  "parent_settings_gift_err_positive": "Enter a positive number",
+  "parent_settings_gift_err_over": "Up to {max} ☀ (today {day} / month {month} left)",
+  "@parent_settings_gift_err_over": {
+    "placeholders": {
+      "max": { "type": "int" },
+      "day": { "type": "int" },
+      "month": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_btn": "Gift",
+  "parent_settings_gift_daily_cap_snack": "Daily gift cap reached ({daily} ☀/day) — come back tomorrow",
+  "@parent_settings_gift_daily_cap_snack": {
+    "placeholders": {
+      "daily": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_monthly_cap_snack": "Monthly gift cap reached ({monthly} ☀/month)",
+  "@parent_settings_gift_monthly_cap_snack": {
+    "placeholders": {
+      "monthly": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_over_snack": "Over the gift cap — nothing gifted ({remain} ☀ left today)",
+  "@parent_settings_gift_over_snack": {
+    "placeholders": {
+      "remain": { "type": "int" }
+    }
+  },
+  "parent_settings_gift_ok_snack": "Gifted {amount} ☀ to your kid ({remain} ☀ left today)",
+  "@parent_settings_gift_ok_snack": {
+    "placeholders": {
+      "amount": { "type": "int" },
+      "remain": { "type": "int" }
+    }
+  },
+  "parent_settings_debug_member_title": "Member mode (debug only)",
+  "parent_settings_debug_member_subtitle": "Unlocks all premium features; resets after app restart",
+
+  "parent_profile_tier_low": "Lower grade · age ≤8",
+  "parent_profile_tier_mid": "Middle grade · age 9–12",
+  "parent_profile_tier_high": "Upper grade · age ≥13",
+  "parent_profile_menu_edit": "Edit",
+  "parent_profile_menu_delete": "Delete",
+  "parent_profile_menu_create": "New child",
+  "parent_profile_toast_switched": "Switched to \"{name}\"",
+  "@parent_profile_toast_switched": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_profile_toast_added": "Added \"{name}\"",
+  "@parent_profile_toast_added": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_profile_toast_updated": "Updated \"{name}\"",
+  "@parent_profile_toast_updated": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_profile_toast_deleted": "Deleted \"{name}\"",
+  "@parent_profile_toast_deleted": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_profile_max_toast": "Up to {count} child profiles",
+  "@parent_profile_max_toast": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_profile_min_toast": "Keep at least one child profile",
+  "parent_profile_create_title": "New child",
+  "parent_profile_edit_title": "Edit child",
+  "parent_profile_name_label": "Child's name",
+  "parent_profile_name_hint": "e.g. Little Sunflower",
+  "parent_profile_btn_create": "Create",
+  "parent_profile_delete_title": "Delete \"{name}\"?",
+  "@parent_profile_delete_title": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "parent_profile_delete_body": "The profile and its settings will be removed and cannot be restored.",
+  "parent_profile_pin_label": "Parent PIN",
+  "parent_profile_pin_err_empty": "Enter the parent PIN",
+  "parent_profile_pin_err_wrong": "Wrong PIN — try again",
+
+  "parent_history_seg_report": "Focus report",
+  "parent_history_seg_activity": "Tasks & rewards",
+  "parent_hist_section_tasks": "Growth task completions",
+  "parent_hist_task_tail": "{count} in total",
+  "@parent_hist_task_tail": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_hist_empty_tasks": "No completions in this period",
+  "parent_hist_section_rewards": "Reward redemptions",
+  "parent_hist_reward_tail": "{count} in total · {cost} ☀ spent",
+  "@parent_hist_reward_tail": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_hist_empty_rewards": "No redemptions in this period",
+  "parent_hist_deleted_task": "(deleted growth item)",
+  "parent_hist_deleted_reward": "(deleted reward)",
+  "parent_hist_done_badge": "Done ×{count}",
+  "@parent_hist_done_badge": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_hist_redeem_badge": "Redeemed ×{count}",
+  "@parent_hist_redeem_badge": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_hist_range_multi": "First {first} – latest {last}",
+  "@parent_hist_range_multi": {
+    "placeholders": {
+      "first": { "type": "String" },
+      "last": { "type": "String" }
+    }
+  },
+  "parent_hist_cost_line": "{range} · {cost} ☀ spent",
+  "@parent_hist_cost_line": {
+    "placeholders": {
+      "range": { "type": "String" },
+      "cost": { "type": "int" }
+    }
+  },
+  "parent_hist_summary_done": "Items completed",
+  "parent_hist_summary_redeem": "Rewards redeemed",
+  "parent_hist_summary_cost": "Sunlight spent",
+
+  "parent_report_error_hint": "Couldn't build the report — pull down to retry",
+  "parent_report_period_day": "D",
+  "parent_report_period_week": "W",
+  "parent_report_period_month": "M",
+  "parent_report_period_year": "Y",
+  "parent_report_prev_tooltip": "Previous period",
+  "parent_report_next_tooltip": "Next period",
+  "parent_report_hero_title": "Focus this period",
+  "parent_report_minutes": "{minutes} min",
+  "@parent_report_minutes": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "parent_report_valid_days": "{days} valid focus days",
+  "@parent_report_valid_days": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "parent_report_avg_daily": "{minutes} min/day average",
+  "@parent_report_avg_daily": {
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "parent_report_trend_day": "Last 7 days",
+  "parent_report_trend_week": "This week",
+  "parent_report_trend_month": "This month (by week)",
+  "parent_report_trend_year": "This year (by month)",
+  "parent_report_stability_title": "Focus stability · last 4 weeks",
+  "parent_report_heatmap_title": "Focus heatmap · last year",
+  "parent_report_eyecare_title": "Eye-care stats",
+  "parent_report_eyecare_loading": "Loading eye-care stats…",
+  "parent_report_trend_empty": "Nothing here yet. Complete one 15-minute focus session with your kid and this will light up.",
+  "parent_report_label_today": "Today · {date}",
+  "@parent_report_label_today": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "parent_report_label_yesterday": "Yesterday · {date}",
+  "@parent_report_label_yesterday": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "parent_report_label_range": "{start} – {end}",
+  "@parent_report_label_range": {
+    "placeholders": {
+      "start": { "type": "String" },
+      "end": { "type": "String" }
+    }
+  },
+  "parent_report_label_month": "{month}/{year}",
+  "@parent_report_label_month": {
+    "placeholders": {
+      "year": { "type": "int" },
+      "month": { "type": "int" }
+    }
+  },
+  "parent_report_label_year": "{year}",
+  "@parent_report_label_year": {
+    "placeholders": {
+      "year": { "type": "int" }
+    }
+  },
+  "parent_report_wd_mon": "M",
+  "parent_report_wd_tue": "T",
+  "parent_report_wd_wed": "W",
+  "parent_report_wd_thu": "T",
+  "parent_report_wd_fri": "F",
+  "parent_report_wd_sat": "S",
+  "parent_report_wd_sun": "S",
+  "parent_report_heat_empty": "No focus records in the last year.",
+  "parent_report_heat_tip": "{date} · {minutes} min",
+  "@parent_report_heat_tip": {
+    "placeholders": {
+      "date": { "type": "String" },
+      "minutes": { "type": "int" }
+    }
+  },
+  "parent_report_month_tick": "{month}",
+  "@parent_report_month_tick": {
+    "placeholders": {
+      "month": { "type": "int" }
+    }
+  },
+  "parent_report_legend_less": "Less",
+  "parent_report_legend_more": "More",
+  "parent_report_streak_current": "{days}-day current streak",
+  "@parent_report_streak_current": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "parent_report_streak_longest": "{days}-day best streak",
+  "@parent_report_streak_longest": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "parent_report_stability_empty": "No focus records in the last 4 weeks.",
+  "parent_report_weeks_ago": "{count}w ago",
+  "@parent_report_weeks_ago": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_report_week_this": "This week",
+  "parent_report_stability_score": "Stability {percent}%",
+  "@parent_report_stability_score": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "parent_report_upsell_title": "Unlock the in-depth report",
+  "parent_report_upsell_subtitle": "4-week stability · full-year heatmap",
+  "parent_report_eyecare_completed": "Breaks done",
+  "parent_report_eyecare_skipped": "Skipped",
+  "parent_report_eyecare_duration": "Total eye-care time",
+  "parent_report_eyecare_rate": "Skip rate",
+  "parent_report_times": "×{count}",
+  "@parent_report_times": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_report_secs": "{count} s",
+  "@parent_report_secs": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "parent_report_minutes_1f": "{value} min",
+  "@parent_report_minutes_1f": {
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+  "parent_report_eyecare_skip_note": "{count} breaks were skipped (watched time still counted honestly).",
+  "@parent_report_eyecare_skip_note": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "premium_table_free_pill": "Free",
+  "premium_table_gold_pill": "Unlock All ★",
+  "premium_table_owned": "Owned",
+  "premium_table_band_free": "Free to use",
+  "premium_table_band_unlock": "Unlock by one-time buy",
+  "premium_table_row_pomodoro": "Focus timer",
+  "premium_table_row_screentime": "Screen time & routines",
+  "premium_table_row_eyecare": "Eye-care breaks",
+  "premium_table_row_garden": "Garden growing",
+  "premium_table_row_economy": "Sunlight economy & ledger",
+  "premium_table_row_store": "Store redemption",
+  "premium_table_row_levels": "Focus levels + 9 titles",
+  "premium_table_row_report": "Parent focus report",
+  "premium_table_report_days": "Last 7 days",
+  "premium_table_footnote_report": "More report features in development",
+  "premium_table_row_one_click": "Garden one-tap care",
+  "premium_table_row_pots": "Pot capacity",
+  "premium_table_row_tasks": "Growth templates",
+  "premium_table_row_rewards": "Reward templates",
+  "premium_table_row_perks": "Title perks",
+  "premium_table_free_pots": "{count} pots",
+  "@premium_table_free_pots": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "premium_table_free_items": "{count} items",
+  "@premium_table_free_items": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "premium_table_unlimited": "✓ Unlimited",
+  "premium_table_max": "Up to {count}",
+  "@premium_table_max": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "premium_table_pots_note": "Extra pots still cost sunlight",
+  "premium_table_perks_count": "✓ {count} perks",
+  "@premium_table_perks_count": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "premium_quota_inline_reason": "Free limit {limit} (now {count})",
+  "@premium_quota_inline_reason": {
+    "placeholders": {
+      "limit": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+
+  "parent_premium_title": "Unlock All",
+  "parent_premium_hero_subtitle": "One-time purchase · unlock forever, grow together",
+  "parent_premium_pill_unlocked": "Unlocked",
+  "parent_premium_pill_locked": "Locked",
+  "parent_premium_gold_pill": "One-time · forever",
+  "parent_premium_unavailable_title": "Store is unreachable",
+  "parent_premium_unavailable_body": "Product info is unavailable right now; everything else in the app still works. Check your network and retry.",
+  "parent_premium_btn_unlocked_done": "Unlocked · thank you",
+  "parent_premium_btn_buying": "Purchasing…",
+  "parent_premium_btn_unavailable": "Not available now",
+  "parent_premium_btn_unlock_now": "Unlock now · {price}",
+  "@parent_premium_btn_unlock_now": {
+    "placeholders": {
+      "price": { "type": "String" }
+    }
+  },
+  "parent_premium_restoring": "Restoring…",
+  "parent_premium_restore": "Restore purchases",
+  "parent_premium_notes_title": "Before you buy",
+  "parent_premium_note_1": "One-time buy, unlocked forever — not a subscription, no auto-renewal.",
+  "parent_premium_note_2": "Same Apple ID on a new phone or after reinstall: tap \"Restore purchases\" to get it back.",
+  "parent_premium_note_3": "⚠️ Purchases made on iOS cannot be restored on Android devices (and vice versa).",
+  "parent_premium_note_4": "Payment is handled by Apple App Store; developers never see your payment details.",
+  "parent_premium_snack_unlocked": "Unlocked — thank you 🌻",
+  "parent_premium_snack_incomplete": "Purchase not completed — try again later",
+  "parent_premium_snack_buy_failed": "Purchase failed — try again later",
+  "parent_premium_snack_restored": "Purchases restored — welcome back 🌻",
+  "parent_premium_snack_nothing": "No purchases found to restore",
+  "parent_premium_snack_restore_net": "Restore failed — check your network and retry",
+  "parent_premium_snack_restore_failed": "Restore failed — try again later",
+  "parent_reward_category_label": "Type",
+  "shared_lang_zh_name": "简体中文"
 }

@@ -21,6 +21,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_today_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_reward_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page.dart';
@@ -128,68 +130,78 @@ class _ParentHomePageState extends State<ParentHomePage> {
     //
     // 主题：读外层亮度（app.dart 已按 settings.themeDark 设好 themeMode），
     // 再套家长端皮肤，保证深色开关在家长端同样生效。
-    return Theme(
-      data: parentThemeFor(Theme.of(context).brightness),
-      child: PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop) return;
-          context.go('/');
+    // 🔴 页级 L10nScope（i18n B2）：全页文案经 AppLocalizations 解析；Builder 的
+    // context 参数位于 scope 之下，可安全取文案。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          final AppLocalizations l10n = AppLocalizations.of(context);
+          return Theme(
+            data: parentThemeFor(Theme.of(context).brightness),
+            child: PopScope(
+              canPop: false,
+              onPopInvokedWithResult: (didPop, _) {
+                if (didPop) return;
+                context.go('/');
+              },
+              child: Scaffold(
+                appBar: AppBar(
+                  title: Text(l10n.parent_home_title),
+                  // 显式返回孩子端：PIN 登录成功用的是 `go`（替换路由栈），栈内没有
+                  // 上级页面，AppBar 不会自动渲染返回箭头 → 会「进得去出不来」（B19）。
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: l10n.parent_home_back_tooltip,
+                    onPressed: () => context.go('/'),
+                  ),
+                ),
+                // C90 期 1：顶部「当前孩子」胶囊条（切换 / 新建入口只在家长天地），
+                // 下方 5 tab IndexedStack 原样保活。
+                body: Column(
+                  children: <Widget>[
+                    const ChildProfileBar(),
+                    Expanded(child: _buildIndexedStack()),
+                  ],
+                ),
+                // C61 平板适配：限宽居中（同孩子端）；手机端原样（零变化）。
+                bottomNavigationBar: AdaptiveNavBarHost(
+                  child: NavigationBar(
+                    selectedIndex: _index,
+                    onDestinationSelected: (int i) =>
+                        setState(() => _index = i),
+                    destinations: <NavigationDestination>[
+                      NavigationDestination(
+                        icon: const Icon(Icons.today_outlined),
+                        selectedIcon: const Icon(Icons.today),
+                        label: l10n.parent_home_tab_today,
+                      ),
+                      NavigationDestination(
+                        icon: const Icon(Icons.card_giftcard_outlined),
+                        selectedIcon: const Icon(Icons.card_giftcard),
+                        label: l10n.parent_home_tab_reward,
+                      ),
+                      NavigationDestination(
+                        icon: const Icon(Icons.checklist_outlined),
+                        selectedIcon: const Icon(Icons.checklist),
+                        label: l10n.parent_home_tab_growth,
+                      ),
+                      NavigationDestination(
+                        icon: const Icon(Icons.history_outlined),
+                        selectedIcon: const Icon(Icons.history),
+                        label: l10n.parent_home_tab_history,
+                      ),
+                      NavigationDestination(
+                        icon: const Icon(Icons.settings_outlined),
+                        selectedIcon: const Icon(Icons.settings),
+                        label: l10n.parent_home_tab_settings,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
         },
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('家长天地'),
-            // 显式返回孩子端：PIN 登录成功用的是 `go`（替换路由栈），栈内没有
-            // 上级页面，AppBar 不会自动渲染返回箭头 → 会「进得去出不来」（B19）。
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              tooltip: '返回孩子端',
-              onPressed: () => context.go('/'),
-            ),
-          ),
-          // C90 期 1：顶部「当前孩子」胶囊条（切换 / 新建入口只在家长天地），
-          // 下方 5 tab IndexedStack 原样保活。
-          body: Column(
-            children: <Widget>[
-              const ChildProfileBar(),
-              Expanded(child: _buildIndexedStack()),
-            ],
-          ),
-          // C61 平板适配：限宽居中（同孩子端）；手机端原样（零变化）。
-          bottomNavigationBar: AdaptiveNavBarHost(
-            child: NavigationBar(
-              selectedIndex: _index,
-              onDestinationSelected: (int i) => setState(() => _index = i),
-              destinations: const <NavigationDestination>[
-                NavigationDestination(
-                  icon: Icon(Icons.today_outlined),
-                  selectedIcon: Icon(Icons.today),
-                  label: '今日',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.card_giftcard_outlined),
-                  selectedIcon: Icon(Icons.card_giftcard),
-                  label: '奖励',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.checklist_outlined),
-                  selectedIcon: Icon(Icons.checklist),
-                  label: '成长',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.history_outlined),
-                  selectedIcon: Icon(Icons.history),
-                  label: '记录',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings),
-                  label: '设置',
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

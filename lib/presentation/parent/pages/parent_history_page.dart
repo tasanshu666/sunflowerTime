@@ -19,6 +19,8 @@ library parent_history_page;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/focus_report_section.dart';
 import 'package:sunflower_time/presentation/parent/widgets/history_activity_section.dart';
 
@@ -73,6 +75,8 @@ class _ParentHistoryPageState extends ConsumerState<ParentHistoryPage> {
   /// ⚠️ 刻意**不用** `TabBar`（nav 结构测试断言 `find.byType(TabBar) findsNothing`，
   /// 且本页不是路由层级的 tab，只是页内分段）。
   Widget _buildSegmentBar(BuildContext context) {
+    // i18n B2：分段文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: LayoutBuilder(
@@ -85,14 +89,14 @@ class _ParentHistoryPageState extends ConsumerState<ParentHistoryPage> {
             child: ConstrainedBox(
               constraints: BoxConstraints(minWidth: minWidth),
               child: SegmentedButton<int>(
-                segments: const <ButtonSegment<int>>[
+                segments: <ButtonSegment<int>>[
                   ButtonSegment<int>(
                     value: _kReportSegment,
-                    label: Text('专注报告'),
+                    label: Text(t.parent_history_seg_report),
                   ),
                   ButtonSegment<int>(
                     value: _kActivitySegment,
-                    label: Text('任务与奖励'),
+                    label: Text(t.parent_history_seg_activity),
                   ),
                 ],
                 selected: <int>{_segment},

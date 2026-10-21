@@ -1,16 +1,19 @@
-/// EN 溢出探测测试（i18n B1，T05 收口）。
+/// EN 溢出探测测试（i18n B1 T05 → **B2 扩展：家长端**）。
 ///
 /// 探测口径：**最坏组合** —— 最窄手机档 `320×568` + English（普遍比 zh 长）+
 /// `textScaler 1.3`（系统大字号）。在此组合下：
 ///  ① 最「宽」的孩子端页面（[GardenPage]，含花盆格 / 一键护理胶囊 / 顶栏余额）
 ///     有界 pump 若干帧 → 不抛布局异常（RenderFlex overflow 等）；
 ///  ② 两张统一弹窗壳（[showChildConfirmCard] / [showGoldNoticeDialog]）塞入
-///     调用方解析好的**长英文串** → 不抛布局异常。
+///     调用方解析好的**长英文串** → 不抛布局异常；
+///  ③ **B2 新增**：家长端最宽页（购买页对比表 / 奖励页周池卡 / 设置页长行 /
+///     记录页「报表 + 历史」段）同样在最坏组合下不抛布局异常。
 ///
 /// 说明：花园页有无限呼吸动画（木牌 / 奖励图标），全程用有界 `pump`，
 /// 禁用 `pumpAndSettle`（同 qa_independent_round2_ef_test 的口径）。
 library en_overflow_probe_test;
 
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,7 +23,10 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/app_language.dart';
 import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/data/local/database/app_database.dart' as db;
+import 'package:sunflower_time/data/local/repositories/child_profile_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
+import 'package:sunflower_time/data/local/repositories/settings_local_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
@@ -32,12 +38,18 @@ import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/domain/services/account_service.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/platform/iap_service.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart'
     as confirm;
 import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart'
     as gold;
+import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
+import 'package:sunflower_time/presentation/parent/pages/parent_reward_page.dart';
+import 'package:sunflower_time/presentation/parent/pages/parent_settings_page.dart';
+import 'package:sunflower_time/presentation/parent/widgets/history_activity_section.dart';
 
 import '../helpers/no_hit_random.dart';
 
@@ -221,6 +233,65 @@ Widget _dialogHost(void Function(BuildContext) onTap) => MaterialApp(
       ),
     );
 
+/// 离线 IAP 适配器（家长端购买页专用）：商店恒不可用，**绝不触碰真实 StoreKit**。
+///
+/// 不可用态同样会渲染对比表 / 恢复购买 / 诚实说明卡（最宽内容块），故足以做溢出探测。
+class _OfflineIapAdapter implements IapAdapter {
+  @override
+  Stream<IapMessage> get messages => const Stream<IapMessage>.empty();
+
+  @override
+  Future<bool> isStoreAvailable() async => false;
+
+  @override
+  Future<List<IapProduct>> queryProducts(Set<String> productIds) async =>
+      <IapProduct>[];
+
+  @override
+  Future<void> startLifetimePurchase(String productId) async {}
+
+  @override
+  Future<void> startRestore() async {}
+}
+
+/// 家长端页面装配：**内存 drift 库 + 真实仓储/服务**（只覆盖基础设施三件套 + IAP）。
+///
+/// 为什么不用一堆 Fake：家长端页面串起 `settings / reward / task / checkIn /
+/// redemptionOrchestration / focusReport` 六条链路，逐个 Fake 既脆弱又偏离生产
+/// 装配路径；内存库让「真实 provider 图」原样跑起来，探测才可信。
+Future<ProviderContainer> _bootParent() async {
+  SharedPreferences.setMockInitialValues(<String, Object>{});
+  final SharedPreferences sp = await SharedPreferences.getInstance();
+  final db.AppDatabase database = db.AppDatabase(NativeDatabase.memory());
+  addTearDown(database.close);
+
+  final AccountService account = AccountService(
+    children: ChildProfileLocalRepository(database),
+    settings: SettingsLocalRepository(database),
+    prefs: sp,
+  );
+  await account.initialize();
+
+  final ProviderContainer container = ProviderContainer(
+    overrides: <Override>[
+      sharedPreferencesProvider.overrideWithValue(sp),
+      appDatabaseProvider.overrideWithValue(database),
+      accountServiceProvider.overrideWithValue(account),
+      iapServiceProvider
+          .overrideWithValue(IapService(adapter: _OfflineIapAdapter())),
+    ],
+  );
+  addTearDown(container.dispose);
+  return container;
+}
+
+/// 家长端页面宿主（页级 `L10nScope` 由页面自带，宿主不补）。
+Widget _parentHost(ProviderContainer container, Widget page) =>
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(home: Scaffold(body: page)),
+    );
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -315,5 +386,85 @@ void main() {
 
     expect(tester.takeException(), isNull,
         reason: '金色通知卡壳在 EN 长文案 + 最窄档 + 1.3 倍字号下不得溢出');
+  });
+
+  // ───────────────────────────── 家长端最宽页（i18n B2 新增）─────────────────────────────
+  //
+  // 🔴 为什么家长端要单独探：英文普遍比中文长 1.5~2 倍，家长端又恰好堆了最多
+  // 「标题 + 动作按钮」「大号数字 + 单位」「三列对比表」这类**定宽 Row** 结构，
+  // 是 i18n 溢出的高发区。四个页面按「内容最宽 → 最窄」排列，全部走生产装配。
+
+  testWidgets('④ 家长端购买页：对比表是最宽内容块 → 最坏组合下无布局异常',
+      (WidgetTester tester) async {
+    _useWorstCase(tester);
+    final ProviderContainer container = await _bootParent();
+
+    await tester.pumpWidget(_parentHost(container, const ParentPremiumPage()));
+    // 有界 pump：等商品查询返回 → 渲染降级卡 + 对比表 + 吸底栏。
+    for (int i = 0; i < 15; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(tester.takeException(), isNull,
+        reason: 'EN + 1.3 倍字号 + 320 宽下购买页（含三列对比表）不得溢出');
+  });
+
+  testWidgets('⑤ 家长端奖励页：周池大号数字 + 模板行 → 最坏组合下无布局异常',
+      (WidgetTester tester) async {
+    _useWorstCase(tester);
+    final ProviderContainer container = await _bootParent();
+
+    await tester.pumpWidget(_parentHost(container, const ParentRewardPage()));
+    for (int i = 0; i < 15; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(tester.takeException(), isNull,
+        reason: 'EN + 1.3 倍字号 + 320 宽下奖励页（周池卡「Unlimited」+ 标题行）不得溢出');
+  });
+
+  testWidgets('⑥ 家长端设置页：行数最多的页 → 最坏组合下无布局异常',
+      (WidgetTester tester) async {
+    _useWorstCase(tester);
+    final ProviderContainer container = await _bootParent();
+
+    await tester.pumpWidget(_parentHost(container, const ParentSettingsPage()));
+    for (int i = 0; i < 15; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(tester.takeException(), isNull,
+        reason: 'EN + 1.3 倍字号 + 320 宽下设置页（开关行 / 夜间下拉 / 语言行）不得溢出');
+  });
+
+  testWidgets('⑦ 家长端「报表 + 历史」段：期间条 + 汇总卡 → 最坏组合下无布局异常',
+      (WidgetTester tester) async {
+    _useWorstCase(tester);
+    final ProviderContainer container = await _bootParent();
+
+    await tester.pumpWidget(
+      // 🔴 `HistoryActivitySection` 是**组件**（生产里处在 `ParentHomePage` 的页级
+      // `L10nScope` 之下），不像上面四个页面会自包 scope。裸宿主会让 `l10nOf`
+      // 静默回退 `AppLocalizationsZh` → 探的其实是中文，测不出 EN 溢出。
+      // 故此处必须显式补 scope（否则本用例是假绿）。
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: L10nScope(
+            child: Scaffold(body: HistoryActivitySection()),
+          ),
+        ),
+      ),
+    );
+    for (int i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    // 防假绿：先证明此时渲染的**确实是英文**（回退 zh 会让上面那条断言失去意义）。
+    expect(find.textContaining('in total'), findsWidgets,
+        reason: '本用例必须在 en 文案下探溢出；找不到英文说明又回退成中文了');
+
+    expect(tester.takeException(), isNull,
+        reason: 'EN + 1.3 倍字号 + 320 宽下「记录」页任务/奖励历史段不得溢出');
   });
 }

@@ -38,13 +38,13 @@ class LanguagePicker extends ConsumerWidget {
   }
 
   /// 选项展示文案（zh/en 两种语言名固定原文展示，不做翻译；
-  /// 「跟随系统」走 ARB）。
+  /// 「跟随系统」与「简体中文」走 ARB，英文名 `English` 本就是英文不译）。
   static String labelOf(AppLocalizations l10n, AppLanguage lang) {
     switch (lang) {
       case AppLanguage.system:
         return l10n.shared_lang_follow_system;
       case AppLanguage.zh:
-        return '简体中文';
+        return l10n.shared_lang_zh_name;
       case AppLanguage.en:
         return 'English';
     }

@@ -2258,6 +2258,1956 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **' · 🔒付费解锁'**
   String get fx_level_up_perk_locked;
+
+  /// No description provided for @shared_edit.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑'**
+  String get shared_edit;
+
+  /// No description provided for @shared_delete.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除'**
+  String get shared_delete;
+
+  /// No description provided for @parent_home_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'家长天地'**
+  String get parent_home_title;
+
+  /// No description provided for @parent_home_back_tooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回孩子端'**
+  String get parent_home_back_tooltip;
+
+  /// No description provided for @parent_home_tab_today.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日'**
+  String get parent_home_tab_today;
+
+  /// No description provided for @parent_home_tab_reward.
+  ///
+  /// In zh, this message translates to:
+  /// **'奖励'**
+  String get parent_home_tab_reward;
+
+  /// No description provided for @parent_home_tab_growth.
+  ///
+  /// In zh, this message translates to:
+  /// **'成长'**
+  String get parent_home_tab_growth;
+
+  /// No description provided for @parent_home_tab_history.
+  ///
+  /// In zh, this message translates to:
+  /// **'记录'**
+  String get parent_home_tab_history;
+
+  /// No description provided for @parent_home_tab_settings.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置'**
+  String get parent_home_tab_settings;
+
+  /// No description provided for @parent_login_enter_pin.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入家长 PIN'**
+  String get parent_login_enter_pin;
+
+  /// No description provided for @parent_login_setup_pin.
+  ///
+  /// In zh, this message translates to:
+  /// **'首次进入，请设置家长 PIN'**
+  String get parent_login_setup_pin;
+
+  /// No description provided for @parent_login_btn_enter.
+  ///
+  /// In zh, this message translates to:
+  /// **'进入'**
+  String get parent_login_btn_enter;
+
+  /// No description provided for @parent_login_btn_setup.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置并进入'**
+  String get parent_login_btn_setup;
+
+  /// No description provided for @parent_login_err_short.
+  ///
+  /// In zh, this message translates to:
+  /// **'PIN 至少 4 位'**
+  String get parent_login_err_short;
+
+  /// No description provided for @parent_login_err_wrong.
+  ///
+  /// In zh, this message translates to:
+  /// **'PIN 不正确'**
+  String get parent_login_err_wrong;
+
+  /// No description provided for @parent_delete_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除入口'**
+  String get parent_delete_title;
+
+  /// No description provided for @parent_delete_right_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据删除权（§10.4 C5）'**
+  String get parent_delete_right_title;
+
+  /// No description provided for @parent_delete_right_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'你拥有删除全部本地数据的权利。删除后所有进度与设置将不可恢复。'**
+  String get parent_delete_right_body;
+
+  /// No description provided for @parent_delete_dlg_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除全部本地数据？'**
+  String get parent_delete_dlg_title;
+
+  /// No description provided for @parent_delete_dlg_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'此操作将永久删除：专注记录、阳光账本、植物、成长项、奖励模板、家长 PIN 与所有本地设置，且无法恢复。\n\n建议先「导出成册」留存（导出功能将在 V2 上线）。'**
+  String get parent_delete_dlg_body;
+
+  /// No description provided for @parent_delete_btn_ok.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认删除'**
+  String get parent_delete_btn_ok;
+
+  /// No description provided for @parent_delete_btn_export.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出成册（V2 上线）'**
+  String get parent_delete_btn_export;
+
+  /// No description provided for @parent_delete_export_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出成册功能将在 V2 上线，请先截图留存'**
+  String get parent_delete_export_snack;
+
+  /// No description provided for @parent_delete_btn_all.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除全部本地数据'**
+  String get parent_delete_btn_all;
+
+  /// No description provided for @parent_delete_btn_deleting.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除中…'**
+  String get parent_delete_btn_deleting;
+
+  /// No description provided for @parent_delete_done_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除全部本地数据'**
+  String get parent_delete_done_snack;
+
+  /// No description provided for @parent_delete_fail_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除失败：{error}'**
+  String parent_delete_fail_snack(Object error);
+
+  /// No description provided for @parent_today_unknown_reward.
+  ///
+  /// In zh, this message translates to:
+  /// **'未知奖励'**
+  String get parent_today_unknown_reward;
+
+  /// No description provided for @parent_today_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无待确认奖励 🎉'**
+  String get parent_today_empty;
+
+  /// No description provided for @parent_today_pending_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'待确认的成长项'**
+  String get parent_today_pending_title;
+
+  /// No description provided for @parent_today_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 项'**
+  String parent_today_count(int count);
+
+  /// No description provided for @parent_today_deleted_task.
+  ///
+  /// In zh, this message translates to:
+  /// **'（已删除的成长项）'**
+  String get parent_today_deleted_task;
+
+  /// No description provided for @parent_today_submitted_at.
+  ///
+  /// In zh, this message translates to:
+  /// **'提交于 {time}'**
+  String parent_today_submitted_at(Object time);
+
+  /// No description provided for @parent_today_should_grant.
+  ///
+  /// In zh, this message translates to:
+  /// **'应发 {sun} 阳光'**
+  String parent_today_should_grant(String sun);
+
+  /// No description provided for @parent_today_btn_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认发放'**
+  String get parent_today_btn_confirm;
+
+  /// No description provided for @parent_today_btn_reject.
+  ///
+  /// In zh, this message translates to:
+  /// **'驳回'**
+  String get parent_today_btn_reject;
+
+  /// No description provided for @parent_today_reject_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'驳回这项成长？'**
+  String get parent_today_reject_title;
+
+  /// No description provided for @parent_today_reject_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'将不发放「{name}」的阳光。'**
+  String parent_today_reject_body(String name);
+
+  /// No description provided for @parent_today_reject_reason.
+  ///
+  /// In zh, this message translates to:
+  /// **'理由（选填）'**
+  String get parent_today_reject_reason;
+
+  /// No description provided for @parent_today_reject_ok.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认驳回'**
+  String get parent_today_reject_ok;
+
+  /// No description provided for @parent_today_confirm_ok_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'已确认发放，+{sun} 阳光 🌻{capped}'**
+  String parent_today_confirm_ok_snack(String sun, String capped);
+
+  /// No description provided for @parent_today_capped_note.
+  ///
+  /// In zh, this message translates to:
+  /// **'（今日成长奖励已达上限，本次只到账 {sun} ☀）'**
+  String parent_today_capped_note(String sun);
+
+  /// No description provided for @parent_today_confirm_fail_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认失败：{error}'**
+  String parent_today_confirm_fail_snack(Object error);
+
+  /// No description provided for @parent_today_rejected_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'已驳回 🌞 这项不会发阳光'**
+  String get parent_today_rejected_snack;
+
+  /// No description provided for @parent_today_reject_fail_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'驳回失败：{error}'**
+  String parent_today_reject_fail_snack(Object error);
+
+  /// No description provided for @parent_today_debug_cap_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'🧪 调试：跳过 30 分钟限时'**
+  String get parent_today_debug_cap_title;
+
+  /// No description provided for @parent_today_debug_cap_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'调试期间默认开启（不进限时状态）；关闭后恢复防沉迷拦截。仅调试包可见。'**
+  String get parent_today_debug_cap_subtitle;
+
+  /// No description provided for @parent_today_debug_cap_on_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'已跳过 30 分钟限时（调试）'**
+  String get parent_today_debug_cap_on_snack;
+
+  /// No description provided for @parent_today_debug_cap_off_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'已恢复 30 分钟限时拦截'**
+  String get parent_today_debug_cap_off_snack;
+
+  /// No description provided for @parent_today_debug_save_fail_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存失败，请重试'**
+  String get parent_today_debug_save_fail_snack;
+
+  /// No description provided for @parent_verify_cat_self_service.
+  ///
+  /// In zh, this message translates to:
+  /// **'自服务'**
+  String get parent_verify_cat_self_service;
+
+  /// No description provided for @parent_verify_cat_parent_handled.
+  ///
+  /// In zh, this message translates to:
+  /// **'家长经手'**
+  String get parent_verify_cat_parent_handled;
+
+  /// No description provided for @parent_verify_cost.
+  ///
+  /// In zh, this message translates to:
+  /// **'{cost} 阳光'**
+  String parent_verify_cost(int cost);
+
+  /// No description provided for @parent_verify_meta.
+  ///
+  /// In zh, this message translates to:
+  /// **'分类：{category} · 申请于 {time}'**
+  String parent_verify_meta(String category, String time);
+
+  /// No description provided for @parent_verify_queue_note.
+  ///
+  /// In zh, this message translates to:
+  /// **'排队第 {pos} 位 · 下月自动释放'**
+  String parent_verify_queue_note(Object pos);
+
+  /// No description provided for @parent_verify_confirm_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认核销？'**
+  String get parent_verify_confirm_title;
+
+  /// No description provided for @parent_verify_confirm_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认为「{name}」核销 {cost} 阳光？\n核销后将立即从孩子阳光中扣除，且不可撤销。'**
+  String parent_verify_confirm_body(String name, int cost);
+
+  /// No description provided for @parent_verify_confirm_ok.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认核销'**
+  String get parent_verify_confirm_ok;
+
+  /// No description provided for @parent_verify_reject_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认拒绝？'**
+  String get parent_verify_reject_title;
+
+  /// No description provided for @parent_verify_reject_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'拒绝「{name}」（{cost} 阳光）后将不核销该奖励。\n待核销期间阳光从未被扣除，故孩子阳光不受影响。\n此操作不可撤销。'**
+  String parent_verify_reject_body(String name, int cost);
+
+  /// No description provided for @parent_verify_reject_ok.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认拒绝'**
+  String get parent_verify_reject_ok;
+
+  /// No description provided for @parent_verify_verified_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'已确认兑换 🎉 阳光已扣除'**
+  String get parent_verify_verified_snack;
+
+  /// No description provided for @parent_verify_verify_fail_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'核销失败：{error}'**
+  String parent_verify_verify_fail_snack(Object error);
+
+  /// No description provided for @parent_verify_rejected_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拒绝该兑换 🌞 阳光未被扣除'**
+  String get parent_verify_rejected_snack;
+
+  /// No description provided for @parent_verify_reject_fail_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'拒绝失败：{error}'**
+  String parent_verify_reject_fail_snack(Object error);
+
+  /// No description provided for @parent_verify_release_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'立即发放？'**
+  String get parent_verify_release_title;
+
+  /// No description provided for @parent_verify_release_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认为「{name}」立即发放 {cost} 阳光？\n将跳过排队等待，立即从孩子阳光中扣除。'**
+  String parent_verify_release_body(String name, int cost);
+
+  /// No description provided for @parent_verify_release_ok.
+  ///
+  /// In zh, this message translates to:
+  /// **'立即发放'**
+  String get parent_verify_release_ok;
+
+  /// No description provided for @parent_verify_released_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'已立即发放 🎉 阳光已扣除'**
+  String get parent_verify_released_snack;
+
+  /// No description provided for @parent_verify_release_state_fail_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法立即发放：{error}'**
+  String parent_verify_release_state_fail_snack(Object error);
+
+  /// No description provided for @parent_verify_release_fail_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'发放失败：{error}'**
+  String parent_verify_release_fail_snack(Object error);
+
+  /// No description provided for @parent_task_edit_title_new.
+  ///
+  /// In zh, this message translates to:
+  /// **'新增成长项'**
+  String get parent_task_edit_title_new;
+
+  /// No description provided for @parent_task_edit_title_edit.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑成长项'**
+  String get parent_task_edit_title_edit;
+
+  /// No description provided for @parent_task_edit_name_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'成长项名称'**
+  String get parent_task_edit_name_label;
+
+  /// No description provided for @parent_task_edit_subject_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'科目'**
+  String get parent_task_edit_subject_label;
+
+  /// No description provided for @parent_task_edit_subject_general.
+  ///
+  /// In zh, this message translates to:
+  /// **'通用'**
+  String get parent_task_edit_subject_general;
+
+  /// No description provided for @parent_task_edit_subject_chinese.
+  ///
+  /// In zh, this message translates to:
+  /// **'语文'**
+  String get parent_task_edit_subject_chinese;
+
+  /// No description provided for @parent_task_edit_subject_math.
+  ///
+  /// In zh, this message translates to:
+  /// **'数学'**
+  String get parent_task_edit_subject_math;
+
+  /// No description provided for @parent_task_edit_subject_english.
+  ///
+  /// In zh, this message translates to:
+  /// **'英语'**
+  String get parent_task_edit_subject_english;
+
+  /// No description provided for @parent_task_edit_subject_custom.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义…'**
+  String get parent_task_edit_subject_custom;
+
+  /// No description provided for @parent_task_edit_custom_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义科目名称'**
+  String get parent_task_edit_custom_label;
+
+  /// No description provided for @parent_task_edit_custom_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'例如：科学 / 书法 / 编程'**
+  String get parent_task_edit_custom_hint;
+
+  /// No description provided for @parent_task_edit_category_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'分类'**
+  String get parent_task_edit_category_label;
+
+  /// No description provided for @parent_task_edit_link_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注联动（自动结算）'**
+  String get parent_task_edit_link_title;
+
+  /// No description provided for @parent_task_edit_link_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'勾选后，孩子从这一项点「开始专注」，达标会自动完成并发放阳光，无需手动打卡。'**
+  String get parent_task_edit_link_subtitle;
+
+  /// No description provided for @parent_task_edit_min_focus_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'最少专注'**
+  String get parent_task_edit_min_focus_label;
+
+  /// No description provided for @parent_task_edit_minutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'{minutes} 分钟'**
+  String parent_task_edit_minutes(int minutes);
+
+  /// No description provided for @parent_task_edit_reward_fixed.
+  ///
+  /// In zh, this message translates to:
+  /// **'奖励固定 = 专注 {minutes} 分钟 × 40% = {cap} ☀（无需调整）'**
+  String parent_task_edit_reward_fixed(int minutes, int cap);
+
+  /// No description provided for @parent_task_edit_reward_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'阳光奖励'**
+  String get parent_task_edit_reward_label;
+
+  /// No description provided for @parent_task_edit_reward_slider.
+  ///
+  /// In zh, this message translates to:
+  /// **'{reward} 阳光'**
+  String parent_task_edit_reward_slider(int reward);
+
+  /// No description provided for @parent_task_edit_reward_range.
+  ///
+  /// In zh, this message translates to:
+  /// **'区间 {min}–{max} ☀（默认 {def}）'**
+  String parent_task_edit_reward_range(int min, int max, int def);
+
+  /// No description provided for @parent_task_edit_repeat_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'重复规则'**
+  String get parent_task_edit_repeat_label;
+
+  /// No description provided for @parent_task_edit_repeat_none.
+  ///
+  /// In zh, this message translates to:
+  /// **'不重复'**
+  String get parent_task_edit_repeat_none;
+
+  /// No description provided for @parent_task_edit_repeat_daily.
+  ///
+  /// In zh, this message translates to:
+  /// **'每天'**
+  String get parent_task_edit_repeat_daily;
+
+  /// No description provided for @parent_task_edit_repeat_weekly.
+  ///
+  /// In zh, this message translates to:
+  /// **'每周'**
+  String get parent_task_edit_repeat_weekly;
+
+  /// No description provided for @parent_task_edit_err_name.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写成长项名称'**
+  String get parent_task_edit_err_name;
+
+  /// No description provided for @parent_task_edit_err_reward.
+  ///
+  /// In zh, this message translates to:
+  /// **'阳光奖励需在 {min}–{max} 之间'**
+  String parent_task_edit_err_reward(int min, int max);
+
+  /// No description provided for @parent_task_edit_err_subject.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写自定义科目名称'**
+  String get parent_task_edit_err_subject;
+
+  /// No description provided for @parent_task_edit_err_save.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存失败：{error}'**
+  String parent_task_edit_err_save(Object error);
+
+  /// No description provided for @parent_task_edit_btn_save.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存'**
+  String get parent_task_edit_btn_save;
+
+  /// No description provided for @parent_task_config_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'成长配置'**
+  String get parent_task_config_title;
+
+  /// No description provided for @parent_task_config_list_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'成长任务'**
+  String get parent_task_config_list_title;
+
+  /// No description provided for @parent_task_config_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有成长项，点右上角「新增成长项」创建一个吧'**
+  String get parent_task_config_empty;
+
+  /// No description provided for @parent_task_config_delete_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除成长项？'**
+  String get parent_task_config_delete_title;
+
+  /// No description provided for @parent_task_config_delete_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除「{name}」？已生成的打卡记录会保留。'**
+  String parent_task_config_delete_body(String name);
+
+  /// No description provided for @parent_task_config_focus_pill.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注 {minutes} 分'**
+  String parent_task_config_focus_pill(int minutes);
+
+  /// No description provided for @parent_reward_templates_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'奖励模板'**
+  String get parent_reward_templates_title;
+
+  /// No description provided for @parent_reward_btn_add.
+  ///
+  /// In zh, this message translates to:
+  /// **'新增奖励'**
+  String get parent_reward_btn_add;
+
+  /// No description provided for @parent_reward_quota_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'{reason}，删除多余条目后即可新增'**
+  String parent_reward_quota_hint(String reason);
+
+  /// No description provided for @parent_reward_edit_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'点按某条可编辑名称/价格/分类；右侧垃圾桶可删除。改动会同步到孩子端阳光商店。'**
+  String get parent_reward_edit_hint;
+
+  /// No description provided for @parent_reward_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无奖励模板，点「新增奖励」创建'**
+  String get parent_reward_empty;
+
+  /// No description provided for @parent_reward_delete_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除奖励'**
+  String get parent_reward_delete_title;
+
+  /// No description provided for @parent_reward_delete_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除「{name}」？孩子端阳光商店将不再展示该奖励。'**
+  String parent_reward_delete_body(String name);
+
+  /// No description provided for @parent_reward_edit_title_new.
+  ///
+  /// In zh, this message translates to:
+  /// **'新增奖励'**
+  String get parent_reward_edit_title_new;
+
+  /// No description provided for @parent_reward_edit_title_edit.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑奖励'**
+  String get parent_reward_edit_title_edit;
+
+  /// No description provided for @parent_reward_name_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'奖励名称'**
+  String get parent_reward_name_label;
+
+  /// No description provided for @parent_reward_err_required.
+  ///
+  /// In zh, this message translates to:
+  /// **'必填'**
+  String get parent_reward_err_required;
+
+  /// No description provided for @parent_reward_cat_self_full.
+  ///
+  /// In zh, this message translates to:
+  /// **'自服务（看电视/玩平板）'**
+  String get parent_reward_cat_self_full;
+
+  /// No description provided for @parent_reward_content_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'内容分类'**
+  String get parent_reward_content_label;
+
+  /// No description provided for @parent_reward_cost_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'阳光价格'**
+  String get parent_reward_cost_label;
+
+  /// No description provided for @parent_reward_err_positive.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入正整数'**
+  String get parent_reward_err_positive;
+
+  /// No description provided for @parent_reward_freq_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'每周限领次数'**
+  String get parent_reward_freq_label;
+
+  /// No description provided for @parent_reward_err_nonneg.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入非负整数'**
+  String get parent_reward_err_nonneg;
+
+  /// No description provided for @parent_reward_cooldown_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'冷却规则'**
+  String get parent_reward_cooldown_label;
+
+  /// No description provided for @parent_reward_cooldown_none.
+  ///
+  /// In zh, this message translates to:
+  /// **'无冷却'**
+  String get parent_reward_cooldown_none;
+
+  /// No description provided for @parent_reward_cooldown_weekly.
+  ///
+  /// In zh, this message translates to:
+  /// **'每周限领'**
+  String get parent_reward_cooldown_weekly;
+
+  /// No description provided for @parent_reward_cooldown_monthly.
+  ///
+  /// In zh, this message translates to:
+  /// **'每月限领'**
+  String get parent_reward_cooldown_monthly;
+
+  /// No description provided for @parent_reward_pool_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'本周阳光预算'**
+  String get parent_reward_pool_title;
+
+  /// No description provided for @parent_reward_pool_unit.
+  ///
+  /// In zh, this message translates to:
+  /// **'阳光'**
+  String get parent_reward_pool_unit;
+
+  /// No description provided for @parent_reward_pool_used_line.
+  ///
+  /// In zh, this message translates to:
+  /// **'已用 {used} / 共 {budget} 阳光'**
+  String parent_reward_pool_used_line(int used, int budget);
+
+  /// No description provided for @parent_reward_pool_unlimited_line.
+  ///
+  /// In zh, this message translates to:
+  /// **'本周不限额，已用 {used} 阳光（兑换只受阳光余额约束）'**
+  String parent_reward_pool_unlimited_line(int used);
+
+  /// No description provided for @parent_reward_pool_default_note.
+  ///
+  /// In zh, this message translates to:
+  /// **'每周兑换额度默认值：低年级 {low}☀ · 中年级 {mid}☀ · 高年级{high}（兑换只受阳光余额约束）'**
+  String parent_reward_pool_default_note(int low, int mid, String high);
+
+  /// No description provided for @parent_reward_pool_load_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'周阳光池加载失败：{error}'**
+  String parent_reward_pool_load_failed(Object error);
+
+  /// No description provided for @parent_settings_section_screentime.
+  ///
+  /// In zh, this message translates to:
+  /// **'防沉迷与作息'**
+  String get parent_settings_section_screentime;
+
+  /// No description provided for @parent_settings_switch_quiet.
+  ///
+  /// In zh, this message translates to:
+  /// **'免打扰模式'**
+  String get parent_settings_switch_quiet;
+
+  /// No description provided for @parent_settings_night_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'夜间边界'**
+  String get parent_settings_night_title;
+
+  /// No description provided for @parent_settings_night_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'{time} 起进入夜间（夜锁生效时间）'**
+  String parent_settings_night_subtitle(String time);
+
+  /// No description provided for @parent_settings_daily_focus_cap.
+  ///
+  /// In zh, this message translates to:
+  /// **'每日专注上限（分钟）'**
+  String get parent_settings_daily_focus_cap;
+
+  /// No description provided for @parent_settings_daily_app_cap.
+  ///
+  /// In zh, this message translates to:
+  /// **'每日花园、商店使用时长（分钟）'**
+  String get parent_settings_daily_app_cap;
+
+  /// No description provided for @parent_settings_rest_after.
+  ///
+  /// In zh, this message translates to:
+  /// **'每 N 次专注后休息'**
+  String get parent_settings_rest_after;
+
+  /// No description provided for @parent_settings_rest_minutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'休息时长（分钟）'**
+  String get parent_settings_rest_minutes;
+
+  /// No description provided for @parent_settings_section_eyecare.
+  ///
+  /// In zh, this message translates to:
+  /// **'护眼休息'**
+  String get parent_settings_section_eyecare;
+
+  /// No description provided for @parent_settings_switch_eyecare.
+  ///
+  /// In zh, this message translates to:
+  /// **'护眼提醒'**
+  String get parent_settings_switch_eyecare;
+
+  /// No description provided for @parent_settings_eyecare_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注每满一定时间弹出护眼卡，帮孩子歇歇眼睛（固定 60 秒）'**
+  String get parent_settings_eyecare_subtitle;
+
+  /// No description provided for @parent_settings_eyecare_interval.
+  ///
+  /// In zh, this message translates to:
+  /// **'护眼触发间隔（每 N 分钟）'**
+  String get parent_settings_eyecare_interval;
+
+  /// No description provided for @parent_settings_switch_eyecare_skip.
+  ///
+  /// In zh, this message translates to:
+  /// **'允许孩子跳过护眼'**
+  String get parent_settings_switch_eyecare_skip;
+
+  /// No description provided for @parent_settings_eyecare_skip_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'关掉后孩子只能完成休息，跳过按钮不生效'**
+  String get parent_settings_eyecare_skip_subtitle;
+
+  /// No description provided for @parent_settings_section_sound.
+  ///
+  /// In zh, this message translates to:
+  /// **'环境与音效'**
+  String get parent_settings_section_sound;
+
+  /// No description provided for @parent_settings_switch_sound.
+  ///
+  /// In zh, this message translates to:
+  /// **'音效'**
+  String get parent_settings_switch_sound;
+
+  /// No description provided for @parent_settings_switch_bgm.
+  ///
+  /// In zh, this message translates to:
+  /// **'背景音乐'**
+  String get parent_settings_switch_bgm;
+
+  /// No description provided for @parent_settings_switch_dark.
+  ///
+  /// In zh, this message translates to:
+  /// **'深色主题'**
+  String get parent_settings_switch_dark;
+
+  /// No description provided for @parent_settings_section_lock.
+  ///
+  /// In zh, this message translates to:
+  /// **'家长锁与赠予'**
+  String get parent_settings_section_lock;
+
+  /// No description provided for @parent_settings_reset_pin.
+  ///
+  /// In zh, this message translates to:
+  /// **'重设家长 PIN'**
+  String get parent_settings_reset_pin;
+
+  /// No description provided for @parent_settings_grant_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'赠予阳光'**
+  String get parent_settings_grant_title;
+
+  /// No description provided for @parent_settings_grant_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'日上限 {daily} / 月上限 {monthly}'**
+  String parent_settings_grant_subtitle(Object daily, Object monthly);
+
+  /// No description provided for @parent_settings_section_data.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据与隐私'**
+  String get parent_settings_section_data;
+
+  /// No description provided for @parent_settings_entry_delete.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除入口'**
+  String get parent_settings_entry_delete;
+
+  /// No description provided for @parent_settings_entry_delete_sub.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除全部本地数据（§10.4 C5）'**
+  String get parent_settings_entry_delete_sub;
+
+  /// No description provided for @parent_settings_section_debug.
+  ///
+  /// In zh, this message translates to:
+  /// **'调试（仅 Debug 构建）'**
+  String get parent_settings_section_debug;
+
+  /// No description provided for @parent_settings_pin_dlg_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'重设家长 PIN'**
+  String get parent_settings_pin_dlg_title;
+
+  /// No description provided for @parent_settings_pin_dlg_old.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前 PIN'**
+  String get parent_settings_pin_dlg_old;
+
+  /// No description provided for @parent_settings_pin_dlg_new.
+  ///
+  /// In zh, this message translates to:
+  /// **'新 PIN（≥4 位）'**
+  String get parent_settings_pin_dlg_new;
+
+  /// No description provided for @parent_settings_pin_dlg_ok.
+  ///
+  /// In zh, this message translates to:
+  /// **'重设'**
+  String get parent_settings_pin_dlg_ok;
+
+  /// No description provided for @parent_settings_pin_too_short_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'新 PIN 至少 4 位'**
+  String get parent_settings_pin_too_short_snack;
+
+  /// No description provided for @parent_settings_pin_wrong_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前 PIN 不正确'**
+  String get parent_settings_pin_wrong_snack;
+
+  /// No description provided for @parent_settings_pin_ok_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'PIN 已重设'**
+  String get parent_settings_pin_ok_snack;
+
+  /// No description provided for @parent_settings_gift_dlg_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'赠予阳光'**
+  String get parent_settings_gift_dlg_title;
+
+  /// No description provided for @parent_settings_gift_daily_line.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日已赠 {given} / {daily} ☀，还可赠 {remain} ☀'**
+  String parent_settings_gift_daily_line(int given, int daily, int remain);
+
+  /// No description provided for @parent_settings_gift_monthly_line.
+  ///
+  /// In zh, this message translates to:
+  /// **'本月已赠 {given} / {monthly} ☀，还可赠 {remain} ☀'**
+  String parent_settings_gift_monthly_line(int given, int monthly, int remain);
+
+  /// No description provided for @parent_settings_gift_amount_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'赠予数量'**
+  String get parent_settings_gift_amount_label;
+
+  /// No description provided for @parent_settings_gift_err_positive.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入正数'**
+  String get parent_settings_gift_err_positive;
+
+  /// No description provided for @parent_settings_gift_err_over.
+  ///
+  /// In zh, this message translates to:
+  /// **'最多可赠 {max} ☀（今日剩 {day} / 本月剩 {month}）'**
+  String parent_settings_gift_err_over(int max, int day, int month);
+
+  /// No description provided for @parent_settings_gift_btn.
+  ///
+  /// In zh, this message translates to:
+  /// **'赠予'**
+  String get parent_settings_gift_btn;
+
+  /// No description provided for @parent_settings_gift_daily_cap_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日赠予已达上限（{daily} ☀/天），明天再来'**
+  String parent_settings_gift_daily_cap_snack(int daily);
+
+  /// No description provided for @parent_settings_gift_monthly_cap_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'本月赠予已达上限（{monthly} ☀/月）'**
+  String parent_settings_gift_monthly_cap_snack(int monthly);
+
+  /// No description provided for @parent_settings_gift_over_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'超出赠予上限，未赠予（今日剩 {remain} ☀）'**
+  String parent_settings_gift_over_snack(int remain);
+
+  /// No description provided for @parent_settings_gift_ok_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'已赠予 {amount} ☀，孩子端已到账（今日剩 {remain} ☀）'**
+  String parent_settings_gift_ok_snack(int amount, int remain);
+
+  /// No description provided for @parent_settings_debug_member_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'会员模式（仅调试）'**
+  String get parent_settings_debug_member_title;
+
+  /// No description provided for @parent_settings_debug_member_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开即解锁全部付费功能；重启 App 后失效'**
+  String get parent_settings_debug_member_subtitle;
+
+  /// No description provided for @parent_profile_tier_low.
+  ///
+  /// In zh, this message translates to:
+  /// **'低年级 · 8 岁及以下'**
+  String get parent_profile_tier_low;
+
+  /// No description provided for @parent_profile_tier_mid.
+  ///
+  /// In zh, this message translates to:
+  /// **'中年级 · 9–12 岁'**
+  String get parent_profile_tier_mid;
+
+  /// No description provided for @parent_profile_tier_high.
+  ///
+  /// In zh, this message translates to:
+  /// **'高年级 · 13 岁及以上'**
+  String get parent_profile_tier_high;
+
+  /// No description provided for @parent_profile_menu_edit.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑'**
+  String get parent_profile_menu_edit;
+
+  /// No description provided for @parent_profile_menu_delete.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除'**
+  String get parent_profile_menu_delete;
+
+  /// No description provided for @parent_profile_menu_create.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建孩子'**
+  String get parent_profile_menu_create;
+
+  /// No description provided for @parent_profile_toast_switched.
+  ///
+  /// In zh, this message translates to:
+  /// **'已切换到「{name}」'**
+  String parent_profile_toast_switched(String name);
+
+  /// No description provided for @parent_profile_toast_added.
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加「{name}」'**
+  String parent_profile_toast_added(String name);
+
+  /// No description provided for @parent_profile_toast_updated.
+  ///
+  /// In zh, this message translates to:
+  /// **'已更新「{name}」'**
+  String parent_profile_toast_updated(String name);
+
+  /// No description provided for @parent_profile_toast_deleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除「{name}」'**
+  String parent_profile_toast_deleted(String name);
+
+  /// No description provided for @parent_profile_max_toast.
+  ///
+  /// In zh, this message translates to:
+  /// **'最多支持 {count} 个孩子账户'**
+  String parent_profile_max_toast(int count);
+
+  /// No description provided for @parent_profile_min_toast.
+  ///
+  /// In zh, this message translates to:
+  /// **'至少保留一个孩子档案'**
+  String get parent_profile_min_toast;
+
+  /// No description provided for @parent_profile_create_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建孩子'**
+  String get parent_profile_create_title;
+
+  /// No description provided for @parent_profile_edit_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑孩子'**
+  String get parent_profile_edit_title;
+
+  /// No description provided for @parent_profile_name_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'孩子名字'**
+  String get parent_profile_name_label;
+
+  /// No description provided for @parent_profile_name_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'比如：小向日葵'**
+  String get parent_profile_name_hint;
+
+  /// No description provided for @parent_profile_btn_create.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建'**
+  String get parent_profile_btn_create;
+
+  /// No description provided for @parent_profile_delete_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除「{name}」？'**
+  String parent_profile_delete_title(String name);
+
+  /// No description provided for @parent_profile_delete_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除后该孩子的档案设置将被移除，且无法恢复。'**
+  String get parent_profile_delete_body;
+
+  /// No description provided for @parent_profile_pin_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'家长 PIN'**
+  String get parent_profile_pin_label;
+
+  /// No description provided for @parent_profile_pin_err_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入家长 PIN'**
+  String get parent_profile_pin_err_empty;
+
+  /// No description provided for @parent_profile_pin_err_wrong.
+  ///
+  /// In zh, this message translates to:
+  /// **'PIN 不正确，请重试'**
+  String get parent_profile_pin_err_wrong;
+
+  /// No description provided for @parent_history_seg_report.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注报告'**
+  String get parent_history_seg_report;
+
+  /// No description provided for @parent_history_seg_activity.
+  ///
+  /// In zh, this message translates to:
+  /// **'任务与奖励'**
+  String get parent_history_seg_activity;
+
+  /// No description provided for @parent_hist_section_tasks.
+  ///
+  /// In zh, this message translates to:
+  /// **'成长任务完成记录'**
+  String get parent_hist_section_tasks;
+
+  /// No description provided for @parent_hist_task_tail.
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 次'**
+  String parent_hist_task_tail(int count);
+
+  /// No description provided for @parent_hist_empty_tasks.
+  ///
+  /// In zh, this message translates to:
+  /// **'本期间还没有成长项完成记录'**
+  String get parent_hist_empty_tasks;
+
+  /// No description provided for @parent_hist_section_rewards.
+  ///
+  /// In zh, this message translates to:
+  /// **'奖励兑换记录'**
+  String get parent_hist_section_rewards;
+
+  /// No description provided for @parent_hist_reward_tail.
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 次 · 消耗 {cost} 阳光'**
+  String parent_hist_reward_tail(int count, int cost);
+
+  /// No description provided for @parent_hist_empty_rewards.
+  ///
+  /// In zh, this message translates to:
+  /// **'本期间还没有奖励兑换记录'**
+  String get parent_hist_empty_rewards;
+
+  /// No description provided for @parent_hist_deleted_task.
+  ///
+  /// In zh, this message translates to:
+  /// **'（已删除的成长项）'**
+  String get parent_hist_deleted_task;
+
+  /// No description provided for @parent_hist_deleted_reward.
+  ///
+  /// In zh, this message translates to:
+  /// **'（已删除的奖励）'**
+  String get parent_hist_deleted_reward;
+
+  /// No description provided for @parent_hist_done_badge.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成 {count} 次'**
+  String parent_hist_done_badge(int count);
+
+  /// No description provided for @parent_hist_redeem_badge.
+  ///
+  /// In zh, this message translates to:
+  /// **'兑换 {count} 次'**
+  String parent_hist_redeem_badge(int count);
+
+  /// No description provided for @parent_hist_range_multi.
+  ///
+  /// In zh, this message translates to:
+  /// **'首次 {first} ～ 最近 {last}'**
+  String parent_hist_range_multi(String first, String last);
+
+  /// No description provided for @parent_hist_cost_line.
+  ///
+  /// In zh, this message translates to:
+  /// **'{range} · 消耗 {cost} 阳光'**
+  String parent_hist_cost_line(String range, int cost);
+
+  /// No description provided for @parent_hist_summary_done.
+  ///
+  /// In zh, this message translates to:
+  /// **'本期完成成长项'**
+  String get parent_hist_summary_done;
+
+  /// No description provided for @parent_hist_summary_redeem.
+  ///
+  /// In zh, this message translates to:
+  /// **'本期兑换奖励'**
+  String get parent_hist_summary_redeem;
+
+  /// No description provided for @parent_hist_summary_cost.
+  ///
+  /// In zh, this message translates to:
+  /// **'本期消耗阳光'**
+  String get parent_hist_summary_cost;
+
+  /// No description provided for @parent_report_error_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'报告生成失败，请下拉重试'**
+  String get parent_report_error_hint;
+
+  /// No description provided for @parent_report_period_day.
+  ///
+  /// In zh, this message translates to:
+  /// **'日'**
+  String get parent_report_period_day;
+
+  /// No description provided for @parent_report_period_week.
+  ///
+  /// In zh, this message translates to:
+  /// **'周'**
+  String get parent_report_period_week;
+
+  /// No description provided for @parent_report_period_month.
+  ///
+  /// In zh, this message translates to:
+  /// **'月'**
+  String get parent_report_period_month;
+
+  /// No description provided for @parent_report_period_year.
+  ///
+  /// In zh, this message translates to:
+  /// **'年'**
+  String get parent_report_period_year;
+
+  /// No description provided for @parent_report_prev_tooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'上一期间'**
+  String get parent_report_prev_tooltip;
+
+  /// No description provided for @parent_report_next_tooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'下一期间'**
+  String get parent_report_next_tooltip;
+
+  /// No description provided for @parent_report_hero_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'本期间专注'**
+  String get parent_report_hero_title;
+
+  /// No description provided for @parent_report_minutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'{minutes} 分钟'**
+  String parent_report_minutes(int minutes);
+
+  /// No description provided for @parent_report_valid_days.
+  ///
+  /// In zh, this message translates to:
+  /// **'有效专注日 {days} 天'**
+  String parent_report_valid_days(int days);
+
+  /// No description provided for @parent_report_avg_daily.
+  ///
+  /// In zh, this message translates to:
+  /// **'平均每日 {minutes} 分钟'**
+  String parent_report_avg_daily(int minutes);
+
+  /// No description provided for @parent_report_trend_day.
+  ///
+  /// In zh, this message translates to:
+  /// **'近 7 日专注分布'**
+  String get parent_report_trend_day;
+
+  /// No description provided for @parent_report_trend_week.
+  ///
+  /// In zh, this message translates to:
+  /// **'本周专注分布'**
+  String get parent_report_trend_week;
+
+  /// No description provided for @parent_report_trend_month.
+  ///
+  /// In zh, this message translates to:
+  /// **'本月专注分布（按周）'**
+  String get parent_report_trend_month;
+
+  /// No description provided for @parent_report_trend_year.
+  ///
+  /// In zh, this message translates to:
+  /// **'本年专注分布（按月）'**
+  String get parent_report_trend_year;
+
+  /// No description provided for @parent_report_stability_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注稳定性 · 近 4 周'**
+  String get parent_report_stability_title;
+
+  /// No description provided for @parent_report_heatmap_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注热力图 · 近 1 年'**
+  String get parent_report_heatmap_title;
+
+  /// No description provided for @parent_report_eyecare_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'护眼统计'**
+  String get parent_report_eyecare_title;
+
+  /// No description provided for @parent_report_eyecare_loading.
+  ///
+  /// In zh, this message translates to:
+  /// **'护眼统计读取中…'**
+  String get parent_report_eyecare_loading;
+
+  /// No description provided for @parent_report_trend_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'本期间还没有专注记录。陪孩子完成一次 15 分钟专注，这里就会亮起来。'**
+  String get parent_report_trend_empty;
+
+  /// No description provided for @parent_report_label_today.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天 · {date}'**
+  String parent_report_label_today(String date);
+
+  /// No description provided for @parent_report_label_yesterday.
+  ///
+  /// In zh, this message translates to:
+  /// **'昨天 · {date}'**
+  String parent_report_label_yesterday(String date);
+
+  /// No description provided for @parent_report_label_range.
+  ///
+  /// In zh, this message translates to:
+  /// **'{start} ～ {end}'**
+  String parent_report_label_range(String start, String end);
+
+  /// No description provided for @parent_report_label_month.
+  ///
+  /// In zh, this message translates to:
+  /// **'{year} 年 {month} 月'**
+  String parent_report_label_month(int year, int month);
+
+  /// No description provided for @parent_report_label_year.
+  ///
+  /// In zh, this message translates to:
+  /// **'{year} 年'**
+  String parent_report_label_year(int year);
+
+  /// No description provided for @parent_report_wd_mon.
+  ///
+  /// In zh, this message translates to:
+  /// **'一'**
+  String get parent_report_wd_mon;
+
+  /// No description provided for @parent_report_wd_tue.
+  ///
+  /// In zh, this message translates to:
+  /// **'二'**
+  String get parent_report_wd_tue;
+
+  /// No description provided for @parent_report_wd_wed.
+  ///
+  /// In zh, this message translates to:
+  /// **'三'**
+  String get parent_report_wd_wed;
+
+  /// No description provided for @parent_report_wd_thu.
+  ///
+  /// In zh, this message translates to:
+  /// **'四'**
+  String get parent_report_wd_thu;
+
+  /// No description provided for @parent_report_wd_fri.
+  ///
+  /// In zh, this message translates to:
+  /// **'五'**
+  String get parent_report_wd_fri;
+
+  /// No description provided for @parent_report_wd_sat.
+  ///
+  /// In zh, this message translates to:
+  /// **'六'**
+  String get parent_report_wd_sat;
+
+  /// No description provided for @parent_report_wd_sun.
+  ///
+  /// In zh, this message translates to:
+  /// **'日'**
+  String get parent_report_wd_sun;
+
+  /// No description provided for @parent_report_heat_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'近 1 年还没有专注记录。'**
+  String get parent_report_heat_empty;
+
+  /// No description provided for @parent_report_heat_tip.
+  ///
+  /// In zh, this message translates to:
+  /// **'{date} · {minutes} 分钟'**
+  String parent_report_heat_tip(String date, int minutes);
+
+  /// No description provided for @parent_report_month_tick.
+  ///
+  /// In zh, this message translates to:
+  /// **'{month}月'**
+  String parent_report_month_tick(int month);
+
+  /// No description provided for @parent_report_legend_less.
+  ///
+  /// In zh, this message translates to:
+  /// **'少'**
+  String get parent_report_legend_less;
+
+  /// No description provided for @parent_report_legend_more.
+  ///
+  /// In zh, this message translates to:
+  /// **'多'**
+  String get parent_report_legend_more;
+
+  /// No description provided for @parent_report_streak_current.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前连续 {days} 天'**
+  String parent_report_streak_current(int days);
+
+  /// No description provided for @parent_report_streak_longest.
+  ///
+  /// In zh, this message translates to:
+  /// **'最长连续 {days} 天'**
+  String parent_report_streak_longest(int days);
+
+  /// No description provided for @parent_report_stability_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'近 4 周还没有专注记录。'**
+  String get parent_report_stability_empty;
+
+  /// No description provided for @parent_report_weeks_ago.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 周前'**
+  String parent_report_weeks_ago(int count);
+
+  /// No description provided for @parent_report_week_this.
+  ///
+  /// In zh, this message translates to:
+  /// **'本周'**
+  String get parent_report_week_this;
+
+  /// No description provided for @parent_report_stability_score.
+  ///
+  /// In zh, this message translates to:
+  /// **'稳定性 {percent}%'**
+  String parent_report_stability_score(int percent);
+
+  /// No description provided for @parent_report_upsell_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'解锁深度专注报告'**
+  String get parent_report_upsell_title;
+
+  /// No description provided for @parent_report_upsell_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'近 4 周稳定性 · 全年热力图'**
+  String get parent_report_upsell_subtitle;
+
+  /// No description provided for @parent_report_eyecare_completed.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成护眼'**
+  String get parent_report_eyecare_completed;
+
+  /// No description provided for @parent_report_eyecare_skipped.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过护眼'**
+  String get parent_report_eyecare_skipped;
+
+  /// No description provided for @parent_report_eyecare_duration.
+  ///
+  /// In zh, this message translates to:
+  /// **'累计护眼时长'**
+  String get parent_report_eyecare_duration;
+
+  /// No description provided for @parent_report_eyecare_rate.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过率'**
+  String get parent_report_eyecare_rate;
+
+  /// No description provided for @parent_report_times.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 次'**
+  String parent_report_times(int count);
+
+  /// No description provided for @parent_report_secs.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 秒'**
+  String parent_report_secs(int count);
+
+  /// No description provided for @parent_report_minutes_1f.
+  ///
+  /// In zh, this message translates to:
+  /// **'{value} 分钟'**
+  String parent_report_minutes_1f(String value);
+
+  /// No description provided for @parent_report_eyecare_skip_note.
+  ///
+  /// In zh, this message translates to:
+  /// **'有 {count} 次护眼被跳过（跳过的观看时长已如实计入）。'**
+  String parent_report_eyecare_skip_note(int count);
+
+  /// No description provided for @premium_table_free_pill.
+  ///
+  /// In zh, this message translates to:
+  /// **'免费版'**
+  String get premium_table_free_pill;
+
+  /// No description provided for @premium_table_gold_pill.
+  ///
+  /// In zh, this message translates to:
+  /// **'解锁全部功能 ★'**
+  String get premium_table_gold_pill;
+
+  /// No description provided for @premium_table_owned.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拥有'**
+  String get premium_table_owned;
+
+  /// No description provided for @premium_table_band_free.
+  ///
+  /// In zh, this message translates to:
+  /// **'免费就能用'**
+  String get premium_table_band_free;
+
+  /// No description provided for @premium_table_band_unlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'买断后解锁'**
+  String get premium_table_band_unlock;
+
+  /// No description provided for @premium_table_row_pomodoro.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注番茄钟'**
+  String get premium_table_row_pomodoro;
+
+  /// No description provided for @premium_table_row_screentime.
+  ///
+  /// In zh, this message translates to:
+  /// **'防沉迷与作息'**
+  String get premium_table_row_screentime;
+
+  /// No description provided for @premium_table_row_eyecare.
+  ///
+  /// In zh, this message translates to:
+  /// **'少儿护眼休息'**
+  String get premium_table_row_eyecare;
+
+  /// No description provided for @premium_table_row_garden.
+  ///
+  /// In zh, this message translates to:
+  /// **'花园养成'**
+  String get premium_table_row_garden;
+
+  /// No description provided for @premium_table_row_economy.
+  ///
+  /// In zh, this message translates to:
+  /// **'阳光经济与账本'**
+  String get premium_table_row_economy;
+
+  /// No description provided for @premium_table_row_store.
+  ///
+  /// In zh, this message translates to:
+  /// **'商店兑换'**
+  String get premium_table_row_store;
+
+  /// No description provided for @premium_table_row_levels.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注等级 + 9 称号'**
+  String get premium_table_row_levels;
+
+  /// No description provided for @premium_table_row_report.
+  ///
+  /// In zh, this message translates to:
+  /// **'家长专注报告'**
+  String get premium_table_row_report;
+
+  /// No description provided for @premium_table_report_days.
+  ///
+  /// In zh, this message translates to:
+  /// **'近 7 天'**
+  String get premium_table_report_days;
+
+  /// No description provided for @premium_table_footnote_report.
+  ///
+  /// In zh, this message translates to:
+  /// **'更多报告能力开发中'**
+  String get premium_table_footnote_report;
+
+  /// No description provided for @premium_table_row_one_click.
+  ///
+  /// In zh, this message translates to:
+  /// **'花园「一键操作」'**
+  String get premium_table_row_one_click;
+
+  /// No description provided for @premium_table_row_pots.
+  ///
+  /// In zh, this message translates to:
+  /// **'花盆上限'**
+  String get premium_table_row_pots;
+
+  /// No description provided for @premium_table_row_tasks.
+  ///
+  /// In zh, this message translates to:
+  /// **'成长项模板'**
+  String get premium_table_row_tasks;
+
+  /// No description provided for @premium_table_row_rewards.
+  ///
+  /// In zh, this message translates to:
+  /// **'奖励模板'**
+  String get premium_table_row_rewards;
+
+  /// No description provided for @premium_table_row_perks.
+  ///
+  /// In zh, this message translates to:
+  /// **'称号属性'**
+  String get premium_table_row_perks;
+
+  /// No description provided for @premium_table_free_pots.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个'**
+  String premium_table_free_pots(int count);
+
+  /// No description provided for @premium_table_free_items.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 条'**
+  String premium_table_free_items(int count);
+
+  /// No description provided for @premium_table_unlimited.
+  ///
+  /// In zh, this message translates to:
+  /// **'✓ 不限'**
+  String get premium_table_unlimited;
+
+  /// No description provided for @premium_table_max.
+  ///
+  /// In zh, this message translates to:
+  /// **'最多 {count}'**
+  String premium_table_max(int count);
+
+  /// No description provided for @premium_table_pots_note.
+  ///
+  /// In zh, this message translates to:
+  /// **'扩容仍需花阳光'**
+  String get premium_table_pots_note;
+
+  /// No description provided for @premium_table_perks_count.
+  ///
+  /// In zh, this message translates to:
+  /// **'✓ {count} 条'**
+  String premium_table_perks_count(int count);
+
+  /// No description provided for @premium_quota_inline_reason.
+  ///
+  /// In zh, this message translates to:
+  /// **'免费上限 {limit}（当前 {count}）'**
+  String premium_quota_inline_reason(String limit, int count);
+
+  /// No description provided for @parent_premium_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'解锁全部功能'**
+  String get parent_premium_title;
+
+  /// No description provided for @parent_premium_hero_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'一次买断 · 永久解锁，陪孩子一起专注成长'**
+  String get parent_premium_hero_subtitle;
+
+  /// No description provided for @parent_premium_pill_unlocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已解锁'**
+  String get parent_premium_pill_unlocked;
+
+  /// No description provided for @parent_premium_pill_locked.
+  ///
+  /// In zh, this message translates to:
+  /// **'未解锁'**
+  String get parent_premium_pill_locked;
+
+  /// No description provided for @parent_premium_gold_pill.
+  ///
+  /// In zh, this message translates to:
+  /// **'一次买断 · 永久'**
+  String get parent_premium_gold_pill;
+
+  /// No description provided for @parent_premium_unavailable_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时连不上商店'**
+  String get parent_premium_unavailable_title;
+
+  /// No description provided for @parent_premium_unavailable_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'现在无法获取商品信息，不影响你继续使用 App 的其他功能。请检查网络后再试。'**
+  String get parent_premium_unavailable_body;
+
+  /// No description provided for @parent_premium_btn_unlocked_done.
+  ///
+  /// In zh, this message translates to:
+  /// **'已解锁 · 感谢支持'**
+  String get parent_premium_btn_unlocked_done;
+
+  /// No description provided for @parent_premium_btn_buying.
+  ///
+  /// In zh, this message translates to:
+  /// **'购买中…'**
+  String get parent_premium_btn_buying;
+
+  /// No description provided for @parent_premium_btn_unavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂不可购买'**
+  String get parent_premium_btn_unavailable;
+
+  /// No description provided for @parent_premium_btn_unlock_now.
+  ///
+  /// In zh, this message translates to:
+  /// **'立即解锁 · {price}'**
+  String parent_premium_btn_unlock_now(String price);
+
+  /// No description provided for @parent_premium_restoring.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复中…'**
+  String get parent_premium_restoring;
+
+  /// No description provided for @parent_premium_restore.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复购买'**
+  String get parent_premium_restore;
+
+  /// No description provided for @parent_premium_notes_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'购买前请知悉'**
+  String get parent_premium_notes_title;
+
+  /// No description provided for @parent_premium_note_1.
+  ///
+  /// In zh, this message translates to:
+  /// **'一次买断、永久解锁 —— 不是订阅，不会自动续费。'**
+  String get parent_premium_note_1;
+
+  /// No description provided for @parent_premium_note_2.
+  ///
+  /// In zh, this message translates to:
+  /// **'同一 Apple ID 换手机 / 卸载重装后，点「恢复购买」即可找回。'**
+  String get parent_premium_note_2;
+
+  /// No description provided for @parent_premium_note_3.
+  ///
+  /// In zh, this message translates to:
+  /// **'⚠️ 在 iOS 上购买的内容，无法在 Android 设备上「恢复购买」（反之亦然）。'**
+  String get parent_premium_note_3;
+
+  /// No description provided for @parent_premium_note_4.
+  ///
+  /// In zh, this message translates to:
+  /// **'支付通过 Apple App Store 完成，开发者不会接触到你的任何支付信息。'**
+  String get parent_premium_note_4;
+
+  /// No description provided for @parent_premium_snack_unlocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已解锁，感谢支持 🌻'**
+  String get parent_premium_snack_unlocked;
+
+  /// No description provided for @parent_premium_snack_incomplete.
+  ///
+  /// In zh, this message translates to:
+  /// **'购买未完成，可稍后再试'**
+  String get parent_premium_snack_incomplete;
+
+  /// No description provided for @parent_premium_snack_buy_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'购买失败，请稍后重试'**
+  String get parent_premium_snack_buy_failed;
+
+  /// No description provided for @parent_premium_snack_restored.
+  ///
+  /// In zh, this message translates to:
+  /// **'已恢复购买，欢迎回来 🌻'**
+  String get parent_premium_snack_restored;
+
+  /// No description provided for @parent_premium_snack_nothing.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有找到可恢复的购买记录'**
+  String get parent_premium_snack_nothing;
+
+  /// No description provided for @parent_premium_snack_restore_net.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复失败，请检查网络后重试'**
+  String get parent_premium_snack_restore_net;
+
+  /// No description provided for @parent_premium_snack_restore_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复失败，请稍后重试'**
+  String get parent_premium_snack_restore_failed;
+
+  /// No description provided for @parent_reward_category_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'分类'**
+  String get parent_reward_category_label;
+
+  /// No description provided for @shared_lang_zh_name.
+  ///
+  /// In zh, this message translates to:
+  /// **'简体中文'**
+  String get shared_lang_zh_name;
 }
 
 class _AppLocalizationsDelegate

@@ -26,21 +26,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 /// 「会员模式（仅调试）」开关行（挂在家长设置页底部 Debug 区）。
 class DebugUnlockSwitch extends ConsumerWidget {
   const DebugUnlockSwitch({super.key});
 
-  /// 开关标题文案（测试按此文本定位）。
-  static const String titleText = '会员模式（仅调试）';
-
-  /// 开关副标题文案（说明作用范围 + 失效条件）。
-  static const String subtitleText = '打开即解锁全部付费功能；重启 App 后失效';
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // watch 内存态布尔值（而非权益实体）→ 开关控件拿到稳定的 `value`。
     final bool enabled = ref.watch(debugPremiumUnlockProvider);
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
 
     return SwitchListTile(
       value: enabled,
@@ -48,8 +46,8 @@ class DebugUnlockSwitch extends ConsumerWidget {
       // 以及**领域层**权益服务的内存态（F142：三者必须同向，否则出现
       // 「按钮亮着但域层拒绝」的半写状态）。
       onChanged: (bool next) => debugSetPremiumUnlock(ref, next),
-      title: const Text(titleText),
-      subtitle: const Text(subtitleText),
+      title: Text(t.parent_settings_debug_member_title),
+      subtitle: Text(t.parent_settings_debug_member_subtitle),
       secondary: const Icon(Icons.bug_report_outlined),
     );
   }

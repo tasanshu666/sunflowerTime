@@ -26,8 +26,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/constants/iap_product_ids.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/services/iap_contract.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/premium_unlock_table.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
@@ -111,14 +113,18 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   /// 购买：走域层（落库票据 + 刷新内存态），再同步 [entitlementProvider]。
   Future<void> _buy() async {
     if (_buying || _restoring || _storeUnavailable) return;
+    // i18n B2：SnackBar 在 overlay 内重建 → 文案在此处（页级 scope 内）取好。
+    final AppLocalizations t = l10nOf(context);
     setState(() => _buying = true);
     try {
       await ref.read(entitlementServiceProvider).purchaseLifetime();
       final Entitlement e = await ref.read(entitlementServiceProvider).load();
       ref.read(entitlementProvider.notifier).state = e;
-      _snack(e.isPremium ? '已解锁，感谢支持 🌻' : '购买未完成，可稍后再试');
+      _snack(e.isPremium
+          ? t.parent_premium_snack_unlocked
+          : t.parent_premium_snack_incomplete);
     } catch (_) {
-      _snack('购买失败，请稍后重试');
+      _snack(t.parent_premium_snack_buy_failed);
     } finally {
       if (mounted) setState(() => _buying = false);
     }
@@ -127,6 +133,7 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   /// 恢复购买：三态各有明确反馈（**Apple 硬性要求入口**）。
   Future<void> _restore() async {
     if (_restoring || _buying) return;
+    final AppLocalizations t = l10nOf(context);
     setState(() => _restoring = true);
     try {
       final RestoreResult r =
@@ -135,14 +142,14 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
       ref.read(entitlementProvider.notifier).state = e;
       switch (r) {
         case RestoreResult.restored:
-          _snack('已恢复购买，欢迎回来 🌻');
+          _snack(t.parent_premium_snack_restored);
         case RestoreResult.nothingToRestore:
-          _snack('没有找到可恢复的购买记录');
+          _snack(t.parent_premium_snack_nothing);
         case RestoreResult.failed:
-          _snack('恢复失败，请检查网络后重试');
+          _snack(t.parent_premium_snack_restore_net);
       }
     } catch (_) {
-      _snack('恢复失败，请稍后重试');
+      _snack(t.parent_premium_snack_restore_failed);
     } finally {
       if (mounted) setState(() => _restoring = false);
     }
@@ -158,23 +165,31 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   Widget build(BuildContext context) {
     final Entitlement entitlement = ref.watch(entitlementProvider);
     final ThemeData theme = parentThemeFor(Theme.of(context).brightness);
-    return Theme(
-      data: theme,
-      child: Scaffold(
-        appBar: AppBar(title: const Text('解锁全部功能')),
-        body: _buildBody(entitlement.isPremium),
-        // C83 吸底（玄参反馈：真实视口下「立即解锁」需滚动 ≈480pt 才可见）：
-        // 主按钮 + 恢复购买入口搬到 `bottomNavigationBar` 槽位常驻底部 ——
-        // 这是**唯一**允许的吸底方式（不用 Stack/Positioned 盖 body，不用
-        // persistentFooterButtons 造重复按钮）。
-        // `_loading` 时给 null：底栏整体不渲染，避免先闪一下「暂不可购买」。
-        bottomNavigationBar:
-            _loading ? null : _buildStickyBottomBar(entitlement.isPremium, theme),
-      ),
+    // 🔴 页级 L10nScope（i18n B2）：全页文案经 AppLocalizations 解析；Builder 的
+    // 上下文在 scope **之内**，故可直调 `AppLocalizations.of`。
+    return L10nScope(
+      child: Builder(builder: (BuildContext context) {
+        final AppLocalizations t = AppLocalizations.of(context);
+        return Theme(
+          data: theme,
+          child: Scaffold(
+            appBar: AppBar(title: Text(t.parent_premium_title)),
+            body: _buildBody(t, entitlement.isPremium),
+            // C83 吸底（玄参反馈：真实视口下「立即解锁」需滚动 ≈480pt 才可见）：
+            // 主按钮 + 恢复购买入口搬到 `bottomNavigationBar` 槽位常驻底部 ——
+            // 这是**唯一**允许的吸底方式（不用 Stack/Positioned 盖 body，不用
+            // persistentFooterButtons 造重复按钮）。
+            // `_loading` 时给 null：底栏整体不渲染，避免先闪一下「暂不可购买」。
+            bottomNavigationBar: _loading
+                ? null
+                : _buildStickyBottomBar(t, entitlement.isPremium, theme),
+          ),
+        );
+      }),
     );
   }
 
-  Widget _buildBody(bool unlocked) {
+  Widget _buildBody(AppLocalizations t, bool unlocked) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -183,21 +198,21 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
       // （32 → 16，仅保留常规页边距）。
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       children: <Widget>[
-        _buildHeroCard(unlocked),
+        _buildHeroCard(t, unlocked),
         const SizedBox(height: 16),
         if (_storeUnavailable) ...<Widget>[
-          _buildUnavailableCard(),
+          _buildUnavailableCard(t),
           const SizedBox(height: 16),
         ],
         // 阶段 5：主卡与主按钮之间插入「解锁前后对比表」。
         PremiumUnlockTable(isUnlocked: unlocked),
         const SizedBox(height: 16),
         // 阶段 5：权益预览 4 徽标（数据源同 unlockRowsFor，只列真实生效项）。
-        _buildPreviewBadges(),
+        _buildPreviewBadges(t),
         const SizedBox(height: 16),
         // C83：`_buildMainButton` / `_buildRestoreButton` 已**移出**列表，
         // 改由 [_buildStickyBottomBar] 承载（全树中这两个 Key 各只允许 1 个实例）。
-        _buildNotesCard(),
+        _buildNotesCard(t),
       ],
     );
   }
@@ -215,7 +230,11 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   /// [theme] 由 [build] 传入（本方法内的 `context` 还在 `Theme` 之上，取不到
   /// [parentThemeFor] 的结果），底色取 `colorScheme.surface`：浅色模式下是近白奶白，
   /// 深色模式下自动跟随，无需第二套写死色值。
-  Widget _buildStickyBottomBar(bool unlocked, ThemeData theme) {
+  Widget _buildStickyBottomBar(
+    AppLocalizations t,
+    bool unlocked,
+    ThemeData theme,
+  ) {
     return SafeArea(
       top: false,
       child: Container(
@@ -236,9 +255,9 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            _buildMainButton(unlocked),
+            _buildMainButton(t, unlocked),
             const SizedBox(height: 6),
-            _buildRestoreButton(),
+            _buildRestoreButton(t),
           ],
         ),
       ),
@@ -250,7 +269,7 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   ///
   /// ⚠️ 图标仍为向日葵美术（玄参 2026-10-14 反馈），见 [_PremiumSunflowerIcon]；
   /// 🔴 主卡保留**精确**「已解锁 / 未解锁」胶囊文案（测试依赖 `find.text('已解锁')`）。
-  Widget _buildHeroCard(bool unlocked) {
+  Widget _buildHeroCard(AppLocalizations t, bool unlocked) {
     final ({Color bg, Color fg}) tone = macaronColorById('premium');
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
@@ -292,18 +311,18 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    const Text(
-                      '解锁全部功能',
-                      style: TextStyle(
+                    Text(
+                      t.parent_premium_title,
+                      style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
                         color: _kInk,
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      '一次买断 · 永久解锁，陪孩子一起专注成长',
-                      style: TextStyle(fontSize: 13, color: _kInkSoft),
+                    Text(
+                      t.parent_premium_hero_subtitle,
+                      style: const TextStyle(fontSize: 13, color: _kInkSoft),
                     ),
                     const SizedBox(height: 10),
                     // C84（F121）：两枚胶囊由 `Row` 改 `Wrap` —— 320pt 窄屏 /
@@ -315,13 +334,15 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: <Widget>[
                         pillLabel(
-                          text: unlocked ? '已解锁' : '未解锁',
+                          text: unlocked
+                              ? t.parent_premium_pill_unlocked
+                              : t.parent_premium_pill_locked,
                           bg: unlocked
                               ? const Color(0xFFD9F2DD)
                               : const Color(0xFFEFEAE0),
                           fg: unlocked ? _kUnlocked : _kInkSoft,
                         ),
-                        const _GoldPill(text: '一次买断 · 永久'),
+                        _GoldPill(text: t.parent_premium_gold_pill),
                       ],
                     ),
                   ],
@@ -341,38 +362,42 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   }
 
   /// 商店不可用（离线降级）：说明 + 重试，绝不崩。
-  Widget _buildUnavailableCard() {
+  Widget _buildUnavailableCard(AppLocalizations t) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: creamCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Row(
+          Row(
             children: <Widget>[
-              Icon(Icons.cloud_off_rounded, color: Color(0xFFB98A2E)),
-              SizedBox(width: 8),
-              Text(
-                '暂时连不上商店',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: _kInk,
+              const Icon(Icons.cloud_off_rounded, color: Color(0xFFB98A2E)),
+              const SizedBox(width: 8),
+              // i18n B2：英文标题（`Store is unreachable`）比中文长 → 吃 `Expanded`
+              // 换行，避免窄屏 / 大字号下 RenderFlex 溢出。
+              Expanded(
+                child: Text(
+                  t.parent_premium_unavailable_title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _kInk,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            '现在无法获取商品信息，不影响你继续使用 App 的其他功能。'
-            '请检查网络后再试。',
-            style: TextStyle(fontSize: 13, height: 1.45, color: _kInkSoft),
+          Text(
+            t.parent_premium_unavailable_body,
+            style: const TextStyle(
+                fontSize: 13, height: 1.45, color: _kInkSoft),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _loadProduct,
             icon: const Icon(Icons.refresh),
-            label: const Text('重试'),
+            label: Text(t.shared_retry),
           ),
         ],
       ),
@@ -388,7 +413,7 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   /// [kPremiumMainButtonKey] —— `premium_page_test` 对 `find.byKey(kPremiumMainButtonKey)`
   /// 做 `tester.widget<ButtonStyleButton>(...)` 强转。阶段 5 的金渐变只加在**外层
   /// 装饰**（[_goldButtonShell]）上，按钮本体透明。
-  Widget _buildMainButton(bool unlocked) {
+  Widget _buildMainButton(AppLocalizations t, bool unlocked) {
     if (unlocked) {
       return _goldButtonShell(
         active: true,
@@ -397,7 +422,7 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
           onPressed: null,
           style: _goldButtonStyle(),
           icon: const Icon(Icons.verified),
-          label: const Text('已解锁 · 感谢支持'),
+          label: Text(t.parent_premium_btn_unlocked_done),
         ),
       );
     }
@@ -405,10 +430,10 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
     final bool enabled =
         !_storeUnavailable && !_buying && !_restoring && price.isNotEmpty;
     final String label = _buying
-        ? '购买中…'
+        ? t.parent_premium_btn_buying
         : _storeUnavailable || price.isEmpty
-            ? '暂不可购买'
-            : '立即解锁 · $price';
+            ? t.parent_premium_btn_unavailable
+            : t.parent_premium_btn_unlock_now(price);
     return _goldButtonShell(
       active: enabled,
       child: FilledButton(
@@ -461,8 +486,8 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   ///
   /// 🔴 只列 **5 枚真实生效**项（C80：`titlePerks` 为真实生效第 5 键，V3-Q3 裁定加）；
   /// 严禁未实现能力写进对外卖点。
-  Widget _buildPreviewBadges() {
-    final List<PremiumUnlockRow> rows = unlockRowsFor();
+  Widget _buildPreviewBadges(AppLocalizations t) {
+    final List<PremiumUnlockRow> rows = unlockRowsFor(l10n: t);
     const List<String> emojis = <String>['⚡', '🪴', '📋', '🎁', '🏅'];
     return Wrap(
       spacing: 8,
@@ -491,13 +516,15 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   ///
   /// 字号只写 `fontSize: 13`（**不**再乘 [uiScaleOf]）：文字缩放统一由 `textScaler`
   /// 负责，两者相乘会在平板上放大两次。
-  Widget _buildRestoreButton() {
+  Widget _buildRestoreButton(AppLocalizations t) {
     return TextButton.icon(
       key: kPremiumRestoreButtonKey,
       onPressed: (_restoring || _buying) ? null : _restore,
       icon: const Icon(Icons.restore, size: 16),
       label: Text(
-        _restoring ? '恢复中…' : '恢复购买',
+        _restoring
+            ? t.parent_premium_restoring
+            : t.parent_premium_restore,
         style: const TextStyle(fontSize: 13),
       ),
       style: TextButton.styleFrom(
@@ -510,12 +537,12 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   }
 
   /// 诚实说明：一次性买断的真实边界（家长必读）。
-  Widget _buildNotesCard() {
-    const List<String> notes = <String>[
-      '一次买断、永久解锁 —— 不是订阅，不会自动续费。',
-      '同一 Apple ID 换手机 / 卸载重装后，点「恢复购买」即可找回。',
-      '⚠️ 在 iOS 上购买的内容，无法在 Android 设备上「恢复购买」（反之亦然）。',
-      '支付通过 Apple App Store 完成，开发者不会接触到你的任何支付信息。',
+  Widget _buildNotesCard(AppLocalizations t) {
+    final List<String> notes = <String>[
+      t.parent_premium_note_1,
+      t.parent_premium_note_2,
+      t.parent_premium_note_3,
+      t.parent_premium_note_4,
     ];
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
@@ -523,9 +550,9 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Text(
-            '购买前请知悉',
-            style: TextStyle(
+          Text(
+            t.parent_premium_notes_title,
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: _kInk,
@@ -569,8 +596,11 @@ class PremiumStatusText extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final Entitlement e = ref.watch(entitlementProvider);
     final bool unlocked = e.isPremium;
+    final AppLocalizations t = l10nOf(context);
     return Text(
-      unlocked ? '已解锁' : '未解锁',
+      unlocked
+          ? t.parent_premium_pill_unlocked
+          : t.parent_premium_pill_locked,
       style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,

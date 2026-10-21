@@ -10,6 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 /// 删除入口页：一键删除全部本地数据（合规 §10.4 C5）。
 class ParentDeletePage extends ConsumerStatefulWidget {
@@ -23,24 +25,22 @@ class _ParentDeletePageState extends ConsumerState<ParentDeletePage> {
   bool _busy = false;
 
   Future<void> _confirmAndDelete() async {
+    // 弹窗纪律：文案在页级 scope 内取好再传入（builder 上下文在 scope 之外）。
+    final AppLocalizations t = l10nOf(context);
     final bool? ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('删除全部本地数据？'),
-        content: const Text(
-          '此操作将永久删除：专注记录、阳光账本、植物、成长项、奖励模板、'
-          '家长 PIN 与所有本地设置，且无法恢复。\n\n'
-          '建议先「导出成册」留存（导出功能将在 V2 上线）。',
-        ),
+        title: Text(t.parent_delete_dlg_title),
+        content: Text(t.parent_delete_dlg_body),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child: Text(t.shared_cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('确认删除'),
+            child: Text(t.parent_delete_btn_ok),
           ),
         ],
       ),
@@ -52,7 +52,7 @@ class _ParentDeletePageState extends ConsumerState<ParentDeletePage> {
       await ref.read(dataManagementServiceProvider).clearAll();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已删除全部本地数据')),
+          SnackBar(content: Text(t.parent_delete_done_snack)),
         );
         // 清库后回到孩子端首页（设置将在下次读取时重建默认）。
         context.go('/');
@@ -61,7 +61,7 @@ class _ParentDeletePageState extends ConsumerState<ParentDeletePage> {
       if (mounted) {
         setState(() => _busy = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除失败：$e')),
+          SnackBar(content: Text(l10nOf(context).parent_delete_fail_snack(e))),
         );
       }
     }
@@ -69,60 +69,71 @@ class _ParentDeletePageState extends ConsumerState<ParentDeletePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('删除入口')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: <Widget>[
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    // 🔴 页级 L10nScope（i18n B2）：全页文案经 AppLocalizations 解析。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          final AppLocalizations l10n = AppLocalizations.of(context);
+          return Scaffold(
+            appBar: AppBar(title: Text(l10n.parent_delete_title)),
+            body: ListView(
+              padding: const EdgeInsets.all(20),
               children: <Widget>[
-                Text('数据删除权（§10.4 C5）',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                SizedBox(height: 8),
-                Text(
-                  '你拥有删除全部本地数据的权利。删除后所有进度与设置将不可恢复。',
-                  style: TextStyle(color: Colors.red.shade800),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(l10n.parent_delete_right_title,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Text(
+                        l10n.parent_delete_right_body,
+                        style: TextStyle(color: Colors.red.shade800),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    // 导出成册留 V2：此处仅提示。
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(l10n.parent_delete_export_snack)),
+                    );
+                  },
+                  icon: const Icon(Icons.download),
+                  label: Text(l10n.parent_delete_btn_export),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                    onPressed: _busy ? null : _confirmAndDelete,
+                    icon: _busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.delete_forever),
+                    label: Text(_busy
+                        ? l10n.parent_delete_btn_deleting
+                        : l10n.parent_delete_btn_all),
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () {
-              // 导出成册留 V2：此处仅提示。
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('导出成册功能将在 V2 上线，请先截图留存')),
-              );
-            },
-            icon: const Icon(Icons.download),
-            label: const Text('导出成册（V2 上线）'),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: _busy ? null : _confirmAndDelete,
-              icon: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.delete_forever),
-              label: Text(_busy ? '删除中…' : '删除全部本地数据'),
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

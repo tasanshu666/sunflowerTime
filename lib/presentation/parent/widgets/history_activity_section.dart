@@ -49,34 +49,48 @@ import 'package:intl/intl.dart';
 
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 
 /// 统计粒度（C86：日 / 周 / 月 / 年 四档）。
+///
+/// i18n B2：展示标签改由 ARB 提供（[periodLabel]），枚举只保留**稳定序**
+/// （落库 / 展示序都不带文案，避免「枚举里藏中文」）。
 enum _Period {
   /// 按天（自然日）。
-  day('日'),
+  day,
 
   /// 按周（周一为一周之始）。
-  week('周'),
+  week,
 
   /// 按月（自然月）—— **免费档锁定**（深度时间维度归 `deepReport`）。
-  month('月'),
+  month,
 
   /// 按年（自然年）—— **免费档锁定**（深度时间维度归 `deepReport`）。
-  year('年');
+  year,
+}
 
-  const _Period(this.label);
-
-  /// 切换器上的短标签。
-  final String label;
+/// 粒度短标签（`日 / 周 / 月 / 年`，与专注报告段同源 ARB）。
+String _periodLabel(AppLocalizations t, _Period p) {
+  switch (p) {
+    case _Period.day:
+      return t.parent_report_period_day;
+    case _Period.week:
+      return t.parent_report_period_week;
+    case _Period.month:
+      return t.parent_report_period_month;
+    case _Period.year:
+      return t.parent_report_period_year;
+  }
 }
 
 /// 该粒度在**当前权益档位**下是否锁定（C86）。
@@ -232,6 +246,8 @@ class _HistoryActivitySectionState
     // C91：家长改档 / 切孩子成功 → 修订号自增 → 重拉本段数据
     //（仓储层已按新当前孩子过滤，兑换记录即时跟随全局当前孩子）。
     ref.listen<int>(childProfileRevisionProvider, (_, __) => _reload());
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
 
     return FutureBuilder<_RawData>(
       future: _future,
@@ -244,9 +260,12 @@ class _HistoryActivitySectionState
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Text('加载失败：${snap.error}'),
+                Text(t.shared_load_failed('${snap.error}')),
                 const SizedBox(height: 12),
-                ElevatedButton(onPressed: _reload, child: const Text('重试')),
+                ElevatedButton(
+                  onPressed: _reload,
+                  child: Text(t.shared_retry),
+                ),
               ],
             ),
           );
@@ -256,7 +275,7 @@ class _HistoryActivitySectionState
         final DateTime start = _startOf(_period, _anchor);
         final DateTime end = _endOf(_period, start);
         // C91：兑换记录已由仓储层按当前孩子过滤（F123），段内零裁剪。
-        final _PeriodView view = _aggregate(raw, start, end);
+        final _PeriodView view = _aggregate(t, raw, start, end);
         final bool canNext = !_endOf(_period, start).isAfter(_now);
 
         return RefreshIndicator(
@@ -271,7 +290,7 @@ class _HistoryActivitySectionState
               ),
               const SizedBox(height: 12),
               _PeriodNav(
-                label: _label(_period, start, end),
+                label: _label(t, _period, start, end),
                 onPrev: () => _shift(-1),
                 onNext: canNext ? () => _shift(1) : null,
               ),
@@ -281,11 +300,11 @@ class _HistoryActivitySectionState
               _SectionHeader(
                 icon: Icons.checklist,
                 iconColor: Colors.green.shade600,
-                title: '成长任务完成记录',
-                tail: '共 ${view.totalTaskCount} 次',
+                title: t.parent_hist_section_tasks,
+                tail: t.parent_hist_task_tail(view.totalTaskCount),
               ),
               if (view.taskRows.isEmpty)
-                const _EmptyHint(text: '本期间还没有成长项完成记录')
+                _EmptyHint(text: t.parent_hist_empty_tasks)
               else
                 for (final _TaskHistoryRow row in view.taskRows) ...<Widget>[
                   _TaskHistoryTile(row: row),
@@ -295,12 +314,14 @@ class _HistoryActivitySectionState
               _SectionHeader(
                 icon: Icons.card_giftcard,
                 iconColor: Colors.deepOrange.shade400,
-                title: '奖励兑换记录',
-                tail:
-                    '共 ${view.totalRewardCount} 次 · 消耗 ${view.totalRewardCost} 阳光',
+                title: t.parent_hist_section_rewards,
+                tail: t.parent_hist_reward_tail(
+                  view.totalRewardCount,
+                  view.totalRewardCost,
+                ),
               ),
               if (view.rewardRows.isEmpty)
-                const _EmptyHint(text: '本期间还没有奖励兑换记录')
+                _EmptyHint(text: t.parent_hist_empty_rewards)
               else
                 for (final _RewardHistoryRow row in view.rewardRows) ...<Widget>[
                   _RewardHistoryTile(row: row),
@@ -314,7 +335,12 @@ class _HistoryActivitySectionState
   }
 
   /// 在 `[start, end)` 内聚合两块历史（段内计算，不触库）。
-  _PeriodView _aggregate(_RawData raw, DateTime start, DateTime end) {
+  _PeriodView _aggregate(
+    AppLocalizations t,
+    _RawData raw,
+    DateTime start,
+    DateTime end,
+  ) {
     bool inRange(DateTime t) => !t.isBefore(start) && t.isBefore(end);
 
     // ── 成长任务：按 taskId 分组计数 ──────────────────────────────
@@ -332,7 +358,7 @@ class _HistoryActivitySectionState
         final Task? task = raw.taskById[e.key];
         return _TaskHistoryRow(
           task: task,
-          name: task?.name ?? '（已删除的成长项）',
+          name: task?.name ?? t.parent_hist_deleted_task,
           count: rows.length,
           firstAt: rows.first.completedAt,
           lastAt: rows.last.completedAt,
@@ -366,7 +392,7 @@ class _HistoryActivitySectionState
         );
         return _RewardHistoryRow(
           template: tpl,
-          name: tpl?.name ?? '（已删除的奖励）',
+          name: tpl?.name ?? t.parent_hist_deleted_reward,
           count: rows.length,
           costSum: cost,
           firstAt: _at(rows.first),
@@ -398,23 +424,34 @@ class _HistoryActivitySectionState
   }
 
   /// 期间标题：今天 / 昨天 / 具体日；周区间；年月；年。
-  String _label(_Period p, DateTime start, DateTime end) {
-    final DateFormat md = DateFormat('M月d日');
+  ///
+  /// i18n B2：日期部件由 `DateFormat` 按 locale 出模式（zh 逐字节保留现网
+  /// `M月d日` / `yyyy年M月d日`；en 用 `MMM d` / `yyyy MMM d`），与
+  /// `focus_report_section.dart` 同一口径。
+  String _label(AppLocalizations t, _Period p, DateTime start, DateTime end) {
+    final bool isEn = t.localeName == 'en';
+    final DateFormat md = DateFormat(isEn ? 'MMM d' : 'M月d日');
+    final DateFormat ymd = DateFormat(isEn ? 'yyyy MMM d' : 'yyyy年M月d日');
     final DateTime today = _dayOf(_now);
     switch (p) {
       case _Period.day:
-        if (start == today) return '今天 · ${md.format(start)}';
-        if (start == today.subtract(const Duration(days: 1))) {
-          return '昨天 · ${md.format(start)}';
+        if (start == today) {
+          return t.parent_report_label_today(md.format(start));
         }
-        return DateFormat('yyyy年M月d日').format(start);
+        if (start == today.subtract(const Duration(days: 1))) {
+          return t.parent_report_label_yesterday(md.format(start));
+        }
+        return ymd.format(start);
       case _Period.week:
         final DateTime last = end.subtract(const Duration(days: 1));
-        return '${DateFormat('yyyy年M月d日').format(start)} ～ ${md.format(last)}';
+        return t.parent_report_label_range(
+          ymd.format(start),
+          md.format(last),
+        );
       case _Period.month:
-        return '${start.year} 年 ${start.month} 月';
+        return t.parent_report_label_month(start.year, start.month);
       case _Period.year:
-        return '${start.year} 年';
+        return t.parent_report_label_year(start.year);
     }
   }
 }
@@ -513,6 +550,8 @@ class _PeriodBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color active = Theme.of(context).colorScheme.primary;
+    // i18n B2：档位标签经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -554,7 +593,7 @@ class _PeriodBar extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         Text(
-                          p.label,
+                          _periodLabel(t, p),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14,
@@ -601,11 +640,13 @@ class _PeriodNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
     return Row(
       children: <Widget>[
         IconButton(
           icon: const Icon(Icons.chevron_left),
-          tooltip: '上一期间',
+          tooltip: t.parent_report_prev_tooltip,
           onPressed: onPrev,
         ),
         Expanded(
@@ -617,7 +658,7 @@ class _PeriodNav extends StatelessWidget {
         ),
         IconButton(
           icon: const Icon(Icons.chevron_right),
-          tooltip: '下一期间',
+          tooltip: t.parent_report_next_tooltip,
           onPressed: onNext,
         ),
       ],
@@ -633,6 +674,8 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // i18n B2：文案经 [l10nOf]（页级 scope 内取；裸宿主回退 zh）。
+    final AppLocalizations t = l10nOf(context);
     return Container(
       decoration: creamCardDecoration(),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
@@ -642,7 +685,7 @@ class _SummaryCard extends StatelessWidget {
             child: _SummaryStat(
               emoji: '✅',
               value: '${view.totalTaskCount}',
-              label: '本期完成成长项',
+              label: t.parent_hist_summary_done,
             ),
           ),
           Container(width: 1, height: 44, color: Colors.grey.shade200),
@@ -650,7 +693,7 @@ class _SummaryCard extends StatelessWidget {
             child: _SummaryStat(
               emoji: '🎁',
               value: '${view.totalRewardCount}',
-              label: '本期兑换奖励',
+              label: t.parent_hist_summary_redeem,
             ),
           ),
           Container(width: 1, height: 44, color: Colors.grey.shade200),
@@ -658,7 +701,7 @@ class _SummaryCard extends StatelessWidget {
             child: _SummaryStat(
               emoji: '☀',
               value: '${view.totalRewardCost}',
-              label: '本期消耗阳光',
+              label: t.parent_hist_summary_cost,
             ),
           ),
         ],
@@ -718,21 +761,38 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, color: iconColor, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ),
-          Text(
-            tail,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-          ),
-        ],
+      // i18n B2：尾注英文远长于中文（`{count} in total · {cost} ☀ spent`
+      // vs `共 {count} 次 · 消耗 {cost} 阳光`）—— 原实现里尾注是**非弹性**子项，
+      // Row 会先按自然宽度量它，超了就直接溢出（中文放得下、英文放不下）。
+      // 用 `LayoutBuilder` 给它一个「最多 60% 宽」的上限：中文正常宽度远小于该
+      // 上限 → **像素级零变化**；英文放不下时改为换行，绝不溢出。
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final bool bounded = constraints.maxWidth.isFinite;
+          return Row(
+            children: <Widget>[
+              Icon(icon, color: iconColor, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: bounded ? constraints.maxWidth * 0.6 : 240,
+                ),
+                child: Text(
+                  tail,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -762,7 +822,8 @@ class _TaskHistoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ({Color bg, Color fg}) cat = macaronColorById(row.task?.id ?? row.name);
-    final String range = _rangeLabel(row.firstAt, row.lastAt);
+    final AppLocalizations t = l10nOf(context);
+    final String range = _rangeLabel(t, row.firstAt, row.lastAt);
     return Container(
       decoration: creamCardDecoration(),
       padding: const EdgeInsets.all(14),
@@ -795,7 +856,11 @@ class _TaskHistoryTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          _CountBadge(text: '完成 ${row.count} 次', bg: cat.bg, fg: cat.fg),
+          _CountBadge(
+            text: t.parent_hist_done_badge(row.count),
+            bg: cat.bg,
+            fg: cat.fg,
+          ),
         ],
       ),
     );
@@ -812,7 +877,8 @@ class _RewardHistoryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final ({Color bg, Color fg}) cat =
         macaronColorById(row.template?.id ?? row.name);
-    final String range = _rangeLabel(row.firstAt, row.lastAt);
+    final AppLocalizations t = l10nOf(context);
+    final String range = _rangeLabel(t, row.firstAt, row.lastAt);
     return Container(
       decoration: creamCardDecoration(),
       padding: const EdgeInsets.all(14),
@@ -839,14 +905,18 @@ class _RewardHistoryTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$range · 消耗 ${row.costSum} 阳光',
+                  t.parent_hist_cost_line(range, row.costSum),
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          _CountBadge(text: '兑换 ${row.count} 次', bg: cat.bg, fg: cat.fg),
+          _CountBadge(
+            text: t.parent_hist_redeem_badge(row.count),
+            bg: cat.bg,
+            fg: cat.fg,
+          ),
         ],
       ),
     );
@@ -914,10 +984,12 @@ class _CountBadge extends StatelessWidget {
 }
 
 /// 时间区间文案：只完成过一次 → 「某日」；多次 → 「首次 X ～ 最近 Y」。
-String _rangeLabel(DateTime first, DateTime last) {
+///
+/// 日期本身的模式（`yyyy-MM-dd`）无本地化字符，属**格式**而非文案，不进 ARB。
+String _rangeLabel(AppLocalizations t, DateTime first, DateTime last) {
   final DateFormat fmt = DateFormat('yyyy-MM-dd');
   final String f = fmt.format(first);
   final String l = fmt.format(last);
   if (f == l) return f;
-  return '首次 $f ～ 最近 $l';
+  return t.parent_hist_range_multi(f, l);
 }

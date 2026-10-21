@@ -6,6 +6,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/i18n/app_language.dart';
 
 class SettingsStore {
   final SharedPreferences _sp;
@@ -132,4 +133,15 @@ class SettingsStore {
   /// 覆写调试限时开关。
   Future<void> setDebugCapBypass(bool value) async =>
       _sp.setBool(kPrefDebugCapBypass, value);
+
+  // ── 界面语言（i18n B1 批次）────────────────────────────────────────────
+
+  /// 界面语言存档（键见 [kPrefAppLanguage]；null / 脏值一律回
+  /// [AppLanguage.system]）。
+  Future<AppLanguage> getAppLanguage() async =>
+      appLanguageFromStored(_sp.getString(kPrefAppLanguage));
+
+  /// 覆写界面语言存档（`AppLocaleController.set` 落盘走此处）。
+  Future<void> setAppLanguage(AppLanguage lang) async =>
+      _sp.setString(kPrefAppLanguage, appLanguageToKey(lang));
 }

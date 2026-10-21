@@ -23,6 +23,8 @@ import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 /// 「花园玩法」弹窗（由木牌热区点击后用 `showModalBottomSheet` 弹出）。
 class GardenHelpSheet extends StatelessWidget {
@@ -40,8 +42,20 @@ class GardenHelpSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 每分钟专注入账的阳光数（kSunlightPerFocusMinute = 1.0 → 1）。
-    final int perMinute = kSunlightPerFocusMinute.toInt();
+    // 🔴 底部弹层上下文在页面 scope 之外：自包 L10nScope（i18n B1 约定）。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          final AppLocalizations l10n = l10nOf(context);
+          // 每分钟专注入账的阳光数（kSunlightPerFocusMinute = 1.0 → 1）。
+          final int perMinute = kSunlightPerFocusMinute.toInt();
+          return _buildList(context, l10n, perMinute);
+        },
+      ),
+    );
+  }
+
+  Widget _buildList(BuildContext context, AppLocalizations l10n, int perMinute) {
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -49,13 +63,14 @@ class GardenHelpSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Row(
+            Row(
               children: <Widget>[
-                Icon(Icons.menu_book, size: 22, color: Colors.green),
-                SizedBox(width: 8),
+                const Icon(Icons.menu_book, size: 22, color: Colors.green),
+                const SizedBox(width: 8),
                 Text(
-                  '玩法说明',
-                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+                  l10n.ghelp_title,
+                  style: const TextStyle(
+                      fontSize: 19, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -63,51 +78,50 @@ class GardenHelpSheet extends StatelessWidget {
             _HelpRow(
               icon: Icons.wb_sunny_outlined,
               iconAsset: 'assets/rewards/sunlight.png',
-              title: '怎么挣阳光',
-              detail: '白天专注就能挣阳光：每分钟 +$perMinute ☀；\n'
-                  '完成成长任务打卡，每项还 +$kTaskSunlightReward ☀。',
+              title: l10n.ghelp_earn_title,
+              detail: l10n.ghelp_earn_detail(
+                  perMinute, kTaskSunlightReward),
             ),
             _HelpRow(
               icon: Icons.local_florist,
-              title: '阳光能干什么',
-              detail: '在花园种植物（点空花盆选一株，花 ☀ 种下）；\n'
-                  '给植物浇水 $kPlantWaterCost ☀/次起、施肥 $kPlantFertilizeCost ☀/次起；\n'
-                  '也可以去「商店」兑换喜欢的奖励。',
+              title: l10n.ghelp_use_title,
+              detail: l10n.ghelp_use_detail(
+                  kPlantWaterCost, kPlantFertilizeCost),
             ),
             _HelpRow(
               icon: Icons.schedule,
-              title: '植物怎么长大',
-              detail: '不照顾也会随时间自己长大；浇水 +${(kPlantWaterProgressGain * 100).round()}%、'
-                  '施肥 +${(kPlantFertilizeProgressGain * 100).round()}% 长得更快\n'
-                  '（花谢后重新养时增量会小一些，看按钮上的实际数字；\n'
-                  '每天最多浇 $kPlantWaterMaxPerDay 次、施 $kPlantFertilizeMaxPerDay 次，'
-                  '两次浇水要隔 $kPlantWaterIntervalMinutes 分钟）；\n'
-                  '进度养满就开花，开满 $kBloomDurationDays 天后花谢，再养满又能再开 🌻',
+              title: l10n.ghelp_grow_title,
+              detail: l10n.ghelp_grow_detail(
+                (kPlantWaterProgressGain * 100).round(),
+                (kPlantFertilizeProgressGain * 100).round(),
+                kPlantWaterMaxPerDay,
+                kPlantFertilizeMaxPerDay,
+                kPlantWaterIntervalMinutes,
+                kBloomDurationDays,
+              ),
             ),
             _HelpRow(
               icon: Icons.local_fire_department,
-              title: '别让植物枯萎',
-              detail: '浇水或施肥能刷新计时；$kPlantWiltDays 天没浇水就会枯萎，\n'
-                  '枯萎后再拖 $kPlantDeathDays 天就会枯死。记得常来看看它 🌱',
+              title: l10n.ghelp_wilt_title,
+              detail: l10n.ghelp_wilt_detail(
+                  kPlantWiltDays, kPlantDeathDays),
             ),
-            const _HelpRow(
+            _HelpRow(
               icon: Icons.check_circle_outline,
-              title: '任务打卡与家长核销',
-              detail: '成长任务有两种：\n'
-                  '「开始专注」的任务，达标后自动结算阳光；\n'
-                  '「我做到了」的任务，先记成「等家长确认」，\n'
-                  '爸爸妈妈核销通过后，阳光才真正到账。',
+              title: l10n.ghelp_task_title,
+              detail: l10n.ghelp_task_detail,
             ),
             _HelpRow(
               icon: Icons.yard,
-              title: '花园容量',
-              detail: '$capacity / $kGardenPotCapacityMax 盆',
+              title: l10n.ghelp_capacity_title,
+              detail: l10n.ghelp_capacity_detail(
+                  capacity, kGardenPotCapacityMax),
             ),
             _HelpRow(
               icon: Icons.add_circle_outline,
-              title: '扩容',
-              detail: '点「+」格，花 $expandCost ☀ 可以多一个花盆'
-                  '（上限 $kGardenPotCapacityMax 盆）',
+              title: l10n.ghelp_expand_title,
+              detail: l10n.ghelp_expand_detail(
+                  expandCost, kGardenPotCapacityMax),
             ),
           ],
         ),

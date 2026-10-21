@@ -26,7 +26,9 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
@@ -306,8 +308,13 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         // LayoutBuilder 量到的就是 [TabBackground] 的真实盒子（DecoratedBox 原样
         // 透传约束）→ 卡片起点才能与底图分界线**同源反算**（见 [_buildLayout]）。
         : LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints c) =>
-                _buildLayout(box: c.biggest),
+            builder: (BuildContext context, BoxConstraints c) {
+              // i18n（B1）：LayoutBuilder 上下文在 L10nScope 之内 → 此处取文案
+              // 存入 [_l10n]，供下方 [_buildLayout]（State 方法，用的 State 上下文
+              // 在 scope 之外）取用。
+              _l10n = AppLocalizations.of(context);
+              return _buildLayout(box: c.biggest);
+            },
           );
 
     // C44：整页背景（上半场景 + 下半留白，白卡浮在留白区上）。
@@ -316,7 +323,9 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
     // [tabletContentDownshiftOf]（随屏宽等效 pt）—— 换算成比例后传给
     // [TabBackground]，手机仍原样传 [kTodayBgPanelTargetRatio]（0.37）。
     // ⚠️ 只改**传进去的**比例，不改 C67 冻结常量本身（见 `test/qa/focus_level_guard_test.dart`）。
-    return TabBackground(
+    // i18n（B1）：页级 L10n 范围 —— 裸 MaterialApp 测试宿主（无 delegates）也能取文案。
+    return L10nScope(
+      child: TabBackground(
       asset: kTodayBgAsset,
       // C67：底图锚点**冻结**在 [kTodayBgPanelTargetRatio]（=0.37），**不跟**卡片下移
       // —— 玄参明确「背景图片的位置已经比较合适了」（互相关实证背景像素零变化）。
@@ -324,12 +333,16 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
       panelTargetRatio: _panelTargetRatio,
       fallbackColor: const Color(0xFFFBF4E4),
       child: body,
+      ),
     );
   }
 
   /// 平板「漂浮阳光」气泡的**半高**（F142 四轮）：气泡总高 ~34pt（白底胶囊，
   /// 见 `_FloatingSunBubble`），「与花头齐平」= 气泡中心 ≈ 花脸中心 →
   /// `top = 花脸中心屏上 y − 本值`。
+  /// i18n（B1）：页内文案（LayoutBuilder scope 内上下文解析，见 build）。
+  AppLocalizations? _l10n;
+
   static const double _kSunBubbleHalfHeight = 17.0;
 
   /// 平板内容下移量（**随屏宽线性放大**，F142 三轮）；手机恒 `0`（逐像素零回归）。
@@ -399,7 +412,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                     // C48：玄参 2026-10-10 —— 三卡图标用 UI 素材。
                     assetIcon: 'assets/rewards/sunlight.png',
                     color: const Color(0xFFE8890C),
-                    label: '今日获取阳光',
+                    label: _l10n!.child_today_sunlight_title,
                     // F105 口径：展示一律 sunlightDisplayInt（向下取整）。
                     value: '+${sunlightDisplayInt(_todayEarn)}',
                     unit: '☀',
@@ -409,9 +422,9 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                     icon: Icons.timer,
                     assetIcon: 'assets/ui/growth/focus.webp',
                     color: Colors.teal,
-                    label: '今日专注',
-                    value: '${_focusMinutes.round()} 分钟',
-                    unit: '· $_focusCount 次',
+                    label: _l10n!.child_today_focus_label,
+                    value: _l10n!.child_today_minutes(_focusMinutes.round()),
+                    unit: _l10n!.child_today_focus_count(_focusCount),
                   ),
                   const SizedBox(height: 10),
                   _StatCard(
@@ -420,19 +433,19 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                     color: Colors.indigo,
                     // 口径与「任务」tab 一致：仅「今日必做（isDaily）」。
                     // doneCount/total 由 [TodayTaskBoard] 保证只统计 isDaily 项。
-                    label: '今日成长',
+                    label: _l10n!.child_today_growth_label,
                     value: '$_taskDone / $_taskTotal',
                     unit: _taskTotal > 0 && _taskDone >= _taskTotal
-                        ? '全部完成 🌻'
+                        ? _l10n!.child_today_all_done
                         : '',
                   ),
                   const SizedBox(height: 14),
                   // 引导：只有从「成长」tab 的具体成长项进入专注，达标后才会自动
                   // 结算该项阳光（本页的「开始专注」是自由专注入口，不联动结算）。
-                  const Text(
-                    '想赚成长阳光？从「成长」里点具体项目开始专注 🌻',
+                  Text(
+                    _l10n!.child_today_growth_hint,
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: Color(0xFF8A7A66)),
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF8A7A66)),
                   ),
                 ],
               ),
@@ -445,7 +458,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                 child: FilledButton.icon(
                   onPressed: () => context.go('/entry'),
                   icon: const Icon(Icons.play_arrow),
-                  label: const Text('开始专注'),
+                  label: Text(_l10n!.shared_start_focus),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 18),
                     textStyle: const TextStyle(

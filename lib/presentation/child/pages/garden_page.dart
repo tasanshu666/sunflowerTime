@@ -74,6 +74,9 @@ import 'package:sunflower_time/presentation/child/widgets/plant_confirm_dialog.d
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
 /// 养护动效浮层 / 成长演出浮层的**稳定 Key**（C82）。
 ///
@@ -202,6 +205,13 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   bool _loading = true;
   bool _busy = false;
   String? _error;
+
+  /// 当前页文案（build 期在 L10nScope 内赋值；异步回调经 [_t] 取，
+  /// 尚未 build 过的极端早回调回退中文，与迁移前行为一致）。
+  AppLocalizations? _l10n;
+
+  /// 文案统一取用入口（i18n B1）。
+  AppLocalizations get _t => _l10n ?? AppLocalizationsZh();
 
   /// 花盆上方刚清除掉的干扰物提示（口径 C26 + 2026-10-03 飘字口径）：
   /// `potIndex` 指明浮在哪一格；`label` = 「除草成功」/「除虫成功」；
@@ -472,7 +482,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       await _detectGrowthTransitions();
       // 花谢自动到账提示（有则可，无则静默）。
       if (autoSettled.isNotEmpty && mounted) {
-        _snack('花朵凋谢，奖励已自动收下：${autoSettled.map(_outcomeParts).join('；')}');
+        _snack(_t.garden_settle_withered(autoSettled.map(_outcomeParts).join('；')));
       }
     } catch (e) {
       _error = e.toString();
@@ -507,7 +517,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     } on PlantOperationException catch (e) {
       _snack(e.message);
     } catch (e) {
-      _snack('操作失败：$e');
+      _snack(_t.shared_op_failed(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -533,7 +543,9 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       final int refund = result.shovelRefund!;
       // 铲除音效（2026-10-07 玄参交付 `shovel.mp3`；确认卡点「确定铲除」成功后播）。
       AudioService.instance.playSfx(AudioCue.shovel);
-      _snack(refund > 0 ? '铲除成功，返还 $refund ☀' : '铲除成功');
+      _snack(refund > 0
+          ? _t.garden_shovel_refund(refund)
+          : _t.garden_shovel_ok);
     }
     await _reload(silent: true);
   }
@@ -728,7 +740,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         await _reload(silent: true);
       }
     } catch (e) {
-      _snack('操作失败：$e');
+      _snack(_t.shared_op_failed(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -737,7 +749,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       // 用「 · 」分隔）；阶段前缀按首条判定（instant / 晨露）。
       final String body = outcomes.map(_outcomeParts).join(' · ');
       final bool allInstant = outcomes.every((BloomRewardOutcome o) => o.isInstantPhase);
-      _showCollectHint(allInstant ? body : '盛开的礼物：$body');
+      _showCollectHint(allInstant ? body : _t.garden_collect_gift_prefix(body));
     }
   }
 
@@ -802,7 +814,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         _fadingClear = null;
         _clearHint = (
           potIndex: potIndex,
-          label: weed ? '除草成功' : '除虫成功',
+          label: weed ? _t.garden_cleared_weed : _t.garden_cleared_pest,
           sunlight: (weed ? weedRewardOf(_perk) : pestRewardOf(_perk)).toInt(),
         );
       });
@@ -814,17 +826,19 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// `重复的「X」种子已分解为 N 植物碎片`）。
   String _outcomeParts(BloomRewardOutcome o) {
     final List<String> parts = <String>[];
-    if (o.sunlight > 0) parts.add('+${o.sunlight} ☀ 阳光');
+    if (o.sunlight > 0) parts.add(_t.garden_reward_sunlight(o.sunlight));
     if (o.decomposedSeedSpeciesId != null) {
       // 重复种子自动分解（玄参 2026-09-29）：此时 fragments 即分解所得，勿重复拼「+N 植物碎片」。
-      parts.add(
-          '重复的「${_speciesNameById(o.decomposedSeedSpeciesId!)}」种子已分解为 ${o.fragments} 植物碎片');
+      parts.add(_t.garden_seed_decomposed(
+        _speciesNameById(o.decomposedSeedSpeciesId!),
+        o.fragments,
+      ));
     } else {
-      if (o.fragments > 0) parts.add('+${o.fragments} 植物碎片');
+      if (o.fragments > 0) parts.add(_t.garden_reward_fragments(o.fragments));
       final String? seed = o.seedSpeciesId;
-      if (seed != null) parts.add('掉落「${_speciesNameById(seed)}」种子');
+      if (seed != null) parts.add(_t.garden_seed_dropped(_speciesNameById(seed)));
     }
-    return parts.isEmpty ? '收到一份小礼物～' : parts.join(' · ');
+    return parts.isEmpty ? _t.garden_gift_default : parts.join(' · ');
   }
 
   /// 按物种 id 取显示名（找不到返回 id 本身）。
@@ -1259,11 +1273,11 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   String _growthTitle(GrowTransition t) {
     switch (t) {
       case GrowTransition.seedToSprout:
-        return '发芽啦！🌱';
+        return _t.garden_fx_sprout;
       case GrowTransition.sproutToAdult:
-        return '长大啦！🌿';
+        return _t.garden_fx_grow;
       case GrowTransition.adultToBloomed:
-        return '开花啦！🌻';
+        return _t.garden_fx_bloom;
     }
   }
 
@@ -1326,7 +1340,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     final int cost = _expandCost;
     // 阳光不足：不给确认卡，直接分因提示（此时格子虽可点，但绝不扣费）。
     if (_balance < cost) {
-      _snack('阳光不足，还差 ${(cost - _balance).ceil()} ☀ —— 去专注赚阳光吧');
+      _snack(_t.garden_need_more_sun((cost - _balance).ceil()));
       return;
     }
     // F135：改用**统一确认卡**（奶油底 + 阳光金 + 明细面板 + 收窄宽度），
@@ -1334,23 +1348,24 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     // 容量变化作为底部高亮小结（保留原文案片段「A 盆 → B 盆」）。
     final bool? ok = await showChildConfirmCard(
       context: context,
-      title: '要给花园腾一个花盆吗？',
+      title: _t.garden_expand_title,
       hero: const ConfirmCardBadge(icon: Icons.yard),
       rows: <ConfirmCardRow>[
         ConfirmCardRow(
           icon: Icons.wb_sunny,
-          name: '本次扩容',
+          name: _t.garden_row_expand_cost,
           value: '−$cost ☀',
         ),
         ConfirmCardRow(
           icon: Icons.account_balance_wallet_outlined,
-          name: '当前阳光',
+          name: _t.garden_row_balance,
           value: '${_balance.toInt()} ☀',
           muted: true,
         ),
       ],
-      note: '花园容量：$_capacity 盆 → ${_capacity + 1} 盆',
-      confirmLabel: '确定，扣除',
+      note: _t.garden_expand_note(_capacity, _capacity + 1),
+      confirmLabel: _t.garden_confirm_deduct,
+      cancelLabel: _t.shared_cancel,
     );
     if (ok != true) return; // 取消 / 关闭对话框 → 不扣任何阳光
     await _run(() =>
@@ -1405,24 +1420,24 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     switch (kind) {
       case PlantOneClickKind.water:
         if (plan.isEmpty) {
-          _showBatchHint('今天没有可浇水的植物', 0, showSunlight: false);
+          _showBatchHint(_t.garden_batch_none_water, 0, showSunlight: false);
           return;
         }
       case PlantOneClickKind.fertilize:
         if (plan.isEmpty) {
-          _showBatchHint('今天没有可施肥的植物', 0, showSunlight: false);
+          _showBatchHint(_t.garden_batch_none_fertilize, 0, showSunlight: false);
           return;
         }
       case PlantOneClickKind.care:
         if (plan.isEmpty) {
-          _showBatchHint('没有需要护理的植物', 0, showSunlight: false);
+          _showBatchHint(_t.garden_batch_none_care, 0, showSunlight: false);
           return;
         }
     }
     // 阳光不足 → 整体拦截（玄参拍板：一株都不执行，避免「浇一半没阳光」的挫败）。
     if (kind != PlantOneClickKind.care && _balance < plan.totalCost) {
       _showBatchHint(
-        '阳光不足，还差 ${(plan.totalCost - _balance).ceil()} ☀ —— 去专注赚阳光吧',
+        _t.garden_need_more_sun((plan.totalCost - _balance).ceil()),
         0,
         showSunlight: false,
       );
@@ -1437,68 +1452,69 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
           rows: <ConfirmCardRow>[
             ConfirmCardRow(
               icon: Icons.wb_sunny,
-              name: '本次合计扣除',
+              name: _t.garden_row_total_cost,
               value: '−${plan.totalCost} ☀',
             ),
             ConfirmCardRow(
               icon: Icons.account_balance_wallet_outlined,
-              name: '当前阳光',
+              name: _t.garden_row_balance,
               value: '${_balance.toInt()} ☀',
               muted: true,
             ),
           ],
-          note: '将对 ${plan.plantIds.length} 盆植物各浇 1 次水'
-              '（每盆 ${waterCostOf(_perk)} ☀）',
+          note: _t.garden_water_note(
+              plan.plantIds.length, waterCostOf(_perk)),
           icon: Icons.water_drop_outlined,
         ),
       PlantOneClickKind.fertilize => (
           rows: <ConfirmCardRow>[
             ConfirmCardRow(
               icon: Icons.wb_sunny,
-              name: '本次合计扣除',
+              name: _t.garden_row_total_cost,
               value: '−${plan.totalCost} ☀',
             ),
             ConfirmCardRow(
               icon: Icons.account_balance_wallet_outlined,
-              name: '当前阳光',
+              name: _t.garden_row_balance,
               value: '${_balance.toInt()} ☀',
               muted: true,
             ),
           ],
-          note: '将对 ${plan.plantIds.length} 盆植物各施 1 次肥'
-              '（每盆 ${fertilizeCostOf(_perk)} ☀）',
+          note: _t.garden_fertilize_note(
+              plan.plantIds.length, fertilizeCostOf(_perk)),
           icon: Icons.eco_outlined,
         ),
       PlantOneClickKind.care => (
           rows: <ConfirmCardRow>[
             ConfirmCardRow(
               icon: Icons.cleaning_services_outlined,
-              name: '本次清理',
-              value: '${plan.actionCount} 处',
+              name: _t.garden_row_cleanup,
+              value: _t.garden_cleanup_count(plan.actionCount),
             ),
             ConfirmCardRow(
               icon: Icons.account_balance_wallet_outlined,
-              name: '当前阳光',
+              name: _t.garden_row_balance,
               value: '${_balance.toInt()} ☀',
               muted: true,
             ),
           ],
-          note: '奖励照常发放：除草 +${weedRewardOf(_perk).toInt()} ☀ / '
-              '除虫 +${pestRewardOf(_perk).toInt()} ☀',
+          note: _t.garden_care_note(weedRewardOf(_perk).toInt(),
+              pestRewardOf(_perk).toInt()),
           icon: Icons.cleaning_services_outlined,
         ),
     };
     final bool? ok = await showChildConfirmCard(
       context: context,
       title: switch (kind) {
-        PlantOneClickKind.water => '要一键浇水吗？',
-        PlantOneClickKind.fertilize => '要一键施肥吗？',
-        PlantOneClickKind.care => '要一键护理吗？',
+        PlantOneClickKind.water => _t.garden_oneclick_water_title,
+        PlantOneClickKind.fertilize => _t.garden_oneclick_fertilize_title,
+        PlantOneClickKind.care => _t.garden_oneclick_care_title,
       },
       hero: ConfirmCardBadge(icon: brief.icon),
       rows: brief.rows,
       note: brief.note,
-      confirmLabel: '确定',
+      confirmLabel: _t.shared_ok,
+      cancelLabel: _t.shared_cancel,
     );
     if (ok != true) return; // 取消 → 分毫不扣
     // 一键浇水 / 施肥各播**一次**对应养护音效（玄参 2026-10-06「对应着播放一次音效」；
@@ -1568,11 +1584,11 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     // （扣费负数 / 护理奖励正数），走 envelope 自清。
     final (String hintLabel, int hintSunlight) = switch (kind) {
       PlantOneClickKind.water =>
-        ('一键浇水成功 ×${plan.plantIds.length}', -plan.totalCost),
+        (_t.garden_oneclick_water_ok(plan.plantIds.length), -plan.totalCost),
       PlantOneClickKind.fertilize =>
-        ('一键施肥成功 ×${plan.plantIds.length}', -plan.totalCost),
+        (_t.garden_oneclick_fertilize_ok(plan.plantIds.length), -plan.totalCost),
       PlantOneClickKind.care =>
-        ('一键护理成功 ×${plan.actionCount}', careEarned),
+        (_t.garden_oneclick_care_ok(plan.actionCount), careEarned),
     };
     _showBatchHint(hintLabel, hintSunlight);
     // 一键护理 = 除草 / 除虫合集，成功时**整批只播一次**，且按**实际护理内容**选音效
@@ -1623,7 +1639,13 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     await showDialog<void>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.35),
-      builder: (BuildContext ctx) => Dialog(
+      builder: (BuildContext ctx) {
+        // 🔴 弹窗上下文在页面 L10nScope 之外（根 Navigator），自包一层 scope。
+        return L10nScope(
+          child: Builder(
+            builder: (BuildContext scopeCtx) {
+              final AppLocalizations l10n = AppLocalizations.of(scopeCtx);
+              return Dialog(
         backgroundColor: Colors.transparent,
         insetPadding:
             const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
@@ -1642,9 +1664,9 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const Center(
-                  child: Text('选择要种的植物',
-                      style: TextStyle(
+                Center(
+                  child: Text(l10n.garden_pick_plant_title,
+                      style: const TextStyle(
                           fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 6),
@@ -1710,7 +1732,11 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             ),
           ),
         ),
-      ),
+              ); // Dialog（缩进保持原位，注释定位收口）
+            }, // scopeCtx builder
+          ), // Builder
+        ); // L10nScope
+      }, // dialog builder
     );
   }
 
@@ -1736,25 +1762,25 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       switch (opt.kind) {
         case PlantCostKind.free:
           // 免费入口现在只剩向日葵首株（2026-10-07：种子独立成第三支付方式，不再并入 free）。
-          label = '免费';
+          label = _t.garden_cost_free;
           enabled = true;
         case PlantCostKind.seed:
           // 第三支付方式（玄参 2026-10-07）：文案精简为「种子」，分档种子图在按钮组件前置。
-          label = '种子';
+          label = _t.garden_cost_seed;
           enabled = true;
         case PlantCostKind.sunlight:
-          label = '${opt.amount} 阳光';
+          label = _t.garden_cost_sunlight(opt.amount);
           if (_balance < opt.amount) {
             enabled = false;
-            reason = '阳光不足';
+            reason = _t.garden_reason_no_sun;
           } else {
             enabled = true;
           }
         case PlantCostKind.fragments:
-          label = '${opt.amount} 植物碎片';
+          label = _t.garden_cost_fragments(opt.amount);
           if (_fragmentBalance < opt.amount) {
             enabled = false;
-            reason = '植物碎片不足（当前 $_fragmentBalance 片）';
+            reason = _t.garden_reason_no_fragments(_fragmentBalance);
           } else {
             enabled = true;
           }
@@ -1799,8 +1825,11 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     // 每种支付方式给两行明细 + 一句「种下后剩余」，让孩子一眼看出扣完还剩多少。
     final ({List<PlantConfirmRow> rows, String? remaining}) brief = switch (kind) {
       PlantCostKind.free => (
-          rows: const <PlantConfirmRow>[
-            PlantConfirmRow(icon: Icons.spa, name: '本次种植', value: '免费'),
+          rows: <PlantConfirmRow>[
+            PlantConfirmRow(
+                icon: Icons.spa,
+                name: _t.garden_row_plant,
+                value: _t.garden_cost_free),
           ],
           remaining: null,
         ),
@@ -1810,17 +1839,19 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             rows: <PlantConfirmRow>[
               PlantConfirmRow(
                 icon: Icons.confirmation_number_outlined,
-                name: '使用${sp.isPremium ? '精英' : '普通'}种子',
-                value: '1 张',
+                name: _t.garden_row_use_seed(sp.isPremium
+                        ? _t.garden_rarity_premium
+                        : _t.garden_rarity_common),
+                value: _t.garden_seed_count(1),
               ),
               PlantConfirmRow(
                 icon: Icons.inventory_2_outlined,
-                name: '当前种子',
-                value: '$left 张',
+                name: _t.garden_row_seed_balance,
+                value: _t.garden_seed_count(left),
                 muted: true,
               ),
             ],
-            remaining: '种下后剩余 ${left > 0 ? left - 1 : 0} 张',
+            remaining: _t.garden_seed_remaining(left > 0 ? left - 1 : 0),
           );
         }(),
       PlantCostKind.sunlight => () {
@@ -1830,17 +1861,17 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             rows: <PlantConfirmRow>[
               PlantConfirmRow(
                 icon: Icons.wb_sunny,
-                name: '本次种植',
+                name: _t.garden_row_plant,
                 value: '−${opt.amount} ☀',
               ),
               PlantConfirmRow(
                 icon: Icons.account_balance_wallet_outlined,
-                name: '当前阳光',
+                name: _t.garden_row_balance,
                 value: '$balance ☀',
                 muted: true,
               ),
             ],
-            remaining: '种下后剩余 ${remain > 0 ? remain : 0} ☀',
+            remaining: _t.garden_sun_remaining(remain > 0 ? remain : 0),
           );
         }(),
       PlantCostKind.fragments => () {
@@ -1849,17 +1880,17 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             rows: <PlantConfirmRow>[
               PlantConfirmRow(
                 icon: Icons.extension_outlined,
-                name: '使用植物碎片',
-                value: '−${opt.amount} 片',
+                name: _t.garden_row_use_fragments,
+                value: _t.garden_fragment_cost(opt.amount),
               ),
               PlantConfirmRow(
                 icon: Icons.inventory_2_outlined,
-                name: '当前碎片',
-                value: '$_fragmentBalance 片',
+                name: _t.garden_row_fragment_balance,
+                value: _t.garden_fragment_count(_fragmentBalance),
                 muted: true,
               ),
             ],
-            remaining: '种下后剩余 ${remain > 0 ? remain : 0} 片',
+            remaining: _t.garden_fragment_remaining(remain > 0 ? remain : 0),
           );
         }(),
     };
@@ -1868,6 +1899,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       species: sp,
       rows: brief.rows,
       remainingText: brief.remaining,
+      // i18n B1：文案在页级 scope 内解析后传给弹窗。
+      title: _t.plant_confirm_title(sp.name),
+      confirmLabel: _t.plant_confirm_ok,
+      cancelLabel: _t.shared_cancel,
     );
     if (ok != true) return; // 取消 / 关闭 → 不扣任何资源
     // 种植音效（玄参 2026-10-07 交付 `cultivate.mp3`）：**仅种下成功后播放一次**
@@ -1893,7 +1928,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     // 种子数据变更/物种缺失时的兜底：不显示空白格。
     return PlantSpecies(
       id: plant.speciesId,
-      name: '未知植物',
+      name: _t.garden_unknown_plant,
       rarity: Rarity.common,
       baseCostHigh: 0,
       baseCostLow: 0,
@@ -2129,222 +2164,235 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     // initState 只跑一次 → 别处（专注结算 / 商店核销 / 「我的」页操作）变更余额后，
     // 本页缓存的 _balance 仍是旧值 → 加盆格误算「还差 N☀」被判不可点（点击无响应）。
     // 修法：监听经济修订号，任何入账/扣账后静默重读（silent 避免闪全屏 loading）。
-    // ref.listen 只能写在 build() 内（写在 initState 会触发框架断言）。
+    // ref.listen 只能写在 build() 内（写在 initState 会触发框架断言）；且必须在
+    // ConsumerWidget.build **顶层**调用 —— Riverpod 的 `debugDoingBuild` 断言
+    // 不允许在嵌套 Builder 闭包内调用，故注册在进入页级 L10nScope 之前。
     ref.listen(economyRevisionProvider, (_, __) {
       if (mounted) _reload(silent: true);
     });
+    // 🔴 页级 L10nScope（i18n B1）：全页文案经 AppLocalizations 解析；
+    // Builder 的 context 参数遮蔽外层 context，位于 scope 之下，
+    // 可安全 AppLocalizations.of(context) 并赋给 [_l10n] 供异步回调使用。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          _l10n = AppLocalizations.of(context);
+        // 经济修订号监听已上移至 build() 顶层（Riverpod 断言要求，见上方 ref.listen）。
 
-    // 花园氛围音可见性（玄参 2026-09-28；F71 2026-10-05 修订；F138 2026-10-19 再修订）。
-    // ⚠️ 原实现按 TickerMode 依赖重建判可见性，但 IndexedStack 更新隐藏子树的
-    // 时机不保证本页立即重建 → 切 tab 后氛围音继续播完整曲（玄参实测）。
-    // F138 追加「外壳在台前」判据：外壳被 `context.go('/parent')` 销毁重建后，
-    // tab **记忆**仍是 2（花园），若只看索引，重建出来的本页会误判自己可见 →
-    // 孩子在「今日」tab 上听到花园背景音每 30s 无限补播（玄参真机反馈）。
-    final bool gardenVisible = !widget.embedded ||
-        (ref.watch(childShellOnStageProvider) &&
-            ref.watch(childShellTabIndexProvider) == kChildTabIndexOfGarden);
-    if (gardenVisible != _ambientActive) {
-      _ambientActive = gardenVisible;
-      _syncAmbientTimer();
-    }
-
-    // 整页草地背景：铺满页面 body（内嵌 tab 用 SafeArea、独立路由用 Scaffold body），
-    // 图片缺失/失败回退到绿色渐变。阳光胶囊与木牌热区都叠在图片之上。
-    final Widget background = Positioned.fill(
-      child: Image.asset(
-        'assets/garden/background.png',
-        fit: BoxFit.cover,
-        errorBuilder: (
-          BuildContext context,
-          Object error,
-          StackTrace? stackTrace,
-        ) =>
-            Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: <Color>[Color(0xFFBFE6A8), Color(0xFF8FCF74)],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    // LayoutBuilder 拿到 body 可用尺寸：用于把木牌热区与花盆区底界都映射到背景图上。
-    final Widget page = LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final Size size = constraints.biggest;
-        final Widget content;
-        if (_loading) {
-          content = const Center(child: CircularProgressIndicator());
-        } else if (_error != null) {
-          content = Center(child: Text('加载失败：$_error'));
-        } else {
-          content = _buildGardenBody(size);
+        // 花园氛围音可见性（玄参 2026-09-28；F71 2026-10-05 修订；F138 2026-10-19 再修订）。
+        // ⚠️ 原实现按 TickerMode 依赖重建判可见性，但 IndexedStack 更新隐藏子树的
+        // 时机不保证本页立即重建 → 切 tab 后氛围音继续播完整曲（玄参实测）。
+        // F138 追加「外壳在台前」判据：外壳被 `context.go('/parent')` 销毁重建后，
+        // tab **记忆**仍是 2（花园），若只看索引，重建出来的本页会误判自己可见 →
+        // 孩子在「今日」tab 上听到花园背景音每 30s 无限补播（玄参真机反馈）。
+        final bool gardenVisible = !widget.embedded ||
+            (ref.watch(childShellOnStageProvider) &&
+                ref.watch(childShellTabIndexProvider) == kChildTabIndexOfGarden);
+        if (gardenVisible != _ambientActive) {
+          _ambientActive = gardenVisible;
+          _syncAmbientTimer();
         }
 
-        // 整页叠放：背景铺满 → 内容区（锁 2 行 + 区域内滚动）→ 左下角木牌热区
-        // → 养护成功的一次性动效叠加层（仅播放期间存在）。
-        // 木牌在左下、花盆区在中上部，互不重叠，故不会挡住花盆点击。
-        // ⚠️ `clipBehavior: Clip.none`（2026-09-29）：养护效果帧按玄参口径「略大于格宽、
-        // 允许越界」，帧顶部会落在花盆格**上方**（水壶 / 肥料袋位置）。Stack 默认
-        // `hardEdge` 会把越界部分裁掉 → 只看得到水柱看不到壶。
-        return Stack(
-          key: _pageStackKey,
-          clipBehavior: Clip.none,
-          children: <Widget>[
-            background,
-            Positioned.fill(child: content),
-            Positioned.fromRect(
-              rect: gardenSignScreenRect(size),
-              child: GardenSignHotspot(onTap: _showGardenHelp),
+        // 整页草地背景：铺满页面 body（内嵌 tab 用 SafeArea、独立路由用 Scaffold body），
+        // 图片缺失/失败回退到绿色渐变。阳光胶囊与木牌热区都叠在图片之上。
+        final Widget background = Positioned.fill(
+          child: Image.asset(
+            'assets/garden/background.png',
+            fit: BoxFit.cover,
+            errorBuilder: (
+              BuildContext context,
+              Object error,
+              StackTrace? stackTrace,
+            ) =>
+                Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[Color(0xFFBFE6A8), Color(0xFF8FCF74)],
+                ),
+              ),
             ),
-            // 精品碎片入口（变更 B；2026-10-05 玄参口径修订：**移到花园背景图左上角**，
-            // 原右下角与一键操作按钮挤在一起）。根 Stack 浮层——**不占布局高度**，避免
-            // 改动花盆网格的可视高度（矮屏用例硬钉该高度）。内嵌 tab 时左上角无阳光胶囊
-            // （在 shell AppBar）；独立路由 /garden 左上角有胶囊 → 下移到胶囊之下。
-            if (!_loading && _error == null)
-              Positioned(
-                left: 12,
-                top: widget.embedded ? 12 : 60,
-                child: Row(
-                  children: <Widget>[
-                    _FragmentEntry(
-                      balance: _fragmentBalance,
-                      onTap: _openFragmentSheet,
-                    ),
-                    const SizedBox(width: 8),
-                    // 种子计数（2026-10-05 玄参「碎片右边并列显示普通/精英种子个数」）：
-                    // 分档种子素材图 + ×N；素材缺失回退 🌰。2026-10-06：点击也打开
-                    // 「碎片与种子」说明卡（玄参「点击种子就不会弹出来，都需要弹出」）。
-                    _SeedCountChip(
-                      count: _commonSeedCount,
-                      asset: 'assets/rewards/seed_common.png',
-                      onTap: _openFragmentSheet,
-                    ),
-                    const SizedBox(width: 6),
-                    _SeedCountChip(
-                      count: _premiumSeedCount,
-                      asset: 'assets/rewards/seed_premium.png',
-                      onTap: _openFragmentSheet,
-                    ),
-                  ],
-                ),
-              ),
-            // 一键操作悬浮按钮（C29；2026-10-05 玄参口径修订：移到右下角贴底——
-            // 原上方碎片入口已移走）+ 点开/再点收拢的展开卡（宽度与胶囊一致）。
-            // 存活株 ≥ kOneClickMinPlants 才出现（「花园植物大于 3 盆」，死亡残株不算）。
-            if (!_loading && _error == null && _showOneClickFab)
-              Positioned(
-                right: 12,
-                bottom: 12,
-                child: _OneClickFab(onSelected: _onOneClick),
-              ),
-            // 一键操作汇总提示（C29）已于 2026-10-07 改为**根 Overlay 全屏浮层**
-            // （见 [_showBatchHint]）——不再挂在根 Stack 内，避免真机「贴底」问题。
-            // 「花期调试」入口（**仅调试构建**）：同样为根 Stack 浮层——紧凑、不占布局
-            // 高度（避免把矮屏用例顶出视口 / 触发 overflow），release 构建自动不渲染。
-            // 摆在右上角（左上角是阳光胶囊、左下角木牌、右下角碎片入口）。
-            //
-            // F139（玄参 2026-10-20 截图清单）：**截图会入镜**——花园页是商店图的主场景，
-            // 这个 bug 图标就在右上角。故与「我的」页 / 家长今日页 / 家长设置页统一走
-            // [shouldShowDebugUi] 单点判据（截图构建加 `--dart-define=HIDE_DEBUG_UI=true`
-            // 即可隐藏）；未加 define 时 `kHideDebugUi` 为 false → 行为**与修前逐位一致**，
-            // 日常调试能力不衰减。
-            if (shouldShowDebugUi(
-                  debugMode: kDebugMode,
-                  hideForScreenshots: kHideDebugUi,
-                ) &&
-                !_loading &&
-                _error == null)
-              Positioned(
-                top: 12,
-                right: 12,
-                child: BloomDebugEntry(onTap: _openDebugPanel),
-              ),
-            // 养护成功动效：精确摆到对应花盆格之上（效果帧叠加 + 音频），有限时长，结束自移除。
-            //
-            // 🔴 C82 关键修复（玄参 2026-10-16 小米真机「盛开动画播两次」的真因）：本 Stack 的
-            //    children 是按**位置**（index）做元素复用的，而上面几个浮层是**条件渲染**的。
-            //    「养护动效 `_activeEffect` 结束置 null」会把它从 children 里移除 → 后面所有
-            //    兄弟节点**整体前移一位** → [GrowthFxOverlay] 落到原先 [CareEffectOverlay] 的
-            //    index 上。**若两处浮层都无 Key**：同为 `Positioned`、`canUpdate` 在
-            //    `null==null` 下为 true → **原地复用**该元素、只换 child → 子类型不匹配 →
-            //    旧 GrowthFxOverlay 元素被卸载、**新建 State** → 动画从第 0 帧**重放**（播两次）。
-            //    修法：两处浮层各加**稳定 Key**（`_kCareEffectOverlayKey` / `_kGrowthFxOverlayKey`）。
-            //    ⚠️ 实测边界（QA 复核 B）：**任一把 Key 在位即可断链**（顶对齐因 key 不匹配提前
-            //    停止，改走自底向上匹配 → GrowthFx 元素被保住）；**两把都缺**才 remount。两把都留。
-            if (_activeEffect != null)
-              Positioned(
-                key: _kCareEffectOverlayKey,
-                left: _activeEffect!.offset.dx,
-                top: _activeEffect!.offset.dy,
-                width: _activeEffect!.size.width,
-                height: _activeEffect!.size.height,
-                child: CareEffectOverlay(
-                  type: _activeEffect!.type,
-                  plant: _activeEffect!.plant,
-                  species: _activeEffect!.species,
-                  frames: _activeEffect!.frames,
-                  durationMs: _activeEffect!.durationMs,
-                  width: _activeEffect!.size.width,
-                  height: _activeEffect!.size.height,
-                  onComplete: () {
-                    // 先取业务收尾回调（除草 / 除虫：渐变消失 → 刷新 → 飘字），
-                    // 再移除叠加层 —— 置 null 后 spec 就取不到了。
-                    final VoidCallback? finished = _activeEffect?.onFinished;
-                    if (mounted) setState(() => _activeEffect = null);
-                    finished?.call();
-                  },
-                ),
-              ),
-            // 成长过渡演出（玄参 2026-09-29 改口径）：**屏幕中央焦点卡片**内放大播放
-            // 序列帧 + 成长音频，播完整卡淡出（组件内部处理），结束自移除。
-            // 🔴 C82：稳定 Key（见上方养护动效处的说明）——防「养护动效进出导致本演出被 remount 重播」。
-            if (_activeGrowth != null)
-              Positioned.fill(
-                key: _kGrowthFxOverlayKey,
-                child: GrowthFxOverlay(
-                  frames: _activeGrowth!.frames,
-                  durationMs: _activeGrowth!.transition.durationMs,
-                  title: _activeGrowth!.title,
-                  onComplete: () {
-                    // 演出收尾：移除卡片 + 解除去重闸门（允许下一次跃迁演出）。
-                    if (mounted) {
-                      setState(() {
-                        _activeGrowth = null;
-                        _growthFxInFlight = false;
-                      });
-                    } else {
-                      _growthFxInFlight = false;
-                    }
-                  },
-                ),
-              ),
-          ],
-        );
-      },
-    );
-
-    // 内嵌（花园 tab）时不叠加第二层 Scaffold/AppBar，直接返回内容。
-    if (widget.embedded) {
-      return SafeArea(child: page);
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('我的花园'),
-        actions: <Widget>[
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: '刷新成长',
-            onPressed: _busy ? null : _reload,
           ),
-        ],
-      ),
-      body: page,
-    );
+        );
+
+        // LayoutBuilder 拿到 body 可用尺寸：用于把木牌热区与花盆区底界都映射到背景图上。
+        final Widget page = LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final Size size = constraints.biggest;
+            final Widget content;
+            if (_loading) {
+              content = const Center(child: CircularProgressIndicator());
+            } else if (_error != null) {
+              content = Center(child: Text(_t.garden_load_failed(_error!)));
+            } else {
+              content = _buildGardenBody(size);
+            }
+
+            // 整页叠放：背景铺满 → 内容区（锁 2 行 + 区域内滚动）→ 左下角木牌热区
+            // → 养护成功的一次性动效叠加层（仅播放期间存在）。
+            // 木牌在左下、花盆区在中上部，互不重叠，故不会挡住花盆点击。
+            // ⚠️ `clipBehavior: Clip.none`（2026-09-29）：养护效果帧按玄参口径「略大于格宽、
+            // 允许越界」，帧顶部会落在花盆格**上方**（水壶 / 肥料袋位置）。Stack 默认
+            // `hardEdge` 会把越界部分裁掉 → 只看得到水柱看不到壶。
+            return Stack(
+              key: _pageStackKey,
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                background,
+                Positioned.fill(child: content),
+                Positioned.fromRect(
+                  rect: gardenSignScreenRect(size),
+                  child: GardenSignHotspot(onTap: _showGardenHelp),
+                ),
+                // 精品碎片入口（变更 B；2026-10-05 玄参口径修订：**移到花园背景图左上角**，
+                // 原右下角与一键操作按钮挤在一起）。根 Stack 浮层——**不占布局高度**，避免
+                // 改动花盆网格的可视高度（矮屏用例硬钉该高度）。内嵌 tab 时左上角无阳光胶囊
+                // （在 shell AppBar）；独立路由 /garden 左上角有胶囊 → 下移到胶囊之下。
+                if (!_loading && _error == null)
+                  Positioned(
+                    left: 12,
+                    top: widget.embedded ? 12 : 60,
+                    child: Row(
+                      children: <Widget>[
+                        _FragmentEntry(
+                          balance: _fragmentBalance,
+                          onTap: _openFragmentSheet,
+                        ),
+                        const SizedBox(width: 8),
+                        // 种子计数（2026-10-05 玄参「碎片右边并列显示普通/精英种子个数」）：
+                        // 分档种子素材图 + ×N；素材缺失回退 🌰。2026-10-06：点击也打开
+                        // 「碎片与种子」说明卡（玄参「点击种子就不会弹出来，都需要弹出」）。
+                        _SeedCountChip(
+                          count: _commonSeedCount,
+                          asset: 'assets/rewards/seed_common.png',
+                          onTap: _openFragmentSheet,
+                        ),
+                        const SizedBox(width: 6),
+                        _SeedCountChip(
+                          count: _premiumSeedCount,
+                          asset: 'assets/rewards/seed_premium.png',
+                          onTap: _openFragmentSheet,
+                        ),
+                      ],
+                    ),
+                  ),
+                // 一键操作悬浮按钮（C29；2026-10-05 玄参口径修订：移到右下角贴底——
+                // 原上方碎片入口已移走）+ 点开/再点收拢的展开卡（宽度与胶囊一致）。
+                // 存活株 ≥ kOneClickMinPlants 才出现（「花园植物大于 3 盆」，死亡残株不算）。
+                if (!_loading && _error == null && _showOneClickFab)
+                  Positioned(
+                    right: 12,
+                    bottom: 12,
+                    child: _OneClickFab(onSelected: _onOneClick),
+                  ),
+                // 一键操作汇总提示（C29）已于 2026-10-07 改为**根 Overlay 全屏浮层**
+                // （见 [_showBatchHint]）——不再挂在根 Stack 内，避免真机「贴底」问题。
+                // 「花期调试」入口（**仅调试构建**）：同样为根 Stack 浮层——紧凑、不占布局
+                // 高度（避免把矮屏用例顶出视口 / 触发 overflow），release 构建自动不渲染。
+                // 摆在右上角（左上角是阳光胶囊、左下角木牌、右下角碎片入口）。
+                //
+                // F139（玄参 2026-10-20 截图清单）：**截图会入镜**——花园页是商店图的主场景，
+                // 这个 bug 图标就在右上角。故与「我的」页 / 家长今日页 / 家长设置页统一走
+                // [shouldShowDebugUi] 单点判据（截图构建加 `--dart-define=HIDE_DEBUG_UI=true`
+                // 即可隐藏）；未加 define 时 `kHideDebugUi` 为 false → 行为**与修前逐位一致**，
+                // 日常调试能力不衰减。
+                if (shouldShowDebugUi(
+                      debugMode: kDebugMode,
+                      hideForScreenshots: kHideDebugUi,
+                    ) &&
+                    !_loading &&
+                    _error == null)
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: BloomDebugEntry(onTap: _openDebugPanel),
+                  ),
+                // 养护成功动效：精确摆到对应花盆格之上（效果帧叠加 + 音频），有限时长，结束自移除。
+                //
+                // 🔴 C82 关键修复（玄参 2026-10-16 小米真机「盛开动画播两次」的真因）：本 Stack 的
+                //    children 是按**位置**（index）做元素复用的，而上面几个浮层是**条件渲染**的。
+                //    「养护动效 `_activeEffect` 结束置 null」会把它从 children 里移除 → 后面所有
+                //    兄弟节点**整体前移一位** → [GrowthFxOverlay] 落到原先 [CareEffectOverlay] 的
+                //    index 上。**若两处浮层都无 Key**：同为 `Positioned`、`canUpdate` 在
+                //    `null==null` 下为 true → **原地复用**该元素、只换 child → 子类型不匹配 →
+                //    旧 GrowthFxOverlay 元素被卸载、**新建 State** → 动画从第 0 帧**重放**（播两次）。
+                //    修法：两处浮层各加**稳定 Key**（`_kCareEffectOverlayKey` / `_kGrowthFxOverlayKey`）。
+                //    ⚠️ 实测边界（QA 复核 B）：**任一把 Key 在位即可断链**（顶对齐因 key 不匹配提前
+                //    停止，改走自底向上匹配 → GrowthFx 元素被保住）；**两把都缺**才 remount。两把都留。
+                if (_activeEffect != null)
+                  Positioned(
+                    key: _kCareEffectOverlayKey,
+                    left: _activeEffect!.offset.dx,
+                    top: _activeEffect!.offset.dy,
+                    width: _activeEffect!.size.width,
+                    height: _activeEffect!.size.height,
+                    child: CareEffectOverlay(
+                      type: _activeEffect!.type,
+                      plant: _activeEffect!.plant,
+                      species: _activeEffect!.species,
+                      frames: _activeEffect!.frames,
+                      durationMs: _activeEffect!.durationMs,
+                      width: _activeEffect!.size.width,
+                      height: _activeEffect!.size.height,
+                      onComplete: () {
+                        // 先取业务收尾回调（除草 / 除虫：渐变消失 → 刷新 → 飘字），
+                        // 再移除叠加层 —— 置 null 后 spec 就取不到了。
+                        final VoidCallback? finished = _activeEffect?.onFinished;
+                        if (mounted) setState(() => _activeEffect = null);
+                        finished?.call();
+                      },
+                    ),
+                  ),
+                // 成长过渡演出（玄参 2026-09-29 改口径）：**屏幕中央焦点卡片**内放大播放
+                // 序列帧 + 成长音频，播完整卡淡出（组件内部处理），结束自移除。
+                // 🔴 C82：稳定 Key（见上方养护动效处的说明）——防「养护动效进出导致本演出被 remount 重播」。
+                if (_activeGrowth != null)
+                  Positioned.fill(
+                    key: _kGrowthFxOverlayKey,
+                    child: GrowthFxOverlay(
+                      frames: _activeGrowth!.frames,
+                      durationMs: _activeGrowth!.transition.durationMs,
+                      title: _activeGrowth!.title,
+                      onComplete: () {
+                        // 演出收尾：移除卡片 + 解除去重闸门（允许下一次跃迁演出）。
+                        if (mounted) {
+                          setState(() {
+                            _activeGrowth = null;
+                            _growthFxInFlight = false;
+                          });
+                        } else {
+                          _growthFxInFlight = false;
+                        }
+                      },
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+
+        // 内嵌（花园 tab）时不叠加第二层 Scaffold/AppBar，直接返回内容。
+        if (widget.embedded) {
+          return SafeArea(child: page);
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(_t.garden_title),
+            actions: <Widget>[
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: _t.garden_refresh_tooltip,
+                onPressed: _busy ? null : _reload,
+              ),
+            ],
+          ),
+          body: page,
+        );
+        }, // builder 闭包
+      ), // Builder
+    ); // L10nScope
   }
 }
 
@@ -2667,7 +2715,8 @@ class _PlantPaymentButton {
 ///
 /// `common → 普通`；其余（`rare` / `legendary`）一律 → `精英`（legendary 暂无物种，
 /// 枚举保留不动，此处兜底归并到精英）。作为库级顶层函数，供 `_PlantTile` 等小组件复用。
-String _rarityLabel(Rarity r) => r == Rarity.common ? '普通' : '精英';
+String _rarityLabel(AppLocalizations l10n, Rarity r) =>
+    r == Rarity.common ? l10n.garden_rarity_common : l10n.garden_rarity_premium;
 
 /// 素材图标 + 兜底内置 Icon（玄参 2026-10-05「阳光和植物碎片使用素材替换，不要写文字」）。
 class _AssetGlyph extends StatelessWidget {
@@ -2809,6 +2858,7 @@ class _PlantTileState extends State<_PlantTile>
 
   /// 正面：放大植物图 + 名称/稀有度/种子徽章 + **一行**价格按钮。
   Widget _frontFace() {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final PlantSpecies species = widget.species;
     final bool premium = species.isPremium;
     final String seedAsset = premium
@@ -2858,7 +2908,7 @@ class _PlantTileState extends State<_PlantTile>
                         color: rarityTint(species.rarity),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text(_rarityLabel(species.rarity),
+                      child: Text(_rarityLabel(l10n, species.rarity),
                           style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -2926,6 +2976,7 @@ class _PlantTileState extends State<_PlantTile>
   /// 背面：物种简短介绍 + 小故事（玄参 2026-10-05「背面写着这个植物的简短介绍
   /// 和一个小故事」）。文案单点 [speciesLoreOf]，UI 不写死。
   Widget _backFace() {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final PlantSpecies species = widget.species;
     final SpeciesLore lore = speciesLoreOf(species.id);
     return Container(
@@ -2944,8 +2995,9 @@ class _PlantTileState extends State<_PlantTile>
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w700)),
               const Spacer(),
-              const Text('点此翻回正面',
-                  style: TextStyle(fontSize: 10, color: Color(0xFFB9AE97))),
+              Text(l10n.garden_flip_back,
+                  style: const TextStyle(
+                      fontSize: 10, color: Color(0xFFB9AE97))),
             ],
           ),
           const SizedBox(height: 4),
@@ -3108,6 +3160,7 @@ class _OneClickFabState extends State<_OneClickFab> {
 
   /// 展开卡：三行操作项，与胶囊同宽（[_width]；C65 平板随字号同比放大）。
   Widget _buildActionCard() {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return SizedBox(
       width: _width * uiScaleOf(context),
       child: Material(
@@ -3116,24 +3169,24 @@ class _OneClickFabState extends State<_OneClickFab> {
         elevation: 2,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: const <_OneClickItem>[
+          children: <_OneClickItem>[
             _OneClickItem(
               kind: PlantOneClickKind.water,
               icon: Icons.water_drop,
-              color: Color(0xFF4FA3D9),
-              label: '一键浇水',
+              color: const Color(0xFF4FA3D9),
+              label: l10n.garden_action_water,
             ),
             _OneClickItem(
               kind: PlantOneClickKind.fertilize,
               icon: Icons.eco,
-              color: Color(0xFF5FA854),
-              label: '一键施肥',
+              color: const Color(0xFF5FA854),
+              label: l10n.garden_action_fertilize,
             ),
             _OneClickItem(
               kind: PlantOneClickKind.care,
               icon: Icons.pest_control,
-              color: Color(0xFFE8A33D),
-              label: '一键护理',
+              color: const Color(0xFFE8A33D),
+              label: l10n.garden_action_care,
             ),
           ].map(_buildActionRow).toList(),
         ),
@@ -3172,6 +3225,7 @@ class _OneClickFabState extends State<_OneClickFab> {
 
   /// 收拢态胶囊（固定宽 [_width]；C65 随字号同比放大）。
   Widget _buildCapsule() {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return SizedBox(
       width: _width * uiScaleOf(context),
       child: Material(
@@ -3193,9 +3247,9 @@ class _OneClickFabState extends State<_OneClickFab> {
                   color: const Color(0xFF7CB342),
                 ),
                 const SizedBox(width: 4),
-                const Text(
-                  '一键操作',
-                  style: TextStyle(
+                Text(
+                  l10n.garden_oneclick_title,
+                  style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF6B6252),
@@ -3412,121 +3466,146 @@ class _FragmentEntry extends StatelessWidget {
 /// 植物碎片 / 普通种子 / 精英种子**三类资源的用途与获得方法，**不再逐物种列碎片
 /// 价目**——价目在选种弹窗里本来就有，说明卡不重复）。入口 = 碎片 chip 与两个
 /// 种子 chip。图标缺失回退内置 Icon。
+///
+/// i18n B1：文案经 [AppLocalizations] 解析；弹窗上下文在页面 scope 之外，自包
+/// [L10nScope]（B1 约定：自包含弹窗内建文案作用域）。
 class _RewardCurrencyDialog extends StatelessWidget {
   const _RewardCurrencyDialog();
 
-  /// 单条说明（图标路径 + 兜底 Icon + 标题 + 用途 + 获得方法）。
-  static const List<({String? asset, IconData fallbackIcon, Color color, String title, String use, String how})> _items =
-      <({String? asset, IconData fallbackIcon, Color color, String title, String use, String how})>[
+  /// 单条说明的美术资源（图标路径 + 兜底 Icon + 主色）；文案在 build 内经 l10n 解析。
+  static const List<({String? asset, IconData fallbackIcon, Color color})>
+      _items = <({String? asset, IconData fallbackIcon, Color color})>[
     (
       asset: 'assets/rewards/fragment.png',
       fallbackIcon: Icons.extension,
       color: Color(0xFF7E57C2),
-      title: '植物碎片',
-      use: '种植植物时可以代替阳光支付（精英植物要用碎片兑换）。',
-      how: '植物开花时的奖励里随机掉落。',
     ),
     (
       asset: 'assets/rewards/seed_common.png',
       fallbackIcon: Icons.eco,
       color: Color(0xFF43A047),
-      title: '普通植物种子',
-      use: '免费种下一株普通植物，种下时优先使用（不用扣阳光）。',
-      how: '普通植物开花后小概率掉落；重复的种子会自动变成碎片。',
     ),
     (
       asset: 'assets/rewards/seed_premium.png',
       fallbackIcon: Icons.eco,
       color: Color(0xFF7E57C2),
-      title: '精英植物种子',
-      use: '免费种下一株精英植物，种下时优先使用（不用扣碎片）。',
-      how: '精英植物开花后小概率掉落；重复的种子会自动变成碎片。',
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFBF4E4), // 暖奶油底（与选种/养护卡同层语言）
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFFFE3B0), width: 1.5),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const Center(
-              child: Text('碎片与种子',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          final AppLocalizations l10n = AppLocalizations.of(context);
+          final List<({String title, String use, String how})> texts =
+              <({String title, String use, String how})>[
+            (
+              title: l10n.garden_help_fragment_title,
+              use: l10n.garden_help_fragment_use,
+              how: l10n.garden_help_fragment_how,
             ),
-            const SizedBox(height: 12),
-            for (int i = 0; i < _items.length; i++) ...<Widget>[
-              if (i > 0) const SizedBox(height: 12),
-              Row(
+            (
+              title: l10n.garden_help_common_seed_title,
+              use: l10n.garden_help_common_seed_use,
+              how: l10n.garden_help_common_seed_how,
+            ),
+            (
+              title: l10n.garden_help_premium_seed_title,
+              use: l10n.garden_help_premium_seed_use,
+              how: l10n.garden_help_premium_seed_how,
+            ),
+          ];
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFBF4E4), // 暖奶油底（与选种/养护卡同层语言）
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFFFE3B0), width: 1.5),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  SizedBox(
-                    width: 30 * uiScaleOf(context),
-                    height: 30 * uiScaleOf(context),
-                    child: Center(
-                      child: _items[i].asset != null
-                          ? Image.asset(
-                              _items[i].asset!,
-                              width: 24 * uiScaleOf(context),
-                              height: 24 * uiScaleOf(context),
-                              fit: BoxFit.contain,
-                              errorBuilder:
-                                  (BuildContext _, Object __, StackTrace? ___) =>
-                                      Icon(_items[i].fallbackIcon,
-                                          size: 22 * uiScaleOf(context),
-                                          color: _items[i].color),
-                            )
-                          : Icon(_items[i].fallbackIcon,
-                              size: 22 * uiScaleOf(context),
-                              color: _items[i].color),
-                    ),
+                  Center(
+                    child: Text(l10n.garden_help_sheet_title,
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
+                  const SizedBox(height: 12),
+                  for (int i = 0; i < _items.length; i++) ...<Widget>[
+                    if (i > 0) const SizedBox(height: 12),
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(_items[i].title,
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: _items[i].color)),
-                        const SizedBox(height: 2),
-                        Text('用途：${_items[i].use}',
-                            style: const TextStyle(
-                                fontSize: 12, height: 1.35,
-                                color: Color(0xFF4A4436))),
-                        const SizedBox(height: 2),
-                        Text('获得：${_items[i].how}',
-                            style: const TextStyle(
-                                fontSize: 12, height: 1.35,
-                                color: Color(0xFF6B6252))),
+                        SizedBox(
+                          width: 30 * uiScaleOf(context),
+                          height: 30 * uiScaleOf(context),
+                          child: Center(
+                            child: _items[i].asset != null
+                                ? Image.asset(
+                                    _items[i].asset!,
+                                    width: 24 * uiScaleOf(context),
+                                    height: 24 * uiScaleOf(context),
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (BuildContext _,
+                                            Object __, StackTrace? ___) =>
+                                        Icon(_items[i].fallbackIcon,
+                                            size: 22 * uiScaleOf(context),
+                                            color: _items[i].color),
+                                  )
+                                : Icon(_items[i].fallbackIcon,
+                                    size: 22 * uiScaleOf(context),
+                                    color: _items[i].color),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(texts[i].title,
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: _items[i].color)),
+                              const SizedBox(height: 2),
+                              Text(
+                                  l10n.garden_help_use_prefix(texts[i].use),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      height: 1.35,
+                                      color: Color(0xFF4A4436))),
+                              const SizedBox(height: 2),
+                              Text(
+                                  l10n.garden_help_how_prefix(texts[i].how),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      height: 1.35,
+                                      color: Color(0xFF6B6252))),
+                            ],
+                          ),
+                        ),
                       ],
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Center(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(l10n.shared_got_it),
                     ),
                   ),
                 ],
               ),
-            ],
-            const SizedBox(height: 14),
-            Center(
-              child: FilledButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('知道啦'),
-              ),
             ),
-          ],
-        ),
-      ),
-    );
+          );
+        }, // builder 闭包
+      ), // Builder
+    ); // L10nScope
   }
 }

@@ -52,6 +52,7 @@ import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart'
     show GoldNoticeItem, showGoldNoticeDialog;
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 
 /// 徽章展示档位（空间紧张时的三级降级，§5.24.5）。
 enum FocusLevelBadgeTier {
@@ -201,7 +202,9 @@ class FocusLevelBadge extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  progress.isLocked ? kLevelBadgeLockedTitle : progress.title,
+                  progress.isLocked
+                      ? l10nOf(context).prd_level_locked_title
+                      : progress.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   // 显式 height：文案高度确定化（测试 Ahem 与真机同式），
@@ -686,8 +689,8 @@ class _PerkPill extends StatelessWidget {
       dialogKey: FocusLevelDetailDialog.perkLockedHintKey,
       badgeIcon: Icons.lock,
       items: const <GoldNoticeItem>[],
-      footerText: kPremiumUpsellHintText,
-      confirmLabel: kLevelDetailHintConfirmText,
+      footerText: l10nOf(context).prd_premium_upsell_hint,
+      confirmLabel: l10nOf(context).prd_level_detail_ok,
     );
   }
 

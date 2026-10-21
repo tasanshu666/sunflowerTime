@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/domain/services/focus_engine.dart';
 
 /// 四档反馈呈现（T08）。画布负责花与光，这里负责「向日葵说话气泡」层。
@@ -28,7 +29,9 @@ class FeedbackOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String? bubble = _bubbleText(level);
+    // i18n（B1）：本层渲染在专注页页级 L10nScope 之内，直接取文案。
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final String? bubble = _bubbleText(l10n, level);
     if (bubble == null) return const SizedBox.shrink(); // 一档/三档无声无气泡
     // 气泡本体（无定位包裹）：暖黄奶油底 + 左下尾巴指向向日葵。
     return Stack(
@@ -72,18 +75,18 @@ class FeedbackOverlay extends StatelessWidget {
   /// - lvl3：「欢迎回来」（说话气泡，玄参 2026-09-30 拍板）
   /// - lvl4 轻声：「向日葵想你了，回来看看吧」
   /// - lvl4 加重：「休息一下就回来哦」
-  String? _bubbleText(FeedbackLevel level) {
+  String? _bubbleText(AppLocalizations l10n, FeedbackLevel level) {
     switch (level) {
       case FeedbackLevel.lvl1:
         return null; // 常态产光：无声
       case FeedbackLevel.lvl2:
-        return '太好了，又收集到阳光了。';
+        return l10n.child_feedback_collected;
       case FeedbackLevel.lvl3:
-        return '欢迎回来'; // 玄参 2026-09-30：改说话气泡，不压向日葵
+        return l10n.child_feedback_welcome_back; // 玄参 2026-09-30：改说话气泡，不压向日葵
       case FeedbackLevel.lvl4:
         return wakeIntensity == WakeIntensity.strong
-            ? '休息一下就回来哦'
-            : '向日葵想你了，回来看看吧';
+            ? l10n.child_feedback_rest_hint
+            : l10n.child_feedback_miss;
     }
   }
 }

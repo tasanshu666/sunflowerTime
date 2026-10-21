@@ -34,6 +34,9 @@ import 'package:sunflower_time/presentation/child/widgets/reward_card.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
 /// 商店 tab 列表内容起点（占屏高比例）——C47d 实测标定值。
 ///
@@ -171,6 +174,12 @@ class _StorePageState extends ConsumerState<StorePage>
   //    `skipLoadingOnRefresh: true` → **保留旧数据、不闪加载圈**（切 tab 高频动作不能闪）；
   //  · 时间边界（跨天）尤其重要：当周池余量按周滚动，而 [_storeLoadProvider] 只调只读的
   //    `pool()`（**有意不触发**周重置写）→ 不重算就会一直拿着上周的快照。
+  /// 当前页文案（build 期在 L10nScope 内赋值；异步回调经 [_t] 取，
+  /// 尚未 build 过的极端早回调回退中文，与迁移前行为一致）。
+  AppLocalizations? _l10n;
+
+  /// 文案统一取用入口（i18n B1）。
+  AppLocalizations get _t => _l10n ?? AppLocalizationsZh();
   @override
   int? get refreshTabIndex => kChildTabIndexOfStore;
 
@@ -182,52 +191,62 @@ class _StorePageState extends ConsumerState<StorePage>
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
-    // 余额与待核销总额已在 [StoreBalancePill] 内部自取（AppBar 位置展示），
-    // 本处只需取商店数据载荷渲染列表。
-    final AsyncValue<_StoreLoad> loadAsync = ref.watch(_storeLoadProvider);
+    // 🔴 页级 L10nScope（i18n B1）：全页文案经 AppLocalizations 解析；
+    // Builder 的 context 位于 scope 之下，并把实例存入 [_l10n] 供异步回调使用。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          _l10n = AppLocalizations.of(context);
+        // 余额与待核销总额已在 [StoreBalancePill] 内部自取（AppBar 位置展示），
+        // 本处只需取商店数据载荷渲染列表。
+        final AsyncValue<_StoreLoad> loadAsync = ref.watch(_storeLoadProvider);
 
-    final Widget body = loadAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (Object e, _) => Center(child: Text('加载失败：$e')),
-      data: (load) => _buildBody(load),
-    );
+        final Widget body = loadAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (Object e, _) => Center(child: Text(_t.shared_load_failed(e))),
+          data: (load) => _buildBody(load),
+        );
 
-    // 内嵌（商店 tab）时无 AppBar：整页铺背景，「商店」标题与**余额胶囊**
-    // 由外壳 AppBar 渲染（余额见 [StoreBalancePill]，挂 leading 保证与标题同行）。
-    // C47c（玄参 2026-10-09）：body 内不再自排余额，列表起点按屏高比例恒定，
-    // 背景商店全景（遮阳棚 + 货架）完整露出、不被卡片压住。
-    if (widget.embedded) {
-      return TabBackground(
-        asset: kStoreBgAsset,
-        // C64：底图「货架 ↔ 奶油面板」分界线对齐到列表起点（仅平板生效）。
-        panelTargetRatio: kStoreListTopRatio,
-        fallbackColor: const Color(0xFFFBF4E4),
-        child: SafeArea(child: body),
-      );
-    }
+        // 内嵌（商店 tab）时无 AppBar：整页铺背景，「商店」标题与**余额胶囊**
+        // 由外壳 AppBar 渲染（余额见 [StoreBalancePill]，挂 leading 保证与标题同行）。
+        // C47c（玄参 2026-10-09）：body 内不再自排余额，列表起点按屏高比例恒定，
+        // 背景商店全景（遮阳棚 + 货架）完整露出、不被卡片压住。
+        if (widget.embedded) {
+          return TabBackground(
+            asset: kStoreBgAsset,
+            // C64：底图「货架 ↔ 奶油面板」分界线对齐到列表起点（仅平板生效）。
+            panelTargetRatio: kStoreListTopRatio,
+            fallbackColor: const Color(0xFFFBF4E4),
+            child: SafeArea(child: body),
+          );
+        }
 
-    return Scaffold(
-      // 暖奶油底（与养护面板 / 商店 tab 一致，形成分层暖色风格）。
-      backgroundColor: const Color(0xFFFBF4E4),
-      appBar: AppBar(
-        title: const Text('阳光商店'),
-        // AppBar 沿用主题色，内容区奶油底；标题/返回键文案不变。
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-        actions: const <Widget>[
-          Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: Center(
-              child: StoreBalancePill(chip: false),
+        return Scaffold(
+          // 暖奶油底（与养护面板 / 商店 tab 一致，形成分层暖色风格）。
+          backgroundColor: const Color(0xFFFBF4E4),
+          appBar: AppBar(
+            title: Text(_t.store_title),
+            // AppBar 沿用主题色，内容区奶油底；标题/返回键文案不变。
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.pop(),
             ),
+            actions: const <Widget>[
+              Padding(
+                padding: EdgeInsets.only(right: 16),
+                child: Center(
+                  child: StoreBalancePill(chip: false),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: body,
-    );
+          body: body,
+        );
+        }, // builder 闭包
+      ), // Builder
+    ); // L10nScope
   }
 
   Widget _buildBody(_StoreLoad load) {
@@ -235,18 +254,18 @@ class _StorePageState extends ConsumerState<StorePage>
 
     // 空态：模板列表为空时给一个友好提示，避免「纯黑空白页」这种无声故障。
     if (load.templates.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(Icons.storefront_outlined, size: 64, color: Colors.grey),
-              SizedBox(height: 16),
+              const Icon(Icons.storefront_outlined, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
               Text(
-                '商店还没上架奖励，请让家长先添加奖励模板',
+                _t.store_empty_hint,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
             ],
           ),
@@ -387,28 +406,29 @@ class _StorePageState extends ConsumerState<StorePage>
     final bool? ok = await showChildConfirmCard(
       context: context,
       hero: const ConfirmCardBadge(icon: Icons.redeem),
-      title: '确认兑换？',
+      title: _t.store_confirm_title,
       rows: <ConfirmCardRow>[
         ConfirmCardRow(
           icon: Icons.card_giftcard,
-          name: '兑换物品',
+          name: _t.store_row_item,
           value: '「${tpl.name}」',
         ),
         ConfirmCardRow(
           icon: Icons.wb_sunny,
-          name: '消耗阳光',
+          name: _t.store_row_cost,
           value: '−$cost ☀',
         ),
         ConfirmCardRow(
           icon: Icons.account_balance_wallet,
-          name: '可用阳光',
+          name: _t.store_row_available,
           value: '$availableSunlight ☀',
           muted: true,
         ),
       ],
-      warning: '提交后需家长核销，核销通过才会扣除阳光。',
-      confirmLabel: '确认兑换',
-      cancelLabel: '再想想',
+      warning: _t.store_warning_redeem,
+      cancelLabel: _t.store_confirm_think,
+      confirmLabel: _t.store_confirm_ok,
+      
     );
     if (ok != true || !mounted) return;
 
@@ -432,16 +452,16 @@ class _StorePageState extends ConsumerState<StorePage>
     int seconds = 2;
     switch (result.outcome) {
       case SubmitOutcome.verified:
-        message = '兑换成功！阳光已扣除';
+        message = _t.store_result_verified;
       case SubmitOutcome.pending:
         message = await _pendingFeedback(result.requestId);
       case SubmitOutcome.rejectedCooldown:
-        message = '本周已领过啦';
+        message = _t.store_result_cooldown;
       case SubmitOutcome.rejectedBalance:
-        message = '阳光不足，再去专注赚一些吧';
+        message = _t.store_result_no_balance;
         seconds = 1;
       case SubmitOutcome.rejectedPool:
-        message = '本周额度已满，下周再来吧';
+        message = _t.store_result_pool_full;
         seconds = 1;
     }
     if (!mounted) return;
@@ -456,19 +476,19 @@ class _StorePageState extends ConsumerState<StorePage>
 
   /// 待核销反馈：若 requestedAt 距今 > kPendingReminderHours 展示兜底文案。
   Future<String> _pendingFeedback(String? requestId) async {
-    if (requestId == null) return '已提交，等家长确认哦～';
+    if (requestId == null) return _t.store_pending_feedback;
     final List<RedemptionRequest> list =
         await ref.read(rewardRepositoryProvider).pendingAndQueued();
     for (final RedemptionRequest r in list) {
       if (r.id == requestId) {
         if (DateTime.now().difference(r.requestedAt) >
             const Duration(hours: kPendingReminderHours)) {
-          return kPendingReminderText;
+          return _t.prd_pending_reminder;
         }
         break;
       }
     }
-    return '已提交，等家长确认哦～';
+    return _t.store_pending_feedback;
   }
 
   void _toast(String message, {int seconds = 2}) {
@@ -542,7 +562,7 @@ class StoreBalancePill extends ConsumerWidget {
             if (pendingTotal > 0) ...<Widget>[
               const SizedBox(width: 6),
               Text(
-                '待核销 $pendingTotal',
+                l10nOf(context).store_pending_pill(pendingTotal),
                 style: TextStyle(
                   fontSize: 12,
                   color: chip ? const Color(0xFF9A8A72) : Colors.grey.shade500,
@@ -638,7 +658,11 @@ class _VerifiedCelebrationState extends State<_VerifiedCelebration>
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
+    // 🔴 弹窗上下文在页面 scope 之外：自包 L10nScope（i18n B1 约定）。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
       child: ScaleTransition(
@@ -670,10 +694,10 @@ class _VerifiedCelebrationState extends State<_VerifiedCelebration>
                         ),
                       ],
                     ),
-                    child: const Text(
-                      '兑换成功！\n阳光已扣除',
+                    child: Text(
+                      l10nOf(context).store_celebration_text,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
                         color: Colors.black87,
@@ -686,7 +710,10 @@ class _VerifiedCelebrationState extends State<_VerifiedCelebration>
           ),
         ),
       ),
-    );
+          ); // Dialog（缩进保持原位，注释定位收口）
+        }, // builder 闭包
+      ), // Builder
+    ); // L10nScope
   }
 
   /// 构建单颗错峰淡入的装饰星星。

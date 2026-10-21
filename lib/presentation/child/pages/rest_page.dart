@@ -12,9 +12,11 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 class RestPage extends ConsumerStatefulWidget {
   const RestPage({super.key});
@@ -89,46 +91,56 @@ class _RestPageState extends ConsumerState<RestPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool done = _remainingSeconds <= 0;
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        context.go('/entry'); // 系统返回键/边缘手势 → 回入口页，而非退 App（B19）。
-      },
-      child: Scaffold(
-        appBar: AppBar(
-        title: const Text('休息一下'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: '返回',
-          onPressed: () => context.go('/entry'),
-        ),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '休息一下，喝口水～ 还剩 $_remainingSeconds 秒',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+    // i18n（B1）：页级 L10nScope + Builder —— 文案取用统一走 scope 内上下文；
+    // 闭包参数 `context` 遮蔽外层（下方 `context.go` 行为不变）。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          final bool done = _remainingSeconds <= 0;
+          final AppLocalizations l10n = AppLocalizations.of(context);
+          return PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, _) {
+              if (didPop) return;
+              context.go('/entry'); // 系统返回键/边缘手势 → 回入口页，而非退 App（B19）。
+            },
+            child: Scaffold(
+              appBar: AppBar(
+                title: Text(l10n.child_rest_title),
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: l10n.shared_back,
+                  onPressed: () => context.go('/entry'),
                 ),
-                const SizedBox(height: 32),
-                FilledButton(
-                  // 倒计时未到时禁用（B31 防误触）。
-                  onPressed: done ? _finish : null,
-                  child: const Text('我休息好了'),
+              ),
+              body: SafeArea(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          l10n.child_rest_body(_remainingSeconds),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 32),
+                        FilledButton(
+                          // 倒计时未到时禁用（B31 防误触）。
+                          onPressed: done ? _finish : null,
+                          child: Text(l10n.child_rest_done),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
-    ),
     );
   }
 }

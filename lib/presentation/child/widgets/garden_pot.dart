@@ -67,6 +67,8 @@ import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 import 'plant_artwork.dart';
 
@@ -261,6 +263,7 @@ class GardenPot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = l10nOf(context);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -332,7 +335,7 @@ class GardenPot extends StatelessWidget {
                                 glyphHeight:
                                     artW * kPlantPotWidthFraction * kWeedSizeToPotRatio,
                                 tooltip:
-                                    '有杂草，点我拔掉 +${weedRewardOf(perk).toInt()} ☀',
+                                    l10n.pot_tooltip_weed(weedRewardOf(perk).toInt()),
                                 onTap: onClearWeed,
                               ),
                             ),
@@ -370,7 +373,7 @@ class GardenPot extends StatelessWidget {
                                       kPestSizeToPotRatio *
                                       (30 / 52),
                                   tooltip:
-                                      '有害虫，点我除掉 +${pestRewardOf(perk).toInt()} ☀',
+                                      l10n.pot_tooltip_pest(pestRewardOf(perk).toInt()),
                                   onTap: onClearPest,
                                 ),
                               ),
@@ -427,7 +430,7 @@ class GardenPot extends StatelessWidget {
                                 : null,
                           ),
                           child: Text(
-                            _label,
+                            _label(l10n),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.center,
@@ -451,14 +454,14 @@ class GardenPot extends StatelessWidget {
   }
 
   /// 一格只写最短信息：特殊状态优先（孩子一眼看哪盆要救），否则写物种名。
-  String get _label {
+  String _label(AppLocalizations l10n) {
     switch (plant.status) {
       case PlantStatus.bloomed:
-        return '${species.name} · 开花';
+        return l10n.pot_label_bloomed(species.name);
       case PlantStatus.wilting:
-        return '${species.name} · 快救回';
+        return l10n.pot_label_wilting(species.name);
       case PlantStatus.dead:
-        return '${species.name} · 已枯萎';
+        return l10n.pot_label_dead(species.name);
       case PlantStatus.growing:
         return species.name;
     }
@@ -731,6 +734,7 @@ class ExpandPotSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = l10nOf(context);
     final bool affordable = shortfall <= 0;
     final bool active = affordable && unlockable;
     return InkWell(
@@ -820,10 +824,10 @@ class ExpandPotSlot extends StatelessWidget {
                           ),
                           child: Text(
                             !unlockable
-                                ? '需解锁'
+                                ? l10n.pot_label_locked
                                 : affordable
-                                    ? '加盆 · $cost☀'
-                                    : '还差 $shortfall☀',
+                                    ? l10n.pot_label_expand(cost)
+                                    : l10n.pot_label_shortfall(shortfall),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.center,

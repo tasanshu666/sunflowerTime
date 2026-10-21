@@ -1,0 +1,6 @@
+# i18n（B1 批次）gen-l10n 配置：zh 为模板（现网中文逐字节抄写），en 同 key 集合。
+arb-dir: lib/l10n
+template-arb-file: app_zh.arb
+output-localization-file: app_localizations.dart
+output-dir: lib/l10n/generated
+nullable-getter: false

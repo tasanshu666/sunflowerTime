@@ -29,7 +29,10 @@ import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/tracking_event.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
@@ -39,12 +42,17 @@ import 'package:sunflower_time/shared/responsive.dart';
 /// 专注时长格式化（B25 修复）：[minutes] 单位为**分钟**。
 ///
 /// 先转成总秒数再拆成「分 + 秒」，避免把分钟当秒拆导致 1 分钟显示成「1 秒」。
-String formatFocusMinutes(double minutes) {
+String formatFocusMinutes(double minutes) =>
+    formatFocusMinutesL10n(AppLocalizationsZh(), minutes);
+
+/// 本地化版专注时长格式化（i18n B1）：口径与 [formatFocusMinutes] 逐字节一致
+///（zh 文案 = ARB 模板，现网中文不变），供结算页等 UI 直接取当前语言。
+String formatFocusMinutesL10n(AppLocalizations l10n, double minutes) {
   final int totalSeconds = (minutes * 60).round();
   final int m = totalSeconds ~/ 60;
   final int s = totalSeconds % 60;
-  if (m == 0) return '$s 秒';
-  return s == 0 ? '$m 分钟' : '$m 分 $s 秒';
+  if (m == 0) return l10n.child_settle_secs(s);
+  return s == 0 ? l10n.child_settle_mins(m) : l10n.child_settle_min_sec(m, s);
 }
 
 /// `/settle` 路由参数（由专注页经 go extra 传入；深链缺失时为 null）。
@@ -349,18 +357,18 @@ class _SettlePageState extends ConsumerState<SettlePage>
 
   /// 联动成长项结算展示（**非阻塞**）：失败 / 跳过只温和提示，绝不改变
   /// 「本次专注已成功、阳光已入账」这个事实（契约见 [TaskCheckInService.settleFocusLinked]）。
-  List<Widget> _taskSettlementLines() {
+  List<Widget> _taskSettlementLines(AppLocalizations l10n) {
     final SettleArgs? args = widget.args;
     final TaskCheckInOutcome? o = args?.taskOutcome;
-    final String name = args?.taskName ?? '成长项';
+    final String name = args?.taskName ?? l10n.child_settle_task_label;
 
     if (args != null && args.taskSettleSkipped) {
       return <Widget>[
         const SizedBox(height: 12),
-        const Text(
-          '成长项结算没能完成，不影响本次专注阳光',
+        Text(
+          l10n.child_settle_task_skipped,
           textAlign: TextAlign.center,
-          style: TextStyle(color: Color(0xFFBDBDBD), fontSize: 13),
+          style: const TextStyle(color: Color(0xFFBDBDBD), fontSize: 13),
         ),
       ];
     }
@@ -368,12 +376,12 @@ class _SettlePageState extends ConsumerState<SettlePage>
 
     if (o.status == CheckInStatus.verified) {
       final String capped = o.cappedByDailyCap
-          ? '（今日阳光已达上限，本次只到账 ${_fmtSun(o.granted)} ☀）'
+          ? l10n.child_settle_task_capped(_fmtSun(o.granted))
           : '';
       return <Widget>[
         const SizedBox(height: 12),
         Text(
-          '成长项「$name」完成 +${_fmtSun(o.granted)} ☀$capped',
+          l10n.child_settle_task_done(capped, name, _fmtSun(o.granted)),
           textAlign: TextAlign.center,
           style: const TextStyle(
             color: Color(0xFFFFE082),
@@ -387,7 +395,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
       return <Widget>[
         const SizedBox(height: 12),
         Text(
-          '成长项「$name」还差一点，下次专注够时长就算上啦 🌻',
+          l10n.child_settle_task_progress(name),
           textAlign: TextAlign.center,
           style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 13),
         ),
@@ -447,7 +455,10 @@ class _SettlePageState extends ConsumerState<SettlePage>
     // B20 修复：结算页经 go('/settle') 进入 → 路由栈底唯一页。
     // 用 PopScope 拦截系统返回手势（Android 右滑 / iOS 边缘滑动），
     // 把「返回意图」导向孩子首页 '/'（与现有「回首页」按钮行为一致），避免栈空直接退出 App。
-    return PopScope(
+    // i18n（B1）：页级 L10n 范围 —— 下方 LayoutBuilder/AnimatedBuilder 闭包的
+    // `context` 已在 scope 之内；State 方法经参数传入 l10n。
+    return L10nScope(
+      child: PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
         if (!didPop) _backToToday();
@@ -471,8 +482,9 @@ class _SettlePageState extends ConsumerState<SettlePage>
           ),
           child: SafeArea(
             child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) =>
-                  SingleChildScrollView(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final AppLocalizations l10n = AppLocalizations.of(context);
+                return SingleChildScrollView(
                     // 横屏兜底：强制竖屏生效前的瞬间 / 未来内容增高也不再溢出报错。
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
@@ -494,9 +506,9 @@ class _SettlePageState extends ConsumerState<SettlePage>
             return Column(
               children: [
                 const SizedBox(height: 16),
-                const Text(
-                  '专注结束啦',
-                  style: TextStyle(
+                Text(
+                  l10n.child_settle_title,
+                  style: const TextStyle(
                     color: Color(0xFFFFE082),
                     fontSize: 26,
                     fontWeight: FontWeight.w600,
@@ -572,19 +584,19 @@ class _SettlePageState extends ConsumerState<SettlePage>
                   child: Column(
                     children: [
                       _StatRow(
-                        label: '本次专注',
-                        value: _mask(formatFocusMinutes(actualMin)),
+                        label: l10n.child_settle_this_session,
+                        value: _mask(formatFocusMinutesL10n(l10n, actualMin)),
                       ),
                       const SizedBox(height: 8),
                       _StatRow(
-                        label: '收集阳光',
+                        label: l10n.child_settle_collected,
                         // 数字滚动上涨（按动画进度）。
                         value: _mask('+${(net * t).round()}'),
                         highlight: true,
                       ),
                       const SizedBox(height: 8),
                       _StatRow(
-                        label: '护眼奖励',
+                        label: l10n.child_settle_eyecare_reward,
                         // 玄参 2026-10-08 / C77：本场护眼的结果——完成 +rewardSunlightOf(perk) ☀
                         // （护眼卡内部已入账，到时结束随 args 直达 / 插卡路径完成后回填）；
                         // 跳过 / 未触发显示 0。
@@ -601,7 +613,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
                       if (widget.args?.taskOutcome != null) ...[
                         const SizedBox(height: 8),
                         _StatRow(
-                          label: '任务奖励',
+                          label: l10n.child_settle_task_reward,
                           value: _mask(
                             widget.args!.taskOutcome!.status ==
                                     CheckInStatus.verified
@@ -612,21 +624,21 @@ class _SettlePageState extends ConsumerState<SettlePage>
                       ],
                       const SizedBox(height: 8),
                       _StatRow(
-                        label: '今日累计',
+                        label: l10n.child_settle_today_total,
                         value: _mask('${(todayEarned * t).round()} ☀️'),
                       ),
                       const SizedBox(height: 8),
                       _StatRow(
-                        label: '拥有阳光',
+                        label: l10n.child_settle_balance,
                         // 结算后余额（FocusSettlement.balanceAfter）。
                         value: _mask('${(settlement?.balanceAfter ?? 0).round()} ☀️'),
                       ),
                       if (shortAborted) ...[
                         const SizedBox(height: 12),
-                        const Text(
-                          '这次太短啦，向日葵没来得及收集阳光（≥5 分钟才有产出哦）',
+                        Text(
+                          l10n.child_settle_too_short,
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 13),
+                          style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 13),
                         ),
                       ],
                       // 超额说明（玄参 2026-09-30）：额度用完被截断时讲清楚原因，
@@ -648,9 +660,9 @@ class _SettlePageState extends ConsumerState<SettlePage>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              const Text(
-                                '🌻 今天专注额度用完啦',
-                                style: TextStyle(
+                              Text(
+                                l10n.child_settle_cap_title,
+                                style: const TextStyle(
                                   color: Color(0xFFFFE082),
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -658,9 +670,13 @@ class _SettlePageState extends ConsumerState<SettlePage>
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '超出额度的部分就不再收集阳光了'
-                                '${capped && rawS > net ? '（原本 ${_fmtSun(rawS)} ☀️，实到 ${_fmtSun(net)} ☀️）' : ''}。'
-                                '今天已经很棒啦，明天再来吧！',
+                                l10n.child_settle_cap_body_detail(
+                                  l10n.child_settle_cap_cheer,
+                                  capped && rawS > net
+                                      ? l10n.child_settle_cap_orig_vs_net(
+                                          _fmtSun(net), _fmtSun(rawS))
+                                      : '',
+                                ),
                                 style: const TextStyle(
                                   color: Color(0xFFBDBDBD),
                                   fontSize: 13,
@@ -672,7 +688,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
                         ),
                       ],
                       // 联动成长项结算（仅从「成长」进入专注才会有）。
-                      ..._taskSettlementLines(),
+                      ..._taskSettlementLines(l10n),
                     ],
                   ),
                 ),
@@ -691,7 +707,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         textStyle: const TextStyle(fontSize: 18),
                       ),
-                      child: const Text('回首页'),
+                      child: Text(l10n.child_settle_home),
                     ),
                   ),
                 ),
@@ -702,12 +718,14 @@ class _SettlePageState extends ConsumerState<SettlePage>
                         ), // AnimatedBuilder
                       ), // IntrinsicHeight
                     ), // ConstrainedBox
-                  ), // SingleChildScrollView
+                  ); // SingleChildScrollView（内层 return 收口）
+              }, // LayoutBuilder builder block
             ), // LayoutBuilder
           ), // SafeArea
         ), // DecoratedBox
       ), // Scaffold
-    ); // PopScope
+      ), // PopScope
+    ); // L10nScope
   }
 }
 

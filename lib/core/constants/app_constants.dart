@@ -249,3 +249,14 @@ const String kPrefActiveChildId = 'active_child_id';
 ///
 /// 家长设置页下拉档位与本常量**唯一真源**（页面引用本常量，不再写裸字面量）。
 const List<int> kDailyAppCapOptions = <int>[20, 30, 45];
+
+// ── i18n（B1 批次）────────────────────────────────────────────────────────
+
+/// 界面语言选择的 SharedPreferences 键（i18n B1，架构设计定稿）。
+///
+/// 值 = `AppLanguage` 枚举的存档 key（'system' / 'zh' / 'en'，转换单点见
+/// `core/i18n/app_language.dart`）。键缺失 / 脏值 → 回 `AppLanguage.system`。
+///
+/// ⚠️ 刻意走 SP 而不进 `AppSettings`/Drift：零 schema 迁移（同 C14 防沉迷
+/// `kPrefAppUsageDate` 先例）。
+const String kPrefAppLanguage = 'app_language';

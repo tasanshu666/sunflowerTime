@@ -16,6 +16,9 @@ import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 // F130：平板 UI 倍率（文字之外的定尺寸元素一律乘 `uiScaleOf(context)`）。
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
 /// refType → 中文来源文案（单点收口，避免 UI 层散落字面量）。
 ///
@@ -76,6 +79,13 @@ class _ChildSunlightHistoryPageState
   List<SunlightEntry> _entries = <SunlightEntry>[];
   double _balance = 0;
   bool _loading = true;
+  /// 当前页文案（build 期在 L10nScope 内赋值；异步回调经 [_t] 取，
+  /// 尚未 build 过的极端早回调回退中文，与迁移前行为一致）。
+  AppLocalizations? _l10n;
+
+  /// 文案统一取用入口（i18n B1）。
+  AppLocalizations get _t => _l10n ?? AppLocalizationsZh();
+
 
   @override
   void initState() {
@@ -102,34 +112,44 @@ class _ChildSunlightHistoryPageState
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('阳光来源记录'),
-        actions: <Widget>[
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: '刷新',
-            onPressed: _loading ? null : _reload,
+    // 🔴 页级 L10nScope（i18n B1）：全页文案经 AppLocalizations 解析；
+    // Builder 的 context 位于 scope 之下，并把实例存入 [_l10n] 供异步回调使用。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          _l10n = AppLocalizations.of(context);
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(_t.hist_title),
+            actions: <Widget>[
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: _t.shared_refresh,
+                onPressed: _loading ? null : _reload,
+              ),
+            ],
           ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _entries.isEmpty
-              ? const Center(
-                  child: Text('还没有阳光记录哦 🌻',
-                      style: TextStyle(fontSize: 16)),
-                )
-              : ListView(
-                  padding: const EdgeInsets.all(12),
-                  children: <Widget>[
-                    _BalanceBanner(balance: _balance),
-                    const SizedBox(height: 12),
-                    ..._entries.map(_EntryTile.new),
-                  ],
-                ),
-    );
+          body: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _entries.isEmpty
+                  ? Center(
+                      child: Text(_t.hist_empty_hint,
+                          style: const TextStyle(fontSize: 16)),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.all(12),
+                      children: <Widget>[
+                        _BalanceBanner(balance: _balance),
+                        const SizedBox(height: 12),
+                        ..._entries.map(_EntryTile.new),
+                      ],
+                    ),
+        );
+        }, // builder 闭包
+      ), // Builder
+    ); // L10nScope
   }
 }
 
@@ -163,9 +183,9 @@ class _BalanceBanner extends StatelessWidget {
                       size: 24 * uiScaleOf(context)),
             ),
             const SizedBox(width: 10),
-            const Expanded(
-              child: Text('当前拥有阳光',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+            Expanded(
+              child: Text(l10nOf(context).hist_balance_label,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
             ),
             Text(
               // F105 口径：展示一律向下取整。
@@ -188,7 +208,8 @@ class _EntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String label =
-        _refLabels[entry.refType ?? ''] ?? '其他';
+        _refLabels[entry.refType ?? ''] ??
+        l10nOf(context).hist_other;
     final bool earned = entry.net >= 0;
     final String amountText = '${entry.net > 0 ? '+' : ''}${entry.net.toInt()} ☀';
     final String time =
@@ -203,7 +224,8 @@ class _EntryTile extends StatelessWidget {
           color: earned ? Colors.green : Colors.red,
         ),
         title: Text(label),
-        subtitle: Text('$time · 余额 ${entry.balanceAfter.toInt()} ☀'),
+        subtitle: Text(l10nOf(context)
+            .hist_subtitle(time, entry.balanceAfter.toInt())),
         trailing: Text(
           amountText,
           style: TextStyle(

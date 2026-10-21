@@ -11,6 +11,8 @@ library app_cap_dialog;
 import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 /// 到顶提示卡。`pop(AppCapDialog.goFocus)` 表示用户点了「去今日开始专注」。
 class AppCapDialog extends StatelessWidget {
@@ -37,7 +39,13 @@ class AppCapDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
+    // i18n（B1）：本卡即弹窗内容（builder 上下文在页级 scope 之外）→ 自带
+    // L10nScope，页内文案经内部上下文取用（裸测试宿主也不崩）。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext ctx) {
+          final AppLocalizations l10n = AppLocalizations.of(ctx);
+          return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
       child: Container(
@@ -55,19 +63,22 @@ class AppCapDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            _buildHeader(),
+            _buildHeader(l10n),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 18, 24, 20),
-              child: _buildBody(context),
+              child: _buildBody(ctx, l10n),
             ),
           ],
         ),
       ),
     );
+        },
+      ),
+    );
   }
 
   /// 天空蓝渐变头部：向日葵吉祥物 + 标题。
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations l10n) {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -99,7 +110,7 @@ class AppCapDialog extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            _sessionLock ? '休息一下，等会再来玩' : '先歇一会儿吧',
+            _sessionLock ? l10n.child_cap_single_title : l10n.child_cap_daily_title,
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
@@ -112,13 +123,13 @@ class AppCapDialog extends StatelessWidget {
   }
 
   /// 正文：一句话 + 两枚彩色信息模块 + 主/次按钮。
-  Widget _buildBody(BuildContext context) {
+  Widget _buildBody(BuildContext context, AppLocalizations l10n) {
     return Column(
       children: <Widget>[
         Text(
           _sessionLock
-              ? '已经连续玩 $_lockMinutes 分钟啦，让眼睛休息一下'
-              : '今天逛 App 的时间用完啦',
+              ? l10n.child_cap_single_body(_lockMinutes ?? 0)
+              : l10n.child_cap_daily_body,
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 15,
@@ -132,27 +143,32 @@ class AppCapDialog extends StatelessWidget {
           children: <Widget>[
             _InfoChip(
               emoji: '⏰',
-              label: _sessionLock ? '休息一会' : '今日上限',
-              value: _sessionLock ? '$_lockMinutes 分钟后解锁' : '$capMinutes 分钟',
+              label: _sessionLock ? l10n.child_cap_chip_rest : l10n.child_cap_chip_daily,
+              value: _sessionLock
+                  ? l10n.child_cap_unlock_in(_lockMinutes ?? 0)
+                  : l10n.child_cap_minutes(capMinutes),
               bg: const Color(0xFFFFF3D6),
               fg: const Color(0xFFB25E00),
             ),
-            const _InfoChip(
+            _InfoChip(
               emoji: '🎯',
-              label: '去「今日」',
-              value: '专注赚阳光',
-              bg: Color(0xFFE3F3E4),
-              fg: Color(0xFF2E7D32),
+              label: l10n.child_cap_chip_go_today,
+              value: l10n.child_cap_chip_earn,
+              bg: const Color(0xFFE3F3E4),
+              fg: const Color(0xFF2E7D32),
             ),
           ],
         ),
         const SizedBox(height: 18),
-        _GoFocusButton(onTap: () => Navigator.of(context).pop(goFocus)),
+        _GoFocusButton(
+          label: l10n.child_cap_btn_go_focus,
+          onTap: () => Navigator.of(context).pop(goFocus),
+        ),
         const SizedBox(height: 4),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           style: TextButton.styleFrom(foregroundColor: const Color(0xFF8A97A5)),
-          child: const Text('知道啦', style: TextStyle(fontSize: 14)),
+          child: Text(l10n.child_cap_ok, style: const TextStyle(fontSize: 14)),
         ),
       ],
     );
@@ -207,7 +223,10 @@ class _InfoChip extends StatelessWidget {
 
 /// 主按钮：橙黄渐变大按钮（白字，圆角 18，高度 50）。
 class _GoFocusButton extends StatelessWidget {
-  const _GoFocusButton({required this.onTap});
+  const _GoFocusButton({required this.label, required this.onTap});
+
+  /// 按钮文案（i18n B1：由调用方经 l10n 解析后传入）。
+  final String label;
 
   final VoidCallback onTap;
 
@@ -235,9 +254,9 @@ class _GoFocusButton extends StatelessWidget {
           child: Container(
             height: 50,
             alignment: Alignment.center,
-            child: const Text(
-              '去「今日」开始专注 🌻',
-              style: TextStyle(
+            child: Text(
+              label,
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
                 color: Colors.white,

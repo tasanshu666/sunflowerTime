@@ -24,6 +24,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
@@ -99,8 +102,25 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   /// 因此停表**必须**走这份字段引用，不能走 `ref`。
   AppUsageController? _usageCtrl;
 
-  /// 5 个 tab 的标题（AppBar 随当前 tab 变化）。
-  static const List<String> _titles = <String>['今日', '成长', '花园', '商店', '我的'];
+  /// i18n（B1）：页内文案（build 时在 L10nScope 内解析；通知检查在首帧后
+  /// 触发，届时已赋值；此前触发则回退 zh 模板）。
+  AppLocalizations? _l10n;
+
+  /// 5 个 tab 的标题（AppBar 随当前 tab 变化；i18n B1：走 ARB）。
+  String _tabTitle(AppLocalizations l10n) {
+    switch (_index) {
+      case 0:
+        return l10n.child_shell_tab_today;
+      case 1:
+        return l10n.child_shell_tab_growth;
+      case 2:
+        return l10n.child_shell_tab_garden;
+      case 3:
+        return l10n.child_shell_tab_store;
+      default:
+        return l10n.child_shell_tab_mine;
+    }
+  }
 
   /// 5 个 tab 的内容页（IndexedStack 保活，切 tab 不重建）。
   ///
@@ -485,16 +505,19 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
         context,
         // ⚠️ 标题字面量被 nav_structure_test 钉死，不要改（F126 只**新增**任务审批
         // 卡，既有兑换卡文案一字不动）。
-        title: '🎉 家长已确认你的兑换',
+        title: (_l10n ?? AppLocalizationsZh()).child_shell_verify_title,
         items: <GoldNoticeItem>[
           for (final RedemptionRequest r in news)
             GoldNoticeItem(
               icon: Icons.redeem,
-              name: names[r.templateId] ?? '奖励',
-              amountText: '-${r.cost} 阳光',
+              name: names[r.templateId] ??
+                  (_l10n ?? AppLocalizationsZh()).child_shell_item_reward,
+              amountText:
+                  (_l10n ?? AppLocalizationsZh()).child_shell_item_cost(r.cost),
             ),
         ],
-        footerText: '共扣除 $total 阳光',
+        footerText:
+            (_l10n ?? AppLocalizationsZh()).child_shell_verify_total(total),
       );
 
       // 标记已读（去重合并），下次进入不再重复弹窗（按当前孩子分键）。
@@ -547,20 +570,24 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
         context,
         tone: NoticeTone.warn,
         badgeIcon: Icons.block,
-        title: '🚫 兑换未被通过',
+        title: (_l10n ?? AppLocalizationsZh()).child_shell_reject_title,
         items: <GoldNoticeItem>[
           for (final RedemptionRequest r in news)
             GoldNoticeItem(
               icon: Icons.redeem,
               // ⚠️ 兜底串 '奖励' / '家长拒绝了该申请' 保持语义不变（原实现同款兜底）。
-              name: '· ${names[r.templateId] ?? '奖励'}',
+              name: '· ${names[r.templateId] ?? (_l10n ?? AppLocalizationsZh()).child_shell_item_reward}',
               // F141 修 1（QA 探针 F141-BUG-01）：家长备注是**说明**不是金额 ——
               // 走 `subtitle`（名称下方小字、可自由折行），不再塞右侧 amountText，
               // 也不再用 `amountMuted` 借位表达「备注」。小屏 + 长备注不再溢出。
-              subtitle: '（${r.parentNote ?? '家长拒绝了该申请'}）',
+              subtitle: (_l10n ?? AppLocalizationsZh())
+                  .child_shell_reject_subtitle(r.parentNote ??
+                      (_l10n ?? AppLocalizationsZh())
+                          .child_shell_reject_reason),
             ),
         ],
-        footerText: '本次阳光未被扣除，可重新兑换其他奖励',
+        footerText: (_l10n ?? AppLocalizationsZh())
+            .child_shell_reject_footer,
       );
 
       await store.setAcknowledgedRejectIds(
@@ -671,31 +698,38 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
       // ⚠️ 「全部封顶」判据用 `cappedCount == news.length`（按条数），**不能**用
       // `total == 0`：全是 0.4 时 total 也等于 0，但那不是封顶（实际入了账）。
       final String footer;
+      final AppLocalizations l10n = _l10n ?? AppLocalizationsZh();
       if (cappedCount == news.length) {
-        footer = '今日成长奖励已达上限，本次没有新增阳光';
+        footer = l10n.child_shell_task_footer_capped;
       } else if (cappedCount > 0) {
-        footer = '共获得 $total 阳光（$cappedCount 项今日额度已满，未发放）';
+        footer = l10n.child_shell_task_footer_partial(cappedCount, total);
       } else {
-        footer = '共获得 $total 阳光';
+        footer = l10n.child_shell_task_footer(total);
       }
 
       await showGoldNoticeDialog(
         context,
-        title: '🎉 家长已确认你的成长任务',
+        title: (_l10n ?? AppLocalizationsZh()).child_shell_task_title,
         items: <GoldNoticeItem>[
           for (final CheckIn c in news)
             GoldNoticeItem(
               // 图标不随「是否封顶」变化：确认这件事本身成立，只是钱没到。
               icon: Icons.task_alt,
-              name: taskNames[c.taskId] ?? '成长任务',
+              name: taskNames[c.taskId] ??
+                  (_l10n ?? AppLocalizationsZh()).child_shell_task_fallback,
               // NEW-F141-01（QA 二轮）：`今日额度已满` 是**说明**不是金额 ——
               // 塞进金额位（行内剩余宽度的 40%，390 屏 = 87.2px）会被 6 个汉字
               // 顶成两行（96px > 87.2px），断在第 5 个字上（右对齐「今日额度已」/「满」）。
               // 改为：封顶行金额位留空（`amountText: ''` → 该列整块不渲染），
               // 说明走 `subtitle`（名称下方小字、可自由折行）。
               // ⚠️ 文案逐字不变：`今日额度已满` 仍出现，只是换了槽位。
-              amountText: isCapped(c) ? '' : '+${grantedOf(c)} 阳光',
-              subtitle: isCapped(c) ? '今日额度已满' : null,
+              amountText: isCapped(c)
+                  ? ''
+                  : (_l10n ?? AppLocalizationsZh())
+                      .child_shell_task_item_sun(grantedOf(c)),
+              subtitle: isCapped(c)
+                  ? (_l10n ?? AppLocalizationsZh()).child_shell_task_item_capped
+                  : null,
             ),
         ],
         footerText: footer,
@@ -741,7 +775,14 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     // 底下，背景得以铺到状态栏顶。花园(2)自带整页草地、我的(4)纯色底，维持原样。
     final bool immersive = _index == 0 || _index == 1 || _index == 3;
 
-    return Scaffold(
+    // i18n（B1）：页级 L10nScope + Builder —— 文案取用统一走 scope 内上下文；
+    // 闭包参数 `context` 遮蔽外层；通知检查经 [_l10n] 取文案。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      _l10n = l10n;
+      return Scaffold(
       extendBodyBehindAppBar: immersive,
       appBar: AppBar(
         // C44e 二轮反馈（玄参 2026-10-09）：深棕字仍被亮背景吃掉 → 标题垫
@@ -754,9 +795,9 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
                   color: Colors.white.withValues(alpha: 0.78),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(_titles[_index]),
+                child: Text(_tabTitle(l10n)),
               )
-            : Text(_titles[_index]),
+            : Text(_tabTitle(l10n)),
         // 沉浸式三连：透明底 + 无阴影 + 滚动也不浮起阴影（否则透明底上出现色带）。
         backgroundColor: immersive ? Colors.transparent : null,
         elevation: immersive ? 0 : null,
@@ -810,7 +851,10 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
       bottomNavigationBar: AdaptiveNavBarHost(
         child: _navBar(context),
       ),
-    );
+      ); // Scaffold（内层 return 收口）
+        }, // builder 闭包
+      ), // Builder
+    ); // L10nScope（外层 return 收口）
   }
 
   /// 底部 5 tab 导航栏本体。
@@ -835,31 +879,33 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   ///
   /// ⚠️ **其余任何文字**仍必须走 textScaler，不许在本文件之外照抄这里的写法。
   Widget _navBar(BuildContext context) {
-    const List<NavigationDestination> destinations = <NavigationDestination>[
+    // i18n（B1）：label 走 ARB（本方法由 build 的 scope 内上下文调用）。
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final List<NavigationDestination> destinations = <NavigationDestination>[
       NavigationDestination(
-        icon: Icon(Icons.today_outlined),
-        selectedIcon: Icon(Icons.today),
-        label: '今日',
+        icon: const Icon(Icons.today_outlined),
+        selectedIcon: const Icon(Icons.today),
+        label: l10n.child_shell_tab_today,
       ),
       NavigationDestination(
-        icon: Icon(Icons.checklist_outlined),
-        selectedIcon: Icon(Icons.checklist),
-        label: '成长',
+        icon: const Icon(Icons.checklist_outlined),
+        selectedIcon: const Icon(Icons.checklist),
+        label: l10n.child_shell_tab_growth,
       ),
       NavigationDestination(
-        icon: Icon(Icons.yard_outlined),
-        selectedIcon: Icon(Icons.yard),
-        label: '花园',
+        icon: const Icon(Icons.yard_outlined),
+        selectedIcon: const Icon(Icons.yard),
+        label: l10n.child_shell_tab_garden,
       ),
       NavigationDestination(
-        icon: Icon(Icons.storefront_outlined),
-        selectedIcon: Icon(Icons.storefront),
-        label: '商店',
+        icon: const Icon(Icons.storefront_outlined),
+        selectedIcon: const Icon(Icons.storefront),
+        label: l10n.child_shell_tab_store,
       ),
       NavigationDestination(
-        icon: Icon(Icons.person_outline),
-        selectedIcon: Icon(Icons.person),
-        label: '我的',
+        icon: const Icon(Icons.person_outline),
+        selectedIcon: const Icon(Icons.person),
+        label: l10n.child_shell_tab_mine,
       ),
     ];
 

@@ -23,14 +23,18 @@ import 'package:uuid/uuid.dart';
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/app_language.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
 import 'package:sunflower_time/presentation/parent/widgets/debug_unlock_switch.dart';
+import 'package:sunflower_time/presentation/shared/language_picker.dart';
 
 /// 设置页：家长可控开关集 + PIN 重设 + 阳光赠予 + 删除入口卡（+ Debug 调试区）。
 class ParentSettingsPage extends ConsumerStatefulWidget {
@@ -372,6 +376,8 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           value: s.themeDark,
           onChanged: (v) => _update(s.copyWith(themeDark: v)),
         ),
+        // i18n（B1）：家长端本批只加「语言」入口（对话框式）；其余家长端文案 B2 迁移。
+        const _LanguageEntryTile(),
         // 🔴 C79（2026-10-15 玄参拍板）：原「自主模式（孩子自助核销）」开关已
         //    **彻底删除** —— 全仓排查该字段零业务消费点（自主核销从未实现），
         //    实体字段 + DB 列（schemaVersion 25 DROP COLUMN）一并移除。
@@ -420,6 +426,32 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           const DebugUnlockSwitch(),
         ],
       ],
+    );
+  }
+}
+
+/// 「语言」入口行（i18n B1）。
+///
+/// 家长端本批只加语言入口（对话框式，样式与设置页其它行一致）；其余家长端
+/// 文案 B2 迁移。自带页级 [L10nScope]：本页其余部分未迁移，行内文案经内部
+/// 上下文取 ARB；弹窗文案在页级 scope 内取好后传参（弹窗纪律）。
+class _LanguageEntryTile extends ConsumerWidget {
+  const _LanguageEntryTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return L10nScope(
+      child: Builder(builder: (BuildContext innerContext) {
+        final AppLocalizations l10n = AppLocalizations.of(innerContext);
+        final AppLanguage current = ref.watch(appLanguageProvider);
+        return ListTile(
+          leading: const Icon(Icons.language),
+          title: Text(l10n.parent_settings_lang_entry),
+          subtitle: Text(LanguagePicker.labelOf(l10n, current)),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showLanguageDialog(innerContext, ref),
+        );
+      }),
     );
   }
 }

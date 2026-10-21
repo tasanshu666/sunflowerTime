@@ -37,6 +37,9 @@ import 'package:sunflower_time/domain/services/focus_level_service.dart'
     show levelOfMinutes, thresholdMinutesOfLevel;
 import 'package:sunflower_time/presentation/child/widgets/child_avatar.dart';
 import 'package:sunflower_time/presentation/child/widgets/level_up_fx_overlay.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
 /// 孩子端「我的」：累计成就。
 class ChildProfilePage extends ConsumerStatefulWidget {
@@ -56,6 +59,13 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
   int _totalEyeCares = 0;
   double _balance = 0;
   bool _loading = true;
+  /// 当前页文案（build 期在 L10nScope 内赋值；异步回调经 [_t] 取，
+  /// 尚未 build 过的极端早回调回退中文，与迁移前行为一致）。
+  AppLocalizations? _l10n;
+
+  /// 文案统一取用入口（i18n B1）。
+  AppLocalizations get _t => _l10n ?? AppLocalizationsZh();
+
 
   /// 当前孩子展示名（C90 期 2 第二批：昵称跟档案走 —— 显示当前孩子档案
   /// `name`，随 [childProfileRevisionProvider] 刷新。旧 SP 键 `kPrefChildNickname`
@@ -337,164 +347,176 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
     // 「我的」是底部导航 IndexedStack **保活**页，切 tab 不会重建；不监听的话，
     // 花园扣费后切回本页仍显示扣费前的余额（真机实测：我的页 1000+、花园页 900+）。
     // 账本本身是准的，此处只是补上「重新读一次」。
-    // 必须写在 build 内：Riverpod 的 ref.listen 有 `debugDoingBuild` 断言；
+    // 必须写在 build() 内：Riverpod 的 ref.listen 有 `debugDoingBuild` 断言；
     // 订阅随 element unmount 自动关闭（无泄漏），回调内判 mounted 防止 dispose 后 setState。
+    // 且必须在 ConsumerWidget.build **顶层**调用 —— 断言不允许在嵌套 Builder
+    // 闭包内调用，故注册在进入页级 L10nScope 之前。
     ref.listen(economyRevisionProvider, (_, __) {
       if (mounted) _reload(silent: true);
     });
+    // 🔴 页级 L10nScope（i18n B1）：全页文案经 AppLocalizations 解析；
+    // Builder 的 context 位于 scope 之下，并把实例存入 [_l10n] 供异步回调使用。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          _l10n = AppLocalizations.of(context);
+        // 经济修订号监听已上移至 build() 顶层（Riverpod 断言要求，见上方 ref.listen）。
 
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+        if (_loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: <Widget>[
-        Container(
-          decoration: creamCardDecoration(),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-            child: Column(
-              children: <Widget>[
-                Row(
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: <Widget>[
+            Container(
+              decoration: creamCardDecoration(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                child: Column(
                   children: <Widget>[
-                    // C90-C：头像默认阳光；点按弹选择面板（阳光 + 已种植物种可选，
-                    // 未种植置灰加锁可点提示）。稳定 Key 供测试定位。
-                    GestureDetector(
-                      key: const ValueKey<String>('child_avatar_tap'),
-                      behavior: HitTestBehavior.opaque,
-                      onTap: _openAvatarPicker,
-                      child: ChildAvatarView(avatar: _childAvatar),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          // C91 修订（玄参）：只显示**昵称本身**，去掉
-                          // 「· 低年级 / 8 岁及以下」档位后缀（年龄段不是给孩子
-                          // 看的）。昵称跟档案走，改名只在家长天地。
-                          Flexible(
-                            child: Text(
-                              _childName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold),
-                            ),
+                    Row(
+                      children: <Widget>[
+                        // C90-C：头像默认阳光；点按弹选择面板（阳光 + 已种植物种可选，
+                        // 未种植置灰加锁可点提示）。稳定 Key 供测试定位。
+                        GestureDetector(
+                          key: const ValueKey<String>('child_avatar_tap'),
+                          behavior: HitTestBehavior.opaque,
+                          onTap: _openAvatarPicker,
+                          child: ChildAvatarView(avatar: _childAvatar),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              // C91 修订（玄参）：只显示**昵称本身**，去掉
+                              // 「· 低年级 / 8 岁及以下」档位后缀（年龄段不是给孩子
+                              // 看的）。昵称跟档案走，改名只在家长天地。
+                              Flexible(
+                                child: Text(
+                                  _childName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _t.profile_balance_line(sunlightDisplayInt(_balance)),
+                                style: const TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '我的阳光：${sunlightDisplayInt(_balance)} ☀',
-                            style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        // 右上角标签：点击进入阳光来源记录（用户 2026-09-21 反馈 ③）。
+                        TextButton.icon(
+                          onPressed: () =>
+                              context.push('/child/sunlight-history'),
+                          icon: const Icon(Icons.receipt_long, size: 18),
+                          label: Text(_t.profile_source_label),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFFD98F00),
+                            padding: EdgeInsets.zero,
                           ),
-                        ],
-                      ),
-                    ),
-                    // 右上角标签：点击进入阳光来源记录（用户 2026-09-21 反馈 ③）。
-                    TextButton.icon(
-                      onPressed: () =>
-                          context.push('/child/sunlight-history'),
-                      icon: const Icon(Icons.receipt_long, size: 18),
-                      label: const Text('来源'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFFD98F00),
-                        padding: EdgeInsets.zero,
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        const _SectionTitle('累计成就'),
-        _AchievementTile(
-          icon: Icons.schedule,
-          label: '累计专注时长',
-          value: '${_totalFocusMinutes.round()} 分钟',
-          accent: const Color(0xFF4C8DF6),
-        ),
-        _AchievementTile(
-          icon: Icons.timer,
-          label: '累计专注次数',
-          value: '$_totalSessions 次',
-          accent: const Color(0xFFF2994A),
-        ),
-        _AchievementTile(
-          icon: Icons.event_available,
-          label: '累计有效专注天数',
-          value: '$_totalValidDays 天',
-          accent: const Color(0xFF3BB273),
-        ),
-        _AchievementTile(
-          icon: Icons.checklist,
-          label: '累计成长打卡',
-          value: '$_totalCheckIns 次',
-          accent: const Color(0xFF8E7CF0),
-        ),
-        _AchievementTile(
-          icon: Icons.local_florist,
-          label: '累计开花植物',
-          value: '$_bloomedPlants 株',
-          accent: const Color(0xFFE8628C),
-        ),
-        // 累计护眼（玄参 2026-10-09）：账本 refType='eye_care_break' 全量计数。
-        _AchievementTile(
-          icon: Icons.visibility,
-          label: '累计护眼',
-          value: '$_totalEyeCares 次',
-          accent: const Color(0xFF2FA8B8),
-          isLast: true,
-        ),
-        // ── 调试区（玄参 2026-09-24 要求加回，供调试验收）────────────────────
-        // ⚠️ 受 `kDebugMode` 约束：**release 构建自动不渲染** —— 既满足调试需要，
-        // 又不必再担心「提审前忘了删」。测试用源码守卫锁住这条约束
-        // （test/m4/child_shell_app_cap_test.dart 的「C 清理回归」）。
-        // 🔴 2026-10-19（玄参）：截商店图时 debug 包的调试按钮会入镜 → 增加构建期
-        // 开关 [kHideDebugUi]（`--dart-define=HIDE_DEBUG_UI=true`）显式关闭。
-        // 两个条件并列：release 恒不渲染；debug 仅在截图构建时隐藏。
-        if (shouldShowDebugUi(
-          debugMode: kDebugMode,
-          hideForScreenshots: kHideDebugUi,
-        )) ...<Widget>[
-          const SizedBox(height: 24),
-          const _SectionTitle('调试区'),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.orange),
-            onPressed: _grantDebugSunlight,
-            child: const Text('DEBUG 加1000阳光'),
-          ),
-          // ── T3 · 等级演出调试入口（玄参 2026-10-14 要，用于测演出）────────
-          // ⚠️ 三个按钮都走**真实**的 `FocusLevelService.settle()`（写真实会话、
-          // 真实写账本、真实播演出），没有另写假结算。
-          const SizedBox(height: 8),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.teal),
-            onPressed: () => _debugAddFocusMinutes(30),
-            child: const Text('DEBUG 累计专注 +30 分钟（模拟）'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.teal),
-            onPressed: _debugJumpToNextTitleNode,
-            child: const Text('DEBUG 直接跳到下一个称号节点'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.blueGrey),
-            onPressed: _debugResetLevelAnchor,
-            // ⚠️ 文案如实注明：账本是 append-only 事实源，清 SP 后双锚点取大会
-            // 被已发节点顶回去 —— **已发过的阳光不会重发**（幂等红线 I1）。
-            child: const Text('DEBUG 重置等级结算锚点（账本已发过的不会重发）'),
-          ),
-        ],
-      ],
-    );
+            const SizedBox(height: 16),
+            _SectionTitle(_t.profile_achievements_title),
+            _AchievementTile(
+              icon: Icons.schedule,
+              label: _t.profile_stat_focus_minutes,
+              value: _t.profile_value_minutes(_totalFocusMinutes.round()),
+              accent: const Color(0xFF4C8DF6),
+            ),
+            _AchievementTile(
+              icon: Icons.timer,
+              label: _t.profile_stat_sessions,
+              value: _t.profile_value_times(_totalSessions),
+              accent: const Color(0xFFF2994A),
+            ),
+            _AchievementTile(
+              icon: Icons.event_available,
+              label: _t.profile_stat_valid_days,
+              value: _t.profile_value_days(_totalValidDays),
+              accent: const Color(0xFF3BB273),
+            ),
+            _AchievementTile(
+              icon: Icons.checklist,
+              label: _t.profile_stat_checkins,
+              value: _t.profile_value_times(_totalCheckIns),
+              accent: const Color(0xFF8E7CF0),
+            ),
+            _AchievementTile(
+              icon: Icons.local_florist,
+              label: _t.profile_stat_bloomed,
+              value: _t.profile_value_plants(_bloomedPlants),
+              accent: const Color(0xFFE8628C),
+            ),
+            // 累计护眼（玄参 2026-10-09）：账本 refType='eye_care_break' 全量计数。
+            _AchievementTile(
+              icon: Icons.visibility,
+              label: _t.profile_stat_eyecare,
+              value: _t.profile_value_times(_totalEyeCares),
+              accent: const Color(0xFF2FA8B8),
+              isLast: true,
+            ),
+            // ── 调试区（玄参 2026-09-24 要求加回，供调试验收）────────────────────
+            // ⚠️ 受 `kDebugMode` 约束：**release 构建自动不渲染** —— 既满足调试需要，
+            // 又不必再担心「提审前忘了删」。测试用源码守卫锁住这条约束
+            // （test/m4/child_shell_app_cap_test.dart 的「C 清理回归」）。
+            // 🔴 2026-10-19（玄参）：截商店图时 debug 包的调试按钮会入镜 → 增加构建期
+            // 开关 [kHideDebugUi]（`--dart-define=HIDE_DEBUG_UI=true`）显式关闭。
+            // 两个条件并列：release 恒不渲染；debug 仅在截图构建时隐藏。
+            if (shouldShowDebugUi(
+              debugMode: kDebugMode,
+              hideForScreenshots: kHideDebugUi,
+            )) ...<Widget>[
+              const SizedBox(height: 24),
+              const _SectionTitle('调试区'),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.orange),
+                onPressed: _grantDebugSunlight,
+                child: const Text('DEBUG 加1000阳光'),
+              ),
+              // ── T3 · 等级演出调试入口（玄参 2026-10-14 要，用于测演出）────────
+              // ⚠️ 三个按钮都走**真实**的 `FocusLevelService.settle()`（写真实会话、
+              // 真实写账本、真实播演出），没有另写假结算。
+              const SizedBox(height: 8),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.teal),
+                onPressed: () => _debugAddFocusMinutes(30),
+                child: const Text('DEBUG 累计专注 +30 分钟（模拟）'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.teal),
+                onPressed: _debugJumpToNextTitleNode,
+                child: const Text('DEBUG 直接跳到下一个称号节点'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.blueGrey),
+                onPressed: _debugResetLevelAnchor,
+                // ⚠️ 文案如实注明：账本是 append-only 事实源，清 SP 后双锚点取大会
+                // 被已发节点顶回去 —— **已发过的阳光不会重发**（幂等红线 I1）。
+                child: const Text('DEBUG 重置等级结算锚点（账本已发过的不会重发）'),
+              ),
+            ],
+          ],
+        );
+        }, // builder 闭包
+      ), // Builder
+    ); // L10nScope
   }
 }
 

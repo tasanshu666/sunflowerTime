@@ -15,8 +15,11 @@ import 'package:sunflower_time/bootstrap.dart';
 import 'package:sunflower_time/core/constants/build_flags.dart';
 import 'package:sunflower_time/core/constants/iap_product_ids.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/app_language.dart';
+import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/data/local/repositories/reward_seed.dart';
+import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/data/local/task_seed.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 
@@ -25,11 +28,29 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
   await bootstrap();
 
+  // i18n（B1 批次）：冷启动读「界面语言」存档（键缺失/脏值 → system），
+  // 注入容器 override 与运行期单点（AppLocaleController），三者同源同向。
+  final AppLanguage storedLanguage =
+      await SettingsStore(prefs).getAppLanguage();
+
   // M2（T-D）：用同一个容器预跑奖励种子（首次启动若无模板则写入），
   // 并复用该容器给 App，保证种子与运行期共享同一个 AppDatabase 实例。
   final container = ProviderContainer(
-    overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    overrides: <Override>[
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      appLanguageProvider.overrideWith((ref) => storedLanguage),
+    ],
   );
+
+  // i18n（B1 批次）：绑定运行期 locale 单点（含持久化后端），
+  // 并把「切换语言」同步回 appLanguageProvider（App 壳 watch → locale 即时生效）。
+  AppLocaleController.init(
+    storedLanguage,
+    store: container.read(settingsStoreProvider),
+  );
+  AppLocaleController.onChanged = (AppLanguage lang) {
+    container.read(appLanguageProvider.notifier).state = lang;
+  };
 
   // 付费墙（阶段 4 · P1 修复）：冷启动**先加载权益票据**并写入 `entitlementProvider`
   // 门控单点。抽取为顶层 [hydrateEntitlement]，便于被冷启动回归测试直接单测

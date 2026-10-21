@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/app_language.dart';
+import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/shared/app_router.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/shared/theme.dart';
@@ -21,8 +24,16 @@ class App extends ConsumerWidget {
     // 设置尚未读出时回落浅色（默认皮肤），避免首帧闪深色。
     // 家长端设置页保存后 invalidate 本 Provider，切换即时生效。
     final bool dark = ref.watch(settingsProvider).value?.themeDark ?? false;
+    // i18n（B1 批次）：界面语言 —— watch appLanguageProvider（切换语言时本壳
+    // 重建 → locale 即时生效）；生效值与页级 L10nScope 的 AppLocaleController.current
+    // 同源同向（都走 resolveEffectiveLocale 纯函数，测试垫片口径一致）。
+    final AppLanguage lang = ref.watch(appLanguageProvider);
     return MaterialApp.router(
-      title: 'SunFocus 向日葵专注',
+      onGenerateTitle: (BuildContext context) =>
+          AppLocalizations.of(context).app_title,
+      locale: AppLocaleController.localeFor(lang),
+      supportedLocales: const <Locale>[Locale('zh'), Locale('en')],
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: dark ? ThemeMode.dark : ThemeMode.light,

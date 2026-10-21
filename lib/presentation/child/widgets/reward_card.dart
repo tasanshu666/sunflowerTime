@@ -23,6 +23,8 @@ import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 // F130：平板 UI 倍率（文字之外的定尺寸元素一律乘 `uiScaleOf(context)`）。
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 class RewardCard extends StatelessWidget {
   final RewardTemplate template;
@@ -50,6 +52,7 @@ class RewardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = l10nOf(context);
     final ThemeData theme = Theme.of(context);
 
     // F130（2026-10-19 玄参 iPad Pro 13″ 实测截图）：平板 **UI 放大倍率**
@@ -71,8 +74,8 @@ class RewardCard extends StatelessWidget {
     // C62：买不起的内联原因（与置灰按钮配对）。与限次提示**共用同一行位**，
     // 保持卡片高度不变（不因多一行把 88pt 的卡撑高）。余额不足优先于超池。
     final String? blockLabel = sunlightShort
-        ? '阳光不足'
-        : (weeklyQuotaFull ? '本周额度已满' : null);
+        ? l10n.shared_no_sunlight
+        : (weeklyQuotaFull ? l10n.shared_week_quota_full : null);
 
     // 每行条目左侧彩色圆角图标块（马卡龙色底 + emoji 占位图标），按模板稳定轮换。
     final Color iconBg = macaronColorById(template.id).bg;
@@ -239,9 +242,9 @@ class RewardCard extends StatelessWidget {
                           ],
                         ),
                         SizedBox(height: 2 * s),
-                        const Text(
-                          '兑换',
-                          style: TextStyle(
+                        Text(
+                          l10n.shared_redeem,
+                          style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                           ),

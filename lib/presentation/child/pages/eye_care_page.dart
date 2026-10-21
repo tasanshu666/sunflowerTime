@@ -46,6 +46,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/eye_care_log.dart';
@@ -57,6 +58,8 @@ import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart'
     show showChildConfirmCard;
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/shared/orientation_bridge.dart';
 
 /// 护眼卡入参。
@@ -95,6 +98,12 @@ class EyeCarePage extends ConsumerStatefulWidget {
 }
 
 class _EyeCarePageState extends ConsumerState<EyeCarePage> {
+  /// 当前页文案（build 期在 L10nScope 内赋值；异步回调经 [_t] 取，未 build 回退中文）。
+  AppLocalizations? _l10n;
+
+  /// 文案统一取用入口（i18n B1）。
+  AppLocalizations get _t => _l10n ?? AppLocalizationsZh();
+
   /// 当前播放槽位（0..[kEyeCarePlaylist].length-1）。
   int _slot = 0;
 
@@ -272,8 +281,8 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(
-        const SnackBar(
-          content: Text(kEyeCareNotSkippableText),
+        SnackBar(
+          content: Text(_t.prd_eyecare_not_skippable),
           duration: Duration(seconds: 2),
         ),
       );
@@ -313,10 +322,10 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
       context: context,
       // 原语义保留：点卡外不关（防误触，护眼页在横屏 + 手势容易擦到边缘）。
       barrierDismissible: false,
-      title: kEyeCareEarlyFinishTitle,
-      message: kEyeCareEarlyFinishConfirmText,
-      cancelLabel: kEyeCareEarlyFinishStayLabel,
-      confirmLabel: kEyeCareEarlyFinishQuitLabel,
+      title: _t.prd_eyecare_early_title,
+      message: _t.prd_eyecare_early_body,
+      cancelLabel: _t.prd_eyecare_early_stay,
+      confirmLabel: _t.prd_eyecare_early_quit,
     ).then((bool? ok) {
       if (!mounted) return;
       setState(() => _confirmOpen = false);
@@ -343,7 +352,10 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
     // `PopScope.onPopInvokedWithResult` 收到的是「本次 pop 的返回值」，框架会按本页
     // 声明的 T 强转——写成 PopScope<bool> 时，「完成休息」回传 EyeCareResult 会当场
     // 抛 `type 'EyeCareResult' is not a subtype of type 'bool?'`（真机必崩，widget 测试捕获）。
-    return PopScope<EyeCareResult>(
+    // i18n（B1）：页级 L10n 范围 —— 裸 MaterialApp 测试宿主（无 delegates）也能取
+    // 文案；下方 LayoutBuilder 闭包的 `context` 已在 scope 之内，直接取用。
+    return L10nScope(
+      child: PopScope<EyeCareResult>(
       canPop: false, // C28 §7：护眼卡期间拦截系统返回键
       onPopInvokedWithResult: (bool didPop, EyeCareResult? _) {
         if (didPop) return;
@@ -358,6 +370,8 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
           // 按钮移到右栏竖排；竖屏兜底（宽度 ≤ 高度，理论上不出现）维持原竖排。
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints c) {
+              final AppLocalizations l10n = AppLocalizations.of(context);
+              _l10n = l10n;
               final bool landscape = c.maxWidth >= c.maxHeight;
               // 正方形图卡边长 = **高度 / 宽度双约束**（2026-10-19 平板「只占上半屏」修复，
               // 缺陷台账 **F131**）。
@@ -417,7 +431,7 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    '还剩 $remainingSeconds 秒',
+                    l10n.child_eyecare_countdown(remainingSeconds),
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
@@ -447,7 +461,7 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     textStyle: const TextStyle(fontSize: 18),
                   ),
-                  child: const Text(kEyeCareFinishLabel),
+                  child: Text(_t.prd_eyecare_finish),
                 ),
               );
 
@@ -475,9 +489,9 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              const Text(
-                                '眼睛休息一下吧',
-                                style: TextStyle(
+                              Text(
+                                l10n.child_eyecare_title,
+                                style: const TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFF5A4A2F),
@@ -518,9 +532,9 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
                       const SizedBox(height: 12),
-                      const Text(
-                        '眼睛休息一下吧',
-                        style: TextStyle(
+                      Text(
+                        l10n.child_eyecare_title,
+                        style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
                           color: Color(0xFF5A4A2F),
@@ -550,6 +564,7 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
             },
           ),
         ),
+      ),
       ),
     );
   }

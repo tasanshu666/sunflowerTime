@@ -20,6 +20,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/presentation/shared/language_picker.dart';
 
 /// 页面底色（奶油暖调，与入口页 / 花园页同源）。
 const Color _kCream = Color(0xFFFBF4E4);
@@ -53,17 +56,25 @@ class ConsentPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      backgroundColor: _kCream,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            // 向日葵宽敞度：约屏宽 42%（玄参口径 40–45%；2026-10-07 真机反馈「美术太大、
-            // 缩小一些」，由原 60% 下调）。显式宽高避免 loose 约束按原图逻辑尺寸
-            // （1200×2000）撑爆布局（2026-09-24 事故纪律）。
-            final double screenW = constraints.maxWidth;
-            final double mascotW = (screenW * 0.42).clamp(120.0, 190.0);
-            return SingleChildScrollView(
+    // i18n（B1）：watch 界面语言 → 切换语言时本页重建，L10nScope 重新读取
+    // AppLocaleController.current，文案同帧生效（仿 app.dart themeDark 的 watch 模式）。
+    ref.watch(appLanguageProvider);
+    // 页级 L10n 范围 —— 裸 MaterialApp 测试宿主（无 delegates）也能取
+    // 文案；页内文案一律经下方 builder 上下文的 `AppLocalizations.of(ctx)`。
+    return L10nScope(
+      child: Scaffold(
+        backgroundColor: _kCream,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              // ⚠️ 文案取用点必须在 L10nScope **之内**（此处 builder 上下文已入范围）。
+              final AppLocalizations l10n = AppLocalizations.of(context);
+              // 向日葵宽敞度：约屏宽 42%（玄参口径 40–45%；2026-10-07 真机反馈「美术太大、
+              // 缩小一些」，由原 60% 下调）。显式宽高避免 loose 约束按原图逻辑尺寸
+              // （1200×2000）撑爆布局（2026-09-24 事故纪律）。
+              final double screenW = constraints.maxWidth;
+              final double mascotW = (screenW * 0.42).clamp(120.0, 190.0);
+              return SingleChildScrollView(
               // 矮屏内容超高 → 可滚动，绝不溢出（360×640 回归）。
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -75,10 +86,16 @@ class ConsentPage extends ConsumerWidget {
                       // ── 吉祥物：向日葵盛开图 ─────────────────────────────
                       _Mascot(width: mascotW),
                       const SizedBox(height: 8),
-                      const Text(
-                        '欢迎使用向日葵专注',
+                      // ── 语言选择（i18n B1）：吉祥物下方、合规卡上方；选 zh/en
+                      //    立即落盘并同帧生效；与同意标记互不耦合。
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: LanguagePicker(skin: LanguagePickerSkin.segmented),
+                      ),
+                      Text(
+                        l10n.consent_welcome_title,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: _kBrown,
@@ -104,11 +121,9 @@ class ConsentPage extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        child: const Text(
-                          '· 我们只收集专注时长、打卡等必要数据；\n'
-                          '· 全部数据加密存储在本机，不上传云端；\n'
-                          '· 无账号、无广告、无社交，不采集通讯录与位置。',
-                          style: TextStyle(
+                        child: Text(
+                          l10n.consent_compliance_body,
+                          style: const TextStyle(
                             height: 1.8,
                             color: _kBrown,
                           ),
@@ -138,7 +153,9 @@ class ConsentPage extends ConsumerWidget {
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             child: Text(
-                              preview ? '返回花园' : '同意并开始',
+                              preview
+                                  ? l10n.consent_btn_back_garden
+                                  : l10n.consent_btn_agree,
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -152,7 +169,8 @@ class ConsentPage extends ConsumerWidget {
                 ),
               ),
             );
-          },
+            },
+          ),
         ),
       ),
     );

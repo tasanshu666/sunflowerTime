@@ -1,0 +1,950 @@
+{
+  "@@locale": "zh",
+  "app_title": "SunFocus 向日葵专注",
+  "consent_welcome_title": "欢迎使用向日葵专注",
+  "consent_compliance_body": "· 我们只收集专注时长、打卡等必要数据；\n· 全部数据加密存储在本机，不上传云端；\n· 无账号、无广告、无社交，不采集通讯录与位置。",
+  "consent_btn_agree": "同意并开始",
+  "consent_btn_back_garden": "返回花园",
+  "shared_lang_title": "语言",
+  "shared_lang_follow_system": "跟随系统",
+  "shared_ok": "确定",
+  "shared_unlimited": "不限",
+  "parent_settings_lang_entry": "语言",
+  "premium_gate_feature_one_click_care": "花园一键操作",
+  "premium_gate_feature_pot_capacity": "更多花盆",
+  "premium_gate_feature_parent_report": "家长专注报告",
+  "premium_gate_feature_task_templates": "更多成长项模板",
+  "premium_gate_feature_reward_templates": "更多奖励模板",
+  "premium_gate_feature_multi_child": "多孩子档案",
+  "premium_gate_feature_deep_report": "深度专注报告",
+  "premium_gate_feature_export_share": "数据导出与分享",
+  "premium_gate_feature_memoir_export": "纪念册导出",
+  "premium_gate_feature_family_sharing": "家庭共享",
+  "premium_gate_feature_title_perks": "称号专属属性",
+  "premium_gate_upsell_title": "解锁「{name}」",
+  "@premium_gate_upsell_title": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "premium_gate_upsell_subtitle": "一次买断，永久解锁全部功能",
+  "premium_gate_upsell_btn": "查看详情",
+  "premium_gate_upsell_dialog_title": "升级解锁",
+  "premium_gate_upsell_dialog_message": "「{name}」需要一次性买断解锁。",
+  "@premium_gate_upsell_dialog_message": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "premium_gate_later": "稍后",
+  "premium_gate_unlock_all": "解锁全部功能",
+  "premium_quota_snack": "免费版最多 {limit}（当前 {count}），删除多余内容后即可新增",
+  "@premium_quota_snack": {
+    "placeholders": {
+      "limit": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "child_lock_title": "睡觉时间",
+  "child_lock_sleeping": "🌻 向日葵睡觉中",
+  "child_lock_body": "晚上 {hour}:00 后向日葵要休息啦，明天再陪你专注~",
+  "child_rest_title": "休息一下",
+  "child_rest_body": "休息一下，喝口水～ 还剩 {sec} 秒",
+  "child_rest_done": "我休息好了",
+  "child_eyecare_countdown": "还剩 {sec} 秒",
+  "child_eyecare_title": "眼睛休息一下吧",
+  "shared_back": "返回",
+  "shared_start_focus": "开始专注",
+  "shared_sunlight": "阳光",
+  "child_today_sunlight_title": "今日获取阳光",
+  "child_today_focus_label": "今日专注",
+  "child_today_minutes": "{minutes} 分钟",
+  "child_today_focus_count": "· {count} 次",
+  "child_today_growth_label": "今日成长",
+  "child_today_all_done": "全部完成 🌻",
+  "child_today_growth_hint": "想赚成长阳光？从「成长」里点具体项目开始专注 🌻",
+  "child_settle_secs": "{sec} 秒",
+  "child_settle_mins": "{min} 分钟",
+  "child_settle_min_sec": "{min} 分 {sec} 秒",
+  "child_settle_task_label": "成长项",
+  "child_settle_task_skipped": "成长项结算没能完成，不影响本次专注阳光",
+  "child_settle_task_capped": "（今日阳光已达上限，本次只到账 {sun} ☀）",
+  "child_settle_task_done": "成长项「{name}」完成 +{sun} ☀{capped}",
+  "child_settle_task_progress": "成长项「{name}」还差一点，下次专注够时长就算上啦 🌻",
+  "child_settle_title": "专注结束啦",
+  "child_settle_this_session": "本次专注",
+  "child_settle_collected": "收集阳光",
+  "child_settle_eyecare_reward": "护眼奖励",
+  "child_settle_task_reward": "任务奖励",
+  "child_settle_today_total": "今日累计",
+  "child_settle_balance": "拥有阳光",
+  "child_settle_too_short": "这次太短啦，向日葵没来得及收集阳光（≥5 分钟才有产出哦）",
+  "child_settle_cap_title": "🌻 今天专注额度用完啦",
+  "child_settle_cap_body_detail": "超出额度的部分就不再收集阳光了{detail}。{cheer}",
+  "child_settle_cap_orig_vs_net": "（原本 {raw} ☀️，实到 {net} ☀️）",
+  "child_settle_cap_cheer": "今天已经很棒啦，明天再来吧！",
+  "child_settle_home": "回首页",
+  "child_feedback_collected": "太好了，又收集到阳光了。",
+  "child_feedback_welcome_back": "欢迎回来",
+  "child_feedback_rest_hint": "休息一下就回来哦",
+  "child_feedback_miss": "向日葵想你了，回来看看吧",
+  "child_avatar_pick": "选择头像",
+  "child_avatar_hint": "种下过的植物可以拿来当头像",
+  "child_cap_single_title": "休息一下，等会再来玩",
+  "child_cap_daily_title": "先歇一会儿吧",
+  "child_cap_single_body": "已经连续玩 {minutes} 分钟啦，让眼睛休息一下",
+  "child_cap_daily_body": "今天逛 App 的时间用完啦",
+  "child_cap_chip_rest": "休息一会",
+  "child_cap_chip_daily": "今日上限",
+  "child_cap_unlock_in": "{minutes} 分钟后解锁",
+  "child_cap_minutes": "{minutes} 分钟",
+  "child_cap_chip_go_today": "去「今日」",
+  "child_cap_chip_earn": "专注赚阳光",
+  "child_cap_btn_go_focus": "去「今日」开始专注 🌻",
+  "child_cap_ok": "知道啦",
+  "child_entry_pick_duration": "这次想专注多久？",
+  "child_entry_cap_daily": "今天的专注时间已经用完啦（每日上限 {cap} 分钟），明天再来",
+  "child_entry_remaining_today": "今天还可以专注 {minutes} 分钟（每日上限 {cap} 分钟）",
+  "child_entry_free": "自由",
+  "child_entry_custom": "自定义",
+  "child_entry_custom_title": "自定义时长（分钟）",
+  "child_entry_quota_empty": "今日额度已用完",
+  "child_entry_custom_hint_max": "可选 {max} 分钟以内",
+  "child_entry_custom_hint_capped": "可选 {max} 分钟以内（受今日剩余额度限制）",
+  "child_entry_options_title": "专注时的小设置",
+  "child_entry_dnd": "屏蔽通知（勿扰）",
+  "child_entry_dnd_hint": "专注时屏蔽短信/来电等打扰",
+  "child_entry_sound": "提示音效",
+  "child_entry_sound_hint": "专注时播放轻提示音",
+  "child_entry_bgm": "背景音乐",
+  "child_entry_bgm_hint": "专注时循环轻柔背景乐",
+  "child_entry_minutes": "{minutes} 分钟",
+  "child_entry_cap_snack": "今日专注已达上限（{cap} 分钟），明天再来哦",
+  "child_entry_cap_snack2": "今天的专注时间用完啦（上限 {cap} 分钟），明天再来哦",
+  "child_entry_remaining_snack": "今天只剩 {remaining} 分钟额度了，这次就专注 {minutes} 分钟吧",
+  "child_focus_dnd_permission": "请在系统设置中开启勿扰权限以屏蔽通知",
+  "child_focus_exit_title": "确定结束吗？",
+  "child_focus_exit_body": "向日葵还在这儿陪着你，要现在结束专注吗？",
+  "child_focus_exit_stay": "再坐一会",
+  "child_focus_exit_end": "结束",
+  "child_focus_debug_ff": "调试：快进 5 分钟（护眼触发用）",
+  "child_focus_free_label": "自由专注",
+  "child_focus_session_label": "本次专注",
+  "child_focus_dnd_off": "未开启勿扰，通知仍会打扰",
+  "child_focus_dnd_go": "去开启",
+  "child_focus_wait_back": "向日葵在等你回来",
+  "child_focus_paused": "已暂停",
+  "child_focus_buffer_eyecare": "🌻 让眼睛休息一下吧",
+  "child_focus_buffer_end": "🌻 专注结束啦",
+  "child_focus_buffer_resume_hint": "休息完继续加油哦",
+  "child_focus_buffer_eyecare2": "让眼睛休息一下吧",
+  "child_focus_cap_notice": "今天的专注额度用完啦，剩下的时间不再收集阳光，累了随时可以结束哦",
+  "child_focus_no_touch": "本屏不可交互 · 竖屏即可结束",
+  "child_shell_tab_today": "今日",
+  "child_shell_tab_growth": "成长",
+  "child_shell_tab_garden": "花园",
+  "child_shell_tab_store": "商店",
+  "child_shell_tab_mine": "我的",
+  "child_shell_verify_title": "🎉 家长已确认你的兑换",
+  "child_shell_item_reward": "奖励",
+  "child_shell_item_cost": "-{sun} 阳光",
+  "child_shell_verify_total": "共扣除 {total} 阳光",
+  "child_shell_reject_title": "🚫 兑换未被通过",
+  "child_shell_reject_subtitle": "（{note}）",
+  "child_shell_reject_reason": "家长拒绝了该申请",
+  "child_shell_reject_footer": "本次阳光未被扣除，可重新兑换其他奖励",
+  "child_shell_task_footer_capped": "今日成长奖励已达上限，本次没有新增阳光",
+  "child_shell_task_footer_partial": "共获得 {total} 阳光（{capped} 项今日额度已满，未发放）",
+  "child_shell_task_footer": "共获得 {total} 阳光",
+  "child_shell_task_title": "🎉 家长已确认你的成长任务",
+  "child_shell_task_fallback": "成长任务",
+  "child_shell_task_item_sun": "+{sun} 阳光",
+  "child_shell_task_item_capped": "今日额度已满",
+  "garden_settle_withered": "花朵凋谢，奖励已自动收下：{parts}",
+  "@garden_settle_withered": {
+    "placeholders": {
+      "parts": {
+        "type": "Object"
+      }
+    }
+  },
+  "shared_op_failed": "操作失败：{error}",
+  "@shared_op_failed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "garden_shovel_refund": "铲除成功，返还 {refund} ☀",
+  "@garden_shovel_refund": {
+    "placeholders": {
+      "refund": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_shovel_ok": "铲除成功",
+  "garden_collect_gift_prefix": "盛开的礼物：{body}",
+  "@garden_collect_gift_prefix": {
+    "placeholders": {
+      "body": {
+        "type": "Object"
+      }
+    }
+  },
+  "garden_cleared_weed": "除草成功",
+  "garden_cleared_pest": "除虫成功",
+  "garden_reward_sunlight": "+{count} ☀ 阳光",
+  "@garden_reward_sunlight": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_seed_decomposed": "重复的「{name}」种子已分解为 {count} 植物碎片",
+  "@garden_seed_decomposed": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_reward_fragments": "+{count} 植物碎片",
+  "@garden_reward_fragments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_seed_dropped": "掉落「{name}」种子",
+  "@garden_seed_dropped": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "garden_gift_default": "收到一份小礼物～",
+  "garden_fx_sprout": "发芽啦！🌱",
+  "garden_fx_grow": "长大啦！🌿",
+  "garden_fx_bloom": "开花啦！🌻",
+  "garden_need_more_sun": "阳光不足，还差 {missing} ☀ —— 去专注赚阳光吧",
+  "@garden_need_more_sun": {
+    "placeholders": {
+      "missing": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_expand_title": "要给花园腾一个花盆吗？",
+  "garden_row_expand_cost": "本次扩容",
+  "garden_row_balance": "当前阳光",
+  "garden_expand_note": "花园容量：{count} 盆 → {next} 盆",
+  "@garden_expand_note": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "next": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_confirm_deduct": "确定，扣除",
+  "garden_batch_none_water": "今天没有可浇水的植物",
+  "garden_batch_none_fertilize": "今天没有可施肥的植物",
+  "garden_batch_none_care": "没有需要护理的植物",
+  "garden_row_total_cost": "本次合计扣除",
+  "garden_water_note": "将对 {count} 盆植物各浇 1 次水（每盆 {cost} ☀）",
+  "@garden_water_note": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "cost": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_fertilize_note": "将对 {count} 盆植物各施 1 次肥（每盆 {cost} ☀）",
+  "@garden_fertilize_note": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "cost": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_row_cleanup": "本次清理",
+  "garden_cleanup_count": "{count} 处",
+  "@garden_cleanup_count": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_care_note": "奖励照常发放：除草 +{weed} ☀ / 除虫 +{pest} ☀",
+  "@garden_care_note": {
+    "placeholders": {
+      "weed": {
+        "type": "int"
+      },
+      "pest": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_oneclick_water_title": "要一键浇水吗？",
+  "garden_oneclick_fertilize_title": "要一键施肥吗？",
+  "garden_oneclick_care_title": "要一键护理吗？",
+  "garden_oneclick_water_ok": "一键浇水成功 ×{count}",
+  "@garden_oneclick_water_ok": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_oneclick_fertilize_ok": "一键施肥成功 ×{count}",
+  "@garden_oneclick_fertilize_ok": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_oneclick_care_ok": "一键护理成功 ×{count}",
+  "@garden_oneclick_care_ok": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_pick_plant_title": "选择要种的植物",
+  "garden_cost_free": "免费",
+  "garden_cost_seed": "种子",
+  "garden_cost_sunlight": "{count} 阳光",
+  "@garden_cost_sunlight": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_reason_no_sun": "阳光不足",
+  "garden_cost_fragments": "{count} 植物碎片",
+  "@garden_cost_fragments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_reason_no_fragments": "植物碎片不足（当前 {count} 片）",
+  "@garden_reason_no_fragments": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_row_plant": "本次种植",
+  "garden_row_use_seed": "使用{rarity}种子",
+  "@garden_row_use_seed": {
+    "placeholders": {
+      "rarity": {
+        "type": "String"
+      }
+    }
+  },
+  "garden_seed_count": "{count} 张",
+  "@garden_seed_count": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_row_seed_balance": "当前种子",
+  "garden_seed_remaining": "种下后剩余 {count} 张",
+  "@garden_seed_remaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_row_use_fragments": "使用植物碎片",
+  "garden_fragment_cost": "−{count} 片",
+  "@garden_fragment_cost": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_row_fragment_balance": "当前碎片",
+  "garden_fragment_count": "{count} 片",
+  "@garden_fragment_count": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_fragment_remaining": "种下后剩余 {count} 片",
+  "@garden_fragment_remaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_sun_remaining": "种下后剩余 {count} ☀",
+  "@garden_sun_remaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_unknown_plant": "未知植物",
+  "garden_load_failed": "加载失败：{error}",
+  "@garden_load_failed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "garden_title": "我的花园",
+  "garden_refresh_tooltip": "刷新成长",
+  "garden_rarity_common": "普通",
+  "garden_rarity_premium": "精英",
+  "garden_flip_back": "点此翻回正面",
+  "garden_action_water": "一键浇水",
+  "garden_action_fertilize": "一键施肥",
+  "garden_action_care": "一键护理",
+  "garden_oneclick_title": "一键操作",
+  "garden_help_sheet_title": "碎片与种子",
+  "garden_help_fragment_title": "植物碎片",
+  "garden_help_fragment_use": "种植植物时可以代替阳光支付（精英植物要用碎片兑换）。",
+  "garden_help_fragment_how": "植物开花时的奖励里随机掉落。",
+  "garden_help_common_seed_title": "普通植物种子",
+  "garden_help_common_seed_use": "免费种下一株普通植物，种下时优先使用（不用扣阳光）。",
+  "garden_help_common_seed_how": "普通植物开花后小概率掉落；重复的种子会自动变成碎片。",
+  "garden_help_premium_seed_title": "精英植物种子",
+  "garden_help_premium_seed_use": "免费种下一株精英植物，种下时优先使用（不用扣碎片）。",
+  "garden_help_premium_seed_how": "精英植物开花后小概率掉落；重复的种子会自动变成碎片。",
+  "garden_help_use_prefix": "用途：{text}",
+  "@garden_help_use_prefix": {
+    "placeholders": {
+      "text": {
+        "type": "Object"
+      }
+    }
+  },
+  "garden_help_how_prefix": "获得：{text}",
+  "@garden_help_how_prefix": {
+    "placeholders": {
+      "text": {
+        "type": "Object"
+      }
+    }
+  },
+  "shared_got_it": "知道啦",
+  "shared_load_failed": "加载失败：{error}",
+  "@shared_load_failed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "shared_retry": "重试",
+  "shared_refresh": "刷新",
+  "shared_cancel": "取消",
+  "shared_no_sunlight": "阳光不足",
+  "shared_week_quota_full": "本周额度已满",
+  "shared_redeem": "兑换",
+  "store_title": "阳光商店",
+  "store_empty_hint": "商店还没上架奖励，请让家长先添加奖励模板",
+  "store_confirm_title": "确认兑换？",
+  "store_row_item": "兑换物品",
+  "store_row_cost": "消耗阳光",
+  "store_row_available": "可用阳光",
+  "store_warning_redeem": "提交后需家长核销，核销通过才会扣除阳光。",
+  "store_confirm_ok": "确认兑换",
+  "store_confirm_think": "再想想",
+  "store_result_verified": "兑换成功！阳光已扣除",
+  "store_result_cooldown": "本周已领过啦",
+  "store_result_no_balance": "阳光不足，再去专注赚一些吧",
+  "store_result_pool_full": "本周额度已满，下周再来吧",
+  "store_pending_feedback": "已提交，等家长确认哦～",
+  "store_pending_pill": "待核销 {count}",
+  "@store_pending_pill": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "store_celebration_text": "兑换成功！\n阳光已扣除",
+  "task_checkin_failed": "打卡失败：{error}",
+  "@task_checkin_failed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "task_feedback_pending": "已经告诉爸爸妈妈啦，等他们确认就发阳光 🌻",
+  "task_feedback_cap": "今天的成长奖励已经拿满 {cap} 啦，明天再来",
+  "@task_feedback_cap": {
+    "placeholders": {
+      "cap": {
+        "type": "int"
+      }
+    }
+  },
+  "task_feedback_capped": "太棒了！+{granted} 阳光（今日成长奖励已达上限，本次只到账 {granted}）",
+  "@task_feedback_capped": {
+    "placeholders": {
+      "granted": {
+        "type": "Object"
+      }
+    }
+  },
+  "task_feedback_granted": "太棒了！+{granted} 阳光",
+  "@task_feedback_granted": {
+    "placeholders": {
+      "granted": {
+        "type": "Object"
+      }
+    }
+  },
+  "task_perfect_title": "🌻 今日成长项全部完成！",
+  "task_perfect_footer": "你今天把全部成长项都做完啦，获得「完美日」标记！",
+  "task_perfect_ok": "太棒啦",
+  "task_empty_hint": "今天没有成长项，去玩吧 🌻",
+  "task_progress_title": "今日成长",
+  "task_weekly_more": "· 另有每周 {count} 项",
+  "@task_weekly_more": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "task_badge_daily": "每日",
+  "task_badge_weekly": "每周",
+  "task_info_focus": "{subject} · 需专注 · +{reward} ☀",
+  "@task_info_focus": {
+    "placeholders": {
+      "subject": {
+        "type": "Object"
+      },
+      "reward": {
+        "type": "int"
+      }
+    }
+  },
+  "task_info_plain": "{subject} · +{reward} ☀",
+  "@task_info_plain": {
+    "placeholders": {
+      "subject": {
+        "type": "Object"
+      },
+      "reward": {
+        "type": "int"
+      }
+    }
+  },
+  "task_status_waiting": "等家长确认",
+  "task_status_done_focus": "已完成",
+  "task_status_done": "已做到",
+  "task_action_do": "我做",
+  "task_action_do2": "到了",
+  "task_action_focus": "去专注",
+  "task_focus_minutes": "{count}分钟",
+  "@task_focus_minutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "profile_balance_line": "我的阳光：{count} ☀",
+  "@profile_balance_line": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "profile_source_label": "来源",
+  "profile_achievements_title": "累计成就",
+  "profile_stat_focus_minutes": "累计专注时长",
+  "profile_value_minutes": "{count} 分钟",
+  "@profile_value_minutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "profile_stat_sessions": "累计专注次数",
+  "profile_value_times": "{count} 次",
+  "@profile_value_times": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "profile_stat_valid_days": "累计有效专注天数",
+  "profile_value_days": "{count} 天",
+  "@profile_value_days": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "profile_stat_checkins": "累计成长打卡",
+  "profile_stat_bloomed": "累计开花植物",
+  "profile_value_plants": "{count} 株",
+  "@profile_value_plants": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "profile_stat_eyecare": "累计护眼",
+  "hist_title": "阳光来源记录",
+  "hist_empty_hint": "还没有阳光记录哦 🌻",
+  "hist_balance_label": "当前拥有阳光",
+  "hist_other": "其他",
+  "hist_subtitle": "{time} · 余额 {balance} ☀",
+  "@hist_subtitle": {
+    "placeholders": {
+      "time": {
+        "type": "Object"
+      },
+      "balance": {
+        "type": "int"
+      }
+    }
+  },
+  "card_stage_seed": "种子",
+  "card_stage_sprout": "幼苗",
+  "card_stage_adult": "成株",
+  "card_status_growing": "成长中",
+  "card_status_bloomed": "已开花 🌻",
+  "card_status_wilting": "枯萎中（快救回！）",
+  "card_status_dead": "已枯萎",
+  "card_mood_happy": "😊 今天有专注，我很开心",
+  "card_mood_calm": "😌 状态平稳",
+  "card_mood_thirsty": "🥵 有点口渴，该浇水啦",
+  "card_hint_bloomed": "已开花 🌻 每天养护，明天晨露阳光满额",
+  "card_hint_next_soon": "即将进入下一阶段…",
+  "card_hint_progress": "本阶段成长 {percent}%",
+  "@card_hint_progress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "card_hint_grow_days": "每天按时养护，还需约 {days} 天长成",
+  "@card_hint_grow_days": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "card_hint_bloom_left": "花期剩余 {days} 天",
+  "@card_hint_bloom_left": {
+    "placeholders": {
+      "days": {
+        "type": "Object"
+      }
+    }
+  },
+  "card_action_shovel": "铲除",
+  "card_action_clear": "铲除回收",
+  "card_action_water": "浇水",
+  "card_action_water_gain": "浇水 +{gain}%",
+  "@card_action_water_gain": {
+    "placeholders": {
+      "gain": {
+        "type": "Object"
+      }
+    }
+  },
+  "card_action_fertilize": "施肥",
+  "card_action_fertilize_gain": "施肥 +{gain}%",
+  "@card_action_fertilize_gain": {
+    "placeholders": {
+      "gain": {
+        "type": "Object"
+      }
+    }
+  },
+  "card_quota_left": "今日剩余：浇水 {water}/{waterMax} 次 · 施肥 {fert}/{fertMax} 次",
+  "@card_quota_left": {
+    "placeholders": {
+      "water": {
+        "type": "int"
+      },
+      "waterMax": {
+        "type": "int"
+      },
+      "fert": {
+        "type": "int"
+      },
+      "fertMax": {
+        "type": "int"
+      }
+    }
+  },
+  "card_wilt_easy": "浇水 1 次即可救回",
+  "card_wilt_hard": "需浇水 {water} 次 + 施肥 {fert} 次才能救回",
+  "@card_wilt_hard": {
+    "placeholders": {
+      "water": {
+        "type": "int"
+      },
+      "fert": {
+        "type": "int"
+      }
+    }
+  },
+  "care_shovel_title": "要铲除「{name}」吗？",
+  "@care_shovel_title": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "care_this_plant": "这株植物",
+  "care_shovel_warning": "铲除后这株植物会消失。",
+  "care_row_refund": "返还种植阳光",
+  "care_note_no_refund_water": "浇水施肥的阳光不返还",
+  "care_note_no_refund": "本次铲除不返还阳光",
+  "care_confirm_shovel": "确定铲除",
+  "care_gone_hint": "这株植物已经不在花园里啦",
+  "care_footer_hint": "植物也会随时间自然生长，按时养护才能早点开花 🌻\n盛开后每天浇 1 次水或施 1 次肥，第二天晨露阳光才是满额 🌻\n（忘了也会掉落，只是阳光减半 —— 不会一点都没有）",
+  "plant_confirm_title": "要种下{name}吗？",
+  "@plant_confirm_title": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "plant_confirm_ok": "确定种植",
+  "pot_tooltip_weed": "有杂草，点我拔掉 +{count} ☀",
+  "@pot_tooltip_weed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pot_tooltip_pest": "有害虫，点我除掉 +{count} ☀",
+  "@pot_tooltip_pest": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pot_label_bloomed": "{name} · 开花",
+  "@pot_label_bloomed": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "pot_label_wilting": "{name} · 快救回",
+  "@pot_label_wilting": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "pot_label_dead": "{name} · 已枯萎",
+  "@pot_label_dead": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "pot_label_locked": "需解锁",
+  "pot_label_expand": "加盆 · {cost}☀",
+  "@pot_label_expand": {
+    "placeholders": {
+      "cost": {
+        "type": "int"
+      }
+    }
+  },
+  "pot_label_shortfall": "还差 {count}☀",
+  "@pot_label_shortfall": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ghelp_title": "玩法说明",
+  "ghelp_earn_title": "怎么挣阳光",
+  "ghelp_earn_detail": "白天专注就能挣阳光：每分钟 +{perMinute} ☀；\n完成成长任务打卡，每项还 +{taskReward} ☀。",
+  "@ghelp_earn_detail": {
+    "placeholders": {
+      "perMinute": {
+        "type": "int"
+      },
+      "taskReward": {
+        "type": "int"
+      }
+    }
+  },
+  "ghelp_use_title": "阳光能干什么",
+  "ghelp_use_detail": "在花园种植物（点空花盆选一株，花 ☀ 种下）；\n给植物浇水 {waterCost} ☀/次起、施肥 {fertCost} ☀/次起；\n也可以去「商店」兑换喜欢的奖励。",
+  "@ghelp_use_detail": {
+    "placeholders": {
+      "waterCost": {
+        "type": "int"
+      },
+      "fertCost": {
+        "type": "int"
+      }
+    }
+  },
+  "ghelp_grow_title": "植物怎么长大",
+  "ghelp_grow_detail": "不照顾也会随时间自己长大；浇水 +{waterGain}%、施肥 +{fertGain}% 长得更快\n（花谢后重新养时增量会小一些，看按钮上的实际数字；\n每天最多浇 {waterMax} 次、施 {fertMax} 次，两次浇水要隔 {interval} 分钟）；\n进度养满就开花，开满 {bloomDays} 天后花谢，再养满又能再开 🌻",
+  "@ghelp_grow_detail": {
+    "placeholders": {
+      "waterGain": {
+        "type": "int"
+      },
+      "fertGain": {
+        "type": "int"
+      },
+      "waterMax": {
+        "type": "int"
+      },
+      "fertMax": {
+        "type": "int"
+      },
+      "interval": {
+        "type": "int"
+      },
+      "bloomDays": {
+        "type": "int"
+      }
+    }
+  },
+  "ghelp_wilt_title": "别让植物枯萎",
+  "ghelp_wilt_detail": "浇水或施肥能刷新计时；{wiltDays} 天没浇水就会枯萎，\n枯萎后再拖 {deathDays} 天就会枯死。记得常来看看它 🌱",
+  "@ghelp_wilt_detail": {
+    "placeholders": {
+      "wiltDays": {
+        "type": "int"
+      },
+      "deathDays": {
+        "type": "int"
+      }
+    }
+  },
+  "ghelp_task_title": "任务打卡与家长核销",
+  "ghelp_task_detail": "成长任务有两种：\n「开始专注」的任务，达标后自动结算阳光；\n「我做到了」的任务，先记成「等家长确认」，\n爸爸妈妈核销通过后，阳光才真正到账。",
+  "ghelp_capacity_title": "花园容量",
+  "ghelp_capacity_detail": "{capacity} / {max} 盆",
+  "@ghelp_capacity_detail": {
+    "placeholders": {
+      "capacity": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "ghelp_expand_title": "扩容",
+  "ghelp_expand_detail": "点「+」格，花 {cost} ☀ 可以多一个花盆（上限 {max} 盆）",
+  "@ghelp_expand_detail": {
+    "placeholders": {
+      "cost": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "prd_pending_reminder": "这次的阳光奖励还在等你确认哦～",
+  "prd_avatar_locked_hint": "种下这种植物后可以选它当头像",
+  "prd_eyecare_not_skippable": "不可跳过，请爱护眼睛",
+  "prd_eyecare_finish": "跳过护眼休息",
+  "prd_eyecare_early_title": "还没休息完就结束吗？",
+  "prd_eyecare_early_body": "护眼还没做完，现在结束就没有小阳光奖励哦。小眼睛要多休息才会亮晶晶，再坚持一下吧！",
+  "prd_eyecare_early_stay": "再休息一会儿",
+  "prd_eyecare_early_quit": "确定结束",
+  "prd_level_locked_title": "尚未解锁称号",
+  "prd_level_detail_ok": "知道了",
+  "prd_premium_upsell_hint": "请升级到完整版本功能",
+  "fx_level_up_title": "解锁新称号！",
+  "fx_level_up_level_title": "升级啦！",
+  "fx_level_up_multi": "连升 {n} 个称号！",
+  "@fx_level_up_multi": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "fx_level_up_level_multi": "连升 {n} 级！",
+  "@fx_level_up_level_multi": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "fx_level_up_perk": "本称号专属：{text}",
+  "@fx_level_up_perk": {
+    "placeholders": {
+      "text": {
+        "type": "Object"
+      }
+    }
+  },
+  "fx_level_up_perk_locked": " · 🔒付费解锁"
+}

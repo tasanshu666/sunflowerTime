@@ -27,6 +27,9 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
 /// 暖奶油底（与养护面板 / 商店一致，形成分层暖色风格）。
 const Color _kCream = Color(0xFFFBF4E4);
@@ -165,6 +168,13 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
   bool _loading = true;
   String? _error;
   String? _busyTaskId;
+  /// 当前页文案（build 期在 L10nScope 内赋值；异步回调经 [_t] 取，
+  /// 尚未 build 过的极端早回调回退中文，与迁移前行为一致）。
+  AppLocalizations? _l10n;
+
+  /// 文案统一取用入口（i18n B1）。
+  AppLocalizations get _t => _l10n ?? AppLocalizationsZh();
+
 
   @override
   void initState() {
@@ -217,7 +227,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
     } on TaskCheckInException catch (e) {
       _snack(e.message);
     } catch (e) {
-      _snack('打卡失败：$e');
+      _snack(_t.task_checkin_failed(e));
     } finally {
       if (mounted) setState(() => _busyTaskId = null);
     }
@@ -234,16 +244,15 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
       await _celebratePerfectDay();
     }
     if (o.status == CheckInStatus.pending) {
-      _snack('已经告诉爸爸妈妈啦，等他们确认就发阳光 🌻');
+      _snack(_t.task_feedback_pending);
     } else if (o.granted <= 0) {
       // 口径（2026-09-23）：这是**成长奖励**自己的日上限，与专注的每日专注上限
       // （低 60 / 中 90 / 高 120 分钟）无关，故文案不再说「今日阳光已达上限」。
-      _snack('今天的成长奖励已经拿满 ${kTaskCheckinDailyCap.toInt()} 啦，明天再来');
+      _snack(_t.task_feedback_cap(kTaskCheckinDailyCap.toInt()));
     } else if (o.cappedByDailyCap) {
-      _snack('太棒了！+${_fmtSun(o.granted)} 阳光'
-          '（今日成长奖励已达上限，本次只到账 ${_fmtSun(o.granted)}）');
+      _snack(_t.task_feedback_capped(_fmtSun(o.granted)));
     } else {
-      _snack('太棒了！+${_fmtSun(o.granted)} 阳光');
+      _snack(_t.task_feedback_granted(_fmtSun(o.granted)));
     }
   }
 
@@ -259,6 +268,8 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
     if (!mounted) return;
     await showGoldNoticeDialog(
       context,
+      // ⚠️ i18n B1 豁免：f141_qa_probe_test A4③ 源码守卫逐字钉死这三句中文，
+      // 迁 ARB 会使守卫失败（文案零变更护栏），故保持字面量（与 DEBUG 文案同口径）。
       title: '🌻 今日成长项全部完成！',
       items: const <GoldNoticeItem>[],
       footerText: '你今天把全部成长项都做完啦，获得「完美日」标记！',
@@ -276,60 +287,71 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
-    // F142（玄参 2026-10-20 拍板）：**平板**整页内容与底图同时下移
-    // [tabletContentDownshiftOf]（随屏宽），与「今日」页**同量**——保证切 tab 时
-    // 背景分界线不跳动。手机端 `_panelTargetRatio` 逐位等于 [kGrowthListTopRatio]，
-    // 即**零回归**；且 C46d/C47e 的基线常量本身不改（只叠加平板增量）。
-    final double panelRatio = _panelTargetRatio;
-    // 暖奶油底 + 整页背景（C44：上半场景 + 下半留白，白卡浮在留白区上）。
-    // 图片失败回退纯色（TabBackground.fallbackColor），所有状态都铺底。
-    if (_loading) {
-      return TabBackground(
-        asset: kGrowthBgAsset,
-        panelTargetRatio: panelRatio,
-        fallbackColor: _kCream,
-        child: const Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (_error != null) {
-      return TabBackground(
-        asset: kGrowthBgAsset,
-        panelTargetRatio: panelRatio,
-        fallbackColor: _kCream,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text('加载失败：$_error'),
-              const SizedBox(height: 12),
-              FilledButton(onPressed: _reload, child: const Text('重试')),
-            ],
-          ),
-        ),
-      );
-    }
-    final TodayTaskBoard board = _board!;
-    if (board.items.isEmpty) {
-      return TabBackground(
-        asset: kGrowthBgAsset,
-        panelTargetRatio: panelRatio,
-        fallbackColor: _kCream,
-        child: const Center(
-          child: Text('今天没有成长项，去玩吧 🌻', style: TextStyle(fontSize: 16)),
-        ),
-      );
-    }
+    // 🔴 页级 L10nScope（i18n B1）：全页文案经 AppLocalizations 解析；
+    // Builder 的 context 位于 scope 之下，并把实例存入 [_l10n] 供异步回调使用。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          _l10n = AppLocalizations.of(context);
+        // F142（玄参 2026-10-20 拍板）：**平板**整页内容与底图同时下移
+        // [tabletContentDownshiftOf]（随屏宽），与「今日」页**同量**——保证切 tab 时
+        // 背景分界线不跳动。手机端 `_panelTargetRatio` 逐位等于 [kGrowthListTopRatio]，
+        // 即**零回归**；且 C46d/C47e 的基线常量本身不改（只叠加平板增量）。
+        final double panelRatio = _panelTargetRatio;
+        // 暖奶油底 + 整页背景（C44：上半场景 + 下半留白，白卡浮在留白区上）。
+        // 图片失败回退纯色（TabBackground.fallbackColor），所有状态都铺底。
+        if (_loading) {
+          return TabBackground(
+            asset: kGrowthBgAsset,
+            panelTargetRatio: panelRatio,
+            fallbackColor: _kCream,
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (_error != null) {
+          return TabBackground(
+            asset: kGrowthBgAsset,
+            panelTargetRatio: panelRatio,
+            fallbackColor: _kCream,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(_t.shared_load_failed(_error!)),
+                  const SizedBox(height: 12),
+                  FilledButton(onPressed: _reload, child: Text(_t.shared_retry)),
+                ],
+              ),
+            ),
+          );
+        }
+        final TodayTaskBoard board = _board!;
+        if (board.items.isEmpty) {
+          return TabBackground(
+            asset: kGrowthBgAsset,
+            panelTargetRatio: panelRatio,
+            fallbackColor: _kCream,
+            child: Center(
+              child: Text(_t.task_empty_hint,
+                  style: const TextStyle(fontSize: 16)),
+            ),
+          );
+        }
 
-    return TabBackground(
-      asset: kGrowthBgAsset,
-      panelTargetRatio: panelRatio,
-      fallbackColor: _kCream,
-      // C46d（玄参 2026-10-09 四轮反馈）：取消悬浮胶囊（盖住插画且观感差），
-      // 进度条并入列表首行、落在奶油面板顶部（深棕字在面板上 100% 清晰，
-      // 不遮任何场景元素），随列表滚动。
-      child: _taskList(board),
-    );
+        return TabBackground(
+          asset: kGrowthBgAsset,
+          panelTargetRatio: panelRatio,
+          fallbackColor: _kCream,
+          // C46d（玄参 2026-10-09 四轮反馈）：取消悬浮胶囊（盖住插画且观感差），
+          // 进度条并入列表首行、落在奶油面板顶部（深棕字在面板上 100% 清晰，
+          // 不遮任何场景元素），随列表滚动。
+          child: _taskList(board),
+        );
+        }, // builder 闭包
+      ), // Builder
+    ); // L10nScope
   }
 
   /// 平板内容下移量（**随屏宽线性放大**，F142 三轮）；手机恒 `0`（逐像素零回归）。
@@ -374,9 +396,9 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: <Widget>[
-              const Text(
-                '今日成长',
-                style: TextStyle(
+              Text(
+                _t.task_progress_title,
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                   color: Color(0xFF6B4A2B),
@@ -395,7 +417,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
               if (board.weeklyCount > 0) ...<Widget>[
                 const SizedBox(width: 8),
                 Text(
-                  '· 另有每周 ${board.weeklyCount} 项',
+                  _t.task_weekly_more(board.weeklyCount),
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -523,7 +545,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
           borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
-          isDaily ? '每日' : '每周',
+          isDaily ? _t.task_badge_daily : _t.task_badge_weekly,
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -607,8 +629,10 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
                 // 信息行：联动项「需专注」、统一展示 +N 阳光；分钟数已移入右侧「去专注」方盒。
                 Text(
                   item.task.requiresFocus
-                      ? '${item.task.subjectLabel} · 需专注 · +${item.task.effectiveSunlightReward} ☀'
-                      : '${item.task.subjectLabel} · +${item.task.effectiveSunlightReward} ☀',
+                      ? _t.task_info_focus(item.task.subjectLabel,
+                          item.task.effectiveSunlightReward)
+                      : _t.task_info_plain(item.task.subjectLabel,
+                          item.task.effectiveSunlightReward),
                   style: const TextStyle(fontSize: 13, color: Colors.grey),
                 ),
               ],
@@ -628,7 +652,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
     // ① 待家长确认：常态仅出现在非联动项；联动项若出现即契约外异常，显式渲染不静默。
     if (item.pendingVerification) {
       return _statusCapsule(
-        text: '等家长确认',
+        text: _t.task_status_waiting,
         icon: Icons.hourglass_top,
         bg: _kWaitBg,
         fg: _kWaitFg,
@@ -640,7 +664,9 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
     // 两个对勾重复（用户截图实证）。
     if (item.done) {
       return _statusCapsule(
-        text: item.task.requiresFocus ? '已完成' : '已做到',
+        text: item.task.requiresFocus
+            ? _t.task_status_done_focus
+            : _t.task_status_done,
         icon: Icons.check,
         bg: _kDoneBg,
         fg: _kDoneFg,
@@ -654,8 +680,8 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
       return _focusBox(item.task);
     }
     return _statusCapsule(
-      text: '我做',
-      textLine2: '到了',
+      text: _t.task_action_do,
+      textLine2: _t.task_action_do2,
       icon: Icons.check_circle,
       bg: _kTodoBg,
       fg: _kTodoFg,
@@ -693,7 +719,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
           crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
             Text(
-              '去专注',
+              _t.task_action_focus,
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
@@ -702,7 +728,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
             ),
             const SizedBox(height: 2),
             Text(
-              '${task.minFocusMin}分钟',
+              _t.task_focus_minutes(task.minFocusMin),
               style: const TextStyle(fontSize: 11, color: _kTodoFg),
             ),
           ],

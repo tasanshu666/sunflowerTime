@@ -28,10 +28,13 @@ import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
@@ -98,6 +101,8 @@ class FocusPage extends ConsumerStatefulWidget {
 
 class _FocusPageState extends ConsumerState<FocusPage>
     with WidgetsBindingObserver {
+  /// i18n（B1）：页内文案（build 时在 L10nScope 内解析，见 build/异步方法）。
+  AppLocalizations? _l10n;
   late final FocusEngine _engine;
   StreamSubscription<FocusEvent>? _eventSub;
   PresenceDetector? _presence;
@@ -257,9 +262,10 @@ class _FocusPageState extends ConsumerState<FocusPage>
       if (mounted && !_dndHintShown) {
         _dndHintShown = true;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('请在系统设置中开启勿扰权限以屏蔽通知'),
-            duration: Duration(seconds: 4),
+          SnackBar(
+            content:
+                Text((_l10n ?? AppLocalizationsZh()).child_focus_dnd_permission),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -590,14 +596,15 @@ class _FocusPageState extends ConsumerState<FocusPage>
   /// `_paused = true`（计时冻结、又没进结算）＝ 卡死。现按「只有 `false` 才算
   /// 结束」判定：任何非确认路径（含 null）都能恢复计时，不存在卡死分支。
   Future<void> _showExitConfirm() async {
+    final AppLocalizations l10n = _l10n ?? AppLocalizationsZh();
     final bool? ok = await showChildConfirmCard(
       context: context,
       // 原语义保留：点卡外不关（只允许明确点「再坐一会 / 结束」）。
       barrierDismissible: false,
-      title: '确定结束吗？',
-      message: '向日葵还在这儿陪着你，要现在结束专注吗？',
-      confirmLabel: '再坐一会', // 主按钮：金色实心（默认期望）
-      cancelLabel: '结束', // 次按钮：弱化（中断专注不是默认动作）
+      title: l10n.child_focus_exit_title,
+      message: l10n.child_focus_exit_body,
+      confirmLabel: l10n.child_focus_exit_stay, // 主按钮：金色实心（默认期望）
+      cancelLabel: l10n.child_focus_exit_end, // 次按钮：弱化（中断专注不是默认动作）
     );
     if (!mounted) return;
     // ⚠️ 只有 `false`（点了次按钮「结束」）才结束；`true` / `null` 都恢复计时。
@@ -861,7 +868,14 @@ class _FocusPageState extends ConsumerState<FocusPage>
     // 故 iOS 一律不渲染条幅（占位高度随 showBanner 同步为 0）；安卓维持现状。
     final bool showBanner =
         _dndBanner && widget.dnd && !_finished && Platform.isAndroid;
-    return PopScope(
+    // i18n（B1）：页级 L10nScope + Builder —— 文案取用统一走 scope 内上下文；
+    // 闭包参数 `context` 遮蔽外层；State 异步方法经 [_l10n] 取文案。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      _l10n = l10n;
+      return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
@@ -905,7 +919,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
                 top: 8,
                 right: 8,
                 child: IconButton(
-                  tooltip: '调试：快进 5 分钟（护眼触发用）',
+                  tooltip: l10n.child_focus_debug_ff,
                   icon: const Icon(
                     Icons.bug_report,
                     color: Color(0x55FFFFFF),
@@ -927,7 +941,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        widget.freeMode ? '自由专注' : '本次专注',
+                        widget.freeMode
+                            ? l10n.child_focus_free_label
+                            : l10n.child_focus_session_label,
                         style: const TextStyle(
                           color: Color(0xFF9E9ECF),
                           fontSize: 14,
@@ -1049,10 +1065,11 @@ class _FocusPageState extends ConsumerState<FocusPage>
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   child: Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          '未开启勿扰，通知仍会打扰',
-                          style: TextStyle(color: Color(0xFFFFE082), fontSize: 13),
+                          l10n.child_focus_dnd_off,
+                          style: const TextStyle(
+                              color: Color(0xFFFFE082), fontSize: 13),
                         ),
                       ),
                       TextButton(
@@ -1060,9 +1077,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
                           await _dnd.requestAccess();
                           unawaited(_reapplyDndIfGranted());
                         },
-                        child: const Text(
-                          '去开启',
-                          style: TextStyle(color: Color(0xFFFFE082)),
+                        child: Text(
+                          l10n.child_focus_dnd_go,
+                          style: const TextStyle(color: Color(0xFFFFE082)),
                         ),
                       ),
                     ],
@@ -1074,18 +1091,20 @@ class _FocusPageState extends ConsumerState<FocusPage>
               Container(
                 color: Colors.black.withValues(alpha: 0.45),
                 alignment: Alignment.center,
-                child: const Text(
-                  '向日葵在等你回来',
-                  style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 18),
+                child: Text(
+                  l10n.child_focus_wait_back,
+                  style: const TextStyle(
+                      color: Color(0xFF9E9E9E), fontSize: 18),
                 ),
               ),
             // 暂停遮罩（退出确认）
             if (_paused)
               Container(
                 color: Colors.black54,
-                child: const Center(
-                  child: Text('已暂停',
-                      style: TextStyle(color: Colors.white, fontSize: 28)),
+                child: Center(
+                  child: Text(l10n.child_focus_paused,
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 28)),
                 ),
               ),
             // 到时结束 / 场内触发 → 护眼卡之前的 5s 过渡缓冲（玄参 2026-10-08；
@@ -1099,7 +1118,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Text(
-                      _endingInSession ? '🌻 让眼睛休息一下吧' : '🌻 专注结束啦',
+                      _endingInSession
+                          ? l10n.child_focus_buffer_eyecare
+                          : l10n.child_focus_buffer_end,
                       style: const TextStyle(
                         color: Color(0xFFFFE082),
                         fontSize: 30,
@@ -1109,7 +1130,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      _endingInSession ? '休息完继续加油哦' : '让眼睛休息一下吧',
+                      _endingInSession
+                          ? l10n.child_focus_buffer_resume_hint
+                          : l10n.child_focus_buffer_eyecare2,
                       style: const TextStyle(
                         color: Color(0xFF9E9ECF),
                         fontSize: 18,
@@ -1130,8 +1153,11 @@ class _FocusPageState extends ConsumerState<FocusPage>
               ),
           ],
         ),
-      ),
-    );
+      ), // Scaffold
+      ); // PopScope（内层 return 收口）
+        }, // builder 闭包
+      ), // Builder
+    ); // L10nScope
   }
 }
 
@@ -1144,7 +1170,12 @@ class _FocusQuotaHintCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // i18n（B1）：卡片渲染在专注页 scope 之内，但为免他处复用（裸宿主），
+    // 自带一层 L10nScope。
+    return L10nScope(
+      child: Builder(builder: (BuildContext context) {
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      return Container(
       width: 244,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -1154,15 +1185,15 @@ class _FocusQuotaHintCard extends StatelessWidget {
           BoxShadow(color: Colors.black26, blurRadius: 8),
         ],
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Text('🌻', style: TextStyle(fontSize: 18)),
-          SizedBox(width: 8),
+          const Text('🌻', style: TextStyle(fontSize: 18)),
+          const SizedBox(width: 8),
           Flexible(
             child: Text(
-              '今天的专注额度用完啦，剩下的时间不再收集阳光，累了随时可以结束哦',
-              style: TextStyle(
+              l10n.child_focus_cap_notice,
+              style: const TextStyle(
                 color: Color(0xFF5D4037),
                 fontSize: 13,
                 height: 1.35,
@@ -1172,6 +1203,8 @@ class _FocusQuotaHintCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+      }),
     );
   }
 }
@@ -1183,21 +1216,25 @@ class _FocusHintChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // i18n（B1）：同 [_FocusQuotaHintCard]，自带一层 L10nScope。
+    return L10nScope(
+      child: Builder(builder: (BuildContext context) {
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('🌻', style: TextStyle(fontSize: 12)),
-          SizedBox(width: 8),
+          const Text('🌻', style: TextStyle(fontSize: 12)),
+          const SizedBox(width: 8),
           Text(
-            '本屏不可交互 · 竖屏即可结束',
-            style: TextStyle(
+            l10n.child_focus_no_touch,
+            style: const TextStyle(
               color: Color(0xFF8A8AA3),
               fontSize: 12,
               letterSpacing: 0.5,
@@ -1205,6 +1242,8 @@ class _FocusHintChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+      }),
     );
   }
 }

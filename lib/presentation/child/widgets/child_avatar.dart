@@ -27,6 +27,8 @@
 library child_avatar;
 
 import 'package:flutter/material.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -110,14 +112,19 @@ Future<String?> showChildAvatarPickerDialog(
   return showDialog<String>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.35),
+    // i18n（B1）：弹窗 builder 上下文在页级 scope 之外 → 内容自带 L10nScope，
+    // 页内文案经内部上下文取用（不依赖宿主挂 delegates）。
     builder: (BuildContext dialogCtx) {
+      return L10nScope(
+        child: Builder(builder: (BuildContext ctx) {
+      final AppLocalizations l10n = AppLocalizations.of(ctx);
       // 🔴 C91 二轮：固定每行 3 个的对称网格 —— 全部候选（阳光 + 物种）先
       // 收集成一维列表，下方按 3 个一行切块渲染（每行居中，尾行不满也居中）。
       final List<Widget> options = <Widget>[
         _AvatarOption(
           key: const ValueKey<String>('avatar_option_$kChildAvatarSun'),
           value: kChildAvatarSun,
-          label: '阳光',
+          label: l10n.shared_sunlight,
           selected: currentAvatar == kChildAvatarSun,
           locked: false,
           onTap: () => Navigator.of(dialogCtx).pop(kChildAvatarSun),
@@ -139,9 +146,9 @@ Future<String?> showChildAvatarPickerDialog(
             onTap: () => Navigator.of(dialogCtx).pop(s.id),
             onLockedTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(kChildAvatarLockedHint),
-                  duration: Duration(seconds: 2),
+                SnackBar(
+                  content: Text(l10nOf(context).prd_avatar_locked_hint),
+                  duration: const Duration(seconds: 2),
                 ),
               );
             },
@@ -190,9 +197,9 @@ Future<String?> showChildAvatarPickerDialog(
                             color: Colors.white, size: 26),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        '选择头像',
-                        style: TextStyle(
+                      Text(
+                        l10n.child_avatar_pick,
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: kChildAvatarGoldDeep,
@@ -200,7 +207,7 @@ Future<String?> showChildAvatarPickerDialog(
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '种下过的植物可以拿来当头像',
+                        l10n.child_avatar_hint,
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.brown.shade400,
@@ -240,7 +247,9 @@ Future<String?> showChildAvatarPickerDialog(
             ),
           ),
         ),
-      );
+      ); // Dialog（内层 return 收口）
+        }), // Builder builder 闭包 + Builder
+      ); // L10nScope
     },
   );
 }

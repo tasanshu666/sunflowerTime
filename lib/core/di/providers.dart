@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
+import 'package:sunflower_time/core/i18n/app_language.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart';
 import 'package:sunflower_time/data/local/focus_level_prefs_store.dart';
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
@@ -73,6 +74,16 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) => AppDatabase());
 /// 首启同意标记存储（shared_preferences 封装）。
 final settingsStoreProvider = Provider<SettingsStore>(
   (ref) => SettingsStore(ref.watch(sharedPreferencesProvider)),
+);
+
+/// 界面语言（i18n B1 批次，架构设计定稿）。
+///
+/// 初始值 `system`（构造安全，不触 SP）；冷启动由 `main` 读 SP 存档后
+/// `overrideWithValue` 落真值并同步 `AppLocaleController.init`。切换语言的
+/// 写入口统一走 `LanguagePicker.applyLanguage`（`AppLocaleController.set` +
+/// 更新本 Provider）。App 壳 watch 本值 → `locale:` 即时生效。
+final appLanguageProvider = StateProvider<AppLanguage>(
+  (ref) => AppLanguage.system,
 );
 
 // ── Repository 装配 ───────────────────────────────────────────────

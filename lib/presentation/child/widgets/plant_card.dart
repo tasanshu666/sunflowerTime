@@ -31,6 +31,8 @@ import 'package:sunflower_time/domain/services/plant_perk.dart' as title_perk
 import 'package:sunflower_time/domain/services/plant_perk_registry.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 import 'plant_artwork.dart';
 
@@ -63,17 +65,17 @@ class PlantCard extends StatelessWidget {
     this.perk,
   });
 
-  String get _stageLabel {
+  String _stageLabel(AppLocalizations l10n) {
     final String stageName = switch (plant.stage) {
-      PlantStage.seed => '种子',
-      PlantStage.sprout => '幼苗',
-      PlantStage.adult => '成株',
+      PlantStage.seed => l10n.card_stage_seed,
+      PlantStage.sprout => l10n.card_stage_sprout,
+      PlantStage.adult => l10n.card_stage_adult,
     };
     final String statusName = switch (plant.status) {
-      PlantStatus.growing => '成长中',
-      PlantStatus.bloomed => '已开花 🌻',
-      PlantStatus.wilting => '枯萎中（快救回！）',
-      PlantStatus.dead => '已枯萎',
+      PlantStatus.growing => l10n.card_status_growing,
+      PlantStatus.bloomed => l10n.card_status_bloomed,
+      PlantStatus.wilting => l10n.card_status_wilting,
+      PlantStatus.dead => l10n.card_status_dead,
     };
     return '$stageName · $statusName';
   }
@@ -91,14 +93,14 @@ class PlantCard extends StatelessWidget {
     }
   }
 
-  String get _moodLabel {
+  String _moodLabel(AppLocalizations l10n) {
     switch (plant.mood) {
       case PlantMood.happy:
-        return '😊 今天有专注，我很开心';
+        return l10n.card_mood_happy;
       case PlantMood.calm:
-        return '😌 状态平稳';
+        return l10n.card_mood_calm;
       case PlantMood.thirsty:
-        return '🥵 有点口渴，该浇水啦';
+        return l10n.card_mood_thirsty;
     }
   }
 
@@ -136,16 +138,17 @@ class PlantCard extends StatelessWidget {
   ///    + 施肥 [kPlantFertilizeMaxPerDay] 次 × [kPlantFertilizeProgressGain]。
   ///
   /// 口径只用于卡片展示，不写回任何数据；常量变了文案自动跟随，无裸字面量。
-  String get _nextStageHint {
+  String _nextStageHint(AppLocalizations l10n) {
     if (plant.status == PlantStatus.bloomed) {
       // F111：盛开期可养护（防枯萎 + 保次日晨露满额），不再暗示「养护能延长花期」。
-      return '已开花 🌻 每天养护，明天晨露阳光满额';
+      return l10n.card_hint_bloomed;
     }
     final double remaining = (1.0 - plant.growthProgress).clamp(0.0, 1.0);
-    if (remaining <= 0.001) return '即将进入下一阶段…';
+    if (remaining <= 0.001) return l10n.card_hint_next_soon;
 
     // 兜底：阶段时长 / 每日推进量之一无效时退化为「只报百分比」，绝不显示荒谬数字。
-    final String percentOnly = '本阶段成长 ${(plant.growthProgress * 100).toInt()}%';
+    final String percentOnly =
+        l10n.card_hint_progress((plant.growthProgress * 100).toInt());
     final double hoursPerStage = species.growthHoursPerStage;
     if (hoursPerStage <= 0) return percentOnly;
     final double perDay = (24.0 / hoursPerStage) +
@@ -154,7 +157,7 @@ class PlantCard extends StatelessWidget {
     if (perDay <= 0) return percentOnly;
 
     final int days = (remaining / perDay).ceil().clamp(1, 999);
-    return '每天按时养护，还需约 $days 天长成';
+    return l10n.card_hint_grow_days(days);
   }
 
   /// 花期剩余文案（**仅「盛开」时**返回非 null；其余状态返回 null，不显示）。
@@ -164,7 +167,7 @@ class PlantCard extends StatelessWidget {
   /// **同口径**（单点常量，改常量文案自动跟随）。
   /// 剩余 = 花期时长 − (now − [Plant.bloomedAt])；`bloomedAt` 缺失（老库升级来的已开花植物
   /// 尚未补计时）时返回 null，绝不编造数字。
-  String? get _bloomRemainingHint {
+  String? _bloomRemainingHint(AppLocalizations l10n) {
     if (plant.status != PlantStatus.bloomed || plant.bloomedAt == null) {
       return null;
     }
@@ -176,7 +179,7 @@ class PlantCard extends StatelessWidget {
     final Duration left = total - DateTime.now().difference(plant.bloomedAt!);
     final double daysLeft =
         (left.inMinutes / Duration.minutesPerDay).clamp(0, 999).toDouble();
-    return '花期剩余 ${_fmtDays(daysLeft)} 天';
+    return l10n.card_hint_bloom_left(_fmtDays(daysLeft));
   }
 
   /// 天数格式：整数不带小数（3.0 → '3'），非整数保留一位（4.5 → '4.5'）。
@@ -234,6 +237,7 @@ class PlantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = l10nOf(context);
     final bool isDead = plant.status == PlantStatus.dead;
     final bool isWilting = plant.status == PlantStatus.wilting;
     final PlantCareQuota? q = quota;
@@ -241,6 +245,7 @@ class PlantCard extends StatelessWidget {
     final bool canWater = q != null && q.canWater && onWater != null;
     final bool canFertilize = q != null && q.canFertilize && onFertilize != null;
     final String? hint = q?.waterBlockReason ?? q?.fertilizeBlockReason;
+    final String? bloomLeft = _bloomRemainingHint(l10n);
     final List<Widget> perkEntries = _perkEntries();
 
     // ── 分层设计（玄参 2026-09-25：不要通底白，要有层次）──────────────────
@@ -308,9 +313,9 @@ class PlantCard extends StatelessWidget {
                               color: kRarityEliteTint,
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Text(
-                              '精英',
-                              style: TextStyle(
+                            child: Text(
+                              l10n.garden_rarity_premium,
+                              style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                                 color: kRarityEliteAccent,
@@ -329,7 +334,7 @@ class PlantCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        _stageLabel,
+                        _stageLabel(l10n),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -356,7 +361,7 @@ class PlantCard extends StatelessWidget {
                           Icon(Icons.delete_outline,
                               size: 26, color: Colors.red.shade400),
                           Text(
-                            '铲除',
+                            l10n.card_action_shovel,
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -408,14 +413,14 @@ class PlantCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  _nextStageHint,
+                  _nextStageHint(l10n),
                   style: TextStyle(
                       fontSize: 12, color: Colors.teal.shade700),
                 ),
-                if (_bloomRemainingHint != null) ...<Widget>[
+                if (bloomLeft != null) ...<Widget>[
                   const SizedBox(height: 4),
                   Text(
-                    _bloomRemainingHint!,
+                    bloomLeft,
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -434,7 +439,7 @@ class PlantCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              _moodLabel,
+              _moodLabel(l10n),
               style: TextStyle(
                   fontSize: 13, fontWeight: FontWeight.w500, color: _moodFg),
             ),
@@ -451,7 +456,7 @@ class PlantCard extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: onClear,
                 icon: const Icon(Icons.delete_outline, color: Colors.red),
-                label: const Text('铲除回收'),
+                label: Text(l10n.card_action_clear),
                 style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.red),
               ),
@@ -463,8 +468,10 @@ class PlantCard extends StatelessWidget {
                   child: _actionButton(
                     icon: Icons.water_drop,
                     title: q == null
-                        ? '浇水'
-                        : '浇水 +${_fmtGain(_careGain(firstGain: kPlantWaterProgressGain, rebloomGain: kRebloomWaterProgressGain))}%',
+                        ? l10n.card_action_water
+                        : l10n.card_action_water_gain(_fmtGain(_careGain(
+                            firstGain: kPlantWaterProgressGain,
+                            rebloomGain: kRebloomWaterProgressGain))),
                     cost: title_perk.waterCostOf(perk ?? title_perk.PlantPerk.none),
                     enabled: canWater,
                     onTap: onWater,
@@ -475,8 +482,10 @@ class PlantCard extends StatelessWidget {
                   child: _actionButton(
                     icon: Icons.eco,
                     title: q == null
-                        ? '施肥'
-                        : '施肥 +${_fmtGain(_careGain(firstGain: kPlantFertilizeProgressGain, rebloomGain: kRebloomFertilizeProgressGain))}%',
+                        ? l10n.card_action_fertilize
+                        : l10n.card_action_fertilize_gain(_fmtGain(_careGain(
+                            firstGain: kPlantFertilizeProgressGain,
+                            rebloomGain: kRebloomFertilizeProgressGain))),
                     cost: title_perk.fertilizeCostOf(perk ?? title_perk.PlantPerk.none),
                     enabled: canFertilize,
                     onTap: onFertilize,
@@ -487,8 +496,8 @@ class PlantCard extends StatelessWidget {
             if (q != null) ...<Widget>[
               const SizedBox(height: 8),
               Text(
-                '今日剩余：浇水 ${q.waterRemaining}/$kPlantWaterMaxPerDay 次'
-                ' · 施肥 ${q.fertilizeRemaining}/$kPlantFertilizeMaxPerDay 次',
+                l10n.card_quota_left(q.waterRemaining, kPlantWaterMaxPerDay,
+                    q.fertilizeRemaining, kPlantFertilizeMaxPerDay),
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
@@ -504,8 +513,9 @@ class PlantCard extends StatelessWidget {
               Text(
                 DateTime.now().difference(plant.wiltedAt!) <
                         Duration(days: kPlantWiltRecoverHardDays)
-                    ? '浇水 1 次即可救回'
-                    : '需浇水 $kPlantWiltRecoverHardWater 次 + 施肥 $kPlantWiltRecoverHardFertilize 次才能救回',
+                    ? l10n.card_wilt_easy
+                    : l10n.card_wilt_hard(kPlantWiltRecoverHardWater,
+                        kPlantWiltRecoverHardFertilize),
                 style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
               ),
             ],

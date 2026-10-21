@@ -45,6 +45,9 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -295,6 +298,9 @@ class EntryPage extends ConsumerStatefulWidget {
 }
 
 class _EntryPageState extends ConsumerState<EntryPage> {
+  /// i18n（B1）：页内文案（build 时在 L10nScope 内解析，见 build/_startFocus）。
+  AppLocalizations? _l10n;
+
   int _minutes = kFocusDurationDefaultMinutes;
   bool _dndOn = true; // 屏蔽通知（勿扰），默认开（F01）
 
@@ -412,7 +418,7 @@ class _EntryPageState extends ConsumerState<EntryPage> {
       case AntiAddictionDecision.nightLocked:
         context.go('/lock');
       case AntiAddictionDecision.dailyCapReached:
-        _snack('今日专注已达上限（$cap 分钟），明天再来哦');
+        _snack((_l10n ?? AppLocalizationsZh()).child_entry_cap_snack(cap));
         return; // 不启动专注
       case AntiAddictionDecision.restRequired:
         context.go('/rest');
@@ -421,7 +427,7 @@ class _EntryPageState extends ConsumerState<EntryPage> {
         // 剩余不足 1 分钟（额度只剩零头）→ 当作已用完拦下，避免开一场 1 分钟
         // 却仍超出剩余额度。
         if (remaining < 1) {
-          _snack('今天的专注时间用完啦（上限 $cap 分钟），明天再来哦');
+          _snack((_l10n ?? AppLocalizationsZh()).child_entry_cap_snack2(cap));
           return;
         }
         if (ref.read(restSatisfiedProvider)) {
@@ -439,7 +445,8 @@ class _EntryPageState extends ConsumerState<EntryPage> {
         final int minutes =
             _minutes > remaining ? remaining.floor() : _minutes;
         if (minutes < _minutes) {
-          _snack('今天只剩 ${remaining.floor()} 分钟额度了，这次就专注 $minutes 分钟吧');
+          _snack((_l10n ?? AppLocalizationsZh())
+              .child_entry_remaining_snack(minutes, remaining.floor()));
         }
         context.go('/focus?minutes=$minutes&dnd=${_dndOn ? 1 : 0}');
     }
@@ -462,7 +469,15 @@ class _EntryPageState extends ConsumerState<EntryPage> {
     final bool bgmOn = settingsAsync.valueOrNull?.bgmOn ?? false;
     final int maxSelectable = _maxSelectableMinutes;
     final bool roundedOut = _roundedOut;
-    return PopScope(
+    // i18n（B1）：页级 L10nScope + Builder —— 文案取用统一走 scope 内上下文；
+    // 闭包参数 `context` 遮蔽外层（`context.go` 等行为不变）；State 方法
+    //（_startFocus / _chipFor）经 [_l10n] 取文案。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      _l10n = l10n;
+      return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
@@ -472,9 +487,9 @@ class _EntryPageState extends ConsumerState<EntryPage> {
         backgroundColor: _kCream,
         appBar: AppBar(
           backgroundColor: _kCream,
-          title: const Text(
-            '开始专注',
-            style: TextStyle(
+          title: Text(
+            l10n.shared_start_focus,
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
               color: _kBrown,
@@ -485,7 +500,7 @@ class _EntryPageState extends ConsumerState<EntryPage> {
           // 显式箭头作可见返回入口（B19 约定）。
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            tooltip: '返回',
+            tooltip: l10n.shared_back,
             onPressed: () => context.go('/'),
           ),
         ),
@@ -496,10 +511,10 @@ class _EntryPageState extends ConsumerState<EntryPage> {
               // ── 卡 1：选时长 ──────────────────────────────────────────
               _SectionCard(
                 children: <Widget>[
-                  const _CardHeader(
+                  _CardHeader(
                     emoji: '⏰',
                     bgColor: Color(0xFFFFF1C2),
-                    title: '这次想专注多久？',
+                    title: l10n.child_entry_pick_duration,
                   ),
                   if (_remaining != null) ...<Widget>[
                     const SizedBox(height: 12),
@@ -516,9 +531,9 @@ class _EntryPageState extends ConsumerState<EntryPage> {
                       ),
                       child: Text(
                         roundedOut
-                            ? '今天的专注时间已经用完啦（每日上限 ${_cap ?? 0} 分钟），明天再来'
-                            : '今天还可以专注 ${_remaining!.floor()} 分钟'
-                                '（每日上限 ${_cap ?? 0} 分钟）',
+                            ? l10n.child_entry_cap_daily(_cap ?? 0)
+                            : l10n.child_entry_remaining_today(
+                                _cap ?? 0, _remaining!.floor()),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -550,7 +565,7 @@ class _EntryPageState extends ConsumerState<EntryPage> {
                     children: <Widget>[
                       // 「自由」档：不预设时长，孩子自己决定何时结束（见文件头）。
                       _DurationChip(
-                        label: '自由',
+                        label: l10n.child_entry_free,
                         selected: _free,
                         enabled: !roundedOut,
                         onSelected: roundedOut
@@ -562,7 +577,7 @@ class _EntryPageState extends ConsumerState<EntryPage> {
                       ),
                       // 「自定义」档：选中后在其下显示数字输入（见下方）。
                       _DurationChip(
-                        label: '自定义',
+                        label: l10n.child_entry_custom,
                         selected: _custom,
                         enabled: !roundedOut,
                         onSelected: roundedOut
@@ -585,13 +600,14 @@ class _EntryPageState extends ConsumerState<EntryPage> {
                       style: const TextStyle(
                           fontSize: 18, fontWeight: FontWeight.w700),
                       decoration: InputDecoration(
-                        labelText: '自定义时长（分钟）',
+                        labelText: l10n.child_entry_custom_title,
                         hintText: maxSelectable >= 1
                             ? '1 – $maxSelectable'
-                            : '今日额度已用完',
+                            : l10n.child_entry_quota_empty,
                         helperText: _remaining == null
-                            ? '可选 $kFocusDurationMaxMinutes 分钟以内'
-                            : '可选 $maxSelectable 分钟以内（受今日剩余额度限制）',
+                            ? l10n.child_entry_custom_hint_max(
+                                kFocusDurationMaxMinutes)
+                            : l10n.child_entry_custom_hint_capped(maxSelectable),
                         filled: true,
                         fillColor: const Color(0xFFFFFBF0),
                         contentPadding: const EdgeInsets.symmetric(
@@ -623,18 +639,18 @@ class _EntryPageState extends ConsumerState<EntryPage> {
               // ── 卡 2：专注时的小设置 ────────────────────────────────────
               _SectionCard(
                 children: <Widget>[
-                  const _CardHeader(
+                  _CardHeader(
                     emoji: '🎧',
                     bgColor: Color(0xFFD9E8FF),
-                    title: '专注时的小设置',
+                    title: l10n.child_entry_options_title,
                   ),
                   const SizedBox(height: 6),
                   _ToggleRow(
                     icon: Icons.notifications_off,
                     iconColor: const Color(0xFF1565C0),
                     iconBg: const Color(0xFFD9E8FF),
-                    title: '屏蔽通知（勿扰）',
-                    subtitle: '专注时屏蔽短信/来电等打扰',
+                    title: l10n.child_entry_dnd,
+                    subtitle: l10n.child_entry_dnd_hint,
                     value: _dndOn,
                     onChanged: (bool v) => setState(() => _dndOn = v),
                   ),
@@ -643,8 +659,8 @@ class _EntryPageState extends ConsumerState<EntryPage> {
                     icon: Icons.volume_up,
                     iconColor: const Color(0xFFE65100),
                     iconBg: const Color(0xFFFFE0B2),
-                    title: '提示音效',
-                    subtitle: '专注时播放轻提示音',
+                    title: l10n.child_entry_sound,
+                    subtitle: l10n.child_entry_sound_hint,
                     value: soundOn,
                     onChanged: (bool v) {
                       _persistSettings(soundOn: v);
@@ -655,8 +671,8 @@ class _EntryPageState extends ConsumerState<EntryPage> {
                     icon: Icons.headphones,
                     iconColor: const Color(0xFF2E7D32),
                     iconBg: const Color(0xFFD9F2DD),
-                    title: '背景音乐',
-                    subtitle: '专注时循环轻柔背景乐',
+                    title: l10n.child_entry_bgm,
+                    subtitle: l10n.child_entry_bgm_hint,
                     value: bgmOn,
                     onChanged: (bool v) {
                       _persistSettings(bgmOn: v);
@@ -680,12 +696,12 @@ class _EntryPageState extends ConsumerState<EntryPage> {
                   textStyle: const TextStyle(
                       fontSize: 20, fontWeight: FontWeight.w800),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Text('🌻', style: TextStyle(fontSize: 22)),
-                    SizedBox(width: 8),
-                    Text('开始专注'),
+                    const Text('🌻', style: TextStyle(fontSize: 22)),
+                    const SizedBox(width: 8),
+                    Text(l10n.shared_start_focus),
                   ],
                 ),
               ),
@@ -693,7 +709,10 @@ class _EntryPageState extends ConsumerState<EntryPage> {
           ),
         ),
       ),
-    );
+      ); // Scaffold（内层 return 收口）
+        }, // builder 闭包
+      ), // Builder
+    ); // L10nScope（外层 return 收口）
   }
 
   /// 单个预设分钟档胶囊：超过今日剩余额度置灰；选中即取消「自由 / 自定义」。
@@ -701,7 +720,7 @@ class _EntryPageState extends ConsumerState<EntryPage> {
     final bool overLimit = _remaining != null && m > _remaining!;
     final bool selected = !_custom && !_free && m == _minutes;
     return _DurationChip(
-      label: '$m 分钟',
+      label: (_l10n ?? AppLocalizationsZh()).child_entry_minutes(m),
       selected: selected,
       enabled: !overLimit,
       onSelected: overLimit

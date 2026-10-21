@@ -49,6 +49,8 @@ import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dar
 import 'package:sunflower_time/presentation/child/widgets/plant_artwork.dart'
     show SpeciesPreviewArt;
 import 'package:sunflower_time/shared/responsive.dart' show uiScaleOf;
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 /// 种植确认卡里的一条**明细行**。
 ///
@@ -82,15 +84,20 @@ Future<bool?> showPlantConfirmDialog({
   required PlantSpecies species,
   required List<PlantConfirmRow> rows,
   String? remainingText,
+
+  /// 标题 / 按钮文案由调用方在其页级 scope 内解析后传入（i18n B1 约定）。
+  required String title,
+  required String confirmLabel,
+  String? cancelLabel,
 }) {
   return showChildConfirmCard(
     context: context,
-    title: '要种下${species.name}吗？',
+    title: title,
     hero: _SpeciesHero(species: species),
     rows: rows,
     note: remainingText,
-    confirmLabel: PlantConfirmStyle.confirmLabel,
-    cancelLabel: PlantConfirmStyle.cancelLabel,
+    confirmLabel: confirmLabel,
+    cancelLabel: cancelLabel ?? PlantConfirmStyle.cancelLabel,
     confirmTone: ConfirmCardTone.gold,
   );
 }
@@ -109,23 +116,39 @@ class PlantConfirmDialog extends StatelessWidget {
   /// 底部高亮小结（如 `种下后剩余 742 ☀`）；为 null 不显示。
   final String? remainingText;
 
+  /// 标题覆盖（null = 经内建 L10nScope 按 [AppLocalizations] 解析，i18n B1）。
+  final String? title;
+
+  /// 确认按钮文案覆盖（null = 经内建 L10nScope 解析）。
+  final String? confirmLabel;
+
   const PlantConfirmDialog({
     super.key,
     required this.species,
     required this.rows,
     this.remainingText,
+    this.title,
+    this.confirmLabel,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ChildConfirmCard(
-      title: '要种下${species.name}吗？',
-      hero: _SpeciesHero(species: species),
-      rows: rows,
-      note: remainingText,
-      confirmLabel: PlantConfirmStyle.confirmLabel,
-      cancelLabel: PlantConfirmStyle.cancelLabel,
-      confirmTone: ConfirmCardTone.gold,
+    // 🔴 测试宿主可能直接挂本卡（无 delegates）：自包 L10nScope + l10nOf 兜底。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          final AppLocalizations l10n = l10nOf(context);
+          return ChildConfirmCard(
+            title: title ?? l10n.plant_confirm_title(species.name),
+            hero: _SpeciesHero(species: species),
+            rows: rows,
+            note: remainingText,
+            confirmLabel: confirmLabel ?? l10n.plant_confirm_ok,
+            cancelLabel: PlantConfirmStyle.cancelLabel,
+            confirmTone: ConfirmCardTone.gold,
+          );
+        },
+      ),
     );
   }
 }

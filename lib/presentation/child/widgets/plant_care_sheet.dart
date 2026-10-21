@@ -21,6 +21,9 @@ import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
 import 'care_effect_overlay.dart';
 import 'child_confirm_card.dart'
@@ -87,6 +90,13 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
   bool _busy = false;
   String? _error;
 
+  /// 当前文案（build 期在 L10nScope 内赋值；异步回调经 [_t] 取，未 build 回退中文）。
+  AppLocalizations? _l10n;
+
+  /// 文案统一取用入口（i18n B1）。
+  AppLocalizations get _t => _l10n ?? AppLocalizationsZh();
+
+
   /// C77 · 当前称号专属属性（铲除返还额展示与扣费**同源**；未就绪回退 [PlantPerk.none]）。
   PlantPerk _perk = PlantPerk.none;
 
@@ -134,7 +144,7 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
   /// 物种被删/种子变更时的兜底，与花园页同款（不显示「未知植物」的空白卡）。
   PlantSpecies _unknownSpecies(String id) => PlantSpecies(
         id: id,
-        name: '未知植物',
+        name: _t.garden_unknown_plant,
         rarity: Rarity.common,
         baseCostHigh: 0,
         baseCostLow: 0,
@@ -177,7 +187,7 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
     } on PlantOperationException catch (e) {
       _snack(e.message);
     } catch (e) {
-      _snack('操作失败：$e');
+      _snack(_t.shared_op_failed(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -201,22 +211,25 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
     // 返还额进明细行，`浇水施肥的阳光不返还` / `本次铲除不返还阳光` 作底部小结。
     final bool? ok = await showChildConfirmCard(
       context: context,
-      title: '要铲除「${_species?.name ?? '这株植物'}」吗？',
+      title: _t.care_shovel_title(_species?.name ?? _t.care_this_plant),
       hero: const ConfirmCardBadge(
         icon: Icons.delete_outline,
         tone: ConfirmCardTone.danger,
       ),
-      warning: '铲除后这株植物会消失。',
+      warning: _t.care_shovel_warning,
       rows: <ConfirmCardRow>[
         ConfirmCardRow(
           icon: Icons.savings_outlined,
-          name: '返还种植阳光',
+          name: _t.care_row_refund,
           value: refund > 0 ? '+$refund ☀' : '0 ☀',
           muted: refund <= 0,
         ),
       ],
-      note: refund > 0 ? '浇水施肥的阳光不返还' : '本次铲除不返还阳光',
-      confirmLabel: '确定铲除',
+      note: refund > 0
+          ? _t.care_note_no_refund_water
+          : _t.care_note_no_refund,
+      confirmLabel: _t.care_confirm_shovel,
+      cancelLabel: _t.shared_cancel,
       confirmTone: ConfirmCardTone.danger,
     );
     if (ok != true) return; // 取消 → 什么都不做
@@ -233,6 +246,18 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
 
   @override
   Widget build(BuildContext context) {
+    // 🔴 自包含弹窗：自包 L10nScope（弹窗上下文在页面 scope 之外）。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          _l10n = AppLocalizations.of(context);
+          return _buildBody(context);
+        },
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     final Widget body;
     if (_loading) {
       body = const Padding(
@@ -242,12 +267,12 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
     } else if (_error != null) {
       body = Padding(
         padding: const EdgeInsets.all(24),
-        child: Text('加载失败：$_error'),
+        child: Text(_t.shared_load_failed(_error!)),
       );
     } else if (_plant == null) {
-      body = const Padding(
-        padding: EdgeInsets.all(24),
-        child: Text('这株植物已经不在花园里啦'),
+      body = Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(_t.care_gone_hint),
       );
     } else {
       final Plant plant = _plant!;
@@ -311,14 +336,12 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 body,
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
-                    '植物也会随时间自然生长，按时养护才能早点开花 🌻\n'
-                    '盛开后每天浇 1 次水或施 1 次肥，第二天晨露阳光才是满额 🌻\n'
-                    '（忘了也会掉落，只是阳光减半 —— 不会一点都没有）',
+                    _t.care_footer_hint,
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ),
               ],

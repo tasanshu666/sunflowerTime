@@ -49,6 +49,8 @@ import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.
 import 'package:sunflower_time/presentation/child/widgets/fx_card_shell.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 /// 本轮演出该用哪一套素材（**纯判定**，可单测）。
 enum LevelUpFxKind {
@@ -260,16 +262,25 @@ class _LevelUpFxOverlayState extends State<LevelUpFxOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final LevelUpFxKind? kind = levelUpFxKindOf(widget.result);
-    return KeyedSubtree(
-      key: kLevelUpFxCardKey,
-      child: _envelope.wrap(
-        FxCardShell(
-          title: kind == LevelUpFxKind.titleNode
-              ? kLevelUpFxTitle
-              : kLevelUpFxLevelTitle,
-          child: _LevelUpContent(result: widget.result, frames: widget.frames),
-        ),
+    // 🔴 演出浮层挂在根 Overlay（页面 scope 之外）：自包 L10nScope（i18n B1 约定）。
+    return L10nScope(
+      child: Builder(
+        builder: (BuildContext context) {
+          final AppLocalizations l10n = l10nOf(context);
+          final LevelUpFxKind? kind = levelUpFxKindOf(widget.result);
+          return KeyedSubtree(
+            key: kLevelUpFxCardKey,
+            child: _envelope.wrap(
+              FxCardShell(
+                title: kind == LevelUpFxKind.titleNode
+                    ? l10n.fx_level_up_title
+                    : l10n.fx_level_up_level_title,
+                child: _LevelUpContent(
+                    result: widget.result, frames: widget.frames),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -293,6 +304,7 @@ class _LevelUpContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final double s = uiScaleOf(context);
+    final AppLocalizations l10n = l10nOf(context);
     // C80：付费是否解锁称号专属属性（矩阵单点判定，与详情卡 / provider 同源）。
     final bool perkUnlocked = featureAllowedFor(
         FeatureKey.titlePerks, ref.watch(entitlementProvider).tier);
@@ -367,8 +379,8 @@ class _LevelUpContent extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             titles > 1
-                ? kLevelUpFxMultiTemplate.replaceAll('{n}', '$titles')
-                : kLevelUpFxLevelMultiTemplate.replaceAll('{n}', '$levels'),
+                ? l10n.fx_level_up_multi(titles)
+                : l10n.fx_level_up_level_multi(levels),
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -413,9 +425,8 @@ class _LevelUpContent extends ConsumerWidget {
         if (isTitleNode && !perk.isNone) ...<Widget>[
           const SizedBox(height: 6),
           Text(
-            kLevelUpFxPerkTemplate
-                    .replaceAll('{text}', perkSummaryTextOf(perk)) +
-                (perkUnlocked ? '' : kLevelUpFxPerkLockedSuffix),
+            l10n.fx_level_up_perk(perkSummaryTextOf(perk)) +
+                (perkUnlocked ? '' : l10n.fx_level_up_perk_locked),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,

@@ -127,7 +127,7 @@ void main() {
       );
       addTearDown(database.close);
       await database.customSelect('SELECT 1').get();
-      expect(database.schemaVersion, 29);
+      expect(database.schemaVersion, 30);
     });
 
     test('v17 老库升级后 eye_care_logs 存在、可写入、可聚合', () async {
@@ -240,7 +240,7 @@ void main() {
       }
 
       final db.AppDatabase first = await openLegacy();
-      expect(first.schemaVersion, 29);
+      expect(first.schemaVersion, 30);
       await first.eyeCareLogDao.appendRow(
         db.EyeCareLogsCompanion.insert(
           id: 'log-1',
@@ -258,7 +258,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(second.close);
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 29);
+      expect(second.schemaVersion, 30);
       expect(await second.eyeCareLogDao.countByResult('skipped'),
           countAfterFirst, reason: '二次打开行集合稳定不变（不重复建表 / 不丢行）');
     });

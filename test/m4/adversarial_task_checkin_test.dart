@@ -425,11 +425,13 @@ void main() {
       );
     });
 
-    test('I7 settleFocusLinked 不达标 → rejected、不写记录、不写账本', () async {
+    test('I7 settleFocusLinked 不达标（< 5 分钟）→ rejected、不写记录、不写账本', () async {
       final ctx = _make();
       final Task f1 = _task(id: 'f1', requiresFocus: true, minFocus: 15);
+      // F143（玄参 2026-10-20）：**5 分钟 ≤ 实际 < 门槛** 改按比例结算（算完成），
+      // 故「不达标」只剩 < 5 分钟这一档（此处 4 分钟）。
       final FocusSession s =
-          ctx.focus.addSession(actualMin: 10, plannedMin: 20, start: day);
+          ctx.focus.addSession(actualMin: 4, plannedMin: 20, start: day);
 
       final TaskCheckInOutcome out =
           await ctx.svc.settleFocusLinked(task: f1, session: s, now: day);

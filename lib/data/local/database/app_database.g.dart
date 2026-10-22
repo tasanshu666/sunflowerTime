@@ -5853,6 +5853,12 @@ class $CheckInsTable extends CheckIns with TableInfo<$CheckInsTable, CheckIn> {
   late final GeneratedColumn<String> parentNote = GeneratedColumn<String>(
       'parent_note', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _actualFocusMinMeta =
+      const VerificationMeta('actualFocusMin');
+  @override
+  late final GeneratedColumn<double> actualFocusMin = GeneratedColumn<double>(
+      'actual_focus_min', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
   static const VerificationMeta _childIdMeta =
       const VerificationMeta('childId');
   @override
@@ -5874,6 +5880,7 @@ class $CheckInsTable extends CheckIns with TableInfo<$CheckInsTable, CheckIn> {
         sunlightGranted,
         resolvedAt,
         parentNote,
+        actualFocusMin,
         childId
       ];
   @override
@@ -5951,6 +5958,12 @@ class $CheckInsTable extends CheckIns with TableInfo<$CheckInsTable, CheckIn> {
           parentNote.isAcceptableOrUnknown(
               data['parent_note']!, _parentNoteMeta));
     }
+    if (data.containsKey('actual_focus_min')) {
+      context.handle(
+          _actualFocusMinMeta,
+          actualFocusMin.isAcceptableOrUnknown(
+              data['actual_focus_min']!, _actualFocusMinMeta));
+    }
     if (data.containsKey('child_id')) {
       context.handle(_childIdMeta,
           childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
@@ -5986,6 +5999,8 @@ class $CheckInsTable extends CheckIns with TableInfo<$CheckInsTable, CheckIn> {
           .read(DriftSqlType.dateTime, data['${effectivePrefix}resolved_at']),
       parentNote: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}parent_note']),
+      actualFocusMin: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}actual_focus_min']),
       childId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
     );
@@ -6009,6 +6024,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
   final double sunlightGranted;
   final DateTime? resolvedAt;
   final String? parentNote;
+  final double? actualFocusMin;
   final String childId;
   const CheckIn(
       {required this.id,
@@ -6022,6 +6038,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       required this.sunlightGranted,
       this.resolvedAt,
       this.parentNote,
+      this.actualFocusMin,
       required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6042,6 +6059,9 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
     }
     if (!nullToAbsent || parentNote != null) {
       map['parent_note'] = Variable<String>(parentNote);
+    }
+    if (!nullToAbsent || actualFocusMin != null) {
+      map['actual_focus_min'] = Variable<double>(actualFocusMin);
     }
     map['child_id'] = Variable<String>(childId);
     return map;
@@ -6066,6 +6086,9 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       parentNote: parentNote == null && nullToAbsent
           ? const Value.absent()
           : Value(parentNote),
+      actualFocusMin: actualFocusMin == null && nullToAbsent
+          ? const Value.absent()
+          : Value(actualFocusMin),
       childId: Value(childId),
     );
   }
@@ -6085,6 +6108,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       sunlightGranted: serializer.fromJson<double>(json['sunlightGranted']),
       resolvedAt: serializer.fromJson<DateTime?>(json['resolvedAt']),
       parentNote: serializer.fromJson<String?>(json['parentNote']),
+      actualFocusMin: serializer.fromJson<double?>(json['actualFocusMin']),
       childId: serializer.fromJson<String>(json['childId']),
     );
   }
@@ -6103,6 +6127,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       'sunlightGranted': serializer.toJson<double>(sunlightGranted),
       'resolvedAt': serializer.toJson<DateTime?>(resolvedAt),
       'parentNote': serializer.toJson<String?>(parentNote),
+      'actualFocusMin': serializer.toJson<double?>(actualFocusMin),
       'childId': serializer.toJson<String>(childId),
     };
   }
@@ -6119,6 +6144,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           double? sunlightGranted,
           Value<DateTime?> resolvedAt = const Value.absent(),
           Value<String?> parentNote = const Value.absent(),
+          Value<double?> actualFocusMin = const Value.absent(),
           String? childId}) =>
       CheckIn(
         id: id ?? this.id,
@@ -6132,6 +6158,8 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
         sunlightGranted: sunlightGranted ?? this.sunlightGranted,
         resolvedAt: resolvedAt.present ? resolvedAt.value : this.resolvedAt,
         parentNote: parentNote.present ? parentNote.value : this.parentNote,
+        actualFocusMin:
+            actualFocusMin.present ? actualFocusMin.value : this.actualFocusMin,
         childId: childId ?? this.childId,
       );
   CheckIn copyWithCompanion(CheckInsCompanion data) {
@@ -6156,6 +6184,9 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           data.resolvedAt.present ? data.resolvedAt.value : this.resolvedAt,
       parentNote:
           data.parentNote.present ? data.parentNote.value : this.parentNote,
+      actualFocusMin: data.actualFocusMin.present
+          ? data.actualFocusMin.value
+          : this.actualFocusMin,
       childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
@@ -6174,6 +6205,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           ..write('sunlightGranted: $sunlightGranted, ')
           ..write('resolvedAt: $resolvedAt, ')
           ..write('parentNote: $parentNote, ')
+          ..write('actualFocusMin: $actualFocusMin, ')
           ..write('childId: $childId')
           ..write(')'))
         .toString();
@@ -6192,6 +6224,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
       sunlightGranted,
       resolvedAt,
       parentNote,
+      actualFocusMin,
       childId);
   @override
   bool operator ==(Object other) =>
@@ -6208,6 +6241,7 @@ class CheckIn extends DataClass implements Insertable<CheckIn> {
           other.sunlightGranted == this.sunlightGranted &&
           other.resolvedAt == this.resolvedAt &&
           other.parentNote == this.parentNote &&
+          other.actualFocusMin == this.actualFocusMin &&
           other.childId == this.childId);
 }
 
@@ -6223,6 +6257,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
   final Value<double> sunlightGranted;
   final Value<DateTime?> resolvedAt;
   final Value<String?> parentNote;
+  final Value<double?> actualFocusMin;
   final Value<String> childId;
   final Value<int> rowid;
   const CheckInsCompanion({
@@ -6237,6 +6272,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     this.sunlightGranted = const Value.absent(),
     this.resolvedAt = const Value.absent(),
     this.parentNote = const Value.absent(),
+    this.actualFocusMin = const Value.absent(),
     this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -6252,6 +6288,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     this.sunlightGranted = const Value.absent(),
     this.resolvedAt = const Value.absent(),
     this.parentNote = const Value.absent(),
+    this.actualFocusMin = const Value.absent(),
     this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
@@ -6271,6 +6308,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     Expression<double>? sunlightGranted,
     Expression<DateTime>? resolvedAt,
     Expression<String>? parentNote,
+    Expression<double>? actualFocusMin,
     Expression<String>? childId,
     Expression<int>? rowid,
   }) {
@@ -6286,6 +6324,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
       if (sunlightGranted != null) 'sunlight_granted': sunlightGranted,
       if (resolvedAt != null) 'resolved_at': resolvedAt,
       if (parentNote != null) 'parent_note': parentNote,
+      if (actualFocusMin != null) 'actual_focus_min': actualFocusMin,
       if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
@@ -6303,6 +6342,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
       Value<double>? sunlightGranted,
       Value<DateTime?>? resolvedAt,
       Value<String?>? parentNote,
+      Value<double?>? actualFocusMin,
       Value<String>? childId,
       Value<int>? rowid}) {
     return CheckInsCompanion(
@@ -6317,6 +6357,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
       sunlightGranted: sunlightGranted ?? this.sunlightGranted,
       resolvedAt: resolvedAt ?? this.resolvedAt,
       parentNote: parentNote ?? this.parentNote,
+      actualFocusMin: actualFocusMin ?? this.actualFocusMin,
       childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
@@ -6358,6 +6399,9 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
     if (parentNote.present) {
       map['parent_note'] = Variable<String>(parentNote.value);
     }
+    if (actualFocusMin.present) {
+      map['actual_focus_min'] = Variable<double>(actualFocusMin.value);
+    }
     if (childId.present) {
       map['child_id'] = Variable<String>(childId.value);
     }
@@ -6381,6 +6425,7 @@ class CheckInsCompanion extends UpdateCompanion<CheckIn> {
           ..write('sunlightGranted: $sunlightGranted, ')
           ..write('resolvedAt: $resolvedAt, ')
           ..write('parentNote: $parentNote, ')
+          ..write('actualFocusMin: $actualFocusMin, ')
           ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -10511,6 +10556,7 @@ typedef $$CheckInsTableCreateCompanionBuilder = CheckInsCompanion Function({
   Value<double> sunlightGranted,
   Value<DateTime?> resolvedAt,
   Value<String?> parentNote,
+  Value<double?> actualFocusMin,
   Value<String> childId,
   Value<int> rowid,
 });
@@ -10526,6 +10572,7 @@ typedef $$CheckInsTableUpdateCompanionBuilder = CheckInsCompanion Function({
   Value<double> sunlightGranted,
   Value<DateTime?> resolvedAt,
   Value<String?> parentNote,
+  Value<double?> actualFocusMin,
   Value<String> childId,
   Value<int> rowid,
 });
@@ -10572,6 +10619,10 @@ class $$CheckInsTableFilterComposer
 
   ColumnFilters<String> get parentNote => $composableBuilder(
       column: $table.parentNote, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get actualFocusMin => $composableBuilder(
+      column: $table.actualFocusMin,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get childId => $composableBuilder(
       column: $table.childId, builder: (column) => ColumnFilters(column));
@@ -10622,6 +10673,10 @@ class $$CheckInsTableOrderingComposer
   ColumnOrderings<String> get parentNote => $composableBuilder(
       column: $table.parentNote, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<double> get actualFocusMin => $composableBuilder(
+      column: $table.actualFocusMin,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get childId => $composableBuilder(
       column: $table.childId, builder: (column) => ColumnOrderings(column));
 }
@@ -10668,6 +10723,9 @@ class $$CheckInsTableAnnotationComposer
   GeneratedColumn<String> get parentNote => $composableBuilder(
       column: $table.parentNote, builder: (column) => column);
 
+  GeneratedColumn<double> get actualFocusMin => $composableBuilder(
+      column: $table.actualFocusMin, builder: (column) => column);
+
   GeneratedColumn<String> get childId =>
       $composableBuilder(column: $table.childId, builder: (column) => column);
 }
@@ -10706,6 +10764,7 @@ class $$CheckInsTableTableManager extends RootTableManager<
             Value<double> sunlightGranted = const Value.absent(),
             Value<DateTime?> resolvedAt = const Value.absent(),
             Value<String?> parentNote = const Value.absent(),
+            Value<double?> actualFocusMin = const Value.absent(),
             Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -10721,6 +10780,7 @@ class $$CheckInsTableTableManager extends RootTableManager<
             sunlightGranted: sunlightGranted,
             resolvedAt: resolvedAt,
             parentNote: parentNote,
+            actualFocusMin: actualFocusMin,
             childId: childId,
             rowid: rowid,
           ),
@@ -10736,6 +10796,7 @@ class $$CheckInsTableTableManager extends RootTableManager<
             Value<double> sunlightGranted = const Value.absent(),
             Value<DateTime?> resolvedAt = const Value.absent(),
             Value<String?> parentNote = const Value.absent(),
+            Value<double?> actualFocusMin = const Value.absent(),
             Value<String> childId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -10751,6 +10812,7 @@ class $$CheckInsTableTableManager extends RootTableManager<
             sunlightGranted: sunlightGranted,
             resolvedAt: resolvedAt,
             parentNote: parentNote,
+            actualFocusMin: actualFocusMin,
             childId: childId,
             rowid: rowid,
           ),

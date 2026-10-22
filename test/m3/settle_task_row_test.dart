@@ -137,6 +137,8 @@ void main() {
           perfectDayBonus: false,
           allTasksDone: false,
           status: CheckInStatus.verified,
+          partial: false,
+          completionPercent: 100,
         ),
       ),
     );
@@ -165,6 +167,8 @@ void main() {
           perfectDayBonus: false,
           allTasksDone: false,
           status: CheckInStatus.rejected,
+          partial: false,
+          completionPercent: 0,
         ),
       ),
     );

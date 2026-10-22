@@ -141,6 +141,7 @@ CheckIn _toCheckIn(db.CheckIn r) => CheckIn(
       sunlightGranted: r.sunlightGranted,
       resolvedAt: r.resolvedAt,
       parentNote: r.parentNote,
+      actualFocusMin: r.actualFocusMin,
     );
 
 /// 领域 [CheckIn] → [db.CheckInsCompanion]。
@@ -156,4 +157,6 @@ db.CheckInsCompanion _toCheckInCompanion(CheckIn c) => db.CheckInsCompanion(
       sunlightGranted: Value(c.sunlightGranted),
       resolvedAt: Value(c.resolvedAt),
       parentNote: Value(c.parentNote),
+      // F143（v30）：实际专注分钟 —— null = 未记录（历史行 / 非联动项）。
+      actualFocusMin: Value(c.actualFocusMin),
     );

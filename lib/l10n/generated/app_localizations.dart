@@ -428,6 +428,12 @@ abstract class AppLocalizations {
   /// **'成长项「{name}」还差一点，下次专注够时长就算上啦 🌻'**
   String child_settle_task_progress(String name);
 
+  /// No description provided for @child_settle_task_partial.
+  ///
+  /// In zh, this message translates to:
+  /// **'提前结束 · 实际 {minutes} 分钟 · 完成度 {percent}% · 得 {sun} 阳光'**
+  String child_settle_task_partial(int minutes, int percent, String sun);
+
   /// No description provided for @child_settle_title.
   ///
   /// In zh, this message translates to:
@@ -1675,6 +1681,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已做到'**
   String get task_status_done;
+
+  /// No description provided for @child_task_partial_note.
+  ///
+  /// In zh, this message translates to:
+  /// **'实际 {minutes} 分钟 · 完成度 {percent}%'**
+  String child_task_partial_note(int minutes, int percent);
 
   /// No description provided for @task_action_do.
   ///
@@ -3536,6 +3548,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'兑换 {count} 次'**
   String parent_hist_redeem_badge(int count);
+
+  /// No description provided for @parent_verify_partial_badge.
+  ///
+  /// In zh, this message translates to:
+  /// **'部分完成 {percent}%'**
+  String parent_verify_partial_badge(int percent);
 
   /// No description provided for @parent_hist_range_multi.
   ///

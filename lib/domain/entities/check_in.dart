@@ -28,6 +28,14 @@ class CheckIn {
   /// 家长驳回理由；无则 null。
   final String? parentNote;
 
+  /// 本次打卡对应的**实际专注分钟**（F143，v30 新增；单位 = 分钟，可含小数）。
+  ///
+  /// 语义：**null = 未记录** —— 历史行（v30 之前落库）、非联动项手动打卡、待家长核销
+  /// 的 pending 行均为 null；只有**联动专注结算**（含「5 分钟 ≤ 实际 < 门槛」的部分
+  /// 完成）才写实际专注分钟，供孩子端任务卡与家长端记录展示
+  /// 「实际 X 分钟 · 完成度 Y%」。
+  final double? actualFocusMin;
+
   const CheckIn({
     required this.id,
     required this.taskId,
@@ -40,5 +48,6 @@ class CheckIn {
     this.sunlightGranted = 0.0,
     this.resolvedAt,
     this.parentNote,
+    this.actualFocusMin,
   });
 }

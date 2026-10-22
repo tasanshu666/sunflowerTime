@@ -441,11 +441,15 @@ void main() {
       expect(await ctx.ledger.balance(), closeTo(6.0, 1e-9));
     });
 
-    test('settleFocusLinked 不达标（专注 < minFocus）→ status=rejected，不写记录不写账本',
+    test('settleFocusLinked 不达标（专注 < 5 分钟）→ status=rejected，不写记录不写账本',
         () async {
       final ctx = _make();
       final Task t = _task(id: 'f1', requiresFocus: true, minFocus: 15);
-      ctx.focus.addSession(actualMin: 10, plannedMin: 20, start: day); // 10 < 15
+      // F143（玄参 2026-10-20 拍板）改口径：**5 分钟 ≤ 实际 < 门槛** 现在按比例结算
+      // 且算完成（落 verified），故本用例改用 **4 分钟**（< 5 分钟硬门槛）才仍是
+      // rejected；「5 / 10 / 15 / 19:59」各档的按比例行为见
+      // `test/domain/task_checkin_partial_test.dart`。
+      ctx.focus.addSession(actualMin: 4, plannedMin: 20, start: day); // 4 < 5
       final FocusSession s = ctx.focus.sessions.single;
 
       final TaskCheckInOutcome out =

@@ -165,6 +165,20 @@
       }
     }
   },
+  "child_settle_task_partial": "提前结束 · 实际 {minutes} 分钟 · 完成度 {percent}% · 得 {sun} 阳光",
+  "@child_settle_task_partial": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      },
+      "percent": {
+        "type": "int"
+      },
+      "sun": {
+        "type": "String"
+      }
+    }
+  },
   "child_settle_title": "专注结束啦",
   "child_settle_this_session": "本次专注",
   "child_settle_collected": "收集阳光",
@@ -815,6 +829,17 @@
   "task_status_waiting": "等家长确认",
   "task_status_done_focus": "已完成",
   "task_status_done": "已做到",
+  "child_task_partial_note": "实际 {minutes} 分钟 · 完成度 {percent}%",
+  "@child_task_partial_note": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "task_action_do": "我做",
   "task_action_do2": "到了",
   "task_action_focus": "去专注",
@@ -1683,6 +1708,12 @@
   "@parent_hist_redeem_badge": {
     "placeholders": {
       "count": { "type": "int" }
+    }
+  },
+  "parent_verify_partial_badge": "部分完成 {percent}%",
+  "@parent_verify_partial_badge": {
+    "placeholders": {
+      "percent": { "type": "int" }
     }
   },
   "parent_hist_range_multi": "首次 {first} ～ 最近 {last}",

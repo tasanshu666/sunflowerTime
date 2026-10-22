@@ -3,6 +3,13 @@
 /// 口径（用户拍板，冻结）：
 ///  - **联动项**（[Task.requiresFocus] == true）：从成长项「开始专注」→ 专注达标 →
 ///    [settleFocusLinked] **自动结算**：直接打勾并当期入账（孩子无需点击）。
+///  - **F143（玄参 2026-10-20 拍板）联动项按专注时长比例结算**：
+///    实际专注 **< 5 分钟**（[kPartialSettleMinSeconds]）→ 不结算（保持 rejected 语义）；
+///    **5 分钟 ≤ 实际 < 任务门槛** → **按比例**结算且**算完成**（落 verified 打卡），
+///    阳光 = `max(1, floor(实际秒 × 满额 / 门槛秒))`，完成度 = `floor(实际×100/门槛)`
+///    钳到 `[1, 99]`；**实际 ≥ 门槛** → 全额（既有逻辑，不走比例）。
+///    打卡落 `actualFocusMin`（实际专注分钟，v30 新列），供孩子端任务卡与家长端记录
+///    标注「实际 X 分钟 · 完成度 Y%」；不做满额容差、不支持当日补齐。
 ///  - **非联动项**（requiresFocus == false）：孩子手动 [checkIn] → 落 **pending**
 ///    （待家长核销），**当期不发阳光**；家长 [verifyCheckIn] 通过后才入账，
 ///    [rejectCheckIn] 驳回则不入账。
@@ -56,6 +63,54 @@ import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
+
+/// 联动专注结算「按比例」的**最低实际专注秒数**（F143，玄参 2026-10-20 拍板）。
+///
+/// 语义（冻结口径）：5 分钟 = 300 秒 ——
+///  · 实际专注 **< 5 分钟** → **不结算、不落打卡、0 奖励**（保持既有 `rejected` 语义）；
+///  · **5 分钟 ≤ 实际 < 任务门槛** → **按比例结算**，算完成（落 `verified` 打卡）；
+///  · 实际 ≥ 任务门槛 → 全额（既有逻辑，不走比例）。
+///
+/// ⚠️ 数值单点收口在此常量：守卫测试
+/// （`test/domain/task_checkin_partial_test.dart` 的源码守卫用例）钉死 ``= 300``，
+/// 防止后人把它悄悄改成 15 分钟 —— 那会把「提前结束按比例」变成「必须满额」，
+/// 与玄参拍板口径相反，且**不会**被任何普通单测发现。
+const int kPartialSettleMinSeconds = 300;
+
+/// 完成度百分比（0-100，F143 口径：**向下取整**）。
+///
+/// · 实际 ≥ 门槛 → `100`（全额完成）；
+/// · 5 分钟 ≤ 实际 < 门槛 → `floor(actualSeconds * 100 / thresholdSeconds)`，
+///   并钳到 `[1, 99]`（"算完成"但不许显示 100%，也不能因浮点误差掉成 0%）；
+/// · [thresholdSeconds] ≤ 0（脏数据）→ 视作门槛已达成 `100`，避免除零。
+///
+/// 全整数运算（先乘后除）：秒级整数乘除无浮点误差，与结算金额同源同口径。
+int completionPercentOf({
+  required int actualSeconds,
+  required int thresholdSeconds,
+}) {
+  if (thresholdSeconds <= 0) return 100;
+  if (actualSeconds >= thresholdSeconds) return 100;
+  final int raw = (actualSeconds * 100) ~/ thresholdSeconds;
+  return raw.clamp(1, 99);
+}
+
+/// 部分完成时应发阳光（F143 口径：**向下取整 + 最少 1**）。
+///
+/// `granted = max(1, full * actualSeconds ~/ thresholdSeconds)`。
+/// 用 `~/`（整数除法）实现 floor：值域全为正整数，`~/` 语义即向下取整，
+/// 且**先乘后除**避免浮点误差（例：19:59 → 1199*8 ~/ 1200 = 7）。
+///
+/// [thresholdSeconds] ≤ 0（脏数据，无比例可言）→ 直接返回 [full]（宁可全额，不除零）。
+int partialGrantedOf({
+  required int actualSeconds,
+  required int thresholdSeconds,
+  required int full,
+}) {
+  if (thresholdSeconds <= 0) return full;
+  final int raw = (actualSeconds * full) ~/ thresholdSeconds;
+  return raw < 1 ? 1 : raw;
+}
 
 /// 打卡失败的**语义码**（i18n B3 · T03）。
 ///
@@ -137,6 +192,18 @@ class TaskCheckInItem {
   /// （数据模型无「星期几」信息，无法判断周任务今天该不该做）。
   final bool isDaily;
 
+  /// 今日该成长项打卡记录的**实际专注分钟**（F143；null = 未记录）。
+  ///
+  /// 数据源与 [TaskCheckInItem.done] 同一条 `checkInsOfDay` 查询（**不新增查询**）：
+  /// 只有联动专注结算（含部分完成）才写该字段；非联动项手动打卡 / 历史行为 null。
+  final double? actualFocusMin;
+
+  /// 今日该成长项的**完成度百分比**（F143；0-100）。
+  ///
+  /// [actualFocusMin] 为 null 时恒为 0（未记录 → 无完成度可言，表现层不显示）；
+  /// 实际 ≥ 门槛 → 100；5 分钟 ≤ 实际 < 门槛 → `floor(actual*100/threshold)` ∈ [1,99]。
+  final int completionPercent;
+
   const TaskCheckInItem({
     required this.task,
     required this.done,
@@ -144,6 +211,8 @@ class TaskCheckInItem {
     required this.focusSatisfied,
     this.blockedReason,
     required this.isDaily,
+    this.actualFocusMin,
+    this.completionPercent = 0,
   });
 }
 
@@ -196,6 +265,16 @@ class TaskCheckInOutcome {
   /// 核销状态：联动项自动结算 / 家长核销 → verified；非联动项手动打卡 → pending。
   final CheckInStatus status;
 
+  /// 是否为**部分完成**（F143）：实际专注 ≥ 5 分钟但 < 任务门槛，按比例结算。
+  ///
+  /// 真值 → 表现层用「提前结束 · 实际 X 分钟 · 完成度 Y%」文案；全额完成与
+  /// rejected / pending 一律 false（语义单一：partial 只描述「按比例」这一条路径）。
+  final bool partial;
+
+  /// 完成度百分比（0-100）：全额 = [100]、rejected = [0]、
+  /// 部分完成 = `floor(actual*100/threshold)` 钳到 `[1, 99]`（见 [completionPercentOf]）。
+  final int completionPercent;
+
   const TaskCheckInOutcome({
     required this.checkInId,
     required this.reward,
@@ -204,6 +283,8 @@ class TaskCheckInOutcome {
     required this.perfectDayBonus,
     required this.allTasksDone,
     required this.status,
+    required this.partial,
+    required this.completionPercent,
   });
 }
 
@@ -304,6 +385,15 @@ class TaskCheckInService {
           c != null && c.status == CheckInStatus.pending;
       final bool focusSatisfied = !t.requiresFocus ||
           _bestQualifyingSession(sessions, t.minFocusMin) != null;
+      // F143：完成度派生（复用同一条 checkInsOfDay 查询，不新增查询）。
+      // 只有联动专注结算会写 actualFocusMin；null（历史行 / 非联动项）→ 不显示。
+      final double? actualMin = c?.actualFocusMin;
+      final int percent = actualMin == null
+          ? 0
+          : completionPercentOf(
+              actualSeconds: (actualMin * 60).round(),
+              thresholdSeconds: t.minFocusMin * 60,
+            );
       return TaskCheckInItem(
         task: t,
         done: done,
@@ -311,6 +401,8 @@ class TaskCheckInService {
         focusSatisfied: focusSatisfied,
         blockedReason: null, // 见 TaskCheckInItem.blockedReason 注释
         isDaily: _isDailyTask(t),
+        actualFocusMin: actualMin,
+        completionPercent: percent,
       );
     }).toList();
 
@@ -379,6 +471,9 @@ class TaskCheckInService {
       perfectDayBonus: perfectDayBonus,
       allTasksDone: allTasksDone,
       status: CheckInStatus.pending,
+      // 非联动项手动打卡不涉及「专注时长比例」（F143 只管联动项）：非部分完成、无完成度。
+      partial: false,
+      completionPercent: 0,
     );
   }
 
@@ -389,6 +484,11 @@ class TaskCheckInService {
   /// - `session.actualFocusMin < task.minFocusMin` → **不达标**：不写任何记录，
   ///   返回 `status == rejected` 的结果（让表现层区分「没达标（正常）」与「真出错（抛异常）」）；
   /// - 达标 → 写 `verified` 打卡（`sessionId = session.id`）并按当日上限差额入账。
+  ///
+  /// F143（玄参 2026-10-20 拍板）在「不达标」与「达标」之间插入**部分完成**：
+  /// 实际专注 ≥ [kPartialSettleMinSeconds]（5 分钟）但 < 任务门槛 → 仍算完成
+  /// （落 `verified` 打卡、占住该 session），阳光按
+  /// `max(1, floor(实际秒 × 满额 / 门槛秒))` 发放，`TaskCheckInOutcome.partial == true`。
   ///
   /// 经串行化闸门执行，与核销路径互不交错。
   Future<TaskCheckInOutcome> settleFocusLinked({
@@ -424,6 +524,20 @@ class TaskCheckInService {
     final CheckIn? existing = _activeCheckIn(_forTask(todayCheckIns, task.id));
     if (existing != null && existing.status != CheckInStatus.rejected) {
       final List<FocusSession> sessions = await _focus.sessionsOfDay(day);
+      // F143：幂等返回同一条记录时，partial / completionPercent 必须**从既有记录反推**
+      // （字段 required，且表现层据此渲染「提前结束 · 完成度 Y%」）。
+      //  · partial：写了实际专注分钟（= 联动结算落库）且应发阳光 < 满额 → 按比例完成；
+      //  · percent：按同一公式从 actualFocusMin 反算（全额 → 100）。
+      final double? actualMin = existing.actualFocusMin;
+      final int thresholdSeconds = task.minFocusMin * 60;
+      final bool partial = actualMin != null &&
+          existing.sunlightGross + 1e-9 < task.effectiveSunlightReward;
+      final int percent = actualMin == null
+          ? (existing.status == CheckInStatus.verified ? 100 : 0)
+          : completionPercentOf(
+              actualSeconds: (actualMin * 60).round(),
+              thresholdSeconds: thresholdSeconds,
+            );
       return TaskCheckInOutcome(
         checkInId: existing.id,
         reward: existing.sunlightGross,
@@ -433,11 +547,27 @@ class TaskCheckInService {
         perfectDayBonus: _isPerfectDayToday(sessions),
         allTasksDone: existing.isPerfectDay,
         status: existing.status,
+        partial: partial,
+        completionPercent: percent,
       );
     }
 
-    // 不达标：不结算，返回 rejected（表现层据此提示「再专注一会儿」，非错误）。
-    if (session.actualFocusMin < task.minFocusMin) {
+    // ── F143（玄参 2026-10-20 拍板）：按比例结算 ────────────────────────────────
+    // 口径（不可更改）：
+    //  · 实际专注 < 5 分钟（[kPartialSettleMinSeconds] = 300 秒）→ 不结算、不落打卡、
+    //    0 奖励（保持既有 rejected 语义）；
+    //  · 5 分钟 ≤ 实际 < 任务门槛 → **按比例**结算，算完成（落 verified 打卡）；
+    //  · 实际 ≥ 门槛 → 全额（既有逻辑，不走比例）。
+    // 全部用**秒级整数**运算（先乘后除）：`~/` 即 floor，无浮点误差。
+    final int actualSeconds = (session.actualFocusMin * 60).round();
+    final int thresholdSeconds = task.minFocusMin * 60;
+    final bool meetsThreshold = actualSeconds >= thresholdSeconds;
+    final int fullReward = task.effectiveSunlightReward;
+
+    // F143 ①：实际专注 < 5 分钟 → 不结算（rejected 语义，保持现状）。
+    // 注意：门槛本身可能 < 5 分钟（历史 / 导入数据），此时「实际 ≥ 门槛」先命中
+    // 全额分支，故 < 5 分钟的 rejected 判定必须以 meetsThreshold 为前置条件。
+    if (!meetsThreshold && actualSeconds < kPartialSettleMinSeconds) {
       return const TaskCheckInOutcome(
         checkInId: '',
         reward: 0,
@@ -446,8 +576,22 @@ class TaskCheckInService {
         perfectDayBonus: false,
         allTasksDone: false,
         status: CheckInStatus.rejected,
+        partial: false,
+        completionPercent: 0,
       );
     }
+
+    // F143 ②：5 分钟 ≤ 实际 < 门槛 → 部分完成（partial）。
+    // 金额：`max(1, full * actualSeconds ~/ thresholdSeconds)`（向下取整，最少 1 阳光）。
+    // 完成度：`floor(actual*100/threshold)` 钳到 [1, 99]（算完成，但不显示 100%）。
+    // 注意：本分支必须落在 ①（rejected）**之后** —— 顺序被源码守卫用例钉死。
+    final bool partial = !meetsThreshold;
+    final int completionPercent = meetsThreshold
+        ? 100
+        : completionPercentOf(
+            actualSeconds: actualSeconds,
+            thresholdSeconds: thresholdSeconds,
+          );
 
     // 会话复用守卫（修复 3）：当日已存在同一 sessionId 的 verified 打卡 →
     // 说明这次专注已解锁过别的成长项，禁止「一次专注换多份奖励」，不写任何记录。
@@ -458,7 +602,15 @@ class TaskCheckInService {
     }
 
     final List<FocusSession> sessions = await _focus.sessionsOfDay(day);
-    final double reward = _rewardFor(task, sessions);
+    // F143：应发阳光 —— 全额 = [Task.effectiveSunlightReward]（现状逻辑）；
+    // 部分完成 = 按比例 floor（最少 1）。⚠️ 比例只用整数秒运算，不读 double 分钟。
+    final double reward = partial
+        ? partialGrantedOf(
+            actualSeconds: actualSeconds,
+            thresholdSeconds: thresholdSeconds,
+            full: fullReward,
+          ).toDouble()
+        : _rewardFor(task, sessions);
     final bool perfectDayBonus = _isPerfectDayToday(sessions);
     final bool allTasksDone = await _allDailySubmitted(todayCheckIns, task.id);
     final String checkInId = _uuid.v4();
@@ -466,6 +618,9 @@ class TaskCheckInService {
         await _dailyRewardGrant(day, reward);
 
     // 先落打卡记录（重复口径的事实源），再落账本。
+    // F143：全额与部分完成**同一落库链路**（verified + 日上限截断 + 账本），
+    // 区别只在 `sunlightGross`（按比例后的应发）与 `actualFocusMin`（实际专注分钟，
+    // 供孩子端任务卡 / 家长端记录展示「实际 X 分钟 · 完成度 Y%」）。
     await _tasks.checkIn(CheckIn(
       id: checkInId,
       taskId: task.id,
@@ -476,6 +631,7 @@ class TaskCheckInService {
       status: CheckInStatus.verified,
       sunlightGross: reward,
       sunlightGranted: rewardCap.grant,
+      actualFocusMin: session.actualFocusMin,
     ));
     await _appendLedger(checkInId, day, now, reward, rewardCap.grant);
 
@@ -487,6 +643,8 @@ class TaskCheckInService {
       perfectDayBonus: perfectDayBonus,
       allTasksDone: allTasksDone,
       status: CheckInStatus.verified,
+      partial: partial,
+      completionPercent: completionPercent,
     );
   }
 
@@ -564,6 +722,11 @@ class TaskCheckInService {
       perfectDayBonus: _isPerfectDayToday(await _focus.sessionsOfDay(day)),
       allTasksDone: c.isPerfectDay,
       status: CheckInStatus.verified,
+      // 家长核销的是**非联动项手动打卡**（无专注时长比例可言）→ 全额完成口径。
+      // 若该记录恰好带 actualFocusMin（理论上只有联动结算会写，而联动项不走核销），
+      // 仍按「已核销 = 完成」回 100：核销是家长对"做到了"的确认，与时长无关。
+      partial: false,
+      completionPercent: 100,
     );
   }
 

@@ -375,6 +375,39 @@ class _SettlePageState extends ConsumerState<SettlePage>
     if (o == null) return const <Widget>[];
 
     if (o.status == CheckInStatus.verified) {
+      // ── F143（玄参 2026-10-20 拍板）：**部分完成**（提前结束按比例结算）──────────
+      // 条件：实际专注 ≥ 5 分钟但 < 任务门槛 → 算完成，但阳光按比例（向下取整，最少 1）。
+      // 文案钉死「提前结束 · 实际 X 分钟 · 完成度 Y% · 得 Z 阳光」；
+      // 若同时被当日成长奖励上限截断，仍要带截断说明（复用既有 `child_settle_task_capped`）。
+      if (o.partial) {
+        // 实际分钟 = 本次专注的实际秒数整除 60（与结算口径同源，取整不四舍五入）。
+        final int minutes =
+            ((widget.args?.settlement?.actualFocusMin ?? 0) * 60).round() ~/ 60;
+        return <Widget>[
+          const SizedBox(height: 12),
+          Text(
+            l10n.child_settle_task_partial(
+              minutes,
+              o.completionPercent,
+              _fmtSun(o.granted),
+            ),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFFFFE082),
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (o.cappedByDailyCap) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              l10n.child_settle_task_capped(_fmtSun(o.granted)),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF9E9E9E), fontSize: 13),
+            ),
+          ],
+        ];
+      }
       final String capped = o.cappedByDailyCap
           ? l10n.child_settle_task_capped(_fmtSun(o.granted))
           : '';

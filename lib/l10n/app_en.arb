@@ -165,6 +165,20 @@
       }
     }
   },
+  "child_settle_task_partial": "Ended early · {minutes} min · {percent}% done · +{sun} sunlight",
+  "@child_settle_task_partial": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      },
+      "percent": {
+        "type": "int"
+      },
+      "sun": {
+        "type": "String"
+      }
+    }
+  },
   "child_settle_title": "Focus Finished",
   "child_settle_this_session": "This Session",
   "child_settle_collected": "Sunlight Earned",
@@ -815,6 +829,17 @@
   "task_status_waiting": "Waiting for approval",
   "task_status_done_focus": "Done",
   "task_status_done": "Done",
+  "child_task_partial_note": "{minutes} min · {percent}% done",
+  "@child_task_partial_note": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "task_action_do": "I did",
   "task_action_do2": "it!",
   "task_action_focus": "Focus",
@@ -1683,6 +1708,12 @@
   "@parent_hist_redeem_badge": {
     "placeholders": {
       "count": { "type": "int" }
+    }
+  },
+  "parent_verify_partial_badge": "Partial {percent}%",
+  "@parent_verify_partial_badge": {
+    "placeholders": {
+      "percent": { "type": "int" }
     }
   },
   "parent_hist_range_multi": "First {first} – latest {last}",

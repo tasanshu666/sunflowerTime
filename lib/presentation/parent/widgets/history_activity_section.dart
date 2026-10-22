@@ -56,6 +56,7 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
@@ -362,6 +363,7 @@ class _HistoryActivitySectionState
           count: rows.length,
           firstAt: rows.first.completedAt,
           lastAt: rows.last.completedAt,
+          partialPercent: _partialPercentOf(task, rows),
         );
       },
     ).toList()
@@ -410,6 +412,28 @@ class _HistoryActivitySectionState
 
   /// 兑换时刻口径：优先核销时间，回落到申请时间。
   static DateTime _at(RedemptionRequest r) => r.verifiedAt ?? r.requestedAt;
+
+  /// 本期间内该成长项**最后一次部分完成**的完成度（F143）；无则 null。
+  ///
+  /// 口径（F143）：只有联动专注结算会写 `actualFocusMin`（null = 未记录：历史行 /
+  /// 非联动项手动打卡）；完成度用与结算完全同源的 [completionPercentOf] 反算
+  /// （不另立公式）。[rows] 已按 `completedAt` 升序 → 循环覆盖即取「最近一次」。
+  /// 任务已被家长删除（[task] == null）→ 无法知道门槛，返回 null（不猜）。
+  static int? _partialPercentOf(Task? task, List<CheckIn> rows) {
+    if (task == null) return null;
+    final int thresholdSeconds = task.minFocusMin * 60;
+    int? percent;
+    for (final CheckIn c in rows) {
+      final double? actualMin = c.actualFocusMin;
+      if (actualMin == null) continue;
+      final int pct = completionPercentOf(
+        actualSeconds: (actualMin * 60).round(),
+        thresholdSeconds: thresholdSeconds,
+      );
+      if (pct < 100) percent = pct;
+    }
+    return percent;
+  }
 
   /// 排序：次数多的在前；次数相同则「最近一次」近的在前。
   static int Function(T, T) _byCountThenLast<T>(
@@ -500,12 +524,16 @@ class _TaskHistoryRow {
   final DateTime firstAt;
   final DateTime lastAt;
 
+  /// 本期间内最后一次**部分完成**的完成度（F143；null = 期间内没有部分完成记录）。
+  final int? partialPercent;
+
   const _TaskHistoryRow({
     required this.task,
     required this.name,
     required this.count,
     required this.firstAt,
     required this.lastAt,
+    this.partialPercent,
   });
 }
 
@@ -856,6 +884,16 @@ class _TaskHistoryTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          // F143：部分完成标注（提前结束按比例结算）——家长能看到「部分完成 Y%」；
+          // 期间内没有部分完成记录 → 不渲染（零噪音，满额完成的卡片与既往逐像素一致）。
+          if (row.partialPercent != null) ...<Widget>[
+            _CountBadge(
+              text: t.parent_verify_partial_badge(row.partialPercent!),
+              bg: const Color(0xFFFFE0B2),
+              fg: const Color(0xFFE65100),
+            ),
+            const SizedBox(width: 6),
+          ],
           _CountBadge(
             text: t.parent_hist_done_badge(row.count),
             bg: cat.bg,

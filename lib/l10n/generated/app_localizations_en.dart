@@ -205,6 +205,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String child_settle_task_partial(int minutes, int percent, String sun) {
+    return 'Ended early · $minutes min · $percent% done · +$sun sunlight';
+  }
+
+  @override
   String get child_settle_title => 'Focus Finished';
 
   @override
@@ -964,6 +969,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get task_status_done => 'Done';
+
+  @override
+  String child_task_partial_note(int minutes, int percent) {
+    return '$minutes min · $percent% done';
+  }
 
   @override
   String get task_action_do => 'I did';
@@ -2086,6 +2096,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String parent_hist_redeem_badge(int count) {
     return 'Redeemed ×$count';
+  }
+
+  @override
+  String parent_verify_partial_badge(int percent) {
+    return 'Partial $percent%';
   }
 
   @override

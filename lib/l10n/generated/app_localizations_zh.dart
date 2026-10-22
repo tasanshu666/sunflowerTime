@@ -203,6 +203,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String child_settle_task_partial(int minutes, int percent, String sun) {
+    return '提前结束 · 实际 $minutes 分钟 · 完成度 $percent% · 得 $sun 阳光';
+  }
+
+  @override
   String get child_settle_title => '专注结束啦';
 
   @override
@@ -941,6 +946,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get task_status_done => '已做到';
+
+  @override
+  String child_task_partial_note(int minutes, int percent) {
+    return '实际 $minutes 分钟 · 完成度 $percent%';
+  }
 
   @override
   String get task_action_do => '我做';
@@ -2047,6 +2057,11 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String parent_hist_redeem_badge(int count) {
     return '兑换 $count 次';
+  }
+
+  @override
+  String parent_verify_partial_badge(int percent) {
+    return '部分完成 $percent%';
   }
 
   @override

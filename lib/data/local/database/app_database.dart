@@ -58,7 +58,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 29;
+  int get schemaVersion => 30;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -782,6 +782,12 @@ class AppDatabase extends _$AppDatabase {
           //    ⚠️ 版本变更（28 → 29），必须配迁移测试（见
           //       `test/m3/migration_v29_test.dart`）。
           await _ensureColumn(m, childProfiles, childProfiles.avatar);
+
+          // ㉚ v30（F143）：check_ins 新增 actual_focus_min（REAL NULL）—— 联动专注结算记录实际专注分钟，
+          // null = 未记录（历史行/非联动项）。用 _ensureColumn 幂等补列。
+          //    ⚠️ 版本变更（29 → 30），必须配迁移测试（见
+          //       `test/m3/migration_v30_test.dart`）。
+          await _ensureColumn(m, checkIns, checkIns.actualFocusMin);
         },
       );
 

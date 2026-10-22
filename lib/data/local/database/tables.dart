@@ -318,6 +318,12 @@ class CheckIns extends Table {
   DateTimeColumn get resolvedAt => dateTime().nullable()(); // 家长处理时间
   TextColumn get parentNote => text().nullable()(); // 驳回理由
 
+  // ── v30 新增（F143，玄参 2026-10-20 拍板）：联动成长项的实际专注分钟 ─────────
+  // 语义：**null = 未记录**（历史行 / 非联动项手动打卡 / 老库）；仅「联动专注结算」
+  //（含全额完成与「5 分钟 ≤ 实际 < 门槛」的部分完成）写实际专注分钟，供孩子端
+  // 任务卡与家长端记录展示「实际 X 分钟 · 完成度 Y%」。
+  RealColumn get actualFocusMin => real().nullable()();
+
   // ── C90 期 2：归属孩子（玄参 2026-10-17 拍板，schemaVersion 27）────────────
   // 打卡流水按孩子隔离（写法对齐 redemption_requests.childId，v26 先例）；
   // 查询另有 taskId 可 join 回 tasks 表，此处直接落列做双保险。

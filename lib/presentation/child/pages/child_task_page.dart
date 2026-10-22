@@ -638,6 +638,28 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
                           item.task.effectiveSunlightReward),
                   style: const TextStyle(fontSize: 13, color: Colors.grey),
                 ),
+                // ── F143（玄参 2026-10-20）：部分完成标注 ───────────────────────
+                // 口径：**已完成**（verified）且落库了实际专注分钟（联动专注结算）才可能有；
+                // 只有在**完成度 < 100%**（提前结束按比例）时才多显示这一行——
+                // 满额完成的任务卡保持原样，不因「实际 20 分钟 · 完成度 100%」多一行噪音
+                // （信息价值为零：门槛是多少孩子看右侧方盒就知道）。
+                if (item.done &&
+                    item.actualFocusMin != null &&
+                    item.completionPercent > 0 &&
+                    item.completionPercent < 100) ...<Widget>[
+                  const SizedBox(height: 3),
+                  Text(
+                    _t.child_task_partial_note(
+                      (item.actualFocusMin! * 60).round() ~/ 60,
+                      item.completionPercent,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _kProgressOrange,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

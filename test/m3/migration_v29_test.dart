@@ -7,7 +7,7 @@
 /// ALTER TABLE ADD COLUMN，无需表重建，schemaVersion 28 → 29。
 ///
 /// 本测试钉死：
-///  ① `AppDatabase.schemaVersion == 29`；
+///  ① `AppDatabase.schemaVersion` == 当前最新（v29 起随每次 schema 变更递增）；
 ///  ② v28 旧库（child_profiles v28 形态 DDL + 历史行）→ 迁移后 avatar 列存在、
 ///     历史行落默认 `kChildAvatarSun`；
 ///  ③ 历史行业务字段逐位不变（迁移只补列、不许顺手改数据）；
@@ -64,7 +64,7 @@ void main() {
     test('① schemaVersion 必须为最新 29（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openV28();
       addTearDown(database.close);
-      expect(database.schemaVersion, 29);
+      expect(database.schemaVersion, 30);
     });
 
     test('② child_profiles 补出 avatar 列，历史行落默认 kChildAvatarSun', () async {
@@ -122,7 +122,7 @@ void main() {
       final db.AppDatabase database = db.AppDatabase(NativeDatabase.memory());
       addTearDown(database.close);
       await database.customSelect('SELECT 1').get();
-      expect(database.schemaVersion, 29);
+      expect(database.schemaVersion, 30);
 
       final ChildProfileLocalRepository repo =
           ChildProfileLocalRepository(database);

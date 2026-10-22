@@ -92,7 +92,7 @@ void main() {
     test('① schemaVersion 必须为最新 25（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openV24();
       addTearDown(database.close);
-      expect(database.schemaVersion, 29);
+      expect(database.schemaVersion, 30);
     });
 
     test('② 两列物理删除；settings 历史行保留（其余字段逐位不变）', () async {
@@ -164,7 +164,7 @@ void main() {
       addTearDown(database.close);
       await database.customSelect('SELECT 1').get();
 
-      expect(database.schemaVersion, 29);
+      expect(database.schemaVersion, 30);
       expect(await _hasColumn(database, 'detection_on'), isFalse,
           reason: '新 schema 不应再有 detection_on');
       expect(await _hasColumn(database, 'autonomous_mode'), isFalse,

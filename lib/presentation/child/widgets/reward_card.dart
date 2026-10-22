@@ -25,6 +25,7 @@ import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/core/i18n/domain_text_l10n.dart';
 
 class RewardCard extends StatelessWidget {
   final RewardTemplate template;
@@ -69,7 +70,7 @@ class RewardCard extends StatelessWidget {
     final bool tablet = isTabletOf(context);
 
     // 每周可兑换次数提示：按「剩余次数」（limit - used）动态渲染，领完则隐藏。
-    final Widget? weeklyHint = _weeklyLimitHint();
+    final Widget? weeklyHint = _weeklyLimitHint(l10n);
 
     // C62：买不起的内联原因（与置灰按钮配对）。与限次提示**共用同一行位**，
     // 保持卡片高度不变（不因多一行把 88pt 的卡撑高）。余额不足优先于超池。
@@ -262,8 +263,11 @@ class RewardCard extends StatelessWidget {
   ///
   /// 口径（玄参已确认）：limit<=0「不限次数」；remaining>=1「周限 N 次」；
   /// remaining==0（领完）→ 返回 null 隐藏，由卡片禁用态 / 「本周已领」承载。
-  Widget? _weeklyLimitHint() {
-    final String? text = weeklyRedeemLabel(weeklyLimit, weeklyUsed);
+  ///
+  /// i18n B3：文案装配从 domain 的 `weeklyRedeemLabel` 迁到
+  /// `weeklyRedeemLabelL10n`（口径逐字节不变，仅多一个 [l10n] 入参）。
+  Widget? _weeklyLimitHint(AppLocalizations l10n) {
+    final String? text = weeklyRedeemLabelL10n(weeklyLimit, weeklyUsed, l10n);
     if (text == null) return null;
     return Text(
       text,

@@ -30,6 +30,8 @@ import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
+import 'package:sunflower_time/core/i18n/enum_l10n.dart';
+import 'package:sunflower_time/core/i18n/error_l10n.dart';
 
 /// 暖奶油底（与养护面板 / 商店一致，形成分层暖色风格）。
 const Color _kCream = Color(0xFFFBF4E4);
@@ -225,7 +227,8 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
       ref.read(economyRevisionProvider.notifier).state++;
       await _reload();
     } on TaskCheckInException catch (e) {
-      _snack(e.message);
+      // i18n B3（T03）：领域层只回语义码，提示语经单点映射装配（英文环境同样正确）。
+      _snack(taskCheckInErrorMessage(e, _t));
     } catch (e) {
       _snack(_t.task_checkin_failed(e));
     } finally {
@@ -494,7 +497,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
           .toList(growable: false);
       if (group.isEmpty) continue; // 空分类整体不渲染（含标题）
       if (children.length > 1) children.add(const SizedBox(height: 16));
-      children.add(_sectionHeader(cat.label, cat.icon));
+      children.add(_sectionHeader(taskCategoryLabel(cat, _t), cat.icon));
       for (final TaskCheckInItem item in group) {
         children.add(const SizedBox(height: 10));
         children.add(_taskTile(item, index++));
@@ -629,9 +632,9 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
                 // 信息行：联动项「需专注」、统一展示 +N 阳光；分钟数已移入右侧「去专注」方盒。
                 Text(
                   item.task.requiresFocus
-                      ? _t.task_info_focus(item.task.subjectLabel,
+                      ? _t.task_info_focus(taskDisplaySubject(item.task, _t),
                           item.task.effectiveSunlightReward)
-                      : _t.task_info_plain(item.task.subjectLabel,
+                      : _t.task_info_plain(taskDisplaySubject(item.task, _t),
                           item.task.effectiveSunlightReward),
                   style: const TextStyle(fontSize: 13, color: Colors.grey),
                 ),

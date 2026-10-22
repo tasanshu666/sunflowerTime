@@ -28,13 +28,28 @@ class AccountService {
     ChildProfileRepository? children,
     SettingsRepository? settings,
     SharedPreferences? prefs,
+    String Function()? defaultChildName,
   })  : _children = children,
         _settings = settings,
-        _prefs = prefs;
+        _prefs = prefs,
+        _defaultChildName = defaultChildName ?? _kFallbackChildName;
 
   final ChildProfileRepository? _children;
   final SettingsRepository? _settings;
   final SharedPreferences? _prefs;
+
+  /// 默认孩子名的取值器（i18n B3 · T05 新增）。
+  ///
+  /// 领域层**不再持有**中文「孩子」：名字是展示文案，由表现层注入
+  /// （`providers.dart` 注入 `() => defaultChildName(lookupAppLocalizations(...))`，
+  /// 取 ARB 的 `shared_default_child_name`）。
+  ///
+  /// 未注入时用 ASCII 兜底 `Child` —— 只在「无 DI 的纯领域单测 / 桩模式」下生效，
+  /// 保证 `lib/domain/**` 注释外零 CJK（`test/i18n/no_han_in_domain_test`）。
+  final String Function() _defaultChildName;
+
+  /// 未注入时的 ASCII 兜底名（**故意不是中文**：domain 不许持有 CJK）。
+  static String _kFallbackChildName() => 'Child';
 
   /// 当前活跃档案（[initialize] 后缓存；null = 未初始化 / 桩模式）。
   ChildProfile? _active;
@@ -45,10 +60,11 @@ class AccountService {
   ///
   /// 幂等：可安全多次调用（只生效一次）。
   ///
-  /// 默认孩子口径：id = [kChildIdDefault]、name = '孩子'、ageTier = 当前
-  /// settings 单行值（无 settings 时回退 [AgeTier.high]，与 settings 空表默认
-  /// 语义一致）。活跃 id 从 SP `active_child_id` 恢复；键缺失或指向不存在的
-  /// 孩子 → 回退第一个孩子（🔴 绝不因此删任何档案）。
+  /// 默认孩子口径：id = [kChildIdDefault]、name = [_defaultChildName]（注入的本地化
+  /// 名字，未注入时 ASCII `Child`）、ageTier = 当前 settings 单行值（无 settings
+  /// 时回退 [AgeTier.high]，与 settings 空表默认语义一致）。活跃 id 从 SP
+  /// `active_child_id` 恢复；键缺失或指向不存在的孩子 → 回退第一个孩子
+  /// （🔴 绝不因此删任何档案）。
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
@@ -59,7 +75,7 @@ class AccountService {
     if (list.isEmpty) {
       final AgeTier tier =
           (await _settings?.getSettings())?.ageTier ?? AgeTier.high;
-      await repo.create('孩子', tier, id: kChildIdDefault);
+      await repo.create(_defaultChildName(), tier, id: kChildIdDefault);
       list = await repo.children();
     }
 
@@ -101,7 +117,11 @@ class AccountService {
   /// [id] 必须是已存档案，否则抛 [ArgumentError]；成功后写 SP 持久化。
   Future<void> switchTo(String id) async {
     final ChildProfileRepository? repo = _children;
-    if (repo == null) throw StateError('AccountService 未注入依赖（桩模式）');
+    // dev 侧异常文案一律 ASCII 英文（i18n B3 · T05 裁定）：`StateError` /
+    // `ArgumentError` 只进开发者日志与测试断言，**永不预上屏**，故不进 ARB。
+    if (repo == null) {
+      throw StateError('AccountService: dependencies not injected (stub mode)');
+    }
     final List<ChildProfile> list = await repo.children();
     for (final ChildProfile c in list) {
       if (c.id == id) {
@@ -110,13 +130,15 @@ class AccountService {
         return;
       }
     }
-    throw ArgumentError.value(id, 'id', '孩子档案不存在');
+    throw ArgumentError.value(id, 'id', 'child profile not found');
   }
 
   /// 新建孩子档案（门控配额判定在调用方：矩阵单点 `quotaAllowsAdd`）。
   Future<ChildProfile> createChild(String name, AgeTier ageTier) {
     final ChildProfileRepository? repo = _children;
-    if (repo == null) throw StateError('AccountService 未注入依赖（桩模式）');
+    if (repo == null) {
+      throw StateError('AccountService: dependencies not injected (stub mode)');
+    }
     return repo.create(name, ageTier);
   }
 

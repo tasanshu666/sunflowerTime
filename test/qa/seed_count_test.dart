@@ -15,13 +15,13 @@ import 'package:sunflower_time/data/local/task_seed.dart';
 void main() {
   group('内置种子 = 5 条（阶段 4 精简版）', () {
     test('任务种子 = 5 条', () {
-      expect(kSeedTasks.length, 5,
+      expect(kTaskSeedTemplates.length, 5,
           reason: '任务种子应对齐 kFreeTaskQuota=5，避免新装免费用户一上来即超限');
     });
 
     test('任务种子保留 id = 约定清单', () {
       expect(
-        kSeedTasks.map((t) => t.id).toSet(),
+        kTaskSeedTemplates.map((t) => t.id).toSet(),
         <String>{
           'seed_task_homework',
           'seed_task_math',
@@ -54,7 +54,7 @@ void main() {
 
     test('已删的旧 id 不再出现（防误加回）', () {
       final Set<String> taskIds =
-          kSeedTasks.map((t) => t.id).toSet();
+          kTaskSeedTemplates.map((t) => t.id).toSet();
       final Set<String> rewardIds =
           kSeedRewardTemplates.map((t) => t.id).toSet();
       for (final String removed in <String>[

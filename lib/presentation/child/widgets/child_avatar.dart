@@ -34,6 +34,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_artwork.dart';
+import 'package:sunflower_time/core/i18n/species_l10n.dart';
 
 /// 头像圆形底色（奶油底，与 App 奶油/阳光风同源）。
 const Color kChildAvatarBg = Color(0xFFFFF6DE);
@@ -139,7 +140,7 @@ Future<String?> showChildAvatarPickerDialog(
           _AvatarOption(
             key: ValueKey<String>('avatar_option_${s.id}'),
             value: s.id,
-            label: s.name,
+            label: speciesNameOr(s.id, s.name, l10n),
             selected: currentAvatar == s.id,
             // 🔴 置灰 + 锁但**可点**：点了提示，不静默（C62 纪律）。
             locked: !plantedSpeciesIds.contains(s.id),

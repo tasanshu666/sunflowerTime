@@ -41,14 +41,16 @@ class PlantPerkRegistry {
   ///  · [PlantPerk.id] 为空字符串；
   ///  · 同 id 已注册过（注册表按 id 去重）。
   void register(PlantPerk perk) {
+    // dev 侧异常文案一律 ASCII 英文（i18n B3 · T05 裁定）：注册表校验只在
+    // 装配期由开发者触发，永不预上屏，故不进 ARB。
     if (perk.id.isEmpty) {
-      throw StateError('PlantPerkRegistry.register: id 不能为空字符串');
+      throw StateError('PlantPerkRegistry.register: perk.id must not be empty');
     }
     for (final PlantPerk existing in _perks) {
       if (existing.id == perk.id) {
         throw StateError(
-          'PlantPerkRegistry.register: 重复的能力 id "${perk.id}"，'
-          '请先 unregisterById 再注册',
+          'PlantPerkRegistry.register: duplicate perk id "${perk.id}"; '
+          'call unregisterById(...) first',
         );
       }
     }

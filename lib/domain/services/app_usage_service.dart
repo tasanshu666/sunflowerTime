@@ -56,7 +56,11 @@ class AppUsageService {
     required DateTime now,
   }) {
     if (storedSeconds < 0) {
-      throw StateError('AppUsageService.advance: storedSeconds 不允许为负（$storedSeconds）');
+      // dev 侧异常文案一律 ASCII 英文（i18n B3 · T05 裁定）：永不预上屏。
+      throw StateError(
+        'AppUsageService.advance: storedSeconds must not be negative '
+        '($storedSeconds)',
+      );
     }
 
     final String todayKey = dayKey(now);

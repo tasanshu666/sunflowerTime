@@ -204,7 +204,8 @@ void main() {
       //    本步是端到端验收：修复前因迁移失败，reward_templates 始终为空、
       //    ensureRewardSeed 被 unawaited 静默吞掉异常，旭日商店纯黑页。
       final RewardLocalRepository repo = RewardLocalRepository(database);
-      await ensureRewardSeed(repo);
+      // i18n B3（T05）：种子名由调用方注入；表非空 → 本调用是 no-op，name 不落库。
+      await ensureRewardSeed(repo, nameOf: (String id) => id);
       final List<db.RewardTemplate> all =
           await database.rewardTemplateDao.all();
       expect(all, hasLength(6));
@@ -276,7 +277,8 @@ void main() {
       // ② 库在 v24 迁移中已写入 6 条内置奖励（迁移内联清单，含 seed_story）；
       //    ensureRewardSeed 因表非空为 no-op，all() 仍为 6 条。
       final RewardLocalRepository repo = RewardLocalRepository(database);
-      await ensureRewardSeed(repo);
+      // i18n B3（T05）：种子名由调用方注入；表非空 → 本调用是 no-op，name 不落库。
+      await ensureRewardSeed(repo, nameOf: (String id) => id);
       expect(await database.rewardTemplateDao.all(), hasLength(6));
 
       // ③ INSERT 成功（旧代码必炸）。

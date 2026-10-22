@@ -20,50 +20,86 @@ import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
-/// refType → 中文来源文案（单点收口，避免 UI 层散落字面量）。
+/// refType → 来源文案（i18n B3 起为**函数**：文案走 ARB，英文环境同源）。
+///
+/// ## 纪律（既有铁律：字形由中文改为 ARB key，语义不变）
+/// 新增 refType **必须同步本函数**，否则孩子端「阳光来源记录」一律显示「其他」，
+/// 阳光来源对不上账（`test/m3/child_sunlight_history_ref_labels_test.dart` 钉死）。
+///
+/// ## B3 变更
+/// 原 `const Map<String, String> _refLabels`（中文硬编码）→ 本函数（ARB key）。
+/// refType **字符串值一律冻结**（append-only）：`'bloom_reward_24h'` 等历史值
+/// 保留原样作为 case —— 换语言只换文案、绝不换值。
 ///
 /// 注：`bloom_reward` / `bloom_reward_24h` 为成株后循环玩法 Batch 1 的开花奖励
 /// refType（后者字符串值仍是历史遗留的 `'..._24h'`，见 `prd_params.dart` 中的冻结说明）。
-const Map<String, String> _refLabels = <String, String>{
-  // C48（玄参 2026-10-10）：专注入账的真实 refType 是 `focus_session` /
-  // `focus_task_reward`（见 sunlight_service.dart），此前映射表只有 'focus'，
-  // 专注记录全部落空显示「其他」—— 补齐（旧 'focus' 键保留作历史兼容）。
-  'focus': '专注产出',
-  'focus_session': '专注',
-  'focus_task_reward': '专注任务奖励',
-  'task_checkin': '成长项奖励',
-  'plant_plant': '种植植物',
-  'plant_water': '浇水',
-  'plant_fertilize': '施肥',
-  'plant_revive': '救回植物',
-  'plant_expand': '花园扩容',
-  // 花园干扰物（口径 C26）：漏配这两个 refType 时孩子端会一律显示「其他」，
-  // 阳光来源对不上账 —— 新增 refType 必须同步本映射（既有铁律）。
-  'plant_weed': '拔草',
-  'plant_pest': '除虫',
-  'plant_death_refund': '植物死亡返还',
-  // C28 少儿护眼休息（玄参 2026-10-03 拍板）：完整完成一次 60 秒护眼 → +2 阳光，
-  // `refType='eye_care_break'`（**字符串值一经写入即冻结**，改名会与历史行分裂）。
-  // 漏配这条时孩子端会一律显示「其他」，阳光来源对不上账（新增 refType 必须同步本映射）。
-  'eye_care_break': '护眼',
-  // C29 铲除返还（玄参 2026-10-05 拍板）：铲除植物按种下时定好的返还额入账
-  // （普通 150 / 精英 250 / 免费首株与死亡株 0），refType 值冻结。
-  'plant_shovel_refund': '铲除返还',
-  'bloom_reward': '开花奖励',
-  'bloom_reward_24h': '花开回访奖励',
-  // 兑换入账真实 refType（redemption_orchestration_service.dart 写 'redemption'），
-  // 旧 'redeem' 键保留作历史兼容 —— 漏配时同样显示「其他」。
-  'redeem': '兑换奖励',
-  'redemption': '兑换奖励',
-  'queueRelease': '阳光池释放',
-  'parent_gift': '家长赠予',
-  'debug_grant': '调试发放',
-  // C74 专注等级升级一次性阳光（玄参 2026-10-14 拍板；refType 值冻结）。
-  // 🔴 C78（2026-10-15）：升级不再发阳光（零账本行）——本标签仅供**历史行**显示，
-  //    账本 append-only 不清理，故映射必须保留。
-  // 🔴 新增 refType 必须同步本映射，否则孩子端显示「其他」，阳光来源对不上账（既有铁律）。
-  kFocusLevelUpRefType: '专注升级',
-};
+String refLabelOf(String? refType, AppLocalizations t) {
+  switch (refType ?? '') {
+    // C48（玄参 2026-10-10）：专注入账的真实 refType 是 `focus_session` /
+    // `focus_task_reward`（见 sunlight_service.dart），此前映射表只有 'focus'，
+    // 专注记录全部落空显示「其他」—— 补齐（旧 'focus' 键保留作历史兼容）。
+    case 'focus':
+      return t.child_hist_ref_focus;
+    case 'focus_session':
+      return t.child_hist_ref_focus_session;
+    case 'focus_task_reward':
+      return t.child_hist_ref_focus_task_reward;
+    case 'task_checkin':
+      return t.child_hist_ref_task_checkin;
+    case 'plant_plant':
+      return t.child_hist_ref_plant_plant;
+    case 'plant_water':
+      return t.child_hist_ref_plant_water;
+    case 'plant_fertilize':
+      return t.child_hist_ref_plant_fertilize;
+    case 'plant_revive':
+      return t.child_hist_ref_plant_revive;
+    case 'plant_expand':
+      return t.child_hist_ref_plant_expand;
+    // 花园干扰物（口径 C26）：漏配这两个 refType 时孩子端会一律显示「其他」，
+    // 阳光来源对不上账 —— 新增 refType 必须同步本映射（既有铁律）。
+    case 'plant_weed':
+      return t.child_hist_ref_plant_weed;
+    case 'plant_pest':
+      return t.child_hist_ref_plant_pest;
+    case 'plant_death_refund':
+      return t.child_hist_ref_plant_death_refund;
+    // C28 少儿护眼休息（玄参 2026-10-03 拍板）：完整完成一次 60 秒护眼 → +2 阳光，
+    // `refType='eye_care_break'`（**字符串值一经写入即冻结**，改名会与历史行分裂）。
+    // 漏配这条时孩子端会一律显示「其他」，阳光来源对不上账（新增 refType 必须同步本映射）。
+    case 'eye_care_break':
+      return t.child_hist_ref_eye_care_break;
+    // C29 铲除返还（玄参 2026-10-05 拍板）：铲除植物按种下时定好的返还额入账
+    // （普通 150 / 精英 250 / 免费首株与死亡株 0），refType 值冻结。
+    case 'plant_shovel_refund':
+      return t.child_hist_ref_plant_shovel_refund;
+    case 'bloom_reward':
+      return t.child_hist_ref_bloom_reward;
+    case 'bloom_reward_24h':
+      return t.child_hist_ref_bloom_reward_24h;
+    // 兑换入账真实 refType（redemption_orchestration_service.dart 写 'redemption'），
+    // 旧 'redeem' 键保留作历史兼容 —— 漏配时同样显示「其他」。
+    case 'redeem':
+      return t.child_hist_ref_redeem;
+    case 'redemption':
+      return t.child_hist_ref_redemption;
+    case 'queueRelease':
+      return t.child_hist_ref_queue_release;
+    case 'parent_gift':
+      return t.child_hist_ref_parent_gift;
+    case 'debug_grant':
+      return t.child_hist_ref_debug_grant;
+    // C74 专注等级升级一次性阳光（玄参 2026-10-14 拍板；refType 值冻结）。
+    // 🔴 C78（2026-10-15）：升级不再发阳光（零账本行）——本标签仅供**历史行**显示，
+    //    账本 append-only 不清理，故映射必须保留。
+    // 🔴 新增 refType 必须同步本映射，否则孩子端显示「其他」，阳光来源对不上账（既有铁律）。
+    case kFocusLevelUpRefType:
+      return t.child_hist_ref_focus_level_up;
+    default:
+      // 未知 refType 安全兜底（与原 `?? hist_other` 同语义）。
+      return t.hist_other;
+  }
+}
 
 /// 孩子端阳光来源记录页。
 class ChildSunlightHistoryPage extends ConsumerStatefulWidget {
@@ -207,9 +243,8 @@ class _EntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String label =
-        _refLabels[entry.refType ?? ''] ??
-        l10nOf(context).hist_other;
+    final AppLocalizations t = l10nOf(context);
+    final String label = refLabelOf(entry.refType, t);
     final bool earned = entry.net >= 0;
     final String amountText = '${entry.net > 0 ? '+' : ''}${entry.net.toInt()} ☀';
     final String time =

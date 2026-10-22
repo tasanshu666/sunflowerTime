@@ -20,26 +20,24 @@ class RewardTemplate {
     this.cooldownRule = CooldownRule.weekly,
   });
 
-  /// 内容分类中文名（零食/游玩/娱乐/其他），单点收口（UI 层不要再写 switch）。
-  String get contentCategoryLabel => contentCategory.label;
-
   /// 内容分类占位图标（emoji）。
+  ///
+  /// i18n B3（T02）：**已删除** `contentCategoryLabel` getter（原实现转发到
+  /// `contentCategory.label`，即 domain 里的中文分类名）。分类名统一走
+  /// `core/i18n/enum_l10n.dart` 的 `rewardContentCategoryLabel(contentCategory, l10n)`。
+  /// [contentCategoryIcon] 保留：emoji 是符号不是文案。
   String get contentCategoryIcon => contentCategory.icon;
 }
 
-/// 计算奖励卡「本周可兑换次数」展示文案（孩子端剩余次数 / 家长端配置次数共用）。
+/// 奖励卡「本周可兑换次数」文案 —— **已迁出 domain**（i18n B3 · T02）。
 ///
-/// [limit] = [frequencyLimitPerWeek]（<=0 视为不限次数）；[used] = 本周已领次数
-/// （孩子端传 [cooldownCount]，家长端传 0 即配置值本身）。
-/// 返回 null 表示无需展示（已领完，由卡片禁用态 / 「本周已领」承载）。
+/// 原顶层函数 `weeklyRedeemLabel(limit, used)` 只做文案装配（「不限次数」/
+/// 「周限 N 次」），属展示层职责，且中文硬编码违反 domain 零 CJK 纪律。
 ///
-/// 口径（玄参已确认）：
-///   · limit<=0          → 「不限次数」；
-///   · remaining>=1      → 「周限 N 次」（N = 剩余可兑换次数）；
-///   · remaining==0      → null（隐藏，由卡片禁用态 / 「本周已领」承载）。
-String? weeklyRedeemLabel(int limit, int used) {
-  if (limit <= 0) return '不限次数';
-  final int remaining = (limit - used).clamp(0, limit);
-  if (remaining <= 0) return null;
-  return '周限 $remaining 次';
-}
+/// 迁移后入口：`core/i18n/domain_text_l10n.dart` 的
+/// `weeklyRedeemLabelL10n(limit, used, l10n)`，**返回语义与口径逐字节保留**：
+///   · `limit <= 0`          → 「不限次数」（ARB `shared_reward_unlimited`）；
+///   · `remaining >= 1`      → 「周限 N 次」（ARB `shared_reward_weekly_limit`，
+///     N = 剩余可兑换次数）；
+///   · `remaining == 0`      → `null`（隐藏，由卡片禁用态 / 「本周已领」承载）。
+

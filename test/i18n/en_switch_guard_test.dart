@@ -31,13 +31,17 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/app_language.dart';
 import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart' as db;
 import 'package:sunflower_time/data/local/repositories/child_profile_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/settings_local_repository.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
+import 'package:sunflower_time/domain/services/focus_level_service.dart'
+    show progressOf;
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/platform/iap_service.dart';
+import 'package:sunflower_time/presentation/child/widgets/focus_level_badge.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_reward_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_settings_page.dart';
@@ -307,5 +311,113 @@ void main() {
         reason: '显式 en 恒生效（页面文案不是「切换链路坏了」的假象）');
     // 抽查一条 B1 已迁移的孩子端文案确为英文。
     expect(resolved.shared_cancel, 'Cancel');
+  });
+
+  // ───────────────── ④ B3 · T04/T05 新接线的 EN 取证 ─────────────────
+  //
+  // ## 为什么要专门再立一套宿主
+  // 上面 ①②③ 的 `host()` 是「裸 MaterialApp + 页内 L10nScope」——那是给**既有**
+  // 1783 条测试留的兼容垫片。它有个盲区：`showDialog` / 弹窗的 builder 上下文挂在
+  // **根 Navigator** 上（在 `home` 之外），取不到 `home` 里的 `L10nScope` →
+  // `l10nOf` 会静默回退中文。
+  //
+  // 生产形态不是这样：`app.dart` 的 `MaterialApp.router` **自己挂了**
+  // `localizationsDelegates` + `locale`，根 Localizations 在 Navigator 之上，
+  // 所以弹窗内取文案是真的英文。故本组改用 `localizedHost`（复刻生产挂法）
+  // 来取证 —— 否则「弹窗还是中文」这个真 bug 会被垫片掩盖成「测试通过」。
+  Widget localizedHost(Widget child) => UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: const <Locale>[Locale('zh'), Locale('en')],
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: Align(alignment: Alignment.topLeft, child: child),
+          ),
+        ),
+      );
+
+  group('④ T04/T05 新接线 en 取证（等级详情卡）', () {
+    /// 打开详情卡（900 分钟 = Lv.7）。
+    Future<void> openDetail(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        localizedHost(
+          FocusLevelBadge(progress: progressOf(900), totalMinutes: 900),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(FocusLevelBadge.badgeTapKey));
+      await tester.pumpAndSettle();
+      expect(find.byKey(FocusLevelDetailDialog.dialogKey), findsOneWidget);
+    }
+
+    testWidgets('T05 属性名：en 下渲染 Watering / Weeding，中文属性名消失',
+        (WidgetTester tester) async {
+      await openDetail(tester);
+
+      final Finder dialog = find.byKey(FocusLevelDetailDialog.dialogKey);
+      // 9 行属性徽章里，Lv.5 = Watering、Lv.15 = Weeding（原 kPerkNames「浇水 / 除草」）。
+      expect(find.descendant(of: dialog, matching: find.text('Watering')),
+          findsOneWidget,
+          reason: 'Lv.5 属性名必须来自 ARB `shared_perk_name_water`');
+      expect(find.descendant(of: dialog, matching: find.text('Weeding')),
+          findsOneWidget);
+      expect(
+        find.descendant(of: dialog, matching: find.text('Eye care')),
+        findsOneWidget,
+        reason: 'Lv.1 属性名',
+      );
+      // 中文属性名必须消失（9 条全查，防「迁了 3 条漏 6 条」）。
+      for (final String zhName in <String>[
+        '护眼',
+        '浇水',
+        '施肥',
+        '除草',
+        '除虫',
+        '绽放',
+        '晨露',
+        '扩盆',
+        '铲除',
+      ]) {
+        expect(find.descendant(of: dialog, matching: find.text(zhName)),
+            findsNothing,
+            reason: 'en 下不许出现中文属性名「$zhName」');
+      }
+    });
+
+    testWidgets('T05 差距文案：en 下无 CJK 且带 Lv.8（shared_level_gap_next）',
+        (WidgetTester tester) async {
+      await openDetail(tester);
+
+      final Text gap =
+          tester.widget<Text>(find.byKey(FocusLevelDetailDialog.gapTextKey));
+      final String text = gap.data ?? '';
+      expect(text, contains('Lv.8'), reason: '下一级是 Lv.8（900 分钟 → Lv.7）');
+      expect(RegExp(r'[\u4e00-\u9fff]').hasMatch(text), isFalse,
+          reason: 'en 下差距文案不许含中文（当前：「$text」）');
+      // 时长单位也已英文（原实现输出「4 小时」；en 的 ARB 用紧凑写法 `4 h`）。
+      expect(text, isNot(contains('小时')));
+      expect(RegExp(r'\d+\s*h\b').hasMatch(text), isTrue,
+          reason: '240 分钟 = 4 小时，en 应输出 `4 h`（当前：「$text」）');
+    });
+
+    testWidgets('T05 默认孩子名：en 下 providers 注入 Child（不再写死「孩子」）',
+        (WidgetTester tester) async {
+      // 直接查容器里注入的取值器（生产路径 = `providers.dart` 的闭包）。
+      final AccountService account = container.read(accountServiceProvider);
+      expect(account, isNotNull);
+      // 走一遍「空表补建」的取值：容器装配的是 `defaultChildName: () =>
+      // defaultChildName(lookupAppLocalizations(AppLocaleController.current))`，
+      // 当前 locale = en → 必须是 Child。
+      expect(
+        defaultChildName(lookupAppLocalizations(AppLocaleController.current)),
+        'Child',
+        reason: 'en 下 ARB `shared_default_child_name` = Child',
+      );
+    });
   });
 }

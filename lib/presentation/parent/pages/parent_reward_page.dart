@@ -25,6 +25,8 @@ import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 // F130：平板 UI 倍率（文字之外的定尺寸元素一律乘 `uiScaleOf(context)`）。
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/core/i18n/domain_text_l10n.dart';
+import 'package:sunflower_time/core/i18n/enum_l10n.dart';
 
 /// 「奖励」页：每周阳光池指示（含预算设定）+ 可编辑模板列表。
 class ParentRewardPage extends ConsumerStatefulWidget {
@@ -232,8 +234,8 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
               final RewardTemplate t = _templates[i];
               // 家长端展示「剩余可兑换次数」= 配置限领 − 本周已领（cooldownCount），
               // 核销 1 次即从 N 变为 N-1，与孩子端口径一致，避免时间长忘了设了几条。
-              final String? freqLabel =
-                  weeklyRedeemLabel(t.frequencyLimitPerWeek, _weeklyUsed[t.id] ?? 0);
+              final String? freqLabel = weeklyRedeemLabelL10n(
+                  t.frequencyLimitPerWeek, _weeklyUsed[t.id] ?? 0, l10n);
               return Container(
                 decoration: creamCardDecoration(),
                 // F130：卡片内边距 / 图标块 / 间距一律乘 `s` —— 1.6 倍下文字已放大，
@@ -282,7 +284,7 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                             runSpacing: 4,
                             children: <Widget>[
                               pillLabel(
-                                text: t.contentCategoryLabel,
+                                text: rewardContentCategoryLabel(t.contentCategory, l10n),
                                 bg: macaronColorById(t.id).bg,
                                 fg: macaronColorById(t.id).fg,
                               ),
@@ -418,7 +420,7 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
   /// 内容分类下拉项（C52 / 玄参 2026-10-10）：换「UI 图标 + 文字」渲染，
   /// 并纳入新增「玩具 / 阅读」分类；图标加载失败回退 emoji（美术永不阻塞）。
   DropdownMenuItem<RewardContentCategory> _contentCategoryDropdownItem(
-      RewardContentCategory c) {
+      RewardContentCategory c, AppLocalizations l10n) {
     return DropdownMenuItem<RewardContentCategory>(
       value: c,
       child: Row(
@@ -435,7 +437,7 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
             ),
           ),
           const SizedBox(width: 8),
-          Text(c.label),
+          Text(rewardContentCategoryLabel(c, l10n)),
         ],
       ),
     );
@@ -493,7 +495,8 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
                   labelText: l10n.parent_reward_content_label,
                 ),
                 items: RewardContentCategory.values
-                    .map(_contentCategoryDropdownItem)
+                    .map((RewardContentCategory c) =>
+                        _contentCategoryDropdownItem(c, l10n))
                     .toList(),
                 onChanged: (RewardContentCategory? v) =>
                     setState(() => _contentCategory = v!),

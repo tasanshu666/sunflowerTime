@@ -640,9 +640,10 @@ void main() {
       final ctx = _make();
       await expectLater(
         () => ctx.svc.verifyCheckIn('no-such-id', day),
+        // i18n B3（T03）：异常改带语义码（文案经 error_l10n 装配）。
         throwsA(
-          isA<TaskCheckInException>().having(
-              (TaskCheckInException e) => e.message, 'message', contains('找不到')),
+          isA<TaskCheckInException>().having((TaskCheckInException e) => e.code,
+              'code', TaskCheckInError.notFound),
         ),
       );
     });

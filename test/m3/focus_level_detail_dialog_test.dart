@@ -34,6 +34,7 @@ import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart'
     show perkOfTitleNode, perkShortTextOf;
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/presentation/child/widgets/focus_level_badge.dart';
 
 /// 立泵一枚摘要徽章（外层 `MaterialApp` 提供 Dialog 所需的 Navigator/Theme）。
@@ -102,11 +103,11 @@ void main() {
     // b) 距下一级：Lv.8 门槛 1140 − 900 = 240 分钟 = 4 小时。
     final Text gap =
         tester.widget<Text>(find.byKey(FocusLevelDetailDialog.gapTextKey));
+    // i18n B3（T05）：模板常量已删除，断言直接对 ARB 真值（zh）——
+    // 比「常量替换」更强：它同时钉住 ARB 里的中文与占位符顺序。
     expect(
       gap.data,
-      kLevelDetailNextTextTemplate
-          .replaceAll('{n}', '8')
-          .replaceAll('{r}', '4 小时'),
+      AppLocalizationsZh().shared_level_gap_next(8, '4 小时'),
       reason: '距下一级 = 下一级门槛 − 累计（复用 progressOf.minutesToNext）',
     );
   });
@@ -240,8 +241,9 @@ void main() {
 
     final Text gap =
         tester.widget<Text>(find.byKey(FocusLevelDetailDialog.gapTextKey));
-    expect(gap.data, kLevelMaxTextTemplate.replaceAll('{t}', '时光大贤者'),
-        reason: '满级第二块显示满级文案（单点收敛到常量模板）');
+    // i18n B3（T05）：同上，断言 ARB 的 `shared_level_gap_max` 真值。
+    expect(gap.data, AppLocalizationsZh().shared_level_gap_max('时光大贤者'),
+        reason: '满级第二块显示满级文案（单点收敛到 ARB）');
     // C81 ⑤：改认证当前行 = **加粗**（✨ 已删）。
     final Text lastTitle = tester.widget<Text>(find.descendant(
       of: find.byKey(FocusLevelDetailDialog.titleRowKeyOf(40)),

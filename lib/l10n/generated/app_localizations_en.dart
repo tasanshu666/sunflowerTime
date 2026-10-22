@@ -109,7 +109,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_lock_sleeping => '🌻 The sunflower is sleeping';
 
   @override
-  String child_lock_body(Object hour) {
+  String child_lock_body(int hour) {
     return 'After $hour:00 the sunflower goes to sleep — see you tomorrow~';
   }
 
@@ -117,7 +117,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_rest_title => 'Take a Break';
 
   @override
-  String child_rest_body(Object sec) {
+  String child_rest_body(int sec) {
     return 'Take a break and sip some water — $sec s left';
   }
 
@@ -125,7 +125,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_rest_done => 'I\'m Done Resting';
 
   @override
-  String child_eyecare_countdown(Object sec) {
+  String child_eyecare_countdown(int sec) {
     return '$sec s left';
   }
 
@@ -148,12 +148,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_today_focus_label => 'Focus Today';
 
   @override
-  String child_today_minutes(Object minutes) {
+  String child_today_minutes(int minutes) {
     return '$minutes min';
   }
 
   @override
-  String child_today_focus_count(Object count) {
+  String child_today_focus_count(int count) {
     return '· $count sessions';
   }
 
@@ -168,17 +168,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Want growth sunlight? Tap a task in \"Growth\" and start focusing 🌻';
 
   @override
-  String child_settle_secs(Object sec) {
+  String child_settle_secs(int sec) {
     return '$sec s';
   }
 
   @override
-  String child_settle_mins(Object min) {
+  String child_settle_mins(int min) {
     return '$min min';
   }
 
   @override
-  String child_settle_min_sec(Object min, Object sec) {
+  String child_settle_min_sec(int min, int sec) {
     return '$min min $sec s';
   }
 
@@ -190,17 +190,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Task settlement did not finish; this session\'s sunlight is unaffected';
 
   @override
-  String child_settle_task_capped(Object sun) {
+  String child_settle_task_capped(String sun) {
     return '(Daily sunlight cap reached; only $sun ☀ credited)';
   }
 
   @override
-  String child_settle_task_done(Object capped, Object name, Object sun) {
+  String child_settle_task_done(String capped, String name, String sun) {
     return 'Task \"$name\" done +$sun ☀$capped';
   }
 
   @override
-  String child_settle_task_progress(Object name) {
+  String child_settle_task_progress(String name) {
     return 'Task \"$name\" is nearly there — it counts once a session is long enough 🌻';
   }
 
@@ -233,12 +233,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_settle_cap_title => '🌻 Today\'s focus quota is used up';
 
   @override
-  String child_settle_cap_body_detail(Object cheer, Object detail) {
+  String child_settle_cap_body_detail(String cheer, String detail) {
     return 'No sunlight is collected beyond the quota$detail. $cheer';
   }
 
   @override
-  String child_settle_cap_orig_vs_net(Object net, Object raw) {
+  String child_settle_cap_orig_vs_net(String net, String raw) {
     return '(originally $raw ☀️, credited $net ☀️)';
   }
 
@@ -274,7 +274,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_cap_daily_title => 'Take a Rest';
 
   @override
-  String child_cap_single_body(Object minutes) {
+  String child_cap_single_body(int minutes) {
     return 'You\'ve played $minutes minutes straight — rest your eyes';
   }
 
@@ -288,12 +288,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_cap_chip_daily => 'Daily Cap';
 
   @override
-  String child_cap_unlock_in(Object minutes) {
+  String child_cap_unlock_in(int minutes) {
     return 'Unlocks in $minutes min';
   }
 
   @override
-  String child_cap_minutes(Object minutes) {
+  String child_cap_minutes(int minutes) {
     return '$minutes min';
   }
 
@@ -313,12 +313,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_entry_pick_duration => 'How long will you focus?';
 
   @override
-  String child_entry_cap_daily(Object cap) {
+  String child_entry_cap_daily(int cap) {
     return 'Today\'s focus time is used up (daily limit $cap min) — see you tomorrow';
   }
 
   @override
-  String child_entry_remaining_today(Object cap, Object minutes) {
+  String child_entry_remaining_today(int cap, int minutes) {
     return 'You can still focus $minutes min today (daily limit $cap min)';
   }
 
@@ -335,12 +335,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_entry_quota_empty => 'Daily quota used up';
 
   @override
-  String child_entry_custom_hint_max(Object max) {
+  String child_entry_custom_hint_max(int max) {
     return 'Up to $max minutes';
   }
 
   @override
-  String child_entry_custom_hint_capped(Object max) {
+  String child_entry_custom_hint_capped(int max) {
     return 'Up to $max minutes (limited by today\'s quota)';
   }
 
@@ -366,22 +366,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_entry_bgm_hint => 'Loop soft music while focusing';
 
   @override
-  String child_entry_minutes(Object minutes) {
+  String child_entry_minutes(int minutes) {
     return '$minutes min';
   }
 
   @override
-  String child_entry_cap_snack(Object cap) {
+  String child_entry_cap_snack(int cap) {
     return 'Daily focus limit reached ($cap min) — come back tomorrow';
   }
 
   @override
-  String child_entry_cap_snack2(Object cap) {
+  String child_entry_cap_snack2(int cap) {
     return 'Today\'s focus time is used up (limit $cap min) — come back tomorrow';
   }
 
   @override
-  String child_entry_remaining_snack(Object minutes, Object remaining) {
+  String child_entry_remaining_snack(int minutes, int remaining) {
     return 'Only $remaining min left today, so this session is $minutes min';
   }
 
@@ -466,12 +466,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_shell_item_reward => 'Reward';
 
   @override
-  String child_shell_item_cost(Object sun) {
+  String child_shell_item_cost(int sun) {
     return '-$sun sunlight';
   }
 
   @override
-  String child_shell_verify_total(Object total) {
+  String child_shell_verify_total(int total) {
     return 'A total of $total sunlight was deducted';
   }
 
@@ -479,7 +479,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_shell_reject_title => '🚫 Redeem not approved';
 
   @override
-  String child_shell_reject_subtitle(Object note) {
+  String child_shell_reject_subtitle(String note) {
     return '($note)';
   }
 
@@ -495,12 +495,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Daily growth rewards are capped; no sunlight this time';
 
   @override
-  String child_shell_task_footer_partial(Object capped, Object total) {
+  String child_shell_task_footer_partial(int capped, int total) {
     return 'Got $total sunlight ($capped item(s) hit the daily cap)';
   }
 
   @override
-  String child_shell_task_footer(Object total) {
+  String child_shell_task_footer(int total) {
     return 'Got $total sunlight';
   }
 
@@ -511,7 +511,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_shell_task_fallback => 'Growth task';
 
   @override
-  String child_shell_task_item_sun(Object sun) {
+  String child_shell_task_item_sun(int sun) {
     return '+$sun sunlight';
   }
 
@@ -2491,4 +2491,396 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shared_lang_zh_name => '简体中文';
+
+  @override
+  String get shared_task_category_other => 'Other';
+
+  @override
+  String get shared_task_category_learning => 'Learning';
+
+  @override
+  String get shared_task_category_sports => 'Sports';
+
+  @override
+  String get shared_task_category_life => 'Life';
+
+  @override
+  String get shared_task_category_habit => 'Habit';
+
+  @override
+  String get shared_reward_content_other => 'Other';
+
+  @override
+  String get shared_reward_content_snacks => 'Snacks';
+
+  @override
+  String get shared_reward_content_play => 'Play';
+
+  @override
+  String get shared_reward_content_entertainment => 'Entertainment';
+
+  @override
+  String get shared_reward_content_toys => 'Toys';
+
+  @override
+  String get shared_reward_content_books => 'Books';
+
+  @override
+  String get shared_species_sunflower => 'Sunflower';
+
+  @override
+  String get shared_species_moon_orchid => 'Moon Orchid';
+
+  @override
+  String get shared_species_tomato => 'Tomato';
+
+  @override
+  String get shared_species_strawberry => 'Strawberry';
+
+  @override
+  String get shared_species_coral_orchid => 'Coral Ridge Orchid';
+
+  @override
+  String get shared_species_jade_hydrangea => 'Jade Hydrangea';
+
+  @override
+  String get shared_weekday_mon => 'Mon';
+
+  @override
+  String get shared_weekday_tue => 'Tue';
+
+  @override
+  String get shared_weekday_wed => 'Wed';
+
+  @override
+  String get shared_weekday_thu => 'Thu';
+
+  @override
+  String get shared_weekday_fri => 'Fri';
+
+  @override
+  String get shared_weekday_sat => 'Sat';
+
+  @override
+  String get shared_weekday_sun => 'Sun';
+
+  @override
+  String parent_report_bucket_week(int index) {
+    return 'Wk $index';
+  }
+
+  @override
+  String shared_perk_water_discount(int value) {
+    return 'Water cost −$value';
+  }
+
+  @override
+  String shared_perk_fertilize_discount(int value) {
+    return 'Fertilizer cost −$value';
+  }
+
+  @override
+  String shared_perk_weed_bonus(int value) {
+    return 'Weeding bonus +$value';
+  }
+
+  @override
+  String shared_perk_pest_bonus(int value) {
+    return 'Pest bonus +$value';
+  }
+
+  @override
+  String shared_perk_bloom_bonus(int value) {
+    return 'Bloom sunlight +$value';
+  }
+
+  @override
+  String shared_perk_dew_bonus(int value) {
+    return 'Dew sunlight +$value';
+  }
+
+  @override
+  String shared_perk_eyecare_bonus(int value) {
+    return 'Eye-care bonus +$value';
+  }
+
+  @override
+  String shared_perk_expand_discount(int value) {
+    return 'Pot expand −$value';
+  }
+
+  @override
+  String shared_perk_shovel_refund(int value) {
+    return 'Shovel refund +$value';
+  }
+
+  @override
+  String shared_duration_minutes(int m) {
+    return '$m min';
+  }
+
+  @override
+  String shared_duration_hours(int h) {
+    return '$h h';
+  }
+
+  @override
+  String shared_duration_hours_minutes(int h, int m) {
+    return '$h h $m min';
+  }
+
+  @override
+  String shared_level_gap_next(int n, String duration) {
+    return '$duration to Lv.$n';
+  }
+
+  @override
+  String shared_level_gap_max(String title) {
+    return 'Max title · $title';
+  }
+
+  @override
+  String shared_reward_weekly_limit(int remaining) {
+    return '$remaining left this week';
+  }
+
+  @override
+  String get shared_reward_unlimited => 'Unlimited';
+
+  @override
+  String get shared_plant_err_species_not_found => 'Plant species not found';
+
+  @override
+  String shared_plant_err_pot_out_of_capacity(int pot, int capacity) {
+    return 'Pot #$pot is beyond capacity ($capacity)';
+  }
+
+  @override
+  String shared_plant_err_pot_occupied(int pot) {
+    return 'Pot #$pot is occupied — clear it first';
+  }
+
+  @override
+  String get shared_plant_err_premium_fragments_only =>
+      'Premium plants can only be bought with fragments';
+
+  @override
+  String get shared_plant_err_seed_empty =>
+      'No seeds left — bloom plants to collect more';
+
+  @override
+  String shared_plant_err_sunlight_not_enough(int short) {
+    return 'Not enough sunlight — $short more needed';
+  }
+
+  @override
+  String shared_plant_err_fragments_not_enough(int short) {
+    return 'Not enough fragments — $short more needed';
+  }
+
+  @override
+  String get shared_plant_err_care_state_invalid =>
+      'Only growing, blooming or wilting plants can be cared for';
+
+  @override
+  String shared_plant_err_water_daily_limit(int max) {
+    return 'Watering limit reached ($max today)';
+  }
+
+  @override
+  String shared_plant_err_water_interval(int interval, int wait) {
+    return 'Water every $interval min — wait $wait min';
+  }
+
+  @override
+  String shared_plant_err_fertilize_daily_limit(int max) {
+    return 'Fertilizing limit reached ($max today)';
+  }
+
+  @override
+  String get shared_plant_err_plant_not_found => 'Plant not found';
+
+  @override
+  String get shared_plant_err_already_wilted => 'This plant has already wilted';
+
+  @override
+  String get shared_plant_err_no_weed => 'No weeds in this pot';
+
+  @override
+  String get shared_plant_err_no_pest => 'No pests in this pot';
+
+  @override
+  String shared_plant_err_garden_full(int limit) {
+    return 'Garden is full ($limit pots) — unlock to expand';
+  }
+
+  @override
+  String get shared_plant_err_reward_not_mature =>
+      'Not ripe yet, or already collected';
+
+  @override
+  String get shared_checkin_err_linked_auto =>
+      'This task completes automatically in a focus session';
+
+  @override
+  String get shared_checkin_err_already_done =>
+      'You already did this task today';
+
+  @override
+  String get shared_checkin_err_not_linked => 'This task isn\'t focus-linked';
+
+  @override
+  String get shared_checkin_err_session_not_today =>
+      'That session isn\'t from today';
+
+  @override
+  String get shared_checkin_err_session_used =>
+      'That session already settled a task';
+
+  @override
+  String get shared_checkin_err_not_found =>
+      'Record not found — it may have been deleted';
+
+  @override
+  String get shared_checkin_err_already_verified =>
+      'Already handled — can\'t verify twice';
+
+  @override
+  String get shared_checkin_err_already_rejected => 'Already handled';
+
+  @override
+  String get shared_checkin_err_race => 'Just handled a moment ago';
+
+  @override
+  String get seed_task_homework => 'Finish school homework';
+
+  @override
+  String get seed_task_math => 'Practice mental math';
+
+  @override
+  String get seed_task_read => 'Read for 20 minutes';
+
+  @override
+  String get seed_task_rope_skip => 'Jump rope 170+ times in a minute';
+
+  @override
+  String get seed_task_chores => 'Help tidy up at home';
+
+  @override
+  String get seed_reward_snack => 'A small snack';
+
+  @override
+  String get seed_reward_extra_play => '10 more minutes before bed';
+
+  @override
+  String get seed_reward_cartoon => 'Watch one cartoon episode';
+
+  @override
+  String get seed_reward_toy => 'A small toy';
+
+  @override
+  String get seed_reward_weekend_outing => 'A weekend outing';
+
+  @override
+  String get shared_child_default_name => 'Child';
+
+  @override
+  String get child_hist_ref_focus => 'Focus output';
+
+  @override
+  String get child_hist_ref_focus_session => 'Focus';
+
+  @override
+  String get child_hist_ref_focus_task_reward => 'Focus task reward';
+
+  @override
+  String get child_hist_ref_task_checkin => 'Task reward';
+
+  @override
+  String get child_hist_ref_plant_plant => 'Planted a plant';
+
+  @override
+  String get child_hist_ref_plant_water => 'Watering';
+
+  @override
+  String get child_hist_ref_plant_fertilize => 'Fertilizing';
+
+  @override
+  String get child_hist_ref_plant_revive => 'Plant revived';
+
+  @override
+  String get child_hist_ref_plant_expand => 'Garden expanded';
+
+  @override
+  String get child_hist_ref_plant_weed => 'Weeding';
+
+  @override
+  String get child_hist_ref_plant_pest => 'Pest removal';
+
+  @override
+  String get child_hist_ref_plant_death_refund => 'Plant death refund';
+
+  @override
+  String get child_hist_ref_eye_care_break => 'Eye care';
+
+  @override
+  String get child_hist_ref_plant_shovel_refund => 'Shovel refund';
+
+  @override
+  String get child_hist_ref_bloom_reward => 'Bloom reward';
+
+  @override
+  String get child_hist_ref_bloom_reward_24h => 'Bloom revisit reward';
+
+  @override
+  String get child_hist_ref_redeem => 'Reward redeemed';
+
+  @override
+  String get child_hist_ref_redemption => 'Reward redeemed';
+
+  @override
+  String get child_hist_ref_queue_release => 'Sunlight pool release';
+
+  @override
+  String get child_hist_ref_parent_gift => 'Parent gift';
+
+  @override
+  String get child_hist_ref_debug_grant => 'Debug grant';
+
+  @override
+  String get child_hist_ref_focus_level_up => 'Focus level up';
+
+  @override
+  String get child_eyecare_seg_default =>
+      'Follow the animation to protect your eyes';
+
+  @override
+  String get shared_perk_name_eye_care => 'Eye care';
+
+  @override
+  String get shared_perk_name_water => 'Watering';
+
+  @override
+  String get shared_perk_name_fertilize => 'Fertilizing';
+
+  @override
+  String get shared_perk_name_weed => 'Weeding';
+
+  @override
+  String get shared_perk_name_pest => 'Pest control';
+
+  @override
+  String get shared_perk_name_bloom => 'Bloom';
+
+  @override
+  String get shared_perk_name_dew => 'Morning dew';
+
+  @override
+  String get shared_perk_name_pot_expand => 'Pot upgrade';
+
+  @override
+  String get shared_perk_name_shovel => 'Removal';
+
+  @override
+  String get shared_default_child_name => 'Child';
 }

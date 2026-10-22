@@ -43,6 +43,8 @@ void main() {
       children: children,
       settings: SettingsLocalRepository(database),
       prefs: sp,
+      // i18n B3（T05）：默认孩子名由调用方注入；本用例断言上屏中文，故注入 zh 值。
+      defaultChildName: () => '孩子',
     );
     await account.initialize();
 

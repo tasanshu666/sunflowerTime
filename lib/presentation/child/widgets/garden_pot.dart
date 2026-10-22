@@ -71,6 +71,7 @@ import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 import 'plant_artwork.dart';
+import 'package:sunflower_time/core/i18n/species_l10n.dart';
 
 /// 陶盆配色（自绘用，集中在此便于统一换色；仅在 `pot.png` 缺失时走这条兜底）。
 class _PotColors {
@@ -454,16 +455,20 @@ class GardenPot extends StatelessWidget {
   }
 
   /// 一格只写最短信息：特殊状态优先（孩子一眼看哪盆要救），否则写物种名。
+  ///
+  /// i18n B3（T04）：物种名经 `speciesNameOr` 取当前语言；未知 id 回退
+  /// `species.name`（其 name 已被 `_unknownSpecies` 兜成 `garden_unknown_plant`）。
   String _label(AppLocalizations l10n) {
+    final String name = speciesNameOr(species.id, species.name, l10n);
     switch (plant.status) {
       case PlantStatus.bloomed:
-        return l10n.pot_label_bloomed(species.name);
+        return l10n.pot_label_bloomed(name);
       case PlantStatus.wilting:
-        return l10n.pot_label_wilting(species.name);
+        return l10n.pot_label_wilting(name);
       case PlantStatus.dead:
-        return l10n.pot_label_dead(species.name);
+        return l10n.pot_label_dead(name);
       case PlantStatus.growing:
-        return species.name;
+        return name;
     }
   }
 }

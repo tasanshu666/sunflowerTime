@@ -499,8 +499,10 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                               ),
                               const SizedBox(height: 4),
                               // 段标题（配音已含口令，这里只做同步字幕）。
+                              // i18n B3：字幕改走 ARB（英文环境同源）；`kEyeCareSegment.label`
+                              // 仍保留为素材元数据的冻结留档，UI 不再直读。
                               Text(
-                                seg.label,
+                                l10n.child_eyecare_seg_default,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -543,7 +545,7 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                       const SizedBox(height: 4),
                       // 段标题（配音已含口令，这里只做同步字幕）。
                       Text(
-                        seg.label,
+                        l10n.child_eyecare_seg_default,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 15,

@@ -126,24 +126,15 @@ enum TaskCategory {
   habit, // 习惯（C52 / 玄参 2026-10-10 追加；枚举追加向后兼容，历史行不受影响）
 }
 
-/// [TaskCategory] 展示扩展（中文标签 + 占位图标，真实角色立绘后续由玄参大人提供）。
+/// [TaskCategory] 展示扩展（占位图标）。
+///
+/// i18n B3（T02）：**分类名已迁出 domain** —— 原 `label` getter 里的中文
+/// （学习/运动/生活/其他/习惯）改由 `core/i18n/enum_l10n.dart` 的
+/// [taskCategoryLabel] 经 ARB 取，本扩展只保留 [icon]。
+///
+/// 🔴 为什么 [icon] 留在 domain：emoji 是**符号**而非文案（各语言一致，
+/// 不走 ARB），搬走只会让每个调用点多一次 import。
 extension TaskCategoryX on TaskCategory {
-  /// 中文分类名（学习/运动/生活/其他）。
-  String get label {
-    switch (this) {
-      case TaskCategory.other:
-        return '其他';
-      case TaskCategory.learning:
-        return '学习';
-      case TaskCategory.sports:
-        return '运动';
-      case TaskCategory.life:
-        return '生活';
-      case TaskCategory.habit:
-        return '习惯';
-    }
-  }
-
   /// 占位图标（emoji，待玄参大人提供真实角色立绘后替换）。
   String get icon {
     switch (this) {
@@ -178,26 +169,12 @@ enum RewardContentCategory {
   books, // 阅读（C52 / 玄参 2026-10-10 追加）
 }
 
-/// [RewardContentCategory] 展示扩展（中文标签 + 占位图标）。
+/// [RewardContentCategory] 展示扩展（占位图标）。
+///
+/// i18n B3（T02）：**分类名已迁出 domain** —— 原 `label` getter 里的中文
+/// （零食/游玩/娱乐/玩具/阅读/其他）改由 `core/i18n/enum_l10n.dart` 的
+/// [rewardContentCategoryLabel] 经 ARB 取，本扩展只保留 [icon]。
 extension RewardContentCategoryX on RewardContentCategory {
-  /// 中文分类名（零食/游玩/娱乐/其他）。
-  String get label {
-    switch (this) {
-      case RewardContentCategory.other:
-        return '其他';
-      case RewardContentCategory.snacks:
-        return '零食';
-      case RewardContentCategory.play:
-        return '游玩';
-      case RewardContentCategory.entertainment:
-        return '娱乐';
-      case RewardContentCategory.toys:
-        return '玩具';
-      case RewardContentCategory.books:
-        return '阅读';
-    }
-  }
-
   /// 占位图标（emoji，待玄参大人提供真实角色立绘后替换）。
   String get icon {
     switch (this) {

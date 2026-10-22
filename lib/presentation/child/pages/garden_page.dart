@@ -77,6 +77,8 @@ import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
+import 'package:sunflower_time/core/i18n/error_l10n.dart';
+import 'package:sunflower_time/core/i18n/species_l10n.dart';
 
 /// 养护动效浮层 / 成长演出浮层的**稳定 Key**（C82）。
 ///
@@ -515,7 +517,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       await _reload(silent: true);
       ok = true;
     } on PlantOperationException catch (e) {
-      _snack(e.message);
+      // i18n B3（T03）：领域层只回语义码，文案经单点映射装配。
+      _snack(plantErrorMessage(e, _t));
     } catch (e) {
       _snack(_t.shared_op_failed(e));
     } finally {
@@ -842,9 +845,14 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   }
 
   /// 按物种 id 取显示名（找不到返回 id 本身）。
+  ///
+  /// i18n B3（T04）：命中物种时经 `speciesNameOr` 取**当前语言**名（未知 id 仍
+  /// 兜底到 id 本身 —— 奖励串口径，与迁移前一致）。
   String _speciesNameById(String speciesId) {
     for (final PlantSpecies sp in _species) {
-      if (sp.id == speciesId) return sp.name;
+      if (sp.id == speciesId) {
+        return speciesNameOr(sp.id, speciesId, _t);
+      }
     }
     return speciesId;
   }
@@ -2895,7 +2903,8 @@ class _PlantTileState extends State<_PlantTile>
                 Row(
                   children: <Widget>[
                     Flexible(
-                      child: Text(species.name,
+                      child: Text(
+                          speciesNameOr(species.id, species.name, l10n),
                           style: const TextStyle(
                               fontSize: 15, fontWeight: FontWeight.w600)),
                     ),
@@ -2991,7 +3000,7 @@ class _PlantTileState extends State<_PlantTile>
             children: <Widget>[
               Icon(Icons.auto_stories, size: 14, color: _accent),
               const SizedBox(width: 4),
-              Text(species.name,
+              Text(speciesNameOr(species.id, species.name, l10n),
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w700)),
               const Spacer(),

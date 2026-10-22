@@ -29,6 +29,7 @@ import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
+import 'package:sunflower_time/core/i18n/error_l10n.dart';
 
 /// 「今日」页：待确认的成长项 + 待核销奖励。
 class ParentTodayPage extends ConsumerStatefulWidget {
@@ -360,7 +361,8 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
     } on TaskCheckInException catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
-      _snack(t.parent_today_confirm_fail_snack(e.message));
+      // i18n B3（T03）：领域层只回语义码，文案经单点映射装配。
+      _snack(t.parent_today_confirm_fail_snack(taskCheckInErrorMessage(e, t)));
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -421,7 +423,7 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
     } on TaskCheckInException catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
-      _snack(t.parent_today_reject_fail_snack(e.message));
+      _snack(t.parent_today_reject_fail_snack(taskCheckInErrorMessage(e, t)));
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);

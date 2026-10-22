@@ -19,6 +19,15 @@
 ///    （240h，每阶段 10 天 → 完全不养护 30 天长成）；
 ///  · 精英植物（其余 3 种）→ [kPlantGrowthHoursPerStagePremium]
 ///    （480h，每阶段 20 天 → 完全不养护 60 天长成）。
+///
+/// ## i18n B3（T05）：`PlantSpecies.name` 是**落库基线，不翻译**
+/// 本文件的 `name`（向日葵 / 月光兰 / …）刻意保留中文、**不进 ARB**：
+///  · 它是老库 `plant_species.name` 的种子值，改它等于制造「同一物种两个名字」；
+///  · 语言切换不该改写已有数据（同 `task_seed` / `reward_seed` 的口径）。
+///
+/// 上屏的物种名一律经 `core/i18n/species_l10n.dart` 的
+/// `speciesNameOr(speciesId, species.name, l10n)` —— 以 **speciesId** 为键查 ARB，
+/// 未知 id 才回退 `species.name`（其已被兜成「未知植物」）。见 T04。
 library plant_seed;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';

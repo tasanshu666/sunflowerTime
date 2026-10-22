@@ -17,11 +17,13 @@ import 'package:sunflower_time/core/constants/iap_product_ids.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/app_language.dart';
 import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/data/local/repositories/reward_seed.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/data/local/task_seed.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,8 +71,18 @@ Future<void> main() async {
   // M2（T-D）：首次启动播种奖励模板。此处原版用 unawaited 把异常静默吞掉，
   // 导致玄参大人真机的「奖励模板缺失」故障极难发现。改为至少把异常打到日志，
   // 不改启动时序、不阻塞启动、不改变 UX。
+  //
+  // i18n B3（T05）：种子名改由本处按**当前语言**注入（`AppLocaleController.current`
+  // 已在上面 init 过，此处读到的就是冷启动生效 locale）。老库已有中文行不受影响
+  // —— 播种只在表空时发生。
   unawaited(
-    ensureRewardSeed(container.read(rewardRepositoryProvider)).catchError(
+    ensureRewardSeed(
+      container.read(rewardRepositoryProvider),
+      nameOf: (String seedId) => rewardSeedName(
+        seedId,
+        lookupAppLocalizations(AppLocaleController.current),
+      ),
+    ).catchError(
       (Object e, StackTrace st) {
         debugPrint('[seed] 奖励模板播种失败：$e\n$st');
       },
@@ -79,7 +91,13 @@ Future<void> main() async {
 
   // M3（T05）：首次启动播种任务模板（若无模板则写入 3 条内置，幂等）。
   unawaited(
-    ensureTaskSeed(container.read(taskRepositoryProvider)).catchError(
+    ensureTaskSeed(
+      container.read(taskRepositoryProvider),
+      nameOf: (String seedId) => taskSeedName(
+        seedId,
+        lookupAppLocalizations(AppLocaleController.current),
+      ),
+    ).catchError(
       (Object e, StackTrace st) {
         debugPrint('[seed] 任务模板播种失败：$e\n$st');
       },

@@ -61,6 +61,7 @@ import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 // F130：平板 UI 倍率（文字之外的定尺寸元素一律乘 `uiScaleOf(context)`）。
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/core/i18n/report_l10n.dart';
 
 /// 记录页「专注报告」段。
 class FocusReportSection extends ConsumerStatefulWidget {
@@ -327,13 +328,16 @@ class _FocusReportSectionState extends ConsumerState<FocusReportSection> {
       ];
     }
     // 月 / 年桶没有「有效专注日」概念（一个桶含多天），故「有专注即亮」。
-    // ⚠️ 桶标签（`第2周` / `10月`）由域层 FocusReportService 派生（i18n B3 处理）。
+    // i18n B3（T04）收口：桶标签不再由 domain 派生（`PeriodBucket.label` 已删），
+    // 改由 `reportBucketLabel(period, bucket, index, l10n)` 按当前语言装配
+    // （周 → 周一…周日 / 月 → 第N周 / 年 → M月|MMM）。
+    final List<PeriodBucket> buckets = data.report.buckets;
     return <_TrendBar>[
-      for (final PeriodBucket b in data.report.buckets)
+      for (int i = 0; i < buckets.length; i++)
         _TrendBar(
-          label: b.label,
-          minutes: b.focusMinutes,
-          valid: b.focusMinutes > 0,
+          label: reportBucketLabel(_period, buckets[i], i, t),
+          minutes: buckets[i].focusMinutes,
+          valid: buckets[i].focusMinutes > 0,
         ),
     ];
   }

@@ -288,7 +288,7 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'晚上 {hour}:00 后向日葵要休息啦，明天再陪你专注~'**
-  String child_lock_body(Object hour);
+  String child_lock_body(int hour);
 
   /// No description provided for @child_rest_title.
   ///
@@ -300,7 +300,7 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'休息一下，喝口水～ 还剩 {sec} 秒'**
-  String child_rest_body(Object sec);
+  String child_rest_body(int sec);
 
   /// No description provided for @child_rest_done.
   ///
@@ -312,7 +312,7 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'还剩 {sec} 秒'**
-  String child_eyecare_countdown(Object sec);
+  String child_eyecare_countdown(int sec);
 
   /// No description provided for @child_eyecare_title.
   ///
@@ -354,13 +354,13 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'{minutes} 分钟'**
-  String child_today_minutes(Object minutes);
+  String child_today_minutes(int minutes);
 
   /// No description provided for @child_today_focus_count.
   ///
   /// In zh, this message translates to:
   /// **'· {count} 次'**
-  String child_today_focus_count(Object count);
+  String child_today_focus_count(int count);
 
   /// No description provided for @child_today_growth_label.
   ///
@@ -384,19 +384,19 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'{sec} 秒'**
-  String child_settle_secs(Object sec);
+  String child_settle_secs(int sec);
 
   /// No description provided for @child_settle_mins.
   ///
   /// In zh, this message translates to:
   /// **'{min} 分钟'**
-  String child_settle_mins(Object min);
+  String child_settle_mins(int min);
 
   /// No description provided for @child_settle_min_sec.
   ///
   /// In zh, this message translates to:
   /// **'{min} 分 {sec} 秒'**
-  String child_settle_min_sec(Object min, Object sec);
+  String child_settle_min_sec(int min, int sec);
 
   /// No description provided for @child_settle_task_label.
   ///
@@ -414,19 +414,19 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'（今日阳光已达上限，本次只到账 {sun} ☀）'**
-  String child_settle_task_capped(Object sun);
+  String child_settle_task_capped(String sun);
 
   /// No description provided for @child_settle_task_done.
   ///
   /// In zh, this message translates to:
   /// **'成长项「{name}」完成 +{sun} ☀{capped}'**
-  String child_settle_task_done(Object capped, Object name, Object sun);
+  String child_settle_task_done(String capped, String name, String sun);
 
   /// No description provided for @child_settle_task_progress.
   ///
   /// In zh, this message translates to:
   /// **'成长项「{name}」还差一点，下次专注够时长就算上啦 🌻'**
-  String child_settle_task_progress(Object name);
+  String child_settle_task_progress(String name);
 
   /// No description provided for @child_settle_title.
   ///
@@ -486,13 +486,13 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'超出额度的部分就不再收集阳光了{detail}。{cheer}'**
-  String child_settle_cap_body_detail(Object cheer, Object detail);
+  String child_settle_cap_body_detail(String cheer, String detail);
 
   /// No description provided for @child_settle_cap_orig_vs_net.
   ///
   /// In zh, this message translates to:
   /// **'（原本 {raw} ☀️，实到 {net} ☀️）'**
-  String child_settle_cap_orig_vs_net(Object net, Object raw);
+  String child_settle_cap_orig_vs_net(String net, String raw);
 
   /// No description provided for @child_settle_cap_cheer.
   ///
@@ -558,7 +558,7 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'已经连续玩 {minutes} 分钟啦，让眼睛休息一下'**
-  String child_cap_single_body(Object minutes);
+  String child_cap_single_body(int minutes);
 
   /// No description provided for @child_cap_daily_body.
   ///
@@ -582,13 +582,13 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'{minutes} 分钟后解锁'**
-  String child_cap_unlock_in(Object minutes);
+  String child_cap_unlock_in(int minutes);
 
   /// No description provided for @child_cap_minutes.
   ///
   /// In zh, this message translates to:
   /// **'{minutes} 分钟'**
-  String child_cap_minutes(Object minutes);
+  String child_cap_minutes(int minutes);
 
   /// No description provided for @child_cap_chip_go_today.
   ///
@@ -624,13 +624,13 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'今天的专注时间已经用完啦（每日上限 {cap} 分钟），明天再来'**
-  String child_entry_cap_daily(Object cap);
+  String child_entry_cap_daily(int cap);
 
   /// No description provided for @child_entry_remaining_today.
   ///
   /// In zh, this message translates to:
   /// **'今天还可以专注 {minutes} 分钟（每日上限 {cap} 分钟）'**
-  String child_entry_remaining_today(Object cap, Object minutes);
+  String child_entry_remaining_today(int cap, int minutes);
 
   /// No description provided for @child_entry_free.
   ///
@@ -660,13 +660,13 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'可选 {max} 分钟以内'**
-  String child_entry_custom_hint_max(Object max);
+  String child_entry_custom_hint_max(int max);
 
   /// No description provided for @child_entry_custom_hint_capped.
   ///
   /// In zh, this message translates to:
   /// **'可选 {max} 分钟以内（受今日剩余额度限制）'**
-  String child_entry_custom_hint_capped(Object max);
+  String child_entry_custom_hint_capped(int max);
 
   /// No description provided for @child_entry_options_title.
   ///
@@ -714,25 +714,25 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'{minutes} 分钟'**
-  String child_entry_minutes(Object minutes);
+  String child_entry_minutes(int minutes);
 
   /// No description provided for @child_entry_cap_snack.
   ///
   /// In zh, this message translates to:
   /// **'今日专注已达上限（{cap} 分钟），明天再来哦'**
-  String child_entry_cap_snack(Object cap);
+  String child_entry_cap_snack(int cap);
 
   /// No description provided for @child_entry_cap_snack2.
   ///
   /// In zh, this message translates to:
   /// **'今天的专注时间用完啦（上限 {cap} 分钟），明天再来哦'**
-  String child_entry_cap_snack2(Object cap);
+  String child_entry_cap_snack2(int cap);
 
   /// No description provided for @child_entry_remaining_snack.
   ///
   /// In zh, this message translates to:
   /// **'今天只剩 {remaining} 分钟额度了，这次就专注 {minutes} 分钟吧'**
-  String child_entry_remaining_snack(Object minutes, Object remaining);
+  String child_entry_remaining_snack(int minutes, int remaining);
 
   /// No description provided for @child_focus_dnd_permission.
   ///
@@ -888,13 +888,13 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'-{sun} 阳光'**
-  String child_shell_item_cost(Object sun);
+  String child_shell_item_cost(int sun);
 
   /// No description provided for @child_shell_verify_total.
   ///
   /// In zh, this message translates to:
   /// **'共扣除 {total} 阳光'**
-  String child_shell_verify_total(Object total);
+  String child_shell_verify_total(int total);
 
   /// No description provided for @child_shell_reject_title.
   ///
@@ -906,7 +906,7 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'（{note}）'**
-  String child_shell_reject_subtitle(Object note);
+  String child_shell_reject_subtitle(String note);
 
   /// No description provided for @child_shell_reject_reason.
   ///
@@ -930,13 +930,13 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'共获得 {total} 阳光（{capped} 项今日额度已满，未发放）'**
-  String child_shell_task_footer_partial(Object capped, Object total);
+  String child_shell_task_footer_partial(int capped, int total);
 
   /// No description provided for @child_shell_task_footer.
   ///
   /// In zh, this message translates to:
   /// **'共获得 {total} 阳光'**
-  String child_shell_task_footer(Object total);
+  String child_shell_task_footer(int total);
 
   /// No description provided for @child_shell_task_title.
   ///
@@ -954,7 +954,7 @@ abstract class AppLocalizations {
   ///
   /// In zh, this message translates to:
   /// **'+{sun} 阳光'**
-  String child_shell_task_item_sun(Object sun);
+  String child_shell_task_item_sun(int sun);
 
   /// No description provided for @child_shell_task_item_capped.
   ///
@@ -4208,6 +4208,672 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'简体中文'**
   String get shared_lang_zh_name;
+
+  /// No description provided for @shared_task_category_other.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他'**
+  String get shared_task_category_other;
+
+  /// No description provided for @shared_task_category_learning.
+  ///
+  /// In zh, this message translates to:
+  /// **'学习'**
+  String get shared_task_category_learning;
+
+  /// No description provided for @shared_task_category_sports.
+  ///
+  /// In zh, this message translates to:
+  /// **'运动'**
+  String get shared_task_category_sports;
+
+  /// No description provided for @shared_task_category_life.
+  ///
+  /// In zh, this message translates to:
+  /// **'生活'**
+  String get shared_task_category_life;
+
+  /// No description provided for @shared_task_category_habit.
+  ///
+  /// In zh, this message translates to:
+  /// **'习惯'**
+  String get shared_task_category_habit;
+
+  /// No description provided for @shared_reward_content_other.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他'**
+  String get shared_reward_content_other;
+
+  /// No description provided for @shared_reward_content_snacks.
+  ///
+  /// In zh, this message translates to:
+  /// **'零食'**
+  String get shared_reward_content_snacks;
+
+  /// No description provided for @shared_reward_content_play.
+  ///
+  /// In zh, this message translates to:
+  /// **'游玩'**
+  String get shared_reward_content_play;
+
+  /// No description provided for @shared_reward_content_entertainment.
+  ///
+  /// In zh, this message translates to:
+  /// **'娱乐'**
+  String get shared_reward_content_entertainment;
+
+  /// No description provided for @shared_reward_content_toys.
+  ///
+  /// In zh, this message translates to:
+  /// **'玩具'**
+  String get shared_reward_content_toys;
+
+  /// No description provided for @shared_reward_content_books.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读'**
+  String get shared_reward_content_books;
+
+  /// No description provided for @shared_species_sunflower.
+  ///
+  /// In zh, this message translates to:
+  /// **'向日葵'**
+  String get shared_species_sunflower;
+
+  /// No description provided for @shared_species_moon_orchid.
+  ///
+  /// In zh, this message translates to:
+  /// **'月光兰'**
+  String get shared_species_moon_orchid;
+
+  /// No description provided for @shared_species_tomato.
+  ///
+  /// In zh, this message translates to:
+  /// **'番茄'**
+  String get shared_species_tomato;
+
+  /// No description provided for @shared_species_strawberry.
+  ///
+  /// In zh, this message translates to:
+  /// **'草莓'**
+  String get shared_species_strawberry;
+
+  /// No description provided for @shared_species_coral_orchid.
+  ///
+  /// In zh, this message translates to:
+  /// **'珊瑚岭兰'**
+  String get shared_species_coral_orchid;
+
+  /// No description provided for @shared_species_jade_hydrangea.
+  ///
+  /// In zh, this message translates to:
+  /// **'翡翠绣球'**
+  String get shared_species_jade_hydrangea;
+
+  /// No description provided for @shared_weekday_mon.
+  ///
+  /// In zh, this message translates to:
+  /// **'周一'**
+  String get shared_weekday_mon;
+
+  /// No description provided for @shared_weekday_tue.
+  ///
+  /// In zh, this message translates to:
+  /// **'周二'**
+  String get shared_weekday_tue;
+
+  /// No description provided for @shared_weekday_wed.
+  ///
+  /// In zh, this message translates to:
+  /// **'周三'**
+  String get shared_weekday_wed;
+
+  /// No description provided for @shared_weekday_thu.
+  ///
+  /// In zh, this message translates to:
+  /// **'周四'**
+  String get shared_weekday_thu;
+
+  /// No description provided for @shared_weekday_fri.
+  ///
+  /// In zh, this message translates to:
+  /// **'周五'**
+  String get shared_weekday_fri;
+
+  /// No description provided for @shared_weekday_sat.
+  ///
+  /// In zh, this message translates to:
+  /// **'周六'**
+  String get shared_weekday_sat;
+
+  /// No description provided for @shared_weekday_sun.
+  ///
+  /// In zh, this message translates to:
+  /// **'周日'**
+  String get shared_weekday_sun;
+
+  /// No description provided for @parent_report_bucket_week.
+  ///
+  /// In zh, this message translates to:
+  /// **'第{index}周'**
+  String parent_report_bucket_week(int index);
+
+  /// No description provided for @shared_perk_water_discount.
+  ///
+  /// In zh, this message translates to:
+  /// **'浇水消耗 −{value}'**
+  String shared_perk_water_discount(int value);
+
+  /// No description provided for @shared_perk_fertilize_discount.
+  ///
+  /// In zh, this message translates to:
+  /// **'施肥消耗 −{value}'**
+  String shared_perk_fertilize_discount(int value);
+
+  /// No description provided for @shared_perk_weed_bonus.
+  ///
+  /// In zh, this message translates to:
+  /// **'除草奖励 +{value}'**
+  String shared_perk_weed_bonus(int value);
+
+  /// No description provided for @shared_perk_pest_bonus.
+  ///
+  /// In zh, this message translates to:
+  /// **'除虫奖励 +{value}'**
+  String shared_perk_pest_bonus(int value);
+
+  /// No description provided for @shared_perk_bloom_bonus.
+  ///
+  /// In zh, this message translates to:
+  /// **'开花阳光 +{value}'**
+  String shared_perk_bloom_bonus(int value);
+
+  /// No description provided for @shared_perk_dew_bonus.
+  ///
+  /// In zh, this message translates to:
+  /// **'晨露阳光 +{value}'**
+  String shared_perk_dew_bonus(int value);
+
+  /// No description provided for @shared_perk_eyecare_bonus.
+  ///
+  /// In zh, this message translates to:
+  /// **'护眼奖励 +{value}'**
+  String shared_perk_eyecare_bonus(int value);
+
+  /// No description provided for @shared_perk_expand_discount.
+  ///
+  /// In zh, this message translates to:
+  /// **'花盆扩容 −{value}'**
+  String shared_perk_expand_discount(int value);
+
+  /// No description provided for @shared_perk_shovel_refund.
+  ///
+  /// In zh, this message translates to:
+  /// **'铲除退款 +{value}'**
+  String shared_perk_shovel_refund(int value);
+
+  /// No description provided for @shared_duration_minutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'{m} 分钟'**
+  String shared_duration_minutes(int m);
+
+  /// No description provided for @shared_duration_hours.
+  ///
+  /// In zh, this message translates to:
+  /// **'{h} 小时'**
+  String shared_duration_hours(int h);
+
+  /// No description provided for @shared_duration_hours_minutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'{h} 小时 {m} 分钟'**
+  String shared_duration_hours_minutes(int h, int m);
+
+  /// No description provided for @shared_level_gap_next.
+  ///
+  /// In zh, this message translates to:
+  /// **'距 Lv.{n} 还差 {duration}'**
+  String shared_level_gap_next(int n, String duration);
+
+  /// No description provided for @shared_level_gap_max.
+  ///
+  /// In zh, this message translates to:
+  /// **'已是最高称号 · {title}'**
+  String shared_level_gap_max(String title);
+
+  /// No description provided for @shared_reward_weekly_limit.
+  ///
+  /// In zh, this message translates to:
+  /// **'周限 {remaining} 次'**
+  String shared_reward_weekly_limit(int remaining);
+
+  /// No description provided for @shared_reward_unlimited.
+  ///
+  /// In zh, this message translates to:
+  /// **'不限次数'**
+  String get shared_reward_unlimited;
+
+  /// No description provided for @shared_plant_err_species_not_found.
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到该植物物种'**
+  String get shared_plant_err_species_not_found;
+
+  /// No description provided for @shared_plant_err_pot_out_of_capacity.
+  ///
+  /// In zh, this message translates to:
+  /// **'花盆序号超出容量（{pot} / {capacity}）'**
+  String shared_plant_err_pot_out_of_capacity(int pot, int capacity);
+
+  /// No description provided for @shared_plant_err_pot_occupied.
+  ///
+  /// In zh, this message translates to:
+  /// **'花盆 #{pot} 已被占用，请先清理'**
+  String shared_plant_err_pot_occupied(int pot);
+
+  /// No description provided for @shared_plant_err_premium_fragments_only.
+  ///
+  /// In zh, this message translates to:
+  /// **'精英植物只能用碎片兑换'**
+  String get shared_plant_err_premium_fragments_only;
+
+  /// No description provided for @shared_plant_err_seed_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'种子已用完，去开花收集新的种子吧'**
+  String get shared_plant_err_seed_empty;
+
+  /// No description provided for @shared_plant_err_sunlight_not_enough.
+  ///
+  /// In zh, this message translates to:
+  /// **'阳光不足，还差 {short} 阳光'**
+  String shared_plant_err_sunlight_not_enough(int short);
+
+  /// No description provided for @shared_plant_err_fragments_not_enough.
+  ///
+  /// In zh, this message translates to:
+  /// **'碎片不足，还差 {short} 片'**
+  String shared_plant_err_fragments_not_enough(int short);
+
+  /// No description provided for @shared_plant_err_care_state_invalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅成长中/开花/枯萎植物可养护'**
+  String get shared_plant_err_care_state_invalid;
+
+  /// No description provided for @shared_plant_err_water_daily_limit.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日浇水已达 {max} 次上限'**
+  String shared_plant_err_water_daily_limit(int max);
+
+  /// No description provided for @shared_plant_err_water_interval.
+  ///
+  /// In zh, this message translates to:
+  /// **'浇水间隔需 {interval} 分钟，还需 {wait} 分钟'**
+  String shared_plant_err_water_interval(int interval, int wait);
+
+  /// No description provided for @shared_plant_err_fertilize_daily_limit.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日施肥已达 {max} 次上限'**
+  String shared_plant_err_fertilize_daily_limit(int max);
+
+  /// No description provided for @shared_plant_err_plant_not_found.
+  ///
+  /// In zh, this message translates to:
+  /// **'植物不存在'**
+  String get shared_plant_err_plant_not_found;
+
+  /// No description provided for @shared_plant_err_already_wilted.
+  ///
+  /// In zh, this message translates to:
+  /// **'这株已经枯萎了，不用清理啦'**
+  String get shared_plant_err_already_wilted;
+
+  /// No description provided for @shared_plant_err_no_weed.
+  ///
+  /// In zh, this message translates to:
+  /// **'这盆没有杂草哦'**
+  String get shared_plant_err_no_weed;
+
+  /// No description provided for @shared_plant_err_no_pest.
+  ///
+  /// In zh, this message translates to:
+  /// **'这盆没有害虫哦'**
+  String get shared_plant_err_no_pest;
+
+  /// No description provided for @shared_plant_err_garden_full.
+  ///
+  /// In zh, this message translates to:
+  /// **'花园已达当前档位容量上限（{limit} 盆），解锁可扩容'**
+  String shared_plant_err_garden_full(int limit);
+
+  /// No description provided for @shared_plant_err_reward_not_mature.
+  ///
+  /// In zh, this message translates to:
+  /// **'奖励还没成熟，或已经被领取啦'**
+  String get shared_plant_err_reward_not_mature;
+
+  /// No description provided for @shared_checkin_err_linked_auto.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个成长项要在专注里自动完成哦'**
+  String get shared_checkin_err_linked_auto;
+
+  /// No description provided for @shared_checkin_err_already_done.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个成长项今天已经做到啦'**
+  String get shared_checkin_err_already_done;
+
+  /// No description provided for @shared_checkin_err_not_linked.
+  ///
+  /// In zh, this message translates to:
+  /// **'非联动成长项不能走专注结算'**
+  String get shared_checkin_err_not_linked;
+
+  /// No description provided for @shared_checkin_err_session_not_today.
+  ///
+  /// In zh, this message translates to:
+  /// **'这次专注不在今天，不能结算今天的成长项'**
+  String get shared_checkin_err_session_not_today;
+
+  /// No description provided for @shared_checkin_err_session_used.
+  ///
+  /// In zh, this message translates to:
+  /// **'这次专注已经结算过成长项啦'**
+  String get shared_checkin_err_session_used;
+
+  /// No description provided for @shared_checkin_err_not_found.
+  ///
+  /// In zh, this message translates to:
+  /// **'找不到这条记录，可能已被删除'**
+  String get shared_checkin_err_not_found;
+
+  /// No description provided for @shared_checkin_err_already_verified.
+  ///
+  /// In zh, this message translates to:
+  /// **'这条记录已经处理过啦，不能重复核销'**
+  String get shared_checkin_err_already_verified;
+
+  /// No description provided for @shared_checkin_err_already_rejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'这条记录已经处理过啦，不能重复处理'**
+  String get shared_checkin_err_already_rejected;
+
+  /// No description provided for @shared_checkin_err_race.
+  ///
+  /// In zh, this message translates to:
+  /// **'这条记录刚刚已经被处理过了'**
+  String get shared_checkin_err_race;
+
+  /// No description provided for @seed_task_homework.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成学校作业'**
+  String get seed_task_homework;
+
+  /// No description provided for @seed_task_math.
+  ///
+  /// In zh, this message translates to:
+  /// **'练习数学口算'**
+  String get seed_task_math;
+
+  /// No description provided for @seed_task_read.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读 20 分钟'**
+  String get seed_task_read;
+
+  /// No description provided for @seed_task_rope_skip.
+  ///
+  /// In zh, this message translates to:
+  /// **'1分钟跳绳170个以上'**
+  String get seed_task_rope_skip;
+
+  /// No description provided for @seed_task_chores.
+  ///
+  /// In zh, this message translates to:
+  /// **'帮助家长打扫卫生'**
+  String get seed_task_chores;
+
+  /// No description provided for @seed_reward_snack.
+  ///
+  /// In zh, this message translates to:
+  /// **'小零食'**
+  String get seed_reward_snack;
+
+  /// No description provided for @seed_reward_extra_play.
+  ///
+  /// In zh, this message translates to:
+  /// **'睡前多玩10分钟'**
+  String get seed_reward_extra_play;
+
+  /// No description provided for @seed_reward_cartoon.
+  ///
+  /// In zh, this message translates to:
+  /// **'看一集动画片'**
+  String get seed_reward_cartoon;
+
+  /// No description provided for @seed_reward_toy.
+  ///
+  /// In zh, this message translates to:
+  /// **'买一个小玩具'**
+  String get seed_reward_toy;
+
+  /// No description provided for @seed_reward_weekend_outing.
+  ///
+  /// In zh, this message translates to:
+  /// **'周末出去玩'**
+  String get seed_reward_weekend_outing;
+
+  /// No description provided for @shared_child_default_name.
+  ///
+  /// In zh, this message translates to:
+  /// **'孩子'**
+  String get shared_child_default_name;
+
+  /// No description provided for @child_hist_ref_focus.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注产出'**
+  String get child_hist_ref_focus;
+
+  /// No description provided for @child_hist_ref_focus_session.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注'**
+  String get child_hist_ref_focus_session;
+
+  /// No description provided for @child_hist_ref_focus_task_reward.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注任务奖励'**
+  String get child_hist_ref_focus_task_reward;
+
+  /// No description provided for @child_hist_ref_task_checkin.
+  ///
+  /// In zh, this message translates to:
+  /// **'成长项奖励'**
+  String get child_hist_ref_task_checkin;
+
+  /// No description provided for @child_hist_ref_plant_plant.
+  ///
+  /// In zh, this message translates to:
+  /// **'种植植物'**
+  String get child_hist_ref_plant_plant;
+
+  /// No description provided for @child_hist_ref_plant_water.
+  ///
+  /// In zh, this message translates to:
+  /// **'浇水'**
+  String get child_hist_ref_plant_water;
+
+  /// No description provided for @child_hist_ref_plant_fertilize.
+  ///
+  /// In zh, this message translates to:
+  /// **'施肥'**
+  String get child_hist_ref_plant_fertilize;
+
+  /// No description provided for @child_hist_ref_plant_revive.
+  ///
+  /// In zh, this message translates to:
+  /// **'救回植物'**
+  String get child_hist_ref_plant_revive;
+
+  /// No description provided for @child_hist_ref_plant_expand.
+  ///
+  /// In zh, this message translates to:
+  /// **'花园扩容'**
+  String get child_hist_ref_plant_expand;
+
+  /// No description provided for @child_hist_ref_plant_weed.
+  ///
+  /// In zh, this message translates to:
+  /// **'拔草'**
+  String get child_hist_ref_plant_weed;
+
+  /// No description provided for @child_hist_ref_plant_pest.
+  ///
+  /// In zh, this message translates to:
+  /// **'除虫'**
+  String get child_hist_ref_plant_pest;
+
+  /// No description provided for @child_hist_ref_plant_death_refund.
+  ///
+  /// In zh, this message translates to:
+  /// **'植物死亡返还'**
+  String get child_hist_ref_plant_death_refund;
+
+  /// No description provided for @child_hist_ref_eye_care_break.
+  ///
+  /// In zh, this message translates to:
+  /// **'护眼'**
+  String get child_hist_ref_eye_care_break;
+
+  /// No description provided for @child_hist_ref_plant_shovel_refund.
+  ///
+  /// In zh, this message translates to:
+  /// **'铲除返还'**
+  String get child_hist_ref_plant_shovel_refund;
+
+  /// No description provided for @child_hist_ref_bloom_reward.
+  ///
+  /// In zh, this message translates to:
+  /// **'开花奖励'**
+  String get child_hist_ref_bloom_reward;
+
+  /// No description provided for @child_hist_ref_bloom_reward_24h.
+  ///
+  /// In zh, this message translates to:
+  /// **'花开回访奖励'**
+  String get child_hist_ref_bloom_reward_24h;
+
+  /// No description provided for @child_hist_ref_redeem.
+  ///
+  /// In zh, this message translates to:
+  /// **'兑换奖励'**
+  String get child_hist_ref_redeem;
+
+  /// No description provided for @child_hist_ref_redemption.
+  ///
+  /// In zh, this message translates to:
+  /// **'兑换奖励'**
+  String get child_hist_ref_redemption;
+
+  /// No description provided for @child_hist_ref_queue_release.
+  ///
+  /// In zh, this message translates to:
+  /// **'阳光池释放'**
+  String get child_hist_ref_queue_release;
+
+  /// No description provided for @child_hist_ref_parent_gift.
+  ///
+  /// In zh, this message translates to:
+  /// **'家长赠予'**
+  String get child_hist_ref_parent_gift;
+
+  /// No description provided for @child_hist_ref_debug_grant.
+  ///
+  /// In zh, this message translates to:
+  /// **'调试发放'**
+  String get child_hist_ref_debug_grant;
+
+  /// No description provided for @child_hist_ref_focus_level_up.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注升级'**
+  String get child_hist_ref_focus_level_up;
+
+  /// No description provided for @child_eyecare_seg_default.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟着动画一起做，保护眼睛'**
+  String get child_eyecare_seg_default;
+
+  /// No description provided for @shared_perk_name_eye_care.
+  ///
+  /// In zh, this message translates to:
+  /// **'护眼'**
+  String get shared_perk_name_eye_care;
+
+  /// No description provided for @shared_perk_name_water.
+  ///
+  /// In zh, this message translates to:
+  /// **'浇水'**
+  String get shared_perk_name_water;
+
+  /// No description provided for @shared_perk_name_fertilize.
+  ///
+  /// In zh, this message translates to:
+  /// **'施肥'**
+  String get shared_perk_name_fertilize;
+
+  /// No description provided for @shared_perk_name_weed.
+  ///
+  /// In zh, this message translates to:
+  /// **'除草'**
+  String get shared_perk_name_weed;
+
+  /// No description provided for @shared_perk_name_pest.
+  ///
+  /// In zh, this message translates to:
+  /// **'除虫'**
+  String get shared_perk_name_pest;
+
+  /// No description provided for @shared_perk_name_bloom.
+  ///
+  /// In zh, this message translates to:
+  /// **'绽放'**
+  String get shared_perk_name_bloom;
+
+  /// No description provided for @shared_perk_name_dew.
+  ///
+  /// In zh, this message translates to:
+  /// **'晨露'**
+  String get shared_perk_name_dew;
+
+  /// No description provided for @shared_perk_name_pot_expand.
+  ///
+  /// In zh, this message translates to:
+  /// **'扩盆'**
+  String get shared_perk_name_pot_expand;
+
+  /// No description provided for @shared_perk_name_shovel.
+  ///
+  /// In zh, this message translates to:
+  /// **'铲除'**
+  String get shared_perk_name_shovel;
+
+  /// No description provided for @shared_default_child_name.
+  ///
+  /// In zh, this message translates to:
+  /// **'孩子'**
+  String get shared_default_child_name;
 }
 
 class _AppLocalizationsDelegate

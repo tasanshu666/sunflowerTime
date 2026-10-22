@@ -437,7 +437,7 @@ const int kShovelRefundPremium = 250;
 /// 账本 refType · 铲除植物返还（C29）。
 ///
 /// ⚠️ 字符串值一经写入即冻结（append-only 对账源），改名只能改常量名不改值；
-/// 已同步 `child_sunlight_history_page.dart` 的 `_refLabels`（「铲除返还」）。
+/// 已同步 `child_sunlight_history_page.dart` 的 `refLabelOf`（「铲除返还」）。
 const String kPlantShovelRefundRefType = 'plant_shovel_refund';
 
 /// 一键操作（悬浮按钮）出现门槛 · **已种植株数下限**（C29）。
@@ -908,7 +908,7 @@ const double kGardenPestReward = 2;
 /// 账本 `refType`：拔草。
 /// ⚠️ 字符串值**一经写入即冻结**（append-only 对账源）：改名只能改常量名，
 /// 不改本值，否则历史行与新行的 tag 分裂。新增 refType 必须同步
-/// `child_sunlight_history_page.dart` 的 `_refLabels`，否则孩子端显示「其他」。
+/// `child_sunlight_history_page.dart` 的 `refLabelOf`，否则孩子端显示「其他」。
 const String kGardenWeedRefType = 'plant_weed';
 
 /// 账本 `refType`：除虫（冻结约束同 [kGardenWeedRefType]）。
@@ -1055,7 +1055,7 @@ const int kEyeCareInSessionMinRemainingSeconds = 60;
 /// 账本 `refType`：护眼完成。
 /// ⚠️ 字符串值**一经写入即冻结**（append-only 对账源）：改名只能改常量名，不改本值，
 /// 否则历史行与新行的 tag 分裂。新增 refType 必须同步 `child_sunlight_history_page.dart`
-/// 的 `_refLabels`（现在指向 [kEyeCareRefLabel]「护眼」），否则孩子端显示「其他」。
+/// 的 `refLabelOf`（现在指向 [kEyeCareRefLabel]「护眼」），否则孩子端显示「其他」。
 const String kEyeCareRefType = 'eye_care_break';
 
 /// 孩子端阳光来源里 `eye_care_break` 的显示文案（单点）。
@@ -1392,7 +1392,7 @@ const List<String> kFocusLevelTitles = <String>[
 /// 阳光账本 refType（🔴 **值冻结，append-only**）。
 ///
 /// ⚠️ C78 经济层删除后称号节点**不再新增**账本行；历史行原样保留（不清理、
-/// 不写负向对冲行），孩子端 `_refLabels` 仍凭本值把历史行对账为「专注升级」。
+/// 不写负向对冲行），孩子端 `refLabelOf` 仍凭本值把历史行对账为「专注升级」。
 const String kFocusLevelUpRefType = 'focus_level_up';
 
 /// 阳光账本 refId 前缀：`refId = 'lv{n}'`（小写、无空格，防大小写分裂）。
@@ -1585,7 +1585,8 @@ const double kLevelLockedBgDiameter = 30;
 /// 徽章进度文案模板 · **未解锁**（`{r}` = 距 Lv.1 的剩余时长，`{t}` = Lv.1 称号）。
 ///
 /// ⚠️ **已停用**（2026-10-14 下午「摘要 + 点按详情」）：提示文案从徽章完全撤出，
-/// 「还差多久」改由详情卡第二块承载（[kLevelDetailNextTextTemplate]）。
+/// 「还差多久」改由详情卡第二块承载（i18n B3 起走 ARB `shared_level_gap_next`，
+/// 入口 `nextLevelGapTextL10n`；原模板常量已在 T05 删除）。
 const String kLevelLockedTextTemplate = '再专注 {r} 解锁 Lv.1 · {t}';
 
 /// 徽章进度文案模板 · **已解锁**（`{c}` = 当前累计时长，`{n}` = 下一级，
@@ -1595,9 +1596,6 @@ const String kLevelLockedTextTemplate = '再专注 {r} 解锁 Lv.1 · {t}';
 /// 断成 2 行难看 —— 徽章回到「摘要」，长文案只在详情卡出现。
 /// 口径保留：⚠️ **进度指向下一级，不是下一个称号**（等级与称号已解耦）。
 const String kLevelNextLevelTextTemplate = '累计 {c} · 距 Lv.{n} 还需 {r}';
-
-/// 满级（Lv.40）文案模板：详情卡第二块显示本句（原「隐藏进度条」语义保留）。
-const String kLevelMaxTextTemplate = '已是最高称号 · {t}';
 
 // ── 等级详情卡（点徽章弹出；2026-10-14 下午「摘要 + 点按详情」方案）─────────
 
@@ -1658,7 +1656,11 @@ const double kLevelDetailRowFontSize = 13;
 ///
 /// 🔑 距下一级 = 下一级门槛 − 累计（`C74` 40 档门槛见
 /// [kFocusLevelThresholdMinutes]），UI **不得另写算式**（S14：逻辑单点）。
-const String kLevelDetailNextTextTemplate = '距 Lv.{n} 还差 {r}';
+///
+/// ⚠️ i18n B3（T05）：**模板常量已删除**（原来叫 `kLevelDetailNextTextTemplate`）。
+/// 文案改由 ARB key `shared_level_gap_next`（`距 Lv.{n} 还差 {duration}`）承担，
+/// 装配入口 `core/i18n/domain_text_l10n.dart` 的 `nextLevelGapTextL10n`。
+/// 留本条注释只为解释「算式在领域层、文案在 ARB」这条分工。
 
 /// 信息型/提醒弹窗的**确认按钮**文案（C81：锁标升级提示卡「知道了」）。
 const String kLevelDetailHintConfirmText = '知道了';
@@ -1785,24 +1787,18 @@ const List<String> kPerkEmojis = <String>[
   '🗑️', // Lv.40 铲除 +20（C91：⛏️ → 🗑️）
 ];
 
-/// 9 称号节点属性的**名称**（索引与 [kFocusLevelTitleLevels] 一一对应；
-/// 🔴 C81 新增：与 [kPerkEmojis] / `kPlantPerkPerTitleNode` **同索引对齐**）。
-///
-/// 详情卡属性行「属性名」单点收口于此（页面禁硬编码 9 名，防孪生 S2）；
-/// 与 `perkShortTextOf`（数值）分段渲染 ⇒ 形如「👁 护眼 +1 ☀」。
-const List<String> kPerkNames = <String>[
-  '护眼', // Lv.1
-  '浇水', // Lv.5
-  '施肥', // Lv.10
-  '除草', // Lv.15
-  '除虫', // Lv.20
-  '绽放', // Lv.25
-  '晨露', // Lv.30
-  '扩盆', // Lv.35
-  '铲除', // Lv.40
-];
+// ── 9 称号节点属性的「名称」已迁出本文件（i18n B3 · T05）───────────────────────
+//
+// 迁移前这里是 `const List<String> kPerkNames`（9 条中文：护眼 / 浇水 / … / 铲除），
+// 由 `domain/services/plant_perk.dart` 的 `perkNameOfTitleNode` 派生上屏（详情卡属性行
+// 「👁 护眼 +1 ☀」）—— 领域层因此间接持有 CJK。
+//
+// 现在：文案在 ARB `shared_perk_name_*`（9 个 key），UI 侧入口
+// `core/i18n/domain_text_l10n.dart` 的 `perkNameOfTitleNodeL10n(nodeLevel, l10n)`。
+// **索引对齐关系不变**：9 个 key 的顺序 = [kFocusLevelTitleLevels] 的顺序
+// = [kPerkEmojis] / `kPlantPerkPerTitleNode` 的顺序（勿重排，重排即错位）。
 
-/// 升级演出卡「本称号专属」行模板（`{text}` = 属性摘要，见 `perkSummaryTextOf`）。
+/// 升级演出卡「本称号专属」行模板（`{text}` = 属性摘要，i18n B3 起见 `core/i18n/domain_text_l10n.dart` 的 `perkSummaryTextL10n`）。
 const String kLevelUpFxPerkTemplate = '本称号专属：{text}';
 
 /// 升级演出卡属性行**免费锁标尾缀**（C80 P0-7，PM 裁定措辞「付费解锁」）。

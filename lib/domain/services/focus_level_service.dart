@@ -181,33 +181,14 @@ List<FocusLevelTitleRow> titleRowsOfLevel(int level) {
   ]);
 }
 
-/// 详情卡副标题文案：**非满级 → 「距 Lv.{n} 还差 {r}」；满级 → 满级文案**。
+/// 等级详情卡副标题 —— **已迁出 domain**（i18n B3 · T02）。
 ///
-/// 🔑 数据**全部复用** [FocusLevelProgress] 已有字段（`nextLevel` /
-/// `minutesToNext` = 「下一级门槛分钟 − 累计有效分钟」，由 [progressOf] 纯派生），
-/// 本函数只做**文案装配** —— UI 层禁止再重写一遍 duration 算式（S14）。
-String nextLevelGapTextOf(FocusLevelProgress progress) {
-  if (progress.isMax) {
-    return kLevelMaxTextTemplate.replaceAll('{t}', progress.title);
-  }
-  final int next = progress.nextLevel ?? progress.level + 1;
-  return kLevelDetailNextTextTemplate
-      .replaceAll('{n}', '$next')
-      .replaceAll('{r}', formatDurationMinutes(progress.minutesToNext));
-}
-
-/// 时长展示格式化（≥ 60 分钟 → 「X 小时 Y 分钟」，否则「Y 分钟」）。
+/// 原 `nextLevelGapTextOf`（「距 Lv.{n} 还差 {r}」/「已是最高称号 · {t}」）只做
+/// 文案装配，且模板常量 `kLevelDetailNextTextTemplate` / `kLevelMaxTextTemplate`
+/// 是中文硬编码。迁移后入口：`core/i18n/domain_text_l10n.dart` 的
+/// `nextLevelGapTextL10n(progress, l10n)`（字段来源与分支判据逐字节保留）。
 ///
-/// 儿童向：避免把「满级门槛那么大的分钟数」直接给孩子看（C74 §2）。
-/// 分钟取余为 0 时只出小时。
-String formatDurationMinutes(int minutes) {
-  final int safe = minutes < 0 ? 0 : minutes;
-  final int h = safe ~/ 60;
-  final int m = safe % 60;
-  if (h <= 0) return '$m 分钟';
-  if (m == 0) return '$h 小时';
-  return '$h 小时 $m 分钟';
-}
+/// 时长格式化同理：原 `formatDurationMinutes` → `formatDurationL10n(minutes, l10n)`。
 
 /// 幂等关键：从 `settledLevel + 1` 起向上走，返回「**连续**已结算的最后一个等级」。
 ///

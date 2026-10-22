@@ -35,6 +35,8 @@ import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 import 'plant_artwork.dart';
+import 'package:sunflower_time/core/i18n/error_l10n.dart';
+import 'package:sunflower_time/core/i18n/species_l10n.dart';
 
 class PlantCard extends StatelessWidget {
   final Plant plant;
@@ -244,7 +246,13 @@ class PlantCard extends StatelessWidget {
     // 额度未加载完成 → 一律禁用，避免绕过限额（宁可晚一点可点，也不能超限扣账）。
     final bool canWater = q != null && q.canWater && onWater != null;
     final bool canFertilize = q != null && q.canFertilize && onFertilize != null;
-    final String? hint = q?.waterBlockReason ?? q?.fertilizeBlockReason;
+    // i18n B3（T03）：额度阻塞原因从「中文串」变为 [PlantBlockReason]（语义码 +
+    // 数值载荷）—— 领域层不再持有人类文案，提示语在此单点装配。
+    final PlantBlockReason? blockReason =
+        q?.waterBlockReason ?? q?.fertilizeBlockReason;
+    final String? hint = blockReason == null
+        ? null
+        : plantBlockReasonMessage(blockReason, l10n);
     final String? bloomLeft = _bloomRemainingHint(l10n);
     final List<Widget> perkEntries = _perkEntries();
 
@@ -298,7 +306,7 @@ class PlantCard extends StatelessWidget {
                       children: <Widget>[
                         Flexible(
                           child: Text(
-                            species.name,
+                            speciesNameOr(species.id, species.name, l10n),
                             style: const TextStyle(
                                 fontSize: 17, fontWeight: FontWeight.bold),
                           ),

@@ -21,7 +21,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/domain_text_l10n.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
@@ -96,7 +98,7 @@ void main() {
     expect(perk.isNone, isFalse, reason: 'Lv.5 已含 Lv.1/Lv.5 两节点属性');
     final String expected = kLevelUpFxPerkTemplate.replaceAll(
       '{text}',
-      perkSummaryTextOf(perk),
+      perkSummaryTextL10n(perk, AppLocalizationsZh()),
     );
     expect(find.text(expected), findsOneWidget,
         reason: '追加行由 perkSummaryTextOf + 模板单点装配（不页面拼 9 种）');
@@ -126,7 +128,7 @@ void main() {
     // 追加行 = perkOfLevel(25)（≤Lv.25 的**全部**已解锁节点属性累积）摘要。
     final String expected = kLevelUpFxPerkTemplate.replaceAll(
       '{text}',
-      perkSummaryTextOf(perkOfLevel(25)),
+      perkSummaryTextL10n(perkOfLevel(25), AppLocalizationsZh()),
     );
     expect(find.text(expected), findsOneWidget,
         reason: '追加行随 shownLevel=25 取累积属性（与域层同源）');
@@ -138,7 +140,7 @@ void main() {
     await _pump(tester, _titleNode5()); // 默认 free 档
 
     final String expected = kLevelUpFxPerkTemplate
-            .replaceAll('{text}', perkSummaryTextOf(perkOfLevel(5))) +
+            .replaceAll('{text}', perkSummaryTextL10n(perkOfLevel(5), AppLocalizationsZh())) +
         kLevelUpFxPerkLockedSuffix;
     final Finder row = find.text(expected);
     expect(row, findsOneWidget,
@@ -153,7 +155,7 @@ void main() {
     await _pump(tester, _titleNode5(), premium: true);
 
     final String expected =
-        kLevelUpFxPerkTemplate.replaceAll('{text}', perkSummaryTextOf(perkOfLevel(5)));
+        kLevelUpFxPerkTemplate.replaceAll('{text}', perkSummaryTextL10n(perkOfLevel(5), AppLocalizationsZh()));
     final Finder row = find.text(expected);
     expect(row, findsOneWidget, reason: '付费档不拼尾缀（回归夹具）');
     expect(find.textContaining(kLevelUpFxPerkLockedSuffix), findsNothing);

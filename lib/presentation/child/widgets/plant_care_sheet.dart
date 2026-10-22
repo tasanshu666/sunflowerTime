@@ -30,6 +30,8 @@ import 'child_confirm_card.dart'
     show ConfirmCardBadge, ConfirmCardRow, ConfirmCardTone, showChildConfirmCard;
 import 'child_snack.dart';
 import 'plant_card.dart';
+import 'package:sunflower_time/core/i18n/error_l10n.dart';
+import 'package:sunflower_time/core/i18n/species_l10n.dart';
 
 /// 养护卡关闭时的结果（C29 扩展）：
 ///  · [effect] = 最后一次成功养护（浇水 / 施肥）的动效类型，供花园页在该花盆播放动效；
@@ -185,7 +187,8 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
       // 植物已不在（比如被别处删掉）→ 关面板，避免停在空壳上。
       if (_plant == null) Navigator.of(context).pop();
     } on PlantOperationException catch (e) {
-      _snack(e.message);
+      // i18n B3（T03）：领域层只回语义码，文案经单点映射装配。
+      _snack(plantErrorMessage(e, _t));
     } catch (e) {
       _snack(_t.shared_op_failed(e));
     } finally {
@@ -211,7 +214,9 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
     // 返还额进明细行，`浇水施肥的阳光不返还` / `本次铲除不返还阳光` 作底部小结。
     final bool? ok = await showChildConfirmCard(
       context: context,
-      title: _t.care_shovel_title(_species?.name ?? _t.care_this_plant),
+      title: _t.care_shovel_title(_species == null
+          ? _t.care_this_plant
+          : speciesNameOr(_species!.id, _species!.name, _t)),
       hero: const ConfirmCardBadge(
         icon: Icons.delete_outline,
         tone: ConfirmCardTone.danger,

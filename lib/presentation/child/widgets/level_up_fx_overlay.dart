@@ -51,6 +51,7 @@ import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/core/i18n/domain_text_l10n.dart';
 
 /// 本轮演出该用哪一套素材（**纯判定**，可单测）。
 enum LevelUpFxKind {
@@ -419,13 +420,13 @@ class _LevelUpContent extends ConsumerWidget {
           ),
         ],
         // C77：称号节点追加「本称号专属：…」行（普通升级**不显示** —— 无新称号）；
-        // 文案由 [perkSummaryTextOf] + 模板单点装配（不写页面内 if-else 拼 9 种）。
+        // 文案由 [perkSummaryTextL10n] + 模板单点装配（不写页面内 if-else 拼 9 种）。
         // C80：免费档同文案置灰（与详情卡锁态同源色）+「 · 🔒付费解锁」尾缀
         // （PM 裁定措辞）；付费档与 C78 现状一致。不加点击跳转（P0-7）。
         if (isTitleNode && !perk.isNone) ...<Widget>[
           const SizedBox(height: 6),
           Text(
-            l10n.fx_level_up_perk(perkSummaryTextOf(perk)) +
+            l10n.fx_level_up_perk(perkSummaryTextL10n(perk, l10n)) +
                 (perkUnlocked ? '' : l10n.fx_level_up_perk_locked),
             textAlign: TextAlign.center,
             style: TextStyle(

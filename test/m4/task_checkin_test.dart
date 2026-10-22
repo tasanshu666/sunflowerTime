@@ -1296,7 +1296,9 @@ void main() {
       final List<TaskCheckInException> errs =
           results.whereType<TaskCheckInException>().toList();
       expect(errs, hasLength(1));
-      expect(errs.single.message, '找不到这条记录，可能已被删除');
+      // i18n B3（T03）：异常只带语义码（文案由 core/i18n/error_l10n.dart 装配），
+      // 故断言改为钉 .code —— 比中文全文更稳（改标点不再红，改语义才红）。
+      expect(errs.single.code, TaskCheckInError.notFound);
     });
   });
 }

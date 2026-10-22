@@ -57,15 +57,57 @@ import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
 
-/// 打卡领域异常（校验不通过时抛出；消息面向孩子端可直接展示）。
-class TaskCheckInException implements Exception {
-  /// 面向孩子的提示文案。
-  final String message;
+/// 打卡失败的**语义码**（i18n B3 · T03）。
+///
+/// ## 为什么是枚举而不是字符串
+/// 迁移前 [TaskCheckInException] 直接携带面向孩子的中文提示语 —— domain 层被迫
+/// 持有 CJK 字面量，英文环境下也仍是中文。改为语义码后，domain 只回答
+/// 「为什么不允许」，文案由 `core/i18n/error_l10n.dart` 的
+/// `taskCheckInErrorMessage` 单点装配。
+///
+/// ⚠️ 本枚举**不含**「仓储未实现 CheckInAdminRepository」那条 —— 那是开发者不变量
+/// （编程错误，非用户可修复），继续走 `StateError` 豁免（见 `_admin` getter 注释）。
+enum TaskCheckInError {
+  /// 联动成长项只能在专注结算里自动完成，不能手动打卡。
+  linkedAuto,
 
-  const TaskCheckInException(this.message);
+  /// 今天已经做过这个成长项了。
+  alreadyDone,
+
+  /// 非联动成长项不能走专注结算。
+  notLinked,
+
+  /// 这次专注不在今天，不能结算今天的成长项。
+  sessionNotToday,
+
+  /// 这次专注已经结算过成长项了（一次专注只能结算一条）。
+  sessionUsed,
+
+  /// 找不到这条打卡记录（可能已被删除）。
+  notFound,
+
+  /// 该记录已核销，不能重复核销。
+  alreadyVerified,
+
+  /// 该记录已驳回，不能重复处理。
+  alreadyRejected,
+
+  /// 并发竞态：该记录刚刚已被处理过。
+  race,
+}
+
+/// 打卡领域异常：**语义码**（不含任何人类文案）。
+///
+/// [toString] 只输出 `code.name`（纯 ASCII），便于日志与测试断言。
+/// 文案请经 `taskCheckInErrorMessage(e, l10n)` 取当前语言。
+class TaskCheckInException implements Exception {
+  /// 失败语义码。
+  final TaskCheckInError code;
+
+  const TaskCheckInException(this.code);
 
   @override
-  String toString() => message;
+  String toString() => 'TaskCheckInException: ${code.name}';
 }
 
 /// 今日任务板单项：任务 + 是否已提交 + 专注条件 + 是否在等家长核销。
@@ -228,9 +270,13 @@ class TaskCheckInService {
   /// （含测试里的轻量 Fake）。仅家长端核销路径（[pendingCheckIns] / [verifyCheckIn] /
   /// [rejectCheckIn]）需要本能力。
   CheckInAdminRepository get _admin {
+    // i18n B3（T05 收口）：这是**开发者不变量**（编程 / 装配错误，孩子与家长都无法
+    // 修复），不属于用户可见文案，故保留 `StateError` 而不进 `TaskCheckInError`；
+    // 但文案改成 ASCII 英文 —— 领域层注释外零 CJK 是硬门槛，不留白名单。
     if (_tasks is! CheckInAdminRepository) {
       throw StateError(
-        '任务仓储未实现 CheckInAdminRepository，无法进行家长端核销',
+        'TaskRepository does not implement CheckInAdminRepository; '
+        'parent-side check-in is unavailable',
       );
     }
     return _tasks as CheckInAdminRepository;
@@ -292,7 +338,7 @@ class TaskCheckInService {
   }) async {
     // 联动项必须走专注自动结算，不允许手动点。
     if (task.requiresFocus) {
-      throw const TaskCheckInException('这个成长项要在专注里自动完成哦');
+      throw const TaskCheckInException(TaskCheckInError.linkedAuto);
     }
 
     final String day = dayKey(now);
@@ -302,7 +348,7 @@ class TaskCheckInService {
     final List<CheckIn> todayCheckIns = await _tasks.checkInsOfDay(day);
     final CheckIn? active = _activeCheckIn(_forTask(todayCheckIns, task.id));
     if (active != null && active.status != CheckInStatus.rejected) {
-      throw const TaskCheckInException('这个成长项今天已经做到啦');
+      throw const TaskCheckInException(TaskCheckInError.alreadyDone);
     }
 
     final List<FocusSession> todaySessions = await _focus.sessionsOfDay(day);
@@ -361,14 +407,14 @@ class TaskCheckInService {
     required DateTime now,
   }) async {
     if (!task.requiresFocus) {
-      throw const TaskCheckInException('非联动成长项不能走专注结算');
+      throw const TaskCheckInException(TaskCheckInError.notLinked);
     }
 
     final String day = dayKey(now);
 
     // 跨天守卫（修复 4）：会话不在今天 → 拒绝结算今天的成长项，不写任何记录。
     if (dayKey(session.start) != day) {
-      throw const TaskCheckInException('这次专注不在今天，不能结算今天的成长项');
+      throw const TaskCheckInException(TaskCheckInError.sessionNotToday);
     }
 
     final List<CheckIn> todayCheckIns = await _tasks.checkInsOfDay(day);
@@ -408,7 +454,7 @@ class TaskCheckInService {
     final bool sessionAlreadyUsed = todayCheckIns.any((CheckIn c) =>
         c.sessionId == session.id && c.status == CheckInStatus.verified);
     if (sessionAlreadyUsed) {
-      throw const TaskCheckInException('这次专注已经结算过成长项啦');
+      throw const TaskCheckInException(TaskCheckInError.sessionUsed);
     }
 
     final List<FocusSession> sessions = await _focus.sessionsOfDay(day);
@@ -484,10 +530,10 @@ class TaskCheckInService {
   Future<TaskCheckInOutcome> _verifyCheckIn(String checkInId, DateTime now) async {
     final CheckIn? c = await _admin.checkInById(checkInId);
     if (c == null) {
-      throw const TaskCheckInException('找不到这条记录，可能已被删除');
+      throw const TaskCheckInException(TaskCheckInError.notFound);
     }
     if (c.status != CheckInStatus.pending) {
-      throw const TaskCheckInException('这条记录已经处理过啦，不能重复核销');
+      throw const TaskCheckInException(TaskCheckInError.alreadyVerified);
     }
 
     // 上限按「打卡原始日」核算：pending 期间未入账，故不被当日 earn 合计占用。
@@ -506,7 +552,7 @@ class TaskCheckInService {
       resolvedAt: now,
     );
     if (!won) {
-      throw const TaskCheckInException('这条记录刚刚已经被处理过了');
+      throw const TaskCheckInException(TaskCheckInError.race);
     }
     await _appendLedger(checkInId, day, now, reward, rewardCap.grant);
 
@@ -541,10 +587,10 @@ class TaskCheckInService {
   }) async {
     final CheckIn? c = await _admin.checkInById(checkInId);
     if (c == null) {
-      throw const TaskCheckInException('找不到这条记录，可能已被删除');
+      throw const TaskCheckInException(TaskCheckInError.notFound);
     }
     if (c.status != CheckInStatus.pending) {
-      throw const TaskCheckInException('这条记录已经处理过啦，不能重复处理');
+      throw const TaskCheckInException(TaskCheckInError.alreadyRejected);
     }
     // CAS 抢状态（修复 2，P0）：与 verifyCheckIn 同一口径；抢占失败即放弃入账。
     final bool won = await _admin.resolveCheckInIfStatus(
@@ -556,7 +602,7 @@ class TaskCheckInService {
       parentNote: note,
     );
     if (!won) {
-      throw const TaskCheckInException('这条记录刚刚已经被处理过了');
+      throw const TaskCheckInException(TaskCheckInError.race);
     }
   }
 

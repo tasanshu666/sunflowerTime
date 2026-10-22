@@ -75,7 +75,10 @@ class FocusLevelProgress {
 
   @override
   String toString() =>
-      'FocusLevelProgress(Lv.$level ${title.isEmpty ? '<无称号>' : title}, '
+      // i18n B3：`toString` 是**调试**输出（永不预上屏），此处用 ASCII 占位符而非
+      // 中文「无称号」—— 领域层注释外零 CJK 是硬门槛（`test/i18n/no_han_in_domain_test`）。
+      // 上屏的「无称号」文案在 `titleOfLevel` 之外的 UI 侧（空串即不显示）。
+      'FocusLevelProgress(Lv.$level ${title.isEmpty ? '<no-title>' : title}, '
       'locked=$isLocked, isMax=$isMax, progress=$progress, '
       'minutesToNext=$minutesToNext, nextLevel=$nextLevel)';
 }

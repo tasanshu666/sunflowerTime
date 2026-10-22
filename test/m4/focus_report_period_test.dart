@@ -183,7 +183,10 @@ void _expectReportsEqual(PeriodReport a, PeriodReport b, String tag) {
       reason: '$tag.bestDay.focusMinutes');
   expect(a.buckets.length, b.buckets.length, reason: '$tag.buckets.length');
   for (int i = 0; i < a.buckets.length; i++) {
-    expect(a.buckets[i].label, b.buckets[i].label, reason: '$tag.buckets[$i].label');
+    // i18n B3（T04）：`PeriodBucket.label` 已删除（标签改为 UI 侧按语言装配），
+    // 等价信息改由 `start.weekday` 承载（周档标签口径 = 起始日的 weekday）。
+    expect(a.buckets[i].start.weekday, b.buckets[i].start.weekday,
+        reason: '$tag.buckets[$i].start.weekday');
     expect(a.buckets[i].start, b.buckets[i].start, reason: '$tag.buckets[$i].start');
     expect(a.buckets[i].end, b.buckets[i].end, reason: '$tag.buckets[$i].end');
     expect(a.buckets[i].focusMinutes, b.buckets[i].focusMinutes,
@@ -506,9 +509,14 @@ void main() {
       expect(report.start, DateTime(2026, 9, 28));
       expect(report.end, DateTime(2026, 10, 5));
       expect(report.buckets.length, 7);
+      // i18n B3（T04）：`PeriodBucket.label` 已删，标签文案由
+      // `core/i18n/report_l10n.dart` 的 `reportBucketLabel` 装配（见
+      // `test/i18n/report_l10n_test.dart`）。域层这里只钉「顺序 = 周一…周日」，
+      // 判据换成每桶起始日的 `weekday`（等价且更本质）。
       expect(
-        report.buckets.map((PeriodBucket b) => b.label).toList(),
-        <String>['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+        report.buckets.map((PeriodBucket b) => b.start.weekday).toList(),
+        <int>[1, 2, 3, 4, 5, 6, 7],
+        reason: '7 根日柱必须按 周一(1)…周日(7) 排列',
       );
       // 桶边界逐日相接
       for (int i = 0; i < 7; i++) {
@@ -521,7 +529,7 @@ void main() {
       expect(report.buckets[0].focusMinutes, 0); // 09-28 周一
       expect(report.buckets[1].focusMinutes, 0); // 09-29 周二
       expect(report.buckets[2].focusMinutes, 100); // 09-30 周三
-      expect(report.buckets[3].label, '周四');
+      expect(report.buckets[3].start.weekday, DateTime.thursday); // 周四
       expect(report.buckets[3].focusMinutes, 40);
       expect(report.buckets[4].focusMinutes, 5); // 10-02 周五
       expect(report.buckets[5].focusMinutes, 20); // 10-03 周六
@@ -549,10 +557,10 @@ void main() {
       expect(report.buckets.first.end, DateTime(2026, 10, 5));
       expect(report.buckets.last.start, DateTime(2026, 10, 26));
       expect(report.buckets.last.end, DateTime(2026, 11, 1));
-      expect(
-        report.buckets.map((PeriodBucket b) => b.label).toList(),
-        <String>['第1周', '第2周', '第3周', '第4周', '第5周'],
-      );
+      // i18n B3（T04）：桶标签（`第1周`…）已迁 UI（`reportBucketLabel` 用
+      // `parent_report_bucket_week(index + 1)` 装配）。域层只需保证
+      // 「桶数 = 5 + 首末边界正确」，序号由 UI 按 index 递增生成，不会再错位。
+      expect(report.buckets.length, 5, reason: '第1周…第5周 共 5 桶');
 
       // 连续无缝：b[i].end == b[i+1].start
       for (int i = 0; i + 1 < report.buckets.length; i++) {
@@ -588,12 +596,14 @@ void main() {
       expect(report.start, DateTime(2026, 1, 1));
       expect(report.end, DateTime(2027, 1, 1));
       expect(report.buckets.length, 12);
+      // i18n B3（T04）：桶标签（`1月`…`12月` / en `Jan`…`Dec`）已迁 UI
+      // （`reportBucketLabel` 用 `DateFormat(isEn ? 'MMM' : 'M月')` 装配）。
+      // 域层改钉「12 桶 + 每桶起始日 = 当月 1 日」—— 月份顺序由 start.month 承载。
+      expect(report.buckets.length, 12, reason: '1月…12月 共 12 桶');
       expect(
-        report.buckets.map((PeriodBucket b) => b.label).toList(),
-        <String>[
-          '1月', '2月', '3月', '4月', '5月', '6月', //
-          '7月', '8月', '9月', '10月', '11月', '12月',
-        ],
+        report.buckets.map((PeriodBucket b) => b.start.month).toList(),
+        <int>[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        reason: '12 根月柱必须按 1 月…12 月 排列',
       );
       expect(report.buckets.first.start, DateTime(2026, 1, 1));
       expect(report.buckets.last.end, DateTime(2027, 1, 1));

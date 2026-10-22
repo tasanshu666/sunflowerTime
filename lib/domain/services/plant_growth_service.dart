@@ -41,14 +41,135 @@ import 'package:sunflower_time/domain/services/entitlement_service.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 
-/// 植物养成业务异常（余额不足 / 状态非法 / 花盆占用等）。
-class PlantOperationException implements Exception {
-  final String message;
+/// 植物操作失败的**语义码**（i18n B3 · T03）。
+///
+/// ## 为什么是枚举而不是字符串
+/// 迁移前 [PlantOperationException] 直接携带**中文提示语**，导致：
+///  · 领域层出现 CJK 字面量（违反 domain 零 CJK 纪律）；
+///  · 英文环境下仍弹中文（文案无法本地化）；
+///  · 测试只能断言中文全文，改一个标点就红。
+/// 改成「语义码 + 可选数值载荷」后，domain 只表达**为什么失败**，
+/// 文案由 `core/i18n/error_l10n.dart` 的 `plantErrorMessage` 单点装配。
+///
+/// ## 载荷约定（[PlantOperationException.a] / [b] 的语义随 code 而变）
+/// | code | a | b |
+/// |---|---|---|
+/// | [potOutOfCapacity] | 花盆序号 | 容量 |
+/// | [potOccupied] | 花盆序号 | — |
+/// | [sunlightNotEnough] | 还差多少阳光 | — |
+/// | [fragmentsNotEnough] | 还差多少碎片 | — |
+/// | [waterDailyLimit] | 每日上限次数 | — |
+/// | [waterInterval] | 间隔要求分钟 | 还需等待分钟 |
+/// | [fertilizeDailyLimit] | 每日上限次数 | — |
+/// | [gardenFull] | 当前档位容量 | — |
+/// | 其余 code | — | — |
+enum PlantOperationError {
+  /// 未找到该植物物种。
+  speciesNotFound,
 
-  const PlantOperationException(this.message);
+  /// 花盆序号超出容量（a = 序号，b = 容量）。
+  potOutOfCapacity,
+
+  /// 花盆已被占用（a = 序号）。
+  potOccupied,
+
+  /// 精英植物只能用碎片兑换。
+  premiumFragmentsOnly,
+
+  /// 种子已用完。
+  seedEmpty,
+
+  /// 阳光不足（a = 还差多少）。
+  sunlightNotEnough,
+
+  /// 碎片不足（a = 还差多少）。
+  fragmentsNotEnough,
+
+  /// 当前状态不可养护（仅成长中 / 开花 / 枯萎可养护）。
+  careStateInvalid,
+
+  /// 今日浇水已达上限（a = 上限次数）。
+  waterDailyLimit,
+
+  /// 浇水间隔未到（a = 间隔分钟，b = 还需等待分钟）。
+  waterInterval,
+
+  /// 今日施肥已达上限（a = 上限次数）。
+  fertilizeDailyLimit,
+
+  /// 植物不存在（**4 处调用点归一**：浇水 / 施肥 / 清理 / 铲除）。
+  plantNotFound,
+
+  /// 这株已经枯萎（清除杂草 / 害虫时）——不用再清理。
+  alreadyWilted,
+
+  /// 这盆没有杂草。
+  noWeed,
+
+  /// 这盆没有害虫。
+  noPest,
+
+  /// 花园已达当前档位容量上限（a = 容量）。
+  gardenFull,
+
+  /// 开花奖励未成熟 / 已被领取。
+  rewardNotMature,
+}
+
+/// 植物养成业务异常：**语义码 + 可选数值载荷**（不含任何人类文案）。
+///
+/// [toString] 只输出 `code.name(a, b)` —— 纯 ASCII，便于日志与测试断言。
+class PlantOperationException implements Exception {
+  /// 失败语义码。
+  final PlantOperationError code;
+
+  /// 载荷 a（语义随 [code] 而变；无载荷时为 `null`）。
+  final int? a;
+
+  /// 载荷 b（语义随 [code] 而变；无载荷时为 `null`）。
+  final int? b;
+
+  const PlantOperationException(this.code, {this.a, this.b});
 
   @override
-  String toString() => 'PlantOperationException: $message';
+  String toString() {
+    final String payload =
+        a == null ? '' : (b == null ? '($a)' : '($a, $b)');
+    return 'PlantOperationException: ${code.name}$payload';
+  }
+}
+
+/// 「不可养护」的具体原因（语义码 + 数值载荷），供 UI 装配提示语。
+///
+/// 由 [PlantGrowthService.careQuota] 产出：`null` = 可操作。
+/// 与 [PlantOperationException] 同构，但它是**数据**而非异常 —— 卡片上要显示
+/// 「为什么灰了」，不该为此抛异常。
+class PlantBlockReason {
+  /// 阻塞语义码（只会是 [PlantOperationError.careStateInvalid] /
+  /// [PlantOperationError.waterDailyLimit] / [PlantOperationError.waterInterval] /
+  /// [PlantOperationError.fertilizeDailyLimit] 之一）。
+  final PlantOperationError code;
+
+  /// 载荷 a（语义随 [code] 而变）。
+  final int? a;
+
+  /// 载荷 b（语义随 [code] 而变）。
+  final int? b;
+
+  const PlantBlockReason(this.code, {this.a, this.b});
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlantBlockReason && other.code == code && other.a == a && other.b == b;
+
+  @override
+  int get hashCode => Object.hash(code, a, b);
+
+  @override
+  String toString() =>
+      'PlantBlockReason(${code.name}${a == null ? '' : ', a: $a'}'
+      '${b == null ? '' : ', b: $b'})';
 }
 
 /// 单株养护额度快照（M3 修订）：今日已用次数 + 是否可操作 + 阻塞原因。
@@ -67,11 +188,14 @@ class PlantCareQuota {
   /// 距下次可浇水还需多少分钟（0 = 间隔已满足）。仅由「30 分钟最小间隔」产生。
   final int minutesUntilNextWater;
 
-  /// 不可浇水的原因（null = 可浇）。
-  final String? waterBlockReason;
+  /// 不可浇水的**语义原因**（`null` = 可浇）。
+  ///
+  /// B3 起由中文串改为 [PlantBlockReason]（语义码 + 数值载荷）：领域层不再持
+  /// 人类文案，提示语由 UI 经 `plantBlockReasonMessage` 装配。
+  final PlantBlockReason? waterBlockReason;
 
-  /// 不可施肥的原因（null = 可施）。
-  final String? fertilizeBlockReason;
+  /// 不可施肥的**语义原因**（`null` = 可施）。
+  final PlantBlockReason? fertilizeBlockReason;
 
   const PlantCareQuota({
     required this.waterUsedToday,
@@ -320,13 +444,17 @@ class PlantGrowthService {
       (PlantSpecies s) => s.id == speciesId,
     );
     if (sp == null) {
-      throw const PlantOperationException('未找到该植物物种');
+      throw const PlantOperationException(PlantOperationError.speciesNotFound);
     }
 
     final AppSettings settings = await _settings.getSettings();
     final int capacity = settings.gardenPotCapacity;
     if (potIndex < 0 || potIndex >= capacity) {
-      throw PlantOperationException('花盆序号超出容量（$potIndex / $capacity）');
+      throw PlantOperationException(
+        PlantOperationError.potOutOfCapacity,
+        a: potIndex,
+        b: capacity,
+      );
     }
 
     // 占用校验：该花盆已有非死亡植物则不可种；有死亡残留则先释放。
@@ -335,7 +463,10 @@ class PlantGrowthService {
       (Plant p) => p.potIndex == potIndex && p.status != PlantStatus.dead,
     );
     if (occupied) {
-      throw PlantOperationException('花盆 #$potIndex 已被占用，请先清理');
+      throw PlantOperationException(
+        PlantOperationError.potOccupied,
+        a: potIndex,
+      );
     }
     final Plant? dead = _firstWhereOrNull(
       existing,
@@ -551,7 +682,9 @@ class PlantGrowthService {
 
     // 防御：精英档仅接受碎片 / 种子券兑换。
     if (sp.isPremium && kind == PlantCostKind.sunlight) {
-      throw const PlantOperationException('精英植物只能用碎片兑换');
+      throw const PlantOperationException(
+        PlantOperationError.premiumFragmentsOnly,
+      );
     }
 
     switch (kind) {
@@ -561,14 +694,15 @@ class PlantGrowthService {
         // 2026-10-07 种子第三支付方式：消耗一张同档位券（判券口径 = 档位，非物种）。
         final String? used = await _consumeSeedOfTier(sp.isPremium);
         if (used == null) {
-          throw const PlantOperationException('种子已用完，去开花收集新的种子吧');
+          throw const PlantOperationException(PlantOperationError.seedEmpty);
         }
         return _tierShovelRefund(sp); // C29：券种株铲除仍按档位 50% 返还
       case PlantCostKind.sunlight:
         final double balance = await _ledger.balance();
         if (balance < kSpeciesSunlightCostCommon) {
           throw PlantOperationException(
-            '阳光不足，还差 ${(kSpeciesSunlightCostCommon - balance).ceil()} 阳光',
+            PlantOperationError.sunlightNotEnough,
+            a: (kSpeciesSunlightCostCommon - balance).ceil(),
           );
         }
         await _appendSpend(
@@ -593,7 +727,10 @@ class PlantGrowthService {
     if (cost <= 0) return;
     final int balance = await _bloomRewards.premiumFragmentBalance();
     if (balance < cost) {
-      throw PlantOperationException('碎片不足，还差 ${cost - balance} 片');
+      throw PlantOperationException(
+        PlantOperationError.fragmentsNotEnough,
+        a: cost - balance,
+      );
     }
     await _bloomRewards.setPremiumFragmentBalance(balance - cost);
   }
@@ -941,17 +1078,27 @@ class PlantGrowthService {
     final bool actionable = p.status == PlantStatus.growing ||
         p.status == PlantStatus.wilting ||
         p.status == PlantStatus.bloomed; // F111：盛开态放行（防枯萎 + 保晨露）
-    final String? waterBlock = !actionable
-        ? '仅成长中/开花/枯萎植物可养护'
+    final PlantBlockReason? waterBlock = !actionable
+        ? const PlantBlockReason(PlantOperationError.careStateInvalid)
         : waterUsed >= kPlantWaterMaxPerDay
-            ? '今日浇水已达 $kPlantWaterMaxPerDay 次上限'
+            ? const PlantBlockReason(
+                PlantOperationError.waterDailyLimit,
+                a: kPlantWaterMaxPerDay,
+              )
             : minutesUntilNextWater > 0
-                ? '浇水间隔需 $kPlantWaterIntervalMinutes 分钟，还需 $minutesUntilNextWater 分钟'
+                ? PlantBlockReason(
+                    PlantOperationError.waterInterval,
+                    a: kPlantWaterIntervalMinutes,
+                    b: minutesUntilNextWater,
+                  )
                 : null;
-    final String? fertilizeBlock = !actionable
-        ? '仅成长中/开花/枯萎植物可养护'
+    final PlantBlockReason? fertilizeBlock = !actionable
+        ? const PlantBlockReason(PlantOperationError.careStateInvalid)
         : fertilizeUsed >= kPlantFertilizeMaxPerDay
-            ? '今日施肥已达 $kPlantFertilizeMaxPerDay 次上限'
+            ? const PlantBlockReason(
+                PlantOperationError.fertilizeDailyLimit,
+                a: kPlantFertilizeMaxPerDay,
+              )
             : null;
 
     return PlantCareQuota(
@@ -994,10 +1141,13 @@ class PlantGrowthService {
   /// 若动作前植物处于 wilting，浇完后用 [_maybeRecover] 评估是否靠养护恢复（2026-09-23 替代付费救回）。
   Future<void> water(String plantId, DateTime now, {PlantPerk? perk}) async {
     final Plant? p = await _plants.plant(plantId);
-    if (p == null) throw const PlantOperationException('植物不存在');
+    if (p == null) {
+      throw const PlantOperationException(PlantOperationError.plantNotFound);
+    }
     final PlantCareQuota quota = await careQuota(p, now);
-    if (quota.waterBlockReason != null) {
-      throw PlantOperationException(quota.waterBlockReason!);
+    final PlantBlockReason? waterBlock = quota.waterBlockReason;
+    if (waterBlock != null) {
+      throw PlantOperationException(waterBlock.code, a: waterBlock.a, b: waterBlock.b);
     }
     final int cost = waterCostOf(perk ?? await currentPerk());
     await _spendCheck(cost);
@@ -1032,10 +1182,17 @@ class PlantGrowthService {
   /// 施完后用 [_maybeRecover] 评估是否靠养护恢复（2026-09-23 替代付费救回）。
   Future<void> fertilize(String plantId, DateTime now, {PlantPerk? perk}) async {
     final Plant? p = await _plants.plant(plantId);
-    if (p == null) throw const PlantOperationException('植物不存在');
+    if (p == null) {
+      throw const PlantOperationException(PlantOperationError.plantNotFound);
+    }
     final PlantCareQuota quota = await careQuota(p, now);
-    if (quota.fertilizeBlockReason != null) {
-      throw PlantOperationException(quota.fertilizeBlockReason!);
+    final PlantBlockReason? fertilizeBlock = quota.fertilizeBlockReason;
+    if (fertilizeBlock != null) {
+      throw PlantOperationException(
+        fertilizeBlock.code,
+        a: fertilizeBlock.a,
+        b: fertilizeBlock.b,
+      );
     }
     final int cost = fertilizeCostOf(perk ?? await currentPerk());
     await _spendCheck(cost);
@@ -1068,7 +1225,7 @@ class PlantGrowthService {
   /// **培养（浇水/施肥）消耗一律不返还**）。返回实际返还的阳光数（供 UI 飘字）。
   ///
   ///  · 死亡（dead）株按「死亡全损」既有口径**返还 0**（C12 延续：死亡不退还任何资源）；
-  ///  · 返还走账本入账（refType=[kPlantShovelRefundRefType]，值冻结，`_refLabels`
+  ///  · 返还走账本入账（refType=[kPlantShovelRefundRefType]，值冻结，`refLabelOf`
   ///    已同步「铲除返还」）；返还 0 时不写账本行；
   ///  · UI 侧负责二次确认弹卡（明示返还额）后再调本方法，领域层不做确认。
   ///
@@ -1079,7 +1236,9 @@ class PlantGrowthService {
   /// 🔴 **无铲除护栏**（Q9 已关闭）：券种 / 碎片株与付费株同额（170/270），死亡株仍返 0。
   Future<int> shovel(String plantId, DateTime now, {PlantPerk? perk}) async {
     final Plant? p = await _plants.plant(plantId);
-    if (p == null) throw const PlantOperationException('植物不存在');
+    if (p == null) {
+      throw const PlantOperationException(PlantOperationError.plantNotFound);
+    }
     final int refund = p.status == PlantStatus.dead
         ? 0
         : shovelRefundOf(p.shovelRefund, perk ?? await currentPerk());
@@ -1173,13 +1332,17 @@ class PlantGrowthService {
     PlantPerk? perk,
   }) async {
     final Plant? p = await _plants.plant(plantId);
-    if (p == null) throw const PlantOperationException('植物不存在');
+    if (p == null) {
+      throw const PlantOperationException(PlantOperationError.plantNotFound);
+    }
     if (p.status == PlantStatus.dead) {
-      throw const PlantOperationException('这株已经枯萎了，不用清理啦');
+      throw const PlantOperationException(PlantOperationError.alreadyWilted);
     }
     final bool hit = isWeed ? p.hasWeed : p.hasPest;
     if (!hit) {
-      throw PlantOperationException(isWeed ? '这盆没有杂草哦' : '这盆没有害虫哦');
+      throw PlantOperationException(
+        isWeed ? PlantOperationError.noWeed : PlantOperationError.noPest,
+      );
     }
     final PlantPerk effectivePerk = perk ?? await currentPerk();
     await _appendEarn(
@@ -1197,7 +1360,10 @@ class PlantGrowthService {
   Future<void> _spendCheck(int cost) async {
     final double balance = await _ledger.balance();
     if (balance < cost) {
-      throw PlantOperationException('阳光不足，还差 ${(cost - balance).ceil()} 阳光');
+      throw PlantOperationException(
+        PlantOperationError.sunlightNotEnough,
+        a: (cost - balance).ceil(),
+      );
     }
   }
 
@@ -1295,7 +1461,10 @@ class PlantGrowthService {
     final AppSettings settings = await _settings.getSettings();
     final int limit = _potCapacityLimit;
     if (settings.gardenPotCapacity >= limit) {
-      throw PlantOperationException('花园已达当前档位容量上限（$limit 盆），解锁可扩容');
+      throw PlantOperationException(
+        PlantOperationError.gardenFull,
+        a: limit,
+      );
     }
     final int cost = expandCostOf(
       perk ?? await currentPerk(),
@@ -1304,7 +1473,10 @@ class PlantGrowthService {
     );
     final double balance = await _ledger.balance();
     if (balance < cost) {
-      throw PlantOperationException('阳光不足，还差 ${(cost - balance).ceil()} 阳光');
+      throw PlantOperationException(
+        PlantOperationError.sunlightNotEnough,
+        a: (cost - balance).ceil(),
+      );
     }
     await _appendSpend(
       amount: cost.toDouble(),
@@ -1529,7 +1701,7 @@ class PlantGrowthService {
       (PendingBloomReward r) => r.id == rewardId,
     );
     if (reward == null) {
-      throw const PlantOperationException('奖励还没成熟，或已经被领取啦');
+      throw const PlantOperationException(PlantOperationError.rewardNotMature);
     }
     final List<PlantSpecies> species = await _plants.species();
     final List<Plant> plants = await _plants.plants();

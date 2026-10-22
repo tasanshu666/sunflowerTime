@@ -37,6 +37,7 @@ import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
+import 'package:sunflower_time/core/i18n/enum_l10n.dart';
 
 /// 商店 tab 列表内容起点（占屏高比例）——C47d 实测标定值。
 ///
@@ -280,7 +281,7 @@ class _StorePageState extends ConsumerState<StorePage>
           .where((RewardTemplate t) => t.contentCategory == cat)
           .toList(growable: false);
       if (group.isEmpty) continue;
-      children.add(_categoryHeader(cat.label, cat.icon));
+      children.add(_categoryHeader(rewardContentCategoryLabel(cat, _t), cat.icon));
       for (final RewardTemplate tpl in group) {
         final int cost = tpl.baseCost;
         final bool onCd = load.onCooldown[tpl.id] ?? false;

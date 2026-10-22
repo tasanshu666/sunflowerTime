@@ -23,6 +23,7 @@ import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 // F130：平板 UI 倍率（文字之外的定尺寸元素一律乘 `uiScaleOf(context)`）。
 import 'package:sunflower_time/shared/responsive.dart';
+import 'package:sunflower_time/core/i18n/enum_l10n.dart';
 
 /// 任务配置页：家长管理学习任务模板。
 ///
@@ -277,12 +278,12 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                   runSpacing: 4,
                   children: <Widget>[
                     pillLabel(
-                      text: t.categoryLabel,
+                      text: taskCategoryLabel(t.category, l10n),
                       bg: cat.bg,
                       fg: cat.fg,
                     ),
                     pillLabel(
-                      text: t.subjectLabel,
+                      text: taskDisplaySubject(t, l10n),
                       bg: Colors.grey.shade100,
                       fg: Colors.grey.shade700,
                     ),

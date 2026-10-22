@@ -290,6 +290,12 @@ void main() {
         _read('lib/presentation/child/pages/child_sunlight_history_page.dart');
     expect(src.contains('kFocusLevelUpRefType'), isTrue,
         reason: '漏配会让孩子端显示「其他」，阳光来源对不上账');
-    expect(src.contains("kFocusLevelUpRefType: '专注升级'"), isTrue);
+    // i18n B3（T01）：映射由「中文串」改为 ARB key —— 守卫同步钉 **ARB key**，
+    // 而不是中文（否则英文环境会静默回中文，守卫还绿着）。
+    expect(src.contains('t.child_hist_ref_focus_level_up'), isTrue,
+        reason: 'kFocusLevelUpRefType 必须映射到 ARB key child_hist_ref_focus_level_up');
+    // 反例：中文串不得再回到映射函数里（domain/展示层统一走 ARB）。
+    expect(src.contains("kFocusLevelUpRefType: '专注升级'"), isFalse,
+        reason: '映射值须为 ARB key，不得硬编码中文（英文环境会漏翻）');
   });
 }

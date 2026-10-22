@@ -56,10 +56,31 @@
   "child_lock_title": "Bedtime",
   "child_lock_sleeping": "🌻 The sunflower is sleeping",
   "child_lock_body": "After {hour}:00 the sunflower goes to sleep — see you tomorrow~",
+  "@child_lock_body": {
+    "placeholders": {
+      "hour": {
+        "type": "int"
+      }
+    }
+  },
   "child_rest_title": "Take a Break",
   "child_rest_body": "Take a break and sip some water — {sec} s left",
+  "@child_rest_body": {
+    "placeholders": {
+      "sec": {
+        "type": "int"
+      }
+    }
+  },
   "child_rest_done": "I'm Done Resting",
   "child_eyecare_countdown": "{sec} s left",
+  "@child_eyecare_countdown": {
+    "placeholders": {
+      "sec": {
+        "type": "int"
+      }
+    }
+  },
   "child_eyecare_title": "Rest Your Eyes",
   "shared_back": "Back",
   "shared_start_focus": "Start Focus",
@@ -67,18 +88,83 @@
   "child_today_sunlight_title": "Sunlight Today",
   "child_today_focus_label": "Focus Today",
   "child_today_minutes": "{minutes} min",
+  "@child_today_minutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "child_today_focus_count": "· {count} sessions",
+  "@child_today_focus_count": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "child_today_growth_label": "Growth Today",
   "child_today_all_done": "All Done 🌻",
   "child_today_growth_hint": "Want growth sunlight? Tap a task in \"Growth\" and start focusing 🌻",
   "child_settle_secs": "{sec} s",
+  "@child_settle_secs": {
+    "placeholders": {
+      "sec": {
+        "type": "int"
+      }
+    }
+  },
   "child_settle_mins": "{min} min",
+  "@child_settle_mins": {
+    "placeholders": {
+      "min": {
+        "type": "int"
+      }
+    }
+  },
   "child_settle_min_sec": "{min} min {sec} s",
+  "@child_settle_min_sec": {
+    "placeholders": {
+      "min": {
+        "type": "int"
+      },
+      "sec": {
+        "type": "int"
+      }
+    }
+  },
   "child_settle_task_label": "Growth task",
   "child_settle_task_skipped": "Task settlement did not finish; this session's sunlight is unaffected",
   "child_settle_task_capped": "(Daily sunlight cap reached; only {sun} ☀ credited)",
+  "@child_settle_task_capped": {
+    "placeholders": {
+      "sun": {
+        "type": "String"
+      }
+    }
+  },
   "child_settle_task_done": "Task \"{name}\" done +{sun} ☀{capped}",
+  "@child_settle_task_done": {
+    "placeholders": {
+      "capped": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      },
+      "sun": {
+        "type": "String"
+      }
+    }
+  },
   "child_settle_task_progress": "Task \"{name}\" is nearly there — it counts once a session is long enough 🌻",
+  "@child_settle_task_progress": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "child_settle_title": "Focus Finished",
   "child_settle_this_session": "This Session",
   "child_settle_collected": "Sunlight Earned",
@@ -89,7 +175,27 @@
   "child_settle_too_short": "Too short — the sunflower collected nothing (output starts at 5 min)",
   "child_settle_cap_title": "🌻 Today's focus quota is used up",
   "child_settle_cap_body_detail": "No sunlight is collected beyond the quota{detail}. {cheer}",
+  "@child_settle_cap_body_detail": {
+    "placeholders": {
+      "cheer": {
+        "type": "String"
+      },
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "child_settle_cap_orig_vs_net": "(originally {raw} ☀️, credited {net} ☀️)",
+  "@child_settle_cap_orig_vs_net": {
+    "placeholders": {
+      "net": {
+        "type": "String"
+      },
+      "raw": {
+        "type": "String"
+      }
+    }
+  },
   "child_settle_cap_cheer": "Great job today — see you tomorrow!",
   "child_settle_home": "Back Home",
   "child_feedback_collected": "Great! More sunlight collected.",
@@ -101,24 +207,76 @@
   "child_cap_single_title": "Time for a Break",
   "child_cap_daily_title": "Take a Rest",
   "child_cap_single_body": "You've played {minutes} minutes straight — rest your eyes",
+  "@child_cap_single_body": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "child_cap_daily_body": "Today's app time is used up",
   "child_cap_chip_rest": "Break",
   "child_cap_chip_daily": "Daily Cap",
   "child_cap_unlock_in": "Unlocks in {minutes} min",
+  "@child_cap_unlock_in": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "child_cap_minutes": "{minutes} min",
+  "@child_cap_minutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "child_cap_chip_go_today": "Go to \"Today\"",
   "child_cap_chip_earn": "Focus for Sunlight",
   "child_cap_btn_go_focus": "Go Focus in \"Today\" 🌻",
   "child_cap_ok": "Got it",
   "child_entry_pick_duration": "How long will you focus?",
   "child_entry_cap_daily": "Today's focus time is used up (daily limit {cap} min) — see you tomorrow",
+  "@child_entry_cap_daily": {
+    "placeholders": {
+      "cap": {
+        "type": "int"
+      }
+    }
+  },
   "child_entry_remaining_today": "You can still focus {minutes} min today (daily limit {cap} min)",
+  "@child_entry_remaining_today": {
+    "placeholders": {
+      "cap": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "child_entry_free": "Open",
   "child_entry_custom": "Custom",
   "child_entry_custom_title": "Custom duration (minutes)",
   "child_entry_quota_empty": "Daily quota used up",
   "child_entry_custom_hint_max": "Up to {max} minutes",
+  "@child_entry_custom_hint_max": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
   "child_entry_custom_hint_capped": "Up to {max} minutes (limited by today's quota)",
+  "@child_entry_custom_hint_capped": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
   "child_entry_options_title": "Focus Options",
   "child_entry_dnd": "Block notifications (DND)",
   "child_entry_dnd_hint": "Mute messages and calls while focusing",
@@ -127,9 +285,40 @@
   "child_entry_bgm": "Background music",
   "child_entry_bgm_hint": "Loop soft music while focusing",
   "child_entry_minutes": "{minutes} min",
+  "@child_entry_minutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "child_entry_cap_snack": "Daily focus limit reached ({cap} min) — come back tomorrow",
+  "@child_entry_cap_snack": {
+    "placeholders": {
+      "cap": {
+        "type": "int"
+      }
+    }
+  },
   "child_entry_cap_snack2": "Today's focus time is used up (limit {cap} min) — come back tomorrow",
+  "@child_entry_cap_snack2": {
+    "placeholders": {
+      "cap": {
+        "type": "int"
+      }
+    }
+  },
   "child_entry_remaining_snack": "Only {remaining} min left today, so this session is {minutes} min",
+  "@child_entry_remaining_snack": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      },
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
   "child_focus_dnd_permission": "Enable Do Not Disturb in system settings to block notifications",
   "child_focus_exit_title": "End now?",
   "child_focus_exit_body": "Your sunflower is still here with you. End this session now?",
@@ -156,17 +345,62 @@
   "child_shell_verify_title": "🎉 Parent approved your redeem",
   "child_shell_item_reward": "Reward",
   "child_shell_item_cost": "-{sun} sunlight",
+  "@child_shell_item_cost": {
+    "placeholders": {
+      "sun": {
+        "type": "int"
+      }
+    }
+  },
   "child_shell_verify_total": "A total of {total} sunlight was deducted",
+  "@child_shell_verify_total": {
+    "placeholders": {
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "child_shell_reject_title": "🚫 Redeem not approved",
   "child_shell_reject_subtitle": "({note})",
+  "@child_shell_reject_subtitle": {
+    "placeholders": {
+      "note": {
+        "type": "String"
+      }
+    }
+  },
   "child_shell_reject_reason": "Parent declined this request",
   "child_shell_reject_footer": "No sunlight was deducted; you can redeem another reward",
   "child_shell_task_footer_capped": "Daily growth rewards are capped; no sunlight this time",
   "child_shell_task_footer_partial": "Got {total} sunlight ({capped} item(s) hit the daily cap)",
+  "@child_shell_task_footer_partial": {
+    "placeholders": {
+      "capped": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "child_shell_task_footer": "Got {total} sunlight",
+  "@child_shell_task_footer": {
+    "placeholders": {
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "child_shell_task_title": "🎉 Parent approved your task",
   "child_shell_task_fallback": "Growth task",
   "child_shell_task_item_sun": "+{sun} sunlight",
+  "@child_shell_task_item_sun": {
+    "placeholders": {
+      "sun": {
+        "type": "int"
+      }
+    }
+  },
   "child_shell_task_item_capped": "Daily cap reached",
   "garden_settle_withered": "Flowers withered, rewards collected: {parts}",
   "@garden_settle_withered": {
@@ -1701,5 +1935,296 @@
   "parent_premium_snack_restore_net": "Restore failed — check your network and retry",
   "parent_premium_snack_restore_failed": "Restore failed — try again later",
   "parent_reward_category_label": "Type",
-  "shared_lang_zh_name": "简体中文"
+  "shared_lang_zh_name": "简体中文",
+  "shared_task_category_other": "Other",
+  "shared_task_category_learning": "Learning",
+  "shared_task_category_sports": "Sports",
+  "shared_task_category_life": "Life",
+  "shared_task_category_habit": "Habit",
+  "shared_reward_content_other": "Other",
+  "shared_reward_content_snacks": "Snacks",
+  "shared_reward_content_play": "Play",
+  "shared_reward_content_entertainment": "Entertainment",
+  "shared_reward_content_toys": "Toys",
+  "shared_reward_content_books": "Books",
+  "shared_species_sunflower": "Sunflower",
+  "shared_species_moon_orchid": "Moon Orchid",
+  "shared_species_tomato": "Tomato",
+  "shared_species_strawberry": "Strawberry",
+  "shared_species_coral_orchid": "Coral Ridge Orchid",
+  "shared_species_jade_hydrangea": "Jade Hydrangea",
+  "shared_weekday_mon": "Mon",
+  "shared_weekday_tue": "Tue",
+  "shared_weekday_wed": "Wed",
+  "shared_weekday_thu": "Thu",
+  "shared_weekday_fri": "Fri",
+  "shared_weekday_sat": "Sat",
+  "shared_weekday_sun": "Sun",
+  "parent_report_bucket_week": "Wk {index}",
+  "@parent_report_bucket_week": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_perk_water_discount": "Water cost −{value}",
+  "@shared_perk_water_discount": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_perk_fertilize_discount": "Fertilizer cost −{value}",
+  "@shared_perk_fertilize_discount": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_perk_weed_bonus": "Weeding bonus +{value}",
+  "@shared_perk_weed_bonus": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_perk_pest_bonus": "Pest bonus +{value}",
+  "@shared_perk_pest_bonus": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_perk_bloom_bonus": "Bloom sunlight +{value}",
+  "@shared_perk_bloom_bonus": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_perk_dew_bonus": "Dew sunlight +{value}",
+  "@shared_perk_dew_bonus": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_perk_eyecare_bonus": "Eye-care bonus +{value}",
+  "@shared_perk_eyecare_bonus": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_perk_expand_discount": "Pot expand −{value}",
+  "@shared_perk_expand_discount": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_perk_shovel_refund": "Shovel refund +{value}",
+  "@shared_perk_shovel_refund": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_duration_minutes": "{m} min",
+  "@shared_duration_minutes": {
+    "placeholders": {
+      "m": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_duration_hours": "{h} h",
+  "@shared_duration_hours": {
+    "placeholders": {
+      "h": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_duration_hours_minutes": "{h} h {m} min",
+  "@shared_duration_hours_minutes": {
+    "placeholders": {
+      "h": {
+        "type": "int"
+      },
+      "m": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_level_gap_next": "{duration} to Lv.{n}",
+  "@shared_level_gap_next": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "shared_level_gap_max": "Max title · {title}",
+  "@shared_level_gap_max": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "shared_reward_weekly_limit": "{remaining} left this week",
+  "@shared_reward_weekly_limit": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_reward_unlimited": "Unlimited",
+  "shared_plant_err_species_not_found": "Plant species not found",
+  "shared_plant_err_pot_out_of_capacity": "Pot #{pot} is beyond capacity ({capacity})",
+  "@shared_plant_err_pot_out_of_capacity": {
+    "placeholders": {
+      "pot": {
+        "type": "int"
+      },
+      "capacity": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_plant_err_pot_occupied": "Pot #{pot} is occupied — clear it first",
+  "@shared_plant_err_pot_occupied": {
+    "placeholders": {
+      "pot": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_plant_err_premium_fragments_only": "Premium plants can only be bought with fragments",
+  "shared_plant_err_seed_empty": "No seeds left — bloom plants to collect more",
+  "shared_plant_err_sunlight_not_enough": "Not enough sunlight — {short} more needed",
+  "@shared_plant_err_sunlight_not_enough": {
+    "placeholders": {
+      "short": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_plant_err_fragments_not_enough": "Not enough fragments — {short} more needed",
+  "@shared_plant_err_fragments_not_enough": {
+    "placeholders": {
+      "short": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_plant_err_care_state_invalid": "Only growing, blooming or wilting plants can be cared for",
+  "shared_plant_err_water_daily_limit": "Watering limit reached ({max} today)",
+  "@shared_plant_err_water_daily_limit": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_plant_err_water_interval": "Water every {interval} min — wait {wait} min",
+  "@shared_plant_err_water_interval": {
+    "placeholders": {
+      "interval": {
+        "type": "int"
+      },
+      "wait": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_plant_err_fertilize_daily_limit": "Fertilizing limit reached ({max} today)",
+  "@shared_plant_err_fertilize_daily_limit": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_plant_err_plant_not_found": "Plant not found",
+  "shared_plant_err_already_wilted": "This plant has already wilted",
+  "shared_plant_err_no_weed": "No weeds in this pot",
+  "shared_plant_err_no_pest": "No pests in this pot",
+  "shared_plant_err_garden_full": "Garden is full ({limit} pots) — unlock to expand",
+  "@shared_plant_err_garden_full": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "shared_plant_err_reward_not_mature": "Not ripe yet, or already collected",
+  "shared_checkin_err_linked_auto": "This task completes automatically in a focus session",
+  "shared_checkin_err_already_done": "You already did this task today",
+  "shared_checkin_err_not_linked": "This task isn't focus-linked",
+  "shared_checkin_err_session_not_today": "That session isn't from today",
+  "shared_checkin_err_session_used": "That session already settled a task",
+  "shared_checkin_err_not_found": "Record not found — it may have been deleted",
+  "shared_checkin_err_already_verified": "Already handled — can't verify twice",
+  "shared_checkin_err_already_rejected": "Already handled",
+  "shared_checkin_err_race": "Just handled a moment ago",
+  "seed_task_homework": "Finish school homework",
+  "seed_task_math": "Practice mental math",
+  "seed_task_read": "Read for 20 minutes",
+  "seed_task_rope_skip": "Jump rope 170+ times in a minute",
+  "seed_task_chores": "Help tidy up at home",
+  "seed_reward_snack": "A small snack",
+  "seed_reward_extra_play": "10 more minutes before bed",
+  "seed_reward_cartoon": "Watch one cartoon episode",
+  "seed_reward_toy": "A small toy",
+  "seed_reward_weekend_outing": "A weekend outing",
+  "shared_child_default_name": "Child",
+  "child_hist_ref_focus": "Focus output",
+  "child_hist_ref_focus_session": "Focus",
+  "child_hist_ref_focus_task_reward": "Focus task reward",
+  "child_hist_ref_task_checkin": "Task reward",
+  "child_hist_ref_plant_plant": "Planted a plant",
+  "child_hist_ref_plant_water": "Watering",
+  "child_hist_ref_plant_fertilize": "Fertilizing",
+  "child_hist_ref_plant_revive": "Plant revived",
+  "child_hist_ref_plant_expand": "Garden expanded",
+  "child_hist_ref_plant_weed": "Weeding",
+  "child_hist_ref_plant_pest": "Pest removal",
+  "child_hist_ref_plant_death_refund": "Plant death refund",
+  "child_hist_ref_eye_care_break": "Eye care",
+  "child_hist_ref_plant_shovel_refund": "Shovel refund",
+  "child_hist_ref_bloom_reward": "Bloom reward",
+  "child_hist_ref_bloom_reward_24h": "Bloom revisit reward",
+  "child_hist_ref_redeem": "Reward redeemed",
+  "child_hist_ref_redemption": "Reward redeemed",
+  "child_hist_ref_queue_release": "Sunlight pool release",
+  "child_hist_ref_parent_gift": "Parent gift",
+  "child_hist_ref_debug_grant": "Debug grant",
+  "child_hist_ref_focus_level_up": "Focus level up",
+  "child_eyecare_seg_default": "Follow the animation to protect your eyes",
+  "shared_perk_name_eye_care": "Eye care",
+  "shared_perk_name_water": "Watering",
+  "shared_perk_name_fertilize": "Fertilizing",
+  "shared_perk_name_weed": "Weeding",
+  "shared_perk_name_pest": "Pest control",
+  "shared_perk_name_bloom": "Bloom",
+  "shared_perk_name_dew": "Morning dew",
+  "shared_perk_name_pot_expand": "Pot upgrade",
+  "shared_perk_name_shovel": "Removal",
+  "shared_default_child_name": "Child"
 }

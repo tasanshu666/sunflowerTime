@@ -109,7 +109,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_lock_sleeping => '🌻 向日葵睡觉中';
 
   @override
-  String child_lock_body(Object hour) {
+  String child_lock_body(int hour) {
     return '晚上 $hour:00 后向日葵要休息啦，明天再陪你专注~';
   }
 
@@ -117,7 +117,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_rest_title => '休息一下';
 
   @override
-  String child_rest_body(Object sec) {
+  String child_rest_body(int sec) {
     return '休息一下，喝口水～ 还剩 $sec 秒';
   }
 
@@ -125,7 +125,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_rest_done => '我休息好了';
 
   @override
-  String child_eyecare_countdown(Object sec) {
+  String child_eyecare_countdown(int sec) {
     return '还剩 $sec 秒';
   }
 
@@ -148,12 +148,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_today_focus_label => '今日专注';
 
   @override
-  String child_today_minutes(Object minutes) {
+  String child_today_minutes(int minutes) {
     return '$minutes 分钟';
   }
 
   @override
-  String child_today_focus_count(Object count) {
+  String child_today_focus_count(int count) {
     return '· $count 次';
   }
 
@@ -167,17 +167,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_today_growth_hint => '想赚成长阳光？从「成长」里点具体项目开始专注 🌻';
 
   @override
-  String child_settle_secs(Object sec) {
+  String child_settle_secs(int sec) {
     return '$sec 秒';
   }
 
   @override
-  String child_settle_mins(Object min) {
+  String child_settle_mins(int min) {
     return '$min 分钟';
   }
 
   @override
-  String child_settle_min_sec(Object min, Object sec) {
+  String child_settle_min_sec(int min, int sec) {
     return '$min 分 $sec 秒';
   }
 
@@ -188,17 +188,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_settle_task_skipped => '成长项结算没能完成，不影响本次专注阳光';
 
   @override
-  String child_settle_task_capped(Object sun) {
+  String child_settle_task_capped(String sun) {
     return '（今日阳光已达上限，本次只到账 $sun ☀）';
   }
 
   @override
-  String child_settle_task_done(Object capped, Object name, Object sun) {
+  String child_settle_task_done(String capped, String name, String sun) {
     return '成长项「$name」完成 +$sun ☀$capped';
   }
 
   @override
-  String child_settle_task_progress(Object name) {
+  String child_settle_task_progress(String name) {
     return '成长项「$name」还差一点，下次专注够时长就算上啦 🌻';
   }
 
@@ -230,12 +230,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_settle_cap_title => '🌻 今天专注额度用完啦';
 
   @override
-  String child_settle_cap_body_detail(Object cheer, Object detail) {
+  String child_settle_cap_body_detail(String cheer, String detail) {
     return '超出额度的部分就不再收集阳光了$detail。$cheer';
   }
 
   @override
-  String child_settle_cap_orig_vs_net(Object net, Object raw) {
+  String child_settle_cap_orig_vs_net(String net, String raw) {
     return '（原本 $raw ☀️，实到 $net ☀️）';
   }
 
@@ -270,7 +270,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_cap_daily_title => '先歇一会儿吧';
 
   @override
-  String child_cap_single_body(Object minutes) {
+  String child_cap_single_body(int minutes) {
     return '已经连续玩 $minutes 分钟啦，让眼睛休息一下';
   }
 
@@ -284,12 +284,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_cap_chip_daily => '今日上限';
 
   @override
-  String child_cap_unlock_in(Object minutes) {
+  String child_cap_unlock_in(int minutes) {
     return '$minutes 分钟后解锁';
   }
 
   @override
-  String child_cap_minutes(Object minutes) {
+  String child_cap_minutes(int minutes) {
     return '$minutes 分钟';
   }
 
@@ -309,12 +309,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_entry_pick_duration => '这次想专注多久？';
 
   @override
-  String child_entry_cap_daily(Object cap) {
+  String child_entry_cap_daily(int cap) {
     return '今天的专注时间已经用完啦（每日上限 $cap 分钟），明天再来';
   }
 
   @override
-  String child_entry_remaining_today(Object cap, Object minutes) {
+  String child_entry_remaining_today(int cap, int minutes) {
     return '今天还可以专注 $minutes 分钟（每日上限 $cap 分钟）';
   }
 
@@ -331,12 +331,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_entry_quota_empty => '今日额度已用完';
 
   @override
-  String child_entry_custom_hint_max(Object max) {
+  String child_entry_custom_hint_max(int max) {
     return '可选 $max 分钟以内';
   }
 
   @override
-  String child_entry_custom_hint_capped(Object max) {
+  String child_entry_custom_hint_capped(int max) {
     return '可选 $max 分钟以内（受今日剩余额度限制）';
   }
 
@@ -362,22 +362,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_entry_bgm_hint => '专注时循环轻柔背景乐';
 
   @override
-  String child_entry_minutes(Object minutes) {
+  String child_entry_minutes(int minutes) {
     return '$minutes 分钟';
   }
 
   @override
-  String child_entry_cap_snack(Object cap) {
+  String child_entry_cap_snack(int cap) {
     return '今日专注已达上限（$cap 分钟），明天再来哦';
   }
 
   @override
-  String child_entry_cap_snack2(Object cap) {
+  String child_entry_cap_snack2(int cap) {
     return '今天的专注时间用完啦（上限 $cap 分钟），明天再来哦';
   }
 
   @override
-  String child_entry_remaining_snack(Object minutes, Object remaining) {
+  String child_entry_remaining_snack(int minutes, int remaining) {
     return '今天只剩 $remaining 分钟额度了，这次就专注 $minutes 分钟吧';
   }
 
@@ -457,12 +457,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_shell_item_reward => '奖励';
 
   @override
-  String child_shell_item_cost(Object sun) {
+  String child_shell_item_cost(int sun) {
     return '-$sun 阳光';
   }
 
   @override
-  String child_shell_verify_total(Object total) {
+  String child_shell_verify_total(int total) {
     return '共扣除 $total 阳光';
   }
 
@@ -470,7 +470,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_shell_reject_title => '🚫 兑换未被通过';
 
   @override
-  String child_shell_reject_subtitle(Object note) {
+  String child_shell_reject_subtitle(String note) {
     return '（$note）';
   }
 
@@ -484,12 +484,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_shell_task_footer_capped => '今日成长奖励已达上限，本次没有新增阳光';
 
   @override
-  String child_shell_task_footer_partial(Object capped, Object total) {
+  String child_shell_task_footer_partial(int capped, int total) {
     return '共获得 $total 阳光（$capped 项今日额度已满，未发放）';
   }
 
   @override
-  String child_shell_task_footer(Object total) {
+  String child_shell_task_footer(int total) {
     return '共获得 $total 阳光';
   }
 
@@ -500,7 +500,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_shell_task_fallback => '成长任务';
 
   @override
-  String child_shell_task_item_sun(Object sun) {
+  String child_shell_task_item_sun(int sun) {
     return '+$sun 阳光';
   }
 
@@ -2439,4 +2439,385 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shared_lang_zh_name => '简体中文';
+
+  @override
+  String get shared_task_category_other => '其他';
+
+  @override
+  String get shared_task_category_learning => '学习';
+
+  @override
+  String get shared_task_category_sports => '运动';
+
+  @override
+  String get shared_task_category_life => '生活';
+
+  @override
+  String get shared_task_category_habit => '习惯';
+
+  @override
+  String get shared_reward_content_other => '其他';
+
+  @override
+  String get shared_reward_content_snacks => '零食';
+
+  @override
+  String get shared_reward_content_play => '游玩';
+
+  @override
+  String get shared_reward_content_entertainment => '娱乐';
+
+  @override
+  String get shared_reward_content_toys => '玩具';
+
+  @override
+  String get shared_reward_content_books => '阅读';
+
+  @override
+  String get shared_species_sunflower => '向日葵';
+
+  @override
+  String get shared_species_moon_orchid => '月光兰';
+
+  @override
+  String get shared_species_tomato => '番茄';
+
+  @override
+  String get shared_species_strawberry => '草莓';
+
+  @override
+  String get shared_species_coral_orchid => '珊瑚岭兰';
+
+  @override
+  String get shared_species_jade_hydrangea => '翡翠绣球';
+
+  @override
+  String get shared_weekday_mon => '周一';
+
+  @override
+  String get shared_weekday_tue => '周二';
+
+  @override
+  String get shared_weekday_wed => '周三';
+
+  @override
+  String get shared_weekday_thu => '周四';
+
+  @override
+  String get shared_weekday_fri => '周五';
+
+  @override
+  String get shared_weekday_sat => '周六';
+
+  @override
+  String get shared_weekday_sun => '周日';
+
+  @override
+  String parent_report_bucket_week(int index) {
+    return '第$index周';
+  }
+
+  @override
+  String shared_perk_water_discount(int value) {
+    return '浇水消耗 −$value';
+  }
+
+  @override
+  String shared_perk_fertilize_discount(int value) {
+    return '施肥消耗 −$value';
+  }
+
+  @override
+  String shared_perk_weed_bonus(int value) {
+    return '除草奖励 +$value';
+  }
+
+  @override
+  String shared_perk_pest_bonus(int value) {
+    return '除虫奖励 +$value';
+  }
+
+  @override
+  String shared_perk_bloom_bonus(int value) {
+    return '开花阳光 +$value';
+  }
+
+  @override
+  String shared_perk_dew_bonus(int value) {
+    return '晨露阳光 +$value';
+  }
+
+  @override
+  String shared_perk_eyecare_bonus(int value) {
+    return '护眼奖励 +$value';
+  }
+
+  @override
+  String shared_perk_expand_discount(int value) {
+    return '花盆扩容 −$value';
+  }
+
+  @override
+  String shared_perk_shovel_refund(int value) {
+    return '铲除退款 +$value';
+  }
+
+  @override
+  String shared_duration_minutes(int m) {
+    return '$m 分钟';
+  }
+
+  @override
+  String shared_duration_hours(int h) {
+    return '$h 小时';
+  }
+
+  @override
+  String shared_duration_hours_minutes(int h, int m) {
+    return '$h 小时 $m 分钟';
+  }
+
+  @override
+  String shared_level_gap_next(int n, String duration) {
+    return '距 Lv.$n 还差 $duration';
+  }
+
+  @override
+  String shared_level_gap_max(String title) {
+    return '已是最高称号 · $title';
+  }
+
+  @override
+  String shared_reward_weekly_limit(int remaining) {
+    return '周限 $remaining 次';
+  }
+
+  @override
+  String get shared_reward_unlimited => '不限次数';
+
+  @override
+  String get shared_plant_err_species_not_found => '未找到该植物物种';
+
+  @override
+  String shared_plant_err_pot_out_of_capacity(int pot, int capacity) {
+    return '花盆序号超出容量（$pot / $capacity）';
+  }
+
+  @override
+  String shared_plant_err_pot_occupied(int pot) {
+    return '花盆 #$pot 已被占用，请先清理';
+  }
+
+  @override
+  String get shared_plant_err_premium_fragments_only => '精英植物只能用碎片兑换';
+
+  @override
+  String get shared_plant_err_seed_empty => '种子已用完，去开花收集新的种子吧';
+
+  @override
+  String shared_plant_err_sunlight_not_enough(int short) {
+    return '阳光不足，还差 $short 阳光';
+  }
+
+  @override
+  String shared_plant_err_fragments_not_enough(int short) {
+    return '碎片不足，还差 $short 片';
+  }
+
+  @override
+  String get shared_plant_err_care_state_invalid => '仅成长中/开花/枯萎植物可养护';
+
+  @override
+  String shared_plant_err_water_daily_limit(int max) {
+    return '今日浇水已达 $max 次上限';
+  }
+
+  @override
+  String shared_plant_err_water_interval(int interval, int wait) {
+    return '浇水间隔需 $interval 分钟，还需 $wait 分钟';
+  }
+
+  @override
+  String shared_plant_err_fertilize_daily_limit(int max) {
+    return '今日施肥已达 $max 次上限';
+  }
+
+  @override
+  String get shared_plant_err_plant_not_found => '植物不存在';
+
+  @override
+  String get shared_plant_err_already_wilted => '这株已经枯萎了，不用清理啦';
+
+  @override
+  String get shared_plant_err_no_weed => '这盆没有杂草哦';
+
+  @override
+  String get shared_plant_err_no_pest => '这盆没有害虫哦';
+
+  @override
+  String shared_plant_err_garden_full(int limit) {
+    return '花园已达当前档位容量上限（$limit 盆），解锁可扩容';
+  }
+
+  @override
+  String get shared_plant_err_reward_not_mature => '奖励还没成熟，或已经被领取啦';
+
+  @override
+  String get shared_checkin_err_linked_auto => '这个成长项要在专注里自动完成哦';
+
+  @override
+  String get shared_checkin_err_already_done => '这个成长项今天已经做到啦';
+
+  @override
+  String get shared_checkin_err_not_linked => '非联动成长项不能走专注结算';
+
+  @override
+  String get shared_checkin_err_session_not_today => '这次专注不在今天，不能结算今天的成长项';
+
+  @override
+  String get shared_checkin_err_session_used => '这次专注已经结算过成长项啦';
+
+  @override
+  String get shared_checkin_err_not_found => '找不到这条记录，可能已被删除';
+
+  @override
+  String get shared_checkin_err_already_verified => '这条记录已经处理过啦，不能重复核销';
+
+  @override
+  String get shared_checkin_err_already_rejected => '这条记录已经处理过啦，不能重复处理';
+
+  @override
+  String get shared_checkin_err_race => '这条记录刚刚已经被处理过了';
+
+  @override
+  String get seed_task_homework => '完成学校作业';
+
+  @override
+  String get seed_task_math => '练习数学口算';
+
+  @override
+  String get seed_task_read => '阅读 20 分钟';
+
+  @override
+  String get seed_task_rope_skip => '1分钟跳绳170个以上';
+
+  @override
+  String get seed_task_chores => '帮助家长打扫卫生';
+
+  @override
+  String get seed_reward_snack => '小零食';
+
+  @override
+  String get seed_reward_extra_play => '睡前多玩10分钟';
+
+  @override
+  String get seed_reward_cartoon => '看一集动画片';
+
+  @override
+  String get seed_reward_toy => '买一个小玩具';
+
+  @override
+  String get seed_reward_weekend_outing => '周末出去玩';
+
+  @override
+  String get shared_child_default_name => '孩子';
+
+  @override
+  String get child_hist_ref_focus => '专注产出';
+
+  @override
+  String get child_hist_ref_focus_session => '专注';
+
+  @override
+  String get child_hist_ref_focus_task_reward => '专注任务奖励';
+
+  @override
+  String get child_hist_ref_task_checkin => '成长项奖励';
+
+  @override
+  String get child_hist_ref_plant_plant => '种植植物';
+
+  @override
+  String get child_hist_ref_plant_water => '浇水';
+
+  @override
+  String get child_hist_ref_plant_fertilize => '施肥';
+
+  @override
+  String get child_hist_ref_plant_revive => '救回植物';
+
+  @override
+  String get child_hist_ref_plant_expand => '花园扩容';
+
+  @override
+  String get child_hist_ref_plant_weed => '拔草';
+
+  @override
+  String get child_hist_ref_plant_pest => '除虫';
+
+  @override
+  String get child_hist_ref_plant_death_refund => '植物死亡返还';
+
+  @override
+  String get child_hist_ref_eye_care_break => '护眼';
+
+  @override
+  String get child_hist_ref_plant_shovel_refund => '铲除返还';
+
+  @override
+  String get child_hist_ref_bloom_reward => '开花奖励';
+
+  @override
+  String get child_hist_ref_bloom_reward_24h => '花开回访奖励';
+
+  @override
+  String get child_hist_ref_redeem => '兑换奖励';
+
+  @override
+  String get child_hist_ref_redemption => '兑换奖励';
+
+  @override
+  String get child_hist_ref_queue_release => '阳光池释放';
+
+  @override
+  String get child_hist_ref_parent_gift => '家长赠予';
+
+  @override
+  String get child_hist_ref_debug_grant => '调试发放';
+
+  @override
+  String get child_hist_ref_focus_level_up => '专注升级';
+
+  @override
+  String get child_eyecare_seg_default => '跟着动画一起做，保护眼睛';
+
+  @override
+  String get shared_perk_name_eye_care => '护眼';
+
+  @override
+  String get shared_perk_name_water => '浇水';
+
+  @override
+  String get shared_perk_name_fertilize => '施肥';
+
+  @override
+  String get shared_perk_name_weed => '除草';
+
+  @override
+  String get shared_perk_name_pest => '除虫';
+
+  @override
+  String get shared_perk_name_bloom => '绽放';
+
+  @override
+  String get shared_perk_name_dew => '晨露';
+
+  @override
+  String get shared_perk_name_pot_expand => '扩盆';
+
+  @override
+  String get shared_perk_name_shovel => '铲除';
+
+  @override
+  String get shared_default_child_name => '孩子';
 }

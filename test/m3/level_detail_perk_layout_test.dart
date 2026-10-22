@@ -23,6 +23,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/i18n/domain_text_l10n.dart'
+    show perkNameOfTitleNodeL10n;
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/presentation/child/widgets/focus_level_badge.dart';
@@ -93,9 +96,10 @@ void main() {
           find.byKey(FocusLevelDetailDialog.titleRowPerkKeyOf(node));
       expect(badge, findsOneWidget, reason: 'Lv.$node 行必须有属性徽章');
 
-      // emoji / 属性名 / 数值**全部**来自 plant_perk.dart 纯函数（页面不得自己拼）。
+      // emoji / 数值来自 `plant_perk.dart` 纯函数，属性名走 ARB（i18n B3 · T05）——
+      // 页面自身零拼串。裸 MaterialApp 宿主下 `l10nOf` 回退 zh。
       final String emoji = perkEmojiOfTitleNode(node);
-      final String name = perkNameOfTitleNode(node);
+      final String name = perkNameOfTitleNodeL10n(node, AppLocalizationsZh());
       final String shortText = perkShortTextOf(perkOfTitleNode(node));
       expect(emoji, isNotEmpty);
       expect(name, isNotEmpty);

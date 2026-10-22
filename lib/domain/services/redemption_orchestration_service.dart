@@ -195,7 +195,8 @@ class RedemptionOrchestrationService {
       case RequestStatus.rejected:
         // C90-C：pending 是 decide() 通过后的唯一走向；queued/verified/rejected
         // 若走到这里 = submit 的前置判定被绕过 → 直接抛错（不静默失败）。
-        throw StateError('submit() 不应产生 $finalStatus 状态');
+        // dev 侧异常文案一律 ASCII 英文（i18n B3 · T05 裁定）：永不预上屏。
+        throw StateError('submit() must not yield status $finalStatus');
     }
   }
 
@@ -365,7 +366,8 @@ class RedemptionOrchestrationService {
         (newPool.budget > kWeeklyPoolBudgetUnlimited &&
             (newPool.used + newPool.autoReleased + req.cost) >
                 newPool.budget)) {
-      throw StateError('余额或周池不足，无法立即释放');
+      // dev 侧异常文案一律 ASCII 英文（i18n B3 · T05 裁定）：永不预上屏。
+      throw StateError('insufficient balance or weekly pool; cannot release now');
     }
     await _appendLedger(now, req.cost, SunlightType.queueRelease, req.id);
     await _pools.applyRedemption(newPool, req.cost, auto: false);
@@ -406,9 +408,10 @@ class RedemptionOrchestrationService {
   void _guardCurrentChild(RedemptionRequest req) {
     final String currentChildId = _account.currentChildId();
     if (req.childId != currentChildId) {
+      // dev 侧异常文案一律 ASCII 英文（i18n B3 · T05 裁定）：永不预上屏。
       throw StateError(
-          'cross-child request: ${req.id} 属于 ${req.childId}，'
-          '当前孩子是 $currentChildId（F123 隔离防护）');
+          'cross-child request: ${req.id} belongs to ${req.childId}, '
+          'current child is $currentChildId (F123 isolation guard)');
     }
   }
 

@@ -66,10 +66,16 @@ class FocusReport {
 /// 同一报告内全部桶首尾相接、无缝、恰好铺满 `[PeriodReport.start, PeriodReport.end)`，
 /// 故 `buckets.map(focusMinutes).sum == totalFocusMinutes`。
 class PeriodBucket {
-  /// 桶标签：`周一`…`周日` / `第1周` / `1月`…`12月`。
-  final String label;
-
   /// 桶起点（含）。
+  ///
+  /// i18n B3（T04）：**`label` 字段已删除** —— 桶标签是展示文案（`周一` / `第1周`
+  /// / `1月`），不该由 domain 派生。UI 统一走 `core/i18n/report_l10n.dart` 的
+  /// `reportBucketLabel(period, bucket, index, l10n)`：
+  ///  · 周档 → `shared_weekday_*`（按 [start] 的 `weekday` 派生，不看下标巧合）；
+  ///  · 月档 → `parent_report_bucket_week(index + 1)`；
+  ///  · 年档 → `DateFormat(isEn ? 'MMM' : 'M月')`（模式在 UI 侧，沿用 B2 写法）；
+  ///  · 日档 → 无桶（UI 用近 7 日序列）。
+  /// 故 [PeriodBucket] 只留「几何 + 数值」：`start` / `end` / `focusMinutes`。
   final DateTime start;
 
   /// 桶终点（不含）。
@@ -79,7 +85,6 @@ class PeriodBucket {
   final double focusMinutes;
 
   const PeriodBucket({
-    required this.label,
     required this.start,
     required this.end,
     required this.focusMinutes,
@@ -139,17 +144,6 @@ class PeriodReport {
     required this.longestStreak,
   });
 }
-
-/// 周内日标签（索引 = `DateTime.weekday - 1`，周一起始）。
-const List<String> _kWeekdayLabels = <String>[
-  '周一',
-  '周二',
-  '周三',
-  '周四',
-  '周五',
-  '周六',
-  '周日',
-];
 
 /// 专注报告服务（周/日专注分布、有效专注日、稳定性趋势、v2 周期报告）。
 class FocusReportService {
@@ -408,7 +402,6 @@ class FocusReportService {
           final DateTime d = DateTime(start.year, start.month, start.day + i);
           final DateTime next = DateTime(d.year, d.month, d.day + 1);
           weekBuckets.add(PeriodBucket(
-            label: _kWeekdayLabels[d.weekday - 1],
             start: d,
             end: next,
             focusMinutes: minutesOfDay[dayKey(d)] ?? 0.0,
@@ -431,7 +424,6 @@ class FocusReportService {
             sum += minutesOfDay[dayKey(d)] ?? 0.0;
           }
           monthBuckets.add(PeriodBucket(
-            label: '第${monthBuckets.length + 1}周',
             start: cursor,
             end: bucketEnd,
             focusMinutes: sum,
@@ -452,7 +444,6 @@ class FocusReportService {
             sum += minutesOfDay[dayKey(d)] ?? 0.0;
           }
           yearBuckets.add(PeriodBucket(
-            label: '$m月',
             start: monthStart,
             end: monthEnd,
             focusMinutes: sum,

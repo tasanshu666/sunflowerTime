@@ -47,7 +47,9 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart'
-    show nextLevelGapTextOf, titleOfLevel, titleRowsOfLevel;
+    show titleOfLevel, titleRowsOfLevel;
+import 'package:sunflower_time/core/i18n/domain_text_l10n.dart'
+    show nextLevelGapTextL10n, perkNameOfTitleNodeL10n;
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart'
     show GoldNoticeItem, showGoldNoticeDialog;
@@ -340,7 +342,7 @@ class FocusLevelDetailDialog extends ConsumerWidget {
                 _buildHead(context),
                 const SizedBox(height: kLevelDetailSectionGap),
                 Text(
-                  nextLevelGapTextOf(progress),
+                  nextLevelGapTextL10n(progress, l10nOf(context)),
                   key: gapTextKey,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -396,8 +398,8 @@ class FocusLevelDetailDialog extends ConsumerWidget {
   /// 第三块：**9 个称号全列表**（当前称号高亮，属性徽章**恒靠右且 9 行严格对齐**）。
   ///
   /// · 每行 = 节点圆牌 + 称号（弹性宽、ellipsis）+ 属性徽章靠右
-  ///   （[perkEmojiOfTitleNode] / [perkNameOfTitleNode] / [perkShortTextOf] 同源派生，
-  ///   不在页面拼九种文案，防孪生 S2）；当前行以**高亮底 + 加粗**标示。
+  ///   （[perkEmojiOfTitleNode] / `perkNameOfTitleNodeL10n` / [perkShortTextOf]
+  ///   同源派生，不在页面拼九种文案，防孪生 S2）；当前行以**高亮底 + 加粗**标示。
   ///   **C80 改版**：删底部图例区（属性说明上机进徽章行，P0-1/P0-2）；属性徽章
   ///   三态由 [perkUnlocked] 下发（[_PerkPill]，P0-3/P0-6）。
   ///   **C81 ⑤**：删掉行尾 ✨（原 `kLevelDetailCurrentMark`，常量已随删）——它排在
@@ -645,7 +647,7 @@ class _LockedGlyphPlate extends StatelessWidget {
 ///
 /// **C81 形态**（玄参真机验收后定稿）：
 ///  顺序 = `[🔒（有锁才显示）] [属性 emoji] [属性名] [数值] [☀]`（单一 `Row`）；
-///  · 属性 emoji 走 [perkEmojiOfTitleNode]、属性名走 [perkNameOfTitleNode]、
+///  · 属性 emoji 走 [perkEmojiOfTitleNode]、属性名走 `perkNameOfTitleNodeL10n`、
 ///    数值走 [perkShortTextOf]（**纯数值带符号**，C81 ③ 去描述词）——三者同源单点；
 ///  · 阳光图标**9 行统一恒带**（C81 ②：不再按达等级条件渲染）。
 ///
@@ -698,7 +700,8 @@ class _PerkPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final double s = uiScaleOf(context);
     final String emoji = perkEmojiOfTitleNode(level);
-    final String name = perkNameOfTitleNode(level);
+    // i18n B3（T05）：属性名已迁 ARB（原 `perkNameOfTitleNode` + `kPerkNames`）。
+    final String name = perkNameOfTitleNodeL10n(level, l10nOf(context));
     final String value = perkShortTextOf(perkOfTitleNode(level));
     // 三态判定（顺序敏感：未达等级 > 未购买 > 已购实心）。
     final bool locked = unlocked && !perkUnlocked; // 锁标态（可点）

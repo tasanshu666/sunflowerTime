@@ -6,7 +6,7 @@
 ///  · [perkOfLevel]：**唯一入口** —— 等级 → 当前称号的属性（`f(当前称号)`）；
 ///  · perk-aware 取值函数（[waterCostOf] … [shovelRefundOf]）：**域层扣费/发奖与 UI 展示
 ///    必须调用同一批函数**（防孪生 S2 / F68 先例），页面禁止内联 `5 - 1` / `+1`；
-///  · [perkSummaryTextOf]：演出卡「本称号专属：…」文案装配（不写页面内 if-else）。
+///  · [perkShortTextOf]：详情卡逐行右侧**纯数值短语**（`+1` / `−20`，不含文字）。
 ///
 /// ## 叠加语义（🔴 关键）
 /// 9 个称号节点**各绑一个不同机制**（[kPlantPerkPerTitleNode]，零重复 P5）；用户**依次解锁**，
@@ -182,14 +182,21 @@ String perkEmojiOfTitleNode(int nodeLevel) {
   return idx < 0 ? '' : kPerkEmojis[idx];
 }
 
-/// 单个称号节点属性的**名称**（[kPerkNames]，与节点一一对应；非节点返回空串）。
+/// 单个称号节点属性的**名称** —— i18n B3（T05）已**迁出领域层**。
 ///
-/// C81：详情卡属性行「属性名」单点收口（页面禁硬编码 9 名，防孪生 S2）；
-/// 与 [perkEmojiOfTitleNode] / [perkShortTextOf] 分段渲染 ⇒「👁 护眼 +1 ☀」。
-String perkNameOfTitleNode(int nodeLevel) {
-  final int idx = kFocusLevelTitleLevels.indexOf(nodeLevel);
-  return idx < 0 ? '' : kPerkNames[idx];
-}
+/// 迁移前这里是 `String perkNameOfTitleNode(int nodeLevel)`，读
+/// `core/constants/prd_params.dart` 的 `kPerkNames`（9 条中文）。虽然 CJK 常量本身
+/// 不在 `lib/domain/**` 里，但它是属性名的**唯一上屏通道**，等于领域层间接持有文案。
+///
+/// 现在：ARB `shared_perk_name_*`（9 个 key，顺序 = `kFocusLevelTitleLevels`），
+/// UI 侧入口 `core/i18n/domain_text_l10n.dart` 的
+/// `perkNameOfTitleNodeL10n(nodeLevel, l10n)`；非节点（`indexOf < 0`）返回空串的
+/// 口径原样保留。
+///
+/// 🔴 本文件**不再提供**属性名函数 —— 反向守卫
+/// `test/i18n/no_han_in_domain_test.dart` 会钉死「domain 不许再出现属性名出口」。
+/// 上面保留的 emoji 派生（[perkEmojiOfTitleNode]）不受影响：emoji 是符号不是文案，
+/// 与 `TaskCategoryX.icon` 同理豁免。
 
 // ── perk-aware 取值函数（域层与 UI **共用**，杜绝孪生）────────────────────────
 
@@ -236,31 +243,23 @@ int expandCostOf(PlantPerk p, {required bool premium}) {
 int shovelRefundOf(int baseRefund, PlantPerk perk) =>
     baseRefund == 0 ? 0 : baseRefund + perk.shovelRefundBonus;
 
-/// 属性摘要文案（升级演出「本称号专属：…」/ 详情卡 tooltip 用）。
+/// 属性摘要文案（升级演出「本称号专属：…」/ 详情卡 tooltip 用）—— **已迁出 domain**。
 ///
-/// 逐项只输出**非零**属性，用 ` · ` 连接；[PlantPerk.none] → 空串。文案**单点收口于此**
-/// （页面禁止写 if-else 拼 9 种）。
-String perkSummaryTextOf(PlantPerk p) {
-  final List<String> parts = <String>[];
-  if (p.waterDiscount > 0) parts.add('浇水消耗 −${p.waterDiscount}');
-  if (p.fertilizeDiscount > 0) parts.add('施肥消耗 −${p.fertilizeDiscount}');
-  if (p.weedBonus > 0) parts.add('除草奖励 +${p.weedBonus}');
-  if (p.pestBonus > 0) parts.add('除虫奖励 +${p.pestBonus}');
-  if (p.bloomInstantBonus > 0) parts.add('开花阳光 +${p.bloomInstantBonus}');
-  if (p.dewBonus > 0) parts.add('晨露阳光 +${p.dewBonus}');
-  if (p.eyeCareBonus > 0) parts.add('护眼奖励 +${p.eyeCareBonus}');
-  if (p.expandDiscount > 0) parts.add('花盆扩容 −${p.expandDiscount}');
-  if (p.shovelRefundBonus > 0) parts.add('铲除退款 +${p.shovelRefundBonus}');
-  return parts.join(' · ');
-}
+/// i18n B3（T02）：原 `perkSummaryTextOf` 把 9 条中文属性名（「浇水消耗 −N」…）
+/// 硬编码在 domain，英文环境仍是中文。迁移后入口：
+/// `core/i18n/domain_text_l10n.dart` 的 `perkSummaryTextL10n(perk, l10n)`，
+/// 口径逐字节保留（逐项只输出非零项、` · ` 连接、全 0 → 空串）。
+///
+/// [perkShortTextOf] 保留：它只输出**纯符号数值**（`+1` / `−1`），不含任何
+/// 可翻译文字 —— 属性名由 UI 侧的 `perkNameOfTitleNodeL10n` 承担、阳光单位由
+/// UI 图标承担。
 
 /// 属性徽章**数值短语**（详情卡逐行右侧用）：**纯数值带符号**，如 `+1` / `−1` /
 /// `−20` / `+20`（🔴 C81 ③：去掉「额外 / 消耗 / 返还」等描述词）。
 ///
-/// 属性**名称**由 [perkNameOfTitleNode] 承担、阳光单位由 UI 层的
+/// 属性**名称**由 UI 侧的 `perkNameOfTitleNodeL10n` 承担、阳光单位由 UI 层的
 /// `assets/rewards/sunlight.png` 图标承担（C80：非 ☀ 文字）⇒ 本函数只回数值。
 /// 顺序无关（9 条零重复保证单字段非零）；量值 `±${p.x}` **派生**、禁写死。
-/// 与 [perkSummaryTextOf] 同源；文案单点收口于此（页面禁拼，防孪生 S2）。
 String perkShortTextOf(PlantPerk p) {
   if (p.waterDiscount > 0) return '−${p.waterDiscount}';
   if (p.fertilizeDiscount > 0) return '−${p.fertilizeDiscount}';

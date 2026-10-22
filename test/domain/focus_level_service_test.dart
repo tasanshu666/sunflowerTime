@@ -20,7 +20,9 @@ import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/focus_level_store.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/core/i18n/domain_text_l10n.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
 // ───────────────────────────────────────────────────────────────────────────
 // 夹具
@@ -321,7 +323,7 @@ void main() {
     });
   });
 
-  group('progressOf / formatDurationMinutes', () {
+  group('progressOf / formatDurationL10n（B3：文案迁至 core/i18n）', () {
     test('未解锁：level 0、无称号、进度指向 Lv.1', () {
       final FocusLevelProgress p = progressOf(30);
       expect(p.level, 0);
@@ -352,12 +354,14 @@ void main() {
       expect(p.progress, 1.0);
     });
 
+    // i18n B3（T02）：`formatDurationMinutes` 已从 domain 删除 —— 迁到
+    // `formatDurationL10n(minutes, l10n)`。断言文案逐字节不变（zh 为模板语言）。
     test('时长格式化（儿童友好，不出现大数字分钟）', () {
-      expect(formatDurationMinutes(0), '0 分钟');
-      expect(formatDurationMinutes(30), '30 分钟');
-      expect(formatDurationMinutes(60), '1 小时');
-      expect(formatDurationMinutes(90), '1 小时 30 分钟');
-      expect(formatDurationMinutes(21900), '365 小时');
+      expect(formatDurationL10n(0, AppLocalizationsZh()), '0 分钟');
+      expect(formatDurationL10n(30, AppLocalizationsZh()), '30 分钟');
+      expect(formatDurationL10n(60, AppLocalizationsZh()), '1 小时');
+      expect(formatDurationL10n(90, AppLocalizationsZh()), '1 小时 30 分钟');
+      expect(formatDurationL10n(21900, AppLocalizationsZh()), '365 小时');
     });
   });
 
@@ -419,26 +423,30 @@ void main() {
     });
   });
 
-  group('TC-16 nextLevelGapTextOf（距下一级 = 下一级门槛 − 累计）', () {
+  // i18n B3（T02）：`nextLevelGapTextOf` 已从 domain 删除 —— 迁到
+  // `nextLevelGapTextL10n(progress, l10n)`；渲染结果与迁移前逐字节一致。
+  group('TC-16 nextLevelGapTextL10n（距下一级 = 下一级门槛 − 累计）', () {
+    final AppLocalizationsZh zh = AppLocalizationsZh();
+
     test('非满级：Lv.7（900）→ 「距 Lv.8 还差 4 小时」', () {
-      expect(nextLevelGapTextOf(progressOf(900)), '距 Lv.8 还差 4 小时',
+      expect(nextLevelGapTextL10n(progressOf(900), zh), '距 Lv.8 还差 4 小时',
           reason: 'Lv.8 门槛 1140 − 900 = 240 分钟');
     });
 
     test('未解锁：59.9 分钟 → 「距 Lv.1 还差 1 分钟」', () {
-      expect(nextLevelGapTextOf(progressOf(59.9)), '距 Lv.1 还差 1 分钟',
+      expect(nextLevelGapTextL10n(progressOf(59.9), zh), '距 Lv.1 还差 1 分钟',
           reason: 'minutesToNext = ceil(60 − 59.9)');
     });
 
     test('跨级压线：120 分钟 = Lv.2 → 「距 Lv.3 还差 2 小时」', () {
-      expect(nextLevelGapTextOf(progressOf(120)), '距 Lv.3 还差 2 小时',
+      expect(nextLevelGapTextL10n(progressOf(120), zh), '距 Lv.3 还差 2 小时',
           reason: 'Lv.3 门槛 240 − 120 = 120 分钟');
     });
 
-    test('满级：显示满级文案（单点收敛到 kLevelMaxTextTemplate）', () {
+    test('满级：显示满级文案（单点收敛到 ARB shared_level_gap_max）', () {
       expect(
-        nextLevelGapTextOf(progressOf(21900)),
-        kLevelMaxTextTemplate.replaceAll('{t}', '时光大贤者'),
+        nextLevelGapTextL10n(progressOf(21900), zh),
+        '已是最高称号 · 时光大贤者',
       );
     });
   });

@@ -1,8 +1,10 @@
 /// AccountService（C90 期 1 多档案底座）单元测试。
 ///
 /// 钉死的行为：
-///  · 默认孩子**只建一次**（幂等）：空表补建 id=kChildIdDefault / name='孩子' /
+///  · 默认孩子**只建一次**（幂等）：空表补建 id=kChildIdDefault / name=注入值 /
 ///    ageTier=当前 settings 单行值；重复 initialize 不再插；
+///  · i18n B3（T05）：默认孩子名**由调用方注入**（领域层不再持中文字面量）——
+///    注入 `() => '孩子'` 时行为与迁移前逐字一致；**不注入**时回退 ASCII `Child`。
 ///  · `switchTo` 校验存在 + 持久化到 SP（`active_child_id`）；新实例冷启动恢复；
 ///  · SP 指向不存在的孩子 → 回退第一个孩子（🔴 绝不删档案，C69）；
 ///  · `createChild` 后 count 正确；
@@ -37,6 +39,9 @@ void main() {
       children: ChildProfileLocalRepository(db),
       settings: SettingsLocalRepository(db),
       prefs: sp,
+      // i18n B3（T05）：生产由 `providers.dart` 注入 ARB 版本（zh = 孩子）；
+      // 这里显式注入同一取值，验证「注入即生效」且不依赖 Flutter l10n 运行时。
+      defaultChildName: () => '孩子',
     );
     return (service, db, sp);
   }
@@ -184,6 +189,86 @@ void main() {
       expect(() => service.signIn(), throwsUnsupportedError);
       expect(() => service.linkFamily(), throwsUnsupportedError);
       expect(() => service.syncProfile(), throwsUnsupportedError);
+    });
+  });
+
+  group('i18n B3（T05）：默认孩子名由调用方注入', () {
+    test('不注入 → ASCII 兜底 `Child`（domain 注释外零 CJK 的落点）', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences sp = await SharedPreferences.getInstance();
+      final AppDatabase db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      // 刻意**不传** defaultChildName：模拟「无 DI 的纯领域调用 / 桩模式」。
+      final AccountService service = AccountService(
+        children: ChildProfileLocalRepository(db),
+        settings: SettingsLocalRepository(db),
+        prefs: sp,
+      );
+      await service.initialize();
+
+      final List<ChildProfile> children =
+          await ChildProfileLocalRepository(db).children();
+      expect(children.single.name, 'Child',
+          reason: '未注入时的兜底必须是 ASCII —— 领域层不许持中文字面量');
+      // 反向钉子：不许是迁移前那个中文默认值（否则 CJK 又回来了）。
+      expect(children.single.name, isNot('孩子'));
+    });
+
+    test('注入英文取值 → 落库即英文（en 首装用户不再看到中文档案名）', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences sp = await SharedPreferences.getInstance();
+      final AppDatabase db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      final AccountService service = AccountService(
+        children: ChildProfileLocalRepository(db),
+        settings: SettingsLocalRepository(db),
+        prefs: sp,
+        defaultChildName: () => 'Child',
+      );
+      await service.initialize();
+
+      final List<ChildProfile> children =
+          await ChildProfileLocalRepository(db).children();
+      expect(children.single.name, 'Child');
+    });
+
+    test('注入是**惰性求值**：同一实例后改取值，下次补建用新值', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences sp = await SharedPreferences.getInstance();
+      final AppDatabase db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      String current = '孩子';
+      final AccountService service = AccountService(
+        children: ChildProfileLocalRepository(db),
+        settings: SettingsLocalRepository(db),
+        prefs: sp,
+        defaultChildName: () => current,
+      );
+      await service.initialize();
+      expect(
+        (await ChildProfileLocalRepository(db).children()).single.name,
+        '孩子',
+      );
+
+      // 切语言后再补建（本例：手动清空表再 initialize 一个新实例模拟新装）。
+      current = 'Child';
+      final AppDatabase db2 = AppDatabase(NativeDatabase.memory());
+      addTearDown(db2.close);
+      final AccountService fresh = AccountService(
+        children: ChildProfileLocalRepository(db2),
+        settings: SettingsLocalRepository(db2),
+        prefs: sp,
+        defaultChildName: () => current,
+      );
+      await fresh.initialize();
+      expect(
+        (await ChildProfileLocalRepository(db2).children()).single.name,
+        'Child',
+        reason: '闭包在调用时才求值 —— providers 注入的 l10n 取值才会跟随切语言',
+      );
     });
   });
 }

@@ -10,6 +10,10 @@ import 'package:uuid/uuid.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/i18n/app_language.dart';
+import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart'
+    show lookupAppLocalizations;
 import 'package:sunflower_time/data/local/database/app_database.dart';
 import 'package:sunflower_time/data/local/focus_level_prefs_store.dart';
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
@@ -199,6 +203,12 @@ final accountServiceProvider = Provider<AccountService>((ref) {
       children: ref.watch(childProfileRepositoryProvider),
       settings: ref.watch(settingsRepositoryProvider),
       prefs: ref.watch(sharedPreferencesProvider),
+      // i18n B3（T05）：默认孩子名不再是领域层的中文字面量，改由这里按**当前
+      // 生效 locale** 注入 ARB 的 `shared_default_child_name`（zh = 孩子 / en = Child）。
+      // 用闭包延迟求值：provider 建好之后切语言，下次补建档案时取到的就是新语言。
+      defaultChildName: () => defaultChildName(
+        lookupAppLocalizations(AppLocaleController.current),
+      ),
     );
   } catch (_) {
     return AccountService();

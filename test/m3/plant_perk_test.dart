@@ -245,44 +245,14 @@ void main() {
       }
     });
 
-    test('perkNameOfTitleNode：C81 属性名（9 节点逐条，与 emoji 同索引）；非节点空串', () {
-      expect(kPerkNames.length, kFocusLevelTitleLevels.length);
-      expect(perkNameOfTitleNode(1), '护眼');
-      expect(perkNameOfTitleNode(5), '浇水');
-      expect(perkNameOfTitleNode(10), '施肥');
-      expect(perkNameOfTitleNode(15), '除草');
-      expect(perkNameOfTitleNode(20), '除虫');
-      expect(perkNameOfTitleNode(25), '绽放');
-      expect(perkNameOfTitleNode(30), '晨露');
-      expect(perkNameOfTitleNode(35), '扩盆');
-      expect(perkNameOfTitleNode(40), '铲除');
-      for (final int lv in kFocusLevelTitleLevels) {
-        expect(perkNameOfTitleNode(lv), isNotEmpty);
-      }
-      expect(perkNameOfTitleNode(7), '');
-      expect(perkNameOfTitleNode(0), '');
-    });
-
-    test('perkSummaryTextOf：none → 空串；Lv.1 含「护眼奖励 +1」（C78 前置）；满级 9 项齐全', () {
-      expect(perkSummaryTextOf(PlantPerk.none), '');
-      expect(perkSummaryTextOf(perkOfLevel(1)), contains('护眼奖励 +1'));
-      expect(perkSummaryTextOf(perkOfLevel(5)), contains('浇水消耗 −1'));
-      final String full = perkSummaryTextOf(perkOfLevel(40));
-      for (final String frag in <String>[
-        '浇水消耗 −1',
-        '施肥消耗 −1',
-        '除草奖励 +1',
-        '除虫奖励 +1',
-        '开花阳光 +2',
-        '晨露阳光 +2',
-        '护眼奖励 +1',
-        '花盆扩容 −20',
-        '铲除退款 +20',
-      ]) {
-        expect(full, contains(frag), reason: '满级摘要应含「$frag」');
-      }
-    });
-
+    // i18n B3（T02）：`perkSummaryTextOf` 已从 domain 删除（domain 零 CJK），
+    // 摘要文案迁到 `core/i18n/domain_text_l10n.dart` 的 `perkSummaryTextL10n`。
+    // 那 4 条文案断言已搬到 `test/i18n/perk_summary_l10n_test.dart`（该文件需
+    // AppLocalizations，会把本文件拖进 Flutter 依赖 —— 本文件保持纯 Dart）。
+    //
+    // i18n B3（T05）：`perkNameOfTitleNode` + `kPerkNames` 同样已从「domain + 常量」
+    // 迁到 ARB `shared_perk_name_*`，出口 `perkNameOfTitleNodeL10n(nodeLevel, l10n)`。
+    // 那 9 条属性名 + 2 条非节点断言搬到 `test/i18n/perk_name_l10n_test.dart`。
     test('演出版式模板含占位符 {text}', () {
       expect(kLevelUpFxPerkTemplate, contains('{text}'));
     });

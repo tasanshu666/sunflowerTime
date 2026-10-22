@@ -14,6 +14,7 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
+import 'package:sunflower_time/core/i18n/enum_l10n.dart';
 
 /// 任务模板编辑对话框。
 ///
@@ -105,7 +106,10 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
   }
 
   /// 分类下拉项（C52）：UI 图标 + 文字；图标加载失败回退 emoji（美术永不阻塞）。
-  DropdownMenuItem<TaskCategory> _categoryDropdownItem(TaskCategory c) {
+  ///
+  /// i18n B3：分类名不再从 domain 的 `c.label` 取（已删除），改传 [t] 走 ARB。
+  DropdownMenuItem<TaskCategory> _categoryDropdownItem(
+      TaskCategory c, AppLocalizations t) {
     return DropdownMenuItem<TaskCategory>(
       value: c,
       child: Row(
@@ -122,7 +126,7 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
             ),
           ),
           const SizedBox(width: 8),
-          Text(c.label),
+          Text(taskCategoryLabel(c, t)),
         ],
       ),
     );
@@ -239,7 +243,7 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
                     decoration: InputDecoration(
                         labelText: t.parent_task_edit_category_label),
                     items: TaskCategory.values
-                        .map(_categoryDropdownItem)
+                        .map((TaskCategory c) => _categoryDropdownItem(c, t))
                         .toList(),
                     onChanged: (TaskCategory? v) =>
                         v == null ? null : setState(() => _category = v),

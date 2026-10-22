@@ -51,6 +51,7 @@ import 'package:sunflower_time/presentation/child/widgets/plant_artwork.dart'
 import 'package:sunflower_time/shared/responsive.dart' show uiScaleOf;
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/core/i18n/species_l10n.dart';
 
 /// 种植确认卡里的一条**明细行**。
 ///
@@ -139,7 +140,11 @@ class PlantConfirmDialog extends StatelessWidget {
         builder: (BuildContext context) {
           final AppLocalizations l10n = l10nOf(context);
           return ChildConfirmCard(
-            title: title ?? l10n.plant_confirm_title(species.name),
+            // i18n B3（T04）：物种名在**调用方**（本 build）解析，再作为参数
+            // 传给纯展示卡片（卡片本身不取 l10n 之外的上下文，符合「文案调用方给」）。
+            title: title ??
+                l10n.plant_confirm_title(
+                    speciesNameOr(species.id, species.name, l10n)),
             hero: _SpeciesHero(species: species),
             rows: rows,
             note: remainingText,

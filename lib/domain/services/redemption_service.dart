@@ -55,12 +55,14 @@ class RedemptionService {
         projected > pool.budget) {
       return const RedemptionDecision(
         status: RequestStatus.rejected,
-        reason: '超周池：C62 起不再排队，直接拒绝（不生成申请）',
+        // i18n B3（T05）：`reason` 是**开发期说明**（编排层只看 `status`，
+        // 页面从不渲染它），故用 ASCII 英文，不进 ARB —— 领域层零 CJK。
+        reason: 'over weekly pool: rejected directly since C62 (no queue)',
       );
     }
     return const RedemptionDecision(
       status: RequestStatus.pending,
-      reason: '进入待核销队列，需家长显式核销',
+      reason: 'queued for explicit parent verification',
     );
   }
 }

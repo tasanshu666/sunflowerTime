@@ -46,28 +46,14 @@ class Task {
   /// - 非联动项 → 家长设定值（[sunlightReward]，区间见 [kTaskRewardMin] / [kTaskRewardMax]）。
   int get effectiveSunlightReward => requiresFocus ? rewardCap : sunlightReward;
 
-  /// 科目展示名：内置科目取固定名，自定义取 [customSubject]（空白则回落「自定义」）。
-  ///
-  /// 单点收口：禁止在 UI 层再写一份 switch（避免内置科目名出现第二处字面量）。
-  String get subjectLabel {
-    switch (subject) {
-      case TaskSubject.chinese:
-        return '语文';
-      case TaskSubject.math:
-        return '数学';
-      case TaskSubject.english:
-        return '英语';
-      case TaskSubject.general:
-        return '通用';
-      case TaskSubject.custom:
-        final String name = (customSubject ?? '').trim();
-        return name.isEmpty ? '自定义' : name;
-    }
-  }
-
-  /// 内容分类中文名（学习/运动/生活/其他），单点收口（UI 层不要再写 switch）。
-  String get categoryLabel => category.label;
-
   /// 内容分类占位图标（emoji）。
+  ///
+  /// i18n B3（T02）本类删除的两个展示 getter：
+  ///  · `subjectLabel` —— 中文科目名写死在 domain（英文环境仍是中文），现走
+  ///    `core/i18n/enum_l10n.dart` 的 `taskDisplaySubject(task, l10n)`
+  ///    （逐字节等价：custom + 非空白 customSubject → 原样回显，否则取固定科目名）；
+  ///  · `categoryLabel` —— 中文分类名，现走同文件的 `taskCategoryLabel(category, l10n)`。
+  ///
+  /// [categoryIcon] 保留：emoji 是**符号**而非文案（各语言一致，不走 ARB）。
   String get categoryIcon => category.icon;
 }

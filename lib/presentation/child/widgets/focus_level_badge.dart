@@ -47,14 +47,17 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart'
-    show titleOfLevel, titleRowsOfLevel;
+    show titleRowsOfLevel;
 import 'package:sunflower_time/core/i18n/domain_text_l10n.dart'
     show nextLevelGapTextL10n, perkNameOfTitleNodeL10n;
+import 'package:sunflower_time/core/i18n/title_l10n.dart'
+    show focusLevelTitleL10n, focusLevelTitleRowL10n;
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart'
     show GoldNoticeItem, showGoldNoticeDialog;
 import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 /// 徽章展示档位（空间紧张时的三级降级，§5.24.5）。
 enum FocusLevelBadgeTier {
@@ -100,8 +103,15 @@ const Color _kLockedPlateBg = Color(0xFFFDF3DD);
 /// 称号文字色（暖棕）。
 const Color _kBadgeTitleColor = Color(0xFF6B563F);
 
-/// 未解锁时详情卡里展示的「下一档称号」（= Lv.1 节点的称号，由 [titleOfLevel] 派生）。
-String get _kLockedNextTitle => titleOfLevel(1);
+/// 未解锁时详情卡里展示的「下一档称号」的**节点等级**（= Lv.1 节点）。
+///
+/// F144：原为 `titleOfLevel(1)`（返回中文串）；现在只留纯语义节点号，
+/// 文案由 [_lockedNextTitle] 经 ARB 取。
+const int _kLockedNextTitleNode = 1;
+
+/// 未解锁时详情卡里展示的「下一档称号」**文案**（Lv.1 节点的称号）。
+String _lockedNextTitle(AppLocalizations t) =>
+    focusLevelTitleL10n(_kLockedNextTitleNode, t);
 
 /// 进度条底色。
 const Color _kBarTrack = Color(0x1F8A5A00);
@@ -203,22 +213,32 @@ class FocusLevelBadge extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  progress.isLocked
-                      ? l10nOf(context).prd_level_locked_title
-                      : progress.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  // 显式 height：文案高度确定化（测试 Ahem 与真机同式），
-                  // 墙区预算才量得住（见 today_badge_bounds_test.dart 头注）。
-                  // C65：文字不乘 [uiScaleOf] —— 走 `MediaQuery.textScaler` 自动缩放
-                  // （app.dart 的 applyTabletTextScaling 注入）。手机端 s=1.0、textScaler
-                  // 不注入 ⇒ 零回归；平板走单层 textScaler（1.3~1.6），不再双重缩放。
-                  style: const TextStyle(
-                    fontSize: kLevelTitleFontSize,
-                    height: 1.05,
-                    fontWeight: FontWeight.w700,
-                    color: _kBadgeTitleColor,
+                // **F144（F · 玄参 iPad 13″ 实测「Title not u…」）**：称号行包
+                // [FittedBox] 且 `fit` **只许 `scaleDown`** —— 胶囊宽度预算
+                // （[kLevelBadgeMaxWidth]）不动（提宽要先证明不撞右下阳光气泡），
+                // 改由「放不下就等比缩小」兜底：**永远不会 ellipsis / 折行**。
+                // 🔴 字号仍是 [kLevelTitleFontSize] 不缩（缩的是绘制变换，不是字号）
+                // —— 无障碍大字号口径不被破坏。
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    progress.isLocked
+                        ? l10nOf(context).prd_level_locked_title
+                        : focusLevelTitleL10n(progress.level, l10nOf(context)),
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    // 显式 height：文案高度确定化（测试 Ahem 与真机同式），
+                    // 墙区预算才量得住（见 today_badge_bounds_test.dart 头注）。
+                    // C65：文字不乘 [uiScaleOf] —— 走 `MediaQuery.textScaler` 自动缩放
+                    // （app.dart 的 applyTabletTextScaling 注入）。手机端 s=1.0、textScaler
+                    // 不注入 ⇒ 零回归；平板走单层 textScaler（1.3~1.6），不再双重缩放。
+                    style: const TextStyle(
+                      fontSize: kLevelTitleFontSize,
+                      height: 1.05,
+                      fontWeight: FontWeight.w700,
+                      color: _kBadgeTitleColor,
+                    ),
                   ),
                 ),
                 if (showBar) ...<Widget>[
@@ -352,7 +372,7 @@ class FocusLevelDetailDialog extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: kLevelDetailSectionGap),
-                _buildTitleList(perkUnlocked),
+                _buildTitleList(context, perkUnlocked),
               ],
             ),
           ),
@@ -368,7 +388,10 @@ class FocusLevelDetailDialog extends ConsumerWidget {
   /// 右侧标签 1 次，玄参觉得冗余）。未解锁时圆徽显示 🌱、称号位显示「下一档
   /// 称号」（[_kLockedNextTitle]），让孩子看见将要解锁的目标。
   Widget _buildHead(BuildContext context) {
-    final String title = progress.isLocked ? _kLockedNextTitle : progress.title;
+    // F144：称号文案改由 ARB 取（未解锁 → 下一档 = Lv.1 节点称号）。
+    final String title = progress.isLocked
+        ? _lockedNextTitle(l10nOf(context))
+        : focusLevelTitleL10n(progress.level, l10nOf(context));
     return Row(
       children: <Widget>[
         LevelBadgeCircle(
@@ -406,7 +429,8 @@ class FocusLevelDetailDialog extends ConsumerWidget {
   ///   `_PerkPill` 之后会把**当前行右列**往左挤一个 ✨ 宽 ⇒ 9 行右列不再对齐（玄参
   ///   真机反馈）；删后当前行语义由高亮底 + w800 承担，右列 9 行严格右对齐。
   /// · 行高用 minHeight（C65/C75⑤：平板 textScaler 1.6 时内容自然增高、零溢出）。
-  Widget _buildTitleList(bool perkUnlocked) {
+  Widget _buildTitleList(BuildContext context, bool perkUnlocked) {
+    final AppLocalizations l10n = l10nOf(context);
     final List<FocusLevelTitleRow> rows = titleRowsOfLevel(progress.level);
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -431,7 +455,8 @@ class FocusLevelDetailDialog extends ConsumerWidget {
                   // 属性徽章**恒靠右**（不在 Expanded 内、不吃挤压，P1-2）。
                   Expanded(
                     child: Text(
-                      row.title,
+                      // F144：行文案按**本行节点**取 ARB（不是当前称号节点）。
+                      focusLevelTitleRowL10n(row.level, l10n),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

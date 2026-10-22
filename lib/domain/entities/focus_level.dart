@@ -16,10 +16,13 @@
 library focus_level;
 
 /// 徽章渲染用的**纯派生**展示模型（由累计专注分钟算出，零 I/O）。
+///
+/// 🔴 F144（i18n 补齐）：原 `title` 字段（中文称号文案）已**移出领域层** ——
+/// 领域层只留 [level]（纯语义），上屏文案由 UI 经
+/// `core/i18n/title_l10n.dart::focusLevelTitleL10n(level, l10n)` 取 ARB。
 class FocusLevelProgress {
   const FocusLevelProgress({
     required this.level,
-    required this.title,
     required this.isLocked,
     required this.isMax,
     required this.progress,
@@ -29,9 +32,6 @@ class FocusLevelProgress {
 
   /// 当前等级（`0` = 尚未解锁 Lv.1；已解锁为 1..40）。
   final int level;
-
-  /// 当前称号（= 已解锁的最高称号节点）；**未解锁为空串**（UI 需自行判 [isLocked]）。
-  final String title;
 
   /// 是否尚未解锁（`level == 0`，累计不足 60 分钟）。
   final bool isLocked;
@@ -55,7 +55,6 @@ class FocusLevelProgress {
       identical(this, other) ||
       other is FocusLevelProgress &&
           other.level == level &&
-          other.title == title &&
           other.isLocked == isLocked &&
           other.isMax == isMax &&
           other.progress == progress &&
@@ -65,7 +64,6 @@ class FocusLevelProgress {
   @override
   int get hashCode => Object.hash(
         level,
-        title,
         isLocked,
         isMax,
         progress,
@@ -75,12 +73,11 @@ class FocusLevelProgress {
 
   @override
   String toString() =>
-      // i18n B3：`toString` 是**调试**输出（永不预上屏），此处用 ASCII 占位符而非
-      // 中文「无称号」—— 领域层注释外零 CJK 是硬门槛（`test/i18n/no_han_in_domain_test`）。
-      // 上屏的「无称号」文案在 `titleOfLevel` 之外的 UI 侧（空串即不显示）。
-      'FocusLevelProgress(Lv.$level ${title.isEmpty ? '<no-title>' : title}, '
-      'locked=$isLocked, isMax=$isMax, progress=$progress, '
-      'minutesToNext=$minutesToNext, nextLevel=$nextLevel)';
+      // i18n B3 / F144：`toString` 是**调试**输出（永不预上屏），且领域层注释外
+      // 零 CJK 是硬门槛（`test/i18n/no_han_in_domain_test`）—— 称号文案不在此列，
+      // 上屏文案一律走 `core/i18n/title_l10n.dart`。
+      'FocusLevelProgress(Lv.$level, locked=$isLocked, isMax=$isMax, '
+      'progress=$progress, minutesToNext=$minutesToNext, nextLevel=$nextLevel)';
 }
 
 /// 详情卡「9 个称号全列」的**一行**（纯派生，零 I/O；由 `titleRowsOfLevel` 产出）。
@@ -88,19 +85,18 @@ class FocusLevelProgress {
 /// 9 个称号节点（`kFocusLevelTitleLevels`）**全部列出**：已解锁/未解锁由累计分钟
 /// 派生，[isCurrent] 指的是「**当前称号 = 已解锁的最高称号节点**」（C74 §3，如
 /// Lv.7 的当前节点仍是 Lv.5）—— 详情卡据此高亮（高亮底 + w800 加粗，C81 ⑤）。
+///
+/// 🔴 F144：本实体**不携带文案**（只有 [level]）；逐行称号由 UI 经
+/// `core/i18n/title_l10n.dart::focusLevelTitleRowL10n(row.level, l10n)` 取。
 class FocusLevelTitleRow {
   const FocusLevelTitleRow({
     required this.level,
-    required this.title,
     required this.unlocked,
     required this.isCurrent,
   });
 
   /// 称号节点等级（1/5/10/15/20/25/30/35/40）。
   final int level;
-
-  /// 该节点的称号文案（取自 `kFocusLevelTitles`，本实体不写字面量）。
-  final String title;
 
   /// 该节点是否已解锁（`当前等级 >= 本节点`）。
   final bool unlocked;
@@ -113,17 +109,15 @@ class FocusLevelTitleRow {
       identical(this, other) ||
       other is FocusLevelTitleRow &&
           other.level == level &&
-          other.title == title &&
           other.unlocked == unlocked &&
           other.isCurrent == isCurrent;
 
   @override
-  int get hashCode => Object.hash(level, title, unlocked, isCurrent);
+  int get hashCode => Object.hash(level, unlocked, isCurrent);
 
   @override
   String toString() =>
-      'FocusLevelTitleRow(Lv.$level $title, unlocked=$unlocked, '
-      'isCurrent=$isCurrent)';
+      'FocusLevelTitleRow(Lv.$level, unlocked=$unlocked, isCurrent=$isCurrent)';
 }
 
 /// 本轮结算命中的**一条称号节点**（按等级升序，供演出展示与对账）。

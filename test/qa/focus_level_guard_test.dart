@@ -20,6 +20,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/i18n/title_l10n.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/presentation/child/pages/child_today_page.dart'
     show kTodayBgPanelTargetRatio, kTodayCardTopRatio;
@@ -99,7 +101,15 @@ void main() {
 
   test('③ 9 个称号节点（C78：零阳光、零账本行，原 102☀ 阶梯废止）', () {
     expect(kFocusLevelTitleLevels, <int>[1, 5, 10, 15, 20, 25, 30, 35, 40]);
-    expect(kFocusLevelTitles, _c74Titles);
+    // F144：称号文案已迁 ARB（`core/i18n/title_l10n.dart` 的 `shared_title_lv*`）
+    // —— 由本文件对 zh 逐字节核对（迁出后 prd_params 不再有 kFocusLevelTitles）。
+    for (int i = 0; i < kFocusLevelTitleLevels.length; i++) {
+      expect(
+        focusLevelTitleL10n(kFocusLevelTitleLevels[i], AppLocalizationsZh()),
+        _c74Titles[i],
+        reason: 'Lv.${kFocusLevelTitleLevels[i]} 称号文案必须与 C74 §3 逐字节一致',
+      );
+    }
     // C78：称号节点只解锁专属属性（节点判定仍在，供演出/属性派生用）。
     for (final int lv in kFocusLevelTitleLevels) {
       expect(isTitleLevelOf(lv), isTrue, reason: 'Lv.$lv 仍是称号节点');
@@ -114,6 +124,12 @@ void main() {
   test('④ 数值单点：门槛分钟 / 称号文案 / refType 只出现在 prd_params.dart', () {
     final List<File> files = _libDartFiles()
         .where((File f) => !f.path.endsWith('core/constants/prd_params.dart'))
+        // 🔴 F144：9 条称号文案已从 `prd_params.dart` **迁到 ARB**
+        // （`lib/l10n/app_zh.arb` 的 `shared_title_lv*`，经 `core/i18n/
+        // title_l10n.dart` 取用）。`gen-l10n` 的产物里必然出现这 9 条 ——
+        // 那是**生成文件**，不是手写孪生，跳过；手写侧的单点由下面三条断言守住
+        // （ARB 有、title_l10n.dart 无字面量）。
+        .where((File f) => !f.path.contains('/l10n/generated/'))
         .toList();
     expect(files, isNotEmpty);
     for (final File f in files) {
@@ -121,11 +137,23 @@ void main() {
       // 称号文案（9 个，唯一性强 → 全仓扫描不会假红）。
       for (final String title in _c74Titles) {
         expect(src.contains(title), isFalse,
-            reason: '${f.path} 出现称号文案「$title」（必须引用常量）');
+            reason: '${f.path} 出现称号文案「$title」（必须经 title_l10n 取 ARB 文案）');
       }
       // refType 字符串值。
       expect(src.contains("'focus_level_up'"), isFalse,
           reason: '${f.path} 出现 refType 字面量（必须引用 kFocusLevelUpRefType）');
+    }
+
+    // F144：单点 = ARB（zh 模板文件逐条在；title_l10n.dart 只有映射没有文案）。
+    final String zhArb = _read('lib/l10n/app_zh.arb');
+    for (final String title in _c74Titles) {
+      expect(zhArb.contains('"$title"'), isTrue,
+          reason: 'app_zh.arb 必须逐字节保留 C74 §3 称号「$title」');
+    }
+    final String titleL10n = _read('lib/core/i18n/title_l10n.dart');
+    for (final String title in _c74Titles) {
+      expect(titleL10n.contains(title), isFalse,
+          reason: 'title_l10n.dart 只能做「等级 → ARB key」映射，不得内联称号文案');
     }
 
     // 门槛分钟：只扫**本功能涉及的 lib 文件**（全仓扫会撞上既有无关数字，如花园页

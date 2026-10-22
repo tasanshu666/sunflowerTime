@@ -61,8 +61,15 @@ Future<void> _pumpCircle(
 }
 
 /// 取圆徽内那枚标签 FittedBox 的渲染对象。
+///
+/// 🔴 必须**限定在圆徽子树内**：F144（F 项）给胶囊里的称号行也包了一层
+/// `FittedBox(scaleDown)`（iPad13 英文称号防截断），端到端用例里 `byType`
+/// 会同时命中两枚。
 RenderFittedBox _fittedOf(WidgetTester tester) =>
-    tester.renderObject<RenderFittedBox>(find.byType(FittedBox));
+    tester.renderObject<RenderFittedBox>(find.descendant(
+      of: find.byType(LevelBadgeCircle),
+      matching: find.byType(FittedBox),
+    ));
 
 /// 取圆徽内那枚标签 FittedBox 的渲染尺寸。
 Size _fittedSizeOf(WidgetTester tester) => _fittedOf(tester).size;

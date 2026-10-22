@@ -1019,8 +1019,8 @@ abstract class AppLocalizations {
   /// No description provided for @garden_seed_decomposed.
   ///
   /// In zh, this message translates to:
-  /// **'重复的「{name}」种子已分解为 {count} 植物碎片'**
-  String garden_seed_decomposed(Object name, int count);
+  /// **'重复的{rarity}种子已分解为 {count} 植物碎片'**
+  String garden_seed_decomposed(int count, String rarity);
 
   /// No description provided for @garden_reward_fragments.
   ///
@@ -1031,8 +1031,8 @@ abstract class AppLocalizations {
   /// No description provided for @garden_seed_dropped.
   ///
   /// In zh, this message translates to:
-  /// **'掉落「{name}」种子'**
-  String garden_seed_dropped(Object name);
+  /// **'掉落{rarity}种子'**
+  String garden_seed_dropped(String rarity);
 
   /// No description provided for @garden_gift_default.
   ///
@@ -1715,7 +1715,7 @@ abstract class AppLocalizations {
   /// No description provided for @profile_balance_line.
   ///
   /// In zh, this message translates to:
-  /// **'我的阳光：{count} ☀'**
+  /// **'我的阳光：{count}'**
   String profile_balance_line(int count);
 
   /// No description provided for @profile_source_label.
@@ -4892,6 +4892,144 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'孩子'**
   String get shared_default_child_name;
+
+  /// 专注称号 · Lv.1 称号节点（索引与 kFocusLevelTitleLevels 一一对应）
+  ///
+  /// In zh, this message translates to:
+  /// **'专注小萌芽'**
+  String get shared_title_lv1;
+
+  /// 专注称号 · Lv.5 称号节点（索引与 kFocusLevelTitleLevels 一一对应）
+  ///
+  /// In zh, this message translates to:
+  /// **'专注小苗苗'**
+  String get shared_title_lv5;
+
+  /// 专注称号 · Lv.10 称号节点（索引与 kFocusLevelTitleLevels 一一对应）
+  ///
+  /// In zh, this message translates to:
+  /// **'静心小书童'**
+  String get shared_title_lv10;
+
+  /// 专注称号 · Lv.15 称号节点（索引与 kFocusLevelTitleLevels 一一对应）
+  ///
+  /// In zh, this message translates to:
+  /// **'时光小卫士'**
+  String get shared_title_lv15;
+
+  /// 专注称号 · Lv.20 称号节点（索引与 kFocusLevelTitleLevels 一一对应）
+  ///
+  /// In zh, this message translates to:
+  /// **'专心小骑士'**
+  String get shared_title_lv20;
+
+  /// 专注称号 · Lv.25 称号节点（索引与 kFocusLevelTitleLevels 一一对应）
+  ///
+  /// In zh, this message translates to:
+  /// **'守时小星使'**
+  String get shared_title_lv25;
+
+  /// 专注称号 · Lv.30 称号节点（索引与 kFocusLevelTitleLevels 一一对应）
+  ///
+  /// In zh, this message translates to:
+  /// **'专注小法师'**
+  String get shared_title_lv30;
+
+  /// 专注称号 · Lv.35 称号节点（索引与 kFocusLevelTitleLevels 一一对应）
+  ///
+  /// In zh, this message translates to:
+  /// **'星辰守护者'**
+  String get shared_title_lv35;
+
+  /// 专注称号 · Lv.40 称号节点（索引与 kFocusLevelTitleLevels 一一对应）
+  ///
+  /// In zh, this message translates to:
+  /// **'时光大贤者'**
+  String get shared_title_lv40;
+
+  /// 物种图鉴 · 向日葵一句话介绍（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'跟着太阳转头的金脸盘'**
+  String get species_lore_sunflower_intro;
+
+  /// 物种图鉴 · 向日葵小故事（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'小向日葵每天仰着头看太阳，太阳去哪儿它就看哪儿，慢慢就长出了金灿灿的圆脸盘，成了花园里最亮的小太阳。'**
+  String get species_lore_sunflower_story;
+
+  /// 物种图鉴 · 番茄一句话介绍（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'一串串红红的小灯笼'**
+  String get species_lore_tomato_intro;
+
+  /// 物种图鉴 · 番茄小故事（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'番茄小时候是绿色的，晒着晒着就害羞起来，脸越来越红，熟透了就像小灯笼一样挂在枝头。'**
+  String get species_lore_tomato_story;
+
+  /// 物种图鉴 · 草莓一句话介绍（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'带芝麻点的心形果子'**
+  String get species_lore_strawberry_intro;
+
+  /// 物种图鉴 · 草莓小故事（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'草莓身上布满了小芝麻——其实每粒「芝麻」都是一颗真正的小种子，一颗草莓能藏两百粒种子呢！'**
+  String get species_lore_strawberry_story;
+
+  /// 物种图鉴 · 月光兰一句话介绍（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'月光下才肯开放'**
+  String get species_lore_moon_orchid_intro;
+
+  /// 物种图鉴 · 月光兰小故事（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'月光兰白天呼呼大睡，月亮升起才轻轻张开花瓣，把月光酿成淡淡的香气，陪小朋友甜甜入睡。'**
+  String get species_lore_moon_orchid_story;
+
+  /// 物种图鉴 · 珊瑚岭兰一句话介绍（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'像海底珊瑚一样粉'**
+  String get species_lore_coral_orchid_intro;
+
+  /// 物种图鉴 · 珊瑚岭兰小故事（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'传说它是海里的珊瑚上岸做的梦，梦里开出了粉色的花，从此叶子间总藏着小海螺的悄悄话。'**
+  String get species_lore_coral_orchid_story;
+
+  /// 物种图鉴 · 翡翠绣球一句话介绍（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'许多小花抱成一个大球'**
+  String get species_lore_jade_hydrangea_intro;
+
+  /// 物种图鉴 · 翡翠绣球小故事（选种卡背面，F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'翡翠绣球由几十朵小花手拉手抱成一团，风再大也吹不散，因为它相信：团结的花最漂亮。'**
+  String get species_lore_jade_hydrangea_story;
+
+  /// 物种图鉴 · 未知物种兜底一句话介绍（F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'花园里的小植物'**
+  String get species_lore_fallback_intro;
+
+  /// 物种图鉴 · 未知物种兜底小故事（F147 自 species_lore.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'每种植物都有自己的小故事，等着你去发现哦。'**
+  String get species_lore_fallback_story;
 }
 
 class _AppLocalizationsDelegate

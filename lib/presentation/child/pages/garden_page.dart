@@ -41,8 +41,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
-import 'package:sunflower_time/core/constants/species_lore.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/species_lore_l10n.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/domain/entities/bloom_reward_outcome.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
@@ -825,36 +825,45 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     });
   }
 
-  /// 把一条奖励结果拼成用户可见文案（`+N ☀ 阳光` / `+N 植物碎片` / `掉落「X」种子` /
-  /// `重复的「X」种子已分解为 N 植物碎片`）。
+  /// 把一条奖励结果拼成用户可见文案（`+N ☀ 阳光` / `+N 植物碎片` /
+  /// `掉落{稀有度}种子` / `重复的{稀有度}种子已分解为 N 植物碎片`）。
+  ///
+  /// 🔴 **F144（玄参 2026-10-22 拍板）**：种子类提示**只讲档位（普通 / 精英）**，
+  /// 不再点物种名 —— 旧口径「掉落「草莓」种子」在英文模式下会串出中文物种名，
+  /// 且与选种弹窗/种子计数 chip 的「普通种子 / 精英种子」口径不一致。
   String _outcomeParts(BloomRewardOutcome o) {
     final List<String> parts = <String>[];
     if (o.sunlight > 0) parts.add(_t.garden_reward_sunlight(o.sunlight));
     if (o.decomposedSeedSpeciesId != null) {
       // 重复种子自动分解（玄参 2026-09-29）：此时 fragments 即分解所得，勿重复拼「+N 植物碎片」。
       parts.add(_t.garden_seed_decomposed(
-        _speciesNameById(o.decomposedSeedSpeciesId!),
         o.fragments,
+        _rarityLabelOf(o.decomposedSeedSpeciesId!),
       ));
     } else {
       if (o.fragments > 0) parts.add(_t.garden_reward_fragments(o.fragments));
       final String? seed = o.seedSpeciesId;
-      if (seed != null) parts.add(_t.garden_seed_dropped(_speciesNameById(seed)));
+      if (seed != null) parts.add(_t.garden_seed_dropped(_rarityLabelOf(seed)));
     }
     return parts.isEmpty ? _t.garden_gift_default : parts.join(' · ');
   }
 
-  /// 按物种 id 取显示名（找不到返回 id 本身）。
+  /// 物种 id → **稀有度档位文案**（普通 / 精英）。
   ///
-  /// i18n B3（T04）：命中物种时经 `speciesNameOr` 取**当前语言**名（未知 id 仍
-  /// 兜底到 id 本身 —— 奖励串口径，与迁移前一致）。
-  String _speciesNameById(String speciesId) {
+  /// 判据单点 = `PlantSpecies.isPremium`（与选种弹窗的档位标签、种子计数 chip 同源）；
+  /// 找不到该 id（历史已删物种，如 `species_star_flower` / `species_rainbow_fern`
+  /// 在旧库里的残留）→ 回落**普通档**：普通是默认档，比裸「种子」信息更完整，
+  /// 且不会因物种缺失而丢提示。
+  ///
+  /// ⚠️ 不动 `BloomRewardOutcome.seedSpeciesId` / `unlockSpecies`（发放事实与
+  /// 按 id 记券的库存口径），本方法**只影响上屏文案**。
+  String _rarityLabelOf(String speciesId) {
     for (final PlantSpecies sp in _species) {
       if (sp.id == speciesId) {
-        return speciesNameOr(sp.id, speciesId, _t);
+        return sp.isPremium ? _t.garden_rarity_premium : _t.garden_rarity_common;
       }
     }
-    return speciesId;
+    return _t.garden_rarity_common;
   }
 
   /// 打开「精品碎片」信息页（玄参 2026-09-28 计价模型）。
@@ -1710,7 +1719,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                 const SizedBox(height: 8),
                 Flexible(
                   // SingleChildScrollView + Column（非 ListView）：全部卡片**常驻
-                  // 构建树**（懒加载列表的屏外项不构建，会漏 find 断言/丢种子徽章）。
+                  // 构建树**（懒加载列表的屏外项不构建，会漏 find 断言）。
                   child: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -1723,8 +1732,6 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                             species: rows[i].sp,
                             buttons: rows[i].buttons,
                             rewardAssets: _rewardAssets,
-                            // 种子徽章（玄参 2026-09-29）：持有该物种免费种植券（掉落过种子且已收集）→ 卡片打「🌰 种子」标。
-                            hasSeed: _unlockedSpecies.contains(rows[i].sp.id),
                             onPay: (PlantCostKind kind) async {
                               Navigator.of(ctx).pop();
                               await _confirmAndPlant(
@@ -2762,24 +2769,28 @@ class _AssetGlyph extends StatelessWidget {
   }
 }
 
-/// 选种卡固定高度（玄参 2026-10-05「植物卡片的高度最好是统一一个固定的高度」）。
+/// 选种卡基准高度（玄参 2026-10-05「植物卡片的高度最好是统一一个固定的高度」）。
 ///
 /// ⚠️ C65：这是**手机基准值**。卡内文字会被 textScaler 放大 1.3× → 高度必须同步
 /// 放大（`kPlantCardHeight * uiScaleOf(context)`），否则固定高会撑破。
+/// ⚠️ F147：正面已改为 **minHeight 兜底**（见 `_frontFace` 注释）—— 大多数卡
+/// 仍按本值等高，英文长名折行的卡向下自适应长高，不再溢出；背面（故事正文走
+/// Expanded / ellipsis，内容弹性）保持本值固定高。
 const double kPlantCardHeight = 116;
 
-/// 单个物种的选种卡片（2026-10-05 三修，玄参口径）：
-///  · **固定高度**（[kPlantCardHeight]），所有卡片等高不跳动；
+/// 单个物种的选种卡片（2026-10-05 三修 + F147 修订，玄参口径）：
+///  · **基准高度**（[kPlantCardHeight]）：正面 minHeight 兜底、内容放不下向下
+///    自适应（F147）；背面固定高；
 ///  · 左侧**放大版成株/开花美术图**（[SpeciesPreviewArt]，80）；
 ///  · 价格按钮**一行排布**（阳光 + 碎片并列，FittedBox 兜底缩放，不再折两行）；
-///  · **点击卡片空白处翻面**：背面显示该物种的简短介绍 + 小故事（[speciesLoreOf]）。
+///  · **点击卡片空白处翻面**：背面显示该物种的简短介绍 + 小故事
+///    （[speciesLoreL10n]，F147 起 ARB 化）。
 class _PlantTile extends StatefulWidget {
   const _PlantTile({
     required this.species,
     required this.buttons,
     required this.onPay,
     required this.rewardAssets,
-    this.hasSeed = false,
   });
 
   final PlantSpecies species;
@@ -2788,9 +2799,6 @@ class _PlantTile extends StatefulWidget {
 
   /// 可用美术资源集合（阳光/碎片/种子按钮图标用；空集 → 内置 Icon 兜底）。
   final Set<String> rewardAssets;
-
-  /// 是否持有该物种的免费种植券（掉落过种子且已收集）→ 显示种子徽章。
-  final bool hasSeed;
 
   @override
   State<_PlantTile> createState() => _PlantTileState();
@@ -2864,7 +2872,7 @@ class _PlantTileState extends State<_PlantTile>
     );
   }
 
-  /// 正面：放大植物图 + 名称/稀有度/种子徽章 + **一行**价格按钮。
+  /// 正面：放大植物图 + 名称/稀有度 + **一行**价格按钮。
   Widget _frontFace() {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final PlantSpecies species = widget.species;
@@ -2885,8 +2893,16 @@ class _PlantTileState extends State<_PlantTile>
         .where((_PlantPaymentButton b) => !b.enabled && b.disabledReason != null)
         .map((_PlantPaymentButton b) => b.disabledReason!)
         .join(' · ');
+    // F147（玄参截图：手机档 Premium 卡 BOTTOM OVERFLOWED BY 8.0 PIXELS）：
+    // 正面从「固定 height」改为「minHeight 兜底 + 内容自适应」。根因是 F144 的
+    // 稀有度徽章挤占名称宽度后，手机档英文长名（Coral Ridge Orchid 等）折行，
+    // 列高（名称行 + 价格按钮行）超过 116 固定卡的内容区 93pt。禁缩字号 /
+    // 禁 FittedBox 缩内容 / 禁 maxLines 砍信息，故让容器兜底自适应：内容放得下
+    // 时仍是 [kPlantCardHeight] × uiScaleOf 等高（绝大多数卡不受影响），放不下
+    // 时向下长出恰好所需高度（弹窗本体是 SingleChildScrollView，可滚动）。
     return Container(
-      height: kPlantCardHeight * uiScaleOf(context),
+      constraints:
+          BoxConstraints(minHeight: kPlantCardHeight * uiScaleOf(context)),
       padding: const EdgeInsets.all(10),
       decoration: _faceDecoration(fill: Colors.white),
       child: Row(
@@ -2910,6 +2926,9 @@ class _PlantTileState extends State<_PlantTile>
                     ),
                     const SizedBox(width: 6),
                     // 稀有度徽章：普通绿 / 精英紫（一眼区分档位）。
+                    // F147（玄参 2026-10-22）：废除名称行右侧的持券种子徽章 ——
+                    // 2026-10-07 起 Seed 已是第三支付方式（底部绿胶囊按钮），
+                    // 徽章信息重复，玄参反馈「怎么多出了一个种子图标」。
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2),
@@ -2923,21 +2942,6 @@ class _PlantTileState extends State<_PlantTile>
                               fontWeight: FontWeight.w600,
                               color: _accent)),
                     ),
-                    if (widget.hasSeed) ...<Widget>[
-                      const SizedBox(width: 6),
-                      // 种子徽章（玄参「掉落了种子也要显示种子图标」）：分档种子图，
-                      // 缺失回退 🌰 emoji。C65：素材图显式乘平板倍率。
-                      Image.asset(
-                        seedAsset,
-                        width: 16 * uiScaleOf(context),
-                        height: 16 * uiScaleOf(context),
-                        fit: BoxFit.contain,
-                        errorBuilder:
-                            (BuildContext _, Object __, StackTrace? ___) =>
-                                const Text('🌰',
-                                    style: TextStyle(fontSize: 12)),
-                      ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -2983,11 +2987,12 @@ class _PlantTileState extends State<_PlantTile>
   }
 
   /// 背面：物种简短介绍 + 小故事（玄参 2026-10-05「背面写着这个植物的简短介绍
-  /// 和一个小故事」）。文案单点 [speciesLoreOf]，UI 不写死。
+  /// 和一个小故事」）。文案单点 [speciesLoreL10n]（F147 起 ARB 化，zh 硬编码已迁出），
+  /// UI 不写死。
   Widget _backFace() {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final PlantSpecies species = widget.species;
-    final SpeciesLore lore = speciesLoreOf(species.id);
+    final SpeciesLore lore = speciesLoreL10n(species.id, l10n);
     return Container(
       height: kPlantCardHeight * uiScaleOf(context),
       padding: const EdgeInsets.all(12),

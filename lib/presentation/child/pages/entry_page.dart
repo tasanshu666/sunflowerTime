@@ -46,6 +46,7 @@ import 'package:go_router/go_router.dart';
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
@@ -60,7 +61,7 @@ const Color _kCream = Color(0xFFFBF4E4);
 /// 深棕正文（儿童可读主文字色）。
 const Color _kBrown = Color(0xFF5D4037);
 
-/// 主琥珀（选中态 / 开关激活 / 主按钮）。
+/// 主琥珀（选中态 / 开关激活；F147 起主按钮不再用它 —— 见 `_startButton` 注释）。
 const Color _kAmber = Color(0xFFF9A825);
 
 /// 大圆角白卡：柔和阴影 + 22 圆角（与成长/商店页卡片同款）。
@@ -504,46 +505,52 @@ class _EntryPageState extends ConsumerState<EntryPage> {
             onPressed: () => context.go('/'),
           ),
         ),
-        body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-            children: <Widget>[
-              // ── 卡 1：选时长 ──────────────────────────────────────────
-              _SectionCard(
-                children: <Widget>[
-                  _CardHeader(
-                    emoji: '⏰',
-                    bgColor: Color(0xFFFFF1C2),
-                    title: l10n.child_entry_pick_duration,
-                  ),
-                  if (_remaining != null) ...<Widget>[
-                    const SizedBox(height: 12),
-                    // 剩余额度提示：让孩子在选时长前就知道今天还剩多少（第 ① 处收口）。
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: roundedOut
-                            ? const Color(0xFFFFE0B2)
-                            : const Color(0xFFFFF6DE),
-                        borderRadius: BorderRadius.circular(12),
+        body: Column(
+          children: <Widget>[
+            // 滚动区：`bottom: false` —— 底部安全区由固定区自己吃（见 [_startButton]），
+            // 否则 iPhone 上会「滚动区留白 + 固定区留白」双份空白。
+            Expanded(
+              child: SafeArea(
+                bottom: false,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  children: <Widget>[
+                  // ── 卡 1：选时长 ──────────────────────────────────────────
+                  _SectionCard(
+                    children: <Widget>[
+                      _CardHeader(
+                        emoji: '⏰',
+                        bgColor: Color(0xFFFFF1C2),
+                        title: l10n.child_entry_pick_duration,
                       ),
-                      child: Text(
-                        roundedOut
-                            ? l10n.child_entry_cap_daily(_cap ?? 0)
-                            : l10n.child_entry_remaining_today(
-                                _cap ?? 0, _remaining!.floor()),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: roundedOut
-                              ? const Color(0xFFE65100)
-                              : const Color(0xFF8D6E00),
+                      if (_remaining != null) ...<Widget>[
+                        const SizedBox(height: 12),
+                        // 剩余额度提示：让孩子在选时长前就知道今天还剩多少（第 ① 处收口）。
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: roundedOut
+                                ? const Color(0xFFFFE0B2)
+                                : const Color(0xFFFFF6DE),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            roundedOut
+                                ? l10n.child_entry_cap_daily(_cap ?? 0)
+                                : l10n.child_entry_remaining_today(
+                                    _cap ?? 0, _remaining!.floor()),
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: roundedOut
+                                  ? const Color(0xFFE65100)
+                                  : const Color(0xFF8D6E00),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
+                      ],
                   const SizedBox(height: 16),
                   // 固定三排（玄参 2026-09-30）：15-20-25 / 30-45-60 / 自由-自定义。
                   // 等宽 Row 排版，选中不打乱布局、胶囊不跳位。
@@ -680,39 +687,87 @@ class _EntryPageState extends ConsumerState<EntryPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              // ── 主按钮：大号圆角 + 吉祥物 ──────────────────────────────
-              // 原底部「把手机横过来…」引导贴士已按玄参要求删除：
-              // 直接点「开始专注」即可，不再口头引导转横屏。
-              FilledButton(
-                onPressed: () => _start(),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _kAmber,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(60),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  textStyle: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w800),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const Text('🌻', style: TextStyle(fontSize: 22)),
-                    const SizedBox(width: 8),
-                    Text(l10n.shared_start_focus),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+            // ── 主按钮：**固定在屏幕底部**（F144 A）──────────────────────
+            // 原底部「把手机横过来…」引导贴士已按玄参要求删除：
+            // 直接点「开始专注」即可，不再口头引导转横屏。
+            _startButton(context, l10n),
+          ],
         ),
       ),
       ); // Scaffold（内层 return 收口）
         }, // builder 闭包
       ), // Builder
     ); // L10nScope（外层 return 收口）
+  }
+
+  /// 「开始专注」主按钮 —— **固定在屏幕底部，不随滚动区走**（F144 A，玄参拍板）。
+  ///
+  /// ## 为什么不放 `Scaffold.bottomNavigationBar` 槽
+  /// 项目有 C105/F112 前科：该槽内若 `Center`/`Align` 缺 `heightFactor: 1`，槽会
+  /// 吃掉整页高度、表现为「整页空白」。故改用**可预测**的
+  /// `body: Column[Expanded(ListView), 底部固定区]` 结构。
+  ///
+  /// ## 底部固定区的两层
+  ///  1. 外层 `SafeArea(top: false)` —— 吃掉 iPhone home indicator 的下边距；
+  ///  2. 内层 `Container` —— 页面同款米色底 + **顶部 1px 细分割线**，让滚动内容
+  ///     穿过时与按钮之间有明确边界（不会「糊在按钮上」）；
+  ///     内边距 `fromLTRB(20, 12, 20, 12)`（与滚动区左右 20 对齐）。
+  ///
+  /// 🔴 `60`（按钮高）与 `30`（圆角半径）是「只随屏幕变大」的**绝对尺寸** ⇒
+  /// 一律乘 [uiScaleOf]（C65：iPad11 1.3 / iPad13 1.6；手机 = 1.0 零像素回归）。
+  /// 字号 20 不乘（文字走 `MediaQuery.textScaler` 自动缩放，避免双重缩放）。
+  ///
+  /// 图标（F144 A）：原硬写 emoji `🌻` → 换 `assets/rewards/sunlight.png`（阳光美术），
+  /// 缺素材时 `errorBuilder` 回落 `Icons.wb_sunny`（同 `child_avatar.dart` 口径）。
+  Widget _startButton(BuildContext context, AppLocalizations l10n) {
+    final double s = uiScaleOf(context);
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+        decoration: const BoxDecoration(
+          color: _kCream,
+          border: Border(
+            top: BorderSide(color: Color(0xFFEFDFC0), width: 1),
+          ),
+        ),
+        child: FilledButton(
+          onPressed: () => _start(),
+          style: FilledButton.styleFrom(
+            // F147（玄参 2026-10-22 拍板）：删除 `_kAmber` 硬编码 —— 回落主题
+            // primary（橄榄绿），与今日 tab 钉底「开始专注」按钮**同色同源**
+            // （此前两处一橄榄绿一琥珀橙，玄参反馈「好奇怪，应该保持一致」）。
+            foregroundColor: Colors.white,
+            minimumSize: Size.fromHeight(60 * s),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30 * s),
+            ),
+            textStyle: const TextStyle(
+                fontSize: 20, fontWeight: FontWeight.w800),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Image.asset(
+                'assets/rewards/sunlight.png',
+                width: 26 * s,
+                height: 26 * s,
+                fit: BoxFit.contain,
+                errorBuilder:
+                    (BuildContext _, Object __, StackTrace? ___) =>
+                        Icon(Icons.wb_sunny, size: 26 * s, color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              Text(l10n.shared_start_focus),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// 单个预设分钟档胶囊：超过今日剩余额度置灰；选中即取消「自由 / 自定义」。

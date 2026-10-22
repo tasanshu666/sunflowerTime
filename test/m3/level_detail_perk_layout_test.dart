@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/i18n/title_l10n.dart';
 import 'package:sunflower_time/core/i18n/domain_text_l10n.dart'
     show perkNameOfTitleNodeL10n;
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
@@ -191,7 +192,7 @@ void main() {
     final Text rowText = tester.widget<Text>(
       find.descendant(
         of: find.byKey(FocusLevelDetailDialog.titleRowKeyOf(1)),
-        matching: find.text(titleOfLevel(1)),
+        matching: find.text(focusLevelTitleL10n(1, AppLocalizationsZh())),
       ),
     );
     expect(rowText.style?.fontSize, kLevelDetailRowFontSize,

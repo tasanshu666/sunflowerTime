@@ -284,6 +284,13 @@ Future<bool> _pumpUntil(
   return ready();
 }
 
+/// F144：9 条称号文案已迁 ARB（`core/i18n/title_l10n.dart` 的 `shared_title_lv*`）
+/// —— 测试侧保留一份 zh 宪法原文用于逐字节断言（迁移前是 `kFocusLevelTitles`）。
+const List<String> _zhTitles = <String>[
+  '专注小萌芽', '专注小苗苗', '静心小书童', '时光小卫士', '专心小骑士',
+  '守时小星使', '专注小法师', '星辰守护者', '时光大贤者',
+];
+
 void main() {
   /// 装配并进入今日页（手机视口默认 402×874）。
   Future<_TodayHarness> enterTodayPage(
@@ -424,7 +431,7 @@ void main() {
     // 称号位候选：9 个称号（一律 5 字）+ 未解锁占位（6 字，最长）。
     double widest = 0;
     for (final String text
-        in <String>{kLevelBadgeLockedTitle, ...kFocusLevelTitles}) {
+        in <String>{kLevelBadgeLockedTitle, ..._zhTitles}) {
       final TextPainter painter = TextPainter(
         text: TextSpan(
           text: text,

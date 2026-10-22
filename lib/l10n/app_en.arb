@@ -459,14 +459,14 @@
       }
     }
   },
-  "garden_seed_decomposed": "Duplicate {name} seed became {count} fragments",
+  "garden_seed_decomposed": "Duplicate {rarity} seed turned into {count} fragments",
   "@garden_seed_decomposed": {
     "placeholders": {
-      "name": {
-        "type": "Object"
-      },
       "count": {
         "type": "int"
+      },
+      "rarity": {
+        "type": "String"
       }
     }
   },
@@ -478,11 +478,11 @@
       }
     }
   },
-  "garden_seed_dropped": "Dropped a {name} seed",
+  "garden_seed_dropped": "Dropped a {rarity} seed",
   "@garden_seed_dropped": {
     "placeholders": {
-      "name": {
-        "type": "Object"
+      "rarity": {
+        "type": "String"
       }
     }
   },
@@ -851,7 +851,7 @@
       }
     }
   },
-  "profile_balance_line": "My sunlight: {count} ☀",
+  "profile_balance_line": "Sunlight: {count}",
   "@profile_balance_line": {
     "placeholders": {
       "count": {
@@ -1176,7 +1176,7 @@
   "prd_eyecare_early_body": "The eye break isn't finished — ending now means no sunlight reward. Resting your eyes makes them sparkle! Hang in there!",
   "prd_eyecare_early_stay": "Keep resting",
   "prd_eyecare_early_quit": "End it",
-  "prd_level_locked_title": "Title not unlocked yet",
+  "prd_level_locked_title": "Locked",
   "prd_level_detail_ok": "Got it",
   "prd_premium_upsell_hint": "Upgrade to unlock this feature",
   "fx_level_up_title": "New title unlocked!",
@@ -2257,5 +2257,28 @@
   "shared_perk_name_dew": "Morning dew",
   "shared_perk_name_pot_expand": "Pot upgrade",
   "shared_perk_name_shovel": "Removal",
-  "shared_default_child_name": "Child"
+  "shared_default_child_name": "Child",
+  "shared_title_lv1": "Sprout",
+  "shared_title_lv5": "Seedling",
+  "shared_title_lv10": "Calm Reader",
+  "shared_title_lv15": "Time Warden",
+  "shared_title_lv20": "Focus Knight",
+  "shared_title_lv25": "Star Envoy",
+  "shared_title_lv30": "Focus Mage",
+  "shared_title_lv35": "Star Guard",
+  "shared_title_lv40": "Time Sage",
+  "species_lore_sunflower_intro": "A golden face that follows the sun",
+  "species_lore_sunflower_story": "Little sunflower watches the sun all day. Wherever the sun goes, it turns to follow. That is how it grew its shiny golden face — the brightest little sun in the garden.",
+  "species_lore_tomato_intro": "Little red lanterns in a row",
+  "species_lore_tomato_story": "Baby tomatoes start out green. As they soak up the sunshine, they blush redder and redder. When ripe, they hang on the vine like tiny lanterns.",
+  "species_lore_strawberry_intro": "A heart-shaped berry with speckles",
+  "species_lore_strawberry_story": "A strawberry is covered with tiny speckles. Each speckle is a real little seed! One berry can hide two hundred seeds.",
+  "species_lore_moon_orchid_intro": "Blooms only under the moon",
+  "species_lore_moon_orchid_story": "Moon orchid sleeps soundly all day. When the moon rises, it gently opens its petals. The flower brews moonlight into a soft scent that helps children drift to sleep.",
+  "species_lore_coral_orchid_intro": "Pink like undersea coral",
+  "species_lore_coral_orchid_story": "Legend says it is a dream of undersea coral resting on land. In that dream, pink flowers bloomed. Now little seashells whisper between its leaves.",
+  "species_lore_jade_hydrangea_intro": "Many blooms hug into one ball",
+  "species_lore_jade_hydrangea_story": "A jade hydrangea is dozens of tiny flowers holding hands. Even the strongest wind cannot blow them apart. Flowers that stick together are the prettiest.",
+  "species_lore_fallback_intro": "A little garden plant",
+  "species_lore_fallback_story": "Every plant has its own little story, waiting for you to discover."
 }

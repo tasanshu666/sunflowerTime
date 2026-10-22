@@ -42,7 +42,9 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart'
-    show titleOfLevel;
+    show latestTitleNodeOfLevel;
+import 'package:sunflower_time/core/i18n/title_l10n.dart'
+    show focusLevelTitleL10n;
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/presentation/child/widgets/focus_level_badge.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
@@ -367,7 +369,10 @@ class _LevelUpContent extends ConsumerWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          '$kLevelBadgeTextPrefix$shownLevel · ${titleOfLevel(shownLevel)}',
+          // F144：称号文案由 ARB 取（按「已解锁的最高称号节点」映射，与迁移前
+          // `titleOfLevel` 的映射口径逐条一致）；未解锁等级段回落到 Lv.1 节点称号。
+          '$kLevelBadgeTextPrefix$shownLevel · '
+          '${focusLevelTitleL10n(shownLevel < 1 ? 1 : latestTitleNodeOfLevel(shownLevel), l10n)}',
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: kLevelUpFxTitleFontSize,

@@ -581,8 +581,9 @@ void main() {
       final Plant p0 = await ctx.svc.plant('species_moon_orchid', 0, t0);
       final double afterPlant = await ctx.ledger.balance();
       expect(afterPlant, 1000000, reason: '精英碎片物种不扣阳光');
-      expect(await ctx.plants.premiumFragmentBalance(), 10,
-          reason: '精英扣 10 碎片');
+      expect(await ctx.plants.premiumFragmentBalance(),
+          20 - kSpeciesFragmentCostPremium,
+          reason: '精英扣 $kSpeciesFragmentCostPremium 碎片（F144：10 → 20）');
       expect(
           await _countByRefTypeAndRefId(
               ctx.database, 'plant_plant', 'species_moon_orchid'),
@@ -599,7 +600,8 @@ void main() {
 
       expect(await ctx.ledger.balance(), afterPlant,
           reason: '死亡全损 → 阳光不退（旧 30% 退款已废止）');
-      expect(await ctx.plants.premiumFragmentBalance(), 10,
+      expect(await ctx.plants.premiumFragmentBalance(),
+          20 - kSpeciesFragmentCostPremium,
           reason: '死亡全损 → 碎片不退');
       expect(await _countByRefType(ctx.database, 'plant_death_refund'), 0,
           reason: '死亡全损 → 不得产生 plant_death_refund 行');
@@ -607,14 +609,15 @@ void main() {
           '退款行=0');
     });
 
-    test('月光兰（精英）：首次扣 10 碎片；死后重种再扣 10 碎片、不扣阳光', () async {
+    test('月光兰（精英）：首种扣一份碎片价；死后重种再扣一份、不扣阳光', () async {
       final _Ctx ctx = await _make();
       await ctx.plants.setPremiumFragmentBalance(40);
       final DateTime t0 = DateTime(2026, 9, 27, 8);
       final Plant p0 = await ctx.svc.plant('species_moon_orchid', 0, t0);
       expect(await ctx.ledger.balance(), 1000000, reason: '精英不扣阳光');
-      expect(await ctx.plants.premiumFragmentBalance(), 30,
-          reason: '首种扣 10 碎片');
+      expect(await ctx.plants.premiumFragmentBalance(),
+          40 - kSpeciesFragmentCostPremium,
+          reason: '首种扣 $kSpeciesFragmentCostPremium 碎片（F144：10 → 20）');
       expect(
           await _countByRefTypeAndRefId(
               ctx.database, 'plant_plant', 'species_moon_orchid'),
@@ -626,8 +629,9 @@ void main() {
           .plant('species_moon_orchid', 0, t0.add(const Duration(days: 1)));
       expect(p1.id, isNot(p0.id));
       expect(await ctx.ledger.balance(), 1000000, reason: '重种不扣阳光');
-      expect(await ctx.plants.premiumFragmentBalance(), fragBeforeReplant - 10,
-          reason: '死亡全损不退款，重种重新扣 10 碎片');
+      expect(await ctx.plants.premiumFragmentBalance(),
+          fragBeforeReplant - kSpeciesFragmentCostPremium,
+          reason: '死亡全损不退款，重种重新扣 $kSpeciesFragmentCostPremium 碎片');
       expect(
           await _countByRefTypeAndRefId(
               ctx.database, 'plant_plant', 'species_moon_orchid'),

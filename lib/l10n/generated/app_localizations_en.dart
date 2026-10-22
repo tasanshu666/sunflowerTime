@@ -558,8 +558,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String garden_seed_decomposed(Object name, int count) {
-    return 'Duplicate $name seed became $count fragments';
+  String garden_seed_decomposed(int count, String rarity) {
+    return 'Duplicate $rarity seed turned into $count fragments';
   }
 
   @override
@@ -568,8 +568,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String garden_seed_dropped(Object name) {
-    return 'Dropped a $name seed';
+  String garden_seed_dropped(String rarity) {
+    return 'Dropped a $rarity seed';
   }
 
   @override
@@ -991,7 +991,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String profile_balance_line(int count) {
-    return 'My sunlight: $count ☀';
+    return 'Sunlight: $count';
   }
 
   @override
@@ -1305,7 +1305,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prd_eyecare_early_quit => 'End it';
 
   @override
-  String get prd_level_locked_title => 'Title not unlocked yet';
+  String get prd_level_locked_title => 'Locked';
 
   @override
   String get prd_level_detail_ok => 'Got it';
@@ -2898,4 +2898,83 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shared_default_child_name => 'Child';
+
+  @override
+  String get shared_title_lv1 => 'Sprout';
+
+  @override
+  String get shared_title_lv5 => 'Seedling';
+
+  @override
+  String get shared_title_lv10 => 'Calm Reader';
+
+  @override
+  String get shared_title_lv15 => 'Time Warden';
+
+  @override
+  String get shared_title_lv20 => 'Focus Knight';
+
+  @override
+  String get shared_title_lv25 => 'Star Envoy';
+
+  @override
+  String get shared_title_lv30 => 'Focus Mage';
+
+  @override
+  String get shared_title_lv35 => 'Star Guard';
+
+  @override
+  String get shared_title_lv40 => 'Time Sage';
+
+  @override
+  String get species_lore_sunflower_intro =>
+      'A golden face that follows the sun';
+
+  @override
+  String get species_lore_sunflower_story =>
+      'Little sunflower watches the sun all day. Wherever the sun goes, it turns to follow. That is how it grew its shiny golden face — the brightest little sun in the garden.';
+
+  @override
+  String get species_lore_tomato_intro => 'Little red lanterns in a row';
+
+  @override
+  String get species_lore_tomato_story =>
+      'Baby tomatoes start out green. As they soak up the sunshine, they blush redder and redder. When ripe, they hang on the vine like tiny lanterns.';
+
+  @override
+  String get species_lore_strawberry_intro =>
+      'A heart-shaped berry with speckles';
+
+  @override
+  String get species_lore_strawberry_story =>
+      'A strawberry is covered with tiny speckles. Each speckle is a real little seed! One berry can hide two hundred seeds.';
+
+  @override
+  String get species_lore_moon_orchid_intro => 'Blooms only under the moon';
+
+  @override
+  String get species_lore_moon_orchid_story =>
+      'Moon orchid sleeps soundly all day. When the moon rises, it gently opens its petals. The flower brews moonlight into a soft scent that helps children drift to sleep.';
+
+  @override
+  String get species_lore_coral_orchid_intro => 'Pink like undersea coral';
+
+  @override
+  String get species_lore_coral_orchid_story =>
+      'Legend says it is a dream of undersea coral resting on land. In that dream, pink flowers bloomed. Now little seashells whisper between its leaves.';
+
+  @override
+  String get species_lore_jade_hydrangea_intro =>
+      'Many blooms hug into one ball';
+
+  @override
+  String get species_lore_jade_hydrangea_story =>
+      'A jade hydrangea is dozens of tiny flowers holding hands. Even the strongest wind cannot blow them apart. Flowers that stick together are the prettiest.';
+
+  @override
+  String get species_lore_fallback_intro => 'A little garden plant';
+
+  @override
+  String get species_lore_fallback_story =>
+      'Every plant has its own little story, waiting for you to discover.';
 }

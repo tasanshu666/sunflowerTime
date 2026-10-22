@@ -182,14 +182,15 @@ void main() {
 
   // ── ⓪ plantCost 计价矩阵 ───────────────────────────────────────────────
   group('⓪ plantCost 计价（按物种档位，无首购切换）', () {
-    test('月光兰（精英）：plantCost 恒为碎片 10', () async {
+    test('月光兰（精英）：plantCost 恒为精英档碎片价（F144：10 → 20）', () async {
       final _Ctx ctx = _make();
       final PlantCost c =
           await ctx.svc.plantCost(_sp('species_moon_orchid'), AgeTier.low);
       expect(c.kind, PlantCostKind.fragments);
       expect(c.amount, kSpeciesFragmentCostPremium);
       // 即使已经种过（曾扣过碎片），价格仍为碎片，不存在「首购优惠」概念。
-      await ctx.bloomRewards.setPremiumFragmentBalance(20);
+      await ctx.bloomRewards.setPremiumFragmentBalance(
+          kSpeciesFragmentCostPremium + 5); // 充值额跟常量走（F144 调价免疫）
       await ctx.svc.plant('species_moon_orchid', 0, now);
       final PlantCost after =
           await ctx.svc.plantCost(_sp('species_moon_orchid'), AgeTier.low);
@@ -217,13 +218,15 @@ void main() {
   });
 
   // ── ① 月光兰（精英）扣碎片 ──────────────────────────────────────────────
-  group('① 月光兰（精英）扣 10 碎片', () {
-    test('碎片余额 -10、账本无 plant_plant；阳光余额不变', () async {
+  group('① 月光兰（精英）扣精英档碎片价（F144：10 → 20）', () {
+    test('扣一份碎片价、账本无 plant_plant；阳光余额不变', () async {
       final _Ctx ctx = _make();
-      await ctx.bloomRewards.setPremiumFragmentBalance(20);
+      await ctx.bloomRewards.setPremiumFragmentBalance(
+          kSpeciesFragmentCostPremium + 5); // 充值额跟常量走（F144 调价免疫）
       await ctx.svc.plant('species_moon_orchid', 0, now);
 
-      expect(await ctx.bloomRewards.premiumFragmentBalance(), 10);
+      expect(await ctx.bloomRewards.premiumFragmentBalance(), 5, // (P+5) - P
+          reason: '充值 P+5、扣 P，剩 5（P = kSpeciesFragmentCostPremium）');
       expect(ctx.ledger.entriesOf('plant_plant'), isEmpty,
           reason: '精英碎片物种不扣阳光');
       expect(await ctx.ledger.balance(), 1000000);
@@ -234,10 +237,11 @@ void main() {
   group('② 死亡全损（不退任何资源）', () {
     test('月光兰（精英）：枯萎→死亡 → 无 plant_death_refund 行、碎片余额不变', () async {
       final _Ctx ctx = _make();
-      await ctx.bloomRewards.setPremiumFragmentBalance(20);
-      final Plant p = await ctx.svc.plant('species_moon_orchid', 0, now); // -10
+      await ctx.bloomRewards.setPremiumFragmentBalance(
+          kSpeciesFragmentCostPremium + 5); // 充值额跟常量走（F144 调价免疫）
+      final Plant p = await ctx.svc.plant('species_moon_orchid', 0, now); // -15
       final int fragBefore = await ctx.bloomRewards.premiumFragmentBalance();
-      expect(fragBefore, 10);
+      expect(fragBefore, 5, reason: '(P+5) - P，P = kSpeciesFragmentCostPremium（F144 调价免疫）');
 
       // 构造「已枯萎满死亡阈值」→ tickAll 触发死亡（此前口径会退 120）。
       final Plant wilting = p.copyWith(
@@ -259,11 +263,13 @@ void main() {
 
     test('碎片物种：死亡不退碎片（碎片余额不变、无退款行）', () async {
       final _Ctx ctx = _make();
-      await ctx.bloomRewards.setPremiumFragmentBalance(20);
+      await ctx.bloomRewards.setPremiumFragmentBalance(
+          kSpeciesFragmentCostPremium + 5); // 充值额跟常量走（F144 调价免疫）
       final Plant p = await ctx.svc.plant('species_tomato', 0, now,
-          payWith: PlantCostKind.fragments); // -6 碎片
+          payWith: PlantCostKind.fragments); // -10 碎片（F144：6 → 10）
       final int fragBefore = await ctx.bloomRewards.premiumFragmentBalance();
-      expect(fragBefore, 14);
+      expect(fragBefore, kSpeciesFragmentCostPremium + 5 - kSpeciesFragmentCostCommon,
+          reason: '充值 P+5、种番茄（普通档）扣 C，剩 P+5−C（P=精英价 / C=普通价，调价免疫）');
 
       final Plant wilting = p.copyWith(
         status: PlantStatus.wilting,
@@ -281,18 +287,19 @@ void main() {
 
   // ── ③ 死亡后再种重扣 ────────────────────────────────────────────────────
   group('③ 死亡后再种（一次兑换买一株，死亡全损不退款）', () {
-    test('月光兰死亡后再种 → 重扣 10 碎片，plant_plant 无阳光记录', () async {
+    test('月光兰死亡后再种 → 重扣一份碎片价，plant_plant 无阳光记录', () async {
       final _Ctx ctx = _make();
-      await ctx.bloomRewards.setPremiumFragmentBalance(40);
-      final Plant p0 = await ctx.svc.plant('species_moon_orchid', 0, now); // -10
+      await ctx.bloomRewards
+          .setPremiumFragmentBalance(kSpeciesFragmentCostPremium * 2); // 充值 2P
+      final Plant p0 = await ctx.svc.plant('species_moon_orchid', 0, now); // -P
       await ctx.plants.savePlant(_withStatus(p0, PlantStatus.dead));
 
-      await ctx.svc.plant('species_moon_orchid', 0, now); // 重种 → -10
+      await ctx.svc.plant('species_moon_orchid', 0, now); // 重种 → -P
 
       expect(ctx.ledger.entriesOf('plant_plant'), isEmpty,
           reason: '精英碎片物种不扣阳光');
-      expect(await ctx.bloomRewards.premiumFragmentBalance(), 20,
-          reason: '死亡全损不退款，重种重新扣 10 碎片（40→30→20）');
+      expect(await ctx.bloomRewards.premiumFragmentBalance(), 0,
+          reason: '死亡全损不退款，重种重扣 P ⇒ 2P−P−P = 0（F144 调价免疫）');
     });
   });
 
@@ -310,13 +317,14 @@ void main() {
       expect(await ctx.bloomRewards.premiumFragmentBalance(), 0, reason: '种子支付不扣碎片');
       expect(await ctx.bloomRewards.unlockedSpeciesIds(), isEmpty, reason: '券被消耗');
 
-      // 死亡后再种 → 按档位碎片价（精英 10 碎片，无首购优惠概念）。
-      await ctx.bloomRewards.setPremiumFragmentBalance(20);
+      // 死亡后再种 → 按档位碎片价（精英档，无首购优惠概念；F144）。
+      await ctx.bloomRewards.setPremiumFragmentBalance(
+          kSpeciesFragmentCostPremium + 5); // 充值额跟常量走（F144 调价免疫）
       await ctx.plants.savePlant(_withStatus(p0, PlantStatus.dead));
       await ctx.svc.plant('species_moon_orchid', 0, now);
 
-      expect(await ctx.bloomRewards.premiumFragmentBalance(), 10,
-          reason: '重种按精英碎片价 10');
+      expect(await ctx.bloomRewards.premiumFragmentBalance(), 5,
+          reason: '重种按精英碎片价 P（(P+5) − P = 5，P = kSpeciesFragmentCostPremium）');
       expect(ctx.ledger.entriesOf('plant_plant'), isEmpty, reason: '精英不扣阳光');
     });
   });
@@ -333,16 +341,18 @@ void main() {
   });
 
   // ── ⑥ 番茄 / 草莓仍 6 碎片 ──────────────────────────────────────────────
-  group('⑥ 番茄 / 草莓仍 6 碎片（无券无首购逻辑）', () {
-    test('扣 6 碎片、不扣阳光', () async {
+  group('⑥ 番茄 / 草莓 = 10 碎片（无券无首购逻辑；F144：6 → 10）', () {
+    test('扣 10 碎片、不扣阳光', () async {
       for (final String id in <String>['species_tomato', 'species_strawberry']) {
         final _Ctx ctx = _make();
-        await ctx.bloomRewards.setPremiumFragmentBalance(20);
+        await ctx.bloomRewards
+            .setPremiumFragmentBalance(kSpeciesFragmentCostCommon * 2); // 充值 2C
         await ctx.svc.plant(id, 0, now, payWith: PlantCostKind.fragments);
         expect(ctx.ledger.entriesOf('plant_plant'), isEmpty,
             reason: '$id 不扣阳光');
-        expect(await ctx.bloomRewards.premiumFragmentBalance(), 14,
-            reason: '$id 扣 6 碎片');
+        expect(await ctx.bloomRewards.premiumFragmentBalance(),
+            kSpeciesFragmentCostCommon,
+            reason: '$id 扣 C 碎片（C = kSpeciesFragmentCostCommon，调价免疫）');
       }
     });
   });

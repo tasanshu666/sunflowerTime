@@ -59,23 +59,15 @@ int levelOfMinutes(double minutes) {
   return level;
 }
 
-/// 等级 → 称号：**当前称号 = 已解锁的最高称号节点**（40 级里只有 9 个节点）。
-///
-/// 🔑 正是这条让「Lv.7 的称号仍是**Lv.5 节点**的称号」成立（称号文案一律取自
-/// [kFocusLevelTitles]，本文件不写文案字面量）。
-/// 未解锁（`level < 1`）返回**空串**（UI 走未解锁态）；越界上钳到最高称号。
-String titleOfLevel(int level) {
-  if (level < 1) return '';
-  String title = '';
-  for (int i = 0; i < kFocusLevelTitleLevels.length; i++) {
-    if (level >= kFocusLevelTitleLevels[i]) {
-      title = kFocusLevelTitles[i];
-    }
-  }
-  return title;
-}
-
 /// 等级 → **已解锁的最高称号节点等级**（0 = 尚未解锁任何称号）。
+///
+/// 🔴 F144（i18n 补齐）：原 `titleOfLevel(level) → String` 已**删除** —— 它返回
+/// 中文文案（`kFocusLevelTitles`），英文模式下会把中文带上屏。现在本函数只给
+/// **纯语义的节点等级**，上屏文案统一由 `core/i18n/title_l10n.dart` 的
+/// `focusLevelTitleL10n(level, l10n)` 从 ARB 取（`0` ⇒ 空串 / 未解锁态文案）。
+///
+/// 返回值的「等级 → 节点」映射口径与删除前逐条一致：
+/// `0 → 0`、`1..4 → 1`、`5..9 → 5`、…、`40+ → 40`。
 int latestTitleNodeOfLevel(int level) {
   int node = kFocusLevelLocked;
   for (final int n in kFocusLevelTitleLevels) {
@@ -125,13 +117,14 @@ List<int> titleLevelsOf(List<int> levels) => <int>[
 /// [progress] / [minutesToNext] / [nextLevel] 一律**指向下一级**（不是下一个称号）：
 ///  · 未解锁（`level == 0`）：下一级 = Lv.1，进度 = `minutes / 60`；
 ///  · 满级：进度 1.0、[minutesToNext] 0、[nextLevel] null。
+///
+/// 🔴 F144：返回的 [FocusLevelProgress] **不含称号文案**（领域层零文案），
+/// UI 用 `focusLevelTitleL10n(progress.level, l10n)` 自行取。
 FocusLevelProgress progressOf(double totalMinutes) {
   final int level = levelOfMinutes(totalMinutes);
-  final String title = titleOfLevel(level);
   if (level >= kFocusLevelMaxLevel) {
     return FocusLevelProgress(
       level: level,
-      title: title,
       isLocked: false,
       isMax: true,
       progress: 1.0,
@@ -150,7 +143,6 @@ FocusLevelProgress progressOf(double totalMinutes) {
       (nextThreshold - totalMinutes).ceil().clamp(0, nextThreshold);
   return FocusLevelProgress(
     level: level,
-    title: title,
     isLocked: level == kFocusLevelLocked,
     isMax: false,
     progress: progress,
@@ -166,15 +158,15 @@ FocusLevelProgress progressOf(double totalMinutes) {
 ///  · `isCurrent` = 本节点 == [latestTitleNodeOfLevel]（当前称号 = 已解锁的**最高**
 ///    称号节点，C74 §3 —— Lv.7 时高亮的是 Lv.5 那一行）。
 ///
-/// 🔴 节点与文案一律取自 `kFocusLevelTitleLevels` / `kFocusLevelTitles`，本文件
-/// 不写字面量；列表长度恒 = 9（`kFocusLevelTitleLevels.length`）。
+/// 🔴 节点一律取自 `kFocusLevelTitleLevels`，本文件不写文案字面量；列表长度恒
+/// = 9（`kFocusLevelTitleLevels.length`）。F144 起每行的**文案**由 UI 经
+/// `focusLevelTitleRowL10n(row.level, l10n)` 取 ARB。
 List<FocusLevelTitleRow> titleRowsOfLevel(int level) {
   final int currentNode = latestTitleNodeOfLevel(level);
   return List<FocusLevelTitleRow>.unmodifiable(<FocusLevelTitleRow>[
     for (int i = 0; i < kFocusLevelTitleLevels.length; i++)
       FocusLevelTitleRow(
         level: kFocusLevelTitleLevels[i],
-        title: kFocusLevelTitles[i],
         unlocked: level >= kFocusLevelTitleLevels[i],
         isCurrent: kFocusLevelTitleLevels[i] == currentNode,
       ),

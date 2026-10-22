@@ -25,6 +25,7 @@ import 'package:sunflower_time/domain/services/account_service.dart'
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/child_profile.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
@@ -341,6 +342,162 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
     }
   }
 
+  // ── F144（E 返工）：阳光卡片的「先量宽、再让位」策略 ────────────────────────
+  /// 「阳光来源」文字按钮退化为图标按钮的**等效可用宽**阈值。
+  ///
+  /// 口径：`卡片内容可用宽 ÷ (uiScaleOf × max(1, textScaler))`
+  /// —— 把「设备更宽」（平板 `uiScaleOf` 1.3~1.6）与「用户调大字号」
+  /// （`textScaler` 1.3+）都折算回**手机基准字号**下的等效宽再比阈值，
+  /// 这样同一份布局在窄屏大字号与宽屏标准字号之间自动选对形态。
+  ///
+  /// 实测量值（真实装配，见 `test/m3/profile_balance_line_fit_test.dart` ⑥）：
+  ///  · 430×932 + zh + 1.0 → 366 ÷ 1.0 = 366 ≥ 220 ⇒ **不退化**（像素零变化）
+  ///  · 430×932 + en + 1.0 → 366 ÷ 1.0 = 366 ≥ 220 ⇒ 不退化（英文单行）
+  ///  · 320×568 + zh + 1.0 → 256 ÷ 1.0 = 256 ≥ 220 ⇒ 不退化（「来源」两字本短）
+  ///  · 320×568 + en + 1.3 → 256 ÷ 1.3 = 197 < 220 ⇒ **退化**
+  /// 阈值 220 落在 197 与 256 之间 ⇒ 两侧各留 ≥20pt 余量，临界档不抖动。
+  static const double _kSourceButtonCompactThreshold = 220;
+
+  /// 当前这一行是否要走**窄档**（「阳光来源」退化为纯图标按钮）。
+  ///
+  /// [contentWidth] 是 `LayoutBuilder` 给的行可用宽（卡片内边距之内）。
+  /// 无界宽（理论上不会，防御性处理）按宽档处理 —— 宽档是「信息更全」的形态。
+  bool _isCompactSourceRow(BuildContext context, double contentWidth) {
+    if (!contentWidth.isFinite) return false;
+    final double uiScale = uiScaleOf(context);
+    final double textScale = MediaQuery.textScalerOf(context).scale(1.0);
+    // 小于 1 的字号（用户调小）不参与折算：本策略只处理「被撑爆」的方向。
+    final double scale = uiScale * (textScale > 1.0 ? textScale : 1.0);
+    return contentWidth / scale < _kSourceButtonCompactThreshold;
+  }
+
+  /// 「阳光来源」入口（用户 2026-09-21 反馈 ③），两种形态**同一入口、同一语义**：
+  ///  · 宽档：[TextButton.icon]（18pt 图标 + 文案「来源」/「History」）；
+  ///  · 窄档（[compact]）：纯 [IconButton]（同图标 + `tooltip` 承载文案），
+  ///    释放约 60~110pt 宽度全部还给余额文案 ——
+  ///    大字号用户看到的是完整（或两行）的余额，而不是被压成 4.5% 的一行。
+  Widget _buildSunlightSourceButton(BuildContext context,
+      {required bool compact}) {
+    const Color accent = Color(0xFFD98F00);
+    void goHistory() => context.push('/child/sunlight-history');
+
+    if (compact) {
+      return IconButton(
+        key: const ValueKey<String>('child_profile_source_button'),
+        onPressed: goHistory,
+        // `tooltip` 同时是**无障碍语义**：读屏念「来源」/「History」，
+        // 且长按有浮层提示 ⇒ 不显示文字也不丢信息。
+        tooltip: _t.profile_source_label,
+        padding: EdgeInsets.zero,
+        // 44×44 是移动端最小可点区（Apple HIG）；比 48 更省宽，仍是安全值。
+        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        icon: const Icon(Icons.receipt_long, size: 18, color: accent),
+      );
+    }
+    return TextButton.icon(
+      key: const ValueKey<String>('child_profile_source_button'),
+      onPressed: goHistory,
+      icon: const Icon(Icons.receipt_long, size: 18),
+      label: Text(_t.profile_source_label),
+      style: TextButton.styleFrom(
+        foregroundColor: accent,
+        padding: EdgeInsets.zero,
+      ),
+    );
+  }
+
+  /// 阳光卡片头部一行：头像 +（昵称 / 阳光余额）+「阳光来源」入口。
+  ///
+  /// ## 宽度分配顺序（F144 · E 返工的核心）
+  ///  ① 头像（64）与「阳光来源」入口先定尺 —— 都是不可压的交互元素；
+  ///  ② [compactSource] 为 true 时入口退化成 44pt 纯图标按钮（`tooltip` 保语义），
+  ///     把省下的 60~110pt 宽度**还给文案**；
+  ///  ③ 剩余宽度给文案：最多 2 行、超出省略号，**字号恒 18**。
+  ///
+  /// 🔴 本行**不含任何缩放变换**：既没有 `FittedBox`，也不按宽度改 `fontSize`。
+  /// 系统大字号是用户的无障碍设置 —— 装不下就折第 2 行 / 省略号，
+  /// 绝不把字（和图标）一起等比缩小。
+  Widget _buildProfileHeaderRow(BuildContext context,
+      {required bool compactSource}) {
+    return Row(
+      children: <Widget>[
+        // C90-C：头像默认阳光；点按弹选择面板（阳光 + 已种植物种可选，
+        // 未种植置灰加锁可点提示）。稳定 Key 供测试定位。
+        GestureDetector(
+          key: const ValueKey<String>('child_avatar_tap'),
+          behavior: HitTestBehavior.opaque,
+          onTap: _openAvatarPicker,
+          child: ChildAvatarView(avatar: _childAvatar),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              // C91 修订（玄参）：只显示**昵称本身**，去掉「· 低年级 /
+              // 8 岁及以下」档位后缀（年龄段不是给孩子看的）。
+              // 昵称跟档案走，改名只在家长天地。
+              Flexible(
+                child: Text(
+                  _childName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 2),
+              // F144（E）：**☀ 从文案里拿出来**单独渲染成图 —— 旧实现
+              // `profile_balance_line` 带尾缀「 ☀」，在手机（左侧 64pt 头像 +
+              // 右侧「阳光来源」按钮，可用宽 ≈150pt）的英文模式下放不下，
+              // 「☀」被折到第三行。现改为「文案（maxLines 2 + ellipsis）+ 18pt
+              // 图标」：行总宽与旧版几乎不变（旧「 ☀」≈ 空格 4 + emoji 18 ≈
+              // 22pt，新 = 间距 4 + 图标 18 = 22pt）⇒ zh 零像素变化。
+              // 图标尺寸是「只随屏幕变大」的绝对尺寸 ⇒ 乘 uiScaleOf。
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  // 文案：宽度不够就折行（最多 2 行），再不够省略号。
+                  // `Flexible`（不是 `Expanded`）⇒ 文案短时行宽跟随自然宽，
+                  // 图标紧贴文字右缘，不往右边留白。
+                  Flexible(
+                    child: Text(
+                      _t.profile_balance_line(sunlightDisplayInt(_balance)),
+                      key: const ValueKey<String>('child_profile_balance_line'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  // 🔴 图标是**固定块**：`Row` 先给非 flex 子节点（间距 4 +
+                  // 图标 18×uiScaleOf）定尺，剩下的才给文案 ⇒ 图标永远不会
+                  // 被挤没、也不会跟着折行。
+                  Image.asset(
+                    'assets/rewards/sunlight.png',
+                    width: 18 * uiScaleOf(context),
+                    height: 18 * uiScaleOf(context),
+                    fit: BoxFit.contain,
+                    errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+                        Icon(Icons.wb_sunny, size: 18 * uiScaleOf(context)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        // 右上角标签 / 图标：点击进入阳光来源记录（用户 2026-09-21 反馈 ③）。
+        // F144（E 返工）：**可让的组件先让位** —— 极端窄档（320 宽 + en +
+        // 系统大字号）时，抢走文案宽度的是这个带文字的按钮（en「History」+
+        // 图标 ≈ 150pt），故先把它退化成纯图标按钮（`IconButton` + tooltip，
+        // 功能/语义不减），把宽度还给文案。
+        _buildSunlightSourceButton(context, compact: compactSource),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 经济修订号变化（浇水 / 扩容 / 施肥 / 兑换 / 成长打卡）→ 静默重拉本页。
@@ -375,56 +532,17 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
                 padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                 child: Column(
                   children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        // C90-C：头像默认阳光；点按弹选择面板（阳光 + 已种植物种可选，
-                        // 未种植置灰加锁可点提示）。稳定 Key 供测试定位。
-                        GestureDetector(
-                          key: const ValueKey<String>('child_avatar_tap'),
-                          behavior: HitTestBehavior.opaque,
-                          onTap: _openAvatarPicker,
-                          child: ChildAvatarView(avatar: _childAvatar),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              // C91 修订（玄参）：只显示**昵称本身**，去掉
-                              // 「· 低年级 / 8 岁及以下」档位后缀（年龄段不是给孩子
-                              // 看的）。昵称跟档案走，改名只在家长天地。
-                              Flexible(
-                                child: Text(
-                                  _childName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _t.profile_balance_line(sunlightDisplayInt(_balance)),
-                                style: const TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // 右上角标签：点击进入阳光来源记录（用户 2026-09-21 反馈 ③）。
-                        TextButton.icon(
-                          onPressed: () =>
-                              context.push('/child/sunlight-history'),
-                          icon: const Icon(Icons.receipt_long, size: 18),
-                          label: Text(_t.profile_source_label),
-                          style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFFD98F00),
-                            padding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ],
+                    // F144（E 返工）：**先量宽、再排版**。这一行里三个组件抢宽度
+                    // （头像 64 / 文案 / 「阳光来源」按钮），可让的只有按钮 ——
+                    // 量出卡片内容可用宽后，窄档把它退化成纯图标按钮
+                    // （口径见 [_isCompactSourceRow] / [_kSourceButtonCompactThreshold]）。
+                    LayoutBuilder(
+                      builder: (BuildContext _, BoxConstraints constraints) =>
+                          _buildProfileHeaderRow(
+                        context,
+                        compactSource:
+                            _isCompactSourceRow(context, constraints.maxWidth),
+                      ),
                     ),
                   ],
                 ),

@@ -191,10 +191,11 @@ void main() {
       expect(find.text('精英'), findsNWidgets(3), reason: '月光兰+珊瑚岭兰+翡翠绣球=精英档');
       expect(find.text('免费'), findsOneWidget, reason: '向日葵=免费');
       expect(find.text('300'), findsNWidgets(2), reason: '番茄/草莓=各 300 阳光档（C29）');
-      expect(find.text('6'), findsNWidgets(2), reason: '番茄/草莓=各 6 植物碎片档');
-      // 精英档（含月光兰，新计价仅碎片）各 10 植物碎片。
-      expect(find.text('10'), findsNWidgets(3),
-          reason: '3 精英（含月光兰）=各 10 植物碎片（2026-10-08 删星辰花/虹影蕨后 6 物种）');
+      // F144（玄参 2026-10-22 拍板）：普通碎片价 6 → **10**。
+      expect(find.text('10'), findsNWidgets(2), reason: '番茄/草莓=各 10 植物碎片档');
+      // 精英档（含月光兰，新计价仅碎片）各植物碎片；F144：10 → **20**。
+      expect(find.text('20'), findsNWidgets(3),
+          reason: '3 精英（含月光兰）=各 20 植物碎片（F144 拍板）');
 
       // 不得再出现旧的稀有度词。
       for (final String old in <String>['优良', '稀有', '传奇', '史诗']) {

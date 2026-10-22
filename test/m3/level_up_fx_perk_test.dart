@@ -22,10 +22,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/domain_text_l10n.dart';
+import 'package:sunflower_time/core/i18n/title_l10n.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
-import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/presentation/child/widgets/level_up_fx_overlay.dart';
 
@@ -103,7 +103,7 @@ void main() {
     expect(find.text(expected), findsOneWidget,
         reason: '追加行由 perkSummaryTextOf + 模板单点装配（不页面拼 9 种）');
     // 主文案仍是最高新称号。
-    expect(find.text('Lv.5 · ${titleOfLevel(5)}'), findsOneWidget);
+    expect(find.text('Lv.5 · ${focusLevelTitleL10n(5, AppLocalizationsZh())}'), findsOneWidget);
   });
 
   testWidgets('TC-36 普通升级 → **不出现**「本称号专属」行（无新称号，即使 perk 非空）',
@@ -123,7 +123,7 @@ void main() {
     await _pump(tester, _cross(), premium: true);
 
     // 主文案 = 最高新称号节点 Lv.25。
-    expect(find.text('Lv.25 · ${titleOfLevel(25)}'), findsOneWidget,
+    expect(find.text('Lv.25 · ${focusLevelTitleL10n(25, AppLocalizationsZh())}'), findsOneWidget,
         reason: '演出主文案取本轮最高新称号');
     // 追加行 = perkOfLevel(25)（≤Lv.25 的**全部**已解锁节点属性累积）摘要。
     final String expected = kLevelUpFxPerkTemplate.replaceAll(

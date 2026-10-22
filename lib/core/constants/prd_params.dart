@@ -400,8 +400,11 @@ const String kStarterSpeciesId = 'species_sunflower';
 /// 物种种植价 · 碎片 · **普通档**（番茄 / 草莓）。
 ///
 /// 玄参 2026-09-27 物种表改版：按物种计价，普通档物种在物种列表**直接兑换并种下**
-/// 需消耗 6 片精品碎片（取代原「满 8 片手动解锁精品物种」旧体系）。
-const int kSpeciesFragmentCostCommon = 6;
+/// 需消耗 10 片精品碎片（取代原「满 8 片手动解锁精品物种」旧体系）。
+///
+/// **F144（玄参 2026-10-22 拍板）**：6 → 10（普通）/ 10 → 20（精英）。价格只在
+/// 种下时扣，已种植物与铲除返还（按阳光 300 / 500 计价）不受影响。
+const int kSpeciesFragmentCostCommon = 10;
 
 /// 物种种植价 · 阳光 · **普通档**（番茄 / 草莓，含向日葵第 2 株起）。
 ///
@@ -415,9 +418,12 @@ const int kSpeciesSunlightCostCommon = 300;
 /// 物种种植价 · 碎片 · **精英档**（星辰花 / 虹影蕨 / 珊瑚岭兰 / 翡翠绣球 / 月光兰）。
 ///
 /// 玄参 2026-09-27 物种表改版 + 2026-09-28 计价模型：精英档（= `rare`，见
-/// `PlantSpecies.isPremium`）物种兑换**仅碎片**，需消耗 10 片精品碎片。
+/// `PlantSpecies.isPremium`）物种兑换**仅碎片**，需消耗 20 片精品碎片。
 /// 月光兰（精英）不再走阳光价（旧的 [kSpeciesMoonOrchidSunlightCost] 已废弃）。
-const int kSpeciesFragmentCostPremium = 10;
+///
+/// **F144（玄参 2026-10-22 拍板）**：6 → 10（普通）/ 10 → 20（精英）。价格只在
+/// 种下时扣，已种植物与铲除返还（按阳光 300 / 500 计价）不受影响。
+const int kSpeciesFragmentCostPremium = 20;
 
 // ── C29 铲除与一键操作（玄参 2026-10-05 拍板）──────────────────────────────
 
@@ -1290,7 +1296,8 @@ const int kChildTabBoundaryCheckSeconds = 60;
 // 口径（宪法级，见 `docs/口径裁定表_v1.md` C74）：
 //  ① 驱动量 = **累计有效专注分钟**，从 App 首用累计（老用户跳级，允许跨多级）；
 //  ② **40 级**门槛见 [kFocusLevelThresholdMinutes]；
-//  ③ **9 个称号**（每 5 级一个）见 [kFocusLevelTitleLevels] / [kFocusLevelTitles]；
+//  ③ **9 个称号**（每 5 级一个）见 [kFocusLevelTitleLevels]（文案见
+//     `core/i18n/title_l10n.dart`）；
 //  ④ **经济层删除（C78，2026-10-15 玄参拍板）**：9 个称号节点升级**只解锁专属
 //     属性、零阳光、零账本行**（废止原「阳光只在 9 个称号节点发、合计 102☀」）；
 //     升级演出照播；🔴 历史已发阳光**不追回**——账本 append-only，只停发、
@@ -1370,24 +1377,12 @@ const List<int> kFocusLevelThresholdMinutes = <int>[
   21900, // Lv.40 365h（满级）
 ];
 
-/// **称号解锁节点**（每 5 级一个，共 9 个；与 [kFocusLevelTitles] 一一对应）。
-const List<int> kFocusLevelTitleLevels = <int>[1, 5, 10, 15, 20, 25, 30, 35, 40];
-
-/// 称号文案（童话校园风，**索引与 [kFocusLevelTitleLevels] 一一对应**）。
+/// **称号解锁节点**（每 5 级一个，共 9 个；与 ARB 的 9 条 `shared_title_lv*` 一一对应）。
 ///
-/// 🔑 **等级与称号解耦**：40 级里只有 9 个称号节点，**当前称号 = 已解锁的最高称号节点**
-/// （如 Lv.7 → 仍是 Lv.5 的「专注小苗苗」），称号不随每一级变化。
-const List<String> kFocusLevelTitles = <String>[
-  '专注小萌芽', // Lv.1
-  '专注小苗苗', // Lv.5
-  '静心小书童', // Lv.10
-  '时光小卫士', // Lv.15
-  '专心小骑士', // Lv.20
-  '守时小星使', // Lv.25
-  '专注小法师', // Lv.30
-  '星辰守护者', // Lv.35
-  '时光大贤者', // Lv.40（满级）
-];
+/// 🔴 F144（i18n 补齐）：称号**文案**已迁出本文件 → `core/i18n/title_l10n.dart`
+/// 的 [focusLevelTitleL10n] / [focusLevelTitleRowL10n]（ARB key
+/// `shared_title_lv1` … `shared_title_lv40`）。本文件只留**纯语义**的节点等级表。
+const List<int> kFocusLevelTitleLevels = <int>[1, 5, 10, 15, 20, 25, 30, 35, 40];
 
 /// 阳光账本 refType（🔴 **值冻结，append-only**）。
 ///
@@ -1537,7 +1532,8 @@ const double kLevelBadgeTextGap = 3;
 
 /// 未解锁（累计 < 60 分钟）时称号位显示的一行文案。
 ///
-/// 徽章内的**唯一内联文案**，其余称号一律由 [kFocusLevelTitles] 派生。
+/// 徽章内的**唯一内联文案**，其余称号一律经 `core/i18n/title_l10n.dart` 从 ARB
+/// 的 9 条 `shared_title_lv*` 派生（F144 起本常量仅覆盖 zh 兜底口径）。
 const String kLevelBadgeLockedTitle = '尚未解锁称号';
 
 /// 整个徽章区的**最大宽度**（安全上界，超出则称号省略）。

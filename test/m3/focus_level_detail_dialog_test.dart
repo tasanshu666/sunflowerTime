@@ -70,6 +70,13 @@ Future<void> _openDetail(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// F144：9 条称号文案已迁 ARB（`core/i18n/title_l10n.dart` 的 `shared_title_lv*`）
+/// —— 测试侧保留一份 zh 宪法原文用于逐字节断言（迁移前是 `kFocusLevelTitles`）。
+const List<String> _zhTitles = <String>[
+  '专注小萌芽', '专注小苗苗', '静心小书童', '时光小卫士', '专心小骑士',
+  '守时小星使', '专注小法师', '星辰守护者', '时光大贤者',
+];
+
 void main() {
   testWidgets('① 点徽章 → 弹详情卡：含等级/称号/「距下一级还差 …」',
       (WidgetTester tester) async {
@@ -131,10 +138,10 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(FocusLevelDetailDialog.titleRowKeyOf(node)),
-          matching: find.text(kFocusLevelTitles[i]),
+          matching: find.text(_zhTitles[i]),
         ),
         findsOneWidget,
-        reason: 'Lv.$node 那一行必须显示「${kFocusLevelTitles[i]}」',
+        reason: 'Lv.$node 那一行必须显示「${_zhTitles[i]}」',
       );
     }
     // C81 ⑤：不再有 ✨ —— 当前称号行改用 **高亮底 + w800 加粗** 标示。
@@ -142,7 +149,7 @@ void main() {
       final int node = kFocusLevelTitleLevels[i];
       final Text titleText = tester.widget<Text>(find.descendant(
         of: find.byKey(FocusLevelDetailDialog.titleRowKeyOf(node)),
-        matching: find.text(kFocusLevelTitles[i]),
+        matching: find.text(_zhTitles[i]),
       ));
       final bool isCurrent = node == 5; // Lv.7 的当前称号节点 = Lv.5
       expect(titleText.style?.fontWeight,
@@ -174,7 +181,7 @@ void main() {
       final Rect pillRect = tester.getRect(pillFinder);
       final Rect titleRect = tester.getRect(find.descendant(
         of: find.byKey(FocusLevelDetailDialog.titleRowKeyOf(level)),
-        matching: find.text(kFocusLevelTitles[kFocusLevelTitleLevels.indexOf(level)]),
+        matching: find.text(_zhTitles[kFocusLevelTitleLevels.indexOf(level)]),
       ));
       expect(pillRect.left, greaterThan(titleRect.left),
           reason: 'Lv.$level 的属性徽章必须在称号文字之后（C78「说明移到称号后面」）');

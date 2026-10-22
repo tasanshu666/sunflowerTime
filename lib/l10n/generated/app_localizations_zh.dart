@@ -547,8 +547,8 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String garden_seed_decomposed(Object name, int count) {
-    return '重复的「$name」种子已分解为 $count 植物碎片';
+  String garden_seed_decomposed(int count, String rarity) {
+    return '重复的$rarity种子已分解为 $count 植物碎片';
   }
 
   @override
@@ -557,8 +557,8 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String garden_seed_dropped(Object name) {
-    return '掉落「$name」种子';
+  String garden_seed_dropped(String rarity) {
+    return '掉落$rarity种子';
   }
 
   @override
@@ -968,7 +968,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String profile_balance_line(int count) {
-    return '我的阳光：$count ☀';
+    return '我的阳光：$count';
   }
 
   @override
@@ -2835,4 +2835,79 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shared_default_child_name => '孩子';
+
+  @override
+  String get shared_title_lv1 => '专注小萌芽';
+
+  @override
+  String get shared_title_lv5 => '专注小苗苗';
+
+  @override
+  String get shared_title_lv10 => '静心小书童';
+
+  @override
+  String get shared_title_lv15 => '时光小卫士';
+
+  @override
+  String get shared_title_lv20 => '专心小骑士';
+
+  @override
+  String get shared_title_lv25 => '守时小星使';
+
+  @override
+  String get shared_title_lv30 => '专注小法师';
+
+  @override
+  String get shared_title_lv35 => '星辰守护者';
+
+  @override
+  String get shared_title_lv40 => '时光大贤者';
+
+  @override
+  String get species_lore_sunflower_intro => '跟着太阳转头的金脸盘';
+
+  @override
+  String get species_lore_sunflower_story =>
+      '小向日葵每天仰着头看太阳，太阳去哪儿它就看哪儿，慢慢就长出了金灿灿的圆脸盘，成了花园里最亮的小太阳。';
+
+  @override
+  String get species_lore_tomato_intro => '一串串红红的小灯笼';
+
+  @override
+  String get species_lore_tomato_story =>
+      '番茄小时候是绿色的，晒着晒着就害羞起来，脸越来越红，熟透了就像小灯笼一样挂在枝头。';
+
+  @override
+  String get species_lore_strawberry_intro => '带芝麻点的心形果子';
+
+  @override
+  String get species_lore_strawberry_story =>
+      '草莓身上布满了小芝麻——其实每粒「芝麻」都是一颗真正的小种子，一颗草莓能藏两百粒种子呢！';
+
+  @override
+  String get species_lore_moon_orchid_intro => '月光下才肯开放';
+
+  @override
+  String get species_lore_moon_orchid_story =>
+      '月光兰白天呼呼大睡，月亮升起才轻轻张开花瓣，把月光酿成淡淡的香气，陪小朋友甜甜入睡。';
+
+  @override
+  String get species_lore_coral_orchid_intro => '像海底珊瑚一样粉';
+
+  @override
+  String get species_lore_coral_orchid_story =>
+      '传说它是海里的珊瑚上岸做的梦，梦里开出了粉色的花，从此叶子间总藏着小海螺的悄悄话。';
+
+  @override
+  String get species_lore_jade_hydrangea_intro => '许多小花抱成一个大球';
+
+  @override
+  String get species_lore_jade_hydrangea_story =>
+      '翡翠绣球由几十朵小花手拉手抱成一团，风再大也吹不散，因为它相信：团结的花最漂亮。';
+
+  @override
+  String get species_lore_fallback_intro => '花园里的小植物';
+
+  @override
+  String get species_lore_fallback_story => '每种植物都有自己的小故事，等着你去发现哦。';
 }

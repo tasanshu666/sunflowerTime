@@ -21,6 +21,7 @@ import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/focus_level_store.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/core/i18n/domain_text_l10n.dart';
+import 'package:sunflower_time/core/i18n/title_l10n.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
@@ -171,6 +172,22 @@ FocusLevelService _service(
       clock: clock,
     );
 
+// ───────────────────────────────────────────────────────────────────────────
+// F144 · 称号文案已迁 ARB（`core/i18n/title_l10n.dart`）
+// ───────────────────────────────────────────────────────────────────────────
+
+/// C74 §3 的 9 条称号**宪法原文**（zh，逐字节）。
+const List<String> _zhTitles = <String>[
+  '专注小萌芽', '专注小苗苗', '静心小书童', '时光小卫士', '专心小骑士',
+  '守时小星使', '专注小法师', '星辰守护者', '时光大贤者',
+];
+
+/// 等级 → 称号（迁出 domain 后的等价取法：ARB 文案按「已解锁的最高节点」映射）。
+///
+/// `level < 1` → 空串（未解锁态）；`level > 40` → 满级称号，与原 `titleOfLevel`
+/// 的边界口径逐条一致。
+String _titleAt(int level) => focusLevelTitleL10n(level, AppLocalizationsZh());
+
 void main() {
   // ── TC-01 · 门槛边界 ────────────────────────────────────────────────────
   group('TC-01 门槛判定（40 级，Lv.1 = 60 分钟）', () {
@@ -244,32 +261,32 @@ void main() {
   // ── TC-03 · 称号映射与解耦 ──────────────────────────────────────────────
   group('TC-03 称号（9 个，每 5 级一个）与等级解耦', () {
     test('9 个称号节点文案逐条相等', () {
-      expect(kFocusLevelTitles.length, 9);
-      expect(titleOfLevel(1), '专注小萌芽');
-      expect(titleOfLevel(5), '专注小苗苗');
-      expect(titleOfLevel(10), '静心小书童');
-      expect(titleOfLevel(15), '时光小卫士');
-      expect(titleOfLevel(20), '专心小骑士');
-      expect(titleOfLevel(25), '守时小星使');
-      expect(titleOfLevel(30), '专注小法师');
-      expect(titleOfLevel(35), '星辰守护者');
-      expect(titleOfLevel(40), '时光大贤者');
+      expect(_zhTitles.length, 9);
+      expect(_titleAt(1), '专注小萌芽');
+      expect(_titleAt(5), '专注小苗苗');
+      expect(_titleAt(10), '静心小书童');
+      expect(_titleAt(15), '时光小卫士');
+      expect(_titleAt(20), '专心小骑士');
+      expect(_titleAt(25), '守时小星使');
+      expect(_titleAt(30), '专注小法师');
+      expect(_titleAt(35), '星辰守护者');
+      expect(_titleAt(40), '时光大贤者');
     });
 
     test('🔑 当前称号 = 已解锁的最高称号节点（Lv.7 仍是「专注小苗苗」）', () {
-      expect(titleOfLevel(2), '专注小萌芽');
-      expect(titleOfLevel(4), '专注小萌芽');
-      expect(titleOfLevel(7), '专注小苗苗');
-      expect(titleOfLevel(9), '专注小苗苗');
-      expect(titleOfLevel(14), '静心小书童');
-      expect(titleOfLevel(23), '专心小骑士');
-      expect(titleOfLevel(39), '星辰守护者');
+      expect(_titleAt(2), '专注小萌芽');
+      expect(_titleAt(4), '专注小萌芽');
+      expect(_titleAt(7), '专注小苗苗');
+      expect(_titleAt(9), '专注小苗苗');
+      expect(_titleAt(14), '静心小书童');
+      expect(_titleAt(23), '专心小骑士');
+      expect(_titleAt(39), '星辰守护者');
     });
 
     test('未解锁与越界：level<1 → 空串；level>40 → 上钳到最高称号', () {
-      expect(titleOfLevel(0), '');
-      expect(titleOfLevel(-5), '');
-      expect(titleOfLevel(99), '时光大贤者');
+      expect(_titleAt(0), '');
+      expect(_titleAt(-5), '');
+      expect(_titleAt(99), '时光大贤者');
     });
 
     test('latestTitleNodeOfLevel 返回已解锁的最高称号节点', () {
@@ -328,7 +345,7 @@ void main() {
       final FocusLevelProgress p = progressOf(30);
       expect(p.level, 0);
       expect(p.isLocked, isTrue);
-      expect(p.title, '');
+      expect(_titleAt(p.level), '');
       expect(p.nextLevel, 1);
       expect(p.minutesToNext, 30);
       expect(p.progress, closeTo(0.5, 0.001));
@@ -338,7 +355,7 @@ void main() {
     test('已解锁：进度指向下一级（不是下一个称号）', () {
       final FocusLevelProgress p = progressOf(480); // Lv.5
       expect(p.level, 5);
-      expect(p.title, '专注小苗苗');
+      expect(_titleAt(p.level), '专注小苗苗');
       expect(p.nextLevel, 6, reason: '下一级是 Lv.6，不是下一个称号节点 Lv.10');
       expect(p.minutesToNext, 180); // Lv.6 = 660 分钟
       expect(p.progress, 0.0);
@@ -348,7 +365,7 @@ void main() {
       final FocusLevelProgress p = progressOf(21900);
       expect(p.level, kFocusLevelMaxLevel);
       expect(p.isMax, isTrue);
-      expect(p.title, '时光大贤者');
+      expect(_titleAt(p.level), '时光大贤者');
       expect(p.minutesToNext, 0);
       expect(p.nextLevel, isNull);
       expect(p.progress, 1.0);
@@ -375,7 +392,8 @@ void main() {
       expect(rows.length, 9);
       for (int i = 0; i < kFocusLevelTitleLevels.length; i++) {
         expect(rows[i].level, kFocusLevelTitleLevels[i]);
-        expect(rows[i].title, kFocusLevelTitles[i]);
+        expect(focusLevelTitleRowL10n(rows[i].level, AppLocalizationsZh()),
+            _zhTitles[i]);
       }
     });
 
@@ -394,7 +412,7 @@ void main() {
       final FocusLevelTitleRow current =
           rows.firstWhere((FocusLevelTitleRow r) => r.isCurrent);
       expect(current.level, 5);
-      expect(current.title, '专注小苗苗');
+      expect(focusLevelTitleRowL10n(current.level, AppLocalizationsZh()), '专注小苗苗');
     });
 
     test('未解锁（level 0）：无一行 isCurrent，全部未解锁', () {
@@ -410,7 +428,7 @@ void main() {
       final FocusLevelTitleRow current =
           rows.firstWhere((FocusLevelTitleRow r) => r.isCurrent);
       expect(current.level, 40);
-      expect(current.title, '时光大贤者');
+      expect(focusLevelTitleRowL10n(current.level, AppLocalizationsZh()), '时光大贤者');
     });
 
     test('压线：Lv.5（480 分钟）→ 当前节点恰是 Lv.5 自己', () {

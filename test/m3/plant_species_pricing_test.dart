@@ -14,7 +14,7 @@
 ///  ⑦ **C29 可重复种植**：同物种可多株并存；向日葵第 2 株起扣 300 阳光；
 ///  ⑧ 死亡后再种 → 允许且**重新扣费**（一次兑换买一株）；
 ///  ⑨ 花园页「选择要种的植物」弹窗：稀有度两档（普通 / 精英）与价格文案渲染；
-///  ⑩ 种子券入口（玄参 2026-09-29；2026-10-03 徽章图片化）：持券物种徽章（分档种子图/🌰 回退 + 「种子」文字）+ 「用种子种（免费）」按钮置顶。
+///  ⑩ 种子券入口（玄参 2026-09-29；F147 废除名称行徽章，信息由 Seed 按钮承载）+ 「用种子种（免费）」按钮置顶。
 ///  ⑪ **C29 铲除返还**：付费/券种株按档位 50% 返还（普通 150 / 精英 250）、免费首株与死亡株返 0、账本 refType 冻结值。
 ///  ⑫ **C29 一键操作计划**：跳过不可浇 / 不可施株、合计扣费、护理目标含草+虫双条。
 ///
@@ -213,7 +213,7 @@ void main() {
       t.expect(c.amount, 0);
     });
 
-    t.test('月光兰（精英）→ 10 碎片（低 / 高年段同值）', () async {
+    t.test('月光兰（精英）→ 精英档碎片价（低 / 高年段同值，F144：10 → 20）', () async {
       t.expect(
         (await ctx.svc.plantCost(_sp('species_moon_orchid'), AgeTier.low)).kind,
         PlantCostKind.fragments,
@@ -238,7 +238,7 @@ void main() {
       }
     });
 
-    t.test('精英档（3 种）→ 10 碎片', () async {
+    t.test('精英档（3 种）→ 精英档碎片价（F144：10 → 20）', () async {
       for (final String id in <String>[
         'species_moon_orchid',
         'species_coral_orchid',
@@ -247,15 +247,17 @@ void main() {
         final PlantCost c = await ctx.svc.plantCost(_sp(id), AgeTier.low);
         t.expect(c.kind, PlantCostKind.fragments);
         t.expect(c.amount, kSpeciesFragmentCostPremium);
-        t.expect(c.amount, 10);
+        t.expect(c.amount, kSpeciesFragmentCostPremium,
+          reason: 'F144：精英碎片价 10 → 20');
       }
     });
 
     t.test('fragmentCostOf：初始物种为 0，其余按档位派生', () {
       t.expect(ctx.svc.fragmentCostOf(_sp(kStarterSpeciesId)), 0);
-      t.expect(ctx.svc.fragmentCostOf(_sp('species_tomato')), 6);
-      t.expect(ctx.svc.fragmentCostOf(_sp('species_moon_orchid')), 10,
-          reason: '月光兰为 rare（精英档），碎片价按档位派生为 10');
+      t.expect(ctx.svc.fragmentCostOf(_sp('species_tomato')), kSpeciesFragmentCostCommon,
+          reason: 'F144：普通档碎片价 6 → 10');
+      t.expect(ctx.svc.fragmentCostOf(_sp('species_moon_orchid')), kSpeciesFragmentCostPremium,
+          reason: '月光兰为 rare（精英档），碎片价按档位派生 = kSpeciesFragmentCostPremium（F144：10 → 20）');
     });
 
     t.test('物种表：恰 6 种、顺序 = 展示顺序、移除 daisy/cactus', () {
@@ -276,9 +278,47 @@ void main() {
       t.expect(ids.contains('species_daisy'), t.isFalse);
       t.expect(ids.contains('species_cactus'), t.isFalse);
     });
+    // ── F144 价格改版（玄参 2026-10-22 拍板）···
+    t.test('F144 价格常量：普通档碎片 10 / 精英档碎片 20（且两档不倒挂）', () {
+      // ① 两档具体值（6 → 10 / 10 → 20）。
+      t.expect(kSpeciesFragmentCostCommon, 10,
+          reason: 'F144：普通档碎片价 6 → 10');
+      t.expect(kSpeciesFragmentCostPremium, 20,
+          reason: 'F144：精英档碎片价 10 → 20');
+      // ② 防「两档倒挂」：精英必须严格贵于普通（否则档位失去意义）。
+      t.expect(kSpeciesFragmentCostCommon,
+          t.lessThan(kSpeciesFragmentCostPremium),
+          reason: '普通档碎片价必须严格小于精英档（防两档倒挂）');
+    });
+
+    t.test('F144 未改动的邻接常量：普通档阳光价仍 300 / 精英返还基准仍 500', () {
+      // ③ 本次只动碎片价，阳光价与铲除返还基准**一字不动**。
+      t.expect(kSpeciesSunlightCostCommon, 300,
+          reason: 'F144 不改阳光价（C29 修订后的 300 保持）');
+      t.expect(kSpeciesSunlightValuePremium, 500,
+          reason: 'F144 不改精英铲除返还基准（500）');
+      // 铲除返还仍是「档位价 × 50%」，与碎片价无关。
+      t.expect(kShovelRefundCommon, kSpeciesSunlightCostCommon * 0.5);
+      t.expect(kShovelRefundPremium, kSpeciesSunlightValuePremium * 0.5);
+    });
+
+    t.test('F144 派生自洽：plantPaymentOptions 的碎片项跟着常量走（不写死）', () async {
+      final _Ctx ctx = _make();
+      final List<PlantPaymentOption> common =
+          await ctx.svc.plantPaymentOptions(_sp('species_tomato'));
+      final PlantPaymentOption commonFrag = common
+          .firstWhere((PlantPaymentOption o) => o.kind == PlantCostKind.fragments);
+      t.expect(commonFrag.amount, kSpeciesFragmentCostCommon,
+          reason: '普通档碎片项必须等于常量（当前 10）');
+
+      final List<PlantPaymentOption> elite =
+          await ctx.svc.plantPaymentOptions(_sp('species_moon_orchid'));
+      t.expect(elite.first.kind, PlantCostKind.fragments);
+      t.expect(elite.first.amount, kSpeciesFragmentCostPremium,
+          reason: '精英档碎片项必须等于常量（当前 20）');
+    });
   });
 
-  // ── ②③④⑤ 种植收费 ────────────────────────────────────────────────────────
   t.group('②③④⑤ 种植收费（阳光 / 碎片）', () {
     final DateTime now = DateTime(2026, 9, 27, 8);
 
@@ -290,30 +330,37 @@ void main() {
       t.expect((await ctx.plants.plants()), t.hasLength(1));
     });
 
-    t.test('月光兰（精英）扣 10 碎片（不扣阳光，账本无 plant_plant）', () async {
+    t.test('月光兰（精英）扣精英档碎片价（不扣阳光，账本无 plant_plant）', () async {
       final _Ctx ctx = _make();
-      await ctx.bloomRewards.setPremiumFragmentBalance(20);
+      await ctx.bloomRewards
+          .setPremiumFragmentBalance(kSpeciesFragmentCostPremium * 2);
       await ctx.svc.plant('species_moon_orchid', 0, now);
-      t.expect(await ctx.bloomRewards.premiumFragmentBalance(), 10);
+      t.expect(await ctx.bloomRewards.premiumFragmentBalance(),
+          kSpeciesFragmentCostPremium,
+          reason: '充值两倍价 → 种一株剩一份（调价免疫）');
       t.expect(ctx.ledger.entriesOf('plant_plant'), t.isEmpty,
           reason: '精英碎片物种不扣阳光');
     });
 
-    t.test('精英物种扣 10 碎片', () async {
+    t.test('精英物种扣精英档碎片价（F144：10 → 20）', () async {
       final _Ctx ctx = _make();
-      await ctx.bloomRewards.setPremiumFragmentBalance(20);
+      await ctx.bloomRewards
+          .setPremiumFragmentBalance(kSpeciesFragmentCostPremium * 2);
       await ctx.svc.plant('species_jade_hydrangea', 0, now);
-      t.expect(await ctx.bloomRewards.premiumFragmentBalance(), 10);
+      t.expect(await ctx.bloomRewards.premiumFragmentBalance(),
+          kSpeciesFragmentCostPremium);
       t.expect(ctx.ledger.entriesOf('plant_plant'), t.isEmpty,
           reason: '碎片物种不扣阳光');
     });
 
-    t.test('普通物种扣 6 碎片', () async {
+    t.test('普通物种扣普通档碎片价（F144：6 → 10）', () async {
       final _Ctx ctx = _make();
-      await ctx.bloomRewards.setPremiumFragmentBalance(20);
+      await ctx.bloomRewards
+          .setPremiumFragmentBalance(kSpeciesFragmentCostCommon * 2);
       await ctx.svc.plant('species_tomato', 0, now,
           payWith: PlantCostKind.fragments);
-      t.expect(await ctx.bloomRewards.premiumFragmentBalance(), 14);
+      t.expect(await ctx.bloomRewards.premiumFragmentBalance(),
+          kSpeciesFragmentCostCommon);
     });
 
     t.test('碎片不足 → 拒绝且余额不变（不得为负）', () async {
@@ -399,7 +446,7 @@ void main() {
 
       final List<PlantPaymentOption> opts =
           await ctx.svc.plantPaymentOptions(_sp('species_tomato'));
-      t.expect(opts, t.hasLength(3), reason: '300 阳光 + 6 碎片 + 种子');
+      t.expect(opts, t.hasLength(3), reason: '300 阳光 + 10 碎片 + 种子');
       t.expect(opts[0].kind, PlantCostKind.sunlight);
       t.expect(opts[1].kind, PlantCostKind.fragments);
       t.expect(opts[2].kind, PlantCostKind.seed,
@@ -418,7 +465,7 @@ void main() {
       await ctx.bloomRewards.unlockSpecies('species_jade_hydrangea'); // 精英券
       final List<PlantPaymentOption> elite =
           await ctx.svc.plantPaymentOptions(_sp('species_jade_hydrangea'));
-      t.expect(elite, t.hasLength(2), reason: '10 碎片 + 种子');
+      t.expect(elite, t.hasLength(2), reason: '碎片项 + 种子项（F144）');
       t.expect(elite[0].kind, PlantCostKind.fragments);
       t.expect(elite[1].kind, PlantCostKind.seed);
 
@@ -491,21 +538,24 @@ void main() {
       t.expect(await ctx.plants.plants(), t.hasLength(3));
     });
 
-    t.test('死亡后同物种可再种：重种重新扣 10 碎片（一次兑换买一株，死亡全损不退款）',
+    t.test('死亡后同物种可再种：重种重新扣碎片价（一次兑换买一株，死亡全损不退款）',
         () async {
       final _Ctx ctx = _make();
-      await ctx.bloomRewards.setPremiumFragmentBalance(40);
-      final Plant p0 = await ctx.svc.plant('species_moon_orchid', 0, now); // -10
+      await ctx.bloomRewards
+          .setPremiumFragmentBalance(kSpeciesFragmentCostPremium * 2);
+      final Plant p0 =
+          await ctx.svc.plant('species_moon_orchid', 0, now); // -价（剩一份）
       // 置为死亡（全损：不退款）。
       await ctx.plants.savePlant(_withStatus(p0, PlantStatus.dead));
 
-      final Plant p1 = await ctx.svc.plant('species_moon_orchid', 0, now); // -10
+      final Plant p1 =
+          await ctx.svc.plant('species_moon_orchid', 0, now); // -价（再扣一次）
       t.expect(p1.id, t.isNot(p0.id));
 
       final List<SunlightEntry> spends = ctx.ledger.entriesOf('plant_plant');
       t.expect(spends, t.isEmpty, reason: '精英碎片物种不扣阳光');
-      t.expect(await ctx.bloomRewards.premiumFragmentBalance(), 20,
-          reason: '死亡全损不退款，重种重新扣 10 碎片（40→30→20）');
+      t.expect(await ctx.bloomRewards.premiumFragmentBalance(), 0,
+          reason: '死亡全损不退款，重种重新扣价（充值两倍价 → 两株后剩 0，调价免疫）');
       t.expect(await ctx.plants.plants(), t.hasLength(1),
           reason: '同花盆死亡残留已清理，仅剩新株');
     });
@@ -544,13 +594,15 @@ void main() {
 
     t.test('碎片种下的精英株 → 铲除返还 250（精英 500×50%，统一口径）', () async {
       final _Ctx ctx = _make();
-      await ctx.bloomRewards.setPremiumFragmentBalance(20);
+      await ctx.bloomRewards
+          .setPremiumFragmentBalance(kSpeciesFragmentCostPremium * 2);
       final Plant p = await ctx.svc.plant('species_moon_orchid', 0, now);
       t.expect(p.shovelRefund, kShovelRefundPremium);
       final int refund = await ctx.svc.shovel(p.id, now);
       t.expect(refund, 250, reason: '精英按阳光等价价 500×50%，与支付通道无关');
-      t.expect(await ctx.bloomRewards.premiumFragmentBalance(), 10,
-          reason: '碎片不返还（只返阳光）');
+      t.expect(await ctx.bloomRewards.premiumFragmentBalance(),
+          kSpeciesFragmentCostPremium,
+          reason: '碎片不返还（只返阳光）；充值两倍价 → 种一株剩一份（调价免疫）');
     });
 
     t.test('券种株 → 铲除按档位 50% 返还（玄参「统一」口径；2026-10-07 显式种子支付）', () async {
@@ -725,18 +777,21 @@ void main() {
       // 2026-10-05 玄参美化口径：价格=「素材图标 + 数字」，不再写「N 阳光」文字。
       t.expect(find.text('300'), findsWidgets,
           reason: '普通档二选一：阳光 300（C29 修订 400→300）');
-      t.expect(find.text('6'), findsWidgets,
-          reason: '普通档二选一：碎片 6');
-      t.expect(find.text('10'), findsWidgets, reason: '精英档：碎片 10');
+      // 🔴 上屏数字直接引用常量：价格再调也不会假红（F144：6 → 10 / 10 → 15）。
+      t.expect(find.text('$kSpeciesFragmentCostCommon'), findsWidgets,
+          reason: '普通档二选一：碎片价上屏 = kSpeciesFragmentCostCommon（F144：6 → 10）');
+      t.expect(find.text('$kSpeciesFragmentCostPremium'), findsWidgets,
+          reason: '精英档：碎片价上屏 = kSpeciesFragmentCostPremium（F144：10 → 20）');
       // 稀有度只显示两档：不应再出现旧的「优良 / 稀有」。
       t.expect(find.textContaining('优良'), findsNothing);
       t.expect(find.textContaining('稀有'), findsNothing);
     });
   });
 
-  // ── ⑩ 选种弹窗种子券入口（玄参 2026-09-29）：徽章 + 「用种子种（免费）」按钮 ──
-  t.group('⑩ 选种弹窗种子券入口（徽章 + 免费按钮置顶）', () {
-    testWidgets('持有番茄券 → 番茄卡片显示「🌰 种子」徽章 + 「用种子种（免费）」按钮',
+  // ── ⑩ 选种弹窗种子券入口（玄参 2026-09-29）：「用种子种（免费）」按钮；
+  //    名称行持券种子徽章已于 F147 废除（Seed 成第三支付方式后信息重复）──
+  t.group('⑩ 选种弹窗种子券入口（免费按钮置顶；徽章已废除）', () {
+    testWidgets('持有番茄券 → 种子按钮/计数 chip 正常，但名称行不得再有徽章（F147 废除）',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(360 * 3, 780 * 3);
       tester.view.devicePixelRatio = 3.0;
@@ -772,10 +827,10 @@ void main() {
       t.expect(sheetShown, t.isTrue);
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 种子徽章：仅番茄卡片有（其余 7 种无券）。2026-10-05 三修为**纯种子图标**
-      // （玄参「掉落了种子，也需要显示一个种子图标」；去掉了「种子」文字）。
-      // 2026-10-07 新口径：种子 = 第三支付方式且按档位判券 → **每个普通档物种卡**
-      // 都有「种子」按钮（内芯各 1 张普通种子图）+ 番茄卡徽章 1 + 计数 chip 1 → ≥4 处。
+      // F147（玄参 2026-10-22 拍板）：废除名称行右侧的持券种子徽章 —— Seed 已是
+      // 第三支付方式（每张普通卡底部绿胶囊按钮），徽章信息重复（玄参：
+      // 「普通标签的右边，怎么多出了一个种子图标？」）。普通种子图仍应出现
+      // （按钮内芯 + 计数 chip），但名称行里不得再有。
       t.expect(
         find.byWidgetPredicate((Widget w) =>
             w is Image &&
@@ -783,7 +838,25 @@ void main() {
             (w.image as AssetImage).assetName ==
                 'assets/rewards/seed_common.png'),
         findsWidgets,
-        reason: '番茄卡徽章 + 各普通卡种子按钮内芯 + 花园普通种子计数 chip',
+        reason: '各普通卡种子按钮内芯 + 花园普通种子计数 chip 仍在（与已废徽章无关）',
+      );
+      final Finder tomatoNameRow = find
+          .ancestor(
+            of: find.text('番茄'),
+            matching: find.byType(Row),
+          )
+          .first;
+      t.expect(
+        find.descendant(
+          of: tomatoNameRow,
+          matching: find.byWidgetPredicate((Widget w) =>
+              w is Image &&
+              w.image is AssetImage &&
+              (w.image as AssetImage).assetName ==
+                  'assets/rewards/seed_common.png'),
+        ),
+        findsNothing,
+        reason: 'F147：名称行右侧的持券种子徽章已废除（信息由 Seed 支付按钮承载）',
       );
       // 支付按钮（2026-10-07 新口径）：向日葵「免费」一 + 各普通物种「种子」按钮。
       t.expect(find.text('免费'), findsOneWidget, reason: '向日葵 = 免费');
@@ -791,7 +864,8 @@ void main() {
           reason: '各普通物种卡均有种子按钮（第三支付方式，文案精简）');
       // 付费按钮保留在后（阳光 / 碎片）。
       t.expect(find.text('300'), findsWidgets, reason: '阳光价=图标+数字');
-      t.expect(find.text('6'), findsWidgets, reason: '碎片价=图标+数字');
+      t.expect(find.text('$kSpeciesFragmentCostCommon'), findsWidgets,
+          reason: '碎片价=图标+数字（上屏 = kSpeciesFragmentCostCommon，F144）');
     });
   });
 

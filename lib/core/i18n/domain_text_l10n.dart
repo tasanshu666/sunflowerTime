@@ -16,6 +16,7 @@
 ///  · 周限「limit ≤ 0 → 不限；remaining ≤ 0 → null（隐藏）」原样保留。
 library domain_text_l10n;
 
+import 'package:sunflower_time/core/i18n/title_l10n.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
@@ -90,7 +91,9 @@ String formatDurationL10n(int minutes, AppLocalizations t) {
 /// UI 层禁止再重写一遍 duration 算式（S14）。
 String nextLevelGapTextL10n(FocusLevelProgress progress, AppLocalizations t) {
   if (progress.isMax) {
-    return t.shared_level_gap_max(progress.title);
+    // F144：`FocusLevelProgress.title` 已删（领域层零文案）→ 满级文案里的称号
+    // 改由本文件从 ARB 取（满级恒为 Lv.40 节点）。
+    return t.shared_level_gap_max(focusLevelTitleL10n(progress.level, t));
   }
   final int next = progress.nextLevel ?? progress.level + 1;
   return t.shared_level_gap_next(next, formatDurationL10n(progress.minutesToNext, t));

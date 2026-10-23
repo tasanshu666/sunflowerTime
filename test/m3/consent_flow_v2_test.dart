@@ -223,6 +223,18 @@ void main() {
           reason: '资产应随底稿 v2.0 重生成，含新增小节');
       expect(find.textContaining('附：待确认项汇总'), findsNothing,
           reason: '内部待办节不得进包');
+      // 2026-10-23 改名 + 排版整改（玄参反馈）：
+      expect(find.textContaining('小小葵番茄钟'), findsWidgets,
+          reason: '应用内政策资产应随底稿更名（小小葵番茄钟 / Tiny Bloom，正文多处出现）');
+      expect(find.textContaining('项：内容'), findsNothing,
+          reason: '表格表头行「项 | 内容」必须跳过不渲染');
+      expect(find.textContaining('包名'), findsNothing,
+          reason: '包名/Bundle ID 属内部技术信息，应用内不得出现');
+      expect(find.textContaining('com.sunflowertime', findRichText: true),
+          findsNothing,
+          reason: 'Bundle ID 不得出现（表格行走 Text.rich 渲染）');
+      expect(find.textContaining('应用名称：', findRichText: true), findsOneWidget,
+          reason: '§2 表格行应渲染为「项：值」形式');
     });
 
     testWidgets('en：切换界面语言后全文换英文', (WidgetTester tester) async {

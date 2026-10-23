@@ -1,7 +1,7 @@
 {
   "@@locale": "en",
-  "app_title": "SunFocus",
-  "consent_welcome_title": "Welcome to SunFocus",
+  "app_title": "Tiny Bloom",
+  "consent_welcome_title": "Welcome to Tiny Bloom",
   "consent_compliance_body": "· We only collect necessary data such as focus time and check-ins;\n· All data is encrypted and stays on this device, never uploaded;\n· No account, no ads, no social features; we never access contacts or location.",
   "consent_btn_agree": "Let's Start",
   "consent_btn_back_garden": "Back to Garden",
@@ -16,7 +16,7 @@
   "consent_btn_disagree": "Decline",
   "consent_view_policy": "View full privacy policy ›",
   "consent_decline_title": "Why is consent needed?",
-  "consent_decline_body": "All SunFocus data stays only on this device and is never uploaded to any server. We need your consent to this notice before the app can be used.\n\nYou can review the notice or the privacy policy again, or exit the app.",
+  "consent_decline_body": "All Tiny Bloom data stays only on this device and is never uploaded to any server. We need your consent to this notice before the app can be used.\n\nYou can review the notice or the privacy policy again, or exit the app.",
   "consent_decline_stay": "Reconsider",
   "consent_decline_exit": "Exit app",
   "consent_data_title": "What data lives in this app",

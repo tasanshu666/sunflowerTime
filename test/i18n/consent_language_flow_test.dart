@@ -50,7 +50,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('欢迎使用向日葵专注'), findsOneWidget);
+    expect(find.text('欢迎使用小小葵番茄钟'), findsOneWidget);
     expect(
       find.textContaining('我们只收集专注时长、打卡等必要数据'),
       findsOneWidget,
@@ -78,7 +78,7 @@ void main() {
     await tester.tap(find.text('English'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Welcome to SunFocus'), findsOneWidget);
+    expect(find.text('Welcome to Tiny Bloom'), findsOneWidget);
     expect(find.text("Let's Start"), findsOneWidget);
     expect(AppLocaleController.current.languageCode, 'en');
     expect(
@@ -108,7 +108,7 @@ void main() {
     await tester.tap(find.text('Follow System'));
     await tester.pumpAndSettle();
 
-    expect(find.text('欢迎使用向日葵专注'), findsOneWidget);
+    expect(find.text('欢迎使用小小葵番茄钟'), findsOneWidget);
     expect(AppLocaleController.current.languageCode, 'zh');
     expect(prefs.getString('app_language'), 'system');
   });

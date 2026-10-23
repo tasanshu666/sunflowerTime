@@ -31,17 +31,17 @@ OUT = DOCS / "隐私政策_发布版"
 ZH_SRC = DOCS / "隐私政策_向日葵专注_v1.md"
 EN_SRC = DOCS / "隐私政策_向日葵专注_v1_EN.md"
 
-# 底稿里的内部占位 → 对外表述
+# 底稿里的内部占位 → 对外表述（2026-10-23 应用更名后底稿已直接写最终名，以下多为兜底）
 ZH_REPLACEMENTS = [
-    ("【开发者实体名称占位】", "向日葵专注 SunFocus（个人开发者）"),
-    ("- 开发者实体名称 / 地址：【占位，上架前补全】", "- 开发者：向日葵专注 SunFocus（个人开发者）"),
+    ("【开发者实体名称占位】", "小小葵（个人开发者）"),
+    ("- 开发者实体名称 / 地址：【占位，上架前补全】", "- 开发者：小小葵（个人开发者）"),
     ("【待定】", "说明："),
     ("（待填）", ""),
 ]
 EN_REPLACEMENTS = [
-    ("【Developer legal entity name — placeholder】", "SunFocus (individual developer)"),
+    ("【Developer legal entity name — placeholder】", "Xiaoxiaokui (individual developer)"),
     ("- Developer legal entity name / address: 【placeholder — to be completed before launch】",
-     "- Developer: SunFocus (individual developer)"),
+     "- Developer: Xiaoxiaokui (individual developer)"),
     ("【TBD】", "Note:"),
     ("(TBD)", ""),
 ]
@@ -59,7 +59,7 @@ TEMPLATE = """<!DOCTYPE html>
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="src/assets/img/favicon-32.png">
 <meta property="og:type" content="article">
-<meta property="og:site_name" content="向日葵专注 SunFocus">
+<meta property="og:site_name" content="小小葵番茄钟 Tiny Bloom">
 <meta property="og:title" content="{title}">
 <meta property="og:description" content="{description}">
 <meta property="og:url" content="{canonical}">
@@ -149,7 +149,7 @@ TEMPLATE = """<!DOCTYPE html>
 <body>
 <div class="topbar">
   <div class="inner">
-    <a class="brand" href="https://sunfocused.cn/">向日葵专注 SunFocus</a>
+    <a class="brand" href="https://sunfocused.cn/">小小葵番茄钟</a>
     <span>{switcher}</span>
   </div>
 </div>
@@ -212,12 +212,12 @@ def main() -> None:
 
     zh = render(
         ZH_SRC, "zh-CN",
-        title="隐私政策｜向日葵专注 SunFocus",
-        description="向日葵专注 SunFocus 隐私政策：不联网、不收集个人信息，数据仅存本机。",
+        title="隐私政策｜小小葵番茄钟 Tiny Bloom",
+        description="小小葵番茄钟（Tiny Bloom）隐私政策：不联网、不收集个人信息，数据仅存本机。",
         canonical="https://sunfocused.cn/privacy.html",
         drop_heading="## 附：待确认项汇总",
         switcher='<a href="privacy-en.html" hreflang="en">English</a>',
-        footer='版本 v2.0 ｜ 生效日期 2026-10-23 ｜ 维护人 1007681634@qq.com<br>'
+        footer='版本 v2.0 ｜ 生效日期 2026-10-23 ｜ 开发者 小小葵 ｜ 1007681634@qq.com<br>'
                'English version: <a href="privacy-en.html">Privacy Policy (English)</a><br>'
                '<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">京ICP备2026070040号-1</a>',
         replacements=ZH_REPLACEMENTS,
@@ -226,12 +226,12 @@ def main() -> None:
 
     en = render(
         EN_SRC, "en",
-        title="Privacy Policy | SunFocus",
-        description="SunFocus privacy policy: offline by design, no personal data collected, everything stays on your device.",
+        title="Privacy Policy | Tiny Bloom",
+        description="Tiny Bloom privacy policy: offline by design, no personal data collected, everything stays on your device.",
         canonical="https://sunfocused.cn/privacy-en.html",
         drop_heading="## Open Items (to be confirmed)",
         switcher='<a href="privacy.html" hreflang="zh-Hans">简体中文</a>',
-        footer='Version v2.0 ｜ Effective 23 October 2026 ｜ Maintainer 1007681634@qq.com<br>'
+        footer='Version v2.0 ｜ Effective 23 October 2026 ｜ Developer Xiaoxiaokui ｜ 1007681634@qq.com<br>'
                '简体中文版：<a href="privacy.html">隐私政策（简体中文）</a><br>'
                '<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">京ICP备2026070040号-1</a>',
         replacements=EN_REPLACEMENTS,

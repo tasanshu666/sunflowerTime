@@ -1,0 +1,3 @@
+/* 桌面显示名（英文/默认）——2026-10-23 改名 Tiny Bloom（暂定，上架查重冲突再改） */
+CFBundleDisplayName = "Tiny Bloom";
+CFBundleName = "Tiny Bloom";

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 中文显示名（values-zh 覆盖简中/繁中设备；上线 App Store 前名称以 App Store Connect 后台为准） -->
+<resources>
+    <string name="app_name">小小葵番茄钟</string>
+</resources>

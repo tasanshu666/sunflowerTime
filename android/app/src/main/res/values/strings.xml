@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 应用显示名默认值（英文及其它语言）；中文走 values-zh。改名 2026-10-23 玄参拍板。 -->
+<resources>
+    <string name="app_name">Tiny Bloom</string>
+</resources>

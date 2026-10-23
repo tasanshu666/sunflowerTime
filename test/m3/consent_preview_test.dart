@@ -235,7 +235,7 @@ void main() {
       () => find.text('返回花园').evaluate().isNotEmpty,
     );
     expect(consentShown, isTrue, reason: '预览应打开欢迎/同意页（只读：按钮为「返回花园」）');
-    expect(find.text('欢迎使用向日葵专注'), findsOneWidget);
+    expect(find.text('欢迎使用小小葵番茄钟'), findsOneWidget);
     expect(find.text('同意并开始'), findsNothing,
         reason: '预览模式不得出现真实「同意并开始」主按钮');
 

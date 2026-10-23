@@ -101,13 +101,13 @@ abstract class AppLocalizations {
   /// No description provided for @app_title.
   ///
   /// In zh, this message translates to:
-  /// **'SunFocus 向日葵专注'**
+  /// **'小小葵番茄钟'**
   String get app_title;
 
   /// No description provided for @consent_welcome_title.
   ///
   /// In zh, this message translates to:
-  /// **'欢迎使用向日葵专注'**
+  /// **'欢迎使用小小葵番茄钟'**
   String get consent_welcome_title;
 
   /// No description provided for @consent_compliance_body.
@@ -155,7 +155,7 @@ abstract class AppLocalizations {
   /// No description provided for @consent_decline_body.
   ///
   /// In zh, this message translates to:
-  /// **'向日葵专注的所有数据都只保存在这台设备上，不会上传到任何服务器，我们需要您同意这份说明才能开始使用。\n\n您可以再看看说明或隐私政策，也可以选择退出应用。'**
+  /// **'小小葵番茄钟的所有数据都只保存在这台设备上，不会上传到任何服务器，我们需要您同意这份说明才能开始使用。\n\n您可以再看看说明或隐私政策，也可以选择退出应用。'**
   String get consent_decline_body;
 
   /// No description provided for @consent_decline_stay.

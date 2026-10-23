@@ -48,7 +48,7 @@ void main() {
       expect(tester.takeException(), isNull,
           reason: '${size.width.toInt()}×${size.height.toInt()} 首启页不得溢出');
 
-      expect(find.text('欢迎使用向日葵专注'), findsOneWidget);
+      expect(find.text('欢迎使用小小葵番茄钟'), findsOneWidget);
       // 合规文案一字不改（抽查首尾行）。
       expect(find.textContaining('我们只收集专注时长、打卡等必要数据'),
           findsOneWidget);

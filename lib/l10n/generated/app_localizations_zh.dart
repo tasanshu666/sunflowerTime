@@ -9,10 +9,10 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
-  String get app_title => 'SunFocus 向日葵专注';
+  String get app_title => '小小葵番茄钟';
 
   @override
-  String get consent_welcome_title => '欢迎使用向日葵专注';
+  String get consent_welcome_title => '欢迎使用小小葵番茄钟';
 
   @override
   String get consent_compliance_body =>
@@ -40,7 +40,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get consent_decline_body =>
-      '向日葵专注的所有数据都只保存在这台设备上，不会上传到任何服务器，我们需要您同意这份说明才能开始使用。\n\n您可以再看看说明或隐私政策，也可以选择退出应用。';
+      '小小葵番茄钟的所有数据都只保存在这台设备上，不会上传到任何服务器，我们需要您同意这份说明才能开始使用。\n\n您可以再看看说明或隐私政策，也可以选择退出应用。';
 
   @override
   String get consent_decline_stay => '再想想';

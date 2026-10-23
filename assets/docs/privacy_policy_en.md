@@ -1,4 +1,4 @@
-# SunFocus (向日葵专注) Privacy Policy
+# Tiny Bloom (小小葵番茄钟) Privacy Policy
 
 > **Version**: v2.0 ｜ **Effective date**: 23 October 2026 ｜ **Scope**: **Global users (overseas-first)**, launching on the Apple App Store (US region primary)
 > **Applicable laws**: GDPR (EU), COPPA (US, children under 13), Apple App Store Kids Category requirements; Google Play Families Policy applies when the Android version launches (see Section 11)
@@ -7,7 +7,7 @@
 
 ## 1. A Note for Parents and Kids
 
-SunFocus is a utility app that helps children practise calm focus: kids earn "sunshine" by completing focus timers, then use it to grow plants in a garden and redeem rewards set by their parents. **This is not a product that collects information about you**: we do not upload any of your data to servers we operate, and we do not track you in any way. (In-app purchases are processed by the app store — Apple on iOS — see Section 4.)
+Tiny Bloom (Chinese name 小小葵番茄钟) is a utility app that helps children practise calm focus: kids earn "sunshine" by completing focus timers, then use it to grow plants in a garden and redeem rewards set by their parents. **This is not a product that collects information about you**: we do not upload any of your data to servers we operate, and we do not track you in any way. (In-app purchases are processed by the app store — Apple on iOS — see Section 4.)
 
 - 👨‍👩‍👧 **For parents**: every piece of data your child creates in this app stays on your own phone. There is no account, no cloud, and nothing is sent to us or to any third party. The purchase feature is provided by the app store (Apple); we never see or store your payment information.
 - 🌻 **For kids**: this app will not ask for your name, your phone number, or where you live, and it will not send your information to anyone. Use it with peace of mind.
@@ -18,9 +18,8 @@ SunFocus is a utility app that helps children practise calm focus: kids earn "su
 
 | Item | Details |
 |---|---|
-| App name | SunFocus (向日葵专注) |
-| Bundle ID | `com.sunflowertime.app` |
-| Developer name | SunFocus (individual developer) |
+| App name | **Tiny Bloom** (English) / **小小葵番茄钟** (Chinese) |
+| Developer name | Xiaoxiaokui (小小葵, individual developer) |
 | Contact | 1007681634@qq.com |
 | Form | Standalone Flutter app: **no server we operate, no account system**; all data is stored on the device and is not uploaded (in-app purchase is settled by the app store — Apple on iOS — see Section 4) |
 
@@ -106,14 +105,14 @@ In accordance with the children's privacy laws applicable to the scope of this p
 
 - By default, the app **does not collect any children's personal information**.
 - Parents have the right to access, correct and delete local data — **the way to do this is to uninstall the app on the device**, which permanently deletes all data.
-- If you have questions about this policy, please contact the maintainer using the details below.
+- If you have questions about this policy, please contact the developer using the details below.
 
 ---
 
 ## 9. Contact Us
 
-- Maintainer email: **1007681634@qq.com**
-- Developer: SunFocus (individual developer)
+- Developer email: **1007681634@qq.com** (developer: Xiaoxiaokui, individual developer)
+- Developer name: **Xiaoxiaokui** (小小葵, individual developer; no separate business address)
 - Official website: **https://sunfocused.cn** (product information, updates and support)
 - Public URL of this privacy policy: **https://sunfocused.cn/privacy-en.html** (Simplified Chinese version: https://sunfocused.cn/privacy.html)
 
@@ -148,7 +147,7 @@ In accordance with the children's privacy laws applicable to the scope of this p
 - The app **does not collect or upload any personal data**. The developer does not carry out any processing of personal data as a controller, and there is no cross-border transfer of personal data: data created in the app always stays on your device.
 - Because the developer holds none of your personal data, you do **not** need to send the developer access / rectification / erasure requests in order to stay in full control — deleting the data on your device, or uninstalling the app, permanently deletes all local data (see Section 6).
 - The app sets no cookies or similar tracking technologies and uses no third-party analytics.
-- Note:If any data processing activity is added in future, an EU Representative will be appointed first and this section updated.
+- Note:If any data processing activity is added in future, an EU Representative will be appointed first and this section updated; the data controller is the **individual developer Xiaoxiaokui** (see Section 9).
 - Note:The specific implementation and wording of the **parent / guardian consent mechanism** (GDPR Article 8) is to be confirmed with legal counsel before it is added.
 
 ### 11.2 COPPA (US, children under 13)

@@ -1,7 +1,7 @@
 {
   "@@locale": "zh",
-  "app_title": "SunFocus 向日葵专注",
-  "consent_welcome_title": "欢迎使用向日葵专注",
+  "app_title": "小小葵番茄钟",
+  "consent_welcome_title": "欢迎使用小小葵番茄钟",
   "consent_compliance_body": "· 我们只收集专注时长、打卡等必要数据；\n· 全部数据加密存储在本机，不上传云端；\n· 无账号、无广告、无社交，不采集通讯录与位置。",
   "consent_btn_agree": "同意并开始",
   "consent_btn_back_garden": "返回花园",
@@ -16,7 +16,7 @@
   "consent_btn_disagree": "不同意",
   "consent_view_policy": "查看完整隐私政策 ›",
   "consent_decline_title": "为什么需要同意？",
-  "consent_decline_body": "向日葵专注的所有数据都只保存在这台设备上，不会上传到任何服务器，我们需要您同意这份说明才能开始使用。\n\n您可以再看看说明或隐私政策，也可以选择退出应用。",
+  "consent_decline_body": "小小葵番茄钟的所有数据都只保存在这台设备上，不会上传到任何服务器，我们需要您同意这份说明才能开始使用。\n\n您可以再看看说明或隐私政策，也可以选择退出应用。",
   "consent_decline_stay": "再想想",
   "consent_decline_exit": "退出应用",
   "consent_data_title": "这个应用里有哪些数据",

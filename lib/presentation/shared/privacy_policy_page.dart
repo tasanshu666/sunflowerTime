@@ -14,8 +14,8 @@
 ///
 /// ## 渲染策略（零新依赖）
 /// 不引入 markdown 包（`flutter_markdown` 已停止维护），内置轻量渲染器：
-/// 标题（#/##/###）· 引用块（>）· 列表（-）· 表格行（|…|，合并为「项：值」式
-/// 单行）· 分隔线（---）· 行内 `**加粗**` 与 `` `代码` ``。够用即可，政策底稿
+/// 标题（#/##/###）· 引用块（>）· 列表（-）· 表格行（|…|，两列渲染为「**项**：值」、
+/// 表头行自动跳过）· 分隔线（---）· 行内 `**加粗**` 与 `` `代码` ``。够用即可，政策底稿
 /// 的结构变化须回看本渲染器（新增语法不会自动生效）。
 library privacy_policy_page;
 
@@ -110,7 +110,8 @@ List<Widget> _renderMarkdown(String source) {
   final List<String> lines = source.split('\n');
   bool h1Skipped = false;
 
-  for (final String rawLine in lines) {
+  for (int idx = 0; idx < lines.length; idx++) {
+    final String rawLine = lines[idx];
     final String line = rawLine.trimRight();
     final String t = line.trim();
 
@@ -148,7 +149,16 @@ List<Widget> _renderMarkdown(String source) {
       continue;
     }
     if (t.startsWith('|')) {
-      // 表格行 → 合并为单行文本；分隔行（|---|---|）跳过。
+      // 表头行（下一非空行是 |---| 分隔行）→ 跳过：「项 | 内容」表头对读者无意义。
+      bool nextIsSeparator = false;
+      for (int j = idx + 1; j < lines.length; j++) {
+        final String nt = lines[j].trim();
+        if (nt.isEmpty) continue;
+        nextIsSeparator = RegExp(r'^\|[\s:\-|]+$').hasMatch(nt);
+        break;
+      }
+      if (nextIsSeparator) continue;
+      // 数据行 → 渲染为「项：值」；分隔行被空 cells 过滤自然跳过。
       final List<String> cells = t
           .split('|')
           .map((String c) => c.trim())
@@ -241,13 +251,23 @@ class _TableRowLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TextStyle base = DefaultTextStyle.of(context).style;
-    // 「项 | 内容」两列表为主 → 「项：内容」；多列 → 「 · 」连接。
-    final String joined = cells.length == 2
-        ? '${cells.first.replaceAll('**', '')}：${cells.last}'
-        : cells.map((String c) => c.replaceAll('**', '')).join(' · ');
+    // 「项 | 内容」两列表为主 → 「项：值」，项加粗；多列 → 「 · 」连接。
+    // 行内 `**加粗**` 全程走 _inlineSpans（曾只剥首格 `**` 导致值格星号裸露，F149）。
+    final TextStyle style = base.copyWith(fontSize: 13.5);
+    final List<InlineSpan> spans = <InlineSpan>[];
+    if (cells.length == 2) {
+      spans.addAll(_inlineSpans(cells.first, style.copyWith(fontWeight: FontWeight.bold)));
+      spans.add(TextSpan(text: '：', style: style));
+      spans.addAll(_inlineSpans(cells.last, style));
+    } else {
+      for (int i = 0; i < cells.length; i++) {
+        if (i > 0) spans.add(TextSpan(text: ' · ', style: style));
+        spans.addAll(_inlineSpans(cells[i], style));
+      }
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: Text(joined, style: base.copyWith(fontSize: 13.5)),
+      child: Text.rich(TextSpan(children: spans)),
     );
   }
 }

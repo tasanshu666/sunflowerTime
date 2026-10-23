@@ -16,7 +16,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
-import 'package:sunflower_time/core/constants/praise_phrases.dart';
+import 'package:sunflower_time/core/i18n/praise_l10n.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
@@ -141,8 +141,9 @@ class _SettlePageState extends ConsumerState<SettlePage>
   bool get _eyeCareBlocking =>
       (widget.args?.eyeCarePending ?? false) && !_eyeCareDone;
 
-  /// 本场随机夸奖语（C49）：进入结算页时抽一次，动画重建不换句。
-  late final String _praisePhrase = randomPraisePhrase();
+  /// 本场随机夸奖语下标（C49）：进入结算页时抽一次，动画重建不换句。
+  /// 字符串在 build 时经 `praisePhraseAt` 按 locale 取（B4 i18n 迁移）。
+  late final int _praiseIndex = randomPraiseIndex();
 
   /// 数字占位：护眼卡未收口时全部以「···」遮住。
   String _mask(String value) => _eyeCareBlocking ? '···' : value;
@@ -727,7 +728,7 @@ class _SettlePageState extends ConsumerState<SettlePage>
                 ),
                 const SizedBox(height: 16),
                 // 随机系统夸奖卡（C49：原「家长留言区」占位框，夸夸台裁撤后改随机话术）
-                _PraiseCard(phrase: _praisePhrase),
+                _PraiseCard(phrase: praisePhraseAt(_praiseIndex, l10n)),
                 const SizedBox(height: 16),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -794,7 +795,8 @@ class _StatRow extends StatelessWidget {
 
 /// 随机系统夸奖卡（C49 / 玄参 2026-10-10）：原「家长留言区（夸夸台接入后显示）」
 /// 占位框改为随机夸奖话术——结算页是孩子的正反馈高光时刻，保留鼓励位；
-/// 纯本地话术池（[kPraisePhrases]），无网络无依赖。句子由页面 State 抽定后传入，
+/// 纯本地话术池（ARB `praise_phrase_1..20`，经 `core/i18n/praise_l10n.dart`
+/// 取词，B4 i18n 迁移），无网络无依赖。下标由页面 State 抽定后传入，
 /// 动画重建不换句。
 class _PraiseCard extends StatelessWidget {
   final String phrase;

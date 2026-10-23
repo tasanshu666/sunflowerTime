@@ -5098,6 +5098,126 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'每种植物都有自己的小故事，等着你去发现哦。'**
   String get species_lore_fallback_story;
+
+  /// 结算页随机夸奖卡话术池 1/20（C49；B4 自 praise_phrases.dart 迁入）
+  ///
+  /// In zh, this message translates to:
+  /// **'真棒！你又专注地完成了一段时光！'**
+  String get praise_phrase_1;
+
+  /// No description provided for @praise_phrase_2.
+  ///
+  /// In zh, this message translates to:
+  /// **'太厉害了，向日葵为你开心！'**
+  String get praise_phrase_2;
+
+  /// No description provided for @praise_phrase_3.
+  ///
+  /// In zh, this message translates to:
+  /// **'你的专注力又变强了一点点！'**
+  String get praise_phrase_3;
+
+  /// No description provided for @praise_phrase_4.
+  ///
+  /// In zh, this message translates to:
+  /// **'坚持就是超能力，你做到了！'**
+  String get praise_phrase_4;
+
+  /// No description provided for @praise_phrase_5.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天也是闪闪发光的一天！'**
+  String get praise_phrase_5;
+
+  /// No description provided for @praise_phrase_6.
+  ///
+  /// In zh, this message translates to:
+  /// **'了不起！离满罐阳光又近了一步！'**
+  String get praise_phrase_6;
+
+  /// No description provided for @praise_phrase_7.
+  ///
+  /// In zh, this message translates to:
+  /// **'你认真起来的样子真好看！'**
+  String get praise_phrase_7;
+
+  /// No description provided for @praise_phrase_8.
+  ///
+  /// In zh, this message translates to:
+  /// **'每一次专注，都让你更棒！'**
+  String get praise_phrase_8;
+
+  /// No description provided for @praise_phrase_9.
+  ///
+  /// In zh, this message translates to:
+  /// **'向日葵说：谢谢你陪我一起努力！'**
+  String get praise_phrase_9;
+
+  /// No description provided for @praise_phrase_10.
+  ///
+  /// In zh, this message translates to:
+  /// **'哇，你比昨天更专注了！'**
+  String get praise_phrase_10;
+
+  /// No description provided for @praise_phrase_11.
+  ///
+  /// In zh, this message translates to:
+  /// **'小小的坚持，大大的成长！'**
+  String get praise_phrase_11;
+
+  /// No description provided for @praise_phrase_12.
+  ///
+  /// In zh, this message translates to:
+  /// **'你是最棒的小太阳！'**
+  String get praise_phrase_12;
+
+  /// No description provided for @praise_phrase_13.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成得真好，给自己一个大大的赞吧！'**
+  String get praise_phrase_13;
+
+  /// No description provided for @praise_phrase_14.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注的时刻，就是你发光的时刻！'**
+  String get praise_phrase_14;
+
+  /// No description provided for @praise_phrase_15.
+  ///
+  /// In zh, this message translates to:
+  /// **'又收获一份阳光，继续加油哦！'**
+  String get praise_phrase_15;
+
+  /// No description provided for @praise_phrase_16.
+  ///
+  /// In zh, this message translates to:
+  /// **'又完成了一次专注挑战，真了不起！'**
+  String get praise_phrase_16;
+
+  /// No description provided for @praise_phrase_17.
+  ///
+  /// In zh, this message translates to:
+  /// **'你的努力，向日葵都看在眼里啦！'**
+  String get praise_phrase_17;
+
+  /// No description provided for @praise_phrase_18.
+  ///
+  /// In zh, this message translates to:
+  /// **'棒极了！明天也要一起加油呀！'**
+  String get praise_phrase_18;
+
+  /// No description provided for @praise_phrase_19.
+  ///
+  /// In zh, this message translates to:
+  /// **'每一分专注，都会开出美丽的花！'**
+  String get praise_phrase_19;
+
+  /// No description provided for @praise_phrase_20.
+  ///
+  /// In zh, this message translates to:
+  /// **'你专注的样子，比阳光还耀眼！'**
+  String get praise_phrase_20;
 }
 
 class _AppLocalizationsDelegate

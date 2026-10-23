@@ -2958,4 +2958,64 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get species_lore_fallback_story => '每种植物都有自己的小故事，等着你去发现哦。';
+
+  @override
+  String get praise_phrase_1 => '真棒！你又专注地完成了一段时光！';
+
+  @override
+  String get praise_phrase_2 => '太厉害了，向日葵为你开心！';
+
+  @override
+  String get praise_phrase_3 => '你的专注力又变强了一点点！';
+
+  @override
+  String get praise_phrase_4 => '坚持就是超能力，你做到了！';
+
+  @override
+  String get praise_phrase_5 => '今天也是闪闪发光的一天！';
+
+  @override
+  String get praise_phrase_6 => '了不起！离满罐阳光又近了一步！';
+
+  @override
+  String get praise_phrase_7 => '你认真起来的样子真好看！';
+
+  @override
+  String get praise_phrase_8 => '每一次专注，都让你更棒！';
+
+  @override
+  String get praise_phrase_9 => '向日葵说：谢谢你陪我一起努力！';
+
+  @override
+  String get praise_phrase_10 => '哇，你比昨天更专注了！';
+
+  @override
+  String get praise_phrase_11 => '小小的坚持，大大的成长！';
+
+  @override
+  String get praise_phrase_12 => '你是最棒的小太阳！';
+
+  @override
+  String get praise_phrase_13 => '完成得真好，给自己一个大大的赞吧！';
+
+  @override
+  String get praise_phrase_14 => '专注的时刻，就是你发光的时刻！';
+
+  @override
+  String get praise_phrase_15 => '又收获一份阳光，继续加油哦！';
+
+  @override
+  String get praise_phrase_16 => '又完成了一次专注挑战，真了不起！';
+
+  @override
+  String get praise_phrase_17 => '你的努力，向日葵都看在眼里啦！';
+
+  @override
+  String get praise_phrase_18 => '棒极了！明天也要一起加油呀！';
+
+  @override
+  String get praise_phrase_19 => '每一分专注，都会开出美丽的花！';
+
+  @override
+  String get praise_phrase_20 => '你专注的样子，比阳光还耀眼！';
 }

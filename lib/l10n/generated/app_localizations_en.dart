@@ -3025,4 +3025,72 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get species_lore_fallback_story =>
       'Every plant has its own little story, waiting for you to discover.';
+
+  @override
+  String get praise_phrase_1 =>
+      'Awesome! You just focused through a whole stretch of time!';
+
+  @override
+  String get praise_phrase_2 => 'Amazing! Your sunflower is so happy for you!';
+
+  @override
+  String get praise_phrase_3 =>
+      'Your focus power just got a little bit stronger!';
+
+  @override
+  String get praise_phrase_4 =>
+      'Sticking with it is a superpower — and you did it!';
+
+  @override
+  String get praise_phrase_5 => 'Today is another sparkling day!';
+
+  @override
+  String get praise_phrase_6 =>
+      'Way to go! One step closer to a full jar of sunlight!';
+
+  @override
+  String get praise_phrase_7 => 'You look so cool when you concentrate!';
+
+  @override
+  String get praise_phrase_8 => 'Every focus time makes you even more awesome!';
+
+  @override
+  String get praise_phrase_9 =>
+      'The sunflower says: thanks for working hard with me!';
+
+  @override
+  String get praise_phrase_10 => 'Wow, you focused even better than yesterday!';
+
+  @override
+  String get praise_phrase_11 => 'Small efforts, big growth!';
+
+  @override
+  String get praise_phrase_12 => 'You\'re the best little sunshine ever!';
+
+  @override
+  String get praise_phrase_13 =>
+      'Well done! Give yourself a great big thumbs-up!';
+
+  @override
+  String get praise_phrase_14 => 'When you focus, that\'s when you shine!';
+
+  @override
+  String get praise_phrase_15 => 'More sunlight earned — keep it up!';
+
+  @override
+  String get praise_phrase_16 =>
+      'Another focus challenge done — you\'re amazing!';
+
+  @override
+  String get praise_phrase_17 => 'Your sunflower sees all your hard work!';
+
+  @override
+  String get praise_phrase_18 => 'Fantastic! Let\'s shine again tomorrow!';
+
+  @override
+  String get praise_phrase_19 => 'Every bit of focus helps a flower bloom!';
+
+  @override
+  String get praise_phrase_20 =>
+      'You shine brighter than the sun when you focus!';
 }

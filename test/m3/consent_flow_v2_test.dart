@@ -199,7 +199,7 @@ void main() {
 
   group('PrivacyPolicyPage · 应用内政策全文', () {
     /// 页面是 ConsumerWidget（watch 语言 provider）→ 宿主必须挂 ProviderScope。
-    Future<void> _pumpPolicy(WidgetTester tester, SharedPreferences prefs) async {
+    Future<void> pumpPolicy(WidgetTester tester, SharedPreferences prefs) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: <Override>[
@@ -214,7 +214,7 @@ void main() {
     testWidgets('zh：标题 + 章节齐全（含 10.3 重新确认机制）',
         (WidgetTester tester) async {
       final SharedPreferences prefs = await _mockPrefs();
-      await _pumpPolicy(tester, prefs);
+      await pumpPolicy(tester, prefs);
 
       expect(find.text('隐私政策'), findsOneWidget);
       expect(find.text('一、写给家长和小朋友的话（双读者说明）'), findsOneWidget);
@@ -228,7 +228,7 @@ void main() {
     testWidgets('en：切换界面语言后全文换英文', (WidgetTester tester) async {
       final SharedPreferences prefs = await _mockPrefs();
       AppLocaleController.init(AppLanguage.en);
-      await _pumpPolicy(tester, prefs);
+      await pumpPolicy(tester, prefs);
 
       expect(find.text('Privacy Policy'), findsOneWidget);
       expect(find.text('1. A Note for Parents and Kids'), findsOneWidget);
@@ -278,6 +278,50 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('policy-probe')), findsOneWidget,
           reason: '设置页入口必须真实跳到政策全文页（组件在树上≠接线成功）');
+    });
+  });
+
+  group('预览模式 · C110-F1（玄参目验：预览页政策入口点了没响应）', () {
+    testWidgets('预览页「查看完整隐私政策」可点 → 真实跳政策全文页，零状态写入',
+        (WidgetTester tester) async {
+      final SharedPreferences prefs = await _mockPrefs();
+      final GoRouter router = GoRouter(
+        initialLocation: '/consent-preview',
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/consent-preview',
+            builder: (_, __) => const ConsentPage(preview: true),
+          ),
+          GoRoute(
+            path: '/privacy-policy',
+            builder: (_, __) => const PrivacyPolicyPage(),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('返回花园'), findsOneWidget,
+          reason: '确认处于预览模式（单按钮「返回花园」）');
+      // 政策入口在卡内滚动区底部，测试视口（800×600）外 → 先滚入可见区再点。
+      await tester.ensureVisible(find.byKey(kConsentViewPolicyKey));
+      await tester.pump();
+      await tester.tap(find.byKey(kConsentViewPolicyKey));
+      // 🔴 不用 pumpAndSettle：GoRouter 异步守卫（读 SP 的 Future）在 FakeAsync 下
+      // 每帧重触发 rebuild → settle 永不完成；固定泵两帧（跳转 + 政策页 FutureBuilder 加载）。
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('隐私政策'), findsOneWidget,
+          reason: '预览模式下政策入口同样必须可跳转（曾 onPressed: null 被禁用）');
+      expect(await SettingsStore(prefs).consentedPolicyVersion(), 0,
+          reason: '预览 + 查看政策全程零状态写入');
     });
   });
 }

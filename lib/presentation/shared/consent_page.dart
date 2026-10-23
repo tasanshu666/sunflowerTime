@@ -160,11 +160,10 @@ class ConsentPage extends ConsumerWidget {
                       _DataInventory(l10n: l10n),
                       const SizedBox(height: 8),
                       // ── 条款应用内入口：政策全文页（双向免同意守卫）────────
+                      // 预览模式同样可点（C110-F1：玄参目验要预览政策页整改效果）。
                       TextButton(
                         key: kConsentViewPolicyKey,
-                        onPressed: preview
-                            ? null
-                            : () => context.push('/privacy-policy'),
+                        onPressed: () => context.push('/privacy-policy'),
                         child: Text(
                           l10n.consent_view_policy,
                           style: const TextStyle(color: _kBrown),

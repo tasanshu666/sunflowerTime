@@ -2093,8 +2093,8 @@ abstract class AppLocalizations {
   /// No description provided for @ghelp_earn_detail.
   ///
   /// In zh, this message translates to:
-  /// **'白天专注就能挣阳光：每分钟 +{perMinute} ☀；\n完成成长任务打卡，每项还 +{taskReward} ☀。'**
-  String ghelp_earn_detail(int perMinute, int taskReward);
+  /// **'白天专注就能挣阳光：每分钟 +{perMinute} ☀；\n完成成长任务打卡，还能获得额外的阳光（按专注时长算）；\n认真做完护眼休息，也有 +{eyeCare} ☀。'**
+  String ghelp_earn_detail(int perMinute, int eyeCare);
 
   /// No description provided for @ghelp_use_title.
   ///
@@ -2105,8 +2105,9 @@ abstract class AppLocalizations {
   /// No description provided for @ghelp_use_detail.
   ///
   /// In zh, this message translates to:
-  /// **'在花园种植物（点空花盆选一株，花 ☀ 种下）；\n给植物浇水 {waterCost} ☀/次起、施肥 {fertCost} ☀/次起；\n也可以去「商店」兑换喜欢的奖励。'**
-  String ghelp_use_detail(int waterCost, int fertCost);
+  /// **'在花园种植物（点空花盆选一株）：普通植物花 {sunCost} ☀ 或 {fragmentCost} 片碎片；\n给植物浇水 {waterCost} ☀/次起、施肥 {fertCost} ☀/次起；\n不要的植物铲掉，能拿回一半阳光；\n也可以去「商店」兑换喜欢的奖励。'**
+  String ghelp_use_detail(
+      int sunCost, int fragmentCost, int waterCost, int fertCost);
 
   /// No description provided for @ghelp_grow_title.
   ///
@@ -2130,8 +2131,9 @@ abstract class AppLocalizations {
   /// No description provided for @ghelp_wilt_detail.
   ///
   /// In zh, this message translates to:
-  /// **'浇水或施肥能刷新计时；{wiltDays} 天没浇水就会枯萎，\n枯萎后再拖 {deathDays} 天就会枯死。记得常来看看它 🌱'**
-  String ghelp_wilt_detail(int wiltDays, int deathDays);
+  /// **'浇水或施肥能刷新计时；{wiltDays} 天没浇水就会枯萎，\n枯萎后再拖 {deathDays} 天就会枯死；枯萎了也别怕，\n{hardDays} 天内浇浇水就能救回来，拖久了要多浇 {hardWater} 次、\n再施 {hardFert} 次肥。记得常来看看它 🌱'**
+  String ghelp_wilt_detail(
+      int wiltDays, int deathDays, int hardDays, int hardWater, int hardFert);
 
   /// No description provided for @ghelp_task_title.
   ///
@@ -2142,8 +2144,44 @@ abstract class AppLocalizations {
   /// No description provided for @ghelp_task_detail.
   ///
   /// In zh, this message translates to:
-  /// **'成长任务有两种：\n「开始专注」的任务，达标后自动结算阳光；\n「我做到了」的任务，先记成「等家长确认」，\n爸爸妈妈核销通过后，阳光才真正到账。'**
+  /// **'成长任务有两种：\n「开始专注」的任务，达标后自动结算阳光；\n提前结束时，会按实际专注的时间发一部分阳光，也算完成；\n「我做到了」的任务，先记成「等家长确认」，\n爸爸妈妈核销通过后，阳光才真正到账。'**
   String get ghelp_task_detail;
+
+  /// No description provided for @ghelp_bloom_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'开花的小惊喜'**
+  String get ghelp_bloom_title;
+
+  /// No description provided for @ghelp_bloom_detail.
+  ///
+  /// In zh, this message translates to:
+  /// **'开花瞬间就有惊喜：至少 +{instantSun} ☀，还可能掉大额阳光、\n精品碎片或本物种的种子；\n花期内每天早上都会掉一份晨露奖励，\n前一天浇过水或施过肥就拿得更多，记得来收 🌸'**
+  String ghelp_bloom_detail(int instantSun);
+
+  /// No description provided for @ghelp_weed_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'杂草和害虫'**
+  String get ghelp_weed_title;
+
+  /// No description provided for @ghelp_weed_detail.
+  ///
+  /// In zh, this message translates to:
+  /// **'花园里偶尔会长杂草、来小害虫，点一点就能除掉；\n除草 +{weedReward} ☀、除虫 +{pestReward} ☀，除完花园更清爽。'**
+  String ghelp_weed_detail(int weedReward, int pestReward);
+
+  /// No description provided for @ghelp_seed_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'种子和碎片'**
+  String get ghelp_seed_title;
+
+  /// No description provided for @ghelp_seed_detail.
+  ///
+  /// In zh, this message translates to:
+  /// **'开花还会掉本物种的种子和精品碎片：\n种子可以在种下时直接当「钱」用，重复的会自动变成碎片；\n精英植物要攒 {fragmentPremium} 片碎片才能种。'**
+  String ghelp_seed_detail(int fragmentPremium);
 
   /// No description provided for @ghelp_capacity_title.
   ///
@@ -4068,7 +4106,7 @@ abstract class AppLocalizations {
   /// No description provided for @parent_premium_hero_subtitle.
   ///
   /// In zh, this message translates to:
-  /// **'一次买断 · 永久解锁，陪孩子一起专注成长'**
+  /// **'一次买断，孩子的专注花园终身盛开'**
   String get parent_premium_hero_subtitle;
 
   /// No description provided for @parent_premium_pill_unlocked.
@@ -4088,6 +4126,42 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'一次买断 · 永久'**
   String get parent_premium_gold_pill;
+
+  /// No description provided for @parent_premium_scene_garden_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'花园更宽敞'**
+  String get parent_premium_scene_garden_title;
+
+  /// No description provided for @parent_premium_scene_garden_detail.
+  ///
+  /// In zh, this message translates to:
+  /// **'花盆最多 {potMax} 盆 · 一键养护'**
+  String parent_premium_scene_garden_detail(int potMax);
+
+  /// No description provided for @parent_premium_scene_routine_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'习惯随心配'**
+  String get parent_premium_scene_routine_title;
+
+  /// No description provided for @parent_premium_scene_routine_detail.
+  ///
+  /// In zh, this message translates to:
+  /// **'成长项 / 奖励模板不限量'**
+  String get parent_premium_scene_routine_detail;
+
+  /// No description provided for @parent_premium_scene_perk_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'专属成长加成'**
+  String get parent_premium_scene_perk_title;
+
+  /// No description provided for @parent_premium_scene_perk_detail.
+  ///
+  /// In zh, this message translates to:
+  /// **'{perkCount} 条称号属性 · 最多 {profileMax} 个孩子档案'**
+  String parent_premium_scene_perk_detail(int perkCount, int profileMax);
 
   /// No description provided for @parent_premium_unavailable_title.
   ///

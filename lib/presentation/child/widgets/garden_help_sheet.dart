@@ -5,12 +5,17 @@
 /// 左下角木牌的弹窗。弹窗内容抽成**公开、无业务依赖**的 [GardenHelpSheet]（数据经构造
 /// 参数传入），便于纯 widget 测试直接渲染，无需拉起 Riverpod / 数据库。
 ///
-/// ## 覆盖的主题（玄参 2026-09-23 拍板，木牌 = 玩法说明书）
-///  1. 怎么挣阳光（专注 → 阳光入账 + 任务打卡奖励）；
-///  2. 阳光能干什么（花园种植物 / 浇水施肥 / 商店兑奖励）；
+/// ## 覆盖的主题（玄参 2026-09-23 拍板，木牌 = 玩法说明书；**2026-10-22 同步批次**
+/// 补齐此后上线的新玩法：护眼奖励 / 种子与碎片 / 开花惊喜与晨露 / 杂草害虫 /
+/// 枯萎救回 / 联动任务按比例结算）
+///  1. 怎么挣阳光（专注 → 阳光入账 + 任务打卡奖励 + 护眼休息奖励）；
+///  2. 阳光能干什么（种植（阳光或碎片） / 浇水施肥 / 铲除返一半 / 商店兑奖励）；
 ///  3. 植物怎么长大（自动成长 + 浇水/施肥加成 + 满进度开花 + 花谢后再生）；
-///  4. 别让植物枯萎（几天不浇水会枯萎、再几天会枯死）；
-///  5. 任务打卡与家长核销（联动项自动结算 / 非联动项待家长确认）；
+///  4. 别让植物枯萎（几天不浇水会枯萎、再几天会枯死 + 枯萎救回口径）；
+///  5. 任务打卡与家长核销（联动项按实际专注比例结算 / 非联动项待家长确认）；
+///  6. 开花的小惊喜（开花保底阳光 + 碎片/种子/大额概率惊喜 + 花期晨露）；
+///  7. 杂草和害虫（点掉 + 阳光奖励）；
+///  8. 种子和碎片（种子当支付方式 + 重复分解 + 精英档碎片价）；
 ///  另有花园容量与扩容价。
 ///
 /// ## 数字口径（硬要求）
@@ -79,14 +84,15 @@ class GardenHelpSheet extends StatelessWidget {
               icon: Icons.wb_sunny_outlined,
               iconAsset: 'assets/rewards/sunlight.png',
               title: l10n.ghelp_earn_title,
-              detail: l10n.ghelp_earn_detail(
-                  perMinute, kTaskSunlightReward),
+              // 玄参 2026-10-23 测试反馈：任务打卡奖励按专注时长比例结算（F143），
+              // 不是固定值 → 文案定性化，不传 {taskReward} 数字。
+              detail: l10n.ghelp_earn_detail(perMinute, kEyeCareRewardSunlight),
             ),
             _HelpRow(
               icon: Icons.local_florist,
               title: l10n.ghelp_use_title,
-              detail: l10n.ghelp_use_detail(
-                  kPlantWaterCost, kPlantFertilizeCost),
+              detail: l10n.ghelp_use_detail(kSpeciesSunlightCostCommon,
+                  kSpeciesFragmentCostCommon, kPlantWaterCost, kPlantFertilizeCost),
             ),
             _HelpRow(
               icon: Icons.schedule,
@@ -103,13 +109,30 @@ class GardenHelpSheet extends StatelessWidget {
             _HelpRow(
               icon: Icons.local_fire_department,
               title: l10n.ghelp_wilt_title,
-              detail: l10n.ghelp_wilt_detail(
-                  kPlantWiltDays, kPlantDeathDays),
+              detail: l10n.ghelp_wilt_detail(kPlantWiltDays, kPlantDeathDays,
+                  kPlantWiltRecoverHardDays, kPlantWiltRecoverHardWater,
+                  kPlantWiltRecoverHardFertilize),
             ),
             _HelpRow(
               icon: Icons.check_circle_outline,
               title: l10n.ghelp_task_title,
               detail: l10n.ghelp_task_detail,
+            ),
+            _HelpRow(
+              icon: Icons.auto_awesome,
+              title: l10n.ghelp_bloom_title,
+              detail: l10n.ghelp_bloom_detail(kBloomInstantSunlight),
+            ),
+            _HelpRow(
+              icon: Icons.bug_report_outlined,
+              title: l10n.ghelp_weed_title,
+              detail: l10n.ghelp_weed_detail(
+                  kGardenWeedReward.round(), kGardenPestReward.round()),
+            ),
+            _HelpRow(
+              icon: Icons.eco_outlined,
+              title: l10n.ghelp_seed_title,
+              detail: l10n.ghelp_seed_detail(kSpeciesFragmentCostPremium),
             ),
             _HelpRow(
               icon: Icons.yard,

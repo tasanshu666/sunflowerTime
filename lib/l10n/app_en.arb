@@ -1083,21 +1083,27 @@
   },
   "ghelp_title": "How to play",
   "ghelp_earn_title": "Earning sunlight",
-  "ghelp_earn_detail": "Focus during the day to earn sunlight: +{perMinute} ☀ per minute;\nfinish a growth task check-in for +{taskReward} ☀ each.",
+  "ghelp_earn_detail": "Focus during the day to earn sunlight: +{perMinute} ☀ per minute;\nfinish a growth task check-in for extra sunlight based on focus time;\ncomplete an eye-care break for +{eyeCare} ☀.",
   "@ghelp_earn_detail": {
     "placeholders": {
       "perMinute": {
         "type": "int"
       },
-      "taskReward": {
+      "eyeCare": {
         "type": "int"
       }
     }
   },
   "ghelp_use_title": "Spending sunlight",
-  "ghelp_use_detail": "Plant in the garden (tap an empty pot, pay ☀ to plant);\nwater plants from {waterCost} ☀/time, fertilize from {fertCost} ☀/time;\nor redeem rewards you like in the Store.",
+  "ghelp_use_detail": "Plant in the garden (tap an empty pot): common plants cost {sunCost} ☀ or {fragmentCost} fragments;\nwater plants from {waterCost} ☀/time, fertilize from {fertCost} ☀/time;\ndig up a plant you don't want to get half the sunlight back;\nor redeem rewards you like in the Store.",
   "@ghelp_use_detail": {
     "placeholders": {
+      "sunCost": {
+        "type": "int"
+      },
+      "fragmentCost": {
+        "type": "int"
+      },
       "waterCost": {
         "type": "int"
       },
@@ -1131,7 +1137,7 @@
     }
   },
   "ghelp_wilt_title": "Keep plants from wilting",
-  "ghelp_wilt_detail": "Watering or fertilizing refreshes the timer; {wiltDays} days without water means wilting,\nand {deathDays} more days means the plant dies. Come visit often 🌱",
+  "ghelp_wilt_detail": "Watering or fertilizing refreshes the timer; {wiltDays} days without water means wilting,\nand {deathDays} more days means the plant dies. If it wilts, don't worry:\nwithin {hardDays} days, watering brings it back; later it takes {hardWater} waterings\nand {hardFert} fertilizings. Come visit often 🌱",
   "@ghelp_wilt_detail": {
     "placeholders": {
       "wiltDays": {
@@ -1139,11 +1145,50 @@
       },
       "deathDays": {
         "type": "int"
+      },
+      "hardDays": {
+        "type": "int"
+      },
+      "hardWater": {
+        "type": "int"
+      },
+      "hardFert": {
+        "type": "int"
       }
     }
   },
   "ghelp_task_title": "Task check-ins & parent approval",
-  "ghelp_task_detail": "There are two kinds of growth tasks:\n\"Start focus\" tasks settle automatically when the goal is met;\n\"I did it\" tasks are recorded as \"waiting for parent approval\" —\nsunlight arrives only after a parent approves.",
+  "ghelp_task_detail": "There are two kinds of growth tasks:\n\"Start focus\" tasks settle automatically when the goal is met;\nfinishing early still counts — sunlight is given for the time you actually focused;\n\"I did it\" tasks are recorded as \"waiting for parent approval\" —\nsunlight arrives only after a parent approves.",
+  "ghelp_bloom_title": "Blooming surprises",
+  "ghelp_bloom_detail": "Blooming brings surprises: at least +{instantSun} ☀, plus a chance of\nbonus sunlight, rare fragments, or seeds of the same species;\nduring bloom a morning-dew reward drops every morning —\ncare for the plant the day before and the reward is fuller. Come collect 🌸",
+  "@ghelp_bloom_detail": {
+    "placeholders": {
+      "instantSun": {
+        "type": "int"
+      }
+    }
+  },
+  "ghelp_weed_title": "Weeds & pests",
+  "ghelp_weed_detail": "Weeds and little pests show up now and then — tap them to clear:\n+{weedReward} ☀ for a weed, +{pestReward} ☀ for a pest.",
+  "@ghelp_weed_detail": {
+    "placeholders": {
+      "weedReward": {
+        "type": "int"
+      },
+      "pestReward": {
+        "type": "int"
+      }
+    }
+  },
+  "ghelp_seed_title": "Seeds & fragments",
+  "ghelp_seed_detail": "Blooming also drops seeds and rare fragments of the same species:\nseeds can be used as payment when planting; duplicates turn into fragments;\nelite plants need {fragmentPremium} fragments to plant.",
+  "@ghelp_seed_detail": {
+    "placeholders": {
+      "fragmentPremium": {
+        "type": "int"
+      }
+    }
+  },
   "ghelp_capacity_title": "Garden capacity",
   "ghelp_capacity_detail": "{capacity} / {max} pots",
   "@ghelp_capacity_detail": {
@@ -1940,10 +1985,33 @@
   },
 
   "parent_premium_title": "Unlock All",
-  "parent_premium_hero_subtitle": "One-time purchase · unlock forever, grow together",
+  "parent_premium_hero_subtitle": "One purchase — your child's focus garden blooms for life",
   "parent_premium_pill_unlocked": "Unlocked",
   "parent_premium_pill_locked": "Locked",
   "parent_premium_gold_pill": "One-time · forever",
+  "parent_premium_scene_garden_title": "A roomier garden",
+  "parent_premium_scene_garden_detail": "Up to {potMax} pots · one-tap care",
+  "@parent_premium_scene_garden_detail": {
+    "placeholders": {
+      "potMax": {
+        "type": "int"
+      }
+    }
+  },
+  "parent_premium_scene_routine_title": "Flexible routines",
+  "parent_premium_scene_routine_detail": "Unlimited tasks & rewards",
+  "parent_premium_scene_perk_title": "Growth perks",
+  "parent_premium_scene_perk_detail": "{perkCount} title perks · up to {profileMax} child profiles",
+  "@parent_premium_scene_perk_detail": {
+    "placeholders": {
+      "perkCount": {
+        "type": "int"
+      },
+      "profileMax": {
+        "type": "int"
+      }
+    }
+  },
   "parent_premium_unavailable_title": "Store is unreachable",
   "parent_premium_unavailable_body": "Product info is unavailable right now; everything else in the app still works. Check your network and retry.",
   "parent_premium_btn_unlocked_done": "Unlocked · thank you",

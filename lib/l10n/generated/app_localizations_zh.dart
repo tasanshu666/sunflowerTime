@@ -1201,16 +1201,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ghelp_earn_title => '怎么挣阳光';
 
   @override
-  String ghelp_earn_detail(int perMinute, int taskReward) {
-    return '白天专注就能挣阳光：每分钟 +$perMinute ☀；\n完成成长任务打卡，每项还 +$taskReward ☀。';
+  String ghelp_earn_detail(int perMinute, int eyeCare) {
+    return '白天专注就能挣阳光：每分钟 +$perMinute ☀；\n完成成长任务打卡，还能获得额外的阳光（按专注时长算）；\n认真做完护眼休息，也有 +$eyeCare ☀。';
   }
 
   @override
   String get ghelp_use_title => '阳光能干什么';
 
   @override
-  String ghelp_use_detail(int waterCost, int fertCost) {
-    return '在花园种植物（点空花盆选一株，花 ☀ 种下）；\n给植物浇水 $waterCost ☀/次起、施肥 $fertCost ☀/次起；\n也可以去「商店」兑换喜欢的奖励。';
+  String ghelp_use_detail(
+      int sunCost, int fragmentCost, int waterCost, int fertCost) {
+    return '在花园种植物（点空花盆选一株）：普通植物花 $sunCost ☀ 或 $fragmentCost 片碎片；\n给植物浇水 $waterCost ☀/次起、施肥 $fertCost ☀/次起；\n不要的植物铲掉，能拿回一半阳光；\n也可以去「商店」兑换喜欢的奖励。';
   }
 
   @override
@@ -1226,8 +1227,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ghelp_wilt_title => '别让植物枯萎';
 
   @override
-  String ghelp_wilt_detail(int wiltDays, int deathDays) {
-    return '浇水或施肥能刷新计时；$wiltDays 天没浇水就会枯萎，\n枯萎后再拖 $deathDays 天就会枯死。记得常来看看它 🌱';
+  String ghelp_wilt_detail(
+      int wiltDays, int deathDays, int hardDays, int hardWater, int hardFert) {
+    return '浇水或施肥能刷新计时；$wiltDays 天没浇水就会枯萎，\n枯萎后再拖 $deathDays 天就会枯死；枯萎了也别怕，\n$hardDays 天内浇浇水就能救回来，拖久了要多浇 $hardWater 次、\n再施 $hardFert 次肥。记得常来看看它 🌱';
   }
 
   @override
@@ -1235,7 +1237,31 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ghelp_task_detail =>
-      '成长任务有两种：\n「开始专注」的任务，达标后自动结算阳光；\n「我做到了」的任务，先记成「等家长确认」，\n爸爸妈妈核销通过后，阳光才真正到账。';
+      '成长任务有两种：\n「开始专注」的任务，达标后自动结算阳光；\n提前结束时，会按实际专注的时间发一部分阳光，也算完成；\n「我做到了」的任务，先记成「等家长确认」，\n爸爸妈妈核销通过后，阳光才真正到账。';
+
+  @override
+  String get ghelp_bloom_title => '开花的小惊喜';
+
+  @override
+  String ghelp_bloom_detail(int instantSun) {
+    return '开花瞬间就有惊喜：至少 +$instantSun ☀，还可能掉大额阳光、\n精品碎片或本物种的种子；\n花期内每天早上都会掉一份晨露奖励，\n前一天浇过水或施过肥就拿得更多，记得来收 🌸';
+  }
+
+  @override
+  String get ghelp_weed_title => '杂草和害虫';
+
+  @override
+  String ghelp_weed_detail(int weedReward, int pestReward) {
+    return '花园里偶尔会长杂草、来小害虫，点一点就能除掉；\n除草 +$weedReward ☀、除虫 +$pestReward ☀，除完花园更清爽。';
+  }
+
+  @override
+  String get ghelp_seed_title => '种子和碎片';
+
+  @override
+  String ghelp_seed_detail(int fragmentPremium) {
+    return '开花还会掉本物种的种子和精品碎片：\n种子可以在种下时直接当「钱」用，重复的会自动变成碎片；\n精英植物要攒 $fragmentPremium 片碎片才能种。';
+  }
 
   @override
   String get ghelp_capacity_title => '花园容量';
@@ -2373,7 +2399,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get parent_premium_title => '解锁全部功能';
 
   @override
-  String get parent_premium_hero_subtitle => '一次买断 · 永久解锁，陪孩子一起专注成长';
+  String get parent_premium_hero_subtitle => '一次买断，孩子的专注花园终身盛开';
 
   @override
   String get parent_premium_pill_unlocked => '已解锁';
@@ -2383,6 +2409,28 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get parent_premium_gold_pill => '一次买断 · 永久';
+
+  @override
+  String get parent_premium_scene_garden_title => '花园更宽敞';
+
+  @override
+  String parent_premium_scene_garden_detail(int potMax) {
+    return '花盆最多 $potMax 盆 · 一键养护';
+  }
+
+  @override
+  String get parent_premium_scene_routine_title => '习惯随心配';
+
+  @override
+  String get parent_premium_scene_routine_detail => '成长项 / 奖励模板不限量';
+
+  @override
+  String get parent_premium_scene_perk_title => '专属成长加成';
+
+  @override
+  String parent_premium_scene_perk_detail(int perkCount, int profileMax) {
+    return '$perkCount 条称号属性 · 最多 $profileMax 个孩子档案';
+  }
 
   @override
   String get parent_premium_unavailable_title => '暂时连不上商店';

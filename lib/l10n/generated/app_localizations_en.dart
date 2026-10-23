@@ -1225,16 +1225,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ghelp_earn_title => 'Earning sunlight';
 
   @override
-  String ghelp_earn_detail(int perMinute, int taskReward) {
-    return 'Focus during the day to earn sunlight: +$perMinute ☀ per minute;\nfinish a growth task check-in for +$taskReward ☀ each.';
+  String ghelp_earn_detail(int perMinute, int eyeCare) {
+    return 'Focus during the day to earn sunlight: +$perMinute ☀ per minute;\nfinish a growth task check-in for extra sunlight based on focus time;\ncomplete an eye-care break for +$eyeCare ☀.';
   }
 
   @override
   String get ghelp_use_title => 'Spending sunlight';
 
   @override
-  String ghelp_use_detail(int waterCost, int fertCost) {
-    return 'Plant in the garden (tap an empty pot, pay ☀ to plant);\nwater plants from $waterCost ☀/time, fertilize from $fertCost ☀/time;\nor redeem rewards you like in the Store.';
+  String ghelp_use_detail(
+      int sunCost, int fragmentCost, int waterCost, int fertCost) {
+    return 'Plant in the garden (tap an empty pot): common plants cost $sunCost ☀ or $fragmentCost fragments;\nwater plants from $waterCost ☀/time, fertilize from $fertCost ☀/time;\ndig up a plant you don\'t want to get half the sunlight back;\nor redeem rewards you like in the Store.';
   }
 
   @override
@@ -1250,8 +1251,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ghelp_wilt_title => 'Keep plants from wilting';
 
   @override
-  String ghelp_wilt_detail(int wiltDays, int deathDays) {
-    return 'Watering or fertilizing refreshes the timer; $wiltDays days without water means wilting,\nand $deathDays more days means the plant dies. Come visit often 🌱';
+  String ghelp_wilt_detail(
+      int wiltDays, int deathDays, int hardDays, int hardWater, int hardFert) {
+    return 'Watering or fertilizing refreshes the timer; $wiltDays days without water means wilting,\nand $deathDays more days means the plant dies. If it wilts, don\'t worry:\nwithin $hardDays days, watering brings it back; later it takes $hardWater waterings\nand $hardFert fertilizings. Come visit often 🌱';
   }
 
   @override
@@ -1259,7 +1261,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ghelp_task_detail =>
-      'There are two kinds of growth tasks:\n\"Start focus\" tasks settle automatically when the goal is met;\n\"I did it\" tasks are recorded as \"waiting for parent approval\" —\nsunlight arrives only after a parent approves.';
+      'There are two kinds of growth tasks:\n\"Start focus\" tasks settle automatically when the goal is met;\nfinishing early still counts — sunlight is given for the time you actually focused;\n\"I did it\" tasks are recorded as \"waiting for parent approval\" —\nsunlight arrives only after a parent approves.';
+
+  @override
+  String get ghelp_bloom_title => 'Blooming surprises';
+
+  @override
+  String ghelp_bloom_detail(int instantSun) {
+    return 'Blooming brings surprises: at least +$instantSun ☀, plus a chance of\nbonus sunlight, rare fragments, or seeds of the same species;\nduring bloom a morning-dew reward drops every morning —\ncare for the plant the day before and the reward is fuller. Come collect 🌸';
+  }
+
+  @override
+  String get ghelp_weed_title => 'Weeds & pests';
+
+  @override
+  String ghelp_weed_detail(int weedReward, int pestReward) {
+    return 'Weeds and little pests show up now and then — tap them to clear:\n+$weedReward ☀ for a weed, +$pestReward ☀ for a pest.';
+  }
+
+  @override
+  String get ghelp_seed_title => 'Seeds & fragments';
+
+  @override
+  String ghelp_seed_detail(int fragmentPremium) {
+    return 'Blooming also drops seeds and rare fragments of the same species:\nseeds can be used as payment when planting; duplicates turn into fragments;\nelite plants need $fragmentPremium fragments to plant.';
+  }
 
   @override
   String get ghelp_capacity_title => 'Garden capacity';
@@ -2418,7 +2444,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get parent_premium_hero_subtitle =>
-      'One-time purchase · unlock forever, grow together';
+      'One purchase — your child\'s focus garden blooms for life';
 
   @override
   String get parent_premium_pill_unlocked => 'Unlocked';
@@ -2428,6 +2454,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get parent_premium_gold_pill => 'One-time · forever';
+
+  @override
+  String get parent_premium_scene_garden_title => 'A roomier garden';
+
+  @override
+  String parent_premium_scene_garden_detail(int potMax) {
+    return 'Up to $potMax pots · one-tap care';
+  }
+
+  @override
+  String get parent_premium_scene_routine_title => 'Flexible routines';
+
+  @override
+  String get parent_premium_scene_routine_detail => 'Unlimited tasks & rewards';
+
+  @override
+  String get parent_premium_scene_perk_title => 'Growth perks';
+
+  @override
+  String parent_premium_scene_perk_detail(int perkCount, int profileMax) {
+    return '$perkCount title perks · up to $profileMax child profiles';
+  }
 
   @override
   String get parent_premium_unavailable_title => 'Store is unreachable';

@@ -485,9 +485,25 @@ void main() {
       );
     });
 
-    test('徽标/表格解耦守卫：badgeRowsFor 恰 5 行、unlockRowsFor 恰 6 行', () {
-      expect(badgeRowsFor().length, 5, reason: '预览徽标 5 枚（F146 解耦后仍 5 枚）');
+    test('徽标退役守卫：badgeRowsFor 已删（批次 2 Ⓑ 场景卡取代）+ unlockRowsFor 恰 6 行', () {
+      // 批次 2 Ⓑ（玄参 2026-10-23 拍板）：购买页权益速览改 3 场景卡（静态文案 +
+      // 常量数字），badgeRowsFor 全链退役 —— 源码守卫防「删了又偷偷接回来」。
       expect(unlockRowsFor().length, 6, reason: '对比表派生 6 行（F146 改版）');
+      final String gate = _read(
+          root, 'lib/presentation/shared/premium_gate.dart');
+      expect(gate.contains('badgeRowsFor'), isFalse,
+          reason: 'badgeRowsFor 必须保持退役（场景卡后无消费方，复活即红）');
+      final String page = _read(
+          root, 'lib/presentation/parent/pages/parent_premium_page.dart');
+      for (final String key in <String>[
+        'parent_premium_scene_garden_title',
+        'parent_premium_scene_routine_title',
+        'parent_premium_scene_perk_title',
+      ]) {
+        expect(page.contains(key), isTrue, reason: '场景卡应取词 $key');
+      }
+      expect(page.contains('badgeRowsFor'), isFalse,
+          reason: '购买页不得再挂 badgeRowsFor');
     });
 
     test('取值来自矩阵（默认矩阵 → 期望文案，数字派生不写死）', () {
@@ -655,33 +671,63 @@ void main() {
         expect(keys.contains(k), isFalse,
             reason: '未实现键 $k 出现在了对比表里（若新增一行即由本测试兜底变红）');
       }
-      // 徽标侧同样守卫（F146 解耦后独立数据源）。
-      final Set<FeatureKey> badgeKeys = badgeRowsFor()
-          .expand((PremiumUnlockRow r) => r.allKeys)
-          .toSet();
-      for (final FeatureKey k in <FeatureKey>[
-        FeatureKey.deepReport,
-        FeatureKey.exportShare,
-        FeatureKey.memoirExport,
-        FeatureKey.familySharing,
+    });
+
+    test('批次 2 Ⓑ：权益速览 3 场景卡（emoji/取词/数字派生/无红线词）', () {
+      final AppLocalizations zh = AppLocalizationsZh();
+      // 源码：3 枚 emoji 与 3 组标题取词在位；旧 5 枚 emoji 表不得回潮。
+      final String page = _read(
+          root, 'lib/presentation/parent/pages/parent_premium_page.dart');
+      for (final String e in <String>['🌻', '📚', '👑']) {
+        expect(page.contains(e), isTrue, reason: '场景卡 emoji $e 应在位');
+      }
+      expect(page.contains("'⚡', '🪴', '📋', '🎁', '🏅'"), isFalse,
+          reason: '旧 5 枚 emoji 表已随批次 2 退役，不得回潮');
+      // 数字派生纪律（C108-4 同源）：potMax/perkCount/profileMax 必须读常量。
+      expect(page.contains('kPremiumGardenPotQuota'), isTrue,
+          reason: '场景卡花盆上限应读矩阵买断档常量');
+      expect(page.contains('kFocusLevelTitleLevels'), isFalse,
+          reason: '守卫⑤：家长端文件禁 FocusLevel 子串，称号条数应走 kPremiumTitlePerkCount 别名');
+      expect(page.contains('kPremiumTitlePerkCount'), isTrue,
+          reason: '称号条数应派生自 kPremiumTitlePerkCount（premium_gate 收口别名）');
+      expect(page.contains('kPremiumChildProfileCount'), isTrue,
+          reason: '档案上限应读 kPremiumChildProfileCount');
+      // 场景文案无红线词（未实现能力不进卖点）。
+      for (final String s in <String>[
+        zh.parent_premium_scene_garden_title,
+        zh.parent_premium_scene_garden_detail(kPremiumGardenPotQuota),
+        zh.parent_premium_scene_routine_title,
+        zh.parent_premium_scene_routine_detail,
+        zh.parent_premium_scene_perk_title,
+        zh.parent_premium_scene_perk_detail(
+            kFocusLevelTitleLevels.length, kPremiumChildProfileCount),
       ]) {
-        expect(badgeKeys.contains(k), isFalse,
-            reason: '未实现键 $k 出现在了预览徽标里');
+        expect(_hitsRedLine(s), isFalse, reason: '场景文案含红线词：$s');
       }
     });
 
-    test('运行期：预览徽标数据源只含 5 项且标签无红线词（C80 第 5 枚 🏅）', () {
-      // F146：改挂 badgeRowsFor（与对比表 unlockRowsFor 解耦）。
-      final List<PremiumUnlockRow> rows = badgeRowsFor();
-      expect(rows.length, 5, reason: '预览徽标 5 枚真实生效项（C80：+ 称号属性）');
-      for (final PremiumUnlockRow r in rows) {
-        expect(_hitsRedLine(r.label), isFalse);
-      }
-      // 预览徽标 emoji 表扩第 5 枚（源码断言，与 rows.length 同长防漏）。
-      final String page =
-          _read(root, 'lib/presentation/parent/pages/parent_premium_page.dart');
-      expect(page.contains("'⚡', '🪴', '📋', '🎁', '🏅'"), isTrue,
-          reason: '预览徽标 emojis 常量应扩到 5 枚（V3-Q3 裁定加 🏅）');
+    testWidgets('批次 2 Ⓑ：真实入口①购买页渲染 3 场景卡（标题 + 数字）', (WidgetTester tester) async {
+      final _Env env = _buildEnv();
+      addTearDown(env.container.dispose);
+      addTearDown(env.adapter.dispose);
+      await _pumpPage(tester, env);
+      await _pumpUntil(
+        tester,
+        () => find.textContaining('立即解锁').evaluate().isNotEmpty,
+        maxFrames: 200,
+      );
+      expect(find.text('花园更宽敞'), findsOneWidget);
+      expect(find.textContaining('花盆最多 12 盆'), findsOneWidget);
+      expect(find.text('习惯随心配'), findsOneWidget);
+      expect(find.textContaining('不限量'), findsOneWidget);
+      expect(find.text('专属成长加成'), findsOneWidget);
+      expect(find.textContaining('9 条称号属性'), findsOneWidget);
+      expect(find.textContaining('最多 3 个孩子档案'), findsOneWidget);
+      // 段落顺序（Ⓑ）：速览卡在对比表之前、知悉卡沉底 —— 用几何关系判定。
+      final Finder scene = find.text('花园更宽敞');
+      final Finder band = find.text('免费就能用');
+      expect(tester.getTopLeft(scene).dy, lessThan(tester.getTopLeft(band).dy),
+          reason: '场景速览卡应渲染在对比表之前');
     });
   });
 

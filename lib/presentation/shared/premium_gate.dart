@@ -341,6 +341,14 @@ class PremiumUnlockRow {
 /// （`test/qa/premium_unlock_table_test.dart` T3 结构守卫）。
 const int kUnlockCapacityRowCount = 3;
 
+/// 买断档「称号专属属性」条数（= [kFocusLevelTitleLevels].length 的收口别名）。
+///
+/// 为什么收口在此：`focus_level_guard_test` ⑤ 禁止 `/presentation/parent/` 下任何
+/// 文件出现 `FocusLevel` 子串（家长端不引用等级组件），而购买页场景卡需要展示
+/// 「9 条称号属性」—— 故派生别名放本文件（shared 层），家长端只引本 getter。
+// ignore: constant_identifier_names
+int get kPremiumTitlePerkCount => kFocusLevelTitleLevels.length;
+
 /// 对比表派生行（**6 行**，顺序 = 新表行 2–7；行 1「核心体验全免费」为纯描述
 /// 静态行，留在组件侧 —— 无 FeatureKey 语义，不入派生层）。
 ///
@@ -376,51 +384,7 @@ List<PremiumUnlockRow> unlockRowsFor({
   ];
 }
 
-/// 购买页权益预览 **5 徽标**数据源（`parent_premium_page.dart` `_buildPreviewBadges`
-/// 消费）。
-///
-/// 🔴 与 [unlockRowsFor] **解耦**：对比表改 7 行 3 组后，徽标仍只列现 5 枚真实
-/// 生效项（一键 / 花盆 / 成长项 / 奖励 / 称号），文案与 emoji 零变化 ——
-/// 徽标不吞 ✗ 行 / 合并行 / 报告行。
-///
-/// [matrix] / [l10n] 语义同 [unlockRowsFor]。
-List<PremiumUnlockRow> badgeRowsFor({
-  Map<FeatureKey, FeatureRule> matrix = kEntitlementMatrix,
-  AppLocalizations? l10n,
-}) {
-  final AppLocalizations t = l10n ?? AppLocalizationsZh();
-  return <PremiumUnlockRow>[
-    _oneClickRow(t, matrix),
-    _potsRow(t, matrix),
-    // 模板两行在徽标侧**各自独立成行**（label 用 row_tasks / row_rewards ——
-    // 故不能复用对比表的合并行；配额取词共用 [_quotaItems] / [_quotaOrUnlimited]）。
-    PremiumUnlockRow(
-      key: FeatureKey.taskTemplateCount,
-      label: t.premium_table_row_tasks,
-      freeText: _quotaItems(t, featureQuotaFor(
-          FeatureKey.taskTemplateCount, EntitlementTier.free, matrix: matrix)),
-      freeOk: true,
-      premiumText: _quotaOrUnlimited(t, featureQuotaFor(
-          FeatureKey.taskTemplateCount, EntitlementTier.premium,
-          matrix: matrix)),
-      premiumOk: true,
-    ),
-    PremiumUnlockRow(
-      key: FeatureKey.rewardTemplateCount,
-      label: t.premium_table_row_rewards,
-      freeText: _quotaItems(t, featureQuotaFor(
-          FeatureKey.rewardTemplateCount, EntitlementTier.free, matrix: matrix)),
-      freeOk: true,
-      premiumText: _quotaOrUnlimited(t, featureQuotaFor(
-          FeatureKey.rewardTemplateCount, EntitlementTier.premium,
-          matrix: matrix)),
-      premiumOk: true,
-    ),
-    _perksRow(t, matrix),
-  ];
-}
-
-// ── 行构造 helpers（unlockRowsFor / badgeRowsFor 共用，杜绝双源漂移）──
+// ── 行构造 helpers（unlockRowsFor 专用）──
 
 /// 行 2「花盆上限」：配额行，note = pots_note（C70：扩容仍需花阳光）。
 PremiumUnlockRow _potsRow(
@@ -563,12 +527,6 @@ String _quotaPots(AppLocalizations t, int quota) =>
     quota == kUnlimitedQuota
         ? t.shared_unlimited
         : t.premium_table_free_pots(quota);
-
-/// 配额展示串（模板类·徽标行用）：`kUnlimitedQuota` → 不限，否则 `'$quota 条'`。
-String _quotaItems(AppLocalizations t, int quota) =>
-    quota == kUnlimitedQuota
-        ? t.shared_unlimited
-        : t.premium_table_free_items(quota);
 
 /// 配额展示串（买断列通用）：`kUnlimitedQuota` → 「✓ 不限」，否则「最多 N」。
 String _quotaOrUnlimited(AppLocalizations t, int quota) =>

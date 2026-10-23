@@ -24,6 +24,7 @@ library parent_premium_page;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/iap_product_ids.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
@@ -32,6 +33,7 @@ import 'package:sunflower_time/domain/services/iap_contract.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/premium_unlock_table.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
+// 场景卡称号条数别名 kPremiumTitlePerkCount 的唯一来源（守卫⑤：家长端禁直引等级常量）。
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/shared/theme.dart';
@@ -204,15 +206,15 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
           _buildUnavailableCard(t),
           const SizedBox(height: 16),
         ],
+        // 批次 2 Ⓑ（玄参 2026-10-23 拍板）：权益速览 3 场景卡**上移**到对比表之前
+        // —— 「价值速览 → 明细对比 → 条款」的决策顺序。
+        _buildPreviewBadges(t),
+        const SizedBox(height: 16),
         // 阶段 5：主卡与主按钮之间插入「解锁前后对比表」。
         PremiumUnlockTable(isUnlocked: unlocked),
         const SizedBox(height: 16),
-        // 阶段 5：权益预览 5 徽标（数据源同 badgeRowsFor，只列真实生效项；
-        // F146：与对比表 unlockRowsFor 解耦，表格改 7 行 3 组后徽标仍 5 枚）。
-        _buildPreviewBadges(t),
-        const SizedBox(height: 16),
-        // C83：`_buildMainButton` / `_buildRestoreButton` 已**移出**列表，
-        // 改由 [_buildStickyBottomBar] 承载（全树中这两个 Key 各只允许 1 个实例）。
+        // 批次 2 Ⓑ：「购买前请知悉」合规条款**沉底 + 视觉减淡**（原在对比表之前）。
+        // C83：`_buildMainButton` / `_buildRestoreButton` 在吸底栏（不在此列表）。
         _buildNotesCard(t),
       ],
     );
@@ -483,26 +485,93 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
     );
   }
 
-  /// 权益预览 5 徽标（阶段 5 + C80 第 5 枚）。数据源同 [badgeRowsFor]（避免第二处硬编码）。
+  /// 权益速览 **3 场景卡**（批次 2 Ⓑ，玄参 2026-10-23 拍板）。
   ///
-  /// 🔴 只列 **5 枚真实生效**项（C80：`titlePerks` 为真实生效第 5 键，V3-Q3 裁定加）；
-  /// 严禁未实现能力写进对外卖点。
-  /// F146：改挂 [badgeRowsFor]（与对比表 [unlockRowsFor] 解耦）——对比表改
-  /// 7 行 3 组后，徽标仍 5 枚、emoji 与文案逐字零变化。
+  /// 把 5 枚能力徽标归并为家长可感知的 3 个场景（消除与对比表的信息重复）：
+  ///  🌻 花园更宽敞（花盆上限读矩阵买断档配额）；
+  ///  📚 习惯随心配（成长项 / 奖励模板不限量，纯定性）；
+  ///  👑 专属成长加成（称号属性条数 / 档案数均读常量）。
+  ///
+  /// 🔴 数字派生纪律（C108-4 同源）：`potMax` = [kPremiumGardenPotQuota]（矩阵
+  /// 买断档别名）、`perkCount` = [kPremiumTitlePerkCount]（premium_gate 收口别名）、
+  /// `profileMax` = [kPremiumChildProfileCount] —— **零字面权益数字**。
+  /// 🔴 合规：只列真实生效项；「一键养护」真实存在（花园悬浮一键，会员档放开）。
   Widget _buildPreviewBadges(AppLocalizations t) {
-    final List<PremiumUnlockRow> rows = badgeRowsFor(l10n: t);
-    const List<String> emojis = <String>['⚡', '🪴', '📋', '🎁', '🏅'];
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: <Widget>[
-        for (int i = 0; i < rows.length && i < emojis.length; i++)
-          pillLabel(
-            text: '${emojis[i]} ${rows[i].label} ${rows[i].premiumText}',
-            bg: const Color(0xFFFFF3D6),
-            fg: const Color(0xFF8D6E00),
+    const int potMax = kPremiumGardenPotQuota;
+    // 🔴 称号条数必须走 [kPremiumTitlePerkCount] 别名（premium_gate 收口）：
+    // 守卫 ⑤ 禁家长端文件出现等级常量子串（含注释），不得直引 prd_params 等级表。
+    final int perkCount = kPremiumTitlePerkCount;
+    const int profileMax = kPremiumChildProfileCount;
+    // 🔴 IntrinsicHeight 必须包：本 Row 在 ListView 里拿的是无界高度，
+    // `CrossAxisAlignment.stretch` 直上会把三张卡撑到无穷高（a11y 窄屏用例实证）。
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          _sceneCard(
+            emoji: '🌻',
+            title: t.parent_premium_scene_garden_title,
+            detail: t.parent_premium_scene_garden_detail(potMax),
           ),
-      ],
+          const SizedBox(width: 8),
+          _sceneCard(
+            emoji: '📚',
+            title: t.parent_premium_scene_routine_title,
+            detail: t.parent_premium_scene_routine_detail,
+          ),
+          const SizedBox(width: 8),
+          _sceneCard(
+            emoji: '👑',
+            title: t.parent_premium_scene_perk_title,
+            detail: t.parent_premium_scene_perk_detail(perkCount, profileMax),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 单张场景卡：暖金底圆角 + emoji + 标题 + 一行说明（窄屏自动折行，卡等高）。
+  Widget _sceneCard({
+    required String emoji,
+    required String title,
+    required String detail,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF8E6),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFF0E2BC)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(emoji, style: const TextStyle(fontSize: 20)),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF8D6E00),
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              detail,
+              style: const TextStyle(
+                fontSize: 11,
+                height: 1.35,
+                color: _kInkSoft,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -540,6 +609,9 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   }
 
   /// 诚实说明：一次性买断的真实边界（家长必读）。
+  ///
+  /// 批次 2 Ⓑ：合规条款**沉底 + 视觉减淡**——标题降为 `_kInkSoft` 小一号，
+  /// 正文 13 → 12.5；信息一字不改（note_1–note_4 如实保留，Apple 合规红线）。
   Widget _buildNotesCard(AppLocalizations t) {
     final List<String> notes = <String>[
       t.parent_premium_note_1,
@@ -556,9 +628,9 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
           Text(
             t.parent_premium_notes_title,
             style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: _kInk,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: _kInkSoft,
             ),
           ),
           const SizedBox(height: 10),
@@ -573,7 +645,7 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
                     child: Text(
                       n,
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 12.5,
                         height: 1.45,
                         color: _kInkSoft,
                       ),

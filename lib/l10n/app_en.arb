@@ -1885,19 +1885,17 @@
   "premium_table_gold_pill": "Unlock All ★",
   "premium_table_owned": "Owned",
   "premium_table_band_free": "Free to use",
-  "premium_table_band_unlock": "Unlock by one-time buy",
-  "premium_table_row_pomodoro": "Focus timer",
-  "premium_table_row_screentime": "Screen time & routines",
-  "premium_table_row_eyecare": "Eye-care breaks",
-  "premium_table_row_garden": "Garden growing",
-  "premium_table_row_economy": "Sunlight economy & ledger",
-  "premium_table_row_store": "Store redemption",
-  "premium_table_row_levels": "Focus levels + 9 titles",
+  "premium_table_row_core": "Core features — all free",
+  "premium_table_footnote_core": "Focus timer · screen time · eye care · garden · ledger · store · 40 levels & 9 titles",
+  "premium_table_band_capacity": "Buy once · more capacity",
+  "premium_table_band_advanced": "Buy once · advanced features",
   "premium_table_row_report": "Parent focus report",
   "premium_table_report_days": "Last 7 days",
-  "premium_table_footnote_report": "More report features in development",
+  "premium_table_report_premium": "Adds monthly & yearly reports · heatmap",
   "premium_table_row_one_click": "Garden one-tap care",
   "premium_table_row_pots": "Pot capacity",
+  "premium_table_row_templates": "Task & reward templates",
+  "premium_table_row_profiles": "Child profiles",
   "premium_table_row_tasks": "Growth templates",
   "premium_table_row_rewards": "Reward templates",
   "premium_table_row_perks": "Title perks",
@@ -1907,8 +1905,14 @@
       "count": { "type": "int" }
     }
   },
-  "premium_table_free_items": "{count} items",
+  "premium_table_free_items": "{count} each",
   "@premium_table_free_items": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "premium_table_free_items_single": "{count} items",
+  "@premium_table_free_items_single": {
     "placeholders": {
       "count": { "type": "int" }
     }

@@ -1885,19 +1885,17 @@
   "premium_table_gold_pill": "解锁全部功能 ★",
   "premium_table_owned": "已拥有",
   "premium_table_band_free": "免费就能用",
-  "premium_table_band_unlock": "买断后解锁",
-  "premium_table_row_pomodoro": "专注番茄钟",
-  "premium_table_row_screentime": "防沉迷与作息",
-  "premium_table_row_eyecare": "少儿护眼休息",
-  "premium_table_row_garden": "花园养成",
-  "premium_table_row_economy": "阳光经济与账本",
-  "premium_table_row_store": "商店兑换",
-  "premium_table_row_levels": "专注等级 + 9 称号",
+  "premium_table_row_core": "核心体验全免费",
+  "premium_table_footnote_core": "专注番茄钟 · 防沉迷作息 · 护眼休息 · 花园养成 · 阳光账本 · 商店兑换 · 40 级专注称号",
+  "premium_table_band_capacity": "买断解锁 · 更大容量",
+  "premium_table_band_advanced": "买断解锁 · 进阶能力",
   "premium_table_row_report": "家长专注报告",
   "premium_table_report_days": "近 7 天",
-  "premium_table_footnote_report": "更多报告能力开发中",
+  "premium_table_report_premium": "加月 / 年报告 · 热力图",
   "premium_table_row_one_click": "花园「一键操作」",
   "premium_table_row_pots": "花盆上限",
+  "premium_table_row_templates": "成长项 / 奖励模板",
+  "premium_table_row_profiles": "孩子档案",
   "premium_table_row_tasks": "成长项模板",
   "premium_table_row_rewards": "奖励模板",
   "premium_table_row_perks": "称号属性",
@@ -1907,8 +1905,14 @@
       "count": { "type": "int" }
     }
   },
-  "premium_table_free_items": "{count} 条",
+  "premium_table_free_items": "各 {count} 条",
   "@premium_table_free_items": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "premium_table_free_items_single": "{count} 条",
+  "@premium_table_free_items_single": {
     "placeholders": {
       "count": { "type": "int" }
     }

@@ -2291,28 +2291,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premium_table_band_free => '免费就能用';
 
   @override
-  String get premium_table_band_unlock => '买断后解锁';
+  String get premium_table_row_core => '核心体验全免费';
 
   @override
-  String get premium_table_row_pomodoro => '专注番茄钟';
+  String get premium_table_footnote_core =>
+      '专注番茄钟 · 防沉迷作息 · 护眼休息 · 花园养成 · 阳光账本 · 商店兑换 · 40 级专注称号';
 
   @override
-  String get premium_table_row_screentime => '防沉迷与作息';
+  String get premium_table_band_capacity => '买断解锁 · 更大容量';
 
   @override
-  String get premium_table_row_eyecare => '少儿护眼休息';
-
-  @override
-  String get premium_table_row_garden => '花园养成';
-
-  @override
-  String get premium_table_row_economy => '阳光经济与账本';
-
-  @override
-  String get premium_table_row_store => '商店兑换';
-
-  @override
-  String get premium_table_row_levels => '专注等级 + 9 称号';
+  String get premium_table_band_advanced => '买断解锁 · 进阶能力';
 
   @override
   String get premium_table_row_report => '家长专注报告';
@@ -2321,13 +2310,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premium_table_report_days => '近 7 天';
 
   @override
-  String get premium_table_footnote_report => '更多报告能力开发中';
+  String get premium_table_report_premium => '加月 / 年报告 · 热力图';
 
   @override
   String get premium_table_row_one_click => '花园「一键操作」';
 
   @override
   String get premium_table_row_pots => '花盆上限';
+
+  @override
+  String get premium_table_row_templates => '成长项 / 奖励模板';
+
+  @override
+  String get premium_table_row_profiles => '孩子档案';
 
   @override
   String get premium_table_row_tasks => '成长项模板';
@@ -2345,6 +2340,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String premium_table_free_items(int count) {
+    return '各 $count 条';
+  }
+
+  @override
+  String premium_table_free_items_single(int count) {
     return '$count 条';
   }
 

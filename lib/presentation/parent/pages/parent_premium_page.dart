@@ -207,7 +207,8 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
         // 阶段 5：主卡与主按钮之间插入「解锁前后对比表」。
         PremiumUnlockTable(isUnlocked: unlocked),
         const SizedBox(height: 16),
-        // 阶段 5：权益预览 4 徽标（数据源同 unlockRowsFor，只列真实生效项）。
+        // 阶段 5：权益预览 5 徽标（数据源同 badgeRowsFor，只列真实生效项；
+        // F146：与对比表 unlockRowsFor 解耦，表格改 7 行 3 组后徽标仍 5 枚）。
         _buildPreviewBadges(t),
         const SizedBox(height: 16),
         // C83：`_buildMainButton` / `_buildRestoreButton` 已**移出**列表，
@@ -482,12 +483,14 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
     );
   }
 
-  /// 权益预览 5 徽标（阶段 5 + C80 第 5 枚）。数据源同 [unlockRowsFor]（避免第二处硬编码）。
+  /// 权益预览 5 徽标（阶段 5 + C80 第 5 枚）。数据源同 [badgeRowsFor]（避免第二处硬编码）。
   ///
   /// 🔴 只列 **5 枚真实生效**项（C80：`titlePerks` 为真实生效第 5 键，V3-Q3 裁定加）；
   /// 严禁未实现能力写进对外卖点。
+  /// F146：改挂 [badgeRowsFor]（与对比表 [unlockRowsFor] 解耦）——对比表改
+  /// 7 行 3 组后，徽标仍 5 枚、emoji 与文案逐字零变化。
   Widget _buildPreviewBadges(AppLocalizations t) {
-    final List<PremiumUnlockRow> rows = unlockRowsFor(l10n: t);
+    final List<PremiumUnlockRow> rows = badgeRowsFor(l10n: t);
     const List<String> emojis = <String>['⚡', '🪴', '📋', '🎁', '🏅'];
     return Wrap(
       spacing: 8,

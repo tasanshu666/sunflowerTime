@@ -7,7 +7,7 @@ sequenceDiagram
     participant Nav as go_router
     participant Page as ParentPremiumPage
     participant Table as PremiumUnlockTable
-    participant Gate as premium_gate.unlockRowsFor()
+    participant Gate as premium_gate<br/>(unlockRowsFor / badgeRowsFor)
     participant Matrix as kEntitlementMatrix
     participant Ent as entitlementProvider
     participant Iap as iapServiceProvider (IapClient)
@@ -26,12 +26,12 @@ sequenceDiagram
     Ent-->>Page: false（免费档）
     Page->>Table: build(isUnlocked: false)
     Table->>Gate: unlockRowsFor(matrix: kEntitlementMatrix)
-    Gate->>Matrix: featureAllowedFor(oneClickCare, free) = false
-    Gate->>Matrix: featureQuotaFor(gardenPotCapacity/taskTemplateCount/rewardTemplateCount, tier)
-    Matrix-->>Gate: 4 / 12 ；5 / 不限
-    Gate-->>Table: [PremiumUnlockRow × 4]  （显式枚举 4 键，禁 values 遍历）
-    Table-->>Page: 两栏对比表（免费=中性米白 / 买断=暖金渐变）
-    Page->>Page: _buildPreviewBadges() → 4 枚真实项徽标（无「深度报告」）
+    Gate->>Matrix: featureQuotaFor(gardenPotCapacity/task/reward/multiChildProfile, tier)
+    Gate->>Matrix: featureAllowedFor(oneClickCare/titlePerks/deepReport, tier)
+    Matrix-->>Gate: 4/12；各 5/不限；1/3；布尔
+    Gate-->>Table: [PremiumUnlockRow × 6]（表行 2–7：pots/模板合并/profiles/oneClick/perks/report；显式枚举，禁 values 遍历）
+    Table-->>Page: 7 行 3 组对比表（免费=中性米白 / 买断=暖金渐变）
+    Page->>Page: _buildPreviewBadges() → badgeRowsFor() → 5 枚真实项徽标（⚡🪴📋🎁🏅）
     Page-->>Parent: 主卡(金渐变) → 对比表 → 预览徽标 → 主按钮「立即解锁 · HK$88.00」→ 恢复购买 → 说明卡
 
     Note over Parent,Matrix: ② 购买（流程不变，仅视觉/文案变化）

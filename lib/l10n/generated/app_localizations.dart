@@ -3927,53 +3927,29 @@ abstract class AppLocalizations {
   /// **'免费就能用'**
   String get premium_table_band_free;
 
-  /// No description provided for @premium_table_band_unlock.
+  /// No description provided for @premium_table_row_core.
   ///
   /// In zh, this message translates to:
-  /// **'买断后解锁'**
-  String get premium_table_band_unlock;
+  /// **'核心体验全免费'**
+  String get premium_table_row_core;
 
-  /// No description provided for @premium_table_row_pomodoro.
+  /// No description provided for @premium_table_footnote_core.
   ///
   /// In zh, this message translates to:
-  /// **'专注番茄钟'**
-  String get premium_table_row_pomodoro;
+  /// **'专注番茄钟 · 防沉迷作息 · 护眼休息 · 花园养成 · 阳光账本 · 商店兑换 · 40 级专注称号'**
+  String get premium_table_footnote_core;
 
-  /// No description provided for @premium_table_row_screentime.
+  /// No description provided for @premium_table_band_capacity.
   ///
   /// In zh, this message translates to:
-  /// **'防沉迷与作息'**
-  String get premium_table_row_screentime;
+  /// **'买断解锁 · 更大容量'**
+  String get premium_table_band_capacity;
 
-  /// No description provided for @premium_table_row_eyecare.
+  /// No description provided for @premium_table_band_advanced.
   ///
   /// In zh, this message translates to:
-  /// **'少儿护眼休息'**
-  String get premium_table_row_eyecare;
-
-  /// No description provided for @premium_table_row_garden.
-  ///
-  /// In zh, this message translates to:
-  /// **'花园养成'**
-  String get premium_table_row_garden;
-
-  /// No description provided for @premium_table_row_economy.
-  ///
-  /// In zh, this message translates to:
-  /// **'阳光经济与账本'**
-  String get premium_table_row_economy;
-
-  /// No description provided for @premium_table_row_store.
-  ///
-  /// In zh, this message translates to:
-  /// **'商店兑换'**
-  String get premium_table_row_store;
-
-  /// No description provided for @premium_table_row_levels.
-  ///
-  /// In zh, this message translates to:
-  /// **'专注等级 + 9 称号'**
-  String get premium_table_row_levels;
+  /// **'买断解锁 · 进阶能力'**
+  String get premium_table_band_advanced;
 
   /// No description provided for @premium_table_row_report.
   ///
@@ -3987,11 +3963,11 @@ abstract class AppLocalizations {
   /// **'近 7 天'**
   String get premium_table_report_days;
 
-  /// No description provided for @premium_table_footnote_report.
+  /// No description provided for @premium_table_report_premium.
   ///
   /// In zh, this message translates to:
-  /// **'更多报告能力开发中'**
-  String get premium_table_footnote_report;
+  /// **'加月 / 年报告 · 热力图'**
+  String get premium_table_report_premium;
 
   /// No description provided for @premium_table_row_one_click.
   ///
@@ -4004,6 +3980,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'花盆上限'**
   String get premium_table_row_pots;
+
+  /// No description provided for @premium_table_row_templates.
+  ///
+  /// In zh, this message translates to:
+  /// **'成长项 / 奖励模板'**
+  String get premium_table_row_templates;
+
+  /// No description provided for @premium_table_row_profiles.
+  ///
+  /// In zh, this message translates to:
+  /// **'孩子档案'**
+  String get premium_table_row_profiles;
 
   /// No description provided for @premium_table_row_tasks.
   ///
@@ -4032,8 +4020,14 @@ abstract class AppLocalizations {
   /// No description provided for @premium_table_free_items.
   ///
   /// In zh, this message translates to:
-  /// **'{count} 条'**
+  /// **'各 {count} 条'**
   String premium_table_free_items(int count);
+
+  /// No description provided for @premium_table_free_items_single.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 条'**
+  String premium_table_free_items_single(int count);
 
   /// No description provided for @premium_table_unlimited.
   ///

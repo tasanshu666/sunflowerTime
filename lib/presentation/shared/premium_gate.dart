@@ -283,7 +283,7 @@ Future<void> showPremiumUpsell(BuildContext context, FeatureKey feature) async {
 // **守卫干净**（不含任何权益标识符），无需改白名单。
 // ───────────────────────────────────────────────────────────────────────────
 
-/// 对比表「买断后解锁」一行（纯数据，供 UI 渲染）。
+/// 对比表派生行（纯数据，供 UI 渲染；F146 后含模板合并行双键形态）。
 ///
 /// 取值全部来自**单点矩阵**（[kEntitlementMatrix]）经 [featureAllowedFor] /
 /// [featureQuotaFor] 派生，故改矩阵即改对比表，杜绝「宣传数字与实现漂移」。
@@ -303,8 +303,20 @@ class PremiumUnlockRow {
   /// 买断档是否为「可用 / 正向」（恒 true）。
   final bool premiumOk;
 
-  /// 溯源用（便于守卫断言「恰好这 4 个键」）。
+  /// 主能力键（合并行挂「主键」，现网 = `taskTemplateCount`）。
+  ///
+  /// 溯源用（便于守卫断言键序白名单 / 未实现键检查）。
   final FeatureKey key;
+
+  /// 次能力键（**仅合并行**使用；单键行恒 `null`）。
+  ///
+  /// 取舍：不改 `keys: List<FeatureKey>` —— 全仓仅 1 个双键场景（模板合并行），
+  /// [secondaryKey] 让既有单键构造与取法零破坏；守卫断言一律经 [allKeys] 取全集。
+  final FeatureKey? secondaryKey;
+
+  /// 该行涉及的全部能力键（守卫断言统一入口；未实现键检查用）。
+  List<FeatureKey> get allKeys =>
+      <FeatureKey>[key, if (secondaryKey != null) secondaryKey!];
 
   /// 可选补充注（小字，渲染在该行下方）；仅花盆行用（C70：扩容仍需花阳光）。
   final String? note;
@@ -316,22 +328,34 @@ class PremiumUnlockRow {
     required this.freeOk,
     required this.premiumOk,
     required this.key,
+    this.secondaryKey,
     this.note,
   });
 }
 
-/// B 组 5 行（**显式白名单，禁止遍历能力枚举的 `values`**）。
+/// 对比表「买断解锁 · 更大容量」组的**固定切分点**：[unlockRowsFor] 的前
+/// [kUnlockCapacityRowCount] 行（花盆 / 模板合并 / 档案）归容量组，其余
+/// （一键 / 称号 / 报告）归进阶组。
 ///
-/// 🔴 为什么必须显式枚举：能力枚举里除这 5 个真实生效键外，还有 `deepReport` +
-/// 4 个**未实现**键。一旦遍历 `values`，未实现能力会被写进对外卖点 → 描述不符
-/// （Apple 3.1.1 / 2.3.1 拒审）。故此处**逐行写死键名**，并由源码守卫兜底
-/// （见 `test/qa/premium_unlock_table_test.dart` 的变异测试）。
-/// C80：`titlePerks`（称号专属属性）为真实生效的第 5 键（free ✗ / premium ✓ 9 条）。
+/// 由组件消费切分（**禁止在组件里写魔法数 3**），行序守卫兜底
+/// （`test/qa/premium_unlock_table_test.dart` T3 结构守卫）。
+const int kUnlockCapacityRowCount = 3;
+
+/// 对比表派生行（**6 行**，顺序 = 新表行 2–7；行 1「核心体验全免费」为纯描述
+/// 静态行，留在组件侧 —— 无 FeatureKey 语义，不入派生层）。
 ///
-/// 数值来源：
-///  · 布尔：`featureAllowedFor(oneClickCare, tier)`；
-///  · 配额：`featureQuotaFor(gardenPotCapacity|taskTemplateCount|rewardTemplateCount, tier)`
-///    （[kUnlimitedQuota] → `'不限'`）。
+/// 行序白名单：花盆 → 模板（合并）→ 档案 → 一键 → 称号 → 报告。
+///
+/// 🔴 为什么必须显式枚举：能力枚举里除这 6 个真实生效键外，还有 3 个**未实现**键
+/// （`exportShare` / `memoirExport` / `familySharing`）。一旦遍历 `values`，未实现
+/// 能力会被写进对外卖点 → 描述不符（Apple 3.1.1 / 2.3.1 拒审）。故此处**逐行写死
+/// 键名**，并由源码守卫兜底（见 `test/qa/premium_unlock_table_test.dart`）。
+///
+/// 数值来源（数字派生纪律：**全链路不写死权益数字**）：
+///  · 布尔：`featureAllowedFor(oneClickCare|deepReport, tier)`；
+///  · 配额：`featureQuotaFor(gardenPotCapacity|taskTemplateCount|rewardTemplateCount|
+///    multiChildProfile, tier)`（[kUnlimitedQuota] → `'不限'`）；
+///  · 称号数：`kFocusLevelTitleLevels.length`（9 派生，防漂移）。
 ///
 /// [matrix] 仅供测试注入自定义矩阵（生产恒用 [kEntitlementMatrix]）。
 ///
@@ -342,92 +366,210 @@ List<PremiumUnlockRow> unlockRowsFor({
   AppLocalizations? l10n,
 }) {
   final AppLocalizations t = l10n ?? AppLocalizationsZh();
-  final int freePot =
-      featureQuotaFor(FeatureKey.gardenPotCapacity, EntitlementTier.free, matrix: matrix);
-  final int premiumPot =
-      featureQuotaFor(FeatureKey.gardenPotCapacity, EntitlementTier.premium, matrix: matrix);
-  final int freeTask =
-      featureQuotaFor(FeatureKey.taskTemplateCount, EntitlementTier.free, matrix: matrix);
-  final int premiumTask =
-      featureQuotaFor(FeatureKey.taskTemplateCount, EntitlementTier.premium, matrix: matrix);
-  final int freeReward =
-      featureQuotaFor(FeatureKey.rewardTemplateCount, EntitlementTier.free, matrix: matrix);
-  final int premiumReward =
-      featureQuotaFor(FeatureKey.rewardTemplateCount, EntitlementTier.premium, matrix: matrix);
-  final bool freeOneClick =
-      featureAllowedFor(FeatureKey.oneClickCare, EntitlementTier.free, matrix: matrix);
-  final bool premiumOneClick =
-      featureAllowedFor(FeatureKey.oneClickCare, EntitlementTier.premium, matrix: matrix);
-
   return <PremiumUnlockRow>[
-    PremiumUnlockRow(
-      key: FeatureKey.oneClickCare,
-      label: t.premium_table_row_one_click,
-      freeText: freeOneClick ? '✓' : '✗',
-      freeOk: freeOneClick,
-      premiumText: premiumOneClick ? t.premium_table_unlimited : '✗',
-      premiumOk: premiumOneClick,
-    ),
-    PremiumUnlockRow(
-      key: FeatureKey.gardenPotCapacity,
-      label: t.premium_table_row_pots,
-      freeText: _quotaPots(t, freePot),
-      freeOk: true,
-      premiumText: premiumPot == kUnlimitedQuota
-          ? t.premium_table_unlimited
-          : t.premium_table_max(premiumPot),
-      premiumOk: true,
-      // C70：买断只解锁「扩容资格」，扩容仍需花阳光 —— 必须如实标注。
-      note: t.premium_table_pots_note,
-    ),
+    _potsRow(t, matrix), // 行 2 gardenPotCapacity，note = pots_note（C70）
+    _templatesRow(t, matrix), // 行 3 合并行 task+reward（见 _templatesRow 注释）
+    _profilesRow(t, matrix), // 行 4 multiChildProfile（读档案配额常量）
+    _oneClickRow(t, matrix), // 行 5 oneClickCare
+    _perksRow(t, matrix), // 行 6 titlePerks（9 = kFocusLevelTitleLevels.length）
+    _reportRow(t, matrix), // 行 7 deepReport（freeOk 恒 true：日/周免费真实可用）
+  ];
+}
+
+/// 购买页权益预览 **5 徽标**数据源（`parent_premium_page.dart` `_buildPreviewBadges`
+/// 消费）。
+///
+/// 🔴 与 [unlockRowsFor] **解耦**：对比表改 7 行 3 组后，徽标仍只列现 5 枚真实
+/// 生效项（一键 / 花盆 / 成长项 / 奖励 / 称号），文案与 emoji 零变化 ——
+/// 徽标不吞 ✗ 行 / 合并行 / 报告行。
+///
+/// [matrix] / [l10n] 语义同 [unlockRowsFor]。
+List<PremiumUnlockRow> badgeRowsFor({
+  Map<FeatureKey, FeatureRule> matrix = kEntitlementMatrix,
+  AppLocalizations? l10n,
+}) {
+  final AppLocalizations t = l10n ?? AppLocalizationsZh();
+  return <PremiumUnlockRow>[
+    _oneClickRow(t, matrix),
+    _potsRow(t, matrix),
+    // 模板两行在徽标侧**各自独立成行**（label 用 row_tasks / row_rewards ——
+    // 故不能复用对比表的合并行；配额取词共用 [_quotaItems] / [_quotaOrUnlimited]）。
     PremiumUnlockRow(
       key: FeatureKey.taskTemplateCount,
       label: t.premium_table_row_tasks,
-      freeText: _quotaItems(t, freeTask),
+      freeText: _quotaItems(t, featureQuotaFor(
+          FeatureKey.taskTemplateCount, EntitlementTier.free, matrix: matrix)),
       freeOk: true,
-      premiumText: premiumTask == kUnlimitedQuota
-          ? t.premium_table_unlimited
-          : t.premium_table_max(premiumTask),
+      premiumText: _quotaOrUnlimited(t, featureQuotaFor(
+          FeatureKey.taskTemplateCount, EntitlementTier.premium,
+          matrix: matrix)),
       premiumOk: true,
     ),
     PremiumUnlockRow(
       key: FeatureKey.rewardTemplateCount,
       label: t.premium_table_row_rewards,
-      freeText: _quotaItems(t, freeReward),
+      freeText: _quotaItems(t, featureQuotaFor(
+          FeatureKey.rewardTemplateCount, EntitlementTier.free, matrix: matrix)),
       freeOk: true,
-      premiumText: premiumReward == kUnlimitedQuota
-          ? t.premium_table_unlimited
-          : t.premium_table_max(premiumReward),
+      premiumText: _quotaOrUnlimited(t, featureQuotaFor(
+          FeatureKey.rewardTemplateCount, EntitlementTier.premium,
+          matrix: matrix)),
       premiumOk: true,
     ),
-    // C80 第 5 行：称号专属属性。freeOk 派生自矩阵（与其余布尔行同款），
-    // premiumText 由 [kFocusLevelTitleLevels.length] 派生（9 派生，防漂移）。
-    PremiumUnlockRow(
-      key: FeatureKey.titlePerks,
-      label: t.premium_table_row_perks,
-      freeText: featureAllowedFor(
-              FeatureKey.titlePerks, EntitlementTier.free,
-              matrix: matrix)
-          ? '✓'
-          : '✗',
-      freeOk: featureAllowedFor(
-          FeatureKey.titlePerks, EntitlementTier.free, matrix: matrix),
-      premiumText:
-          t.premium_table_perks_count(kFocusLevelTitleLevels.length),
-      premiumOk: featureAllowedFor(
-          FeatureKey.titlePerks, EntitlementTier.premium, matrix: matrix),
-    ),
+    _perksRow(t, matrix),
   ];
 }
 
-/// 配额展示串（花盆）：`kUnlimitedQuota` → 不限，否则 `'$quota 个'`。
+// ── 行构造 helpers（unlockRowsFor / badgeRowsFor 共用，杜绝双源漂移）──
+
+/// 行 2「花盆上限」：配额行，note = pots_note（C70：扩容仍需花阳光）。
+PremiumUnlockRow _potsRow(
+  AppLocalizations t,
+  Map<FeatureKey, FeatureRule> matrix,
+) {
+  final int freePot = featureQuotaFor(
+      FeatureKey.gardenPotCapacity, EntitlementTier.free, matrix: matrix);
+  final int premiumPot = featureQuotaFor(
+      FeatureKey.gardenPotCapacity, EntitlementTier.premium, matrix: matrix);
+  return PremiumUnlockRow(
+    key: FeatureKey.gardenPotCapacity,
+    label: t.premium_table_row_pots,
+    freeText: _quotaPots(t, freePot),
+    freeOk: true,
+    premiumText: _quotaOrUnlimited(t, premiumPot),
+    premiumOk: true,
+    // C70：买断只解锁「扩容资格」，扩容仍需花阳光 —— 必须如实标注。
+    note: t.premium_table_pots_note,
+  );
+}
+
+/// 行 3「成长项 / 奖励模板」**合并行**（`key` = taskTemplateCount 主键 +
+/// `secondaryKey` = rewardTemplateCount 次键）。
+///
+/// free 列派生规则（F146 §3.4）：两键 freeQuota 相等（现网均 5）→「各 N 条」；
+/// 不等 →「N 条 / M 条」回退（`premium_table_free_items_single` ×2）。
+/// premium 列：均不限 →「✓ 不限」；否则逐侧格式化后以「 / 」连接
+/// （回退分支现网不可达：`kFreeTaskQuota` == `kFreeRewardQuota`，用注入测试钉住）。
+PremiumUnlockRow _templatesRow(
+  AppLocalizations t,
+  Map<FeatureKey, FeatureRule> matrix,
+) {
+  final int freeTask = featureQuotaFor(
+      FeatureKey.taskTemplateCount, EntitlementTier.free, matrix: matrix);
+  final int freeReward = featureQuotaFor(
+      FeatureKey.rewardTemplateCount, EntitlementTier.free, matrix: matrix);
+  final int premTask = featureQuotaFor(
+      FeatureKey.taskTemplateCount, EntitlementTier.premium, matrix: matrix);
+  final int premReward = featureQuotaFor(
+      FeatureKey.rewardTemplateCount, EntitlementTier.premium, matrix: matrix);
+  final String freeText = freeTask == freeReward
+      ? t.premium_table_free_items(freeTask)
+      : '${t.premium_table_free_items_single(freeTask)} / '
+          '${t.premium_table_free_items_single(freeReward)}';
+  final String premiumText =
+      (premTask == kUnlimitedQuota && premReward == kUnlimitedQuota)
+          ? t.premium_table_unlimited
+          : '${_quotaOrUnlimited(t, premTask)} / ${_quotaOrUnlimited(t, premReward)}';
+  return PremiumUnlockRow(
+    key: FeatureKey.taskTemplateCount,
+    secondaryKey: FeatureKey.rewardTemplateCount,
+    label: t.premium_table_row_templates,
+    freeText: freeText,
+    premiumText: premiumText,
+    // 配额行：可用（只拦新增，C69，「只拦新增」语义不入对外文案）。
+    freeOk: true,
+    premiumOk: true,
+  );
+}
+
+/// 行 4「孩子档案」：配额行，读 `kFreeChildProfileCount` / `kPremiumChildProfileCount`
+///（经矩阵派生，不写死 1 / 3）。
+PremiumUnlockRow _profilesRow(
+  AppLocalizations t,
+  Map<FeatureKey, FeatureRule> matrix,
+) {
+  final int freeProfile = featureQuotaFor(
+      FeatureKey.multiChildProfile, EntitlementTier.free, matrix: matrix);
+  final int premiumProfile = featureQuotaFor(
+      FeatureKey.multiChildProfile, EntitlementTier.premium, matrix: matrix);
+  return PremiumUnlockRow(
+    key: FeatureKey.multiChildProfile,
+    label: t.premium_table_row_profiles,
+    freeText: _quotaPots(t, freeProfile),
+    freeOk: true,
+    premiumText: _quotaOrUnlimited(t, premiumProfile),
+    premiumOk: true,
+  );
+}
+
+/// 行 5「花园一键操作」：布尔行（free 档由矩阵关闭 → ✗）。
+PremiumUnlockRow _oneClickRow(
+  AppLocalizations t,
+  Map<FeatureKey, FeatureRule> matrix,
+) {
+  final bool freeOneClick = featureAllowedFor(
+      FeatureKey.oneClickCare, EntitlementTier.free, matrix: matrix);
+  final bool premiumOneClick = featureAllowedFor(
+      FeatureKey.oneClickCare, EntitlementTier.premium, matrix: matrix);
+  return PremiumUnlockRow(
+    key: FeatureKey.oneClickCare,
+    label: t.premium_table_row_one_click,
+    freeText: freeOneClick ? '✓' : '✗',
+    freeOk: freeOneClick,
+    premiumText: premiumOneClick ? t.premium_table_unlimited : '✗',
+    premiumOk: premiumOneClick,
+  );
+}
+
+/// 行 6「称号属性」：布尔行（C80）；premiumText 由 [kFocusLevelTitleLevels.length]
+/// 派生（9 派生，防漂移）。
+PremiumUnlockRow _perksRow(
+  AppLocalizations t,
+  Map<FeatureKey, FeatureRule> matrix,
+) {
+  final bool freePerks = featureAllowedFor(
+      FeatureKey.titlePerks, EntitlementTier.free, matrix: matrix);
+  return PremiumUnlockRow(
+    key: FeatureKey.titlePerks,
+    label: t.premium_table_row_perks,
+    freeText: freePerks ? '✓' : '✗',
+    freeOk: freePerks,
+    premiumText: t.premium_table_perks_count(kFocusLevelTitleLevels.length),
+    premiumOk: featureAllowedFor(
+        FeatureKey.titlePerks, EntitlementTier.premium, matrix: matrix),
+  );
+}
+
+/// 行 7「家长专注报告」：deepReport 行。free 列「近 7 天」如实展示（C69 细化：
+/// 日 / 周报告免费真实可用，freeOk 恒 true）；premium 列与报告页引导横条口径对齐
+///（「解锁深度专注报告」→ 加月 / 年报告 · 热力图）。
+PremiumUnlockRow _reportRow(
+  AppLocalizations t,
+  Map<FeatureKey, FeatureRule> matrix,
+) {
+  return PremiumUnlockRow(
+    key: FeatureKey.deepReport,
+    label: t.premium_table_row_report,
+    freeText: t.premium_table_report_days,
+    freeOk: true,
+    premiumText: t.premium_table_report_premium,
+    premiumOk: featureAllowedFor(
+        FeatureKey.deepReport, EntitlementTier.premium, matrix: matrix),
+  );
+}
+
+/// 配额展示串（花盆 / 档案类）：`kUnlimitedQuota` → 不限，否则 `'$quota 个'`。
 String _quotaPots(AppLocalizations t, int quota) =>
     quota == kUnlimitedQuota
         ? t.shared_unlimited
         : t.premium_table_free_pots(quota);
 
-/// 配额展示串（模板类）：`kUnlimitedQuota` → 不限，否则 `'$quota 条'`。
+/// 配额展示串（模板类·徽标行用）：`kUnlimitedQuota` → 不限，否则 `'$quota 条'`。
 String _quotaItems(AppLocalizations t, int quota) =>
     quota == kUnlimitedQuota
         ? t.shared_unlimited
         : t.premium_table_free_items(quota);
+
+/// 配额展示串（买断列通用）：`kUnlimitedQuota` → 「✓ 不限」，否则「最多 N」。
+String _quotaOrUnlimited(AppLocalizations t, int quota) =>
+    quota == kUnlimitedQuota ? t.premium_table_unlimited : t.premium_table_max(quota);

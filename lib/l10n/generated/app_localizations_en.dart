@@ -2334,28 +2334,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get premium_table_band_free => 'Free to use';
 
   @override
-  String get premium_table_band_unlock => 'Unlock by one-time buy';
+  String get premium_table_row_core => 'Core features — all free';
 
   @override
-  String get premium_table_row_pomodoro => 'Focus timer';
+  String get premium_table_footnote_core =>
+      'Focus timer · screen time · eye care · garden · ledger · store · 40 levels & 9 titles';
 
   @override
-  String get premium_table_row_screentime => 'Screen time & routines';
+  String get premium_table_band_capacity => 'Buy once · more capacity';
 
   @override
-  String get premium_table_row_eyecare => 'Eye-care breaks';
-
-  @override
-  String get premium_table_row_garden => 'Garden growing';
-
-  @override
-  String get premium_table_row_economy => 'Sunlight economy & ledger';
-
-  @override
-  String get premium_table_row_store => 'Store redemption';
-
-  @override
-  String get premium_table_row_levels => 'Focus levels + 9 titles';
+  String get premium_table_band_advanced => 'Buy once · advanced features';
 
   @override
   String get premium_table_row_report => 'Parent focus report';
@@ -2364,14 +2353,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get premium_table_report_days => 'Last 7 days';
 
   @override
-  String get premium_table_footnote_report =>
-      'More report features in development';
+  String get premium_table_report_premium =>
+      'Adds monthly & yearly reports · heatmap';
 
   @override
   String get premium_table_row_one_click => 'Garden one-tap care';
 
   @override
   String get premium_table_row_pots => 'Pot capacity';
+
+  @override
+  String get premium_table_row_templates => 'Task & reward templates';
+
+  @override
+  String get premium_table_row_profiles => 'Child profiles';
 
   @override
   String get premium_table_row_tasks => 'Growth templates';
@@ -2389,6 +2384,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String premium_table_free_items(int count) {
+    return '$count each';
+  }
+
+  @override
+  String premium_table_free_items_single(int count) {
     return '$count items';
   }
 

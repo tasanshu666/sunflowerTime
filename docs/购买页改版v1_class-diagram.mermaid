@@ -46,18 +46,22 @@ classDiagram
 
     %% ── 本批新增：presenter + 数据类（改 premium_gate.dart）──
     class PremiumUnlockRow {
-        <<new>>
+        <<F146 更新>>
         +String label
         +String freeText
         +String premiumText
         +bool freeOk
         +bool premiumOk
         +FeatureKey key
+        +FeatureKey? secondaryKey 「合并行次键」
+        +List~FeatureKey~ allKeys() 「守卫统一入口」
     }
 
     class premium_gate {
         <<library · 已在守卫白名单>>
-        +PremiumUnlockRow[] unlockRowsFor(matrix) 「新增·唯一presenter」
+        +PremiumUnlockRow[] unlockRowsFor(matrix) 「F146 重构·6 行派生」
+        +PremiumUnlockRow[] badgeRowsFor(matrix) 「F146 新增·5 徽标解耦」
+        +int kUnlockCapacityRowCount 「容量组切分点 = 3」
         -String _featureLabel(FeatureKey) 「既有·复用」
         +featureLabelFor(FeatureKey) String 「可选·暴露给对比表? 否」
     }
@@ -74,7 +78,7 @@ classDiagram
     }
     class _GroupBand {
         <<new · private>>
-        +String title  「免费就能用 / 买断后解锁」
+        +String title  「免费就能用 / 买断解锁·更大容量 / 买断解锁·进阶能力」
     }
     class _UnlockRowView {
         <<new · private>>
@@ -153,9 +157,9 @@ classDiagram
 
     premium_gate ..> entitlement_matrix : 读（featureAllowedFor / featureQuotaFor）
     premium_gate ..> PremiumUnlockRow : 构造并返回
-    premium_gate --> FeatureKey : 显式枚举 4 键（禁 values 遍历）
+    premium_gate --> FeatureKey : 显式枚举 6 行（禁 values 遍历）
 
-    PremiumUnlockTable --> PremiumUnlockRow : 渲染 B 组
+    PremiumUnlockTable --> PremiumUnlockRow : 渲染 7 行 3 组（行 1 静态 + 行 2–7 派生）
     PremiumUnlockTable *-- _TableHeader
     PremiumUnlockTable *-- _GroupBand
     PremiumUnlockTable *-- _UnlockRowView
@@ -165,7 +169,7 @@ classDiagram
     PremiumUnlockTable ..> responsive : uiScaleOf（图形/行高）
 
     ParentPremiumPage --> PremiumUnlockTable : 嵌入（传 bool isUnlocked）
-    ParentPremiumPage ..> premium_gate : unlockRowsFor()（预览徽标复用）
+    ParentPremiumPage ..> premium_gate : badgeRowsFor()（预览徽标·F146 解耦）
     ParentPremiumPage ..> entitlementProvider : 只读→ isPremium（页面已白名单）
     ParentPremiumPage *-- _PremiumSunflowerIcon
     ParentPremiumPage ..> responsive : uiScaleOf

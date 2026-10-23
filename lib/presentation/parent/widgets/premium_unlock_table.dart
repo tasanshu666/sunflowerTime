@@ -11,10 +11,12 @@
 ///  · 权益标识符源码守卫无需为本文件新增白名单条目；
 ///  · 门控判定与展示解耦（对比表**不做**门控判定，只做展示）。
 ///
-/// ## 数据来源
-///  · **B 组「买断后解锁」5 行**：[unlockRowsFor]（读矩阵派生，改矩阵即改表；C80 追加
-///    第 5 行「称号属性」，遍历全部派生行渲染，新增键自动入表）；
-///  · **A 组「免费就能用」8 行**：静态文案（这些能力不在门控矩阵内，是纯描述）。
+/// ## 数据来源（F146 改版：7 行 3 组）
+///  · **行 1「核心体验全免费」**：静态文案（纯描述、无能力键语义，与旧 A 组同机制
+///    —— 这些能力不在门控矩阵内）+ 核心脚注列举；
+///  · **行 2–7**：[unlockRowsFor]（读矩阵派生，改矩阵即改表），以
+///    [kUnlockCapacityRowCount]（= 3，**禁魔法数**）切分为
+///    「买断解锁 · 更大容量」（行 2–4）与「买断解锁 · 进阶能力」（行 5–7）两组。
 ///
 /// ## 🔴 合规红线
 /// 只列**真实生效**项；未实现能力一律**不得**写进任何对外文案（Apple 3.1.1 /
@@ -52,31 +54,6 @@ class PremiumUnlockTable extends StatelessWidget {
 
   const PremiumUnlockTable({this.isUnlocked = false, super.key});
 
-  /// A 组（「免费就能用」）静态行 —— **8 行**（7 核心 + 「家长专注报告」）。
-  ///
-  /// 🔴 「家长专注报告」行**如实写**「近 7 天 / 近 7 天」（矩阵里两栏同值）——
-  /// 绝不夸大为"买断解锁更多报告能力"（Apple 3.1.1）；更深的分层能力由表下极简
-  /// 脚注如实覆盖。
-  ///
-  /// i18n B2：行文案经 ARB 取（故从 `static const` 改为按 [t] 现算）。
-  static List<({String label, String free, String premium})> _freeRows(
-    AppLocalizations t,
-  ) =>
-      <({String label, String free, String premium})>[
-        (label: t.premium_table_row_pomodoro, free: '✓', premium: '✓'),
-        (label: t.premium_table_row_screentime, free: '✓', premium: '✓'),
-        (label: t.premium_table_row_eyecare, free: '✓', premium: '✓'),
-        (label: t.premium_table_row_garden, free: '✓', premium: '✓'),
-        (label: t.premium_table_row_economy, free: '✓', premium: '✓'),
-        (label: t.premium_table_row_store, free: '✓', premium: '✓'),
-        (label: t.premium_table_row_levels, free: '✓', premium: '✓'),
-        (
-          label: t.premium_table_row_report,
-          free: t.premium_table_report_days,
-          premium: t.premium_table_report_days,
-        ),
-      ];
-
   @override
   Widget build(BuildContext context) {
     final double s = uiScaleOf(context);
@@ -84,29 +61,24 @@ class PremiumUnlockTable extends StatelessWidget {
     final AppLocalizations t = l10nOf(context);
     final List<PremiumUnlockRow> derived = unlockRowsFor(l10n: t);
 
+    // F146：7 行 3 组。组 2 / 组 3 的切分点 = [kUnlockCapacityRowCount]
+    //（数据层导出常量，**组件内禁写魔法数 3**）——数据层行序漂移时由
+    // T3 结构守卫兜底变红。
     final List<Widget> body = <Widget>[
       _headerRow(s, t),
+      // 组 1「免费就能用」：静态核心行（纯描述、无能力键语义，守卫干净）
+      // + 核心脚注列举（C69 免费增值心智：核心全免费，买断不是为解锁基本功能）。
       _groupBand(t.premium_table_band_free, s),
-      for (final ({String label, String free, String premium}) r
-          in _freeRows(t))
-        _dataRow(r.label, r.free, r.premium, true, s, premiumOk: true),
-      _footNote(t.premium_table_footnote_report, s),
-      _groupBand(t.premium_table_band_unlock, s),
-      // C80：**遍历全部 `unlockRowsFor()` 行**（而非逐行写死 `derived[0..3]`）——
-      // 第 5 行「称号属性」（能力键 `titlePerks`）随数据层追加即自动入表，
-      // 从此「改数据层 = 改表」真正成立（原写死下标会漏掉新增行）。行的 [note]
-      // （如花盆「扩容仍需花阳光」）紧跟在**本行之下**渲染，位置语义与原实现一致。
-      for (final PremiumUnlockRow r in derived) ...<Widget>[
-        _dataRow(
-          r.label,
-          r.freeText,
-          r.premiumText,
-          r.freeOk,
-          s,
-          premiumOk: r.premiumOk,
-        ),
-        if (r.note != null) _footNote(r.note!, s),
-      ],
+      _dataRow(t.premium_table_row_core, '✓', '✓', true, s, premiumOk: true),
+      _footNote(t.premium_table_footnote_core, s),
+      // 组 2「买断解锁 · 更大容量」：派生行 0..2（花盆 / 模板合并 / 档案）。
+      _groupBand(t.premium_table_band_capacity, s),
+      for (int i = 0; i < kUnlockCapacityRowCount; i++)
+        ..._derivedRowWidgets(derived[i], s),
+      // 组 3「买断解锁 · 进阶能力」：派生行 3..5（一键 / 称号 / 报告）。
+      _groupBand(t.premium_table_band_advanced, s),
+      for (int i = kUnlockCapacityRowCount; i < derived.length; i++)
+        ..._derivedRowWidgets(derived[i], s),
     ];
 
     return Container(
@@ -222,6 +194,21 @@ class PremiumUnlockTable extends StatelessWidget {
         ),
       );
 
+  /// 派生行 → widget 列表（数据行本体 + 可选 note 脚注；note 如花盆
+  /// 「扩容仍需花阳光」紧跟本行之下渲染，位置语义与原实现一致）。
+  List<Widget> _derivedRowWidgets(PremiumUnlockRow r, double s) =>
+      <Widget>[
+        _dataRow(
+          r.label,
+          r.freeText,
+          r.premiumText,
+          r.freeOk,
+          s,
+          premiumOk: r.premiumOk,
+        ),
+        if (r.note != null) _footNote(r.note!, s),
+      ];
+
   /// 数据行：项目名 / 免费值 / 买断值 三列（等高 `Row`，用 [IntrinsicHeight] 保证
   /// 三列同行等高对齐；本表行数很少，无内在高度布局的性能顾虑）。
   Widget _dataRow(
@@ -295,7 +282,7 @@ class PremiumUnlockTable extends StatelessWidget {
     );
   }
 
-  /// 表下极简脚注（小字，如实说明，如「更多报告能力开发中」/「扩容仍需花阳光」）。
+  /// 表下极简脚注（小字，如实说明，如核心能力列举 /「扩容仍需花阳光」）。
   Widget _footNote(String text, double s) => Padding(
         padding: EdgeInsets.fromLTRB(18 * s, 4 * s, 10 * s, 6 * s),
         child: Text(

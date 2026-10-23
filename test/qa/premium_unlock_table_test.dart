@@ -3,7 +3,7 @@
 /// 覆盖设计文档 `docs/购买页改版_v1_系统设计.md` §10 的测试点 T1–T12（T8/T12 另有既有
 /// 测试兜底，此处亦补轻量守卫）：
 ///  · T1 更名守卫（源码）：旧名 0 命中、6 处 UI 文案为「解锁全部功能」；
-///  · T2 对比表渲染结构（widget）：两栏胶囊 / 两个分组带 / B 组 4 行；
+///  · T2 对比表渲染结构（widget）：两栏胶囊 / 三个分组带 / 7 行 3 组（F146）；
 ///  · T3 数值**来自矩阵**（unit）：注入自定义矩阵 → 输出随之变化；
 ///  · T4 数据来源守卫（源码）：对比表组件不含任何权益标识符；
 ///  · T5 🔴 红线守卫（源码 + 运行期）：未实现能力**不进**对比表/预览徽标；**并做变异
@@ -42,9 +42,9 @@ import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 const String _storePrice = r'HK$88.00';
 
 /// 🔴 红线词：**绝不**出现在购买页 / 对比表的对外文案里（Apple 3.1.1 / 2.3.1）。
+/// F146：「深度报告」「多孩子档案」已真实接线并入对比表（合法），从红线词集移除；
+/// 保留仍未实现的 3 项。
 const List<String> _kRedLineWords = <String>[
-  '深度报告',
-  '多孩子档案',
   '数据导出',
   '纪念册',
   '家庭共享',
@@ -437,23 +437,61 @@ void main() {
 
   // ─────────────────────── T3 对比表数据派生（unit）───────────────────────
   group('阶段5 · T3 对比表数据派生（unit）', () {
-    test('C80 后恰好 5 行，键为 5 个真实生效项（白名单）', () {
+    test('F146 后恰好 6 行，键序白名单（表行 2–7）', () {
       final List<PremiumUnlockRow> rows = unlockRowsFor();
-      expect(rows.length, 5);
+      expect(rows.length, 6);
       expect(
         rows.map((PremiumUnlockRow r) => r.key).toList(),
         <FeatureKey>[
-          FeatureKey.oneClickCare,
           FeatureKey.gardenPotCapacity,
           FeatureKey.taskTemplateCount,
-          FeatureKey.rewardTemplateCount,
+          FeatureKey.multiChildProfile,
+          FeatureKey.oneClickCare,
           FeatureKey.titlePerks,
+          FeatureKey.deepReport,
         ],
-        reason: '🔴 必须显式枚举这 5 个键（C80 加 titlePerks），禁止遍历 FeatureKey.values',
+        reason: '🔴 必须显式枚举这 6 个键（行序 = 新表行 2–7），禁止遍历 FeatureKey.values',
+      );
+      // 合并行（行 3）：主键 task + 次键 reward，守卫走 allKeys。
+      expect(rows[1].secondaryKey, FeatureKey.rewardTemplateCount,
+          reason: '模板合并行应挂 secondaryKey = rewardTemplateCount');
+      expect(rows[1].allKeys,
+          <FeatureKey>[FeatureKey.taskTemplateCount, FeatureKey.rewardTemplateCount],
+          reason: '合并行 allKeys 恰为 task+reward 双键');
+      expect(rows[1].allKeys.length, 2);
+    });
+
+    test('7 行 3 组结构守卫：容量组切分点 = kUnlockCapacityRowCount（防组件切分漂移）', () {
+      final List<PremiumUnlockRow> rows = unlockRowsFor();
+      expect(kUnlockCapacityRowCount, 3,
+          reason: '数据层导出常量 = 3（组件消费切分，禁魔法数）');
+      expect(
+        rows.sublist(0, kUnlockCapacityRowCount).map((PremiumUnlockRow r) => r.key).toSet(),
+        <FeatureKey>{
+          FeatureKey.gardenPotCapacity,
+          FeatureKey.taskTemplateCount,
+          FeatureKey.multiChildProfile,
+        },
+        reason: 'rows[0..2]（容量组）键集 = {pots, 模板合并, profiles}',
+      );
+      expect(
+        rows.sublist(kUnlockCapacityRowCount).map((PremiumUnlockRow r) => r.key).toSet(),
+        <FeatureKey>{
+          FeatureKey.oneClickCare,
+          FeatureKey.titlePerks,
+          FeatureKey.deepReport,
+        },
+        reason: 'rows[3..5]（进阶组）键集 = {oneClick, perks, report}',
       );
     });
 
-    test('取值来自矩阵（默认矩阵 → 期望文案）', () {
+    test('徽标/表格解耦守卫：badgeRowsFor 恰 5 行、unlockRowsFor 恰 6 行', () {
+      expect(badgeRowsFor().length, 5, reason: '预览徽标 5 枚（F146 解耦后仍 5 枚）');
+      expect(unlockRowsFor().length, 6, reason: '对比表派生 6 行（F146 改版）');
+    });
+
+    test('取值来自矩阵（默认矩阵 → 期望文案，数字派生不写死）', () {
+      final AppLocalizations zh = AppLocalizationsZh();
       final Map<FeatureKey, PremiumUnlockRow> byKey =
           <FeatureKey, PremiumUnlockRow>{
         for (final PremiumUnlockRow r in unlockRowsFor()) r.key: r,
@@ -463,14 +501,30 @@ void main() {
       expect(byKey[FeatureKey.oneClickCare]!.premiumText, '✓ 不限');
       expect(byKey[FeatureKey.gardenPotCapacity]!.freeText, '$kFreeGardenPotQuota 个');
       expect(byKey[FeatureKey.gardenPotCapacity]!.premiumText, '最多 $kPremiumGardenPotQuota');
-      expect(byKey[FeatureKey.taskTemplateCount]!.freeText, '$kFreeTaskQuota 条');
-      expect(byKey[FeatureKey.rewardTemplateCount]!.freeText, '$kFreeRewardQuota 条');
-      // kUnlimitedQuota → '不限'
-      expect(byKey[FeatureKey.taskTemplateCount]!.premiumText, contains('不限'));
-      expect(byKey[FeatureKey.rewardTemplateCount]!.premiumText, contains('不限'));
+      // 模板合并行：free 列「各 5 条」（改版后 free_items 模板），premium 列「✓ 不限」。
+      expect(byKey[FeatureKey.taskTemplateCount]!.freeText, '各 $kFreeTaskQuota 条',
+          reason: '两模板配额相等（现网均 5）→ 合并行显示「各 5 条」');
+      expect(byKey[FeatureKey.taskTemplateCount]!.premiumText, '✓ 不限');
       // C70：花盆行必须带注
       expect(byKey[FeatureKey.gardenPotCapacity]!.note, '扩容仍需花阳光');
-      // C80 第 5 行：称号属性（free ✗ / premium ✓ 9 条，9 由 kFocusLevelTitleLevels 派生）。
+      // 档案行（行 4）：数字派生自档案配额常量（不写死 1 / 3）。
+      expect(byKey[FeatureKey.multiChildProfile]!.freeText,
+          zh.premium_table_free_pots(kFreeChildProfileCount),
+          reason: '档案行 freeText = free_pots(kFreeChildProfileCount)（1 派生）');
+      expect(byKey[FeatureKey.multiChildProfile]!.premiumText,
+          '最多 $kPremiumChildProfileCount',
+          reason: '档案行 premiumText = max(kPremiumChildProfileCount)（3 派生）');
+      // 报告行（行 7）：free 列「近 7 天」如实展示（freeOk 恒 true），premium 列与
+      // 报告页引导横条口径对齐。
+      expect(byKey[FeatureKey.deepReport]!.freeText, zh.premium_table_report_days);
+      expect(byKey[FeatureKey.deepReport]!.freeOk, isTrue,
+          reason: '日 / 周报告免费真实可用（C69 细化）');
+      expect(byKey[FeatureKey.deepReport]!.premiumText, contains('月'));
+      expect(byKey[FeatureKey.deepReport]!.premiumText, contains('热力图'));
+      expect(byKey[FeatureKey.deepReport]!.premiumOk,
+          featureAllowedFor(FeatureKey.deepReport, EntitlementTier.premium),
+          reason: '报告行 premiumOk 派生自矩阵 premium 档');
+      // C80：称号属性（free ✗ / premium ✓ 9 条，9 由 kFocusLevelTitleLevels 派生）。
       expect(byKey[FeatureKey.titlePerks]!.freeOk, isFalse,
           reason: '称号属性免费关闭（C80 门控）');
       expect(byKey[FeatureKey.titlePerks]!.freeText, '✗');
@@ -481,9 +535,10 @@ void main() {
       expect(byKey[FeatureKey.titlePerks]!.label, '称号属性');
     });
 
-    test('注入自定义矩阵 → 输出随之变化（证明非硬编码）', () {
+    test('注入自定义矩阵 → 输出随之变化（证明非硬编码；合并行回退形态）', () {
       final Map<FeatureKey, FeatureRule> custom =
           Map<FeatureKey, FeatureRule>.of(kEntitlementMatrix);
+      // 注 task freeQuota=3（≠ reward 5）→ 合并行 free 列走「3 条 / 5 条」回退形态。
       custom[FeatureKey.taskTemplateCount] = const FeatureRule(
         key: FeatureKey.taskTemplateCount,
         freeEnabled: true,
@@ -494,12 +549,47 @@ void main() {
           <FeatureKey, PremiumUnlockRow>{
         for (final PremiumUnlockRow r in unlockRowsFor(matrix: custom)) r.key: r,
       };
-      expect(byKey[FeatureKey.taskTemplateCount]!.freeText, '3 条',
-          reason: '免费额度改为 3 → 对比表应显示「3 条」');
-      expect(byKey[FeatureKey.taskTemplateCount]!.premiumText, '最多 2',
-          reason: '买断额度改为 2 → 对比表应显示「最多 2」');
+      expect(byKey[FeatureKey.taskTemplateCount]!.freeText, '3 条 / 5 条',
+          reason: '两配额不等（3≠5）→ 合并行回退「N 条 / M 条」（free_items_single ×2）');
+      expect(byKey[FeatureKey.taskTemplateCount]!.premiumText, '最多 2 / ✓ 不限',
+          reason: 'premium 两配额不等 → 逐侧格式化后以「 / 」连接');
       // 未动的行不受影响
-      expect(byKey[FeatureKey.rewardTemplateCount]!.freeText, '$kFreeRewardQuota 条');
+      expect(byKey[FeatureKey.gardenPotCapacity]!.freeText, '$kFreeGardenPotQuota 个');
+    });
+
+    test('数字不写死守卫：注入档案配额 → 档案行随之变化（行 4 派生自矩阵）', () {
+      final Map<FeatureKey, FeatureRule> custom =
+          Map<FeatureKey, FeatureRule>.of(kEntitlementMatrix);
+      custom[FeatureKey.multiChildProfile] = const FeatureRule(
+        key: FeatureKey.multiChildProfile,
+        freeEnabled: true,
+        freeQuota: 2,
+        premiumQuota: kPremiumChildProfileCount,
+      );
+      final Map<FeatureKey, PremiumUnlockRow> byKey =
+          <FeatureKey, PremiumUnlockRow>{
+        for (final PremiumUnlockRow r in unlockRowsFor(matrix: custom)) r.key: r,
+      };
+      expect(byKey[FeatureKey.multiChildProfile]!.freeText, '2 个',
+          reason: '档案行 freeText 派生自矩阵配额（而非写死「1 个」）');
+      expect(byKey[FeatureKey.multiChildProfile]!.premiumText,
+          '最多 $kPremiumChildProfileCount');
+    });
+
+    test('zh 模板逐字钉：新增 ARB key 文案不漂移（对齐两段式守卫惯例）', () {
+      final AppLocalizations zh = AppLocalizationsZh();
+      expect(zh.premium_table_row_core, '核心体验全免费');
+      expect(zh.premium_table_band_capacity, '买断解锁 · 更大容量');
+      expect(zh.premium_table_band_advanced, '买断解锁 · 进阶能力');
+      expect(zh.premium_table_row_templates, '成长项 / 奖励模板');
+      expect(zh.premium_table_row_profiles, '孩子档案');
+      expect(zh.premium_table_report_premium, '加月 / 年报告 · 热力图');
+      expect(zh.premium_table_footnote_core,
+          '专注番茄钟 · 防沉迷作息 · 护眼休息 · 花园养成 · 阳光账本 · 商店兑换 · 40 级专注称号');
+      expect(zh.premium_table_free_items(5), '各 5 条',
+          reason: 'free_items 改版后为「各 N 条」（合并行共用）');
+      expect(zh.premium_table_free_items_single(3), '3 条',
+          reason: '回退形态单数条目文案（两配额不等时）');
     });
   });
 
@@ -526,8 +616,12 @@ void main() {
 
   group('阶段5 · T5 🔴 红线守卫（源码 + 运行期）', () {
     test('守卫自身非空：红线词集能命中一段典型违规样例（变异自检）', () {
-      expect(_hitsRedLine('买断即可看深度报告'), isTrue,
+      // F146：样例换仍未实现项（深度报告已真实接线入表，不再算违规）。
+      // 样例须**字面含**红线词「数据导出」，否则守卫命中不了（形同虚设）。
+      expect(_hitsRedLine('买断即可解锁「数据导出」功能'), isTrue,
           reason: '红线词集必须能命中违规样例，否则守卫形同虚设');
+      expect(_hitsRedLine('买断即可导出数据'), isFalse,
+          reason: '反例：字面不含红线词（说明守卫按词匹配而非语义）');
       expect(_hitsRedLine('专注番茄钟 · 花园养成'), isFalse);
     });
 
@@ -547,12 +641,13 @@ void main() {
           reason: '🔴 禁止遍历 FeatureKey.values（会把未实现键带进卖点）');
     });
 
-    test('运行期：unlockRowsFor 输出键集不含任何未实现键', () {
-      final Set<FeatureKey> keys =
-          unlockRowsFor().map((PremiumUnlockRow r) => r.key).toSet();
+    test('运行期：unlockRowsFor 输出键集（含合并行 allKeys）不含任何未实现键', () {
+      // F146：禁键集缩为 3（deepReport / multiChildProfile 已真实接线入表，合法）。
+      // 取键走 [allKeys]（覆盖模板合并行双键，禁止绕过）。
+      final Set<FeatureKey> keys = unlockRowsFor()
+          .expand((PremiumUnlockRow r) => r.allKeys)
+          .toSet();
       for (final FeatureKey k in <FeatureKey>[
-        FeatureKey.deepReport,
-        FeatureKey.multiChildProfile,
         FeatureKey.exportShare,
         FeatureKey.memoirExport,
         FeatureKey.familySharing,
@@ -560,10 +655,24 @@ void main() {
         expect(keys.contains(k), isFalse,
             reason: '未实现键 $k 出现在了对比表里（若新增一行即由本测试兜底变红）');
       }
+      // 徽标侧同样守卫（F146 解耦后独立数据源）。
+      final Set<FeatureKey> badgeKeys = badgeRowsFor()
+          .expand((PremiumUnlockRow r) => r.allKeys)
+          .toSet();
+      for (final FeatureKey k in <FeatureKey>[
+        FeatureKey.deepReport,
+        FeatureKey.exportShare,
+        FeatureKey.memoirExport,
+        FeatureKey.familySharing,
+      ]) {
+        expect(badgeKeys.contains(k), isFalse,
+            reason: '未实现键 $k 出现在了预览徽标里');
+      }
     });
 
     test('运行期：预览徽标数据源只含 5 项且标签无红线词（C80 第 5 枚 🏅）', () {
-      final List<PremiumUnlockRow> rows = unlockRowsFor();
+      // F146：改挂 badgeRowsFor（与对比表 unlockRowsFor 解耦）。
+      final List<PremiumUnlockRow> rows = badgeRowsFor();
       expect(rows.length, 5, reason: '预览徽标 5 枚真实生效项（C80：+ 称号属性）');
       for (final PremiumUnlockRow r in rows) {
         expect(_hitsRedLine(r.label), isFalse);
@@ -588,7 +697,7 @@ void main() {
 
   // ───────────────────── T2 对比表渲染结构（widget）─────────────────────
   group('阶段5 · T2 对比表渲染结构（widget）', () {
-    testWidgets('两栏胶囊 + 两个分组带 + B 组 5 行项目名齐全（C80：+ 称号属性）',
+    testWidgets('两栏胶囊 + 三个分组带 + 7 行 3 组项目名齐全（F146 改版）',
         (WidgetTester tester) async {
       await _pumpTable(tester);
 
@@ -596,37 +705,28 @@ void main() {
       expect(find.text('免费版'), findsOneWidget, reason: '免费列顶应有「免费版」胶囊');
       expect(find.textContaining('解锁全部功能'), findsOneWidget,
           reason: '买断列顶应有「解锁全部功能 ★」胶囊');
-      // 两个分组带
+      // 三个分组带（F146：band_free + band_capacity + band_advanced）
       expect(find.text('免费就能用'), findsOneWidget);
-      expect(find.text('买断后解锁'), findsOneWidget);
-      // B 组 5 行项目名
+      expect(find.text('买断解锁 · 更大容量'), findsOneWidget);
+      expect(find.text('买断解锁 · 进阶能力'), findsOneWidget);
+      // 行 1（静态核心行）+ 行 2–7（派生行）项目名
       for (final String label in <String>[
-        '花园「一键操作」',
+        '核心体验全免费',
         '花盆上限',
-        '成长项模板',
-        '奖励模板',
+        '成长项 / 奖励模板',
+        '孩子档案',
+        '花园「一键操作」',
         '称号属性',
-      ]) {
-        expect(find.text(label), findsOneWidget, reason: 'B 组缺行：$label');
-      }
-      // A 组 8 行（含「商店兑换」与「家长专注报告」两行都保留）
-      for (final String label in <String>[
-        '专注番茄钟',
-        '防沉迷与作息',
-        '少儿护眼休息',
-        '花园养成',
-        '阳光经济与账本',
-        '商店兑换',
-        '专注等级 + 9 称号',
         '家长专注报告',
       ]) {
-        expect(find.text(label), findsOneWidget, reason: 'A 组缺行：$label');
+        expect(find.text(label), findsOneWidget, reason: '7 行缺行：$label');
       }
-      // 脚注（C70 + 报告能力如实标注）
+      // 脚注（F146：核心脚注 + 花盆 note；「更多报告能力开发中」已随失实删除）
+      expect(find.textContaining('专注番茄钟 ·'), findsOneWidget,
+          reason: '行 1 核心脚注列举');
       expect(find.textContaining('扩容仍需花阳光'), findsOneWidget);
-      expect(find.textContaining('更多报告能力开发中'), findsOneWidget);
-      // 报告行两栏同值
-      expect(find.text('近 7 天'), findsNWidgets(2));
+      // 报告行：free 列「近 7 天」1 处（premium 列改为 report_premium 口径）
+      expect(find.text('近 7 天'), findsNWidgets(1));
       expect(tester.takeException(), isNull);
     });
 

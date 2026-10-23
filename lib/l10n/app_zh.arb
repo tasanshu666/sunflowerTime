@@ -5,6 +5,28 @@
   "consent_compliance_body": "· 我们只收集专注时长、打卡等必要数据；\n· 全部数据加密存储在本机，不上传云端；\n· 无账号、无广告、无社交，不采集通讯录与位置。",
   "consent_btn_agree": "同意并开始",
   "consent_btn_back_garden": "返回花园",
+  "consent_update_notice": "隐私政策已更新（{version}），请重新阅读并确认。",
+  "@consent_update_notice": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "consent_btn_disagree": "不同意",
+  "consent_view_policy": "查看完整隐私政策 ›",
+  "consent_decline_title": "为什么需要同意？",
+  "consent_decline_body": "向日葵专注的所有数据都只保存在这台设备上，不会上传到任何服务器，我们需要您同意这份说明才能开始使用。\n\n您可以再看看说明或隐私政策，也可以选择退出应用。",
+  "consent_decline_stay": "再想想",
+  "consent_decline_exit": "退出应用",
+  "consent_data_title": "这个应用里有哪些数据",
+  "consent_data_focus": "专注计时与任务打卡记录",
+  "consent_data_garden": "花园植物与孩子资料（昵称、头像）",
+  "consent_data_local": "全部加密存储在本机，卸载即彻底删除",
+  "consent_data_none": "无账号、无广告、无追踪，不联网上传",
+  "privacy_policy_title": "隐私政策",
+  "privacy_policy_load_failed": "政策内容加载失败，请重试。",
+  "parent_settings_entry_privacy_sub": "应用内随时查看完整隐私政策",
   "shared_lang_title": "语言",
   "shared_lang_follow_system": "跟随系统",
   "shared_ok": "确定",

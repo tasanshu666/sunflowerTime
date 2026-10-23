@@ -13,11 +13,33 @@ class SettingsStore {
 
   SettingsStore(this._sp);
 
-  Future<bool> isFirstLaunchConsented() async =>
-      _sp.getBool(kPrefFirstLaunchConsented) ?? false;
+  // ── 首启同意（首启告知 2.0 / C110：版本三要素）────────────────────────────
 
-  Future<void> setFirstLaunchConsented(bool value) async =>
-      _sp.setBool(kPrefFirstLaunchConsented, value);
+  /// 已同意的隐私政策版本号：新键缺失时回读 v1 遗留布尔键迁移 ——
+  /// `kPrefFirstLaunchConsented == true` 视为已同意 **v1**（老用户升级后会因
+  /// 「记录版本 < 当前版本」重弹一次同意页，即 §10.3 重新确认机制）；两键皆无
+  /// = 0（从未同意）。
+  Future<int> consentedPolicyVersion() async {
+    final int? v = _sp.getInt(kPrefConsentPolicyVersion);
+    if (v != null) return v;
+    final bool legacy = _sp.getBool(kPrefFirstLaunchConsented) ?? false;
+    return legacy ? 1 : 0;
+  }
+
+  /// 是否已同意**当前版本**政策（路由守卫重弹判据：记录版本 ≥ 当前内置版本）。
+  Future<bool> isCurrentPolicyConsented() async =>
+      await consentedPolicyVersion() >= kPrivacyPolicyVersion;
+
+  /// 记录「同意当前版本政策」：写版本号 + 同意时刻（epoch 毫秒，仅审计用；
+  /// 幂等覆盖写）。**不再写 v1 遗留布尔键**。
+  Future<void> acceptCurrentPolicyConsent() async {
+    await _sp.setInt(kPrefConsentPolicyVersion, kPrivacyPolicyVersion);
+    await _sp.setInt(
+        kPrefConsentAcceptedAtMs, DateTime.now().millisecondsSinceEpoch);
+  }
+
+  /// 同意时刻（epoch 毫秒；无记录返回 null，仅供审计/调试展示）。
+  Future<int?> consentAcceptedAtMs() async => _sp.getInt(kPrefConsentAcceptedAtMs);
 
   // ── 已读通知键（C90 期 2 第二批：按孩子分键，键名单点见 app_constants）──────
 

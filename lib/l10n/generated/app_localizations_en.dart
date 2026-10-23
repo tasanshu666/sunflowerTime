@@ -25,6 +25,59 @@ class AppLocalizationsEn extends AppLocalizations {
   String get consent_btn_back_garden => 'Back to Garden';
 
   @override
+  String consent_update_notice(String version) {
+    return 'The privacy policy has been updated ($version). Please review and confirm again.';
+  }
+
+  @override
+  String get consent_btn_disagree => 'Decline';
+
+  @override
+  String get consent_view_policy => 'View full privacy policy ›';
+
+  @override
+  String get consent_decline_title => 'Why is consent needed?';
+
+  @override
+  String get consent_decline_body =>
+      'All SunFocus data stays only on this device and is never uploaded to any server. We need your consent to this notice before the app can be used.\n\nYou can review the notice or the privacy policy again, or exit the app.';
+
+  @override
+  String get consent_decline_stay => 'Reconsider';
+
+  @override
+  String get consent_decline_exit => 'Exit app';
+
+  @override
+  String get consent_data_title => 'What data lives in this app';
+
+  @override
+  String get consent_data_focus => 'Focus timers and task check-in records';
+
+  @override
+  String get consent_data_garden =>
+      'Garden plants and child profile (nickname, avatar)';
+
+  @override
+  String get consent_data_local =>
+      'All encrypted on this device only; uninstalling deletes everything';
+
+  @override
+  String get consent_data_none =>
+      'No account, no ads, no tracking, nothing uploaded';
+
+  @override
+  String get privacy_policy_title => 'Privacy Policy';
+
+  @override
+  String get privacy_policy_load_failed =>
+      'Failed to load the policy. Please try again.';
+
+  @override
+  String get parent_settings_entry_privacy_sub =>
+      'Read the full privacy policy anytime in-app';
+
+  @override
   String get shared_lang_title => 'Language';
 
   @override

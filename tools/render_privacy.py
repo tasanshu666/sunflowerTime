@@ -217,7 +217,7 @@ def main() -> None:
         canonical="https://sunfocused.cn/privacy.html",
         drop_heading="## 附：待确认项汇总",
         switcher='<a href="privacy-en.html" hreflang="en">English</a>',
-        footer='版本 v1.1 ｜ 生效日期 2026-10-19 ｜ 维护人 1007681634@qq.com<br>'
+        footer='版本 v2.0 ｜ 生效日期 2026-10-23 ｜ 维护人 1007681634@qq.com<br>'
                'English version: <a href="privacy-en.html">Privacy Policy (English)</a><br>'
                '<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">京ICP备2026070040号-1</a>',
         replacements=ZH_REPLACEMENTS,
@@ -231,7 +231,7 @@ def main() -> None:
         canonical="https://sunfocused.cn/privacy-en.html",
         drop_heading="## Open Items (to be confirmed)",
         switcher='<a href="privacy.html" hreflang="zh-Hans">简体中文</a>',
-        footer='Version v1.1 ｜ Effective 19 October 2026 ｜ Maintainer 1007681634@qq.com<br>'
+        footer='Version v2.0 ｜ Effective 23 October 2026 ｜ Maintainer 1007681634@qq.com<br>'
                '简体中文版：<a href="privacy.html">隐私政策（简体中文）</a><br>'
                '<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">京ICP备2026070040号-1</a>',
         replacements=EN_REPLACEMENTS,

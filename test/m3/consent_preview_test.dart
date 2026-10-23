@@ -3,7 +3,7 @@
 ///
 /// 断言：
 ///   · 入口存在，点击后打开的是欢迎/同意页（有「返回花园」按钮 / 吉祥物）；
-///   · 预览路径**不写任何同意状态**（[SettingsStore.isFirstLaunchConsented] 仍为 false）；
+///   · 预览路径**不写任何同意状态**（[SettingsStore.consentedPolicyVersion] 仍为 0）；
 ///   · 返回后回到花园（调试入口重新可见）。
 ///   ·（顺带覆盖 F 项）调试面板状态卡标签为「待领奖励」、不再是过期的「48h 奖励」。
 ///
@@ -239,8 +239,8 @@ void main() {
     expect(find.text('同意并开始'), findsNothing,
         reason: '预览模式不得出现真实「同意并开始」主按钮');
 
-    // 预览不得写任何同意状态。
-    expect(await SettingsStore(prefs).isFirstLaunchConsented(), isFalse,
+    // 预览不得写任何同意状态（首启告知 2.0：同意状态 = 政策版本号键，0 = 未同意）。
+    expect(await SettingsStore(prefs).consentedPolicyVersion(), 0,
         reason: '预览只读：不得写入首次启动同意标记');
 
     // 返回 → 回到花园（调试入口重新可见），仍未写同意状态。
@@ -250,7 +250,7 @@ void main() {
       () => find.byType(BloomDebugEntry).evaluate().isNotEmpty,
     );
     expect(backToGarden, isTrue, reason: '返回后应回到花园');
-    expect(await SettingsStore(prefs).isFirstLaunchConsented(), isFalse,
+    expect(await SettingsStore(prefs).consentedPolicyVersion(), 0,
         reason: '预览全程不得写入同意状态');
   });
 }

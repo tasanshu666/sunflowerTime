@@ -5,6 +5,28 @@
   "consent_compliance_body": "· We only collect necessary data such as focus time and check-ins;\n· All data is encrypted and stays on this device, never uploaded;\n· No account, no ads, no social features; we never access contacts or location.",
   "consent_btn_agree": "Let's Start",
   "consent_btn_back_garden": "Back to Garden",
+  "consent_update_notice": "The privacy policy has been updated ({version}). Please review and confirm again.",
+  "@consent_update_notice": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "consent_btn_disagree": "Decline",
+  "consent_view_policy": "View full privacy policy ›",
+  "consent_decline_title": "Why is consent needed?",
+  "consent_decline_body": "All SunFocus data stays only on this device and is never uploaded to any server. We need your consent to this notice before the app can be used.\n\nYou can review the notice or the privacy policy again, or exit the app.",
+  "consent_decline_stay": "Reconsider",
+  "consent_decline_exit": "Exit app",
+  "consent_data_title": "What data lives in this app",
+  "consent_data_focus": "Focus timers and task check-in records",
+  "consent_data_garden": "Garden plants and child profile (nickname, avatar)",
+  "consent_data_local": "All encrypted on this device only; uninstalling deletes everything",
+  "consent_data_none": "No account, no ads, no tracking, nothing uploaded",
+  "privacy_policy_title": "Privacy Policy",
+  "privacy_policy_load_failed": "Failed to load the policy. Please try again.",
+  "parent_settings_entry_privacy_sub": "Read the full privacy policy anytime in-app",
   "shared_lang_title": "Language",
   "shared_lang_follow_system": "Follow System",
   "shared_ok": "OK",

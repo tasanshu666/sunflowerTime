@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/app_language.dart';
 import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
@@ -138,13 +139,15 @@ void main() {
     await tester.tap(find.text('English'));
     await tester.pumpAndSettle();
 
-    // 选语言不写同意标记。
+    // 选语言不写同意标记（首启告知 2.0：同意状态在「政策版本号」键，旧布尔键退役恒 null）。
     expect(prefs.getBool('first_launch_consented'), isNull);
-    // 点主按钮走主流程：写同意标记。
+    expect(prefs.getInt('consent_policy_version'), isNull);
+    // 点主按钮走主流程：写「当前政策版本号」（版本三要素 / C110）。
     await tester.ensureVisible(find.text("Let's Start"));
     await tester.pumpAndSettle();
     await tester.tap(find.text("Let's Start"));
     await tester.pump();
-    expect(prefs.getBool('first_launch_consented'), isTrue);
+    expect(prefs.getInt('consent_policy_version'), kPrivacyPolicyVersion);
+    expect(prefs.getInt('consent_accepted_at_ms'), isNotNull);
   });
 }

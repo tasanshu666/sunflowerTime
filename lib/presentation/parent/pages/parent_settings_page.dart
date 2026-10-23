@@ -439,6 +439,14 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
         // 设置页再放一张属于双入口冗余（玄参 2026-10-17 反馈「设置里那张报告卡点
         // 进去还是记录页，多一层」）。故本节只剩删除入口 → 标题改为「数据与隐私」。
         _SectionTitle(l10n.parent_settings_section_data),
+        // 隐私政策应用内全文（首启告知 2.0 / C110）：与首启同意页「查看完整隐私
+        // 政策」共用 /privacy-policy；PIN 门内入口，家长随时可查（§10.3）。
+        _EntryCard(
+          icon: Icons.privacy_tip_outlined,
+          title: l10n.privacy_policy_title,
+          subtitle: Text(l10n.parent_settings_entry_privacy_sub),
+          onTap: () => context.push('/privacy-policy'),
+        ),
         // 🔴 保留（隐私合规）：本地数据删除权——§10.4 C5 要求家长随时可清空本机数据。
         _EntryCard(
           icon: Icons.delete_forever,

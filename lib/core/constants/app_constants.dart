@@ -129,7 +129,27 @@ const String kDatabasePassphrase = 'sunfocus-planb-dev-passphrase-2026';
 
 // ── 合规 / 首启（G0 合规落地，T25）─────────────────────────────────
 /// 首次启动同意流是否已完成的标记键（shared_preferences）。
+///
+/// 🔴 **v1 遗留键**：首启告知 2.0（口径 C110）起同意状态改由
+/// [kPrefConsentPolicyVersion] 承载（带版本三要素）；本键只用于**旧版本迁移**
+/// （true = 曾同意过 v1 政策 → 迁移口径见 `SettingsStore.consentedPolicyVersion`），
+/// 新代码禁止再读写。
 const String kPrefFirstLaunchConsented = 'first_launch_consented';
+
+/// 已同意的隐私政策版本号键（shared_preferences；首启告知 2.0 / C110）。
+/// 缺失 = 从未同意过（v1 旧键迁移除外，见 [kPrefFirstLaunchConsented]）。
+const String kPrefConsentPolicyVersion = 'consent_policy_version';
+
+/// 同意时刻键（shared_preferences，epoch 毫秒；政策版本三要素之一，仅审计用）。
+const String kPrefConsentAcceptedAtMs = 'consent_accepted_at_ms';
+
+/// 当前隐私政策版本号（对应底稿 `docs/隐私政策_向日葵专注_v1.md` 头部三要素）。
+///
+/// 🔴 **重大变更时 +1**，并在底稿头部更新版本/生效日期/更新记录三要素 ——
+/// 路由守卫据此对老用户**重弹一次同意页**（§10.3 应用内重新确认机制）。
+/// 历史：v1 = 旧布尔键时代；v2 = 2026-10-23 首启告知 2.0（不同意选项/条款入口/
+/// 数据清单/重弹机制）。
+const int kPrivacyPolicyVersion = 2;
 
 /// 孩子端已读「家长核销成功」通知的申请 id 列表键 —— C90 期 2 第二批起**按孩子分键**
 ///（玄参拍板）：`acked_verify_ids_read_$childId`。历史全局键 `acked_verify_ids`

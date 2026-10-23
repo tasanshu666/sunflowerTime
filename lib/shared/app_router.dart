@@ -27,6 +27,7 @@ import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page
 import 'package:sunflower_time/presentation/parent/pages/parent_delete_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
+import 'package:sunflower_time/presentation/shared/privacy_policy_page.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -79,6 +80,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/consent',
         builder: (context, state) => const ConsentPage(),
+      ),
+      // 隐私政策全文页（首启告知 2.0 / C110）：应用内离线查看，双向免同意守卫
+      // （首启页「查看完整隐私政策」与家长设置页「隐私政策」共用）。
+      GoRoute(
+        path: '/privacy-policy',
+        builder: (context, state) => const PrivacyPolicyPage(),
       ),
       GoRoute(
         path: '/parent',
@@ -140,12 +147,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ParentPremiumPage(),
       ),
     ],
-    // 首启同意流守卫：未同意 → /consent；已同意访问 /consent → /
+    // 首启同意流守卫（首启告知 2.0 / C110）：按**政策版本**判 —— 记录版本落后于
+    // 当前内置版本（含从未同意 / v1 老用户升级）→ /consent 重弹；已同意访问
+    // /consent → /。政策全文页 /privacy-policy 双向放行（首启页「查看完整隐私
+    // 政策」与家长设置页「隐私政策」两个入口共用）。
     redirect: (BuildContext context, GoRouterState state) async {
       final consent =
-          await ref.read(settingsStoreProvider).isFirstLaunchConsented();
+          await ref.read(settingsStoreProvider).isCurrentPolicyConsented();
       final loc = state.matchedLocation;
-      if (!consent && loc != '/consent') return '/consent';
+      if (!consent && loc != '/consent' && loc != '/privacy-policy') {
+        return '/consent';
+      }
       if (consent && loc == '/consent') return '/';
       return null;
     },

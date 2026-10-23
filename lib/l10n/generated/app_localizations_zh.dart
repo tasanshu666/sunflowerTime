@@ -25,6 +25,54 @@ class AppLocalizationsZh extends AppLocalizations {
   String get consent_btn_back_garden => '返回花园';
 
   @override
+  String consent_update_notice(String version) {
+    return '隐私政策已更新（$version），请重新阅读并确认。';
+  }
+
+  @override
+  String get consent_btn_disagree => '不同意';
+
+  @override
+  String get consent_view_policy => '查看完整隐私政策 ›';
+
+  @override
+  String get consent_decline_title => '为什么需要同意？';
+
+  @override
+  String get consent_decline_body =>
+      '向日葵专注的所有数据都只保存在这台设备上，不会上传到任何服务器，我们需要您同意这份说明才能开始使用。\n\n您可以再看看说明或隐私政策，也可以选择退出应用。';
+
+  @override
+  String get consent_decline_stay => '再想想';
+
+  @override
+  String get consent_decline_exit => '退出应用';
+
+  @override
+  String get consent_data_title => '这个应用里有哪些数据';
+
+  @override
+  String get consent_data_focus => '专注计时与任务打卡记录';
+
+  @override
+  String get consent_data_garden => '花园植物与孩子资料（昵称、头像）';
+
+  @override
+  String get consent_data_local => '全部加密存储在本机，卸载即彻底删除';
+
+  @override
+  String get consent_data_none => '无账号、无广告、无追踪，不联网上传';
+
+  @override
+  String get privacy_policy_title => '隐私政策';
+
+  @override
+  String get privacy_policy_load_failed => '政策内容加载失败，请重试。';
+
+  @override
+  String get parent_settings_entry_privacy_sub => '应用内随时查看完整隐私政策';
+
+  @override
   String get shared_lang_title => '语言';
 
   @override

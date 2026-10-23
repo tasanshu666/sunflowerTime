@@ -128,6 +128,96 @@ abstract class AppLocalizations {
   /// **'返回花园'**
   String get consent_btn_back_garden;
 
+  /// No description provided for @consent_update_notice.
+  ///
+  /// In zh, this message translates to:
+  /// **'隐私政策已更新（{version}），请重新阅读并确认。'**
+  String consent_update_notice(String version);
+
+  /// No description provided for @consent_btn_disagree.
+  ///
+  /// In zh, this message translates to:
+  /// **'不同意'**
+  String get consent_btn_disagree;
+
+  /// No description provided for @consent_view_policy.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看完整隐私政策 ›'**
+  String get consent_view_policy;
+
+  /// No description provided for @consent_decline_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'为什么需要同意？'**
+  String get consent_decline_title;
+
+  /// No description provided for @consent_decline_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'向日葵专注的所有数据都只保存在这台设备上，不会上传到任何服务器，我们需要您同意这份说明才能开始使用。\n\n您可以再看看说明或隐私政策，也可以选择退出应用。'**
+  String get consent_decline_body;
+
+  /// No description provided for @consent_decline_stay.
+  ///
+  /// In zh, this message translates to:
+  /// **'再想想'**
+  String get consent_decline_stay;
+
+  /// No description provided for @consent_decline_exit.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出应用'**
+  String get consent_decline_exit;
+
+  /// No description provided for @consent_data_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个应用里有哪些数据'**
+  String get consent_data_title;
+
+  /// No description provided for @consent_data_focus.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注计时与任务打卡记录'**
+  String get consent_data_focus;
+
+  /// No description provided for @consent_data_garden.
+  ///
+  /// In zh, this message translates to:
+  /// **'花园植物与孩子资料（昵称、头像）'**
+  String get consent_data_garden;
+
+  /// No description provided for @consent_data_local.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部加密存储在本机，卸载即彻底删除'**
+  String get consent_data_local;
+
+  /// No description provided for @consent_data_none.
+  ///
+  /// In zh, this message translates to:
+  /// **'无账号、无广告、无追踪，不联网上传'**
+  String get consent_data_none;
+
+  /// No description provided for @privacy_policy_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'隐私政策'**
+  String get privacy_policy_title;
+
+  /// No description provided for @privacy_policy_load_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'政策内容加载失败，请重试。'**
+  String get privacy_policy_load_failed;
+
+  /// No description provided for @parent_settings_entry_privacy_sub.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用内随时查看完整隐私政策'**
+  String get parent_settings_entry_privacy_sub;
+
   /// No description provided for @shared_lang_title.
   ///
   /// In zh, this message translates to:

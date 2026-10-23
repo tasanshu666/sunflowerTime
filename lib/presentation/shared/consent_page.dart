@@ -12,13 +12,25 @@
 ///  · 整体仍是竖屏友好 —— `SingleChildScrollView` + `ConstrainedBox(minHeight)`，
 ///    矮屏（如 360×640）内容超高时**可滚动**而非溢出。
 ///
-/// ⚠️ **合规文案一个字都不改**（隐私说明是合规内容，仅做视觉层美化）。
+/// ⚠️ **合规摘要文案一个字都不改**（隐私说明是合规内容，仅做视觉层美化）。
+///
+/// ## 首启告知 2.0（玄参 2026-10-23 拍板「按建议做」，口径 C110）
+/// 在 v1 美化版基础上补四块（只增不改）：
+///  1. **「不同意」选项**：主按钮旁新增次按钮 → 说明卡（数据仅存本机、不同意
+///     无法使用）+「再想想 / 退出应用」（`SystemNavigator.pop`）；
+///  2. **条款应用内入口**：「查看完整隐私政策 ›」→ `/privacy-policy` 全文页；
+///  3. **数据清单颗粒度**：合规摘要下新增「这个应用里有哪些数据」4 行清单；
+///  4. **版本三要素 + 重弹**：同意状态改 `acceptCurrentPolicyConsent()`（版本号
+///     + 时刻）；老版本升级 / 政策重大变更（记录版本 < 当前版本）时顶部展示
+///     「政策已更新」提示条。
 library consent_page;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
@@ -45,6 +57,15 @@ const Key kConsentSunflowerKey = Key('consentSunflowerMascot');
 /// ⚠️ 测试环境可能缺图 → 内含 [Image] 走 errorBuilder 回退，其渲染尺寸不再等于外框；
 /// 故度量「向日葵占屏宽比例」一律以**外框**为准。
 const Key kConsentSunflowerBoxKey = Key('consentSunflowerBox');
+
+/// 「查看完整隐私政策」入口的公开 Key（供测试定位）。
+const Key kConsentViewPolicyKey = Key('consentViewPolicy');
+
+/// 「不同意」次按钮的公开 Key（供测试定位）。
+const Key kConsentDisagreeKey = Key('consentDisagree');
+
+/// 「政策已更新」提示条的公开 Key（重弹场景供测试定位；首启/预览不出现）。
+const Key kConsentUpdateNoticeKey = Key('consentUpdateNotice');
 
 class ConsentPage extends ConsumerWidget {
   const ConsentPage({super.key, this.preview = false});
@@ -101,7 +122,12 @@ class ConsentPage extends ConsumerWidget {
                           color: _kBrown,
                         ),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 12),
+                      // ── 「政策已更新」提示条（首启告知 2.0 / C110）─────────
+                      // 仅重弹场景（记录版本落后于当前版本）出现；preview 模式
+                      // 不读同意状态（只读预览纪律），恒不显示。
+                      if (!preview) const _UpdateNotice(),
+                      const SizedBox(height: 12),
                       // ── 合规文案卡（文字一字不改）──────────────────────
                       Container(
                         width: double.infinity,
@@ -129,41 +155,109 @@ class ConsentPage extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 28),
-                      // ── 主按钮：同意并开始 ─────────────────────────────
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: preview
-                              ? () => Navigator.of(context).maybePop()
-                              : () async {
-                                  await ref
-                                      .read(settingsStoreProvider)
-                                      .setFirstLaunchConsented(true);
-                                  if (context.mounted) context.go('/');
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _kAmber,
-                            foregroundColor: Colors.white,
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
+                      const SizedBox(height: 12),
+                      // ── 数据清单（颗粒度 / C110）：只增不改，摘要卡一字未动 ──
+                      _DataInventory(l10n: l10n),
+                      const SizedBox(height: 8),
+                      // ── 条款应用内入口：政策全文页（双向免同意守卫）────────
+                      TextButton(
+                        key: kConsentViewPolicyKey,
+                        onPressed: preview
+                            ? null
+                            : () => context.push('/privacy-policy'),
+                        child: Text(
+                          l10n.consent_view_policy,
+                          style: const TextStyle(color: _kBrown),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // ── 按钮区（C110）：不同意（次）+ 同意并开始（主）──────
+                      // preview（调试预览）保持单按钮「返回花园」，不写任何状态。
+                      if (preview)
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.of(context).maybePop(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _kAmber,
+                              foregroundColor: Colors.white,
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
                             ),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Text(
-                              preview
-                                  ? l10n.consent_btn_back_garden
-                                  : l10n.consent_btn_agree,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              child: Text(
+                                l10n.consent_btn_back_garden,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
+                        )
+                      else
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: OutlinedButton(
+                                key: kConsentDisagreeKey,
+                                onPressed: () => _showDeclineDialog(
+                                    context, l10n),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: _kBrown,
+                                  side: const BorderSide(color: Color(0xFFD8C9A8)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  child: Text(
+                                    l10n.consent_btn_disagree,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  await ref
+                                      .read(settingsStoreProvider)
+                                      .acceptCurrentPolicyConsent();
+                                  if (context.mounted) context.go('/');
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _kAmber,
+                                  foregroundColor: Colors.white,
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  child: Text(
+                                    l10n.consent_btn_agree,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -175,6 +269,149 @@ class ConsentPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 「政策已更新」提示条：记录的同意版本 > 0 且落后于当前内置版本（[kPrivacyPolicyVersion]）
+/// 时显示（= 老用户升级 / 政策重大变更重弹，§10.3 重新确认机制）。
+///
+/// 只读 FutureBuilder（不缓存不重试）；preview 模式在调用点已排除。
+class _UpdateNotice extends ConsumerWidget {
+  const _UpdateNotice();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<int>(
+      future: ref.read(settingsStoreProvider).consentedPolicyVersion(),
+      builder: (BuildContext context, AsyncSnapshot<int> snap) {
+        final int version = snap.data ?? 0;
+        // 首启（0）或已记录当前版本（Future 竞态防御）→ 不显示。
+        if (version <= 0 || version >= kPrivacyPolicyVersion) {
+          return const SizedBox.shrink();
+        }
+        final AppLocalizations l10n = AppLocalizations.of(context);
+        return Container(
+          key: kConsentUpdateNoticeKey,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF1C8),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFF9A825), width: 1.2),
+          ),
+          child: Row(
+            children: <Widget>[
+              const Icon(Icons.info_outline,
+                  size: 20, color: Color(0xFFB37A12)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l10n.consent_update_notice('v$kPrivacyPolicyVersion'),
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    height: 1.5,
+                    color: Color(0xFF8A5B0B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 数据清单卡（颗粒度 / C110）：把合规摘要里「收集什么」展开成 4 行具体条目。
+/// 与摘要卡是**总-分**关系：摘要一字不改，清单只列不承诺新内容。
+class _DataInventory extends StatelessWidget {
+  const _DataInventory({required this.l10n});
+
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<(IconData, String)> rows = <(IconData, String)>[
+      (Icons.timer_outlined, l10n.consent_data_focus),
+      (Icons.local_florist_outlined, l10n.consent_data_garden),
+      (Icons.lock_outline, l10n.consent_data_local),
+      (Icons.block_outlined, l10n.consent_data_none),
+    ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFE3B0), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            l10n.consent_data_title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: _kBrown,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final (IconData icon, String text) in rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Icon(icon, size: 16, color: const Color(0xFF8D6E63)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      text,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: _kBrown,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 「不同意」说明卡：讲清「本应用数据仅存本机、不同意无法使用」，给两条出路
+/// ——「再想想」（默认动作，回同意页）与「退出应用」（`SystemNavigator.pop`；
+/// iOS 平台可能不响应系统级退出，属平台行为，页面本身仍可停在同意页）。
+Future<void> _showDeclineDialog(
+  BuildContext context,
+  AppLocalizations l10n,
+) {
+  return showDialog<void>(
+    context: context,
+    builder: (BuildContext dialogContext) {
+      return AlertDialog(
+        title: Text(l10n.consent_decline_title),
+        content: Text(l10n.consent_decline_body),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.consent_decline_stay),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              SystemNavigator.pop();
+            },
+            child: Text(l10n.consent_decline_exit),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 /// 吉祥物：向日葵盛开图 + 身后柔光圆（可爱、暖调）。

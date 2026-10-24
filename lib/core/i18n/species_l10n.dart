@@ -31,6 +31,7 @@ const List<String> kKnownSpeciesIds = <String>[
   'species_strawberry', // 草莓
   'species_coral_orchid', // 珊瑚岭兰
   'species_jade_hydrangea', // 翡翠绣球
+  'species_grape', // 葡萄（F151，精英档）
 ];
 
 /// speciesId → 当前语言的物种名；**未知 id 返回 `null`**（调用方决定兜底）。
@@ -51,6 +52,8 @@ String? speciesNameOrNull(String speciesId, AppLocalizations t) {
       return t.shared_species_coral_orchid;
     case 'species_jade_hydrangea':
       return t.shared_species_jade_hydrangea;
+    case 'species_grape':
+      return t.shared_species_grape;
     default:
       return null;
   }

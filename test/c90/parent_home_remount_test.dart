@@ -97,6 +97,8 @@ class _FakeSunlightRepository implements SunlightRepository {
   Future<double> earnNetOnDay(String dayKey) async => 0;
   @override
   Future<List<SunlightEntry>> all() async => <SunlightEntry>[];
+  @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
 }
 
 class _FakeFocusRepository implements FocusRepository {

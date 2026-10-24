@@ -545,6 +545,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_shell_reject_reason => 'Parent declined this request';
 
   @override
+  String get child_shell_gift_title => '🎁 Sunshine from Mom & Dad!';
+
+  @override
+  String get child_shell_gift_item_name => 'Parent gift';
+
+  @override
+  String get child_shell_gift_footer =>
+      'The sunshine is in your garden — go plant something!';
+
+  @override
   String get child_shell_reject_footer =>
       'No sunlight was deducted; you can redeem another reward';
 
@@ -2660,6 +2670,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shared_species_jade_hydrangea => 'Jade Hydrangea';
 
   @override
+  String get shared_species_grape => 'Grape';
+
+  @override
   String get shared_weekday_mon => 'Mon';
 
   @override
@@ -3071,6 +3084,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get species_lore_jade_hydrangea_story =>
       'A jade hydrangea is dozens of tiny flowers holding hands. Even the strongest wind cannot blow them apart. Flowers that stick together are the prettiest.';
+
+  @override
+  String get species_lore_grape_intro => 'Bunches of little purple pearls';
+
+  @override
+  String get species_lore_grape_story =>
+      'Grapes are little climbing champions! They use tiny curly tendrils as hands to climb up, step by step. And guess what — their flowers are so shy they open backwards: the fruit pops out before the tiny flower even blooms.';
 
   @override
   String get species_lore_fallback_intro => 'A little garden plant';

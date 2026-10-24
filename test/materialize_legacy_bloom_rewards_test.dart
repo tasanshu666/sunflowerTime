@@ -87,6 +87,8 @@ class _MemLedger implements SunlightRepository {
   @override
   Future<List<SunlightEntry>> all() async => const <SunlightEntry>[];
   @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
+  @override
   Future<double> dayNet(String key) async => 0;
   @override
   Future<double> earnGrossOnDay(String key) async => 0;

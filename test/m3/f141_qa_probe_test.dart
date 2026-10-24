@@ -178,6 +178,8 @@ class _FakeSunlight implements SunlightRepository {
   @override
   Future<List<SunlightEntry>> all() async => <SunlightEntry>[];
   @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
+  @override
   Future<double> balance() async => _balance;
   @override
   Future<double> append(SunlightEntry e) async => _balance + e.net;

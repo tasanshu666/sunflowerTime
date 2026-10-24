@@ -97,4 +97,15 @@ const List<PlantSpecies> kSeedPlantSpecies = <PlantSpecies>[
     growthHoursPerStage: kPlantGrowthHoursPerStagePremium,
     subscriptionOnly: false,
   ),
+  // F151（玄参 2026-10-23 拍板）：第 7 种，精英档。物种名上屏走
+  // `species_l10n.dart`（ARB `shared_species_grape`），此处 name 仅落库基线。
+  PlantSpecies(
+    id: 'species_grape',
+    name: '葡萄',
+    rarity: Rarity.rare,
+    baseCostHigh: 0,
+    baseCostLow: 0,
+    growthHoursPerStage: kPlantGrowthHoursPerStagePremium,
+    subscriptionOnly: false,
+  ),
 ];

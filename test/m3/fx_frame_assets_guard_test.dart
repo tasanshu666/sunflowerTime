@@ -87,7 +87,7 @@ void main() {
     });
   });
 
-  group('成长序列帧契约（6 物种 × 3 过渡，WebP q95 压缩管线）', () {
+  group('成长序列帧契约（7 物种 × 3 过渡，WebP q95 压缩管线）', () {
     // 帧数各不同（25~27 ≠ kFxFrameCount），代码侧由 resolveGrowFxAssets 从 AssetManifest
     // 实测；本护栏锁：目录存在、从 frame001 连续编号、三位零填充、且每帧 720×720
     // （直读 WebP 头）。2026-10-13 起全部走 WebP（tools/convert_grow_fx.py）。
@@ -98,6 +98,7 @@ void main() {
       'moon_orchid',
       'coral_orchid',
       'jade_hydrangea',
+      'grape', // 2026-10-23 第 7 物种（F151，精英档）
     ];
 
     for (final String species in speciesDirs) {
@@ -128,7 +129,8 @@ void main() {
   });
 
   group('成长音效（物种 × 过渡）契约（C59，2026-10-13 玄参交付）', () {
-    // 5 物种 × 3 过渡 = 15 段**物种专属**音效（向日葵仍走通用兜底，不在本表内）。
+    // 6 物种 × 3 过渡 = 18 段**物种专属**音效（向日葵仍走通用兜底，不在本表内；
+    // grape 2026-10-23 加入，F151）。
     // 硬规格（规范 §4.5）：时长必须 = kGrow*DurationMs（4100ms）——三段帧速由该常量
     // 驱动，音效不等长即音画不同步；且必须 ≥3s（iOS CoreAudio -11849 红线）。
     const List<String> speciesDirs = <String>[
@@ -137,6 +139,7 @@ void main() {
       'moon_orchid',
       'coral_orchid',
       'jade_hydrangea',
+      'grape',
     ];
 
     for (final String dir in speciesDirs) {
@@ -425,9 +428,10 @@ void main() {
           .whereType<File>()
           .where((File f) => f.path.endsWith('_adult_bloomed.png'))
           .toList();
-      expect(blooms.length, 6,
-          reason: '6 物种应各有 1 张盛开图（2026-10-08 删星辰花/虹影蕨后余 6：'
-              '向日葵 + 番茄 + 草莓 + 月光兰 + 珊瑚岭兰 + 翡翠绣球），实际 ${blooms.length}');
+      expect(blooms.length, 7,
+          reason: '7 物种应各有 1 张盛开图（2026-10-08 删星辰花/虹影蕨后余 6，'
+              '2026-10-23 增葡萄至 7：向日葵 + 番茄 + 草莓 + 月光兰 + 珊瑚岭兰 + '
+              '翡翠绣球 + 葡萄），实际 ${blooms.length}');
       // 2026-10-09 全局等盆：新五物种统一 1720×2000（盆 800、盆心居中）；向日葵
       // 无 wilted/dead 原图备份、维持 1200×2000 定稿不动 —— contain 按高度绑定
       // 缩放，两种画布的盆显示大小一致（比例同为 800/画布宽 × 高 2000）。

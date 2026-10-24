@@ -207,6 +207,23 @@ class SunlightLedgerDao extends DatabaseAccessor<AppDatabase>
     return row.read(countExp) ?? 0;
   }
 
+  /// 指定 refType 的**最近一条**记账（家长赠予到账提醒用，F150）。
+  ///
+  /// 用账本时间排序取首行；`id` 全局唯一（uuid）作已读判据比 ts 稳（同秒多笔）。
+  Future<SunlightLedger?> latestByRefType(
+    String refType, {
+    String? childId,
+  }) {
+    final query = select(sunlightLedgers)
+      ..where((t) => t.refType.equals(refType))
+      ..orderBy([(t) => OrderingTerm.desc(t.ts)])
+      ..limit(1);
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.getSingleOrNull();
+  }
+
   /// 指定 refType + refId 的**最近一次记账时间**（浇水最小间隔核算，M3 修订）。
   ///
   /// 用账本时间而非 `Plants.lastWaterAt`：后者在施肥 / 救回时也会被刷新，

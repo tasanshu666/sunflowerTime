@@ -80,6 +80,8 @@ class _FakeSunlightRepository implements SunlightRepository {
 
   @override
   Future<List<SunlightEntry>> all() async => const <SunlightEntry>[];
+  @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
 
   @override
   Future<double> balance() async => startBalance;

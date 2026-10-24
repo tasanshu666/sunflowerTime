@@ -34,7 +34,9 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
@@ -50,6 +52,7 @@ import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dar
 import 'package:sunflower_time/presentation/child/widgets/parent_entry_action.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
 import 'package:sunflower_time/shared/adaptive_nav_bar.dart';
+import 'package:sunflower_time/shared/child_route_observer.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 
 /// 孩子端外壳：底部导航 + 5 个 tab。
@@ -61,7 +64,7 @@ class ChildShellPage extends ConsumerStatefulWidget {
 }
 
 class _ChildShellPageState extends ConsumerState<ChildShellPage>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, RouteAware {
   /// 当前 tab 索引。**初值来自 [childShellTabIndexProvider] 的记忆值**（F138 口径 B）：
   /// 孩子在花园点「家长天地」→ `context.go('/parent')` 销毁整个外壳 → 退出家长天地时
   /// `context.go('/')` 重建外壳 —— 必须回到离开前那个 tab，而不是无条件回「今日」。
@@ -186,7 +189,33 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     // 孩子端是家长设置的唯一消费端，故在此把设置真正接到音频服务（音效 / 背景音乐开关）。
     unawaited(_syncAudioSettings());
     // 首帧后再弹窗，避免在 build 期间触发路由/覆盖层变更。
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAllNotices());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAllNotices();
+      // F150：首次进入也查一次「家长赠予到账」（冷启动即有未读赠予的场景，
+      // 如家长赠完直接退出 App、孩子次日打开）。
+      _checkParentGiftNotice();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // F150：订阅全局路由观察者 —— 家长天地（push 覆盖在孩子端之上）pop 回来时
+    // 收到 [didPopNext]，正好是「孩子重新拿到手机」的时刻，此时查未读赠予弹卡。
+    // ⚠️ didChangeDependencies 可能多次触发，RouteObserver.subscribe 幂等
+    // （内部按 (route, observer) 解绑旧订阅），重复调用安全。
+    childShellRouteObserver.subscribe(
+      this,
+      ModalRoute.of(context)!,
+    );
+  }
+
+  @override
+  void didPopNext() {
+    // 家长端 pop 回孩子端：查「家长赠予到账」未读（F150 主场景）。
+    // 不并入 _checkAllNotices（那套挂 economyRevision 监听，会在家长仍在
+    // 家长端操作时就把卡弹出来挡住家长）—— 赠予卡只在孩子真的回到台前时弹。
+    _checkParentGiftNotice();
   }
 
   /// 把「家长端设置」的音效 / 背景音乐开关接到音频服务。
@@ -209,6 +238,8 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    // F150：解除路由观察订阅（RouteAware 配对义务，防泄漏）。
+    childShellRouteObserver.unsubscribe(this);
     // 离开外壳务必停表（同步取消 ticker），否则定时器泄漏 → 测试 pending timer 断言红。
     _stopAppUsageCounting();
     // F138 口径 C：下台信号（延后发布；只会被「更新的外壳」覆盖，见 [_publishOnStage]）。
@@ -755,6 +786,61 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     await _checkVerifiedNotices();
     await _checkRejectedNotices();
     await _checkTaskVerifiedNotices();
+  }
+
+  /// 检查「家长赠予到账」未读并弹金色提示卡（F150，玄参 2026-10-23 反馈：
+  /// 家长赠了阳光孩子端无感）。
+  ///
+  /// 判定口径：`sunlight_ledger` 中 refType=`parent_gift` 的**最新一条**记录，
+  /// 其 id 不在 shared_preferences 已读键（[ackedParentGiftIdKey]，按孩子分键）
+  /// → 弹卡并把该 id 写成已读。
+  ///
+  /// 触发时机刻意**只有两处**（不走 [economyRevisionProvider] 监听）：
+  ///  · 外壳首帧后（initState postFrame）；
+  ///  · 家长天地 pop 回孩子端（RouteAware didPopNext）。
+  /// 原因：家长端赠予完成会自增修订号，若挂进 revision 监听，卡片会在家长
+  /// 仍在家长端页面时弹出来挡住家长操作 —— 赠予卡必须等孩子真的回到台前。
+  ///
+  /// 🔴 C91 同款跨孩子防线：待展示记录与已读键同属本次检查捕获的 childId
+  /// （阳光账本按 childId 隔离，读取过滤在仓储实现内完成）。任何异常都不阻塞。
+  Future<void> _checkParentGiftNotice() async {
+    try {
+      final SunlightRepository ledger = ref.read(sunlightRepositoryProvider);
+      final SettingsStore store = ref.read(settingsStoreProvider);
+      final String childId = _currentChildId();
+
+      final SunlightEntry? latest =
+          await ledger.latestByRefType('parent_gift');
+      if (latest == null) return;
+
+      final String? acked = await store.acknowledgedParentGiftId(
+        childId: childId,
+      );
+      if (acked == latest.id) return;
+      if (!mounted) return;
+
+      final AppLocalizations t = _l10n ?? AppLocalizationsZh();
+      await showGoldNoticeDialog(
+        context,
+        title: t.child_shell_gift_title,
+        items: <GoldNoticeItem>[
+          GoldNoticeItem(
+            icon: Icons.card_giftcard,
+            name: t.child_shell_gift_item_name,
+            // C105 槽位纪律：amountText 只放金额（含正负号）。
+            amountText: '+${sunlightDisplayInt(latest.net)}',
+          ),
+        ],
+        footerText: t.child_shell_gift_footer,
+      );
+
+      await store.setAcknowledgedParentGiftId(
+        latest.id,
+        childId: childId,
+      );
+    } catch (_) {
+      // 通知检查失败不阻塞孩子端首页。
+    }
   }
 
   @override

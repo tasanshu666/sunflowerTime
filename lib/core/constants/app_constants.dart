@@ -170,6 +170,15 @@ String ackedRejectIdsKey(String childId) => 'acked_reject_ids_read_$childId';
 String ackedTaskCheckInIdsKey(String childId) =>
     'acked_task_checkin_ids_read_$childId';
 
+/// 孩子端已读「家长赠予到账」通知键（F150；存**最近一条已读账本记录的 id**）。
+///
+/// 为什么是单值 id 而非列表：赠予通知只弹**最新一条**（余额对得上即可，历史
+/// 累计金额在「我的-阳光来源」可查），拿最新记录 id 与本键比对即知有无未读。
+/// 按孩子分键口径同上（阳光账本按 childId 隔离，跨孩子绝不互串）。
+/// 🔴 键名生成走本 helper 单点，禁止散写字面量。
+String ackedParentGiftIdKey(String childId) =>
+    'acked_parent_gift_id_read_$childId';
+
 /// 花园「孩子上次**看到**的植物阶段」快照键（按孩子分键口径同上）。
 ///
 /// 值 = JSON 编码的 `{plantId: 'stage:status'}`。用途：孩子离开花园期间植物升级

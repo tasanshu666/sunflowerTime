@@ -84,6 +84,18 @@ class SettingsStore {
   }) async =>
       _sp.setStringList(ackedTaskCheckInIdsKey(childId), ids);
 
+  /// 孩子端已展示过的「家长赠予到账」**最新账本记录 id**（F150；默认 null =
+  /// 从未弹过 —— 首次有赠予必弹。按 [childId] 分键）。
+  Future<String?> acknowledgedParentGiftId({required String childId}) async =>
+      _sp.getString(ackedParentGiftIdKey(childId));
+
+  /// 覆写「家长赠予到账」已读 id（按 [childId] 分键）。
+  Future<void> setAcknowledgedParentGiftId(
+    String id, {
+    required String childId,
+  }) async =>
+      _sp.setString(ackedParentGiftIdKey(childId), id);
+
   // ── 花园：孩子上次**看到**的植物阶段快照（按孩子分键）─────────────────────
 
   /// 孩子上次在花园里**看到**的各植物阶段：`plantId → 'stage.name:status.name'`。

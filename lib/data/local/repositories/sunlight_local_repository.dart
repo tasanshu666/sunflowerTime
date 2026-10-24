@@ -118,4 +118,22 @@ class SunlightLocalRepository implements SunlightRepository {
   Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId) =>
       _db.sunlightLedgerDao.lastTsByRefTypeAndRefId(refType, refId,
           childId: _childId);
+
+  @override
+  Future<SunlightEntry?> latestByRefType(String refType) async {
+    final SunlightLedger? row =
+        await _db.sunlightLedgerDao.latestByRefType(refType, childId: _childId);
+    if (row == null) return null;
+    return SunlightEntry(
+      id: row.id,
+      ts: row.ts,
+      type: SunlightType.values[row.type],
+      gross: row.gross,
+      net: row.net,
+      balanceAfter: row.balanceAfter,
+      refType: row.refType,
+      refId: row.refId,
+      dayKey: row.dayKey,
+    );
+  }
 }

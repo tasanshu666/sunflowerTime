@@ -102,6 +102,8 @@ class _FakeSunlightRepo implements SunlightRepository {
   Future<double> earnNetOnDay(String dayKey) async => 0;
   @override
   Future<List<SunlightEntry>> all() async => <SunlightEntry>[];
+  @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
 }
 
 class _FakeFocusRepo implements FocusRepository {
@@ -146,6 +148,7 @@ const Map<String, List<String>> _kPremiumSpeciesNames =
   'species_coral_orchid': <String>['Coral Ridge Orchid', '珊瑚岭兰'],
   'species_jade_hydrangea': <String>['Jade Hydrangea', '翡翠绣球'],
   'species_moon_orchid': <String>['Moon Orchid', '月光兰'],
+  'species_grape': <String>['Grape', '葡萄'], // F151（2026-10-23）第 4 精英
 };
 
 /// 普通物种的**渲染名**（en / zh 两套；QA 补测：守卫原本只探精英卡，普通卡
@@ -220,8 +223,8 @@ Future<void> _pumpPickPlantDialog(
 
   // 防假绿：弹窗必须真的打开（标题在 zh / en 下不同，按 rarity chip 锚定）。
   final String premiumLabel = lang == AppLanguage.en ? 'Premium' : '精英';
-  expect(find.text(premiumLabel), findsNWidgets(3),
-      reason: '选种弹窗必须打开且 3 个精英物种卡都在场（防装配失败假绿）');
+  expect(find.text(premiumLabel), findsNWidgets(4),
+      reason: '选种弹窗必须打开且 4 个精英物种卡都在场（防装配失败假绿）');
 }
 
 /// 逐个把精英物种卡滚到眼前并断言无布局异常。
@@ -255,7 +258,7 @@ Future<void> _expectNoOverflowOnCards(
 
 void main() {
   group('F147 · 手机端（390×844）选种弹窗精英卡无溢出', () {
-    testWidgets('en + textScale 1.0：三个精英卡逐个可见、无异常',
+    testWidgets('en + textScale 1.0：四个精英卡逐个可见、无异常',
         (WidgetTester tester) async {
       await _pumpPickPlantDialog(
         tester,
@@ -267,7 +270,7 @@ void main() {
       await _expectNoOverflowOnPremiumCards(tester, AppLanguage.en);
     });
 
-    testWidgets('en + textScale 1.3（大字号）：三个精英卡逐个可见、无异常',
+    testWidgets('en + textScale 1.3（大字号）：四个精英卡逐个可见、无异常',
         (WidgetTester tester) async {
       await _pumpPickPlantDialog(
         tester,
@@ -279,7 +282,7 @@ void main() {
       await _expectNoOverflowOnPremiumCards(tester, AppLanguage.en);
     });
 
-    testWidgets('zh + textScale 1.0：三个精英卡逐个可见、无异常',
+    testWidgets('zh + textScale 1.0：四个精英卡逐个可见、无异常',
         (WidgetTester tester) async {
       await _pumpPickPlantDialog(
         tester,
@@ -291,7 +294,7 @@ void main() {
       await _expectNoOverflowOnPremiumCards(tester, AppLanguage.zh);
     });
 
-    testWidgets('zh + textScale 1.3（大字号）：三个精英卡逐个可见、无异常',
+    testWidgets('zh + textScale 1.3（大字号）：四个精英卡逐个可见、无异常',
         (WidgetTester tester) async {
       await _pumpPickPlantDialog(
         tester,
@@ -305,7 +308,7 @@ void main() {
 
     testWidgets('QA 补测 · en + textScale 1.3（大字号）：普通卡（向日葵/番茄/草莓）逐个可见、无异常',
         (WidgetTester tester) async {
-      // 守卫原本只探 3 张精英卡；普通卡走同一正面装配（minHeight 自适应 +
+      // 守卫原本只探精英卡（F151 起 4 张）；普通卡走同一正面装配（minHeight 自适应 +
       // 「普通」徽章），en + 1.3 是最坏档 —— 名称行 + 徽章可能折行，须确认
       // 卡片向下长高而不是溢出。
       await _pumpPickPlantDialog(

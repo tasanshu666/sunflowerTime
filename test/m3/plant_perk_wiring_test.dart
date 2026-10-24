@@ -102,6 +102,8 @@ class _MemLedger implements SunlightRepository {
 
   @override
   Future<List<SunlightEntry>> all() async => List<SunlightEntry>.of(entries);
+  @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
 
   @override
   Future<double> balance() async => 1000000.0;

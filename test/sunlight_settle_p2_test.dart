@@ -90,6 +90,8 @@ class _FakeLedger implements SunlightRepository {
 
   @override
   Future<List<SunlightEntry>> all() async => List<SunlightEntry>.from(entries);
+  @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
 }
 
 class _FakeFocus implements FocusRepository {

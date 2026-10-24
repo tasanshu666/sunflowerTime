@@ -1010,6 +1010,24 @@ abstract class AppLocalizations {
   /// **'家长拒绝了该申请'**
   String get child_shell_reject_reason;
 
+  /// No description provided for @child_shell_gift_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'🎁 爸爸妈妈送来阳光啦'**
+  String get child_shell_gift_title;
+
+  /// No description provided for @child_shell_gift_item_name.
+  ///
+  /// In zh, this message translates to:
+  /// **'家长赠予'**
+  String get child_shell_gift_item_name;
+
+  /// No description provided for @child_shell_gift_footer.
+  ///
+  /// In zh, this message translates to:
+  /// **'阳光已经放进你的花园，快去种点什么吧！'**
+  String get child_shell_gift_footer;
+
   /// No description provided for @child_shell_reject_footer.
   ///
   /// In zh, this message translates to:
@@ -4487,6 +4505,12 @@ abstract class AppLocalizations {
   /// **'翡翠绣球'**
   String get shared_species_jade_hydrangea;
 
+  /// No description provided for @shared_species_grape.
+  ///
+  /// In zh, this message translates to:
+  /// **'葡萄'**
+  String get shared_species_grape;
+
   /// No description provided for @shared_weekday_mon.
   ///
   /// In zh, this message translates to:
@@ -5176,6 +5200,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'翡翠绣球由几十朵小花手拉手抱成一团，风再大也吹不散，因为它相信：团结的花最漂亮。'**
   String get species_lore_jade_hydrangea_story;
+
+  /// 物种图鉴 · 葡萄一句话介绍（选种卡背面，F151 新增）
+  ///
+  /// In zh, this message translates to:
+  /// **'一串串紫珍珠'**
+  String get species_lore_grape_intro;
+
+  /// 物种图鉴 · 葡萄小故事（选种卡背面，F151 新增）
+  ///
+  /// In zh, this message translates to:
+  /// **'葡萄是爬藤小能手，天生带着「小卷须」当抓手，一格一格往上爬。它结果不像别的花先开花后长果——葡萄的小花还没张开，果子就悄悄冒出来啦。'**
+  String get species_lore_grape_story;
 
   /// 物种图鉴 · 未知物种兜底一句话介绍（F147 自 species_lore.dart 迁入）
   ///

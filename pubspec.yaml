@@ -1,7 +1,7 @@
 name: sunflower_time
-description: 《向日葵专注 SunFocus》MVP（Plan B 无账号单机版）。分支 m0/skeleton：工程/导航/加密本地库/PIN锁/同意流骨架。
+description: 《小小葵番茄钟 Tiny Bloom》MVP（Plan B 无账号单机版）。分支 m0/skeleton：工程/导航/加密本地库/PIN锁/同意流骨架。
 publish_to: 'none'
-version: 0.1.0+1
+version: 1.0.0+10
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -76,6 +76,7 @@ flutter:
     - assets/plants/moon_orchid/
     - assets/plants/coral_orchid/
     - assets/plants/jade_hydrangea/
+    - assets/plants/grape/
     - assets/plants/shared/
     # 花盆美术资源（2026-09-23）：通用空花盆 pot.png，缺失时回退内置 CustomPaint 自绘。
     - assets/pots/
@@ -105,6 +106,9 @@ flutter:
     - assets/fx/grow/jade_hydrangea/seed_to_sprout/
     - assets/fx/grow/jade_hydrangea/sprout_to_adult/
     - assets/fx/grow/jade_hydrangea/adult_to_bloomed/
+    - assets/fx/grow/grape/seed_to_sprout/
+    - assets/fx/grow/grape/sprout_to_adult/
+    - assets/fx/grow/grape/adult_to_bloomed/
     - assets/fx/care/water/
     - assets/fx/care/fertilize/
     # 除草 / 除虫效果帧（2026-10-03 玄参交付，各 27 帧）：点干扰物播放，禁止归一化。

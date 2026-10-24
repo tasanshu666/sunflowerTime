@@ -111,6 +111,13 @@ class _MemLedger implements SunlightRepository {
   Future<List<SunlightEntry>> all() async => List<SunlightEntry>.of(entries);
 
   @override
+  Future<SunlightEntry?> latestByRefType(String refType) async {
+    final List<SunlightEntry> list = entriesOf(refType).toList()
+      ..sort((SunlightEntry a, SunlightEntry b) => b.ts.compareTo(a.ts));
+    return list.isEmpty ? null : list.first;
+  }
+
+  @override
   Future<double> dayNet(String key) async => 0;
   @override
   Future<double> earnGrossOnDay(String key) async => 0;
@@ -260,8 +267,8 @@ void main() {
           reason: '月光兰为 rare（精英档），碎片价按档位派生 = kSpeciesFragmentCostPremium（F144：10 → 20）');
     });
 
-    t.test('物种表：恰 6 种、顺序 = 展示顺序、移除 daisy/cactus', () {
-      t.expect(kSeedPlantSpecies.length, 6);
+    t.test('物种表：恰 7 种、顺序 = 展示顺序、移除 daisy/cactus', () {
+      t.expect(kSeedPlantSpecies.length, 7, reason: 'F151 起为 7 种（+葡萄）');
       t.expect(
         kSeedPlantSpecies.map((PlantSpecies s) => s.id).toList(),
         <String>[
@@ -271,6 +278,7 @@ void main() {
           'species_strawberry',
           'species_coral_orchid',
           'species_jade_hydrangea',
+          'species_grape',
         ],
       );
       final Set<String> ids =
@@ -1004,6 +1012,8 @@ class _FakeSunlightRepo implements SunlightRepository {
   Future<double> earnNetOnDay(String dayKey) async => 0;
   @override
   Future<List<SunlightEntry>> all() async => <SunlightEntry>[];
+  @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
 }
 
 class _FakeFocusRepo implements FocusRepository {

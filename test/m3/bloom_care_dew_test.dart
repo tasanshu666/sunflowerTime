@@ -53,6 +53,8 @@ class _MemoryLedger implements SunlightRepository {
 
   @override
   Future<List<SunlightEntry>> all() async => List<SunlightEntry>.from(entries);
+  @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
 
   @override
   Future<double> dayNet(String key) async => entries

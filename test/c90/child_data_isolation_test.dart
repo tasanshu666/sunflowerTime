@@ -219,6 +219,49 @@ void main() {
           'task_checkin', 'x', _dayKey), 0);
       expect((await ledger.all()).map((e) => e.id), <String>['l_a1']);
     });
+
+    test('F150 latestByRefType：返回指定 refType 最新一条 + 按孩子过滤',
+        () async {
+      final (
+        AccountService account,
+        db.AppDatabase database,
+        _,
+        SunlightLocalRepository ledger,
+        _, _, _
+      ) = await build();
+      addTearDown(database.close);
+
+      SunlightEntry entryAt(String id, DateTime ts, String refType) =>
+          SunlightEntry(
+            id: id,
+            ts: ts,
+            type: SunlightType.earn,
+            gross: 5,
+            net: 5,
+            balanceAfter: 5,
+            refType: refType,
+            refId: null,
+            dayKey: _dayKey,
+          );
+
+      // 同 refType 两笔（时间乱序写入）+ 另一 refType 一笔。
+      await ledger.append(entryAt('g_old', DateTime(2026, 10, 17, 8),
+          'parent_gift'));
+      await ledger.append(entryAt('t_1', DateTime(2026, 10, 17, 9),
+          'task_checkin'));
+      await ledger.append(entryAt('g_new', DateTime(2026, 10, 17, 12),
+          'parent_gift'));
+
+      final SunlightEntry? latest =
+          await ledger.latestByRefType('parent_gift');
+      expect(latest?.id, 'g_new', reason: '应取 ts 最新的那笔（非写入顺序）');
+
+      // 孩子隔离：切到二娃 → 看不到大娃的赠予。
+      final ChildProfile second = await account.createChild('二娃', AgeTier.mid);
+      await account.switchTo(second.id);
+      expect(await ledger.latestByRefType('parent_gift'), isNull,
+          reason: '另一孩子的赠予记录绝不串读');
+    });
   });
 
   group('C90 期 2 · focus_sessions 按孩子隔离', () {

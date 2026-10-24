@@ -51,4 +51,8 @@ abstract class SunlightRepository {
 
   /// 指定 refType + refId 的最近一次记账时间（浇水最小间隔，M3 修订）。
   Future<DateTime?> lastTsByRefTypeAndRefId(String refType, String refId);
+
+  /// 指定 refType 的**最近一条**记账（家长赠予到账提醒用，F150；
+  /// 无记录返回 null。childId 过滤在实现内完成）。
+  Future<SunlightEntry?> latestByRefType(String refType);
 }

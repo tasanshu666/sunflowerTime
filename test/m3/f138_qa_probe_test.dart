@@ -117,6 +117,8 @@ class _Sunlight implements SunlightRepository {
   Future<double> earnNetOnDay(String d) async => 0;
   @override
   Future<List<SunlightEntry>> all() async => <SunlightEntry>[];
+  @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
 }
 
 class _Focus implements FocusRepository {

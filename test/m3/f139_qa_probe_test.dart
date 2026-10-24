@@ -213,6 +213,8 @@ class _Sunlight implements SunlightRepository {
 
   @override
   Future<List<SunlightEntry>> all() async => <SunlightEntry>[];
+  @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
 }
 
 class _Tracking implements TrackingRepository {

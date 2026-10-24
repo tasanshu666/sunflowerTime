@@ -235,6 +235,8 @@ class _FakeSunlightRepository implements SunlightRepository {
 
   @override
   Future<List<SunlightEntry>> all() async => <SunlightEntry>[];
+  @override
+  Future<SunlightEntry?> latestByRefType(String refType) async => null;
 }
 
 class _FakeTrackingRepository implements TrackingRepository {

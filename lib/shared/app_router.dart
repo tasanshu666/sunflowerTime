@@ -28,10 +28,14 @@ import 'package:sunflower_time/presentation/parent/pages/parent_delete_page.dart
 import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dart';
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
 import 'package:sunflower_time/presentation/shared/privacy_policy_page.dart';
+import 'package:sunflower_time/shared/child_route_observer.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
+    // F150：全局路由观察者 —— 孩子端外壳订阅后，家长天地 pop 回孩子端时
+    // 收到 didPopNext → 检查「家长赠予到账」未读并弹金色提示卡。
+    observers: [childShellRouteObserver],
     routes: [
       GoRoute(
         path: '/',

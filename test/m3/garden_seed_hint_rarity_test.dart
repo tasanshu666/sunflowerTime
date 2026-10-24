@@ -38,12 +38,12 @@ import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
 /// 6 个物种的中英文名 —— 提示文案里**一个都不许出现**。
 const List<String> _speciesNames = <String>[
-  '向日葵', '月光兰', '番茄', '草莓', '珊瑚岭兰', '翡翠绣球', //
+  '向日葵', '月光兰', '番茄', '草莓', '珊瑚岭兰', '翡翠绣球', '葡萄', //
   'Sunflower', 'Moon Orchid', 'Tomato', 'Strawberry',
-  'Coral Ridge Orchid', 'Jade Hydrangea',
+  'Coral Ridge Orchid', 'Jade Hydrangea', 'Grape',
 ];
 
-/// 覆盖**全部 6 个物种 id** + 2 个历史已删物种 id（验证「找不到 → 普通档」）。
+/// 覆盖**全部 7 个物种 id**（F151 起）+ 2 个历史已删物种 id（验证「找不到 → 普通档」）。
 const List<String> _allSpeciesIds = <String>[
   'species_sunflower',
   'species_moon_orchid',
@@ -51,6 +51,7 @@ const List<String> _allSpeciesIds = <String>[
   'species_strawberry',
   'species_coral_orchid',
   'species_jade_hydrangea',
+  'species_grape',
   // 2026-10-08 玄参删除的两种（老库里仍可能有残留券/种子）。
   'species_star_flower',
   'species_rainbow_fern',
@@ -111,7 +112,7 @@ void main() {
     });
   });
 
-  group('② 6 个物种全覆盖：输出只有档位、不含物种名', () {
+  group('② 7 个物种全覆盖：输出只有档位、不含物种名', () {
     test('每个物种 id 的档位标签 ∈ {普通, 精英}（历史已删物种 → 普通）', () {
       for (final String id in _allSpeciesIds) {
         final String label = _rarityLabelFor(id, zh);
@@ -124,7 +125,7 @@ void main() {
       expect(_rarityLabelFor('species_rainbow_fern', zh), zh.garden_rarity_common);
     });
 
-    test('每个物种生成的掉落 / 分解提示都不含 6 个物种名（zh + en）', () {
+    test('每个物种生成的掉落 / 分解提示都不含 7 个物种名（zh + en）', () {
       for (final String id in _allSpeciesIds) {
         final String dropZh = zh.garden_seed_dropped(_rarityLabelFor(id, zh));
         final String decompZh =
@@ -138,7 +139,7 @@ void main() {
       }
     });
 
-    test('档位映射与 isPremium 严格同源（普通 3 种 / 精英 3 种）', () {
+    test('档位映射与 isPremium 严格同源（普通 3 种 / 精英 4 种，F151 起为 7 种）', () {
       int common = 0;
       int premium = 0;
       for (final PlantSpecies sp in kSeedPlantSpecies) {
@@ -152,7 +153,7 @@ void main() {
         }
       }
       expect(common, 3);
-      expect(premium, 3);
+      expect(premium, 4, reason: 'F151：葡萄入精英档（月光兰/珊瑚岭兰/翡翠绣球/葡萄）');
       // 兜底常量仍在（kStarterSpeciesId = 免费向日葵，不进本提示）。
       expect(kStarterSpeciesId, 'species_sunflower');
     });

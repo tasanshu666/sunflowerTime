@@ -531,6 +531,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_shell_reject_reason => '家长拒绝了该申请';
 
   @override
+  String get child_shell_gift_title => '🎁 爸爸妈妈送来阳光啦';
+
+  @override
+  String get child_shell_gift_item_name => '家长赠予';
+
+  @override
+  String get child_shell_gift_footer => '阳光已经放进你的花园，快去种点什么吧！';
+
+  @override
   String get child_shell_reject_footer => '本次阳光未被扣除，可重新兑换其他奖励';
 
   @override
@@ -2603,6 +2612,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shared_species_jade_hydrangea => '翡翠绣球';
 
   @override
+  String get shared_species_grape => '葡萄';
+
+  @override
   String get shared_weekday_mon => '周一';
 
   @override
@@ -3000,6 +3012,13 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get species_lore_jade_hydrangea_story =>
       '翡翠绣球由几十朵小花手拉手抱成一团，风再大也吹不散，因为它相信：团结的花最漂亮。';
+
+  @override
+  String get species_lore_grape_intro => '一串串紫珍珠';
+
+  @override
+  String get species_lore_grape_story =>
+      '葡萄是爬藤小能手，天生带着「小卷须」当抓手，一格一格往上爬。它结果不像别的花先开花后长果——葡萄的小花还没张开，果子就悄悄冒出来啦。';
 
   @override
   String get species_lore_fallback_intro => '花园里的小植物';

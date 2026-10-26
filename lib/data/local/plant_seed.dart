@@ -1,4 +1,5 @@
-/// 植物物种种子（玄参 2026-09-27 物种表改版；2026-10-08 删星辰花/虹影蕨 → **6 种**），稀有度收成 2 档。
+/// 植物物种种子（玄参 2026-09-27 物种表改版；2026-10-08 删星辰花/虹影蕨；
+/// F151 增葡萄、F153 增玫瑰 → **8 种**），稀有度收成 2 档。
 ///
 /// ## 口径（玄参 2026-09-27 拍板，一次说完）
 ///  · 稀有度 UI 只显示「普通 / 精英」两档：精英统一用 [Rarity.rare]（[Rarity.legendary]
@@ -6,8 +7,8 @@
 ///  · **按物种计价**（在物种列表直接兑换并种下；种植本身不额外扣阳光）：
 ///      - 向日葵 [kStarterSpeciesId] = **免费**（初始物种，阳光价 / 碎片价均为 0）；
 ///      - 月光兰（精英）= **20 碎片**（[kSpeciesFragmentCostPremium]，精英档仅碎片）；
-///      - 番茄 / 草莓（普通）= **10 碎片**（[kSpeciesFragmentCostCommon]）或 **300 阳光**（[kSpeciesSunlightCostCommon]，二选一）；
-///      - 珊瑚岭兰 / 翡翠绣球（精英）= **20 碎片**（[kSpeciesFragmentCostPremium]）。
+///      - 番茄 / 草莓 / 玫瑰（普通）= **10 碎片**（[kSpeciesFragmentCostCommon]）或 **300 阳光**（[kSpeciesSunlightCostCommon]，二选一）；
+///      - 珊瑚岭兰 / 翡翠绣球 / 葡萄（精英）= **20 碎片**（[kSpeciesFragmentCostPremium]）。
 ///  · **F144（玄参 2026-10-22 拍板）**：碎片价普通 6 → **10**、精英 10 → **20**
 ///    （价格只在种下时扣；已种植物与铲除返还「普通 300 / 精英 500 × 50%」不受影响）。
 ///  · 植物**可重复种植**（C29，2026-10-05）：唯一约束只剩「花盆容量 / 占用」；
@@ -17,9 +18,9 @@
 /// 向日葵（免费）第一、月光兰（精英 · 20 碎片）第二，其后普通 / 精英各按上述顺序。
 ///
 /// ## 成长时长
-///  · 普通植物（向日葵 / 番茄 / 草莓）→ [kPlantGrowthHoursPerStageDefault]
+///  · 普通植物（向日葵 / 番茄 / 草莓 / 玫瑰）→ [kPlantGrowthHoursPerStageDefault]
 ///    （240h，每阶段 10 天 → 完全不养护 30 天长成）；
-///  · 精英植物（其余 3 种）→ [kPlantGrowthHoursPerStagePremium]
+///  · 精英植物（月光兰 / 珊瑚岭兰 / 翡翠绣球 / 葡萄）→ [kPlantGrowthHoursPerStagePremium]
 ///    （480h，每阶段 20 天 → 完全不养护 60 天长成）。
 ///
 /// ## i18n B3（T05）：`PlantSpecies.name` 是**落库基线，不翻译**
@@ -36,9 +37,10 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 
-/// 6 种植物物种种子（首次启动即提供，全部 subscriptionOnly=false）。
+/// 8 种植物物种种子（首次启动即提供，全部 subscriptionOnly=false）。
 /// 历史：2026-09-27 为 8 种；2026-10-08 玄参删除星辰花（species_star_flower）/
-/// 虹影蕨（species_rainbow_fern）→ 6 种（历史库中残留的该物种数据按「未知物种
+/// 虹影蕨（species_rainbow_fern）→ 6 种；F151（2026-10-23）增葡萄、
+/// F153（2026-10-26）增玫瑰 → 8 种（历史库中残留的已删物种数据按「未知物种
 /// 安全默认」处理，各查找点均有 null 兜底，不做迁移清理）。
 const List<PlantSpecies> kSeedPlantSpecies = <PlantSpecies>[
   // ── 普通档（3 种）────────────────────────────────────────────────────────
@@ -106,6 +108,18 @@ const List<PlantSpecies> kSeedPlantSpecies = <PlantSpecies>[
     baseCostHigh: 0,
     baseCostLow: 0,
     growthHoursPerStage: kPlantGrowthHoursPerStagePremium,
+    subscriptionOnly: false,
+  ),
+  // F153（玄参 2026-10-26 拍板）：第 8 种，**普通档**（10 碎片 / 300 阳光，
+  // kPlantGrowthHoursPerStageDefault）。物种名上屏走 `species_l10n.dart`
+  // （ARB `shared_species_rose`），此处 name 仅落库基线。
+  PlantSpecies(
+    id: 'species_rose',
+    name: '玫瑰',
+    rarity: Rarity.common,
+    baseCostHigh: 0,
+    baseCostLow: 0,
+    growthHoursPerStage: kPlantGrowthHoursPerStageDefault,
     subscriptionOnly: false,
   ),
 ];

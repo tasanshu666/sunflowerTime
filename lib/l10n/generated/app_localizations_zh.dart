@@ -2615,6 +2615,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shared_species_grape => '葡萄';
 
   @override
+  String get shared_species_rose => '玫瑰';
+
+  @override
   String get shared_weekday_mon => '周一';
 
   @override
@@ -3019,6 +3022,13 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get species_lore_grape_story =>
       '葡萄是爬藤小能手，天生带着「小卷须」当抓手，一格一格往上爬。它结果不像别的花先开花后长果——葡萄的小花还没张开，果子就悄悄冒出来啦。';
+
+  @override
+  String get species_lore_rose_intro => '带刺的小卫士';
+
+  @override
+  String get species_lore_rose_story =>
+      '玫瑰身上的小刺是它的「铠甲」，专门保护软软的花瓣不被小动物一口吃掉。我们闻到的玫瑰香，是花瓣里藏着的小油滴在悄悄散发——要好多好多花瓣，才能收满一小瓶玫瑰香水呢。';
 
   @override
   String get species_lore_fallback_intro => '花园里的小植物';

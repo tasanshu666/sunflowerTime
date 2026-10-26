@@ -2673,6 +2673,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shared_species_grape => 'Grape';
 
   @override
+  String get shared_species_rose => 'Rose';
+
+  @override
   String get shared_weekday_mon => 'Mon';
 
   @override
@@ -3091,6 +3094,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get species_lore_grape_story =>
       'Grapes are little climbing champions! They use tiny curly tendrils as hands to climb up, step by step. And guess what — their flowers are so shy they open backwards: the fruit pops out before the tiny flower even blooms.';
+
+  @override
+  String get species_lore_rose_intro => 'A little guard with thorns';
+
+  @override
+  String get species_lore_rose_story =>
+      'A rose wears its thorns like tiny armor, keeping its soft petals safe from hungry visitors. That lovely smell comes from little drops of oil hiding inside the petals — it takes heaps and heaps of petals to fill just one small bottle of rose perfume!';
 
   @override
   String get species_lore_fallback_intro => 'A little garden plant';

@@ -2082,6 +2082,7 @@
   "shared_species_coral_orchid": "珊瑚岭兰",
   "shared_species_jade_hydrangea": "翡翠绣球",
   "shared_species_grape": "葡萄",
+  "shared_species_rose": "玫瑰",
   "shared_weekday_mon": "周一",
   "shared_weekday_tue": "周二",
   "shared_weekday_wed": "周三",
@@ -2447,6 +2448,14 @@
   "species_lore_grape_story": "葡萄是爬藤小能手，天生带着「小卷须」当抓手，一格一格往上爬。它结果不像别的花先开花后长果——葡萄的小花还没张开，果子就悄悄冒出来啦。",
   "@species_lore_grape_story": {
     "description": "物种图鉴 · 葡萄小故事（选种卡背面，F151 新增）"
+  },
+  "species_lore_rose_intro": "带刺的小卫士",
+  "@species_lore_rose_intro": {
+    "description": "物种图鉴 · 玫瑰一句话介绍（选种卡背面，F153 新增）"
+  },
+  "species_lore_rose_story": "玫瑰身上的小刺是它的「铠甲」，专门保护软软的花瓣不被小动物一口吃掉。我们闻到的玫瑰香，是花瓣里藏着的小油滴在悄悄散发——要好多好多花瓣，才能收满一小瓶玫瑰香水呢。",
+  "@species_lore_rose_story": {
+    "description": "物种图鉴 · 玫瑰小故事（选种卡背面，F153 新增）"
   },
   "species_lore_fallback_intro": "花园里的小植物",
   "@species_lore_fallback_intro": {

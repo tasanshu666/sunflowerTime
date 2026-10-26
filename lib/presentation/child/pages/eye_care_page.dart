@@ -8,10 +8,11 @@
 ///    功能重复 → 合并为**单个主按钮**（原「恒有两个出口」口径由主按钮独立承担：
 ///    禁跳时点了无效弹提示、允许时二次确认，语义完全覆盖）。
 ///
-/// 一张**全屏 modality 卡**：按 [kEyeCarePlaylist]（C43 起恒为**单段**：640 帧
-/// WebP + 单配音 63.974s，玄参把 5 段素材剪辑拼为 1 段、段间过渡更丝滑）播放
-/// 「序列帧 + 配音」——**帧速 = 帧数 ÷ 音频时长**（项目既有契约），音频经
-/// [AudioService.playSfx]（受「音效」开关控制）。完整休息给
+/// 一张**全屏 modality 卡**：按 locale 解析的**单段**素材播放「序列帧 + 配音」
+/// ——C43 起恒为单段；**F152（2026-10-25）起按语言选段**：en → 英文段
+/// （594 帧 WebP + 配音 59.4547s，[kEyeCareSegmentEn]），其余回退中文段
+/// （640 帧 WebP + 配音 63.974s，[kEyeCareSegment]）——**帧速 = 帧数 ÷ 音频时长**
+/// （项目既有契约），音频经 [AudioService.playSfx]（受「音效」开关控制）。完整休息给
 /// +[kEyeCareRewardSunlight] 阳光（`refType='eye_care_break'`）。
 ///
 /// ⚠️ C43 播放器预热已改**滑动窗口**（640 帧 × 2.07MB ≈ 1.3GB 禁止整组预热），
@@ -46,6 +47,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -104,8 +106,11 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
   /// 文案统一取用入口（i18n B1）。
   AppLocalizations get _t => _l10n ?? AppLocalizationsZh();
 
-  /// 当前播放槽位（0..[kEyeCarePlaylist].length-1）。
-  int _slot = 0;
+  /// 本页播放的素材段（F152：initState 按 [AppLocaleController.current] 解析一次，
+  /// 整页共用——en → [kEyeCareSegmentEn]（594 帧 / 59.45s），其余回退 zh 段）。
+  late EyeCareSegment _seg = EyeCareSegmentResolver.of(
+    AppLocaleController.current.languageCode,
+  );
 
   /// 已走毫秒（**仅用于「还剩 N 秒」标签**；槽位推进由播放器回调驱动，与音频同源）。
   int _elapsedMs = 0;
@@ -154,7 +159,10 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
       _landscapeLock = OrientationBridge.lockLandscape();
     } catch (_) {} // 方向锁失败静默：体验优化，不阻塞护眼流程。
     // 单段配音（initState 里 ref 仍可用；dispose 里才禁用 ref——本项目 Riverpod 铁律）。
-    ref.read(audioServiceProvider).playSfx(AudioCue.eyeCare);
+    // F152：配音跟 [_seg] 同源（en 环境播 eyecare_en.mp3，其余播 zh）。
+    ref.read(audioServiceProvider).playSfx(
+          _seg == kEyeCareSegmentEn ? AudioCue.eyeCareEn : AudioCue.eyeCare,
+        );
     // 1s tick：只刷新「还剩 N 秒」标签 + 兜底保险丝（播放器回调才是推进正源）。
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
@@ -163,8 +171,9 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
     if (!mounted || _finishing) return;
     setState(() => _elapsedMs += 1000);
     // 兜底保险丝：正常应永远走不到（播放器回调先到）；万一序列帧播放器异常卡死，
-    // 超过列表总长 + 10s 仍要放孩子出去，别把人锁死在护眼卡里。
-    if (_elapsedMs >= kEyeCarePlaylistTotalMs + 10000) {
+    // 超过本段总长 + 10s 仍要放孩子出去，别把人锁死在护眼卡里。
+    // F152：总长跟 [_seg] 走（zh 63974ms / en 59454ms），不再直读 zh 常量。
+    if (_elapsedMs >= _seg.durationMs + 10000) {
       unawaited(_finish(EyeCareResultType.completed));
     }
   }
@@ -339,14 +348,17 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
 
   @override
   Widget build(BuildContext context) {
-    final EyeCareSegment seg = kEyeCarePlaylist[_slot]; // C43：恒为单段（_slot 恒 0）
+    final EyeCareSegment seg = _seg; // F152：locale 解析段（zh 640 帧 / en 594 帧）
+    // F152：显示秒数 = durationMs ~/ 1000（zh 63.974→63s 与原口径逐位一致；
+    // en 59.4547→59s）。进度条总长同源 [_seg.durationMs]。
+    final int displaySeconds = seg.durationMs ~/ 1000;
     final double totalProgress =
-        kEyeCarePlaylistTotalMs <= 0
+        seg.durationMs <= 0
             ? 1.0
-            : (_elapsedMs / kEyeCarePlaylistTotalMs).clamp(0.0, 1.0);
-    final int remainingSeconds = (_elapsedMs ~/ 1000) >= kEyeCareDurationSeconds
+            : (_elapsedMs / seg.durationMs).clamp(0.0, 1.0);
+    final int remainingSeconds = (_elapsedMs ~/ 1000) >= displaySeconds
         ? 0
-        : kEyeCareDurationSeconds - _elapsedMs ~/ 1000;
+        : displaySeconds - _elapsedMs ~/ 1000;
 
     // ⚠️ 类型参数必须是本页 pop 出去的结果类型 [EyeCareResult]（**不是** bool）：
     // `PopScope.onPopInvokedWithResult` 收到的是「本次 pop 的返回值」，框架会按本页
@@ -412,9 +424,9 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                     // 视觉基准，平板上图卡放大到 680 时圆角同步放大，否则会显得过于方正。
                     borderRadius: BorderRadius.circular(28 * (frameSide / 360)),
                     child: FrameSequencePlayer(
-                      // C43（2026-10-09）：单段 640 帧一次播完（63.974s），
-                      // 无槽位切换 → 无需 playToken；整组预热已被播放器的
-                      // **滑动窗口预热**取代（640 帧 × 2.07MB ≈ 1.3GB 禁整组预热）。
+                      // C43：单段一次播完，无槽位切换 → 无需 playToken；整组预热
+                      // 已被播放器的**滑动窗口预热**取代（640 帧 ≈1.3GB 禁整组预热；
+                      // F152 英文段 594 帧同纪律）。时长跟 [_seg]（zh 63.97s / en 59.45s）。
                       frames: fxFrameAssets(seg.dir, seg.frameCount,
                           ext: seg.frameExt),
                       durationMs: seg.durationMs,

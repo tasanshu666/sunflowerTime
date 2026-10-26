@@ -77,6 +77,7 @@ flutter:
     - assets/plants/coral_orchid/
     - assets/plants/jade_hydrangea/
     - assets/plants/grape/
+    - assets/plants/rose/
     - assets/plants/shared/
     # 花盆美术资源（2026-09-23）：通用空花盆 pot.png，缺失时回退内置 CustomPaint 自绘。
     - assets/pots/
@@ -109,6 +110,9 @@ flutter:
     - assets/fx/grow/grape/seed_to_sprout/
     - assets/fx/grow/grape/sprout_to_adult/
     - assets/fx/grow/grape/adult_to_bloomed/
+    - assets/fx/grow/rose/seed_to_sprout/
+    - assets/fx/grow/rose/sprout_to_adult/
+    - assets/fx/grow/rose/adult_to_bloomed/
     - assets/fx/care/water/
     - assets/fx/care/fertilize/
     # 除草 / 除虫效果帧（2026-10-03 玄参交付，各 27 帧）：点干扰物播放，禁止归一化。
@@ -126,6 +130,9 @@ flutter:
     # （5 段素材已拼为 1 段视频再逐帧导出，过渡更丝滑），WebP q95 压缩
     # （284.4M PNG → 40.2M，PSNR≈44.8dB 视觉无损，转换 tools/convert_eyecare640.py）。
     - assets/fx/eyecare640/
+    # 护眼英文素材（F152，2026-10-25）：594 帧 WebP q95（tools/convert_eyecare640.py
+    # --src/--dst，254M→38M，PSNR≈44.8dB），配音 assets/audio/sfx/eyecare_en.mp3 59.45s。
+    - assets/fx/eyecare640_en/
     # 隐私政策应用内全文（首启告知 2.0 / C110）：由 tools/gen_privacy_assets.py
     # 从 docs 底稿派生（勿手改）；locale 选文件见 privacy_policy_page.dart。
     - assets/docs/

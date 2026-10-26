@@ -26,12 +26,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
 import 'package:sunflower_time/domain/entities/eye_care_log.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/eye_care_log_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
 import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
+import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 
 /// 只记录 `append` 的假账本（其余方法返回中性值）。
 class _FakeSunlightRepository implements SunlightRepository {
@@ -130,7 +132,10 @@ void _usePhoneScreen(WidgetTester tester) {
     assets,
     (MethodCall call) async {
       if (call.arguments is String &&
-          (call.arguments! as String).startsWith('assets/fx/eyecare640/')) {
+          // F152：前缀不带尾斜杠，同时拦 zh（eyecare640/）与 en（eyecare640_en/）
+          // —— en 帧源前缀带 `_en`，按「eyecare640」统一前缀才拦得住（漏拦 =
+          // 真解码 594 张 720×720 位图 → flutter_tester OOM exit 137）。
+          (call.arguments! as String).startsWith('assets/fx/eyecare640')) {
         return null; // 视为加载失败 → errorBuilder / precache 跳过
       }
       return null; // 其余资产（字体等）同样走失败路径，用例不依赖位图
@@ -436,6 +441,55 @@ void main() {
       expect(EyeCareService.rewardSunlight(), kEyeCareRewardSunlight);
       expect(EyeCareResult(EyeCareResultType.completed).completed, isTrue);
       expect(EyeCareResult(EyeCareResultType.skipped).skipped, isTrue);
+    });
+  });
+
+  group('F152 英文素材段（2026-10-25，locale 选段）', () {
+    test('素材段契约：en 594 帧 / 59454ms / en 配音；zh 回退口径不变', () {
+      expect(kEyeCareSegmentEn.dir, 'assets/fx/eyecare640_en');
+      expect(kEyeCareSegmentEn.frameCount, 594);
+      expect(kEyeCareSegmentEn.frameExt, 'webp');
+      expect(kEyeCareSegmentEn.sfxAsset, 'assets/audio/sfx/eyecare_en.mp3');
+      expect(kEyeCareSegmentEn.durationMs, 59454);
+      // 解析器：en → 英文段；zh / 其它语言码 → 一律回退中文段。
+      expect(EyeCareSegmentResolver.of('en'), same(kEyeCareSegmentEn));
+      expect(EyeCareSegmentResolver.of('zh'), same(kEyeCareSegment));
+      expect(EyeCareSegmentResolver.of('ja'), same(kEyeCareSegment));
+      expect(EyeCareSegmentResolver.of(''), same(kEyeCareSegment));
+    });
+
+    testWidgets('接线守：en 生效 locale → 页面真实装配英文段（帧源 / 帧数 / 时长）',
+        (WidgetTester tester) async {
+      _usePhoneScreen(tester);
+      // 直接摆生效 locale 单点（与 L10nScope 同源同向；页面 initState 只认它）。
+      final Locale saved = AppLocaleController.current;
+      addTearDown(() => AppLocaleController.current = saved);
+      AppLocaleController.current = const Locale('en');
+
+      final _Harness h = _Harness(skipAllowed: true);
+      await h.open(tester);
+
+      final FrameSequencePlayer player = tester.widget<FrameSequencePlayer>(
+        find.byType(FrameSequencePlayer),
+      );
+      expect(player.frames, hasLength(kEyeCareSegmentEn.frameCount));
+      expect(player.frames.first, 'assets/fx/eyecare640_en/frame001.webp');
+      expect(player.frames.last, 'assets/fx/eyecare640_en/frame594.webp');
+      expect(player.durationMs, kEyeCareSegmentEn.durationMs);
+    });
+
+    testWidgets('回归守：zh（测试垫片默认）→ 中文段不变（640 帧 / 63974ms）',
+        (WidgetTester tester) async {
+      _usePhoneScreen(tester);
+      final _Harness h = _Harness(skipAllowed: true);
+      await h.open(tester);
+
+      final FrameSequencePlayer player = tester.widget<FrameSequencePlayer>(
+        find.byType(FrameSequencePlayer),
+      );
+      expect(player.frames, hasLength(kEyeCareSegment.frameCount));
+      expect(player.frames.first, 'assets/fx/eyecare640/frame001.webp');
+      expect(player.durationMs, kEyeCareSegment.durationMs);
     });
   });
 }

@@ -87,7 +87,7 @@ void main() {
     });
   });
 
-  group('成长序列帧契约（7 物种 × 3 过渡，WebP q95 压缩管线）', () {
+  group('成长序列帧契约（8 物种 × 3 过渡，WebP q95 压缩管线）', () {
     // 帧数各不同（25~27 ≠ kFxFrameCount），代码侧由 resolveGrowFxAssets 从 AssetManifest
     // 实测；本护栏锁：目录存在、从 frame001 连续编号、三位零填充、且每帧 720×720
     // （直读 WebP 头）。2026-10-13 起全部走 WebP（tools/convert_grow_fx.py）。
@@ -99,6 +99,7 @@ void main() {
       'coral_orchid',
       'jade_hydrangea',
       'grape', // 2026-10-23 第 7 物种（F151，精英档）
+      'rose', // 2026-10-26 第 8 物种（F153，普通档）
     ];
 
     for (final String species in speciesDirs) {
@@ -129,8 +130,8 @@ void main() {
   });
 
   group('成长音效（物种 × 过渡）契约（C59，2026-10-13 玄参交付）', () {
-    // 6 物种 × 3 过渡 = 18 段**物种专属**音效（向日葵仍走通用兜底，不在本表内；
-    // grape 2026-10-23 加入，F151）。
+    // 7 物种 × 3 过渡 = 21 段**物种专属**音效（向日葵仍走通用兜底，不在本表内；
+    // grape 2026-10-23 加入（F151）、rose 2026-10-26 加入（F153））。
     // 硬规格（规范 §4.5）：时长必须 = kGrow*DurationMs（4100ms）——三段帧速由该常量
     // 驱动，音效不等长即音画不同步；且必须 ≥3s（iOS CoreAudio -11849 红线）。
     const List<String> speciesDirs = <String>[
@@ -140,6 +141,7 @@ void main() {
       'coral_orchid',
       'jade_hydrangea',
       'grape',
+      'rose',
     ];
 
     for (final String dir in speciesDirs) {
@@ -262,6 +264,49 @@ void main() {
           reason: '缺护眼配音：${AudioCue.eyeCare.assetPath}');
     });
 
+    test('F152 英文段 594 帧：目录、帧数、命名契约（三位零填充 frame001..594.webp）', () {
+      final Directory dir = Directory('$root/${kEyeCareSegmentEn.dir}');
+      expect(dir.existsSync(), isTrue,
+          reason: '目录缺失：${kEyeCareSegmentEn.dir}');
+      final List<String> files = dir
+          .listSync()
+          .whereType<File>()
+          .map((File f) => f.path.split(Platform.pathSeparator).last)
+          .where((String n) => n.endsWith('.${kEyeCareSegmentEn.frameExt}'))
+          .toList()
+        ..sort();
+      expect(files.length, kEyeCareSegmentEn.frameCount,
+          reason: '英文段帧数应为 ${kEyeCareSegmentEn.frameCount}，'
+              '实际 ${files.length}');
+      final List<String> expected = fxFrameAssets(kEyeCareSegmentEn.dir,
+              kEyeCareSegmentEn.frameCount, ext: kEyeCareSegmentEn.frameExt)
+          .map((String p) => p.split('/').last)
+          .toList();
+      expect(files, expected, reason: '英文段文件名与契约不符（frame001..594.webp）');
+      // 整幅画面带背景：全部帧统一 720×720（直读 WebP 头，逐张校验）。
+      for (final String name in files) {
+        final int wh = _webpSize(File('$root/${kEyeCareSegmentEn.dir}/$name'));
+        expect(wh, 720 * 720,
+            reason: '${kEyeCareSegmentEn.dir}/$name 尺寸漂移（应统一 720×720）');
+      }
+    });
+
+    test('F152 英文配音 eyecare_en.mp3 存在、cue 映射齐全、时长对齐帧速契约', () {
+      expect(AudioCue.eyeCareEn.assetPath, 'assets/audio/sfx/eyecare_en.mp3');
+      final File f = File('$root/${AudioCue.eyeCareEn.assetPath}');
+      expect(f.existsSync(), isTrue,
+          reason: '缺英文护眼配音：${AudioCue.eyeCareEn.assetPath}');
+      // 帧速契约：594 帧 ÷ durationMs ≈ 10fps，配音实长必须与 durationMs 对齐
+      //（±0.5s 容差，MPEG 帧头解析 vs 容器估算的固有误差）——音画不同步即红。
+      final double seconds = _mp3DurationSeconds(f.readAsBytesSync());
+      final int parsedMs = (seconds * 1000).round();
+      expect(parsedMs, closeTo(kEyeCareSegmentEn.durationMs, 500),
+          reason: '英文配音实长 ${parsedMs}ms 应 ≈ '
+              '${kEyeCareSegmentEn.durationMs}ms（594 帧 ÷ 59.45s ≈ 10fps）');
+      // ≥3s 红线（F77）顺带钉死。
+      expect(parsedMs, greaterThanOrEqualTo(3000));
+    });
+
     test('旧 5 套素材目录与旧配音已删除（C43 弃用，防误回收）', () {
       expect(Directory('$root/assets/fx/eyecare').existsSync(), isFalse,
           reason: '旧 eyecare 目录应已删除');
@@ -295,6 +340,7 @@ void main() {
         AudioCue.focusSettle,
         AudioCue.focusEndCountdown,
         AudioCue.eyeCare,
+        AudioCue.eyeCareEn, // F152（2026-10-25）英文护眼配音
       ];
       for (final AudioCue cue in newCues) {
         expect(cue.assetPath.endsWith('.mp3'), isTrue,
@@ -395,6 +441,8 @@ void main() {
           'moon_orchid',
           'coral_orchid',
           'jade_hydrangea',
+          'grape', // F151
+          'rose', // F153
         ])
           for (final GrowTransition t in GrowTransition.values)
             growFxDir(sp, t),
@@ -410,6 +458,7 @@ void main() {
         kLevelUpDefaultFxDir,
         kLevelUpTitleFxDir,
         ...kEyeCarePlaylist.map((EyeCareSegment s) => s.dir).toSet(),
+        'assets/fx/eyecare640_en', // F152：护眼英文段（不在 playlist，单列）
       ];
       for (final String dir in dirs) {
         expect(pubspec.contains('    - $dir/'), isTrue,
@@ -428,10 +477,10 @@ void main() {
           .whereType<File>()
           .where((File f) => f.path.endsWith('_adult_bloomed.png'))
           .toList();
-      expect(blooms.length, 7,
-          reason: '7 物种应各有 1 张盛开图（2026-10-08 删星辰花/虹影蕨后余 6，'
-              '2026-10-23 增葡萄至 7：向日葵 + 番茄 + 草莓 + 月光兰 + 珊瑚岭兰 + '
-              '翡翠绣球 + 葡萄），实际 ${blooms.length}');
+      expect(blooms.length, 8,
+          reason: '8 物种应各有 1 张盛开图（2026-10-08 删星辰花/虹影蕨后余 6，'
+              '2026-10-23 增葡萄至 7、2026-10-26 增玫瑰至 8：向日葵 + 番茄 + 草莓 + '
+              '月光兰 + 珊瑚岭兰 + 翡翠绣球 + 葡萄 + 玫瑰），实际 ${blooms.length}');
       // 2026-10-09 全局等盆：新五物种统一 1720×2000（盆 800、盆心居中）；向日葵
       // 无 wilted/dead 原图备份、维持 1200×2000 定稿不动 —— contain 按高度绑定
       // 缩放，两种画布的盆显示大小一致（比例同为 800/画布宽 × 高 2000）。

@@ -1039,6 +1039,36 @@ const List<EyeCareSegment> kEyeCarePlaylist = <EyeCareSegment>[
 /// [kEyeCareDurationSeconds] = 63s，两者差 <1s，以播放收尾回调为准）。
 const int kEyeCarePlaylistTotalMs = 63974;
 
+/// 护眼**英文**素材段（F152，2026-10-25 玄参交付接入）。
+///
+///  · 帧：`assets/fx/eyecare640_en/frame001..594.webp`（720×720，594 帧，
+///    与 zh 同一 WebP q95 压缩管线 `tools/convert_eyecare640.py --src/--dst`）；
+///  · 配音：`assets/audio/sfx/eyecare_en.mp3`（59.4547s @192kbps，afinfo 实测；
+///    源 −17.58 LUFS → **+1.97dB 纯增益**对齐 zh 的 −15.88 LUFS，真峰 −1.73）；
+///  · 帧速 = 594 ÷ 59.4547s ≈ 10.0fps（与 zh 契约同式）。
+///  · 显示口径 `durationMs ~/ 1000` = 59s（zh 为 63s，[kEyeCareDurationSeconds]）。
+/// ⚠️ 同样**禁止整组预热**（594 帧，[FrameSequencePlayer] 滑动窗口接管）。
+const EyeCareSegment kEyeCareSegmentEn = EyeCareSegment(
+  dir: 'assets/fx/eyecare640_en',
+  sfxAsset: 'assets/audio/sfx/eyecare_en.mp3',
+  frameCount: 594,
+  durationMs: 59454,
+  label: 'Follow along and protect your eyes',
+  frameExt: 'webp',
+);
+
+/// 按**生效 locale 的语言码**选护眼段（F152）：en → 英文段，其余（zh / 其它）
+/// 一律回退中文段（zh 是素材母版，i18n 回退口径与 [AppLocalizationsZh] 兜底一致）。
+///
+/// 语言码取自 [AppLocaleController.current]（与 L10nScope 同源同向），由页面在
+/// initState 解析一次后整页共用——绝不在 build 里反复解析（防中途漂移撕裂）。
+// ignore: avoid_classes_with_only_static_members
+abstract final class EyeCareSegmentResolver {
+  /// 生效语言码 → 素材段。
+  static EyeCareSegment of(String languageCode) =>
+      languageCode == 'en' ? kEyeCareSegmentEn : kEyeCareSegment;
+}
+
 /// 完整完成一次护眼的**奖励阳光**基础值。
 ///
 /// 沿革：+2 → +3（玄参 2026-10-08）→ **+2（C78，2026-10-15）**：护眼 perk 前置到

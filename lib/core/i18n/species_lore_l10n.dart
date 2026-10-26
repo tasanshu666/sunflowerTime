@@ -8,10 +8,10 @@
 /// 中文** —— 与称号文案 `core/i18n/title_l10n.dart` 同类的 i18n 残留。
 ///
 /// 本文件把文案整体搬到 ARB（`species_lore_{id}_intro/_story` +
-/// `species_lore_fallback_intro/_story`，共 14 条），并按 id 取用 —— 与
-/// `title_l10n.dart::focusLevelTitleRowL10n` **同构**：
-///  · **zh 逐字节不变**：14 条 ARB zh 值与迁移前 `kSpeciesLore` /
-///    `kFallbackSpeciesLore` 完全一致（守卫见
+/// `species_lore_fallback_intro/_story`，F153 起 8 物种共 18 条），并按 id 取用
+/// —— 与 `title_l10n.dart::focusLevelTitleRowL10n` **同构**：
+///  · **zh 逐字节不变**：18 条 ARB zh 值与迁移前 `kSpeciesLore` /
+///    `kFallbackSpeciesLore` 完全一致（新物种锚点随批追加；守卫见
 ///    `test/i18n/species_lore_l10n_test.dart`）；
 ///  · **纯语义 id 判断**：本文件只认物种 id 字符串，不知道任何稀有度 / 解锁
 ///    状态；未知 id（如老库自造、2026-10-08 已删的 star_flower / rainbow_fern）
@@ -64,6 +64,14 @@ SpeciesLore speciesLoreL10n(String speciesId, AppLocalizations t) {
       return SpeciesLore(
           intro: t.species_lore_jade_hydrangea_intro,
           story: t.species_lore_jade_hydrangea_story);
+    case 'species_grape':
+      return SpeciesLore(
+          intro: t.species_lore_grape_intro,
+          story: t.species_lore_grape_story);
+    case 'species_rose':
+      return SpeciesLore(
+          intro: t.species_lore_rose_intro,
+          story: t.species_lore_rose_story);
     default:
       return SpeciesLore(
           intro: t.species_lore_fallback_intro,

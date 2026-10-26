@@ -153,9 +153,9 @@ Future<void> _pumpCard(WidgetTester tester, Plant plant, PlantSpecies sp) async 
 void main() {
   // ── 稀有度两档 + 价格文案 ────────────────────────────────────────────────
   group('F1 · 花园页选种弹窗：稀有度两档（普通 / 精英）', () {
-    testWidgets('7 物种稀有度标签 + 价格文案全部按两档渲染',
+    testWidgets('8 物种稀有度标签 + 价格文案全部按两档渲染',
         (WidgetTester tester) async {
-      // 逻辑视口加高，使 modal bottom sheet（默认限高 ~9/16 屏高）能一次容纳 7 个物种项，
+      // 逻辑视口加高，使 modal bottom sheet（默认限高 ~9/16 屏高）能一次容纳 8 个物种项，
       // 避免懒加载把后面的精英项留在树外导致误判。
       tester.view.physicalSize = const Size(360, 2000);
       tester.view.devicePixelRatio = 1.0;
@@ -189,15 +189,15 @@ void main() {
       // 新「选择要种」列表：稀有度单独成 chip（普通 / 精英），支付方式单独成按钮。
       // 2026-10-05 玄参美化口径：阳光/碎片价格=「素材图标 + 数字」，不再写「N 阳光」文字。
       // 普通档 3 种：向日葵=免费（C29：无存活株时首株免费）；番茄 / 草莓 各「300」「6」两档可选（C29 修订 400→300）。
-      expect(find.text('普通'), findsNWidgets(3), reason: '向日葵/番茄/草莓=普通档');
-      expect(find.text('精英'), findsNWidgets(4), reason: '月光兰+珊瑚岭兰+翡翠绣球+葡萄=精英档（F151）');
+      expect(find.text('普通'), findsNWidgets(4), reason: '向日葵/番茄/草莓/玫瑰=普通档（F153 增玫瑰）');
+      expect(find.text('精英'), findsNWidgets(4), reason: '月光兰+珊瑚岭兰+翡翠绣球+葡萄=精英档（F151）；玫瑰走普通档（F153）');
       expect(find.text('免费'), findsOneWidget, reason: '向日葵=免费');
-      expect(find.text('300'), findsNWidgets(2), reason: '番茄/草莓=各 300 阳光档（C29）');
+      expect(find.text('300'), findsNWidgets(3), reason: '番茄/草莓/玫瑰=各 300 阳光档（C29，F153 增玫瑰）');
       // F144（玄参 2026-10-22 拍板）：普通碎片价 6 → **10**。
-      expect(find.text('10'), findsNWidgets(2), reason: '番茄/草莓=各 10 植物碎片档');
+      expect(find.text('10'), findsNWidgets(3), reason: '番茄/草莓/玫瑰=各 10 植物碎片档（F153 增玫瑰）');
       // 精英档（含月光兰，新计价仅碎片）各植物碎片；F144：10 → **20**。
       expect(find.text('20'), findsNWidgets(4),
-          reason: '4 精英（含月光兰/葡萄）=各 20 植物碎片（F144 拍板，F151 增葡萄）');
+          reason: '4 精英（含月光兰/葡萄）=各 20 植物碎片（F144 拍板，F151 增葡萄）；玫瑰普通档 10 碎片（F153）');
 
       // 不得再出现旧的稀有度词。
       for (final String old in <String>['优良', '稀有', '传奇', '史诗']) {

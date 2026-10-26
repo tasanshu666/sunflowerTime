@@ -4511,6 +4511,12 @@ abstract class AppLocalizations {
   /// **'葡萄'**
   String get shared_species_grape;
 
+  /// No description provided for @shared_species_rose.
+  ///
+  /// In zh, this message translates to:
+  /// **'玫瑰'**
+  String get shared_species_rose;
+
   /// No description provided for @shared_weekday_mon.
   ///
   /// In zh, this message translates to:
@@ -5212,6 +5218,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'葡萄是爬藤小能手，天生带着「小卷须」当抓手，一格一格往上爬。它结果不像别的花先开花后长果——葡萄的小花还没张开，果子就悄悄冒出来啦。'**
   String get species_lore_grape_story;
+
+  /// 物种图鉴 · 玫瑰一句话介绍（选种卡背面，F153 新增）
+  ///
+  /// In zh, this message translates to:
+  /// **'带刺的小卫士'**
+  String get species_lore_rose_intro;
+
+  /// 物种图鉴 · 玫瑰小故事（选种卡背面，F153 新增）
+  ///
+  /// In zh, this message translates to:
+  /// **'玫瑰身上的小刺是它的「铠甲」，专门保护软软的花瓣不被小动物一口吃掉。我们闻到的玫瑰香，是花瓣里藏着的小油滴在悄悄散发——要好多好多花瓣，才能收满一小瓶玫瑰香水呢。'**
+  String get species_lore_rose_story;
 
   /// 物种图鉴 · 未知物种兜底一句话介绍（F147 自 species_lore.dart 迁入）
   ///

@@ -648,7 +648,7 @@
       }
     }
   },
-  "garden_seed_count": "{count} 张",
+  "garden_seed_count": "{count} 粒",
   "@garden_seed_count": {
     "placeholders": {
       "count": {
@@ -657,7 +657,7 @@
     }
   },
   "garden_row_seed_balance": "当前种子",
-  "garden_seed_remaining": "种下后剩余 {count} 张",
+  "garden_seed_remaining": "种下后剩余 {count} 粒",
   "@garden_seed_remaining": {
     "placeholders": {
       "count": {
@@ -1194,7 +1194,7 @@
     }
   },
   "ghelp_weed_title": "杂草和害虫",
-  "ghelp_weed_detail": "花园里偶尔会长杂草、来小害虫，点一点就能除掉；\n除草 +{weedReward} ☀、除虫 +{pestReward} ☀，除完花园更清爽。",
+  "ghelp_weed_detail": "花园里偶尔会长杂草、来小害虫（空花盆也会长草长虫），点一点就能除掉；\n除草 +{weedReward} ☀、除虫 +{pestReward} ☀，除完花园更清爽。",
   "@ghelp_weed_detail": {
     "placeholders": {
       "weedReward": {

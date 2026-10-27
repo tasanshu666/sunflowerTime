@@ -30,6 +30,7 @@ import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/core/i18n/error_l10n.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 
 /// 「今日」页：待确认的成长项 + 待核销奖励。
 class ParentTodayPage extends ConsumerStatefulWidget {
@@ -384,7 +385,11 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(t.parent_today_reject_body(
-              widget.item.task?.name ?? t.parent_today_deleted_task,
+              // F154：预制任务显示名跟随当前语言。
+              widget.item.task != null
+                  ? taskDisplayName(
+                      widget.item.task!.id, widget.item.task!.name, t)
+                  : t.parent_today_deleted_task,
             )),
             const SizedBox(height: 8),
             TextField(
@@ -440,7 +445,10 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
   Widget build(BuildContext context) {
     final AppLocalizations t = l10nOf(context);
     final PendingCheckIn p = widget.item;
-    final String name = p.task?.name ?? t.parent_today_deleted_task;
+    // F154：预制任务显示名跟随当前语言（自定义/改过名原样）。
+    final String name = p.task != null
+        ? taskDisplayName(p.task!.id, p.task!.name, t)
+        : t.parent_today_deleted_task;
     final String submitted =
         DateFormat('yyyy-MM-dd HH:mm').format(p.checkIn.completedAt);
     return Padding(

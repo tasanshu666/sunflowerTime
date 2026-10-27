@@ -23,6 +23,7 @@ import 'package:sunflower_time/data/local/repositories/settings_local_repository
 import 'package:sunflower_time/data/local/repositories/sunlight_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/tracking_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/plant_local_repository.dart';
+import 'package:sunflower_time/data/local/repositories/pot_disturbance_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/task_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/eye_care_log_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/child_profile_local_repository.dart';
@@ -37,6 +38,7 @@ import 'package:sunflower_time/domain/repositories/entitlement_repository.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
+import 'package:sunflower_time/domain/repositories/pot_disturbance_repository.dart';
 import 'package:sunflower_time/domain/repositories/weekly_pool_repository.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
@@ -56,6 +58,7 @@ import 'package:sunflower_time/domain/services/entitlement_service.dart';
 import 'package:sunflower_time/domain/services/weekly_pool_service.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/domain/services/empty_pot_service.dart';
 import 'package:sunflower_time/domain/services/focus_report_service.dart';
 import 'package:sunflower_time/domain/services/data_management_service.dart';
 import 'package:sunflower_time/domain/services/memoir_service.dart';
@@ -128,6 +131,31 @@ final plantRepositoryProvider = Provider<PlantRepository>(
 );
 final bloomRewardRepositoryProvider = Provider<BloomRewardRepository>(
   (ref) => ref.watch(plantLocalRepositoryProvider),
+);
+
+/// 空花盆干扰物仓储（F155-B，玄参 2026-10-27 拍板）：空盆每天独立 roll 杂草 / 害虫。
+///
+/// 与植物仓储同款装配口径（C90 期 2）：写入落当前孩子、读取按当前孩子过滤。
+/// 纯 widget 测试宿主未注入 DB 时，消费方（花园页）自行 try/catch 降级 —— 见
+/// `garden_page._reload` 的空盆段注释。
+final potDisturbanceRepositoryProvider = Provider<PotDisturbanceRepository>(
+  (ref) => PotDisturbanceLocalRepository(
+    ref.watch(appDatabaseProvider),
+    account: ref.watch(accountServiceProvider),
+  ),
+);
+
+/// 空花盆干扰物服务（F155-B）：每日 roll / 拔草 / 除虫 / 种下即清。
+///
+/// 与经济账本同源（[SunlightRepository.append]）；`refType` 复用植物侧的
+/// `kGardenWeedRefType` / `kGardenPestRefType`（`refId = 'pot:<potIndex>'`）。
+final emptyPotServiceProvider = Provider<EmptyPotService>(
+  (ref) => EmptyPotService(
+    disturbances: ref.watch(potDisturbanceRepositoryProvider),
+    ledger: ref.watch(sunlightRepositoryProvider),
+    onEconomyChanged: () =>
+        ref.read(economyRevisionProvider.notifier).state++,
+  ),
 );
 final rewardRepositoryProvider = Provider<RewardRepository>(
   (ref) => RewardLocalRepository(ref.watch(appDatabaseProvider),

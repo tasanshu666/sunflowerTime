@@ -38,6 +38,7 @@ import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/core/i18n/enum_l10n.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 
 /// 商店 tab 列表内容起点（占屏高比例）——C47d 实测标定值。
 ///
@@ -412,7 +413,7 @@ class _StorePageState extends ConsumerState<StorePage>
         ConfirmCardRow(
           icon: Icons.card_giftcard,
           name: _t.store_row_item,
-          value: '「${tpl.name}」',
+          value: '「${rewardDisplayName(tpl.id, tpl.name, _t)}」',
         ),
         ConfirmCardRow(
           icon: Icons.wb_sunny,

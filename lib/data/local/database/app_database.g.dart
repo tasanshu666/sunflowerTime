@@ -2058,6 +2058,327 @@ class PlantsCompanion extends UpdateCompanion<Plant> {
   }
 }
 
+class $EmptyPotDisturbancesTable extends EmptyPotDisturbances
+    with TableInfo<$EmptyPotDisturbancesTable, EmptyPotDisturbanceRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EmptyPotDisturbancesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
+  static const VerificationMeta _potIndexMeta =
+      const VerificationMeta('potIndex');
+  @override
+  late final GeneratedColumn<int> potIndex = GeneratedColumn<int>(
+      'pot_index', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _weedAtMeta = const VerificationMeta('weedAt');
+  @override
+  late final GeneratedColumn<DateTime> weedAt = GeneratedColumn<DateTime>(
+      'weed_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _pestAtMeta = const VerificationMeta('pestAt');
+  @override
+  late final GeneratedColumn<DateTime> pestAt = GeneratedColumn<DateTime>(
+      'pest_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _rollDayMeta =
+      const VerificationMeta('rollDay');
+  @override
+  late final GeneratedColumn<DateTime> rollDay = GeneratedColumn<DateTime>(
+      'roll_day', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [childId, potIndex, weedAt, pestAt, rollDay];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'empty_pot_disturbances';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<EmptyPotDisturbanceRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
+    if (data.containsKey('pot_index')) {
+      context.handle(_potIndexMeta,
+          potIndex.isAcceptableOrUnknown(data['pot_index']!, _potIndexMeta));
+    } else if (isInserting) {
+      context.missing(_potIndexMeta);
+    }
+    if (data.containsKey('weed_at')) {
+      context.handle(_weedAtMeta,
+          weedAt.isAcceptableOrUnknown(data['weed_at']!, _weedAtMeta));
+    }
+    if (data.containsKey('pest_at')) {
+      context.handle(_pestAtMeta,
+          pestAt.isAcceptableOrUnknown(data['pest_at']!, _pestAtMeta));
+    }
+    if (data.containsKey('roll_day')) {
+      context.handle(_rollDayMeta,
+          rollDay.isAcceptableOrUnknown(data['roll_day']!, _rollDayMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {childId, potIndex};
+  @override
+  EmptyPotDisturbanceRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EmptyPotDisturbanceRow(
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
+      potIndex: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}pot_index'])!,
+      weedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}weed_at']),
+      pestAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}pest_at']),
+      rollDay: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}roll_day']),
+    );
+  }
+
+  @override
+  $EmptyPotDisturbancesTable createAlias(String alias) {
+    return $EmptyPotDisturbancesTable(attachedDatabase, alias);
+  }
+}
+
+class EmptyPotDisturbanceRow extends DataClass
+    implements Insertable<EmptyPotDisturbanceRow> {
+  /// 归属孩子（C90 期 2 口径；写入由仓储落当前孩子）。
+  final String childId;
+
+  /// 花盆序号（0 基，与 `Plants.potIndex` 同一坐标系）。
+  final int potIndex;
+
+  /// 杂草出现当天零点；null = 无杂草。
+  final DateTime? weedAt;
+
+  /// 害虫出现当天零点；null = 无害虫（与 `weed_at` 互不影响、可同时存在）。
+  final DateTime? pestAt;
+
+  /// 「每日 roll」已执行的当天零点（幂等基准）；null = 尚未 roll。
+  final DateTime? rollDay;
+  const EmptyPotDisturbanceRow(
+      {required this.childId,
+      required this.potIndex,
+      this.weedAt,
+      this.pestAt,
+      this.rollDay});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['child_id'] = Variable<String>(childId);
+    map['pot_index'] = Variable<int>(potIndex);
+    if (!nullToAbsent || weedAt != null) {
+      map['weed_at'] = Variable<DateTime>(weedAt);
+    }
+    if (!nullToAbsent || pestAt != null) {
+      map['pest_at'] = Variable<DateTime>(pestAt);
+    }
+    if (!nullToAbsent || rollDay != null) {
+      map['roll_day'] = Variable<DateTime>(rollDay);
+    }
+    return map;
+  }
+
+  EmptyPotDisturbancesCompanion toCompanion(bool nullToAbsent) {
+    return EmptyPotDisturbancesCompanion(
+      childId: Value(childId),
+      potIndex: Value(potIndex),
+      weedAt:
+          weedAt == null && nullToAbsent ? const Value.absent() : Value(weedAt),
+      pestAt:
+          pestAt == null && nullToAbsent ? const Value.absent() : Value(pestAt),
+      rollDay: rollDay == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rollDay),
+    );
+  }
+
+  factory EmptyPotDisturbanceRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EmptyPotDisturbanceRow(
+      childId: serializer.fromJson<String>(json['childId']),
+      potIndex: serializer.fromJson<int>(json['potIndex']),
+      weedAt: serializer.fromJson<DateTime?>(json['weedAt']),
+      pestAt: serializer.fromJson<DateTime?>(json['pestAt']),
+      rollDay: serializer.fromJson<DateTime?>(json['rollDay']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'childId': serializer.toJson<String>(childId),
+      'potIndex': serializer.toJson<int>(potIndex),
+      'weedAt': serializer.toJson<DateTime?>(weedAt),
+      'pestAt': serializer.toJson<DateTime?>(pestAt),
+      'rollDay': serializer.toJson<DateTime?>(rollDay),
+    };
+  }
+
+  EmptyPotDisturbanceRow copyWith(
+          {String? childId,
+          int? potIndex,
+          Value<DateTime?> weedAt = const Value.absent(),
+          Value<DateTime?> pestAt = const Value.absent(),
+          Value<DateTime?> rollDay = const Value.absent()}) =>
+      EmptyPotDisturbanceRow(
+        childId: childId ?? this.childId,
+        potIndex: potIndex ?? this.potIndex,
+        weedAt: weedAt.present ? weedAt.value : this.weedAt,
+        pestAt: pestAt.present ? pestAt.value : this.pestAt,
+        rollDay: rollDay.present ? rollDay.value : this.rollDay,
+      );
+  EmptyPotDisturbanceRow copyWithCompanion(EmptyPotDisturbancesCompanion data) {
+    return EmptyPotDisturbanceRow(
+      childId: data.childId.present ? data.childId.value : this.childId,
+      potIndex: data.potIndex.present ? data.potIndex.value : this.potIndex,
+      weedAt: data.weedAt.present ? data.weedAt.value : this.weedAt,
+      pestAt: data.pestAt.present ? data.pestAt.value : this.pestAt,
+      rollDay: data.rollDay.present ? data.rollDay.value : this.rollDay,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EmptyPotDisturbanceRow(')
+          ..write('childId: $childId, ')
+          ..write('potIndex: $potIndex, ')
+          ..write('weedAt: $weedAt, ')
+          ..write('pestAt: $pestAt, ')
+          ..write('rollDay: $rollDay')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(childId, potIndex, weedAt, pestAt, rollDay);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EmptyPotDisturbanceRow &&
+          other.childId == this.childId &&
+          other.potIndex == this.potIndex &&
+          other.weedAt == this.weedAt &&
+          other.pestAt == this.pestAt &&
+          other.rollDay == this.rollDay);
+}
+
+class EmptyPotDisturbancesCompanion
+    extends UpdateCompanion<EmptyPotDisturbanceRow> {
+  final Value<String> childId;
+  final Value<int> potIndex;
+  final Value<DateTime?> weedAt;
+  final Value<DateTime?> pestAt;
+  final Value<DateTime?> rollDay;
+  final Value<int> rowid;
+  const EmptyPotDisturbancesCompanion({
+    this.childId = const Value.absent(),
+    this.potIndex = const Value.absent(),
+    this.weedAt = const Value.absent(),
+    this.pestAt = const Value.absent(),
+    this.rollDay = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EmptyPotDisturbancesCompanion.insert({
+    this.childId = const Value.absent(),
+    required int potIndex,
+    this.weedAt = const Value.absent(),
+    this.pestAt = const Value.absent(),
+    this.rollDay = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : potIndex = Value(potIndex);
+  static Insertable<EmptyPotDisturbanceRow> custom({
+    Expression<String>? childId,
+    Expression<int>? potIndex,
+    Expression<DateTime>? weedAt,
+    Expression<DateTime>? pestAt,
+    Expression<DateTime>? rollDay,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (childId != null) 'child_id': childId,
+      if (potIndex != null) 'pot_index': potIndex,
+      if (weedAt != null) 'weed_at': weedAt,
+      if (pestAt != null) 'pest_at': pestAt,
+      if (rollDay != null) 'roll_day': rollDay,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EmptyPotDisturbancesCompanion copyWith(
+      {Value<String>? childId,
+      Value<int>? potIndex,
+      Value<DateTime?>? weedAt,
+      Value<DateTime?>? pestAt,
+      Value<DateTime?>? rollDay,
+      Value<int>? rowid}) {
+    return EmptyPotDisturbancesCompanion(
+      childId: childId ?? this.childId,
+      potIndex: potIndex ?? this.potIndex,
+      weedAt: weedAt ?? this.weedAt,
+      pestAt: pestAt ?? this.pestAt,
+      rollDay: rollDay ?? this.rollDay,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
+    if (potIndex.present) {
+      map['pot_index'] = Variable<int>(potIndex.value);
+    }
+    if (weedAt.present) {
+      map['weed_at'] = Variable<DateTime>(weedAt.value);
+    }
+    if (pestAt.present) {
+      map['pest_at'] = Variable<DateTime>(pestAt.value);
+    }
+    if (rollDay.present) {
+      map['roll_day'] = Variable<DateTime>(rollDay.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EmptyPotDisturbancesCompanion(')
+          ..write('childId: $childId, ')
+          ..write('potIndex: $potIndex, ')
+          ..write('weedAt: $weedAt, ')
+          ..write('pestAt: $pestAt, ')
+          ..write('rollDay: $rollDay, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $PremiumFragmentsTable extends PremiumFragments
     with TableInfo<$PremiumFragmentsTable, PremiumFragmentRow> {
   @override
@@ -7698,6 +8019,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $SettingsTable settings = $SettingsTable(this);
   late final $PlantsTable plants = $PlantsTable(this);
+  late final $EmptyPotDisturbancesTable emptyPotDisturbances =
+      $EmptyPotDisturbancesTable(this);
   late final $PremiumFragmentsTable premiumFragments =
       $PremiumFragmentsTable(this);
   late final $PendingBloomRewardsTable pendingBloomRewards =
@@ -7721,6 +8044,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ChildProfilesTable childProfiles = $ChildProfilesTable(this);
   late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
   late final PlantDao plantDao = PlantDao(this as AppDatabase);
+  late final EmptyPotDisturbanceDao emptyPotDisturbanceDao =
+      EmptyPotDisturbanceDao(this as AppDatabase);
   late final BloomRewardDao bloomRewardDao =
       BloomRewardDao(this as AppDatabase);
   late final TaskDao taskDao = TaskDao(this as AppDatabase);
@@ -7746,6 +8071,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
         settings,
         plants,
+        emptyPotDisturbances,
         premiumFragments,
         pendingBloomRewards,
         unlockedSpecies,
@@ -8634,6 +8960,185 @@ typedef $$PlantsTableProcessedTableManager = ProcessedTableManager<
     (Plant, BaseReferences<_$AppDatabase, $PlantsTable, Plant>),
     Plant,
     PrefetchHooks Function()>;
+typedef $$EmptyPotDisturbancesTableCreateCompanionBuilder
+    = EmptyPotDisturbancesCompanion Function({
+  Value<String> childId,
+  required int potIndex,
+  Value<DateTime?> weedAt,
+  Value<DateTime?> pestAt,
+  Value<DateTime?> rollDay,
+  Value<int> rowid,
+});
+typedef $$EmptyPotDisturbancesTableUpdateCompanionBuilder
+    = EmptyPotDisturbancesCompanion Function({
+  Value<String> childId,
+  Value<int> potIndex,
+  Value<DateTime?> weedAt,
+  Value<DateTime?> pestAt,
+  Value<DateTime?> rollDay,
+  Value<int> rowid,
+});
+
+class $$EmptyPotDisturbancesTableFilterComposer
+    extends Composer<_$AppDatabase, $EmptyPotDisturbancesTable> {
+  $$EmptyPotDisturbancesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get potIndex => $composableBuilder(
+      column: $table.potIndex, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get weedAt => $composableBuilder(
+      column: $table.weedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get pestAt => $composableBuilder(
+      column: $table.pestAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get rollDay => $composableBuilder(
+      column: $table.rollDay, builder: (column) => ColumnFilters(column));
+}
+
+class $$EmptyPotDisturbancesTableOrderingComposer
+    extends Composer<_$AppDatabase, $EmptyPotDisturbancesTable> {
+  $$EmptyPotDisturbancesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get potIndex => $composableBuilder(
+      column: $table.potIndex, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get weedAt => $composableBuilder(
+      column: $table.weedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get pestAt => $composableBuilder(
+      column: $table.pestAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get rollDay => $composableBuilder(
+      column: $table.rollDay, builder: (column) => ColumnOrderings(column));
+}
+
+class $$EmptyPotDisturbancesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EmptyPotDisturbancesTable> {
+  $$EmptyPotDisturbancesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
+
+  GeneratedColumn<int> get potIndex =>
+      $composableBuilder(column: $table.potIndex, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get weedAt =>
+      $composableBuilder(column: $table.weedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get pestAt =>
+      $composableBuilder(column: $table.pestAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get rollDay =>
+      $composableBuilder(column: $table.rollDay, builder: (column) => column);
+}
+
+class $$EmptyPotDisturbancesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $EmptyPotDisturbancesTable,
+    EmptyPotDisturbanceRow,
+    $$EmptyPotDisturbancesTableFilterComposer,
+    $$EmptyPotDisturbancesTableOrderingComposer,
+    $$EmptyPotDisturbancesTableAnnotationComposer,
+    $$EmptyPotDisturbancesTableCreateCompanionBuilder,
+    $$EmptyPotDisturbancesTableUpdateCompanionBuilder,
+    (
+      EmptyPotDisturbanceRow,
+      BaseReferences<_$AppDatabase, $EmptyPotDisturbancesTable,
+          EmptyPotDisturbanceRow>
+    ),
+    EmptyPotDisturbanceRow,
+    PrefetchHooks Function()> {
+  $$EmptyPotDisturbancesTableTableManager(
+      _$AppDatabase db, $EmptyPotDisturbancesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EmptyPotDisturbancesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EmptyPotDisturbancesTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EmptyPotDisturbancesTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> childId = const Value.absent(),
+            Value<int> potIndex = const Value.absent(),
+            Value<DateTime?> weedAt = const Value.absent(),
+            Value<DateTime?> pestAt = const Value.absent(),
+            Value<DateTime?> rollDay = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              EmptyPotDisturbancesCompanion(
+            childId: childId,
+            potIndex: potIndex,
+            weedAt: weedAt,
+            pestAt: pestAt,
+            rollDay: rollDay,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            Value<String> childId = const Value.absent(),
+            required int potIndex,
+            Value<DateTime?> weedAt = const Value.absent(),
+            Value<DateTime?> pestAt = const Value.absent(),
+            Value<DateTime?> rollDay = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              EmptyPotDisturbancesCompanion.insert(
+            childId: childId,
+            potIndex: potIndex,
+            weedAt: weedAt,
+            pestAt: pestAt,
+            rollDay: rollDay,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$EmptyPotDisturbancesTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $EmptyPotDisturbancesTable,
+        EmptyPotDisturbanceRow,
+        $$EmptyPotDisturbancesTableFilterComposer,
+        $$EmptyPotDisturbancesTableOrderingComposer,
+        $$EmptyPotDisturbancesTableAnnotationComposer,
+        $$EmptyPotDisturbancesTableCreateCompanionBuilder,
+        $$EmptyPotDisturbancesTableUpdateCompanionBuilder,
+        (
+          EmptyPotDisturbanceRow,
+          BaseReferences<_$AppDatabase, $EmptyPotDisturbancesTable,
+              EmptyPotDisturbanceRow>
+        ),
+        EmptyPotDisturbanceRow,
+        PrefetchHooks Function()>;
 typedef $$PremiumFragmentsTableCreateCompanionBuilder
     = PremiumFragmentsCompanion Function({
   required int id,
@@ -11554,6 +12059,8 @@ class $AppDatabaseManager {
       $$SettingsTableTableManager(_db, _db.settings);
   $$PlantsTableTableManager get plants =>
       $$PlantsTableTableManager(_db, _db.plants);
+  $$EmptyPotDisturbancesTableTableManager get emptyPotDisturbances =>
+      $$EmptyPotDisturbancesTableTableManager(_db, _db.emptyPotDisturbances);
   $$PremiumFragmentsTableTableManager get premiumFragments =>
       $$PremiumFragmentsTableTableManager(_db, _db.premiumFragments);
   $$PendingBloomRewardsTableTableManager get pendingBloomRewards =>

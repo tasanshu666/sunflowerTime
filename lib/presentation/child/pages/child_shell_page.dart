@@ -25,6 +25,7 @@ import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
@@ -695,9 +696,12 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
       if (news.isEmpty) return;
 
       // 任务名映射：任务可能已被删除 → 回退「成长任务」，绝不给空标题。
+      // F154：预制任务显示名跟随当前语言（自定义/改过名原样）。
+      final AppLocalizations effectiveL10n = _l10n ?? AppLocalizationsZh();
       final List<Task> allTasks = await taskRepo.tasks();
       final Map<String, String> taskNames = <String, String>{
-        for (final Task t in allTasks) t.id: t.name,
+        for (final Task t in allTasks)
+          t.id: taskDisplayName(t.id, t.name, effectiveL10n),
       };
       if (!mounted) return;
 

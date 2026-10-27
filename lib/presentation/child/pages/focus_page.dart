@@ -29,6 +29,8 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
@@ -692,7 +694,13 @@ class _FocusPageState extends ConsumerState<FocusPage>
           }
         }
         if (task != null) {
-          taskName = task.name;
+          // F154：预制任务显示名跟随当前语言（异步回调无 context，走
+          // AppLocaleController 单点——与 main.dart 播种注入同款模式）。
+          taskName = taskDisplayName(
+            task.id,
+            task.name,
+            lookupAppLocalizations(AppLocaleController.current),
+          );
           // 取**真实落库**的会话对象（settle 内部已 saveSession），按 sessionId 精确匹配，
           // 绝不自造假会话（后端结算会校验 sessionId）。
           final List<FocusSession> todaySessions = await ref

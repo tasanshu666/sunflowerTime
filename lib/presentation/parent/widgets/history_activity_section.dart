@@ -50,6 +50,7 @@ import 'package:intl/intl.dart';
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -359,7 +360,10 @@ class _HistoryActivitySectionState
         final Task? task = raw.taskById[e.key];
         return _TaskHistoryRow(
           task: task,
-          name: task?.name ?? t.parent_hist_deleted_task,
+          // F154：预制任务显示名跟随当前语言（自定义/改过名原样）。
+          name: task != null
+              ? taskDisplayName(task.id, task.name, t)
+              : t.parent_hist_deleted_task,
           count: rows.length,
           firstAt: rows.first.completedAt,
           lastAt: rows.last.completedAt,
@@ -394,7 +398,10 @@ class _HistoryActivitySectionState
         );
         return _RewardHistoryRow(
           template: tpl,
-          name: tpl?.name ?? t.parent_hist_deleted_reward,
+          // F154：预制奖励显示名跟随当前语言（自定义/改过名原样）。
+          name: tpl != null
+              ? rewardDisplayName(tpl.id, tpl.name, t)
+              : t.parent_hist_deleted_reward,
           count: rows.length,
           costSum: cost,
           firstAt: _at(rows.first),

@@ -19,9 +19,16 @@
 ///
 /// 因此：**换语言不会改写历史数据**，只会影响「此后新播种的行」。这是刻意取舍 ——
 /// 用户的档案 / 任务可以自己改名，App 不该在切语言时覆写用户数据。
+///
+/// ## F154 补充（2026-10-26 玄参拍板）
+/// DB 不动的前提下，**显示层**已让预制种子行的名字跟随当前语言（见文件尾的
+/// [taskDisplayName] / [rewardDisplayName]）—— 英文用户不会再看到「完成学校作业 /
+/// 小零食」；家长改过名的行原样显示，用户数据仍然优先。
 library seed_l10n;
 
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_en.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
 /// 5 条默认**成长任务**的种子 id（顺序 = `kTaskSeedTemplates` 的顺序）。
 ///
@@ -93,3 +100,54 @@ String rewardSeedName(String seedId, AppLocalizations t) {
 ///
 /// zh = 「孩子」/ en = `Child`；只在**空表补建默认档案**时用一次。
 String defaultChildName(AppLocalizations t) => t.shared_default_child_name;
+
+// ── 预制内容显示名映射（F154，玄参 2026-10-26 拍板）──────────────────────
+//
+// 口径变更：此前「换语言不改写用户数据」= 英文用户看到 DB 里的中文种子行
+//（「完成学校作业 / 小零食」）。玄参拍板：**预制任务 / 奖励的显示名要跟随
+// 当前语言**（英文模式下一律英文，不许出现汉语）。
+//
+// 实现走**显示层映射**（与 `species_l10n.dart` 的 `speciesNameOr` 同构），
+// **不改 DB**：
+//  · 种子行（id ∈ kTaskSeedIds / kRewardSeedIds）**且**存储名仍等于该种子
+//    「任一语言的默认名」→ 按当前语言显示（zh 行在 en 下显示英文名，反之亦然）；
+//  · 存储名不等于任何语言的默认名 → 家长改过名，**原样显示**（用户数据优先）；
+//  · 非种子 id（自定义任务 / 奖励）→ 原样显示。
+//
+// ⚠️ 新增语言时必须同步 [isPresetTaskSeedName] / [isPresetRewardSeedName]
+// 里的实例清单，否则新语言的种子行在其它语言下会退化成「原样显示」。
+// ⚠️ 图标关键词匹配（`growth_icons.dart`）继续用 DB 原名，不走本映射 ——
+// 关键词表是中文，用显示名匹配会让 en 首启用户丢图标。
+
+/// [seedId] 的存储名是否仍是预制默认名（任一语言；家长改过名 → false）。
+bool isPresetTaskSeedName(String seedId, String storedName) {
+  return storedName == taskSeedName(seedId, AppLocalizationsZh()) ||
+      storedName == taskSeedName(seedId, AppLocalizationsEn());
+}
+
+/// 奖励版 [isPresetTaskSeedName]，语义同上。
+bool isPresetRewardSeedName(String tplId, String storedName) {
+  return storedName == rewardSeedName(tplId, AppLocalizationsZh()) ||
+      storedName == rewardSeedName(tplId, AppLocalizationsEn());
+}
+
+/// 任务显示名：预制种子行跟随当前语言，其余（自定义 / 改过名）原样。
+String taskDisplayName(String taskId, String storedName, AppLocalizations t) {
+  if (kTaskSeedIds.contains(taskId) && isPresetTaskSeedName(taskId, storedName)) {
+    return taskSeedName(taskId, t);
+  }
+  return storedName;
+}
+
+/// 奖励显示名：语义同 [taskDisplayName]。
+String rewardDisplayName(
+  String tplId,
+  String storedName,
+  AppLocalizations t,
+) {
+  if (kRewardSeedIds.contains(tplId) &&
+      isPresetRewardSeedName(tplId, storedName)) {
+    return rewardSeedName(tplId, t);
+  }
+  return storedName;
+}

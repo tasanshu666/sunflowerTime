@@ -17,6 +17,7 @@ library verification_card;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:intl/intl.dart';
@@ -69,7 +70,8 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
       builder: (BuildContext ctx) => AlertDialog(
         title: Text(t.parent_verify_confirm_title),
         content: Text(t.parent_verify_confirm_body(
-          widget.template.name,
+          // F154：预制奖励显示名跟随当前语言（下同）。
+          rewardDisplayName(widget.template.id, widget.template.name, t),
           widget.request.cost,
         )),
         actions: <Widget>[
@@ -97,7 +99,7 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
       builder: (BuildContext ctx) => AlertDialog(
         title: Text(t.parent_verify_reject_title),
         content: Text(t.parent_verify_reject_body(
-          widget.template.name,
+          rewardDisplayName(widget.template.id, widget.template.name, t),
           widget.request.cost,
         )),
         actions: <Widget>[
@@ -177,7 +179,7 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
       builder: (BuildContext ctx) => AlertDialog(
         title: Text(t.parent_verify_release_title),
         content: Text(t.parent_verify_release_body(
-          widget.template.name,
+          rewardDisplayName(widget.template.id, widget.template.name, t),
           widget.request.cost,
         )),
         actions: <Widget>[
@@ -245,7 +247,7 @@ class _VerificationCardState extends ConsumerState<VerificationCard> {
               children: <Widget>[
                 Expanded(
                   child: Text(
-                    tpl.name,
+                    rewardDisplayName(tpl.id, tpl.name, t),
                     style: const TextStyle(
                         fontSize: 18, fontWeight: FontWeight.bold),
                   ),

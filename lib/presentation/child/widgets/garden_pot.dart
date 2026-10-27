@@ -643,14 +643,59 @@ class _PestIdleWobbleState extends State<_PestIdleWobble>
 ///
 /// 与 [GardenPot] 共用 [_artWidthRatio] / [_artAspectRatio] / [gardenPotFooterHeightOf]：
 /// 空盆与有植物盆**等大、同底**（否则空盆会比邻居低，看起来「没对齐」）。
+///
+/// ## F155-B（玄参 2026-10-27 拍板）：空花盆也会长杂草 / 害虫
+///  · 浮标**复用** [GardenPot] 那支 [_PestChip]（同一份样式、同一套尺寸公式与锚点，
+///    见 `prd_params.dart`「花园格几何」段）—— 不复制第二份样式；
+///  · **不阻挡种植**：浮标只是叠在盆上的一个 48×48 热区，其余区域照常走 [onTap]
+///    弹种植选择；点浮标则清除（与有植物盆的交互一致）；
+///  · 浮标叠在图片框的 [Stack] 里（`Positioned`，**不占布局高度**）→ 空盆与有植物盆
+///    「等大、同底」的既有布局契约逐像素不变（有守卫测试钉死）。
+///  · 害虫浮标**不加** [GardenPot] 那支 `_PestIdleWobble` 待机微动：空盆没有植物美术
+///    作参照，静止浮标已足够可读；同时避免把「永不 settle 的无限动画」引入空盆子树
+///    （测试禁令范围最小化，见本文件头）。
 class EmptyPot extends StatelessWidget {
   final int potIndex;
   final VoidCallback onTap;
 
-  const EmptyPot({super.key, required this.potIndex, required this.onTap});
+  /// 该空盆当日的杂草状态（F155-B；由 [EmptyPotService] 的每日 roll 给出）。
+  final bool hasWeed;
+
+  /// 该空盆当日的害虫状态（同 [hasWeed]）。
+  final bool hasPest;
+
+  /// 点浮标 → 拔草（null = 不可清除，浮标照常展示；页面正常传回调）。
+  final VoidCallback? onClearWeed;
+
+  /// 点浮标 → 除虫（约束同 [onClearWeed]）。
+  final VoidCallback? onClearPest;
+
+  /// 杂草浮标是否正在「渐变消失」（与 [GardenPot.weedFading] 同口径同动画）。
+  final bool weedFading;
+
+  /// 害虫浮标是否正在渐变消失（同 [weedFading]）。
+  final bool pestFading;
+
+  /// 当前称号属性 —— 只用于浮标 tooltip 的奖励数字（`weedRewardOf` / `pestRewardOf`），
+  /// 与有植物盆、与域层入账**同源**，不在 UI 侧另算。
+  final PlantPerk perk;
+
+  const EmptyPot({
+    super.key,
+    required this.potIndex,
+    required this.onTap,
+    this.hasWeed = false,
+    this.hasPest = false,
+    this.onClearWeed,
+    this.onClearPest,
+    this.weedFading = false,
+    this.pestFading = false,
+    this.perk = PlantPerk.none,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = l10nOf(context);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -675,11 +720,69 @@ class EmptyPot extends StatelessWidget {
                   child: SizedBox(
                     width: artW,
                     height: artH,
-                    child: _PotImage(
-                      width: artW,
-                      height: artH,
-                      dead: false,
-                      highlighted: false,
+                    // ⚠️ 用 Stack 叠加浮标（`Positioned`，脱离流）→ 不占布局高度，
+                    // 空盆图片框尺寸与高度契约逐像素不变。
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: <Widget>[
+                        _PotImage(
+                          width: artW,
+                          height: artH,
+                          dead: false,
+                          highlighted: false,
+                        ),
+                        // 杂草 / 害虫浮标：尺寸、锚点、命中区与有植物盆**完全同源**
+                        // （常量在 prd_params.dart「花园格几何」段，改一处两处同时变）。
+                        if (hasWeed)
+                          Positioned(
+                            left: artW * kWeedLeftFraction,
+                            top: artH * 0.47,
+                            child: AnimatedOpacity(
+                              opacity: weedFading ? 0.0 : 1.0,
+                              duration: const Duration(
+                                milliseconds: kPestFadeOutMs,
+                              ),
+                              child: _PestChip(
+                                assetPath: kGardenWeedAsset,
+                                emoji: kGardenWeedEmoji,
+                                glyphWidth: artW *
+                                    kPlantPotWidthFraction *
+                                    kWeedSizeToPotRatio,
+                                glyphHeight: artW *
+                                    kPlantPotWidthFraction *
+                                    kWeedSizeToPotRatio,
+                                tooltip: l10n.pot_tooltip_weed(
+                                    weedRewardOf(perk).toInt()),
+                                onTap: onClearWeed ?? () {},
+                              ),
+                            ),
+                          ),
+                        if (hasPest)
+                          Positioned(
+                            right: artW * kPestRightFraction,
+                            top: artH * 0.53,
+                            child: AnimatedOpacity(
+                              opacity: pestFading ? 0.0 : 1.0,
+                              duration: const Duration(
+                                milliseconds: kPestFadeOutMs,
+                              ),
+                              child: _PestChip(
+                                assetPath: kGardenPestAsset,
+                                emoji: kGardenPestEmoji,
+                                glyphWidth: artW *
+                                    kPlantPotWidthFraction *
+                                    kPestSizeToPotRatio,
+                                glyphHeight: artW *
+                                    kPlantPotWidthFraction *
+                                    kPestSizeToPotRatio *
+                                    (30 / 52),
+                                tooltip: l10n.pot_tooltip_pest(
+                                    pestRewardOf(perk).toInt()),
+                                onTap: onClearPest ?? () {},
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),

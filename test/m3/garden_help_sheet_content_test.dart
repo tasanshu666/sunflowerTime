@@ -96,6 +96,10 @@ void main() {
         reason: '晨露每日口径（8 点内联实现，文案不写死钟点）');
     expect(find.textContaining('除草 +1 ☀、除虫 +2 ☀'), findsOneWidget,
         reason: 'kGardenWeedReward=1 / kGardenPestReward=2');
+    // F155-B（玄参 2026-10-27 拍板）：空花盆也会长草长虫 —— 必须在玩法说明里明说，
+    // 否则孩子看到空盆上的浮标无法自解释（只加这一句断言，其余 18 处数字口径不动）。
+    expect(find.textContaining('空花盆也会长草长虫'), findsOneWidget,
+        reason: 'F155-B 空盆干扰物口径必须写进玩法说明（zh）');
     expect(find.textContaining('当「钱」用'), findsOneWidget,
         reason: '种子第三支付方式（C31）');
     expect(find.textContaining('自动变成碎片'), findsOneWidget,
@@ -127,6 +131,9 @@ void main() {
     expect(find.textContaining('at least +6 ☀'), findsOneWidget);
     expect(find.textContaining('+1 ☀ for a weed, +2 ☀ for a pest'),
         findsOneWidget);
+    // F155-B 英文同步（en 走自然口语，不是逐字直译）。
+    expect(find.textContaining('even empty pots can grow them'), findsOneWidget,
+        reason: 'F155-B 空盆干扰物口径必须写进玩法说明（en）');
     expect(find.textContaining('20 fragments'), findsOneWidget);
     expect(find.textContaining('300 ☀ or 10 fragments'), findsOneWidget);
   });

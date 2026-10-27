@@ -97,7 +97,7 @@ void main() {
     test('① schemaVersion 必须为最新 28（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openV27();
       addTearDown(database.close);
-      expect(database.schemaVersion, 30);
+      expect(database.schemaVersion, 31);
     });
 
     test('② 四表均补出 child_id 列，历史行全部 = kChildIdDefault', () async {
@@ -274,7 +274,7 @@ void main() {
       final db.AppDatabase database = db.AppDatabase(NativeDatabase.memory());
       addTearDown(database.close);
       await database.customSelect('SELECT 1').get();
-      expect(database.schemaVersion, 30);
+      expect(database.schemaVersion, 31);
 
       // 不指定 childId → 落列默认 kChildIdDefault。
       await database.bloomRewardDao.setFragmentBalance(5);

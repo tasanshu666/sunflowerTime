@@ -12,7 +12,7 @@ library app_locale_controller;
 
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show ValueNotifier, kIsWeb;
 import 'package:flutter/widgets.dart' show Locale, WidgetsBinding;
 
 import 'package:sunflower_time/core/i18n/app_language.dart';
@@ -59,6 +59,14 @@ class AppLocaleController {
 
   /// [set] 变更后的回调（`main` 注入：同步 `appLanguageProvider`；测试宿主为 null）。
   static void Function(AppLanguage lang)? onChanged;
+
+  /// 生效 locale 变更通知（i18n F154）。
+  ///
+  /// 为什么需要：页级 [L10nScope] 用自己的 `Localizations` 遮蔽了 App 壳那层，
+  /// 而 L10nScope 原来只在自身重建时才重读 [current] —— 已挂载的页面在切换
+  /// 语言后不重建就永远显示旧语言（家长端实测：切英文后本页不切，退出重进才切）。
+  /// [_apply] 推进本计数，L10nScope 监听后整体重建 → 全 App 文案同帧切换。
+  static final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
   /// 持久化后端（`main` 经 [init] 注入；测试宿主为 null = 不落盘）。
   static SettingsStore? _store;
@@ -107,5 +115,6 @@ class AppLocaleController {
       platformLocale: _platformLocale,
       isTestEnv: isTestEnv,
     );
+    revision.value++; // 通知 L10nScope 重建（F154 语言即时切换）
   }
 }

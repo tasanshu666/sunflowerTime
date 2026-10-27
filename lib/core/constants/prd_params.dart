@@ -934,6 +934,30 @@ const String kGardenWeedAsset = 'assets/garden/weed.png';
 /// 加载失败回退 [kGardenPestEmoji]。
 const String kGardenPestAsset = 'assets/garden/pest.png';
 
+// ── 空花盆干扰物（F155-B，玄参 2026-10-27 拍板）──────────────────────────────
+// 口径（不得自行更改）：
+//  · **空花盆（没种植物）每天也独立 roll** 杂草 / 害虫 —— 不再只有「种了植物才长」；
+//  · 清理奖励**与植物完全一致**：[weedRewardOf]（基础 [kGardenWeedReward] = 1 ☀）/
+//    [pestRewardOf]（基础 [kGardenPestReward] = 2 ☀），含称号加成，走账本入账；
+//  · 频率**比植物低一半**（植物 [kGardenWeedRate] 0.40 / [kGardenPestRate] 0.30
+//    → 空盆 0.20 / 0.15）：空盆没有「成长暂停」的惩罚，只提供每日一点小互动；
+//  · **不阻挡种植**：点空盆照常弹种植选择；种下后该盆的空盆干扰物立即消失
+//    （不返还、不再显示）。
+//
+// 期望产出（经济侧核对用，非精确模型）：满 12 个空盆时 ≈ 12×0.20 = 2.4 草/日 +
+// 12×0.15 = 1.8 虫/日 ≈ 2.4×1 + 1.8×2 ≈ **6 ☀/日** 上限量级 —— 与植物干扰物
+// （12 株满园 ≈ 12×0.4 + 12×0.3×2 ≈ 12 ☀/日）同阶但更小，属可控范围。
+//
+// 🔴 与植物侧 `plants.weed_pest_roll_day` **共用同一套语义**（存「出现当天零点」，
+// 非当天自动失效；`rollDay` = 幂等锚），但**落在独立的表** `empty_pot_disturbances`
+// —— 空盆没有 plant 行可挂，且「种下即清」要求按盆（potIndex）定位。
+
+/// 空花盆杂草出现概率（每个空盆每天独立 roll；= 植物 [kGardenWeedRate] 的一半）。
+const double kEmptyPotWeedRate = 0.20;
+
+/// 空花盆害虫出现概率（每个空盆每天独立 roll；= 植物 [kGardenPestRate] 的一半）。
+const double kEmptyPotPestRate = 0.15;
+
 // ───────────────────────────────────────────────────────────────────────────
 // C28 少儿护眼休息（20-20-20 变体·特色功能，玄参 2026-10-03 初稿 / 2026-10-04 收口）
 //

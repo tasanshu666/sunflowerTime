@@ -24,6 +24,7 @@ import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 // F130：平板 UI 倍率（文字之外的定尺寸元素一律乘 `uiScaleOf(context)`）。
 import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/core/i18n/enum_l10n.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 
 /// 任务配置页：家长管理学习任务模板。
 ///
@@ -83,7 +84,8 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
         title: Text(l10n.parent_task_config_delete_title),
-        content: Text(l10n.parent_task_config_delete_body(t.name)),
+        content: Text(l10n.parent_task_config_delete_body(
+            taskDisplayName(t.id, t.name, l10n))),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -266,7 +268,7 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  t.name,
+                  taskDisplayName(t.id, t.name, l10nOf(context)),
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium

@@ -104,7 +104,47 @@ class Plants extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// 精品碎片账户余额（成株后循环玩法 Batch 1，v10 新增）。
+/// 空花盆干扰物（杂草 / 害虫）—— F155-B（玄参 2026-10-27 拍板，schemaVersion 31）。
+///
+/// ## 为什么单独一张表
+/// 口径：**空花盆（没种植物）每天也独立 roll 杂草 / 害虫**（频率为植物的一半：
+/// 0.20 / 0.15，见 `prd_params.dart` 的 `kEmptyPotWeedRate` / `kEmptyPotPestRate`），
+/// 清理奖励与植物完全一致（1 ☀ / 2 ☀，含称号加成）。空盆没有 `Plants` 行可挂干扰物，
+/// 故按**盆**（`potIndex`）落一份独立状态。
+///
+/// ## 列语义（逐字对齐 [Plants] 的同名三列，别另立口径）
+///  · `weed_at` / `pest_at`：存「**出现当天零点**」而非时刻 —— 口径是「每天发生一次、
+///    当天有效、次日自动消失」，零点判等即天然保证跨天失效（次日零点 ≠ 今日零点 →
+///    自动过期），不需要额外清理任务；
+///  · `roll_day`：「每日 roll 已执行」的当天零点（幂等基准）。
+///
+/// ## 与植物的差异
+/// 空盆干扰物**不阻断种植**：点空盆照常弹种植选择；种下成功后该盆记录立即删除
+/// （不返还任何奖励、不再显示）。
+///
+/// ## 归属孩子（C90 期 2 口径）
+/// `childId` 进**复合主键**（每个孩子各盆互不影响）；历史行无需迁移（全新表）。
+@DataClassName('EmptyPotDisturbanceRow')
+class EmptyPotDisturbances extends Table {
+  /// 归属孩子（C90 期 2 口径；写入由仓储落当前孩子）。
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))();
+
+  /// 花盆序号（0 基，与 `Plants.potIndex` 同一坐标系）。
+  IntColumn get potIndex => integer()();
+
+  /// 杂草出现当天零点；null = 无杂草。
+  DateTimeColumn get weedAt => dateTime().nullable()();
+
+  /// 害虫出现当天零点；null = 无害虫（与 `weed_at` 互不影响、可同时存在）。
+  DateTimeColumn get pestAt => dateTime().nullable()();
+
+  /// 「每日 roll」已执行的当天零点（幂等基准）；null = 尚未 roll。
+  DateTimeColumn get rollDay => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {childId, potIndex};
+}
 ///
 /// 单孩时代为单例行（镜像 [Settings] 模式，id 固定 = 1）：精品碎片为玩家级货币，
 /// 仅由开花奖励掉落（瞬间 / 花开 48h 后），集齐阈值（8）片可在花园页**手动选择**

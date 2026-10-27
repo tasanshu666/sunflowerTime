@@ -50,7 +50,9 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/pending_bloom_reward.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
+import 'package:sunflower_time/domain/entities/pot_disturbance.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
+import 'package:sunflower_time/domain/services/empty_pot_service.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
@@ -224,13 +226,39 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 只保留**最后一条**（同格连点时后一条覆盖前一条）。
   ({int potIndex, String label, int sunlight})? _clearHint;
 
-  /// 除草 / 除虫收尾序列计时器：效果帧播完 → 等 [kPestFadeOutMs] 淡出 → 刷新 + 弹飘字。
-  /// dispose 里必须取消（不碰 ref，纯 Timer）。
-  Timer? _clearSeqTimer;
+  /// 除草 / 除虫收尾序列计时器：**按票据（ticket）一条**，淡出结束后各自收尾。
+  ///
+  /// 🔴 为什么不是单例 `Timer? _clearSeqTimer`（F155-B 之后暴露的真缺陷）：
+  /// 空花盆没有 4.1s 除草动效 → `_onClearAnimated` 里 `_busy` 立刻归 false，整页在
+  /// 300ms 淡出窗口内**可再次点击**；第二次清除若 `cancel()` 掉第一条定时器，
+  /// 第一张票据就永远留在 [_suppressTickets] 里 → [ _suppressReload ] 恒 true →
+  /// **本页此后所有刷新一律被挡**（草地不刷新、余额不更新、空盆 tick 不跑，已清掉的
+  /// 浮标还会「复活」并常驻）。改成按票据各持一条、互不 cancel 即根治。
+  /// dispose 里统一 cancel（见 [dispose]）。
+  final Map<int, Timer> _clearTimers = <int, Timer>{};
 
   /// 正在「渐变消失」的干扰物（2026-10-03 玄参口径：播完动画先淡出浮标再刷新草地）：
-  /// `plantId` 定位植株、`weed` 区分杂草 / 蝗虫。淡出结束置 null。
-  ({String plantId, bool weed})? _fadingClear;
+  /// `weed` 区分杂草 / 蝗虫；`potIndex` 定位花盆格。
+  ///
+  /// 🔴 F155-B 起**按「盆」识别**（原来是 `plantId`）：空花盆没有植物，只有盆序号。
+  ///  · `plantId != null` → 有植物盆（仍按 plantId 精确匹配，植物的淡出行为一字不变）；
+  ///  · `plantId == null` → 空花盆（按 `potIndex` 匹配）。
+  ///
+  /// 🔴 为什么是 `Set` 而不是单值（F155-B 之后的真缺陷）：空盆清除之间没有 4.1s 动效
+  /// 互斥，300ms 淡出窗口内可以连续点第二盆；单值会让后一次**覆盖**前一次的淡出态 →
+  /// 前一盆的浮标透明度弹回 1.0（闪一下）。改成集合后每盆各自淡出、互不干扰。
+  /// 元素值相等（record 结构相等）→ 同盆同类型重复 add 自动去重。
+  final Set<({String? plantId, int potIndex, bool weed})> _fadingClears =
+      <({String? plantId, int potIndex, bool weed})>{};
+
+  /// 各空花盆当日的杂草 / 害虫状态（F155-B，玄参 2026-10-27 拍板）：`potIndex → 状态`。
+  ///
+  /// 数据源 = [EmptyPotService.tick]（每次 [_reload] 旁路跑一次每日 roll，见
+  /// [_refreshEmptyPots]），只含**当前空盆**（种下后该盆记录被删除，自然从本映射消失）。
+  Map<int, PotDisturbance> _potDisturbances = <int, PotDisturbance>{};
+
+  /// 空盆 tick 是否在飞（防刷新风暴把 tick 堆起来；见 [_refreshEmptyPots]）。
+  bool _emptyPotTickInFlight = false;
 
   // ── 一键操作（口径 C29，玄参 2026-10-05 拍板）────────────────────────────
 
@@ -395,7 +423,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     // ⚠️ dispose 内不得用 ref（unmount 先标 disposed，用必抛）——AudioService 用静态单例。
     _ambientTimer?.cancel();
     // ⚠️ 纯 Timer 字段（不碰 ref），dispose 里取消即可；不取消会让 setState 打到已卸载页。
-    _clearSeqTimer?.cancel();
+    for (final Timer t in _clearTimers.values) {
+      t.cancel();
+    }
+    _clearTimers.clear();
     _batchPulseTimer?.cancel();
     _collectGhostTimer?.cancel();
     _collectGhostEntry?.remove(); // 根 Overlay 浮层不随本页卸载，必须显式移除。
@@ -448,6 +479,18 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       // 修订号 / tab 刷新重算）。批量路径以本值下发，避免逐株重读。
       _perk = await ref.read(currentPlantPerkProvider.future);
       _capacity = settings.gardenPotCapacity;
+      // ── F155-B（玄参 2026-10-27 拍板）：空花盆也会长杂草 / 害虫 ─────────────
+      // 每次刷新顺带跑一次「空盆每日 roll」（幂等：同日重复刷新不重 roll），
+      // 结果进 [_potDisturbances] 供 [_buildCells] 画浮标。
+      //
+      // 🔴 **旁路执行（不 await）**，理由有两条，都是硬约束：
+      //  ① 纯 widget 测试宿主常常没有注入 DB（`appDatabaseProvider` 默认实例要
+      //     path_provider）—— 这些用例里 `tick()` 的 DB 查询**可能永远悬着**
+      //     （不是抛错，是 await 不回来），一旦在主路径 await，整页会停在 loading、
+      //     连草地都渲染不出来（实测：F155-A 回归用例因此找不到空花盆）；
+      //  ② 空盆干扰物是**锦上添花**的叠加玩法，绝不值得拖慢草地首帧。
+      // 降级 = 本轮不出浮标（见 [_refreshEmptyPots] 的独立 try/catch）。
+      unawaited(_refreshEmptyPots(now));
       // 花园氛围音与音效开关（玄参 2026-09-28）：花园页也应用一次最新设置，
       // 保证从家长端改完开关回到花园立即生效（专注页进页时也会应用一次）。
       ref.read(audioServiceProvider).applySettings(
@@ -492,6 +535,59 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     if (mounted) setState(() => _loading = false);
     // 网格建好后，下一帧按实际滚动指标刷新滚动条可见性（仅溢出时显示）。
     WidgetsBinding.instance.addPostFrameCallback((_) => _syncScrollable());
+  }
+
+  /// 旁路刷新「空盆干扰物」（F155-B）：**不 await、独立 try/catch、失败静默降级**。
+  ///
+  /// 为什么不在 [_reload] 主路径 await：
+  ///  · 纯 widget 测试宿主没有 DB 时，`tick()` 的查询可能**永远不返回**（不是抛错），
+  ///    await 会把整页钉死在 loading；
+  ///  · 它是叠加玩法，绝不值得拖慢草地首帧。
+  ///
+  /// [_emptyPotTickInFlight] 用于防「刷新风暴」把 tick 堆起来（每次 [_reload] 都会触发；
+  /// 经济修订号 / tab 刷新 / 动作收尾都走 [_reload]）。
+  Future<void> _refreshEmptyPots(DateTime now) async {
+    if (_emptyPotTickInFlight) return;
+    _emptyPotTickInFlight = true;
+    try {
+      final List<int> emptyPots = <int>[
+        for (int i = 0; i < _capacity; i++)
+          if (_occupantOf(i) == null) i,
+      ];
+      final List<PotDisturbance> pots =
+          await ref.read(emptyPotServiceProvider).tick(emptyPots, now);
+      if (!mounted) return;
+      final Map<int, PotDisturbance> next = <int, PotDisturbance>{
+        for (final PotDisturbance d in pots) d.potIndex: d,
+      };
+      // 状态没变就不重建（同日幂等 tick 每次返回同样的列表，避免无意义 setState）。
+      if (!_samePotDisturbances(_potDisturbances, next)) {
+        setState(() => _potDisturbances = next);
+      }
+    } catch (e) {
+      // 降级：本轮不出浮标（仓储不可用 / 极端环境）。不影响草地与任何其它玩法。
+      // 🔴 但**不许静默**：留一行诊断输出，否则「空盆玩法整块失效」在真机上会
+      //    完全无迹可寻（纯 widget 测试宿主没有 DB 也走这里，属预期噪声）。
+      debugPrint('[garden] empty-pot tick failed, disturbances hidden: $e');
+      if (!mounted) return;
+      if (_potDisturbances.isNotEmpty) {
+        setState(() => _potDisturbances = <int, PotDisturbance>{});
+      }
+    } finally {
+      _emptyPotTickInFlight = false;
+    }
+  }
+
+  /// 两个 `potIndex → 状态` 映射是否等价（[PotDisturbance] 已实现值相等）。
+  bool _samePotDisturbances(
+    Map<int, PotDisturbance> a,
+    Map<int, PotDisturbance> b,
+  ) {
+    if (a.length != b.length) return false;
+    for (final MapEntry<int, PotDisturbance> e in a.entries) {
+      if (b[e.key] != e.value) return false;
+    }
+    return true;
   }
 
   /// 依据当前滚动指标刷新 [_gridScrollable]（仅内容溢出时显示滚动条）。
@@ -763,18 +859,34 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   ///
   /// 走 [_run]：异常 → SnackBar 分因提示；成功后 → 经济修订号自增。
   ///
+  /// F155-B：两个入口共用本方法 ——
+  ///  · [plantId] 非 null = 有植物盆（走 [PlantGrowthService]，与改前逐字节一致）；
+  ///  · [plantId] 为 null = **空花盆**（走 [EmptyPotService]，按 [potIndex] 定位，
+  ///    奖励与植物完全一致、`refId = 'pot:<potIndex>'`）。
+  ///
   /// ⚠️ [_busy] 闸门在这里同样必要：浮标与整格是**嵌套热区**，若手势穿透导致
   /// 同一帧触发两次，第二次会被 [_run] 挡掉，不会写出两条阳光账本行。
-  Future<void> _clearPest(String plantId, int potIndex, {required bool weed}) async {
+  Future<void> _clearPest(
+    String? plantId,
+    int potIndex, {
+    required bool weed,
+  }) async {
     // 先上抑制闸门再写库：[_run] 内部的 `_reload(silent)` 与 economyRevision 监听
     // 触发的刷新都必须被挡住，否则动画还没播草/虫就没了（玄参真机实证）。
     // 票据制：本动作持有自己的票据，收尾时只释放“自己这张”。
     final int ticket = ++_suppressTicketSeq;
     _suppressTickets.add(ticket);
+    final String? pid = plantId; // 局部提纯：闭包内类型提升稳定
     final bool ok = await _run(() {
-      final PlantGrowthService svc = ref.read(plantGrowthServiceProvider);
       final DateTime now = DateTime.now();
-      return weed ? svc.clearWeed(plantId, now) : svc.clearPest(plantId, now);
+      if (pid != null) {
+        final PlantGrowthService svc = ref.read(plantGrowthServiceProvider);
+        return weed ? svc.clearWeed(pid, now) : svc.clearPest(pid, now);
+      }
+      final EmptyPotService svc = ref.read(emptyPotServiceProvider);
+      return weed
+          ? svc.clearWeed(potIndex, now, perk: _perk)
+          : svc.clearPest(potIndex, now, perk: _perk);
     });
     if (!ok) {
       _suppressTickets.remove(ticket); // 写库失败（无草可除等）：释放刷新，SnackBar 已给分因。
@@ -784,37 +896,56 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     // [_run] 的 finally 已解锁，这里重新锁上：动画播放期间（约 4.1s）整页不可再操作，
     // 防止动画中途再次点干扰物 / 养护（数据已写库但草地未刷新，界面与库不一致）。
     setState(() => _busy = true);
+    if (pid == null) {
+      // 空花盆没有植物美术可叠加「除草 / 除虫效果帧」：只播音效，直接进入淡出收尾
+      // （浮标淡出 → 刷新 → 飘字），不让空盆点一下卡 4 秒。
+      AudioService.instance
+          .playSfx(weed ? AudioCue.careWeed : AudioCue.carePest);
+      _onClearAnimated(null, potIndex, weed: weed, ticket: ticket);
+      return;
+    }
     _playCareEffect(
       potIndex,
       weed ? CareEffectType.weed : CareEffectType.pest,
       onFinished: () =>
-          _onClearAnimated(plantId, potIndex, weed: weed, ticket: ticket),
+          _onClearAnimated(pid, potIndex, weed: weed, ticket: ticket),
     );
   }
 
   /// 除草 / 除虫动画播完的业务收尾（玄参 2026-10-03 口径）：
-  /// 1) 干扰物渐变消失：置 [_fadingClear] → 浮标透明度动画淡出（数据尚未刷新）；
-  /// 2) 淡出结束 → 刷新草地（干扰物从数据层移除）+ 解锁整页；
+  /// 1) 干扰物渐变消失：把「本盆」加入 [_fadingClears] → 该浮标透明度淡出（数据尚未刷新）；
+  /// 2) 淡出结束（本票据自己的定时器）→ 释放**本张**票据 → 不再抑制时才刷新草地
+  ///    （草/虫此时才从数据层消失）+ 弹飘字；
   /// 3) 花盆上方弹「XX成功，阳光+N」飘字（[_RisingHint] 自下而上飘动淡出，走完自清）。
+  ///
+  /// F155-B：[plantId] 为 null = 空花盆（[_isFading] 按 `potIndex` 匹配浮标）。
+  ///
+  /// 🔴 **每张票据一条独立定时器，绝不 cancel 别人的**：空盆路径 `_busy` 立刻放开，
+  /// 300ms 淡出窗口内允许连点第二盆；若这里 `cancel()` 掉上一条，上一张票据就再没有
+  /// 释放点 → [_suppressTickets] 永久非空 → 本页此后永不刷新（详见 [_clearTimers] 注释）。
   void _onClearAnimated(
-    String plantId,
+    String? plantId,
     int potIndex, {
     required bool weed,
     required int ticket,
   }) {
     if (!mounted) return;
+    final ({String? plantId, int potIndex, bool weed}) fading =
+        (plantId: plantId, potIndex: potIndex, weed: weed);
     setState(() {
-      _fadingClear = (plantId: plantId, weed: weed);
+      _fadingClears.add(fading);
       _busy = false;
     });
-    _clearSeqTimer?.cancel();
-    _clearSeqTimer = Timer(const Duration(milliseconds: kPestFadeOutMs), () {
+    // 同票据重入（理论上不会发生）：先收掉自己那条，避免叠加两条定时器。
+    _clearTimers.remove(ticket)?.cancel();
+    _clearTimers[ticket] = Timer(const Duration(milliseconds: kPestFadeOutMs), () {
+      _clearTimers.remove(ticket);
       if (!mounted) return;
       // 淡出结束：释放**本动作自己的票据**（其余在播动作的票据不受影响）
       // → 不再抑制时才刷新草地（草/虫此时才从数据层消失）→ 弹飘字。
       _suppressTickets.remove(ticket);
       setState(() {
-        _fadingClear = null;
+        _fadingClears.remove(fading);
         _clearHint = (
           potIndex: potIndex,
           label: weed ? _t.garden_cleared_weed : _t.garden_cleared_pest,
@@ -823,6 +954,27 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       });
       unawaited(_reload(silent: true));
     });
+  }
+
+  /// 某盆的某类干扰物是否正在淡出。
+  ///
+  /// 有植物盆按 `plantId` 精确匹配（与 F155-B 改前逐字节一致，植物侧淡出不受影响）；
+  /// 空花盆按 `potIndex` 匹配（[plantId] 传 null 即走这条）。
+  bool _isFading({
+    String? plantId,
+    required int potIndex,
+    required bool weed,
+  }) {
+    for (final ({String? plantId, int potIndex, bool weed}) f
+        in _fadingClears) {
+      if (f.weed != weed) continue;
+      if (plantId != null) {
+        if (f.plantId == plantId) return true;
+      } else if (f.plantId == null && f.potIndex == potIndex) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// 把一条奖励结果拼成用户可见文案（`+N ☀ 阳光` / `+N 植物碎片` /
@@ -1915,16 +2067,31 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       rows: brief.rows,
       remainingText: brief.remaining,
       // i18n B1：文案在页级 scope 内解析后传给弹窗。
-      title: _t.plant_confirm_title(sp.name),
+      // 🔴 F155-A（玄参 2026-10-27 真机实锤「英文模式显示 Plant the 葡萄?」）：
+      // 这里曾经直传 `sp.name`（= 数据库落库用的**中文原名**），英文环境必然串中文。
+      // 物种名一律经 `speciesNameOr(speciesId, species.name, l10n)` 单点解析
+      // （与花盆格标签 2923 / 选种卡 3008 行同一写法）；未知 id 才回退 `species.name`。
+      title: _t.plant_confirm_title(speciesNameOr(sp.id, sp.name, _t)),
       confirmLabel: _t.plant_confirm_ok,
       cancelLabel: _t.shared_cancel,
     );
     if (ok != true) return; // 取消 / 关闭 → 不扣任何资源
     // 种植音效（玄参 2026-10-07 交付 `cultivate.mp3`）：**仅种下成功后播放一次**
     // （_run 返回 true）；选择卡片弹出 / 取消 / 种植失败时一律不播。
-    final bool planted = await _run(
-      () => svc.plant(sp.id, potIndex, DateTime.now(), payWith: kind),
-    );
+    final bool planted = await _run(() async {
+      await svc.plant(sp.id, potIndex, DateTime.now(), payWith: kind);
+      // F155-B（玄参 2026-10-27 拍板）：种下后该盆的**空盆干扰物立即消失**
+      //（不返还、不再显示）。与 `plant` 同一 `_run` 事务内完成，只触发一次刷新。
+      // 🔴 独立 try/catch：「种下即清」是**附加语义**，不是种植成功的前置条件 ——
+      //    空盆仓储不可用（纯 widget 测试宿主 / 极端环境）绝不能把种植判成失败。
+      try {
+        await ref.read(emptyPotServiceProvider).clearForPlanting(potIndex);
+      } catch (e) {
+        // 降级：该盆的记录会在下次 `_reload` 的 tick 里被「非空盆行」防御性清掉。
+        // 🔴 同样不静默（与 [_refreshEmptyPots] 同纪律）：留一行诊断输出。
+        debugPrint('[garden] clearForPlanting failed (pot $potIndex): $e');
+      }
+    });
     if (planted) AudioService.instance.playSfx(AudioCue.cultivate);
   }
 
@@ -1983,90 +2150,107 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 变更 A/B + v12 图标化：有植物且存在「可收集」待收集奖励的花盆，**花盆上方**叠加一排
   /// 头顶奖励图标（`Positioned` 叠加、**不占布局高度**，避免改动矮屏测试钉死的网格高度）。
   /// 图标由奖励三列（阳光 / 植物碎片 / 种子）派生，点击任一图标 = 收下该条 pending 全部奖励。
+  ///
+  /// F155-B：空花盆也会长杂草 / 害虫（玄参 2026-10-27 拍板）—— 空盆分支同样拿
+  /// [_potDisturbances] 的状态画浮标，并与有植物盆**共用同一层叠加结构**（清除飘字 /
+  /// 一键反馈继续按 `potIndex` 落在同一格上）。
   List<Widget> _buildCells() {
     final List<Widget> cells = <Widget>[];
     for (int i = 0; i < _capacity; i++) {
       final Plant? occupant = _occupantOf(i);
-      if (occupant == null) {
-        cells.add(EmptyPot(potIndex: i, onTap: () => _openPlantSheet(i)));
-      } else {
-        final Widget pot = GardenPot(
-          key: _potKey(i),
-          plant: occupant,
-          species: _speciesOf(occupant),
-          perk: _perk,
-          onTap: () => _openCareSheet(occupant.id, i),
-          onClearWeed: () => _clearPest(occupant.id, i, weed: true),
-          onClearPest: () => _clearPest(occupant.id, i, weed: false),
-          weedFading: _fadingClear != null &&
-              _fadingClear!.plantId == occupant.id &&
-              _fadingClear!.weed,
-          pestFading: _fadingClear != null &&
-              _fadingClear!.plantId == occupant.id &&
-              !_fadingClear!.weed,
-        );
-        final List<PendingBloomReward> rewards =
-            _collectibles[occupant.id] ?? const <PendingBloomReward>[];
-        // ⚠️ StackFit.expand：让 GardenPot 仍收到「紧约束」（与直接嵌入网格一致）——
-        // GardenPot 用 LayoutBuilder 按格宽推导高度，收到松约束会缩成内容高度而错位。
-        // 这里**常驻** Stack（不再只在有奖励时包）：干扰物浮标与清除提示都要叠在盆上，
-        // 且两者都是 Positioned、不占布局高度 → 草地网格高度不受影响。
-        cells.add(Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            pot,
-            if (rewards.isNotEmpty)
-              // 头顶奖励图标（玄参 2026-10-05 口径修订）：**叠在植物中间**（原「格顶
-              // 一排」上移感太强）、整排**上下轻漂浮**（bob，±3px，有界 pump 纪律见
-              // 组件注释）；`Positioned.fill` 叠加**不占布局高度**，其余区域命中穿透
-              // 到花盆（只有图标 42×42 是 opaque 热区）。
-              // C45：组件内部按列聚合（最多 3~4 图标），点击聚合收集。
-              Positioned.fill(
-                child: Center(
-                  child: BloomRewardIconsBar(
-                    rewards: rewards,
-                    availableAssets: _rewardAssets,
-                    onCollect: (List<PendingBloomReward> covered,
-                            RewardIconSpec spec) =>
-                        _onCollectIconsTap(i, covered, spec, rewards),
-                    isPremiumOf: _isPremiumSpecies,
-                    bob: true,
-                  ),
+      final PotDisturbance? disturbance =
+          occupant == null ? _potDisturbances[i] : null;
+      // 淡出识别（F155-B）：有植物盆按 plantId 精确匹配；空花盆按 potIndex 匹配。
+      // 走 [_isFading]（集合查询）→ 多盆同时淡出互不覆盖。
+      final Widget pot = occupant == null
+          ? EmptyPot(
+              potIndex: i,
+              onTap: () => _openPlantSheet(i),
+              hasWeed: disturbance?.hasWeed ?? false,
+              hasPest: disturbance?.hasPest ?? false,
+              onClearWeed: () => _clearPest(null, i, weed: true),
+              onClearPest: () => _clearPest(null, i, weed: false),
+              weedFading: _isFading(potIndex: i, weed: true),
+              pestFading: _isFading(potIndex: i, weed: false),
+              perk: _perk,
+            )
+          : GardenPot(
+              key: _potKey(i),
+              plant: occupant,
+              species: _speciesOf(occupant),
+              perk: _perk,
+              onTap: () => _openCareSheet(occupant.id, i),
+              onClearWeed: () => _clearPest(occupant.id, i, weed: true),
+              onClearPest: () => _clearPest(occupant.id, i, weed: false),
+              weedFading:
+                  _isFading(plantId: occupant.id, potIndex: i, weed: true),
+              pestFading:
+                  _isFading(plantId: occupant.id, potIndex: i, weed: false),
+            );
+      final List<PendingBloomReward> rewards = occupant == null
+          ? const <PendingBloomReward>[]
+          : (_collectibles[occupant.id] ?? const <PendingBloomReward>[]);
+      // ⚠️ StackFit.expand：让花盆仍收到「紧约束」（与直接嵌入网格一致）——
+      // GardenPot / EmptyPot 都用 LayoutBuilder 按格宽推导高度，收到松约束会缩成
+      // 内容高度而错位。
+      // 这里**常驻** Stack（不再只在有奖励时包）：干扰物浮标与清除提示都要叠在盆上，
+      // 且两者都是 Positioned、不占布局高度 → 草地网格高度不受影响。
+      cells.add(Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          pot,
+          if (rewards.isNotEmpty)
+            // 头顶奖励图标（玄参 2026-10-05 口径修订）：**叠在植物中间**（原「格顶
+            // 一排」上移感太强）、整排**上下轻漂浮**（bob，±3px，有界 pump 纪律见
+            // 组件注释）；`Positioned.fill` 叠加**不占布局高度**，其余区域命中穿透
+            // 到花盆（只有图标 42×42 是 opaque 热区）。
+            // C45：组件内部按列聚合（最多 3~4 图标），点击聚合收集。
+            Positioned.fill(
+              child: Center(
+                child: BloomRewardIconsBar(
+                  rewards: rewards,
+                  availableAssets: _rewardAssets,
+                  onCollect: (List<PendingBloomReward> covered,
+                          RewardIconSpec spec) =>
+                      _onCollectIconsTap(i, covered, spec, rewards),
+                  isPremiumOf: _isPremiumSpecies,
+                  bob: true,
                 ),
               ),
-            if (_clearHint?.potIndex == i)
-              // 除草 / 除虫成功飘字（2026-10-03 玄参口径）：起始位置 = **格子垂直中心**
-              // （≈花盆口上方一点 / 花的中部，玄参反馈「格顶太靠上」后下移），自下而
-              // 上飘动 + 淡出（约 1.6s），走完经 onComplete 自行移除；文案数值取常量。
-              Positioned.fill(
-                child: Align(
-                  alignment: Alignment.center,
-                  child: _RisingHint(
-                    label: _clearHint!.label,
-                    sunlight: _clearHint!.sunlight,
-                    // 阳光图标与头顶奖励图标同源（玄参口径「就像之前那样显示」）；
-                    // 资源缺失时 _RisingHint 内部回退内置 Icons.wb_sunny。
-                    sunIconAsset:
-                        _rewardAssets.contains('assets/rewards/sunlight.png')
-                            ? 'assets/rewards/sunlight.png'
-                            : null,
-                    onComplete: () {
-                      if (mounted) setState(() => _clearHint = null);
-                    },
-                  ),
+            ),
+          if (_clearHint?.potIndex == i)
+            // 除草 / 除虫成功飘字（2026-10-03 玄参口径）：起始位置 = **格子垂直中心**
+            // （≈花盆口上方一点 / 花的中部，玄参反馈「格顶太靠上」后下移），自下而
+            // 上飘动 + 淡出（约 1.6s），走完经 onComplete 自行移除；文案数值取常量。
+            // F155-B：空花盆走同一条飘字（`potIndex` 同格），奖励数字同源常量。
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.center,
+                child: _RisingHint(
+                  label: _clearHint!.label,
+                  sunlight: _clearHint!.sunlight,
+                  // 阳光图标与头顶奖励图标同源（玄参口径「就像之前那样显示」）；
+                  // 资源缺失时 _RisingHint 内部回退内置 Icons.wb_sunny。
+                  sunIconAsset:
+                      _rewardAssets.contains('assets/rewards/sunlight.png')
+                          ? 'assets/rewards/sunlight.png'
+                          : null,
+                  onComplete: () {
+                    if (mounted) setState(() => _clearHint = null);
+                  },
                 ),
               ),
-            if (_batchPulse.containsKey(i))
-              // 一键操作的每盆轻量反馈（C29）：小图标短暂浮现淡出（约 1.1s 整批清除），
-              // 不播 4s 完整动效（逐盆播完整动画 5 盆要 20s+，玄参拍板「每盆只加轻量反馈」）。
-              Positioned.fill(
-                child: Center(
-                  child: _PotPulse(type: _batchPulse[i]!),
-                ),
+            ),
+          if (_batchPulse.containsKey(i))
+            // 一键操作的每盆轻量反馈（C29）：小图标短暂浮现淡出（约 1.1s 整批清除），
+            // 不播 4s 完整动效（逐盆播完整动画 5 盆要 20s+，玄参拍板「每盆只加轻量反馈」）。
+            Positioned.fill(
+              child: Center(
+                child: _PotPulse(type: _batchPulse[i]!),
               ),
-          ],
-        ));
-      }
+            ),
+        ],
+      ));
     }
     if (_capacity < _potCapLimit) {
       cells.add(ExpandPotSlot(

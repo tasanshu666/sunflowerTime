@@ -26,6 +26,7 @@ import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/core/i18n/domain_text_l10n.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 
 class RewardCard extends StatelessWidget {
   final RewardTemplate template;
@@ -146,7 +147,9 @@ class RewardCard extends StatelessWidget {
                 // 手机回归。平板才有限高压力（文字 1.6 倍 + 按钮变宽挤占横向空间），
                 // 故：平板 2 行 + 省略号；**手机 maxLines: null，与修前逐位一致**。
                 Text(
-                  template.name,
+                  // F154：预制奖励显示名跟随当前语言（自定义/改过名原样）。
+                  rewardDisplayName(template.id, template.name,
+                      l10nOf(context)),
                   maxLines: tablet ? 2 : null,
                   overflow: tablet ? TextOverflow.ellipsis : null,
                   style: theme.textTheme.titleMedium

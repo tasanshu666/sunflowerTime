@@ -648,7 +648,7 @@
       }
     }
   },
-  "garden_seed_count": "{count}",
+  "garden_seed_count": "{count, plural, =1{{count} seed} other{{count} seeds}}",
   "@garden_seed_count": {
     "placeholders": {
       "count": {
@@ -1194,7 +1194,7 @@
     }
   },
   "ghelp_weed_title": "Weeds & pests",
-  "ghelp_weed_detail": "Weeds and little pests show up now and then — tap them to clear:\n+{weedReward} ☀ for a weed, +{pestReward} ☀ for a pest.",
+  "ghelp_weed_detail": "Weeds and little pests show up now and then — even empty pots can grow them. Tap them to clear:\n+{weedReward} ☀ for a weed, +{pestReward} ☀ for a pest.",
   "@ghelp_weed_detail": {
     "placeholders": {
       "weedReward": {

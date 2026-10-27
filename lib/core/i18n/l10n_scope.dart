@@ -31,8 +31,11 @@ AppLocalizations l10nOf(BuildContext context) {
 
 /// 页级 L10n 包装：注入当前生效 locale 与全套本地化 delegates。
 ///
-/// 故意不用 `ref`（纯 StatelessWidget）：L10nScope 不持有任何响应式状态，
-/// locale 变更由外层页面重建时经 [AppLocaleController.current] 重新读取。
+/// F154（2026-10-26 玄参实测反馈「切语言后家长端不切换、退出重进才切」）：
+/// 本壳监听 [AppLocaleController.revision] —— 切换语言时全部已挂载的
+/// L10nScope 同帧重建，`Localizations` 拿到新 locale 后按 Flutter 标准机制
+/// 通知所有 `AppLocalizations.of` 依赖方刷新文案，无需退出重进。
+/// 故意不用 `ref`（纯 StatelessWidget，裸测试宿主无 ProviderScope 也能挂）。
 class L10nScope extends StatelessWidget {
   const L10nScope({required this.child, super.key});
 
@@ -41,10 +44,13 @@ class L10nScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Localizations(
-      locale: AppLocaleController.current,
-      delegates: AppLocalizations.localizationsDelegates,
-      child: child,
+    return ListenableBuilder(
+      listenable: AppLocaleController.revision,
+      builder: (BuildContext context, Widget? _) => Localizations(
+        locale: AppLocaleController.current,
+        delegates: AppLocalizations.localizationsDelegates,
+        child: child,
+      ),
     );
   }
 }

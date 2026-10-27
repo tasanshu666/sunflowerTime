@@ -748,7 +748,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String garden_seed_count(int count) {
-    return '$count 张';
+    return '$count 粒';
   }
 
   @override
@@ -756,7 +756,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String garden_seed_remaining(int count) {
-    return '种下后剩余 $count 张';
+    return '种下后剩余 $count 粒';
   }
 
   @override
@@ -1309,7 +1309,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String ghelp_weed_detail(int weedReward, int pestReward) {
-    return '花园里偶尔会长杂草、来小害虫，点一点就能除掉；\n除草 +$weedReward ☀、除虫 +$pestReward ☀，除完花园更清爽。';
+    return '花园里偶尔会长杂草、来小害虫（空花盆也会长草长虫），点一点就能除掉；\n除草 +$weedReward ☀、除虫 +$pestReward ☀，除完花园更清爽。';
   }
 
   @override

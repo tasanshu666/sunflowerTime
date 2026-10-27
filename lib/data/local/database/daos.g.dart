@@ -40,6 +40,21 @@ class PlantDaoManager {
       $$PlantsTableTableManager(_db.attachedDatabase, _db.plants);
 }
 
+mixin _$EmptyPotDisturbanceDaoMixin on DatabaseAccessor<AppDatabase> {
+  $EmptyPotDisturbancesTable get emptyPotDisturbances =>
+      attachedDatabase.emptyPotDisturbances;
+  EmptyPotDisturbanceDaoManager get managers =>
+      EmptyPotDisturbanceDaoManager(this);
+}
+
+class EmptyPotDisturbanceDaoManager {
+  final _$EmptyPotDisturbanceDaoMixin _db;
+  EmptyPotDisturbanceDaoManager(this._db);
+  $$EmptyPotDisturbancesTableTableManager get emptyPotDisturbances =>
+      $$EmptyPotDisturbancesTableTableManager(
+          _db.attachedDatabase, _db.emptyPotDisturbances);
+}
+
 mixin _$BloomRewardDaoMixin on DatabaseAccessor<AppDatabase> {
   $PremiumFragmentsTable get premiumFragments =>
       attachedDatabase.premiumFragments;

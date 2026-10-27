@@ -765,7 +765,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String garden_seed_count(int count) {
-    return '$count';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count seeds',
+      one: '$count seed',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -1339,7 +1345,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String ghelp_weed_detail(int weedReward, int pestReward) {
-    return 'Weeds and little pests show up now and then — tap them to clear:\n+$weedReward ☀ for a weed, +$pestReward ☀ for a pest.';
+    return 'Weeds and little pests show up now and then — even empty pots can grow them. Tap them to clear:\n+$weedReward ☀ for a weed, +$pestReward ☀ for a pest.';
   }
 
   @override

@@ -81,7 +81,7 @@ void main() {
     test('① schemaVersion 必须为最新 30（版本号与迁移改动不许脱节）', () async {
       final db.AppDatabase database = await _openV29();
       addTearDown(database.close);
-      expect(database.schemaVersion, 30);
+      expect(database.schemaVersion, 31);
     });
 
     test('② v29 老库升级后 actual_focus_min 列存在，历史行值为 null', () async {
@@ -112,7 +112,7 @@ void main() {
       addTearDown(database.close);
       await database.customSelect('SELECT 1').get();
 
-      expect(database.schemaVersion, 30);
+      expect(database.schemaVersion, 31);
       expect(await _hasColumn(database, 'check_ins', 'actual_focus_min'), isTrue);
     });
 

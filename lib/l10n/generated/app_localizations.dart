@@ -1349,7 +1349,7 @@ abstract class AppLocalizations {
   /// No description provided for @garden_seed_count.
   ///
   /// In zh, this message translates to:
-  /// **'{count} 张'**
+  /// **'{count} 粒'**
   String garden_seed_count(int count);
 
   /// No description provided for @garden_row_seed_balance.
@@ -1361,7 +1361,7 @@ abstract class AppLocalizations {
   /// No description provided for @garden_seed_remaining.
   ///
   /// In zh, this message translates to:
-  /// **'种下后剩余 {count} 张'**
+  /// **'种下后剩余 {count} 粒'**
   String garden_seed_remaining(int count);
 
   /// No description provided for @garden_row_use_fragments.
@@ -2276,7 +2276,7 @@ abstract class AppLocalizations {
   /// No description provided for @ghelp_weed_detail.
   ///
   /// In zh, this message translates to:
-  /// **'花园里偶尔会长杂草、来小害虫，点一点就能除掉；\n除草 +{weedReward} ☀、除虫 +{pestReward} ☀，除完花园更清爽。'**
+  /// **'花园里偶尔会长杂草、来小害虫（空花盆也会长草长虫），点一点就能除掉；\n除草 +{weedReward} ☀、除虫 +{pestReward} ☀，除完花园更清爽。'**
   String ghelp_weed_detail(int weedReward, int pestReward);
 
   /// No description provided for @ghelp_seed_title.

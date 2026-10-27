@@ -27,6 +27,7 @@ import 'package:sunflower_time/presentation/shared/premium_gate.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/core/i18n/domain_text_l10n.dart';
 import 'package:sunflower_time/core/i18n/enum_l10n.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 
 /// 「奖励」页：每周阳光池指示（含预算设定）+ 可编辑模板列表。
 class ParentRewardPage extends ConsumerStatefulWidget {
@@ -103,7 +104,8 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
         title: Text(l10n.parent_reward_delete_title),
-        content: Text(l10n.parent_reward_delete_body(t.name)),
+        content: Text(l10n.parent_reward_delete_body(
+            rewardDisplayName(t.id, t.name, l10n))),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -272,7 +274,7 @@ class _ParentRewardPageState extends ConsumerState<ParentRewardPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
-                            t.name,
+                            rewardDisplayName(t.id, t.name, l10n),
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium

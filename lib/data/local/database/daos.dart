@@ -314,6 +314,68 @@ class PlantDao extends DatabaseAccessor<AppDatabase> with _$PlantDaoMixin {
   Future<int> deleteAll() => delete(plants).go();
 }
 
+/// 空花盆干扰物 DAO（F155-B，玄参 2026-10-27 拍板）。
+///
+/// 口径（详见 `tables.dart` 的 `EmptyPotDisturbances` 注释）：空盆每天独立 roll
+/// 杂草 / 害虫（频率为植物一半），清理奖励与植物一致。单键 = (childId, potIndex)。
+///
+/// C90 期 2 口径同其它 DAO：方法带可选 [childId]（null = 不过滤 / 不补写，仅迁移与
+/// 老调用点用；仓储层一律传当前孩子，漏传即数据串孩子）。
+@DriftAccessor(tables: [EmptyPotDisturbances])
+class EmptyPotDisturbanceDao extends DatabaseAccessor<AppDatabase>
+    with _$EmptyPotDisturbanceDaoMixin {
+  EmptyPotDisturbanceDao(super.db);
+
+  /// 当前孩子的全部空盆干扰物记录。
+  Future<List<EmptyPotDisturbanceRow>> all({String? childId}) {
+    final query = select(emptyPotDisturbances);
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.get();
+  }
+
+  /// 按 (childId, potIndex) 读取单条，不存在返回 null。
+  Future<EmptyPotDisturbanceRow?> byPot(int potIndex, {String? childId}) {
+    final query = select(emptyPotDisturbances)
+      ..where((t) => t.potIndex.equals(potIndex));
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.getSingleOrNull();
+  }
+
+  /// 插入或更新（按复合主键 (childId, potIndex) 冲突合并）。
+  ///
+  /// [childId] 非空且 row 未显式带 childId 时补写（C90 期 2：落当前孩子）。
+  Future<void> upsert(EmptyPotDisturbancesCompanion row, {String? childId}) {
+    final EmptyPotDisturbancesCompanion full =
+        (childId == null || row.childId.present)
+            ? row
+            : row.copyWith(childId: Value(childId));
+    return into(emptyPotDisturbances).insertOnConflictUpdate(full);
+  }
+
+  /// 删除某盆记录（种下植物时调用；删 0 行不报错 = 幂等）。
+  Future<int> deleteByPot(int potIndex, {String? childId}) {
+    final query = delete(emptyPotDisturbances)
+      ..where((t) => t.potIndex.equals(potIndex));
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.go();
+  }
+
+  /// 清空当前孩子的全部记录（数据管理 / 删除全部本地数据用）。
+  Future<int> deleteAll({String? childId}) {
+    final query = delete(emptyPotDisturbances);
+    if (childId != null) {
+      query.where((t) => t.childId.equals(childId));
+    }
+    return query.go();
+  }
+}
+
 /// 成株后循环玩法 Batch 1 DAO（§3.1）：精品碎片余额 / 第二段待收集奖励 / 已解锁物种。
 ///
 /// C90 期 2 第二批：premium_fragments / unlocked_species 已按孩子隔离

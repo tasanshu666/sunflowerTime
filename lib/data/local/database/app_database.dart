@@ -24,6 +24,7 @@ part 'app_database.g.dart';
   tables: [
     Settings,
     Plants,
+    EmptyPotDisturbances,
     PremiumFragments,
     PendingBloomRewards,
     UnlockedSpecies,
@@ -42,6 +43,7 @@ part 'app_database.g.dart';
   daos: [
     SettingsDao,
     PlantDao,
+    EmptyPotDisturbanceDao,
     BloomRewardDao,
     TaskDao,
     SunlightLedgerDao,
@@ -58,7 +60,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 30;
+  int get schemaVersion => 31;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -788,6 +790,19 @@ class AppDatabase extends _$AppDatabase {
           //    ⚠️ 版本变更（29 → 30），必须配迁移测试（见
           //       `test/m3/migration_v30_test.dart`）。
           await _ensureColumn(m, checkIns, checkIns.actualFocusMin);
+
+          // ㉛ v31（F155-B，玄参 2026-10-27 拍板）：**空花盆也会长杂草 / 害虫** ——
+          //    新增 `empty_pot_disturbances` 表（按盆 potIndex 记录空盆的
+          //    weed_at / pest_at / roll_day，语义逐字对齐 `plants` 的同名三列）。
+          //    · 全新表、无历史数据迁移：由 onUpgrade **首步 `m.createAll()`**
+          //      （CREATE TABLE IF NOT EXISTS）自动建出 —— 与 v10 的 3 张新表、
+          //      v26 的 `child_profiles` 同一既有约定，故本处**不再写**
+          //      `m.createTable` 分支（重复建表无意义）；
+          //    · 列语义见 `tables.dart` 的 `EmptyPotDisturbances` 注释（存「当天零点」，
+          //      非当天自动失效；频率 / 奖励常量见 `prd_params.dart` 空盆干扰物段）；
+          //    · 幂等：v31+ 库不再进入 onUpgrade；createAll 本身即 IF NOT EXISTS。
+          //    ⚠️ 版本变更（30 → 31），必须配迁移测试（见
+          //       `test/m3/migration_v31_test.dart`）。
         },
       );
 
@@ -798,6 +813,7 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteEverything() => transaction(() async {
         await delete(settings).go();
         await delete(plants).go();
+        await delete(emptyPotDisturbances).go();
         await delete(premiumFragments).go();
         await delete(pendingBloomRewards).go();
         await delete(unlockedSpecies).go();

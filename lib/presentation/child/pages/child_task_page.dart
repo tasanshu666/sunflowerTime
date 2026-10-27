@@ -18,6 +18,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart';
@@ -622,7 +623,9 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
                     _dailyBadge(item.isDaily),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(item.task.name,
+                      // F154：预制任务显示名跟随当前语言（自定义/改过名原样）。
+                      child: Text(taskDisplayName(
+                          item.task.id, item.task.name, l10nOf(context)),
                           style: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.w600)),
                     ),

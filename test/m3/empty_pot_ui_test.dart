@@ -11,7 +11,11 @@
 ///  ④ 浮标是 `Positioned` 叠加 → 空盆图片框的**尺寸**与「没浮标时」逐像素一致
 ///     （「空盆与有植物盆等大、同底」布局契约不被新玩法破坏）；
 ///  ⑤ 真实花园页：浮标 → 点击 → 浮标消失 + 阳光账本 +1 ☀（refType / refId 正确）；
-///  ⑥ 真实花园页：浮标 → 点空盆种下 → 该盆浮标消失、且**不入账**（不返还）。
+///  ⑥ 真实花园页：浮标 → 点空盆种下 → 该盆浮标消失、且**不入账**（不返还）；
+///  ⑦ **F156-A（玄参 2026-10-27）**：空盆拔草 / 除虫必须**完整播 4.1s 演出**（与有植物盆
+///    同一条路径），演出期间 `_busy` 锁页 → 第二次点击被挡；收尾后才刷新草地 + 飘字；
+///  ⑧ 淡出 300ms 窗口内的**重叠清除**：两张票据同时在飞也各自释放 → 本页仍能刷新
+///    （票据泄漏守卫；F156-A 之前就存在的真实现象）。
 library empty_pot_ui_test;
 
 import 'dart:math';
@@ -40,6 +44,7 @@ import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/empty_pot_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
+import 'package:sunflower_time/presentation/child/widgets/care_effect_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart';
 
 // ── Fake：空盆干扰物仓储（内存）───────────────────────────────────────────────
@@ -255,6 +260,14 @@ Future<bool> _pumpUntil(
   return ready();
 }
 
+/// 一次「完整清除演出 + 淡出 + 刷新落地」的帧预算（F156-A）。
+///
+/// 空盆拔草 / 除虫现在与有植物盆**同一条时序**：4.1s 效果帧（[kCareWeedDurationMs]）
+/// + 300ms 浮标淡出（[kPestFadeOutMs]）+ 一次 `_reload` 落地 ≈ 4.4s。
+/// 按 16ms/帧 计需要 ≈ 275 帧，故给 420 帧（≈6.7s）余量；**仍然有界**（不是
+/// `pumpAndSettle`：页面内有无限呼吸 / 飘浮动画，settle 会超时）。
+const int _clearSettleFrames = 420;
+
 /// 真实花园页宿主：只覆盖与花园相关的仓储 + 空盆服务（roll 随机源固定）。
 ///
 /// `firstSightImmune: false`：首帧就掷骰，测试无需「隔天」即可拿到确定状态
@@ -444,12 +457,34 @@ void main() {
       expect(entry.refId, EmptyPotService.refIdOf(0),
           reason: '空盆账本 refId = pot:<potIndex>');
 
+      // 🔴 F156-A（玄参 2026-10-27）：入账是**立刻**的，但草地刷新必须等 4.1s 演出播完
+      // —— 空盆现在也走 [CareEffectOverlay]（效果帧），不再「只播音效 + 立刻淡出」。
+      // 入账发生在 `_run` 内部（早于 `_playCareEffect`），故这里用有界推进等叠加层上屏
+      // （而不是直接断言：那样会偶发地卡在「已入账、动画还没开播」的中间帧）。
+      expect(
+        await _pumpUntil(
+          tester,
+          () => find.byType(CareEffectOverlay).evaluate().isNotEmpty,
+        ),
+        isTrue,
+        reason: '空盆拔草必须挂出效果帧叠加层 [CareEffectOverlay]'
+            '（空盆格没挂 _potKey / 恢复早退分支时这里恒为 0）',
+      );
+      await tester.pump(const Duration(milliseconds: kCareWeedDurationMs ~/ 2));
+      expect(find.byType(CareEffectOverlay), findsOneWidget,
+          reason: '演出未到时长（4.1s）前不得提前收场');
+      expect(_weedChip().evaluate().length, before,
+          reason: '演出期间草地不得刷新（本盆浮标仍在）');
+
       // 浮标淡出后从数据层消失（该盆记录被清空，其余盆仍在）。
       final bool gone = await _pumpUntil(
         tester,
         () => _weedChip().evaluate().length < before,
+        maxFrames: _clearSettleFrames,
       );
       expect(gone, isTrue, reason: '清除后该盆浮标必须消失');
+      expect(find.byType(CareEffectOverlay), findsNothing,
+          reason: '演出结束必须移除叠加层（不会留在树上）');
       expect(pots.store[0]?.hasWeed ?? false, isFalse,
           reason: '拨掉的盆当日不得再有杂草（rollDay 幂等锚保留）');
     });
@@ -516,12 +551,107 @@ void main() {
           reason: '种下一株后空盆数减少');
     });
 
-    testWidgets('重叠清除（300ms 淡出窗口内连清两盆）不泄漏刷新票据：两盆都真的消失',
+    testWidgets('清除演出期间第二次点击被挡，且演出结束后本页仍能刷新（不泄漏刷新票据）',
         (WidgetTester tester) async {
-      // 🔴 QA 缺陷回归守卫（F155-B 引入）：单例 `_clearSeqTimer` 时，第二次清除会
-      // cancel 掉第一次的定时器 → 第一张票据永久留在 `_suppressTickets` →
-      // 本页此后**所有**刷新一律 early-return：草地不刷新、空盆 tick 不跑，
-      // 已清掉的浮标淡出后**复活**并常驻。本用例在 300ms 窗口内连点两盆来触发它。
+      // 🔴 QA 缺陷回归守卫（F155-B 引入，F156-A 语义更新，**不得删除**）：
+      //  · 单例 `_clearSeqTimer` 时代：第二次清除会 cancel 掉第一次的定时器 →
+      //    第一张票据永久留在 `_suppressTickets` → 本页此后**所有**刷新一律 early-return
+      //    （草地不刷新、空盆 tick 不跑，已清掉的浮标淡出后**复活**并常驻）；
+      //  · F156-A 起空盆也播完整 4.1s 演出、`_busy` 全程锁住 → **演出期间**的第二次
+      //    点击必然被挡。本用例因此改成守护**两条仍然成立的不变量**：
+      //     ① 演出期间第二次点击必须被挡住（不产生第二张票据、不写第二条账本）；
+      //     ② 一次清除收尾之后票据必须被**释放** → 本页仍能正常刷新（清第二盆真的消失）。
+      //    若把 `_busy` 闸门或票据释放改坏，②会以「第二盆浮标永不消失」变红。
+      //
+      // ⚠️ 覆盖不到的地方：`_onClearAnimated` 先把 `_busy` 置 false、再等 300ms 淡出，
+      // **那个淡出窗口内仍可构造「两张票据同时在飞」**（本用例点的是演出期，走 `_busy`
+      // 分支，到不了多票据路径）→ 那段由下一条用例「淡出窗口内重叠清除」专门覆盖。
+      tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      final _MemPotDisturbanceRepo pots = _MemPotDisturbanceRepo();
+      final _MemLedger ledger = _MemLedger();
+      final _MemPlantRepo plants = _MemPlantRepo();
+      await tester.pumpWidget(
+          _hostGardenPage(pots: pots, ledger: ledger, plants: plants));
+
+      expect(
+        await _pumpUntil(tester, () => _weedChip().evaluate().length == 4),
+        isTrue,
+        reason: '前置：4 个空盆全部长草',
+      );
+
+      await tester.tap(_weedChip().first); // 盆 0：开始 4.1s 演出
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(find.byType(CareEffectOverlay), findsOneWidget,
+          reason: '前置：第一次清除必须已在播演出');
+
+      // ① 演出期间再点第二盆 → 必须被 [_busy] 挡住（不写第二条账本、不清第二盆）。
+      await tester.tap(_weedChip().at(1)); // 盆 1
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(ledger.ofType(kGardenWeedRefType).length, 1,
+          reason: '演出期间第二次点击必须被挡：账本只应有 1 条');
+      expect(pots.store[1]?.hasWeed ?? false, isTrue,
+          reason: '被挡住的第二次点击不得清掉盆 1 的杂草（否则票据/账本双写）');
+      expect(_weedChip().evaluate().length, 4,
+          reason: '演出期间草地尚未刷新（浮标仍在）');
+
+      // 演出 + 淡出 + 刷新走完 → 只剩 3 支浮标，账本恰好 1 条。
+      final bool firstCleared = await _pumpUntil(
+        tester,
+        () => _weedChip().evaluate().length == 3,
+        maxFrames: _clearSettleFrames,
+      );
+      expect(firstCleared, isTrue,
+          reason: '演出结束后盆 0 的浮标必须消失（票据泄漏时永不消失）');
+      expect(ledger.ofType(kGardenWeedRefType).length, 1,
+          reason: '只有第一次清除入账（第二次被挡）');
+      expect(pots.store[0]?.hasWeed ?? false, isFalse);
+
+      // 稳定性：再等一会，确认已被清掉的浮标不会「复活」。
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(_weedChip().evaluate().length, 3,
+          reason: '刷新未被永久挡住时，清掉的浮标不得复活');
+
+      // ② 「页面仍在刷新」的可观测证据（不能只断言浮标数量）：
+      // 票据若泄漏，[_suppressReload] 恒 true → **之后再怎么清都不会刷新**，
+      // 第二盆的浮标会永远留在草地上。故这里再清一盆，它必须真的消失并入账。
+      await tester.tap(_weedChip().first); // 现在是盆 1
+      await tester.pump(const Duration(milliseconds: 80));
+      final bool secondGone = await _pumpUntil(
+        tester,
+        () => _weedChip().evaluate().length == 2,
+        maxFrames: _clearSettleFrames,
+      );
+      expect(secondGone, isTrue,
+          reason: '第一次清除收尾之后页面仍必须能刷新（票据泄漏时第二盆浮标永不消失）');
+      expect(ledger.ofType(kGardenWeedRefType).length, 2,
+          reason: '第二次清除照常入账 → 经济链路未被挡住');
+      expect(pots.store[1]?.hasWeed ?? false, isFalse);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(_weedChip().evaluate().length, 2,
+          reason: '第二次清除后也不得复活');
+    });
+
+    testWidgets('淡出窗口内重叠清除：两张票据同时在飞也各自收尾（票据不释放必红）',
+        (WidgetTester tester) async {
+      // 🔴 **守的是「每张票据最终都被释放」**（[_suppressTickets] 不能泄漏）。
+      //
+      // 构造路径必须是「**淡出 300ms 窗口**内的重叠」，不是演出期：
+      //  · 演出期（4.1s）由 `_busy` 锁住 → 第二次点击被 `_run` 挡掉（见上一条用例）；
+      //  · 但 `_onClearAnimated` 是**先 `_busy = false`、再等 kPestFadeOutMs 淡出**，
+      //    这 300ms 内上一张票据**还活着**、页面**已可操作** → 点另一盆即构成重叠
+      //    （两张票据同时在飞，这是 F156-A 之前就存在的真实现象）。
+      //
+      // 🔴 变异自证（本地已做）：把 `_onClearAnimated` 里的 `_suppressTickets.remove(ticket)`
+      // 注释掉（票据永不释放）→ 第一张票据永久留在 `_suppressTickets` → 本页此后永不刷新
+      // → **本用例红在最核心那条**「两张票据必须各自收尾：两盆浮标都消失」（停在 4 支），
+      // 另带 3 条旧用例一同变红。
+      //
+      // ⚠️ 覆盖不到的地方：把 `_clearTimers` 回退成「新票据进来 cancel 全部」**不会**让本
+      // 用例变红 —— 被取消的那条 300ms 定时器总是先触发完毕，第二张票据的 `_onClearAnimated`
+      // 至少晚 4.1s 才到，故该实现细节**当前不可观测**（详见 garden_page `_clearTimers`）。
       tester.view.physicalSize = const Size(360 * 3, 780 * 3);
       tester.view.devicePixelRatio = 3.0;
       addTearDown(tester.view.reset);
@@ -539,43 +669,106 @@ void main() {
       );
 
       await tester.tap(_weedChip().first); // 盆 0
-      await tester.pump(const Duration(milliseconds: 80)); // < kPestFadeOutMs
-      await tester.tap(_weedChip().at(1)); // 盆 1（盆 0 的浮标仍在淡出中）
-      await tester.pump(const Duration(milliseconds: 80));
+      await tester.pump(); // 挂载叠加层（动画从第 0 帧开始）
+      await tester.pump(
+          const Duration(milliseconds: kCareWeedDurationMs + 100));
+      expect(find.byType(CareEffectOverlay), findsNothing,
+          reason: '前置：盆 0 的 4.1s 演出必须已播完（票据进入淡出窗口）');
       expect(_weedChip().evaluate().length, 4,
-          reason: '两次清除都在淡出窗口内：数据已清但草地尚未刷新（浮标仍在树上）');
+          reason: '前置：淡出窗口内草地尚未刷新（盆 0 的浮标还在淡出中）');
 
-      // 等两条定时器都收尾（300ms / 380ms）+ 刷新落地。
-      final bool cleared = await _pumpUntil(
+      // 🔴 淡出窗口内点第二盆 → 第二张票据进场，**此时盆 0 的票据尚未释放**。
+      await tester.tap(_weedChip().at(1)); // 盆 1
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(ledger.ofType(kGardenWeedRefType).length, 2,
+          reason: '淡出窗口内第二次清除必须照常执行（两张票据同时在飞）');
+      expect(pots.store[0]?.hasWeed ?? true, isFalse);
+      expect(pots.store[1]?.hasWeed ?? true, isFalse);
+      expect(find.byType(CareEffectOverlay), findsOneWidget,
+          reason: '盆 1 的演出已开始（盆 0 的已结束）→ 两张票据真的同时在飞');
+
+      // 🔴 核心断言：两张票据各自释放 → 两盆浮标**都**真的消失（4 → 2）。
+      // 票据泄漏（如 `_suppressTickets.remove(ticket)` 被删）时刷新永久被挡住 → 停在 4 支。
+      final bool bothGone = await _pumpUntil(
         tester,
         () => _weedChip().evaluate().length == 2,
+        maxFrames: _clearSettleFrames,
       );
-      expect(cleared, isTrue,
-          reason: '两盆都清掉后必须只剩 2 支浮标（票据泄漏时会停在 4 支）');
-
-      // 稳定性：再等一会，确认已被清掉的浮标不会「复活」。
+      expect(bothGone, isTrue,
+          reason: '两张票据必须各自收尾：两盆浮标都消失'
+              '（票据不释放 → 本页永久不刷新 → 会停在 4 支）');
+      expect(pots.store[0]?.hasWeed ?? true, isFalse);
+      expect(pots.store[1]?.hasWeed ?? true, isFalse);
+      expect(ledger.ofType(kGardenWeedRefType).length, 2,
+          reason: '两盆各入账 1 条，不重复入账');
+      // 稳定性：不得复活。
       await tester.pump(const Duration(milliseconds: 400));
       expect(_weedChip().evaluate().length, 2,
-          reason: '刷新未被永久挡住时，清掉的浮标不得复活');
-      expect(ledger.ofType(kGardenWeedRefType).length, 2,
-          reason: '两盆各入账一次（+1 ☀ × 2）');
-      expect(pots.store[0]?.hasWeed ?? false, isFalse);
-      expect(pots.store[1]?.hasWeed ?? false, isFalse);
+          reason: '两张票据都释放后，已清掉的浮标不得复活');
+    });
 
-      // 🔴 「页面仍在刷新」的可观测证据（不能只断言浮标数量）：票据若泄漏，
-      // [_suppressReload] 恒 true → **之后再怎么清都不会刷新**，第三盆的浮标
-      // 会永远留在草地上。故重叠清除之后再清一盆，它必须真的消失。
-      final int balanceBefore = ledger.entries.length;
-      await tester.tap(_weedChip().first); // 现在是盆 2
-      final bool thirdGone = await _pumpUntil(
-        tester,
-        () => _weedChip().evaluate().length == 1,
+    testWidgets('F156-A 空盆清除必须完整播放 4.1s 演出（去掉空盆 key / 恢复早退分支即变红）',
+        (WidgetTester tester) async {
+      // 🔴 F156-A 主守卫（玄参 2026-10-27 原话：「空盆首日免疫可以，清理的时候为什么不
+      // 播放动画呢？……我觉得是需要完整的播放动画的」）。
+      //
+      // 变异验证（本地已做，见交付说明）：
+      //  · 去掉 `_buildCells()` 里 `EmptyPot(key: _potKey(i))` → `_playCareEffect` 取不到
+      //    落点 context（早退分支①：无动画无音效）→ **本用例第一条断言即变红**；
+      //  · 恢复 F155-B 的 `pid == null` 早退分支（只 playSfx + 立刻淡出）→ 同样变红。
+      tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      final _MemPotDisturbanceRepo pots = _MemPotDisturbanceRepo();
+      final _MemLedger ledger = _MemLedger();
+      final _MemPlantRepo plants = _MemPlantRepo();
+      await tester.pumpWidget(
+          _hostGardenPage(pots: pots, ledger: ledger, plants: plants));
+
+      expect(
+        await _pumpUntil(tester, () => _weedChip().evaluate().length == 4),
+        isTrue,
+        reason: '前置：4 个空盆全部长草',
       );
-      expect(thirdGone, isTrue,
-          reason: '重叠清除之后页面仍必须能刷新（票据泄漏时第三盆浮标永不消失）');
-      expect(ledger.entries.length, balanceBefore + 1,
-          reason: '第三次清除仍照常入账 → 经济链路未被挡住');
-      expect(pots.store[2]?.hasWeed ?? false, isFalse);
+
+      await tester.tap(_weedChip().first); // 盆 0
+      await tester.pump(const Duration(milliseconds: 16));
+
+      // ① 演出**开始**：叠加层在树上（没有 key 时 `_playCareEffect` 走早退分支 → 0）。
+      expect(find.byType(CareEffectOverlay), findsOneWidget,
+          reason: '空盆拔草必须挂出 [CareEffectOverlay]（效果帧），不能只播音效');
+
+      // ② 4.1s 时长**内**：演出仍在、草地**未**刷新（本盆浮标仍在 = 干扰物未提前消失）。
+      await tester.pump(const Duration(milliseconds: 3000));
+      expect(find.byType(CareEffectOverlay), findsOneWidget,
+          reason: '3.0s 处演出必须仍在（总时长 4101ms）');
+      expect(_weedChip().evaluate().length, 4,
+          reason: '演出期间草地不得刷新');
+
+      await tester.pump(const Duration(milliseconds: 1000)); // 累计 ≈4.02s < 4.101s
+      expect(find.byType(CareEffectOverlay), findsOneWidget,
+          reason: '4.02s（仍短于 kCareWeedDurationMs=4101ms）时演出不得提前结束');
+      expect(_weedChip().evaluate().length, 4,
+          reason: '4.1s 内浮标必须还在（旧「立刻淡出」实现会在这里掉到 3）');
+      expect(ledger.ofType(kGardenWeedRefType).length, 1,
+          reason: '账本在点击时即写入，且只写 1 行');
+
+      // ③ 演出 + 淡出 + 刷新落地：浮标消失、叠加层移除、飘字出现、账本恰好 1 行。
+      final bool settled = await _pumpUntil(
+        tester,
+        () => _weedChip().evaluate().length == 3,
+        maxFrames: _clearSettleFrames,
+      );
+      expect(settled, isTrue, reason: '演出结束后该盆浮标必须消失');
+      expect(find.byType(CareEffectOverlay), findsNothing,
+          reason: '演出结束必须移除叠加层');
+      expect(find.text('除草成功'), findsOneWidget,
+          reason: '收尾必须弹「除草成功，阳光+N」飘字（与有植物盆同一条收尾时序）');
+      expect(ledger.ofType(kGardenWeedRefType).length, 1,
+          reason: '恰好 1 条杂草账本（不重复入账）');
+      expect(pots.store[0]?.hasWeed ?? false, isFalse,
+          reason: '拨掉的盆当日不得再有杂草');
     });
 
     testWidgets('称号属性生效：空盆拔草也必须传门控 perk（除草 +1 → 实得 2 ☀）',

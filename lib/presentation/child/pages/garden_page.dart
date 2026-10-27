@@ -229,12 +229,34 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 除草 / 除虫收尾序列计时器：**按票据（ticket）一条**，淡出结束后各自收尾。
   ///
   /// 🔴 为什么不是单例 `Timer? _clearSeqTimer`（F155-B 之后暴露的真缺陷）：
-  /// 空花盆没有 4.1s 除草动效 → `_onClearAnimated` 里 `_busy` 立刻归 false，整页在
-  /// 300ms 淡出窗口内**可再次点击**；第二次清除若 `cancel()` 掉第一条定时器，
-  /// 第一张票据就永远留在 [_suppressTickets] 里 → [ _suppressReload ] 恒 true →
-  /// **本页此后所有刷新一律被挡**（草地不刷新、余额不更新、空盆 tick 不跑，已清掉的
-  /// 浮标还会「复活」并常驻）。改成按票据各持一条、互不 cancel 即根治。
-  /// dispose 里统一 cancel（见 [dispose]）。
+  /// 第二次清除若 `cancel()` 掉第一条定时器，第一张票据就永远留在 [_suppressTickets]
+  /// 里 → [ _suppressReload ] 恒 true → **本页此后所有刷新一律被挡**（草地不刷新、
+  /// 余额不更新、空盆 tick 不跑，已清掉的浮标还会「复活」并常驻）。
+  ///
+  /// 🔴 **两张票据确实会同时在飞（F156-A 实测）**：[_onClearAnimated] 先把 `_busy` 置
+  /// false、再等 [kPestFadeOutMs]（300ms）淡出，这 300ms 内页面**已可操作**、而上一张
+  /// 票据**尚未释放** → 点另一盆即构成重叠（盆 0 演出结束当帧点盆 1：两张票据同时存在，
+  /// 两盆都真的清掉）。演出期内的那 4.1s 由 [_busy] 锁住，这一段重叠才构造不出来 ——
+  /// 「UI 上完全不可构造重叠」**不成立**，只有「演出期间不可构造」成立。
+  ///
+  /// ⚠️ 但**「cancel 别人的定时器」在当前时序下不可观测**（别把它当活地雷）：
+  /// 一张票据的定时器 300ms 内必触发，而第二张票据的 [_onClearAnimated] 至少晚
+  /// 4.1s（[_busy] 串行化的演出）+ 一点才到 → 回退成「新票据进来 cancel 全部」时，
+  /// 待取消的那条**早已触发完毕**，`empty_pot_ui_test.dart` 10 例仍全绿
+  /// （QA 与本机各变异一次，均实测）。
+  /// 🟢 **真正被用例钉住的是「每张票据最终都被释放」**：`empty_pot_ui_test.dart` 的
+  /// 「淡出窗口内重叠清除：两张票据同时在飞也各自收尾」——注释掉本方法里的
+  /// `_suppressTickets.remove(ticket)`（票据永不释放）→ 该用例 + 3 条旧用例立刻变红。
+  /// 若日后**放宽 [_busy]**（例如允许演出期间操作其它盆），两张票据的收尾会拉近到
+  /// 300ms 以内，届时 cancel-all 才会变成真缺陷 → 那时必须先补一条能构造「两次收尾
+  /// 相距 <300ms」的用例。
+  ///
+  /// 实现要求（保留）：一张票据一条定时器、绝不 cancel 别人的、[dispose] 里统一 cancel
+  /// —— 这是「未来放宽 [_busy]」时的**前置条件**，不是当下的可观测缺陷防护。
+  ///
+  /// 顺带事实（QA 核对项，无需改代码）：一键清除 / 一键护理**不触碰空盆干扰物**
+  /// ——`OneClickPlan.careTargets` 只由有植物盆（`plants`）派生，且该路径不建票据；
+  /// 故当前**没有**绕过 4.1s 演出的清空盆路径。
   final Map<int, Timer> _clearTimers = <int, Timer>{};
 
   /// 正在「渐变消失」的干扰物（2026-10-03 玄参口径：播完动画先淡出浮标再刷新草地）：
@@ -244,9 +266,11 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   ///  · `plantId != null` → 有植物盆（仍按 plantId 精确匹配，植物的淡出行为一字不变）；
   ///  · `plantId == null` → 空花盆（按 `potIndex` 匹配）。
   ///
-  /// 🔴 为什么是 `Set` 而不是单值（F155-B 之后的真缺陷）：空盆清除之间没有 4.1s 动效
-  /// 互斥，300ms 淡出窗口内可以连续点第二盆；单值会让后一次**覆盖**前一次的淡出态 →
-  /// 前一盆的浮标透明度弹回 1.0（闪一下）。改成集合后每盆各自淡出、互不干扰。
+  /// 🔴 为什么是 `Set` 而不是单值（F155-B 之后的真缺陷）：300ms 淡出窗口内可以连续点
+  /// 第二盆（见 [_clearTimers]：`_busy` 在淡出开始时就已放开、票据却还没释放）；
+  /// 单值会让后一次**覆盖**前一次的淡出态 → 前一盆的浮标透明度弹回 1.0（闪一下）。
+  /// F156-A 只把**演出期间**（4.1s）串行化了，淡出窗口这段重叠依旧成立 → 集合语义仍是
+  /// 当下的正确模型（多盆各自淡出、互不干扰），也是「一键清除」等未来并发入口的前提。
   /// 元素值相等（record 结构相等）→ 同盆同类型重复 add 自动去重。
   final Set<({String? plantId, int potIndex, bool weed})> _fadingClears =
       <({String? plantId, int potIndex, bool weed})>{};
@@ -866,6 +890,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   ///
   /// ⚠️ [_busy] 闸门在这里同样必要：浮标与整格是**嵌套热区**，若手势穿透导致
   /// 同一帧触发两次，第二次会被 [_run] 挡掉，不会写出两条阳光账本行。
+  ///
+  /// 🔴 F156-A（玄参 2026-10-27）：**空花盆与有植物盆的演出与节流口径完全一致** ——
+  /// 都要完整播 4.1s 除草 / 除虫效果帧 + 音效，动画期间 [_busy] 保持 true（整页锁住），
+  /// 播完才淡出浮标 → 刷新 → 飘字。故本条路径**没有**任何 `plantId == null` 的特例分支。
   Future<void> _clearPest(
     String? plantId,
     int potIndex, {
@@ -896,14 +924,14 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     // [_run] 的 finally 已解锁，这里重新锁上：动画播放期间（约 4.1s）整页不可再操作，
     // 防止动画中途再次点干扰物 / 养护（数据已写库但草地未刷新，界面与库不一致）。
     setState(() => _busy = true);
-    if (pid == null) {
-      // 空花盆没有植物美术可叠加「除草 / 除虫效果帧」：只播音效，直接进入淡出收尾
-      // （浮标淡出 → 刷新 → 飘字），不让空盆点一下卡 4 秒。
-      AudioService.instance
-          .playSfx(weed ? AudioCue.careWeed : AudioCue.carePest);
-      _onClearAnimated(null, potIndex, weed: weed, ticket: ticket);
-      return;
-    }
+    // 🔴 F156-A（玄参 2026-10-27 原话「空盆首日免疫可以，清理的时候为什么不播放动画呢？
+    // ……我觉得是需要完整的播放动画的」）：**空花盆与有植物盆走同一条动效路径** ——
+    // 不再「只播音效 + 立刻淡出」，而是完整播 4.1s 除草 / 除虫效果帧 + 音效，播完才
+    // 进淡出收尾。技术上之所以以前做不到，是 [EmptyPot] 当时没挂 [_potKey] →
+    // [_playCareEffect] 取不到落点 context（早退分支①：无动画、无音效），
+    // 现在空盆格也挂了同一把 key，落点与有植物盆**同源同尺寸**（见 [_buildCells]）。
+    // 音效由 [_playCareEffect] 内部统一播（[AudioService.playSfx]），此处**不得**再播
+    // 一次，否则双播。
     _playCareEffect(
       potIndex,
       weed ? CareEffectType.weed : CareEffectType.pest,
@@ -919,10 +947,21 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 3) 花盆上方弹「XX成功，阳光+N」飘字（[_RisingHint] 自下而上飘动淡出，走完自清）。
   ///
   /// F155-B：[plantId] 为 null = 空花盆（[_isFading] 按 `potIndex` 匹配浮标）。
+  /// F156-A（玄参 2026-10-27）：空花盆与有植物盆**同一条收尾时序**（4.1s 动效播完 →
+  /// 300ms 淡出 → 释放票据 + 刷新 + 飘字），本方法对两者无任何分支差异。
   ///
-  /// 🔴 **每张票据一条独立定时器，绝不 cancel 别人的**：空盆路径 `_busy` 立刻放开，
-  /// 300ms 淡出窗口内允许连点第二盆；若这里 `cancel()` 掉上一条，上一张票据就再没有
-  /// 释放点 → [_suppressTickets] 永久非空 → 本页此后永不刷新（详见 [_clearTimers] 注释）。
+  /// 🔴 **每张票据一条独立定时器，绝不 cancel 别人的**（F155-B 缺陷的根治手段）：
+  /// 若这里 `cancel()` 掉别人的定时器，那张票据就再没有释放点 → [_suppressTickets]
+  /// 永久非空 → 本页此后永不刷新。
+  /// 🟢 被钉住的是**「票据必须被释放」**：`empty_pot_ui_test.dart`「淡出窗口内重叠清除」
+  /// 用例注释掉本方法的 `_suppressTickets.remove(ticket)` 会立刻变红（另 3 条旧用例同红）。
+  /// ⚠️ 而「cancel 别人的」这一细节当前**不可观测**（取消时那条定时器早已触发完毕），
+  /// 变异成 cancel-all 仍全绿 —— 详见 [_clearTimers] 注释，别误以为有守卫。
+  ///
+  /// 收尾顺序（与有植物盆同构，**既有行为**）：先 `_busy = false`（本帧即可再操作其它盆），
+  /// 再等 [kPestFadeOutMs] 淡出结束才释放本张票据并刷新 —— 这 300ms 内其它动作的刷新
+  /// 会被本张票据挡着（[_suppressReload] 仍 true），这正是「淡出期间草地不刷新」的
+  /// 实现方式，不是缺陷。
   void _onClearAnimated(
     String? plantId,
     int potIndex, {
@@ -2164,6 +2203,13 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       // 走 [_isFading]（集合查询）→ 多盆同时淡出互不覆盖。
       final Widget pot = occupant == null
           ? EmptyPot(
+              // 🔴 F156-A：空盆格也必须挂本格的稳定 GlobalKey —— [_playCareEffect] /
+              // [_showCollectGhost] 都靠 `_potKey(i).currentContext` 取落点 RenderBox。
+              // 空盆不挂 key 时 `currentContext` 恒 null → 动效直接走「无动画无音效」
+              // 早退分支（这正是 F155-B 当初跳过空盆动画的根因）。
+              // 与 [GardenPot] **共用同一把** `_potKey(i)`：同一 potIndex 同一时刻只会
+              // 有「空盆」或「有植物盆」其中一支在树上（[occupant] 互斥），不会重复挂载。
+              key: _potKey(i),
               potIndex: i,
               onTap: () => _openPlantSheet(i),
               hasWeed: disturbance?.hasWeed ?? false,

@@ -2648,6 +2648,38 @@ const Key kOneClickBatchHintPillKey = Key('oneClickBatchHintPill');
 /// 一键汇总提示「居中」判定的像素容差（widget 测试用）：胶囊中心与屏幕中心的偏差上限。
 const double kOneClickBatchHintCenterTolerance = 20;
 
+// ── 一键操作 FAB 的自适应宽度常量（F157-BUG-1）─────────────────────────────
+//
+// 玄参 2026-10-27 小米 14 Pro 真机：英文界面下展开卡右侧被裁、debug 报
+// `RenderFlex overflowed by 4 pixels`。根因是宽度钉死 108 —— 中文够、英文不够。
+// 现口径：宽度由「实测最宽那条」决定，下面这些常量既是**测量输入**也是
+// **渲染输入**（同一份数值，测量与排版不可能漂移）。
+
+/// 一键操作胶囊 / 展开卡的宽度**下限**（= 改造前的固定宽，中文侧逐像素零回归）。
+const double kOneClickWidthFloor = 108;
+
+/// 一键操作浮层与屏幕左右边缘的安全边距（与 `Positioned(right: 12)` 同值）：
+/// 宽度上限 = 屏宽 − 2 × 本值，防极端长文案 / 极小屏把卡片顶出屏幕。
+const double kOneClickSafeMargin = 12;
+
+/// 一键操作行内图标边长（× `uiScaleOf`）；胶囊图标同值。
+const double kOneClickIconSize = 16;
+
+/// 操作行内「图标 → 文案」间距。
+const double kOneClickIconGap = 6;
+
+/// 操作行内左右内边距（单侧）。
+const double kOneClickRowHPad = 10;
+
+/// 胶囊内「图标 → 标题」间距。
+const double kOneClickCapsuleIconGap = 4;
+
+/// 一键操作**收拢态胶囊**的公开 Key（测试度量「胶囊与展开卡严格等宽」用）。
+const Key kOneClickCapsuleKey = Key('gardenOneClickCapsule');
+
+/// 一键操作**展开卡**的公开 Key（同上）。
+const Key kOneClickCardKey = Key('gardenOneClickCard');
+
 /// 除草 / 除虫成功飘字（2026-10-03 玄参口径）：半透明白胶囊，**自下而上飘动 +
 /// 淡出**（总时长 [kClearHintRiseMs]）。前 10% 淡入、中段平稳上飘、后 30% 淡出，
 /// 走完经 [onComplete] 通知花园页移除。有限时长动画（可被 pumpAndSettle 结束）。
@@ -3367,10 +3399,26 @@ class _PayButtonWidget extends StatelessWidget {
 /// 一键操作悬浮按钮（C29；玄参 2026-10-05 交互修订）：
 ///
 /// · **收拢态**：胶囊「✋ 一键操作」；**展开态**：其上方一张三行操作卡（浇水/施肥/护理）。
-/// · **宽度恒定**：胶囊与展开卡共用固定宽度（[_width]），展开/收拢**不左右变形**
-///   （玄参「宽度要一致，不要来回变化」）。
+/// · **宽度恒定**：胶囊与展开卡共用**同一个**算出来的宽度（[_OneClickFabState._sharedWidth]
+///   的返回值，一次性算给两者），展开/收拢**不左右变形**（玄参「宽度要一致，不要来回变化」）。
 /// · **点击切换**：点胶囊展开 → 再点胶囊收拢（toggle，不再是系统下拉菜单）；
 ///   点某操作行 → 收拢并回调 [onSelected]。
+///
+/// ## 🔴 F157-BUG-1（玄参 2026-10-27 小米 14 Pro 真机实测）
+/// 旧实现把宽度钉死 `108 * uiScaleOf`：中文「一键浇水」够宽，英文 `Fertilize all`
+/// 差 4px → 行内 `Row` 报 `RenderFlex overflowed by 4 pixels`（debug 黄黑条、
+/// release 直接裁字），iPad 13″ 因屏宽足够而未复现。
+///
+/// 现口径（四条，缺一不可）：
+///  ① **实测**：用 `TextPainter` 按**当前 `TextStyle` + `TextDirection` +
+///     `MediaQuery.textScaler`** 量三行文案，取最宽那条（图标 + 间距 + 行内边距 +
+///     文本），**不用 `IntrinsicWidth` 猜**（展开/收拢时会抖）；
+///  ② **共用**：算出的宽度同时喂胶囊与展开卡（严格等宽）；
+///  ③ **上限**：不得超过「屏宽 − 2 × [kOneClickSafeMargin]」，防极端长文案 / 极小屏
+///     把卡片顶出屏幕；
+///  ④ **下限**：[kOneClickWidthFloor]（= 既有 108）× `uiScaleOf`，中文侧逐像素零回归。
+///     真顶到上限时标签走 `Flexible` + `TextOverflow.ellipsis`（`maxLines: 1`），
+///     **不允许再出现溢出条**。
 class _OneClickFab extends StatefulWidget {
   const _OneClickFab({required this.onSelected});
 
@@ -3382,31 +3430,120 @@ class _OneClickFab extends StatefulWidget {
 }
 
 class _OneClickFabState extends State<_OneClickFab> {
-  /// 胶囊与展开卡共用的固定宽度（两者严格等宽，玄参口径）。
-  static const double _width = 108;
+  /// 三行操作项的标签样式（**必须**与 [_buildActionRow] 的 `Text` 完全同源：
+  /// 测量用它与渲染用它是同一个常量，否则量出来的宽度与真实排版对不上）。
+  static const TextStyle _kRowLabelStyle = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    color: Color(0xFF6B6252),
+  );
+
+  /// 收拢态胶囊的标题样式（同上：测量与渲染共用）。
+  static const TextStyle _kCapsuleLabelStyle = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w700,
+    color: Color(0xFF6B6252),
+  );
 
   bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    // 🔴 一次算出、两处共用（C29「宽度要一致，不要来回变化」）。
+    final double width = _sharedWidth(l10n);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
         if (_expanded) ...<Widget>[
-          _buildActionCard(),
+          _buildActionCard(l10n, width),
           const SizedBox(height: 6),
         ],
-        _buildCapsule(),
+        _buildCapsule(l10n, width),
       ],
     );
   }
 
-  /// 展开卡：三行操作项，与胶囊同宽（[_width]；C65 平板随字号同比放大）。
-  Widget _buildActionCard() {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+  /// 胶囊与展开卡共用的宽度（F157-BUG-1 的自适应算法）。
+  ///
+  /// 每次 `build` 用**当前语言 / 当前字号**重算 —— 切语言（`L10nScope` 同帧重建）
+  /// 后立刻跟上新文案长度，不会残留旧语言的宽度。
+  ///
+  /// 算法：`clamp(实测最宽, 下限 = 108 × uiScale, 上限 = 屏宽 − 2 × 安全边距)`。
+  double _sharedWidth(AppLocalizations l10n) {
+    final double uiScale = uiScaleOf(context);
+    final TextScaler textScaler = MediaQuery.textScalerOf(context);
+    final TextDirection direction = Directionality.of(context);
+    // 图标 + 图标间距在**行**与**胶囊**里同值（16 / 6 / 4 见下方常量），文字宽度
+    // 才是随语言变化的量。
+    final double iconWidth = kOneClickIconSize * uiScale;
+
+    // ① 三行操作项（图标 + 间距 + 文本 + 行内左右内边距）取最宽。
+    double widest = 0;
+    for (final String label in <String>[
+      l10n.garden_action_water,
+      l10n.garden_action_fertilize,
+      l10n.garden_action_care,
+    ]) {
+      final double rowWidth = iconWidth +
+          kOneClickIconGap +
+          _measureTextWidth(label, _kRowLabelStyle, direction, textScaler) +
+          kOneClickRowHPad * 2;
+      widest = math.max(widest, rowWidth);
+    }
+    // ② 胶囊自身内容（图标 + 间距 + 标题）也要装得下 —— 否则收拢态反过来被裁
+    //    （英文 `One-tap care` 比中文「一键操作」长）。胶囊无水平内边距，
+    //    居中留白由下面的下限保证。
+    final double capsuleWidth = iconWidth +
+        kOneClickCapsuleIconGap +
+        _measureTextWidth(
+            l10n.garden_oneclick_title, _kCapsuleLabelStyle, direction, textScaler);
+    widest = math.max(widest, capsuleWidth);
+    // 向上取整到整像素：`TextPainter` 给的是小数宽，父级按物理像素取整时可能
+    // 少给 0.3px → 最宽那条反而被顶成省略号（“量够了却还是截断”的经典坑）。
+    widest = widest.ceilToDouble();
+
+    // ③ 下限 = 既有固定宽（中文侧逐像素零回归）；④ 上限 = 屏宽 − 两侧安全边距。
+    final double floor = kOneClickWidthFloor * uiScale;
+    final double ceiling =
+        MediaQuery.sizeOf(context).width - kOneClickSafeMargin * 2;
+    // `math.max(floor, ceiling)`：极小屏（< 2×边距 + 108）时 ceiling 会低于 floor，
+    // 此时宁可让宽度停在 floor（屏再窄也不会出现负宽 / 塌成 0）。
+    final double upperBound = math.max(floor, ceiling);
+    return math.max(floor, math.min(widest, upperBound));
+  }
+
+  /// 用 `TextPainter` 量一段文本在「当前主题 `DefaultTextStyle` 合并 [style]」下的宽度。
+  ///
+  /// ⚠️ 必须经 `DefaultTextStyle.of(context).style.merge(style)`：`Text` 内部就是这样
+  /// 合并的（字体族 / 字距 / 行高可能来自主题），直接用裸 [style] 量会得到偏窄的值。
+  /// [maxLines] = 1 + 不换行 —— 与渲染侧的 `maxLines: 1, softWrap: false` 同口径。
+  double _measureTextWidth(
+    String text,
+    TextStyle style,
+    TextDirection direction,
+    TextScaler textScaler,
+  ) {
+    final TextStyle effective =
+        DefaultTextStyle.of(context).style.merge(style);
+    final TextPainter painter = TextPainter(
+      text: TextSpan(text: text, style: effective),
+      textDirection: direction,
+      textScaler: textScaler,
+      maxLines: 1,
+    );
+    painter.layout();
+    final double width = painter.width;
+    painter.dispose();
+    return width;
+  }
+
+  /// 展开卡：三行操作项，与胶囊同宽（[width]；C65 平板随字号同比放大）。
+  Widget _buildActionCard(AppLocalizations l10n, double width) {
     return SizedBox(
-      width: _width * uiScaleOf(context),
+      key: kOneClickCardKey,
+      width: width,
       child: Material(
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(16),
@@ -3438,7 +3575,7 @@ class _OneClickFabState extends State<_OneClickFab> {
     );
   }
 
-  /// 单行操作项。
+  /// 单行操作项（文案走 [Flexible] + 省略号：真顶到宽度上限时**只截字、不溢出**）。
   Widget _buildActionRow(_OneClickItem item) {
     return InkWell(
       borderRadius: BorderRadius.circular(10),
@@ -3448,17 +3585,19 @@ class _OneClickFabState extends State<_OneClickFab> {
       },
       child: Container(
         height: 36 * uiScaleOf(context),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: const EdgeInsets.symmetric(horizontal: kOneClickRowHPad),
         child: Row(
           children: <Widget>[
-            Icon(item.icon, size: 16 * uiScaleOf(context), color: item.color),
-            const SizedBox(width: 6),
-            Text(
-              item.label,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF6B6252),
+            Icon(item.icon,
+                size: kOneClickIconSize * uiScaleOf(context), color: item.color),
+            const SizedBox(width: kOneClickIconGap),
+            Flexible(
+              child: Text(
+                item.label,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: _kRowLabelStyle,
               ),
             ),
           ],
@@ -3467,11 +3606,11 @@ class _OneClickFabState extends State<_OneClickFab> {
     );
   }
 
-  /// 收拢态胶囊（固定宽 [_width]；C65 随字号同比放大）。
-  Widget _buildCapsule() {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+  /// 收拢态胶囊（与展开卡同宽 [width]；C65 随字号同比放大）。
+  Widget _buildCapsule(AppLocalizations l10n, double width) {
     return SizedBox(
-      width: _width * uiScaleOf(context),
+      key: kOneClickCapsuleKey,
+      width: width,
       child: Material(
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(20),
@@ -3483,20 +3622,21 @@ class _OneClickFabState extends State<_OneClickFab> {
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Icon(
                   Icons.touch_app,
-                  size: 16 * uiScaleOf(context),
+                  size: kOneClickIconSize * uiScaleOf(context),
                   color: const Color(0xFF7CB342),
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  l10n.garden_oneclick_title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF6B6252),
+                const SizedBox(width: kOneClickCapsuleIconGap),
+                // 同上：极端长标题时截字而不是溢出。
+                Flexible(
+                  child: Text(
+                    l10n.garden_oneclick_title,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: _kCapsuleLabelStyle,
                   ),
                 ),
               ],

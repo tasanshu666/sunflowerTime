@@ -550,6 +550,8 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
         ],
         footerText:
             (_l10n ?? AppLocalizationsZh()).child_shell_verify_total(total),
+        // F157-BUG-2：按钮文案由调用方从 l10n 传（en `Got it` / zh「知道啦」）。
+        confirmLabel: (_l10n ?? AppLocalizationsZh()).shared_got_it,
       );
 
       // 标记已读（去重合并），下次进入不再重复弹窗（按当前孩子分键）。
@@ -620,6 +622,8 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
         ],
         footerText: (_l10n ?? AppLocalizationsZh())
             .child_shell_reject_footer,
+        // F157-BUG-2：按钮文案跟界面语言（en `Got it` / zh「知道啦」）。
+        confirmLabel: (_l10n ?? AppLocalizationsZh()).shared_got_it,
       );
 
       await store.setAcknowledgedRejectIds(
@@ -768,6 +772,8 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
             ),
         ],
         footerText: footer,
+        // F157-BUG-2：按钮文案跟界面语言（en `Got it` / zh「知道啦」）。
+        confirmLabel: l10n.shared_got_it,
       );
 
       // 标记已读（去重合并；按当前孩子分键）。⚠️ 必须在弹窗关闭**之后**写，
@@ -836,6 +842,10 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
           ),
         ],
         footerText: t.child_shell_gift_footer,
+        // 🔴 F157-BUG-2（玄参 2026-10-27 小米 14 Pro 截图）：整界面英文、卡片内容
+        // 全英文，唯独这颗按钮是中文「知道啦」—— 根因是本壳旧默认值硬编码中文。
+        // 现由调用方从 l10n 显式传入（zh「知道啦」逐字不变 / en `Got it`）。
+        confirmLabel: t.shared_got_it,
       );
 
       await store.setAcknowledgedParentGiftId(

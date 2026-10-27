@@ -15,6 +15,8 @@ library parent_entry_action;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
+
 /// 右上角「家长天地」入口按钮。
 class ParentEntryAction extends StatelessWidget {
   const ParentEntryAction({super.key, required this.immersive});
@@ -30,7 +32,13 @@ class ParentEntryAction extends StatelessWidget {
     final Widget button = IconButton(
       key: iconKey,
       icon: const Icon(Icons.family_restroom),
-      tooltip: '家长天地',
+      // 🔴 F157-A2（玄参 2026-10-27 英文界面实测漏网）：这里原是硬编码中文
+      // 「家长天地」—— tooltip 会在**长按**时上屏，且是**无障碍朗读**文案，
+      // 英文界面串中文属上架风险。改走 l10n 单点（复用既有 `parent_home_title`：
+      // zh「家长天地」逐字不变 / en `Parent Hub`，与家长端标题**同一词条**，
+      // 不新增孪生 key）。用 `l10nOf` 而非 `AppLocalizations.of`：本组件会被
+      // 裸测试宿主直接挂载（无 delegates），`l10nOf` 自带中文回退。
+      tooltip: l10nOf(context).parent_home_title,
       onPressed: () => context.go('/parent'),
     );
     if (!immersive) return button;

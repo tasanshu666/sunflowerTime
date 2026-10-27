@@ -44,6 +44,7 @@ library child_confirm_card;
 
 import 'package:flutter/material.dart';
 
+import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
 import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart'
     show GoldNoticeStyle;
 import 'package:sunflower_time/shared/responsive.dart' show uiScaleOf;
@@ -110,8 +111,14 @@ abstract final class ChildConfirmStyle {
   /// 卡头圆形徽标内图标尺寸。
   static const double badgeIconSize = 36;
 
-  /// 取消按钮字面量（回归红线，勿改：多条既有用例用 `find.text('取消')` 钉死）。
-  static const String cancelLabel = '取消';
+  // 🔴 F157-A2：`cancelLabel = '取消'` 常量**已退役**（原 `:114`）。
+  //
+  // 刻意删掉而不是留着当默认值：只要默认值里还躺着一句中文，任何一处忘传
+  // l10n 的调用点就会在英文界面弹中文按钮（正是 BUG-2 的形态）。现在
+  // [ChildConfirmCard.cancelLabel] / [showChildConfirmCard] 的默认值都是
+  // `null`，壳内 `cancelLabel ?? l10nOf(context).shared_cancel` 兜底 ——
+  // zh 仍是「取消」逐字不变（既有 `find.text('取消')` 断言全绿），
+  // en 自动变 `Cancel`，且**再也不可能**回到中文兜底。
 
   /// 破坏性操作的主色（红）。
   static const Color danger = Color(0xFFE5544B);
@@ -200,8 +207,20 @@ class ChildConfirmCard extends StatelessWidget {
   /// 确认按钮文案（`确定种植` / `确定，扣除` / `确定铲除` / `确定`）。
   final String confirmLabel;
 
-  /// 取消按钮文案（默认 [ChildConfirmStyle.cancelLabel]）。
-  final String cancelLabel;
+  /// 取消按钮文案（**由调用方从 l10n 传**，通常 `l10n.shared_cancel`）。
+  ///
+  /// 🔴 F157-A2：本字段默认值已从硬编码常量 `'取消'` 改为 **null** —— 为 null 时
+  /// 壳内走 `l10nOf(context).shared_cancel`。既有十余处 `find.text('取消')` 断言
+  /// 依赖 zh 值，走 l10n 后 zh 仍逐字相同。
+  ///
+  /// ⚠️ **但兜底并不可靠，调用方必须显式传**（QA 实测结论）：本卡若经
+  /// [showChildConfirmCard] 弹出，context 挂在根 Navigator 上、**不在页级
+  /// `L10nScope` 之下** → `l10nOf` 拿不到页面语言；裸测试宿主回落
+  /// `AppLocalizationsZh`（**等同中文**），生产虽会落到 `MaterialApp.locale`
+  /// 那层但它与 `AppLocaleController.current` 是两条独立链路，不可依赖。
+  /// 故 `showChildConfirmCard` **用调用方传进来的页面 context 先行解析**
+  /// （见该函数注释），并由源码守卫强制每个调用点写 `cancelLabel:`。
+  final String? cancelLabel;
 
   /// 确认按钮语气档（金 / 红）。
   final ConfirmCardTone confirmTone;
@@ -215,7 +234,7 @@ class ChildConfirmCard extends StatelessWidget {
     this.warning,
     this.note,
     required this.confirmLabel,
-    this.cancelLabel = ChildConfirmStyle.cancelLabel,
+    this.cancelLabel,
     this.confirmTone = ConfirmCardTone.gold,
   });
 
@@ -224,6 +243,12 @@ class ChildConfirmCard extends StatelessWidget {
     final double s = uiScaleOf(context);
     final Size screen = MediaQuery.sizeOf(context);
     final bool danger = confirmTone == ConfirmCardTone.danger;
+    // F157-A2：**直接挂卡**（不经 showChildConfirmCard）时的最后一道保险。
+    // 注意它**不是语言感知的**：若本卡被 showDialog 弹出，context 在根 Navigator
+    // 上、不在页级 L10nScope 之下 → 拿不到页面语言，裸宿主回落中文。
+    // 生产路径一律经 showChildConfirmCard（它在**页面 context** 里先解析好再传）。
+    final String resolvedCancelLabel =
+        cancelLabel ?? l10nOf(context).shared_cancel;
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
@@ -310,7 +335,7 @@ class ChildConfirmCard extends StatelessWidget {
                     ),
                   ],
                   SizedBox(height: 18 * s),
-                  _buildActions(context, s),
+                  _buildActions(context, s, resolvedCancelLabel),
                 ],
               ),
             ),
@@ -349,7 +374,7 @@ class ChildConfirmCard extends StatelessWidget {
   ///
   /// 窄卡（320 屏）上取消按钮**不占固定 72 宽**：用 `shrinkWrap` 语义的
   /// `minimal` 内边距 + 仅 44 最小宽，把宽度让给确认按钮，避免大字号下折行。
-  Widget _buildActions(BuildContext context, double s) {
+  Widget _buildActions(BuildContext context, double s, String cancelText) {
     final bool danger = confirmTone == ConfirmCardTone.danger;
     return Row(
       children: <Widget>[
@@ -363,7 +388,7 @@ class ChildConfirmCard extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: 10 * s),
             textStyle: const TextStyle(fontSize: 16),
           ),
-          child: Text(cancelLabel),
+          child: Text(cancelText),
         ),
         SizedBox(width: 8 * s),
         Expanded(
@@ -452,6 +477,18 @@ class _RowLine extends StatelessWidget {
 /// [barrierDismissible] 默认 true（与 `showDialog` 默认一致）；原实现里
 /// `barrierDismissible: false` 的两处（专注退出 / 护眼提前结束）**逐字透传 false**，
 /// 保证「点卡外不误关」的既有语义不变。
+///
+/// ## 取消文案的解析位置（F157-A2）
+/// [cancelLabel] 为 null 时，**在本函数内、用调用方传进来的 [context] 解析**
+/// （此时还没进 `showDialog`，仍在页级 `L10nScope` 内），再把具体字符串透传给卡片。
+/// 原因：`builder` 的 `ctx` 在页级 scope **之外**（弹窗铁律），在里面解析会拿到
+/// 兜底中文 —— 英文界面就会弹出中文「取消」。
+///
+/// ⚠️ 也正因如此，**调用方必须显式传** `cancelLabel:`：本函数这一层的解析用的是
+/// **页面 context**（可靠），可一旦有人绕过本函数、直接 `showDialog(() =>
+/// ChildConfirmCard(...))`，卡内兜底就退化成中文。故
+/// `gold_notice_confirm_label_l10n_test.dart` ④ 用源码守卫强制**每个**调用点都写
+/// `cancelLabel:`。
 Future<bool?> showChildConfirmCard({
   required BuildContext context,
   required String title,
@@ -461,10 +498,12 @@ Future<bool?> showChildConfirmCard({
   String? warning,
   String? note,
   required String confirmLabel,
-  String cancelLabel = ChildConfirmStyle.cancelLabel,
+  String? cancelLabel,
   ConfirmCardTone confirmTone = ConfirmCardTone.gold,
   bool barrierDismissible = true,
 }) {
+  final String resolvedCancelLabel =
+      cancelLabel ?? l10nOf(context).shared_cancel;
   return showDialog<bool>(
     context: context,
     barrierDismissible: barrierDismissible,
@@ -476,7 +515,7 @@ Future<bool?> showChildConfirmCard({
       warning: warning,
       note: note,
       confirmLabel: confirmLabel,
-      cancelLabel: cancelLabel,
+      cancelLabel: resolvedCancelLabel,
       confirmTone: confirmTone,
     ),
   );

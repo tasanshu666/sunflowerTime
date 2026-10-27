@@ -266,18 +266,27 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
 
   /// 「完美日」庆祝卡（F141 ③：改走孩子端统一**通知卡**壳）。
   ///
-  /// 文案逐字不变；按钮用 [GoldNoticeStyle.confirmLabel] 的定制值「太棒啦」。
-  /// 只有祝贺、没有任何选择，故仍走单按钮通知卡（不套二次确认卡）。
+  /// 🔴 F157-A2（玄参 2026-10-27 英文界面实测漏网）：三句文案原是**硬编码中文**，
+  /// 英文界面整段串中文（本批最严重的一处）。现迁 ARB 三条既有词条
+  /// （`task_perfect_title` / `task_perfect_footer` / `task_perfect_ok`）：
+  ///  · **zh 逐字不变**（含 emoji 与「」标点，一个字未动 —— 既有 6 处
+  ///    `find.text('🌻 今日成长项全部完成！')` 之类断言因此全绿）；
+  ///  · en 为口语化直译（`🌻 All growth tasks done today!` / `…earned a "Perfect Day"
+  ///    badge!` / `Awesome!`），保持激励语气、非机翻腔。
+  ///
+  /// 按钮仍走 `confirmLabel` 显式定制槽位（F157 起该槽位默认值改为「由调用方从
+  /// l10n 传」，本处传 `task_perfect_ok`）。只有祝贺、没有任何选择，故仍走单按钮
+  /// 通知卡（不套二次确认卡）。
   Future<void> _celebratePerfectDay() async {
     if (!mounted) return;
+    // 文案经页级 l10n 单点解析（`_t` = L10nScope 内取到的实例，异步回调安全）。
+    final AppLocalizations t = _t;
     await showGoldNoticeDialog(
       context,
-      // ⚠️ i18n B1 豁免：f141_qa_probe_test A4③ 源码守卫逐字钉死这三句中文，
-      // 迁 ARB 会使守卫失败（文案零变更护栏），故保持字面量（与 DEBUG 文案同口径）。
-      title: '🌻 今日成长项全部完成！',
+      title: t.task_perfect_title,
       items: const <GoldNoticeItem>[],
-      footerText: '你今天把全部成长项都做完啦，获得「完美日」标记！',
-      confirmLabel: '太棒啦',
+      footerText: t.task_perfect_footer,
+      confirmLabel: t.task_perfect_ok,
       badgeIcon: Icons.emoji_events,
     );
   }

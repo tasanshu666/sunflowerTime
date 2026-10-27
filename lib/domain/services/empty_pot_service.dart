@@ -173,6 +173,52 @@ class EmptyPotService {
   Future<void> clearForPlanting(int potIndex) =>
       _disturbances.deletePot(potIndex);
 
+  /// **调试专用**（F157-FEAT-3，玄参 2026-10-27「建了空盆验证不了」）：
+  /// 强制某个空盆**今天**长出杂草 / 害虫。
+  ///
+  /// ## 为什么需要它
+  /// 空盆 roll 每天只有 [kEmptyPotWeedRate] 20% / [kEmptyPotPestRate] 15%，且默认
+  /// **首日免疫**（见文件头），真机上根本无法稳定复现 F155/F156 的空盆草虫链路。
+  ///
+  /// ## 与生产**完全同语义**（绝不写脏数据）
+  ///  · `weedAt` / `pestAt` 写「**今天零点**」= 「今天出现」（次日零点 ≠ 今日零点 →
+  ///    自动失效，与 roll 出来的一模一样）；
+  ///  · `rollDay` 同步对齐到「今天零点」= 「今日已 roll」→ 之后任何 `tick` 都**不会**
+  ///    重掷骰子把手工写入的状态覆盖掉（这正是"与生产同语义"的关键位）；
+  ///  · 另一侧（草 / 虫）**原样保留**（与 [copyWith] 的未传语义一致）。
+  ///
+  /// 清除**不在这里**：走既有 [clearWeed] / [clearPest]（带账本入账、带前置校验），
+  /// 这样玄参点「全清」时能同时验收奖励到账。
+  ///
+  /// ⚠️ 生产代码**永不**调用本方法（只由 `kDebugMode` 的调试面板调用）。
+  ///
+  /// ## 🔴 前置条件：调用方保证 [potIndex] 是**空盆**（本方法刻意**不做**校验）
+  /// F157-A2 主理人拍板：不在本方法内加「该盆是否为空」的 potIndex 校验，理由：
+  ///  · **生产入口已保证**——`bloom_debug_panel` 的下拉项只来自
+  ///    「容量 − 已占用盆位」的空盆集合，非法盆号根本选不出来；
+  ///  · **生产滚动静默兜底**——`tick` 里「非空盆即删行」的防御会把脏记录清掉，
+  ///    所以就算真被塞了一个占用盆号，也不会留下长期脏数据；
+  ///  · 加校验需要额外 `await` 一次植物仓储（无 DB 的 widget 测试宿主里这类查询
+  ///    **可能永不返回**，见 `bloom_debug_panel._refreshPotStates` 的旁路纪律），
+  ///    收益低、风险高。
+  ///
+  /// 🔴 因此：**将来若要把本方法复用到空盆以外的场景（生产逻辑 / 家长端入口 /
+  /// 批量脚本），必须先在调用侧自行校验空盆**，否则会写出与生产语义不符的记录。
+  Future<void> forceDisturbanceForDebug({
+    required int potIndex,
+    required bool weed,
+    DateTime? now,
+  }) async {
+    final DateTime current = now ?? DateTime.now();
+    final DateTime today = DateTime(current.year, current.month, current.day);
+    final PotDisturbance? prev = await _disturbances.disturbanceOf(potIndex);
+    final PotDisturbance base = prev ?? PotDisturbance(potIndex: potIndex);
+    final PotDisturbance next = weed
+        ? base.copyWith(weedAt: today, rollDay: today)
+        : base.copyWith(pestAt: today, rollDay: today);
+    await _disturbances.save(next);
+  }
+
   /// [clearWeed] / [clearPest] 的公共实现（校验 → 入账 → 清字段）。
   Future<void> _clear({
     required int potIndex,

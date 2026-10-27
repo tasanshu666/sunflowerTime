@@ -29,6 +29,8 @@
 /// 免得后来者看到中文就顺手搬走（搬走也不会变好，只会多 8 个没人看的 key）。
 library bloom_debug_panel;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -38,8 +40,12 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/pending_bloom_reward.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
+import 'package:sunflower_time/domain/entities/pot_disturbance.dart';
+import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
+import 'package:sunflower_time/domain/repositories/pot_disturbance_repository.dart';
+import 'package:sunflower_time/domain/services/empty_pot_service.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
@@ -137,6 +143,25 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
   bool _busy = false;
   bool _loaded = false;
 
+  // ── 空盆干扰物调试（F157-FEAT-3）─────────────────────────────────────────
+  //
+  // 背景（玄参 2026-10-27 原话）：「我没有调试按钮，建了空盆之后，我不能在空盆上
+  // 让它直接长草或长虫，然后再去清除草和虫」。空盆 roll 每天只有 20% / 15%，
+  // 且默认首日免疫 → 真机等不到，必须给一个**确定性**入口。
+
+  /// 当前花盆容量（`settings.gardenPotCapacity`，与花园页 `_capacity` 同源）。
+  int _capacity = 0;
+
+  /// 当前**空盆**序号（升序；= 容量范围内没有任何植物行占用的盆，含死亡残株占用的
+  /// 盆不算空 —— 与花园页 `_occupantOf(i) == null` 同一判据）。
+  List<int> _emptyPots = <int>[];
+
+  /// 调试动作的目标空盆（默认 = [_emptyPots] 第一个）。
+  int? _emptyPotSel;
+
+  /// 各空盆的当日干扰物状态（做「当前状态」回显，方便对照浮标）。
+  Map<int, PotDisturbance> _potStates = <int, PotDisturbance>{};
+
   @override
   void initState() {
     super.initState();
@@ -146,6 +171,13 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
   PlantRepository get _repo => ref.read(plantRepositoryProvider);
   BloomRewardRepository get _bloom => ref.read(bloomRewardRepositoryProvider);
   PlantGrowthService get _svc => ref.read(plantGrowthServiceProvider);
+
+  /// 空盆干扰物仓储（**只读**状态回显用；写操作一律走 [EmptyPotService]）。
+  PotDisturbanceRepository get _potRepo =>
+      ref.read(potDisturbanceRepositoryProvider);
+
+  /// 空盆干扰物服务（生产同一实例：账本入账 / 幂等口径单点）。
+  EmptyPotService get _emptyPotSvc => ref.read(emptyPotServiceProvider);
 
   /// 当前选中的植物（无则为 null）。
   Plant? get _selected {
@@ -172,6 +204,27 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
         await _svc.collectibleBloomRewards(now);
     final double balance = await ref.read(sunlightRepositoryProvider).balance();
 
+    // 空盆调试（F157-FEAT-3）：容量 ← 设置（与花园页 `_capacity` 同源）；
+    // 空盆 = 容量内无任何植物行占用的盆（死亡残株仍占盆，故不算空，与
+    // `garden_page.dart` 的 `_occupantOf(i) == null` 判据逐字一致）。
+    final AppSettings settings =
+        await ref.read(settingsRepositoryProvider).getSettings();
+    final int capacity = settings.gardenPotCapacity;
+    final Set<int> occupied =
+        <int>{for (final Plant p in plants) p.potIndex};
+    final List<int> emptyPots = <int>[
+      for (int i = 0; i < capacity; i++)
+        if (!occupied.contains(i)) i,
+    ];
+    // 🔴 空盆**状态**的读库必须**旁路（不 await）**，理由与 `garden_page._refreshEmptyPots`
+    // 逐字相同：纯 widget 测试宿主通常没注入 DB（`potDisturbanceRepositoryProvider`
+    // 会落到真实 drift 仓储），`disturbances()` 的查询**可能永不返回**（不是抛错，是
+    // await 不回来）。一旦在主路径 await，`_loaded` 永远为 false → 整个面板停在加载圈，
+    // 存量用例（`bloom_debug_panel_test` / `consent_preview_test` /
+    // `qa_independent_round2_ef_test` / `garden_bloom_reward_after_force_adult_test`）
+    // 集体变红（本轮实测踩到过）。降级 = 状态回显显示「无记录」，按钮照常可用。
+    unawaited(_refreshPotStates());
+
     // 稳定排序：先按花盆序号。
     plants.sort((Plant a, Plant b) => a.potIndex.compareTo(b.potIndex));
 
@@ -181,6 +234,12 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
       _species = species;
       _collectibleIds = collectibles.keys.toSet();
       _balance = balance;
+      _capacity = capacity;
+      _emptyPots = emptyPots;
+      // 选中的空盆消失了（已种下 / 扩容取消）→ 回落到第一个空盆。
+      if (_emptyPotSel == null || !emptyPots.contains(_emptyPotSel)) {
+        _emptyPotSel = emptyPots.isEmpty ? null : emptyPots.first;
+      }
       if (_selectedId == null ||
           !plants.any((Plant p) => p.id == _selectedId)) {
         _selectedId = plants.isEmpty ? null : plants.first.id;
@@ -189,6 +248,25 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
       if (cur != null) _slider = cur.growthProgress.clamp(0.0, 1.0);
       _loaded = true;
     });
+  }
+
+  /// 旁路读取各空盆的干扰物状态（**不 await、独立 try/catch、失败静默降级**）。
+  ///
+  /// 为什么旁路：见 [_refresh] 里 `unawaited(_refreshPotStates())` 处的注释
+  /// （无 DB 的 widget 测试宿主里查询可能永不返回）。
+  Future<void> _refreshPotStates() async {
+    try {
+      final List<PotDisturbance> rows = await _potRepo.disturbances();
+      if (!mounted) return;
+      setState(() {
+        _potStates = <int, PotDisturbance>{
+          for (final PotDisturbance d in rows) d.potIndex: d,
+        };
+      });
+    } catch (_) {
+      // 降级：状态回显退化为「今天还没 roll 过（无记录）」，三个按钮仍可用
+      // （写操作各自走领域服务，错误由 [_run] 统一提示）。
+    }
   }
 
   void _snack(String msg) {
@@ -351,6 +429,64 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
         await _svc.tickAll(DateTime.now());
       });
 
+  // ── 空盆干扰物调试动作（F157-FEAT-3）─────────────────────────────────────
+
+  /// 「空盆长草」/「空盆长虫」：给**选中的空盆**强制写入今天的干扰物。
+  ///
+  /// 走领域单点 [EmptyPotService.forceDisturbanceForDebug]（不绕过仓储直写数据，
+  /// 语义与生产 roll 完全一致：`weedAt/pestAt = rollDay = 今天零点`）。
+  Future<void> _forceEmptyPotDisturbance({required bool weed}) =>
+      _run(() async {
+        final int? idx = _emptyPotSel;
+        if (idx == null) {
+          _snack('没有空盆可调试：先铲掉一株，或先在花园里加一个盆位～');
+          return;
+        }
+        await _emptyPotSvc.forceDisturbanceForDebug(
+          potIndex: idx,
+          weed: weed,
+          now: DateTime.now(),
+        );
+      });
+
+  /// 「空盆草虫全清」：对选中的空盆执行**生产同一条链路**的 [EmptyPotService.clearWeed]
+  /// / [clearPest]（带前置校验 + 账本入账），草与虫各自独立结算。
+  ///
+  /// 为什么不在本面板直接改字段：清除要**入账**（与孩子真机点浮标完全一致），
+  /// 玄参才能在同一次验收里核对「奖励到账 + 账本行」；面板不复制发奖逻辑
+  /// （宪法总纪律 #2 单点收口）。
+  ///
+  /// 称号加成：调试路径按 [PlantPerk.none] 结算（不读门控 Provider —— 调试面板
+  /// 不该依赖「当前孩子称号」这条异步链路；奖励金额差异不影响链路验证）。
+  Future<void> _clearEmptyPotDisturbance() => _run(() async {
+        final int? idx = _emptyPotSel;
+        if (idx == null) {
+          _snack('没有空盆可调试：先铲掉一株，或先在花园里加一个盆位～');
+          return;
+        }
+        final DateTime now = DateTime.now();
+        // 状态取面板已加载的回显（避免再打一次库）；面板尚未读到（无 DB 的宿主 /
+        // 首次刷新未完成）时兜底现查一次。
+        final PotDisturbance? d =
+            _potStates[idx] ?? await _potRepo.disturbanceOf(idx);
+        if (d == null || !d.hasPestOrWeed) {
+          _snack('盆 #$idx 现在没有草 / 虫（先点「空盆长草」或「空盆长虫」）');
+          return;
+        }
+        if (d.hasWeed) await _emptyPotSvc.clearWeed(idx, now);
+        if (d.hasPest) await _emptyPotSvc.clearPest(idx, now);
+      });
+
+  /// 空盆序号 → 一行状态文案（面板「当前空盆」回显用）。
+  String _emptyPotStateLabel(int potIndex) {
+    final PotDisturbance? d = _potStates[potIndex];
+    if (d == null) return '今天还没 roll 过（无记录）';
+    if (!d.hasPestOrWeed) return '草 / 虫：无';
+    if (d.hasWeed && d.hasPest) return '草 + 虫：都有$kGardenWeedEmoji$kGardenPestEmoji';
+    if (d.hasWeed) return '草：有$kGardenWeedEmoji';
+    return '虫：有$kGardenPestEmoji';
+  }
+
   /// 分段成长**演出预览**（玄参 2026-10-13 拍板）：只播选定过渡的成长演出 + 该物种
   /// 音效，**不改植物状态**（纯预览，方便逐个物种验收 C59 的 15 段音效）。
   ///
@@ -463,11 +599,15 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Center(child: CircularProgressIndicator()),
               )
-            else if (_plants.isEmpty)
+            else if (_plants.isEmpty) ...<Widget>[
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Text('花园里还没有植物，先种一株再来调试吧～'),
-              )
+              ),
+              // 空盆调试与「有没有植物」无关：一株都没种也应该能用
+              // （玄参场景 = 只有空盆，正是最需要强制长草的时刻）。
+              _emptyPotSection(),
+            ]
             else ...<Widget>[
               // ── 植物选择 ──────────────────────────────────────────────
               InputDecorator(
@@ -627,9 +767,114 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
                   ),
                 ],
               ),
+
+              // ── 空盆干扰物调试（F157-FEAT-3）─────────────────────────────
+              // 🔴 **位置纪律：必须留在列表末尾**（后面不要再往它上面插内容）。
+              //    花园页/QA 既有 4 个用例在 360×780 下**不滚动**就 `find.text(...)`
+              //    断言面板中段的状态卡与按钮（`bloom_debug_panel_test` /
+              //    `qa_independent_round2_ef_test` / `consent_preview_test` /
+              //    `garden_bloom_reward_after_force_adult_test`）；本区块插在顶部会把
+              //    它们顶出 `ListView` 的懒构建窗口（默认 cacheExtent 250）→ 存量用例
+              //    集体变红。放末尾 = 既有条目 offset 逐像素不变（零回归），
+              //    新入口多滚一屏即可见（面板本来就是可滚动列表）。
+              _emptyPotSection(),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// 空盆干扰物调试区块（F157-FEAT-3；玄参 2026-10-27「空盆验证不了」）。
+  ///
+  /// 三个动作都作用于**当前选中的空盆**（默认 = 第一个空盆，可在下拉里切换）：
+  ///  · 「空盆长草」/「空盆长虫」→ [EmptyPotService.forceDisturbanceForDebug]；
+  ///  · 「空盆草虫全清」→ [EmptyPotService.clearWeed] + [clearPest]（生产同链路、带入账）。
+  ///
+  /// 没有空盆时三个按钮**全部禁用**并给出可操作的提示文案（不静默、不空转）。
+  Widget _emptyPotSection() {
+    final int? sel = _emptyPotSel;
+    final bool noEmptyPot = _emptyPots.isEmpty;
+    final bool disabled = _busy || sel == null;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE8C79A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            '空盆干扰（草 / 虫）',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          if (noEmptyPot)
+            Text(
+              '当前没有空盆（容量 $_capacity 盆全被占用）→ 先在花园里铲掉一株，'
+              '或用「加盆」增加一个盆位',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            )
+          else ...<Widget>[
+            // 选中盆切换（多于一个空盆时才需要下拉，单盆时只显示文案）。
+            if (_emptyPots.length > 1)
+              DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: sel,
+                  isExpanded: true,
+                  isDense: true,
+                  items: <DropdownMenuItem<int>>[
+                    for (final int i in _emptyPots)
+                      DropdownMenuItem<int>(
+                        value: i,
+                        child: Text(
+                          '盆 #$i · ${_emptyPotStateLabel(i)}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (int? v) {
+                          if (v == null) return;
+                          setState(() => _emptyPotSel = v);
+                        },
+                ),
+              ),
+            Text(
+              '目标：盆 #$sel · 容量 $_capacity 盆 · 空盆 ${_emptyPots.length} 个 · '
+              '当前状态：${_emptyPotStateLabel(sel ?? -1)}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              FilledButton.tonal(
+                onPressed: disabled
+                    ? null
+                    : () => _forceEmptyPotDisturbance(weed: true),
+                child: const Text('空盆长草$kGardenWeedEmoji'),
+              ),
+              FilledButton.tonal(
+                onPressed: disabled
+                    ? null
+                    : () => _forceEmptyPotDisturbance(weed: false),
+                child: const Text('空盆长虫$kGardenPestEmoji'),
+              ),
+              FilledButton.tonal(
+                onPressed: disabled ? null : _clearEmptyPotDisturbance,
+                child: const Text('空盆草虫全清'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

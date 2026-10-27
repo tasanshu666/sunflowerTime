@@ -31,6 +31,7 @@ library gold_notice_dialog;
 
 import 'package:flutter/material.dart';
 
+import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
 import 'package:sunflower_time/shared/responsive.dart' show uiScaleOf;
 
 /// 通知卡的**语气档位**（单按钮通知卡的语义分档）。
@@ -102,8 +103,27 @@ abstract final class GoldNoticeStyle {
   /// 条目左侧图标方块圆角。
   static const double itemTileRadius = 10;
 
-  /// 确认按钮统一文案（两张卡一致；改文案只改这里）。
-  static const String confirmLabel = '知道啦';
+  /// ~~确认按钮统一文案「知道啦」~~ —— **F157-BUG-2 已退役（2026-10-27 玄参真机）**。
+  ///
+  /// 为什么删掉这条常量：它是**硬编码中文**，被当成 [GoldNoticeDialog.confirmLabel]
+  /// 的默认值 → 整界面 English 时只有这张卡的按钮还是「知道啦」（玄参小米 14 Pro
+  /// 截图实证：标题 / 条目 / 合计全英文，唯独按钮中文）。
+  ///
+  /// 现口径：**按钮文案一律由调用方从 l10n 传入**（`l10n.shared_got_it`：zh「知道啦」、
+  /// en `Got it`）。调用方漏传时壳内仍有 `l10nOf(context).shared_got_it` 兜底，
+  /// 🔴 **但那不是「跟随界面语言」**（F157-A2 修正 —— 上一版这里写「兜底走的仍是
+  /// l10n（跟随当前界面语言），绝不再回落硬编码中文」是**错的**，会误导后人以为
+  /// 「不传也安全」）：
+  ///  · 本壳跑在 `showDialog` 的 `builder` 里，context 挂在**根 Navigator** 上、
+  ///    **不在页级 `L10nScope` 之下**，`l10nOf` 拿不到**页面**语言；
+  ///  · **裸测试宿主**（无 delegates）→ `AppLocalizations.of` 断言失败 → 回落
+  ///    `AppLocalizationsZh` → **兜底等同中文**，正是 BUG-2 的形态；
+  ///  · **生产环境**会落到 app 壳 `MaterialApp.locale` 那一层 → 语言**大概率**对，
+  ///    但那是与页级 `AppLocaleController.current` **平行的另一条链路**
+  ///    （F154 切语言不同步的老坑就是这两条链漂移造成），**不可依赖**。
+  ///
+  /// 故结论是：`null` 只是**不崩的保险**，**调用方必须显式传** `confirmLabel:`；
+  /// `test/i18n/gold_notice_confirm_label_l10n_test.dart` ④ 用源码守卫强制这一点。
 
   /// ![warn] 档的**徽标 / 按钮**底色（警示红）。
   ///
@@ -198,7 +218,7 @@ class GoldNoticeItem {
 ///        │  ☑ 任务名   +5 阳光 │  items（可为空）
 ///        │  ───────────────  │
 ///        │     合计 / 正文      │  footerText（null 则不渲染）
-///        │     [ 知道啦 ]      │  confirmLabel（可定制，如「太棒啦」）
+///        │     [ 知道啦 ]      │  confirmLabel（调用方从 l10n 传入；null → l10n 兜底）
 ///        └───────────────────┘
 /// ```
 ///
@@ -231,8 +251,24 @@ class GoldNoticeDialog extends StatelessWidget {
   /// 语气档位（决定徽标 / 标题 / 按钮配色，见 [NoticeTone]）。
   final NoticeTone tone;
 
-  /// 确认按钮文案（默认 [GoldNoticeStyle.confirmLabel]「知道啦」）。
-  final String confirmLabel;
+  /// 确认按钮文案（**调用方从 l10n 传入**，通常 `l10n.shared_got_it`）。
+  ///
+  /// 🔴 F157-BUG-2 / A2：本字段默认值已从硬编码常量 `'知道啦'` 改为 **null**，
+  /// 为 null 时壳内取 `l10nOf(context).shared_got_it`。
+  ///
+  /// ⚠️ **但兜底并不可靠，调用方必须显式传** —— 这是 QA 实测出来的结论：
+  /// 本壳运行在 `showDialog` 的 `builder` 里，其 context 挂在**根 Navigator** 上，
+  /// **不在页级 `L10nScope` 之下**，所以 `l10nOf` 拿不到**页面**当前语言：
+  ///  · 裸测试宿主（无 delegates）→ `AppLocalizations.of` 断言失败 → 回落
+  ///    `AppLocalizationsZh` → **兜底等同中文**（正是 BUG-2 的形态）；
+  ///  · 生产环境会落到 `MaterialApp.locale` 那一层，**看起来**是对的，但它与页级
+  ///    `AppLocaleController.current` 是**两条独立链路**（F154 切语言不同步的老坑
+  ///    就是这两条链漂移造成的），**不可依赖**。
+  ///
+  /// 结论：**兜底不是语言感知的**，`null` 只是「不崩」的保险，不是「跟随语言」的
+  /// 保证；`test/i18n/gold_notice_confirm_label_l10n_test.dart` ④ 用源码守卫强制
+  /// 每个 `showGoldNoticeDialog(` 调用点都必须写 `confirmLabel:`。
+  final String? confirmLabel;
 
   /// 点确认按钮的回调（默认由 [showGoldNoticeDialog] 传 `Navigator.pop`）。
   final VoidCallback? onConfirm;
@@ -244,7 +280,7 @@ class GoldNoticeDialog extends StatelessWidget {
     this.footerText,
     this.badgeIcon = Icons.emoji_events,
     this.tone = NoticeTone.gold,
-    this.confirmLabel = GoldNoticeStyle.confirmLabel,
+    this.confirmLabel,
     this.onConfirm,
   });
 
@@ -258,6 +294,12 @@ class GoldNoticeDialog extends StatelessWidget {
     final Color buttonFg = warn ? Colors.white : GoldNoticeStyle.buttonFg;
     // F141 修 3：极简通知（无标题、无条目）——只有一句正文 + 一个按钮。
     final bool compact = title == null && items.isEmpty;
+    // F157-BUG-2：调用方传了就用它。没传才走 `l10nOf` —— 但**这只是不崩的保险，
+    // 不是「跟随语言」**：本壳的 context 在根 Navigator 上，不在页级 L10nScope 之下，
+    // 裸宿主会回落 `AppLocalizationsZh`（等同中文）。故所有调用点必须显式传
+    // `confirmLabel:`（源码守卫见 gold_notice_confirm_label_l10n_test ④）。
+    final String resolvedConfirmLabel =
+        confirmLabel ?? l10nOf(context).shared_got_it;
     return Dialog(
       backgroundColor: Colors.transparent,
       // ⚠️ 不改这行：手机端「逐像素零回归」的前提（见 [GoldNoticeStyle.maxWidth]）。
@@ -381,7 +423,7 @@ class GoldNoticeDialog extends StatelessWidget {
                       ),
                       onPressed:
                           onConfirm ?? () => Navigator.of(context).pop(),
-                      child: Text(confirmLabel),
+                      child: Text(resolvedConfirmLabel),
                     ),
                   ],
                 ),
@@ -503,6 +545,14 @@ class _GoldNoticeItemRow extends StatelessWidget {
 /// [dialogKey] 透传给 [GoldNoticeDialog] 的 `key`（**只挂一层**，落在 `Dialog`
 /// 子树的根 Widget 上）—— 测试要用 `find.byKey(...)` 精确定位某一张通知卡时用；
 /// 为 null 时不挂 Key（默认，既有调用方行为不变）。
+///
+/// [confirmLabel] **必须由调用方从 l10n 传**（`l10n.shared_got_it`）。
+///
+/// ⚠️ 不传**不等于**「跟随语言」：本函数的 `builder` context 挂在根 Navigator 上，
+/// 不在页级 `L10nScope` 之下 → `l10nOf` 取不到页面语言，裸宿主回落中文
+/// （详见 [GoldNoticeDialog.confirmLabel] 的说明）。F157-BUG-2 之所以能复发，
+/// 就是因为「有兜底」被当成了「可以不传」。故本批加了源码守卫：
+/// `gold_notice_confirm_label_l10n_test.dart` ④ 断言每个调用点都写 `confirmLabel:`。
 Future<void> showGoldNoticeDialog(
   BuildContext context, {
   Key? dialogKey,
@@ -511,7 +561,7 @@ Future<void> showGoldNoticeDialog(
   String? footerText,
   IconData badgeIcon = Icons.emoji_events,
   NoticeTone tone = NoticeTone.gold,
-  String confirmLabel = GoldNoticeStyle.confirmLabel,
+  String? confirmLabel,
   bool barrierDismissible = true,
 }) {
   return showDialog<void>(

@@ -40,7 +40,6 @@ import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart'
     show
         ChildConfirmCard,
-        ChildConfirmStyle,
         ConfirmCardRow,
         ConfirmCardTone,
         showChildConfirmCard;
@@ -61,9 +60,9 @@ import 'package:sunflower_time/core/i18n/species_l10n.dart';
 /// **一行都不用改**。
 typedef PlantConfirmRow = ConfirmCardRow;
 
-/// 种植确认卡的样式常量（与 [GoldNoticeStyle] / [ChildConfirmStyle] 同源）。
+/// 种植确认卡的样式常量（与 `GoldNoticeStyle` / `ChildConfirmStyle` 同源）。
 ///
-/// F135 起真正的尺寸口径全部搬进 [ChildConfirmStyle]（四张卡共用），本类只保留
+/// F135 起真正的尺寸口径全部搬进 `ChildConfirmStyle`（四张卡共用），本类只保留
 /// 「种植卡特有」的物种预览尺寸与两个回归红线文案，供既有引用继续编译。
 abstract final class PlantConfirmStyle {
   /// 物种预览图的底块边长（**独立于**共享卡壳：只有种植卡有物种预览）。
@@ -72,8 +71,10 @@ abstract final class PlantConfirmStyle {
   /// 物种预览图底块圆角。
   static const double heroRadius = 24;
 
-  /// 取消按钮字面量（回归红线，勿改）。
-  static const String cancelLabel = ChildConfirmStyle.cancelLabel;
+  // 🔴 F157-A2：`cancelLabel` 常量**已退役**（原 `static const String cancelLabel
+  // = ChildConfirmStyle.cancelLabel`，即硬编码 `'取消'`）。中文默认值躺在这里的
+  // 后果就是英文界面弹中文按钮；现在取消文案一律由壳内
+  // `l10nOf(context).shared_cancel` 解析（zh「取消」逐字不变 / en `Cancel`）。
 
   /// 确认按钮字面量（回归红线，勿改）。
   static const String confirmLabel = '确定种植';
@@ -98,7 +99,9 @@ Future<bool?> showPlantConfirmDialog({
     rows: rows,
     note: remainingText,
     confirmLabel: confirmLabel,
-    cancelLabel: cancelLabel ?? PlantConfirmStyle.cancelLabel,
+    // F157-A2：不传就按**调用方页级 scope** 解析（这里 context 还是页面 context，
+    // 尚未进入 `showDialog` 的新宿主），zh「取消」逐字不变 / en `Cancel`。
+    cancelLabel: cancelLabel ?? l10nOf(context).shared_cancel,
     confirmTone: ConfirmCardTone.gold,
   );
 }
@@ -149,7 +152,9 @@ class PlantConfirmDialog extends StatelessWidget {
             rows: rows,
             note: remainingText,
             confirmLabel: confirmLabel ?? l10n.plant_confirm_ok,
-            cancelLabel: PlantConfirmStyle.cancelLabel,
+            // F157-A2：本 build 已包 L10nScope，取消按钮直接取 l10n；
+            // 不再传硬编码 `'取消'`（英文界面会串中文）。
+            cancelLabel: l10n.shared_cancel,
             confirmTone: ConfirmCardTone.gold,
           );
         },

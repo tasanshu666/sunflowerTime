@@ -25,6 +25,7 @@
 /// · 核实落盘一律 `File.readAsStringSync()`（本机 bash grep 不可靠）。
 library f141_qa_probe_test;
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -92,6 +93,36 @@ String _slice(String src, String start, String end) {
   final int b = src.indexOf(end, a + start.length);
   expect(b, greaterThan(a), reason: '切片终点 `$end` 不存在');
   return src.substring(a, b);
+}
+
+/// 汉字（CJK 统一表意文字基本区）匹配器 —— 用于「源码里不许再有中文字面量」。
+final RegExp _cjk = RegExp(r'[\u4e00-\u9fff]');
+
+/// 读 ARB 词条表（`lib/l10n/app_<lang>.arb`）。
+///
+/// 为什么直接解析 ARB 而不是用 generated 里的 `AppLocalizationsZh()`：
+/// 本守卫要钉的是「**词条值**逐字等于改前那三句」，ARB 才是唯一事实源；
+/// generated 是产物（可能过期 / 可能被手工改）。
+Map<String, dynamic> _arb(String lang) {
+  final File f = File('${_root()}/lib/l10n/app_$lang.arb');
+  expect(f.existsSync(), isTrue, reason: 'ARB 文件缺失：${f.path}');
+  return jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
+}
+
+/// 去掉注释后的**纯代码**（整行 `//` / `///` 整行丢弃；行尾 `//...` 截断）。
+///
+/// 用途：`child_task_page.dart` 的注释里合法地出现中文（说明文字），
+/// 只有**字面量**里的中文才是漏网 —— 故先剥注释再查汉字。
+/// 只会「减内容」不会「加内容」，因此不会制造假阳性。
+String _stripComments(String src) {
+  final StringBuffer out = StringBuffer();
+  for (final String line in src.split('\n')) {
+    final String trimmed = line.trimLeft();
+    if (trimmed.startsWith('//')) continue;
+    final int slash = line.indexOf('//');
+    out.writeln(slash >= 0 ? line.substring(0, slash) : line);
+  }
+  return out.toString();
 }
 
 /// 固定视口 + 拦资产 + mock `SystemChannels.platform`。
@@ -503,28 +534,89 @@ void main() {
       );
     });
 
-    test('A4 ③ 完美日：源码切片里三句逐字 + 无裸 AlertDialog', () {
+    test('A4 ③ 完美日：ARB zh 三句逐字 + 页面零中文字面量 + 无裸 AlertDialog', () {
       final String src = _src('child/pages/child_task_page.dart');
       final String body = _slice(
         src,
         'Future<void> _celebratePerfectDay()',
         'void _snack(',
       );
-      expect(body.contains("showGoldNoticeDialog("), isTrue,
+
+      // ── 段一：调用形态（F141 原有四条，**一条不删、不弱化**）─────────────
+      expect(body.contains('showGoldNoticeDialog('), isTrue,
           reason: '③ 必须走统一通知卡壳');
-      expect(body.contains("title: '🌻 今日成长项全部完成！',"), isTrue,
-          reason: '标题逐字');
-      expect(
-          body.contains("footerText: '你今天把全部成长项都做完啦，获得「完美日」标记！',"),
-          isTrue,
-          reason: '正文逐字（改前在 AlertDialog.content，现落到 footerText）');
-      expect(body.contains("confirmLabel: '太棒啦',"), isTrue,
-          reason: '按钮逐字');
       expect(body.contains('items: const <GoldNoticeItem>[],'), isTrue,
           reason: '③ 无明细：显式空列表（走「不画悬挂分隔线」分支）');
       expect(body.contains('AlertDialog'), isFalse, reason: '③ 不得残留裸弹窗');
       expect(body.contains('Text('), isFalse,
           reason: '③ 不应自己拼 Text（文案全由卡壳渲染）');
+
+      // ── 段二（F157-A2 改写）：三句迁 ARB 后，「逐字」的钉子挪到**词条值**上 ──
+      //
+      // 改前（F141）这里钉的是源码字面量，逐字对照如下：
+      //   OLD: body.contains("title: '🌻 今日成长项全部完成！',")
+      //   NEW: _arb('zh')['task_perfect_title'] == '🌻 今日成长项全部完成！'
+      //        + body 里确实出现 `task_perfect_title`（页面真的用了这条词条）
+      //   OLD: body.contains("footerText: '你今天把全部成长项都做完啦，获得「完美日」标记！',")
+      //   NEW: _arb('zh')['task_perfect_footer'] == '你今天把全部成长项都做完啦，获得「完美日」标记！'
+      //        + body 里确实出现 `task_perfect_footer`
+      //   OLD: body.contains("confirmLabel: '太棒啦',")
+      //   NEW: _arb('zh')['task_perfect_ok'] == '太棒啦'
+      //        + body 里确实出现 `task_perfect_ok`
+      //   NEW（新增的一条，强度只增不减）: 去注释后整页**零汉字**
+      //
+      // 三条合起来与原守卫等价且更强：词条值不许漂（管文案逐字）、页面不许再
+      // 出现中文字面量（管「将来有人顺手写回硬编码」）。少一条都够不着原强度。
+      final Map<String, dynamic> zh = _arb('zh');
+      expect(zh['task_perfect_title'], '🌻 今日成长项全部完成！',
+          reason: '③ ARB zh 标题必须与改前 AlertDialog.title 逐字相同（含 emoji）');
+      expect(zh['task_perfect_footer'], '你今天把全部成长项都做完啦，获得「完美日」标记！',
+          reason: '③ ARB zh 正文必须与改前 AlertDialog.content 逐字相同（含「」标点）');
+      expect(zh['task_perfect_ok'], '太棒啦',
+          reason: '③ ARB zh 按钮必须与改前 AlertDialog 按钮逐字相同');
+
+      expect(body.contains('task_perfect_title'), isTrue,
+          reason: '③ 页面标题确实取该词条（不是另起一条新 key）');
+      expect(body.contains('task_perfect_footer'), isTrue,
+          reason: '③ 页面正文确实取该词条');
+      expect(body.contains('task_perfect_ok'), isTrue,
+          reason: '③ 页面按钮确实取该词条');
+
+      // ── 段三（QA 复验补强）：**槽位 ↔ 词条**整串钉死 ──────────────────────
+      //
+      // 只钉 `body.contains('task_perfect_ok')` 是不够的：词条名出现在注释里也算，
+      // 且理论上有人把 `title:` 传成 `t.task_perfect_ok`（串位）仍会全绿。
+      // 故把改前「`title: '🌻 今日成长项全部完成！',`」的钉法**等价迁移**成
+      // 「`title: t.task_perfect_title`」—— 槽位与词条绑死，谁串位立刻红。
+      expect(body.contains('title: t.task_perfect_title'), isTrue,
+          reason: '③ `title:` 槽位必须绑 `t.task_perfect_title`（防把正文/按钮词条串到标题）');
+      expect(body.contains('footerText: t.task_perfect_footer'), isTrue,
+          reason: '③ `footerText:` 槽位必须绑 `t.task_perfect_footer`');
+      expect(body.contains('confirmLabel: t.task_perfect_ok'), isTrue,
+          reason: '③ `confirmLabel:` 槽位必须绑 `t.task_perfect_ok`');
+
+      // 页面级「零中文字面量」（剥注释后）—— 本批最严重的一处就是这三句，
+      // 只要有人写回一句硬编码，这条立刻红。
+      final String codeOnly = _stripComments(src);
+      final Iterable<Match> hits = _cjk.allMatches(codeOnly);
+      expect(hits, isEmpty,
+          reason: '③ child_task_page.dart 去注释后不得再出现中文字面量；'
+              '命中片段：${hits.map((Match m) => m.group(0)).take(10).join(' / ')}');
+
+      // 反向：en 侧不许是「中文没翻」的残留，也不许空串。
+      final Map<String, dynamic> en = _arb('en');
+      for (final String key in <String>[
+        'task_perfect_title',
+        'task_perfect_footer',
+        'task_perfect_ok',
+      ]) {
+        final Object? raw = en[key];
+        expect(raw, isNotNull, reason: '③ en ARB 缺词条 `$key`');
+        final String value = raw! as String;
+        expect(value.trim(), isNotEmpty, reason: '③ en `$key` 不得为空');
+        expect(_cjk.hasMatch(value), isFalse,
+            reason: '③ en `$key` 不得含中文（否则英文界面仍串中文）');
+      }
     });
 
     testWidgets('A4b ③ 空条目 + 有 footer 的渲染形态（不画悬挂分隔线 / 无异常）',

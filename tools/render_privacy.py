@@ -59,7 +59,7 @@ TEMPLATE = """<!DOCTYPE html>
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="src/assets/img/favicon-32.png">
 <meta property="og:type" content="article">
-<meta property="og:site_name" content="小小葵番茄钟 Tiny Bloom">
+<meta property="og:site_name" content="小小葵番茄钟 Tiny Sunflower">
 <meta property="og:title" content="{title}">
 <meta property="og:description" content="{description}">
 <meta property="og:url" content="{canonical}">
@@ -212,8 +212,8 @@ def main() -> None:
 
     zh = render(
         ZH_SRC, "zh-CN",
-        title="隐私政策｜小小葵番茄钟 Tiny Bloom",
-        description="小小葵番茄钟（Tiny Bloom）隐私政策：不联网、不收集个人信息，数据仅存本机。",
+        title="隐私政策｜小小葵番茄钟 Tiny Sunflower",
+        description="小小葵番茄钟（Tiny Sunflower）隐私政策：不联网、不收集个人信息，数据仅存本机。",
         canonical="https://sunfocused.cn/privacy.html",
         drop_heading="## 附：待确认项汇总",
         switcher='<a href="privacy-en.html" hreflang="en">English</a>',
@@ -226,8 +226,8 @@ def main() -> None:
 
     en = render(
         EN_SRC, "en",
-        title="Privacy Policy | Tiny Bloom",
-        description="Tiny Bloom privacy policy: offline by design, no personal data collected, everything stays on your device.",
+        title="Privacy Policy | Tiny Sunflower",
+        description="Tiny Sunflower privacy policy: offline by design, no personal data collected, everything stays on your device.",
         canonical="https://sunfocused.cn/privacy-en.html",
         drop_heading="## Open Items (to be confirmed)",
         switcher='<a href="privacy.html" hreflang="zh-Hans">简体中文</a>',

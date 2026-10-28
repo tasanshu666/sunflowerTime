@@ -1,4 +1,4 @@
-# Tiny Bloom (小小葵番茄钟) Privacy Policy
+# Tiny Sunflower (小小葵番茄钟) Privacy Policy
 
 > **Version**: v2.0 ｜ **Effective date**: 23 October 2026 ｜ **Scope**: **Global users (overseas-first)**, launching on the Apple App Store (US region primary)
 > **Applicable laws**: GDPR (EU), COPPA (US, children under 13), Apple App Store Kids Category requirements; Google Play Families Policy applies when the Android version launches (see Section 11)
@@ -7,7 +7,7 @@
 
 ## 1. A Note for Parents and Kids
 
-Tiny Bloom (Chinese name 小小葵番茄钟) is a utility app that helps children practise calm focus: kids earn "sunshine" by completing focus timers, then use it to grow plants in a garden and redeem rewards set by their parents. **This is not a product that collects information about you**: we do not upload any of your data to servers we operate, and we do not track you in any way. (In-app purchases are processed by the app store — Apple on iOS — see Section 4.)
+Tiny Sunflower (Chinese name 小小葵番茄钟) is a utility app that helps children practise calm focus: kids earn "sunshine" by completing focus timers, then use it to grow plants in a garden and redeem rewards set by their parents. **This is not a product that collects information about you**: we do not upload any of your data to servers we operate, and we do not track you in any way. (In-app purchases are processed by the app store — Apple on iOS — see Section 4.)
 
 - 👨‍👩‍👧 **For parents**: every piece of data your child creates in this app stays on your own phone. There is no account, no cloud, and nothing is sent to us or to any third party. The purchase feature is provided by the app store (Apple); we never see or store your payment information.
 - 🌻 **For kids**: this app will not ask for your name, your phone number, or where you live, and it will not send your information to anyone. Use it with peace of mind.
@@ -18,7 +18,7 @@ Tiny Bloom (Chinese name 小小葵番茄钟) is a utility app that helps childre
 
 | Item | Details |
 |---|---|
-| App name | **Tiny Bloom** (English) / **小小葵番茄钟** (Chinese) |
+| App name | **Tiny Sunflower** (English) / **小小葵番茄钟** (Chinese) |
 | Developer name | Xiaoxiaokui (小小葵, individual developer) |
 | Contact | 1007681634@qq.com |
 | Form | Standalone Flutter app: **no server we operate, no account system**; all data is stored on the device and is not uploaded (in-app purchase is settled by the app store — Apple on iOS — see Section 4) |

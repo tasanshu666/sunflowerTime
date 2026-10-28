@@ -9,10 +9,10 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get app_title => 'Tiny Bloom';
+  String get app_title => 'Tiny Sunflower';
 
   @override
-  String get consent_welcome_title => 'Welcome to Tiny Bloom';
+  String get consent_welcome_title => 'Welcome to Tiny Sunflower';
 
   @override
   String get consent_compliance_body =>
@@ -40,7 +40,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get consent_decline_body =>
-      'All Tiny Bloom data stays only on this device and is never uploaded to any server. We need your consent to this notice before the app can be used.\n\nYou can review the notice or the privacy policy again, or exit the app.';
+      'All Tiny Sunflower data stays only on this device and is never uploaded to any server. We need your consent to this notice before the app can be used.\n\nYou can review the notice or the privacy policy again, or exit the app.';
 
   @override
   String get consent_decline_stay => 'Reconsider';

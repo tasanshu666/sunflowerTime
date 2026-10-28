@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 小小葵番茄钟 / Tiny Sunflower · App 隐私清单（iOS 17+ 起 App Store 上传要求）
+	     口径：纯本地单机 App —— 不追踪、不收集任何用户数据、无第三方广告/分析 SDK。
+	     2026-10-28 由 F158 上架批次补入（引擎 Flutter.framework 与各插件另有自己的清单）。 -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<!-- UserDefaults：家长 PIN 哈希标记、已读通知 ack、语言/护眼间隔等本地设置。
+		     CA92.1 = 仅本 App 自身读取自己写入的 UserDefaults，不与任何外部共享。 -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

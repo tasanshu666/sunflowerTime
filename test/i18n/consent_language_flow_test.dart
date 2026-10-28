@@ -78,7 +78,7 @@ void main() {
     await tester.tap(find.text('English'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Welcome to Tiny Bloom'), findsOneWidget);
+    expect(find.text('Welcome to Tiny Sunflower'), findsOneWidget);
     expect(find.text("Let's Start"), findsOneWidget);
     expect(AppLocaleController.current.languageCode, 'en');
     expect(

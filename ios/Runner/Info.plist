@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Tiny Bloom</string>
+	<string>Tiny Sunflower</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -24,8 +24,15 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- 2026-10-28 补：ITMS-90683。本 App 只播放音频、从不录音。
+	     audio_session（just_audio 的依赖）iOS 源码内置了 requestRecordPermission 调用，
+	     Apple 静态检查器据此要求 NSMicrophoneUsageDescription（即使从不请求权限）。 -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Tiny Sunflower only plays music and sound effects. It does not record audio and never requests microphone access; this entry is required because the system audio playback component references microphone APIs.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

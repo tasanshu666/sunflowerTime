@@ -1,3 +1,7 @@
-/* 桌面显示名（英文/默认）——2026-10-23 改名 Tiny Bloom（暂定，上架查重冲突再改） */
-CFBundleDisplayName = "Tiny Bloom";
-CFBundleName = "Tiny Bloom";
+/* 桌面显示名（英文/默认）——2026-10-28 因 App Store Connect 查重定名 Tiny Sunflower（原 Tiny Bloom 已被占用） */
+CFBundleDisplayName = "Tiny Sunflower";
+CFBundleName = "Tiny Sunflower";
+
+/* 麦克风用途说明（2026-10-28 补，解 ITMS-90683）——本 App 从不录音、从不请求麦克风权限。
+   必须有这条，因为 audio_session 插件内置了 requestRecordPermission 调用，Apple 静态检查器会要求。 */
+NSMicrophoneUsageDescription = "Tiny Sunflower only plays music and sound effects. It does not record audio and never requests microphone access; this entry is required because the system audio playback component references microphone APIs.";

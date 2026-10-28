@@ -225,7 +225,7 @@ void main() {
           reason: '内部待办节不得进包');
       // 2026-10-23 改名 + 排版整改（玄参反馈）：
       expect(find.textContaining('小小葵番茄钟'), findsWidgets,
-          reason: '应用内政策资产应随底稿更名（小小葵番茄钟 / Tiny Bloom，正文多处出现）');
+          reason: '应用内政策资产应随底稿更名（小小葵番茄钟 / Tiny Sunflower，正文多处出现）');
       expect(find.textContaining('项：内容'), findsNothing,
           reason: '表格表头行「项 | 内容」必须跳过不渲染');
       expect(find.textContaining('包名'), findsNothing,

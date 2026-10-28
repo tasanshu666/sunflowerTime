@@ -2,6 +2,15 @@
 
 > 本批 spike 全量 bug / 编译阻塞修复记录。分支：`spike/s1-s2-s3`（本地，未提交）。
 > 状态：✅ 已修复 / ⏳ 待真机 / ⚠️ 待裁定
+>
+> ## 🔴 时效声明（2026-10-28 加注）
+>
+> 本表共 **19 处「⏳ 待真机」标记**，均为 2026-09～10 中旬的历史批次状态，**不代表当前未闭环**。
+>
+> 依据：2026-10-17 至 10-27 期间，玄参已在**小米 14 Pro + 荣耀平板**上完成多轮真机验收，覆盖 F143–F157 全部批次（详见 `docs/项目进度跟踪表.md` 状态权威头）。其间反馈的缺陷均已单独登记新条目并闭环。
+>
+> **判读规则**：旧条目若在后续真机验收中**未再复现**，即视为验证通过；若复现，按新缺陷重新登记，不要在旧行上覆写。
+> 表内「本批未提交」等措辞同样已过期，提交状态一律以 `git log` 为准。
 
 ---
 
@@ -930,3 +939,5 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 | **F148** | 孩子端·花园·花期调试面板→「预览首启欢迎页」→「查看完整隐私政策」按钮 | 预览欢迎页上点「查看完整隐私政策 ›」**毫无反应**（玄参 2026-10-23 目验 C110 批时反馈） | 首启告知 2.0 实现时写成了 `onPressed: preview ? null : () => context.push(...)`——预览模式下按钮被**禁用**（null = 置灰不可点），设计意图本是「预览不写状态」，误伤了条款入口 | `consent_page.dart` 统一为 `onPressed: () => context.push('/privacy-policy')`（政策页守卫本就免同意放行，预览跳转零状态写入）；新增接线守用例（mini GoRouter 真实入口：预览态点入口 → 政策全文页出现 + `consentedPolicyVersion()==0`）。🔴 附带坑：该用例 `pumpAndSettle` 超时——GoRouter 异步守卫（读 SP 的 Future）在 FakeAsync 下每帧重触发 rebuild，固定 pump 两帧替代；🔴 tap 前必须 `ensureVisible`（按钮在测试视口外，Offset(400,778) 越界落空） | ✅ 已修复（`6c0250f`），定向 12 例全绿 + 全量 3162 全绿、analyze 77 持平，待玄参模拟器复验 |
 
 | **F150** | 家长端（PIN 门内 设置 → 阳光赠予）→ 孩子端 | 家长赠予阳光成功后，孩子端**毫无感知**——没有金色提示卡弹出，只有余额数字静默变了（玄参 2026-10-23 晚反馈） | 赠予实现只做两件事：写 `sunlight_ledger`（refType=`parent_gift`）+ 自增 `economyRevision` 让孩子端各页**静默刷新余额**——从设计起就没有「到账提醒」逻辑；且孩子端 shell 在家长天地 pop 回来时也没有任何检查钩子（路由回来无信号） | 三层修复：① `SunlightRepository` 新增 `latestByRefType`（DAO/接口/实现三点，childId 过滤在实现内）；② `SettingsStore` 新增按孩子分键的 `ackedParentGiftId`（单值 id：只弹最新一条，余额对得上即可）；③ shell 新增 `_checkParentGiftNotice`，触发时机**只有两处**：外壳首帧后 + RouteAware `didPopNext`（家长天地 pop 回孩子端）——**刻意不挂 economyRevision 监听**（家长还在家长端操作时弹卡会挡住家长）。配套基建：全局 `childShellRouteObserver` 注册进 `GoRouter(observers:)`（14.8.1 支持），shell `with RouteAware`。金色卡走 `showGoldNoticeDialog` 统一壳（C105 槽位纪律：amountText 只放 `+N`） | ✅ 已实现待玄参验收（全量测试跑批中）；新增 `parent_gift_notice_test.dart` 4 例（首帧弹卡/去重/revision 路径绝不弹/didPopNext 弹卡）+ c90 隔离 2 断言 |
+
+| **F160** | 上架流程·iOS 二进制上传 | build **2100** 上传到 App Store Connect 后收到苹果拒收邮件：`ITMS-90683: Missing purpose string in Info.plist` —— `Runner.app` 缺少 `NSMicrophoneUsageDescription`；**本项目从不录音**，若不是这次拒收根本不会想到要声明麦克风 | **不是自研代码，是传递依赖**：`just_audio`（BGM/SFX 播放）依赖 `audio_session`，其 iOS 源码 `Sources/audio_session/DarwinAudioSession.m` 内置了 `recordPermission` / `requestRecordPermission:`（供录音场景使用）。Apple 的静态检查器**只看二进制里有没有这些符号**，与运行时是否真的调用无关，因此要求配套 purpose string（苹果邮件原文：「While your app might not use these APIs, a purpose string is still required.」）。同理**本地模拟器/真机 debug 包完全测不出来**，只有上传后的服务器端扫描会拦 | ① `ios/Runner/Info.plist` 新增 `NSMicrophoneUsageDescription`（英文基串，含注释说明来由）；② `ios/Runner/en.lproj/InfoPlist.strings` 同键英文串；③ `ios/Runner/zh-Hans.lproj/InfoPlist.strings` 同键中文串（文案：只播放音乐和音效、不录音、也不请求麦克风权限，此说明为系统音频播放组件所要求）；④ `pubspec.yaml` 版本 `1.0.0+2101` → **`1.0.0+2102`**（2101 归档带同一缺陷，重编前先换号，避免在 Organizer 里误传旧包）。**未采用**「Podfile `post_install` 给 audio_session 加 `GCC_PREPROCESSOR_DEFINITIONS = AUDIO_SESSION_MICROPHONE=0` 编译期剔除」方案——改第三方 pod 编译设置有构建失败风险，而每次失败都要重走「编译→上传→等 15–30 分钟→收邮件」循环，苹果已明示加串即可，故取确定路径（留作后续可选优化） | ✅ 已修复待上传复验。取证：`grep -rl "requestRecordPermission" Frameworks/*/* Runner` 仅命中 `Frameworks/audio_session.framework/audio_session`；附带体检另扫 10 类敏感 API（AVCaptureDevice / PHPhotoLibrary / CLLocationManager / CNContactStore / CBCentralManager / ASIdentifierManager / CMMotionActivityManager / SFSpeechRecognizer / MPMediaLibrary / HKHealthStore）**全部 0 命中**，不会二次同类拒收。用户侧零感知：因从不调用 `requestRecordPermission`，**系统永不弹麦克风授权框**，App 隐私标签仍为「不收集数据」。🔴 方法论：**「模拟器跑通 / 真机装得上」不等于「苹果收得下」**——上传后的静态扫描是独立的第三道关，任何新增插件都要按「是否引用敏感 API」复核一遍 |

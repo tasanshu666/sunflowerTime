@@ -418,7 +418,26 @@ class ChildConfirmCard extends StatelessWidget {
   }
 }
 
-/// 单行明细：图标 + 名称（可折行）+ 右侧金额（不折行）。
+/// 名称列与取值列的**宽度配比**（`Flexible` 的 flex 值）。
+///
+/// F162（玄参 2026-10-29 截图：英文商店「确认兑换」卡右侧 22px 溢出、
+/// 左侧「Item」被压成单字竖排）：原实现里取值是**无约束的裸 `Text`**，
+/// 只给名称 `Expanded`——取值一旦变长（本例是奖励名 `「Watch one cartoon
+/// episode」` 而非固定宽度的金额），它会按内容一路撑满，把名称挤到 ~12pt，
+/// 英文只能逐字母折行，同时整行超出面板右边界。
+///
+/// 现在两列**都是** `Expanded`（`FlexFit.tight`，不用 `Flexible`：
+/// 松约束下短取值会缩到内容宽，右端就贴不住卡边，金额看起来是浮的），
+/// 按 2:3 分配。手机 390 屏面板内可用 224pt → 名称 89.6 / 取值 134.4：
+///  · 名称侧最长英文 `Available`（约 70pt）仍单行放得下，不再逐字母竖排；
+///  · 取值侧长奖励名折成两行，**永不超过面板右边界**。
+///
+/// 两列都用 tight 还有一个副作用是好的：短取值（`−100 ☀`）在 134 宽的盒子里
+/// 右对齐，与改前「金额贴右边」的视觉逐像素一致，手机中文界面零回归。
+const int _kNameFlex = 2;
+const int _kValueFlex = 3;
+
+/// 单行明细：图标 + 名称（可折行）+ 右侧金额（可折行，右对齐）。
 class _RowLine extends StatelessWidget {
   final ConfirmCardRow row;
   final double scale;
@@ -445,6 +464,7 @@ class _RowLine extends StatelessWidget {
           ),
           SizedBox(width: 8 * scale),
           Expanded(
+            flex: _kNameFlex,
             child: Text(
               row.name,
               style: TextStyle(
@@ -455,12 +475,18 @@ class _RowLine extends StatelessWidget {
             ),
           ),
           SizedBox(width: 8 * scale),
-          Text(
-            row.value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: row.muted ? FontWeight.normal : FontWeight.bold,
-              color: valueColor,
+          // F162：取值列必须**受约束 + 右对齐**，否则长奖励名会撑出面板
+          // （溢出黄黑条）并把名称挤成单字竖排。
+          Expanded(
+            flex: _kValueFlex,
+            child: Text(
+              row.value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: row.muted ? FontWeight.normal : FontWeight.bold,
+                color: valueColor,
+              ),
             ),
           ),
         ],

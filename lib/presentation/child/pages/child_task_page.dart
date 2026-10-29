@@ -95,7 +95,35 @@ Widget _statusCapsule({
   // C48（玄参 2026-10-10）：两行文案 —— 非空时文案拆两行（如「我做」/「到了」），
   // 压窄方盒宽度，与「去专注」两行盒视觉对齐。
   String? textLine2,
+  // F161（玄参 2026-10-29）：**整枚胶囊宽度上限**。非空时胶囊不再按内容无限
+  // 撑开，超长文案（英文 "Waiting for approval" 等）在胶囊内部自行折行。
+  // 背景：手机 390pt 宽的卡片里，右侧胶囊按 intrinsic 取宽后把左侧标题挤成
+  // **逐字竖排**（标题只剩 ~30px，卡片高度暴涨）；平板屏宽够，不触发。
+  double? maxWidth,
 }) {
+  // 文案节点：单行 / 两行两种口径（原逻辑），抽成变量供「有界时包 Flexible」复用。
+  final Widget label = textLine2 != null
+      ? Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              text,
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700, color: fg),
+            ),
+            Text(
+              textLine2,
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700, color: fg),
+            ),
+          ],
+        )
+      : Text(
+          text,
+          style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: fg),
+        );
   final Widget inner = Container(
     width: fullWidth ? double.infinity : null,
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -116,36 +144,26 @@ Widget _statusCapsule({
           // 与紧邻的胶囊文案同步缩放，避免「字大了图标没大」。
           Icon(icon, size: 16, color: fg, applyTextScaling: true),
         const SizedBox(width: 4),
-        if (textLine2 != null)
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                text,
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w700, color: fg),
-              ),
-              Text(
-                textLine2,
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w700, color: fg),
-              ),
-            ],
-          )
-        else
-          Text(
-            text,
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg),
-          ),
+        // F161：Row 的**非 flex 子项**收到的是无界主轴约束（Text 永不算折行，
+        // 只会把整枚胶囊撑到超出可用宽度）；有上限时必须包 Flexible，
+        // 文本才会在 `maxWidth` 内折行、胶囊才真正「到顶为止」。
+        if (maxWidth == null) label else Flexible(fit: FlexFit.loose, child: label),
       ],
     ),
   );
-  if (onTap == null) return inner;
+  // F161：宽度上限包在最外层 —— 胶囊底色（Container）与文字一起被夹住，
+  // 不会出现「底色被夹、文字仍溢出」的半截状态。
+  final Widget body = maxWidth == null
+      ? inner
+      : ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: inner,
+        );
+  if (onTap == null) return body;
   return InkWell(
     onTap: onTap,
     borderRadius: BorderRadius.circular(borderRadius),
-    child: inner,
+    child: body,
   );
 }
 
@@ -626,18 +644,23 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                // F161（玄参 2026-10-29）：徽章 + 标题 **Row → Wrap**。
+                // 英文长标题 + 「Daily」徽章 + 右侧长状态胶囊三方抢宽度时，
+                // Row 的 Expanded 会被压到 ~27pt（逐字竖排，卡高 256pt）；
+                // Wrap 在同行放不下时让**标题整行换到下一行**独占宽度，
+                // 真到一行仍放不下才折词。中文短标题本来同行放得下，视觉不变。
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: <Widget>[
                     _dailyBadge(item.isDaily),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      // F154：预制任务显示名跟随当前语言（自定义/改过名原样）。
-                      child: Text(taskDisplayName(
-                          item.task.id, item.task.name, l10nOf(context)),
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600)),
-                    ),
+                    // F154：预制任务显示名跟随当前语言（自定义/改过名原样）。
+                    Text(
+                        taskDisplayName(
+                            item.task.id, item.task.name, l10nOf(context)),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -686,6 +709,11 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
   /// 行内操作区（M4 冻结口径）：按 [Task.requiresFocus] 单点互斥，
   /// **同一行绝不并存放「去专注」与「我做到了」**。右侧紧凑方盒。
   Widget _buildAction(TaskCheckInItem item, bool busy) {
+    // F161（玄参 2026-10-29）：右侧胶囊**宽度上限**。口径 = 屏宽的 36%：
+    //  · 手机 390pt → ≈140pt：英文 "Waiting for approval" 折成 2 行，
+    //    左侧标题仍保有 ≈110pt（够 2 行正常断词），不再逐字竖排；
+    //  · 平板 1024pt → ≈369pt：文案本身到不了，视觉零变化。
+    final double capMax = MediaQuery.sizeOf(context).width * 0.36;
     // ① 待家长确认：常态仅出现在非联动项；联动项若出现即契约外异常，显式渲染不静默。
     if (item.pendingVerification) {
       return _statusCapsule(
@@ -693,6 +721,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
         icon: Icons.hourglass_top,
         bg: _kWaitBg,
         fg: _kWaitFg,
+        maxWidth: capMax,
       );
     }
 
@@ -707,6 +736,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
         icon: Icons.check,
         bg: _kDoneBg,
         fg: _kDoneFg,
+        maxWidth: capMax,
       );
     }
 
@@ -723,6 +753,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
       bg: _kTodoBg,
       fg: _kTodoFg,
       borderRadius: 12,
+      maxWidth: capMax,
       // 提交中：用转圈占位、不可点（防连点重复打卡）。C65：随 UI 倍率放大。
       leading: busy
           ? SizedBox(

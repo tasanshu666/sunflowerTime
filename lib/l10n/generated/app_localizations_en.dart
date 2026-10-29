@@ -3182,4 +3182,43 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get praise_phrase_20 =>
       'You shine brighter than the sun when you focus!';
+
+  @override
+  String get parent_settings_section_about => 'About & feedback';
+
+  @override
+  String get parent_settings_version_title => 'Version';
+
+  @override
+  String get parent_settings_contact_title => 'Contact the developer';
+
+  @override
+  String get parent_settings_contact_sub =>
+      'Questions, ideas or a bug? Send me an email';
+
+  @override
+  String get parent_settings_website_title => 'Official website';
+
+  @override
+  String get parent_settings_website_sub =>
+      'Guides, release notes and privacy policy';
+
+  @override
+  String parent_settings_contact_mail_subject(String version) {
+    return 'Tiny Sunflower feedback v$version';
+  }
+
+  @override
+  String parent_settings_contact_mail_body(String version, String platform) {
+    return 'Tell me what happened below:\n\n\n\n--\nVersion: $version\nPlatform: $platform';
+  }
+
+  @override
+  String parent_settings_open_failed(String target) {
+    return 'Could not open the app. Please use: $target';
+  }
+
+  @override
+  String get garden_pot_locked_hint =>
+      'More flowers can grow here! Ask your parents to unlock more pots 🌻';
 }

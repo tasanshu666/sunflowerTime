@@ -5362,6 +5362,66 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'你专注的样子，比阳光还耀眼！'**
   String get praise_phrase_20;
+
+  /// No description provided for @parent_settings_section_about.
+  ///
+  /// In zh, this message translates to:
+  /// **'关于与反馈'**
+  String get parent_settings_section_about;
+
+  /// No description provided for @parent_settings_version_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'版本'**
+  String get parent_settings_version_title;
+
+  /// No description provided for @parent_settings_contact_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'联系开发者'**
+  String get parent_settings_contact_title;
+
+  /// No description provided for @parent_settings_contact_sub.
+  ///
+  /// In zh, this message translates to:
+  /// **'有问题、建议或发现 bug，发邮件给我'**
+  String get parent_settings_contact_sub;
+
+  /// No description provided for @parent_settings_website_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'官方网站'**
+  String get parent_settings_website_title;
+
+  /// No description provided for @parent_settings_website_sub.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用说明、更新记录与隐私政策'**
+  String get parent_settings_website_sub;
+
+  /// No description provided for @parent_settings_contact_mail_subject.
+  ///
+  /// In zh, this message translates to:
+  /// **'小小葵番茄钟 反馈 v{version}'**
+  String parent_settings_contact_mail_subject(String version);
+
+  /// No description provided for @parent_settings_contact_mail_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'请在这行下面写下你遇到的问题或建议：\n\n\n\n——\n版本：{version}\n平台：{platform}'**
+  String parent_settings_contact_mail_body(String version, String platform);
+
+  /// No description provided for @parent_settings_open_failed.
+  ///
+  /// In zh, this message translates to:
+  /// **'打不开外部应用，请手动操作：{target}'**
+  String parent_settings_open_failed(String target);
+
+  /// No description provided for @garden_pot_locked_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'这里还能再种更多花！跟爸爸妈妈说说，请他们帮你解锁更多花盆 🌻'**
+  String get garden_pot_locked_hint;
 }
 
 class _AppLocalizationsDelegate

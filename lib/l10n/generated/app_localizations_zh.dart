@@ -3095,4 +3095,40 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get praise_phrase_20 => '你专注的样子，比阳光还耀眼！';
+
+  @override
+  String get parent_settings_section_about => '关于与反馈';
+
+  @override
+  String get parent_settings_version_title => '版本';
+
+  @override
+  String get parent_settings_contact_title => '联系开发者';
+
+  @override
+  String get parent_settings_contact_sub => '有问题、建议或发现 bug，发邮件给我';
+
+  @override
+  String get parent_settings_website_title => '官方网站';
+
+  @override
+  String get parent_settings_website_sub => '使用说明、更新记录与隐私政策';
+
+  @override
+  String parent_settings_contact_mail_subject(String version) {
+    return '小小葵番茄钟 反馈 v$version';
+  }
+
+  @override
+  String parent_settings_contact_mail_body(String version, String platform) {
+    return '请在这行下面写下你遇到的问题或建议：\n\n\n\n——\n版本：$version\n平台：$platform';
+  }
+
+  @override
+  String parent_settings_open_failed(String target) {
+    return '打不开外部应用，请手动操作：$target';
+  }
+
+  @override
+  String get garden_pot_locked_hint => '这里还能再种更多花！跟爸爸妈妈说说，请他们帮你解锁更多花盆 🌻';
 }

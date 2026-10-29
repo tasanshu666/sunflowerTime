@@ -236,14 +236,21 @@ void main() {
   });
 
   group('② 反向用例：开关关闭 → 同一入口必须被拒', () {
-    testWidgets('免费档（容量已 6 > 上限 4）→ 扩容格不渲染 = UI 门控生效',
+    testWidgets('免费档（容量已 6 > 上限 4）→ 加盆格为锁定态 = UI 门控生效',
         (WidgetTester tester) async {
       await boot(tester);
       // 刻意**不**开开关（默认 free）。
       await pumpGarden(tester);
 
-      expect(find.byType(ExpandPotSlot), findsNothing,
-          reason: '免费档容量已超 4 盆上限 ⇒ 花园页不得渲染扩容格（C69：只拦新增）');
+      // F166（玄参 2026-10-29 改判 D4）：格子渲染但锁定 —— 门控本体仍是
+      // 「不可扩容」，与 C69「只拦新增、不压已有盆位」一致（6 盆照旧都在）。
+      expect(find.byType(ExpandPotSlot), findsOneWidget,
+          reason: '免费档超上限 → 渲染锁定加盆格（F166）');
+      expect(
+        tester.widget<ExpandPotSlot>(find.byType(ExpandPotSlot)).unlockable,
+        isFalse,
+        reason: '免费档容量 6 > 上限 4 ⇒ 不得扩容（C69：只拦新增）',
+      );
       expect(drainExceptions(tester), isEmpty);
     });
 

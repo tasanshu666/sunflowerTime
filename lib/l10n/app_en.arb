@@ -2403,5 +2403,39 @@
   "praise_phrase_17": "Your sunflower sees all your hard work!",
   "praise_phrase_18": "Fantastic! Let's shine again tomorrow!",
   "praise_phrase_19": "Every bit of focus helps a flower bloom!",
-  "praise_phrase_20": "You shine brighter than the sun when you focus!"
+  "praise_phrase_20": "You shine brighter than the sun when you focus!",
+  "parent_settings_section_about": "About & feedback",
+  "parent_settings_version_title": "Version",
+  "parent_settings_contact_title": "Contact the developer",
+  "parent_settings_contact_sub": "Questions, ideas or a bug? Send me an email",
+  "parent_settings_website_title": "Official website",
+  "parent_settings_website_sub": "Guides, release notes and privacy policy",
+  "parent_settings_contact_mail_subject": "Tiny Sunflower feedback v{version}",
+  "@parent_settings_contact_mail_subject": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "parent_settings_contact_mail_body": "Tell me what happened below:\n\n\n\n--\nVersion: {version}\nPlatform: {platform}",
+  "@parent_settings_contact_mail_body": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "platform": {
+        "type": "String"
+      }
+    }
+  },
+  "parent_settings_open_failed": "Could not open the app. Please use: {target}",
+  "@parent_settings_open_failed": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "garden_pot_locked_hint": "More flowers can grow here! Ask your parents to unlock more pots 🌻"
 }

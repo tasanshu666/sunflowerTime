@@ -45,6 +45,7 @@ import 'package:sunflower_time/presentation/child/widgets/garden_background_layo
 import 'package:sunflower_time/presentation/child/widgets/garden_help_sheet.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_sign_hotspot.dart';
+import 'package:sunflower_time/presentation/shared/quota_notice.dart';
 
 // ───────────────────────────────────────────────────────────────────────────
 // 造数据 / 宿主辅助
@@ -1006,8 +1007,16 @@ void main() {
 
       expect(find.byType(GardenPot), findsNWidgets(4),
           reason: '4 个盆位被 5 株中的 4 株占据');
-      expect(find.byType(ExpandPotSlot), findsNothing,
-          reason: 'free 档 D4：免费上限 = 基础容量 4，已满 → 不出现扩容格');
+      // F166（玄参 2026-10-29 **改判 D4**）：free 档满 4 后不再「什么都不显示」，
+      // 而是渲染一格**锁定加盆格**作为「花园还能更大」的提示。
+      // 「仍然不可扩容」由 `unlockable == false` 守住（比查文案强：文案可改，字段不会说谎）。
+      expect(find.byType(ExpandPotSlot), findsOneWidget,
+          reason: 'free 档满 4 → 渲染锁定加盆格（F166，提示用，非销售）');
+      expect(
+        tester.widget<ExpandPotSlot>(find.byType(ExpandPotSlot)).unlockable,
+        isFalse,
+        reason: '锁定态：孩子点了不能扩容',
+      );
       expect(find.byIcon(Icons.touch_app), findsNothing,
           reason: 'free 档 D3：隐藏一键操作 FAB（即使存活 ≥4）');
     });
@@ -1098,6 +1107,120 @@ void main() {
       expect(closed, isTrue, reason: '点取消必须关卡');
       expect(find.byType(ExpandPotSlot), findsOneWidget,
           reason: '取消 → 分毫不扣、不扩容，扩容格仍在');
+    });
+  });
+
+  // ── F166（玄参 2026-10-29 **改判 D4**）：免费档「锁定加盆格」────────────────
+  //
+  // 玄参原话：「免费模式下就只有 4 个花盆，后面也没有可以增加花盆的图标，就给孩子的
+  // 印象是只有 4 个花盆、不可以多培养，这样就少了一个多种花盆的驱动力，我觉得应该是
+  // 得展现可扩展花盆的图标，但是这个图标仅用于提示、展示使用，不用于孩子操作」。
+  //
+  // 三条硬线：① 免费满 4 **仍渲染但锁定**（提示）；② 买断满 12（真上限）**不渲染**；
+  // ③ 点锁定格**只提示**：不弹确认卡、不出现「解锁全部功能」、不扣阳光。
+  group('F166 锁定加盆格', () {
+    testWidgets('premium + cap4 → 正常加号格（unlockable=true，不回归）',
+        (WidgetTester tester) async {
+      _setScreen(tester, 360, 780);
+      await tester.pumpWidget(_realGardenTier(
+        capacity: 4,
+        tier: EntitlementTier.premium,
+        plants: _sprouts(4),
+      ));
+      final bool appeared = await _pumpUntil(
+        tester,
+        () => find.byType(ExpandPotSlot).evaluate().isNotEmpty,
+      );
+      expect(appeared, isTrue);
+
+      expect(
+        tester.widget<ExpandPotSlot>(find.byType(ExpandPotSlot)).unlockable,
+        isTrue,
+        reason: '买断档 cap4 < 12 → 正常可扩容格，F166 不得影响它',
+      );
+      expect(find.byIcon(Icons.add_circle_outline), findsOneWidget);
+      expect(find.byIcon(Icons.lock_outline), findsNothing);
+    });
+
+    testWidgets('premium + cap12（真上限）→ 一格都不渲染', (WidgetTester tester) async {
+      _setScreen(tester, 360, 780);
+      await tester.pumpWidget(_realGardenTier(
+        capacity: 12,
+        tier: EntitlementTier.premium,
+        plants: _sprouts(2),
+      ));
+      final bool appeared = await _pumpUntil(
+        tester,
+        () => find.byType(GardenGrid).evaluate().isNotEmpty,
+      );
+      expect(appeared, isTrue, reason: '网格应在数据就绪后出现');
+      await tester.pump();
+
+      expect(find.byType(ExpandPotSlot), findsNothing,
+          reason: '🔴 买断档 12 盆已是最高档 → 再给「可解锁」提示属误导（玄参拍板）');
+    });
+
+    testWidgets('free + cap7（买过会员又降级的老用户）→ 仍渲染锁定格',
+        (WidgetTester tester) async {
+      _setScreen(tester, 360, 780);
+      await tester.pumpWidget(_realGardenTier(
+        capacity: 7,
+        tier: EntitlementTier.free,
+        plants: _sprouts(2),
+      ));
+      final bool appeared = await _pumpUntil(
+        tester,
+        () => find.byType(ExpandPotSlot).evaluate().isNotEmpty,
+      );
+      expect(appeared, isTrue, reason: '超上限也要渲染锁定格（提示仍在）');
+
+      expect(
+        tester.widget<ExpandPotSlot>(find.byType(ExpandPotSlot)).unlockable,
+        isFalse,
+        reason: 'C69：只拦新增、不压已有盆位 —— 已有 7 盆保留，第 8 盆不可加',
+      );
+      expect(find.byType(GardenPot), findsWidgets, reason: '已有盆位照旧显示');
+    });
+
+    testWidgets('🔴 点锁定格 → 只给一句提示：无确认卡、无销售按钮',
+        (WidgetTester tester) async {
+      _setScreen(tester, 360, 780);
+      await tester.pumpWidget(_realGardenTier(
+        capacity: 4,
+        tier: EntitlementTier.free,
+        plants: _sprouts(4),
+      ));
+      final bool appeared = await _pumpUntil(
+        tester,
+        () => find.byType(ExpandPotSlot).evaluate().isNotEmpty,
+      );
+      expect(appeared, isTrue);
+
+      await tester.ensureVisible(find.byType(ExpandPotSlot));
+      await tester.pump();
+      await tester.tap(find.byType(ExpandPotSlot));
+      final bool hintShown = await _pumpUntil(
+        tester,
+        () => find
+            .text('这里还能再种更多花！跟爸爸妈妈说说，请他们帮你解锁更多花盆 🌻')
+            .evaluate()
+            .isNotEmpty,
+      );
+      expect(hintShown, isTrue, reason: '点了必须有反馈（本仓纪律：不可点状态必须分因提示）');
+
+      // 🔴 三条「不销售」断言：这才是玄参要的「仅提示、不用于孩子操作」。
+      expect(find.text('要给花园腾一个花盆吗？'), findsNothing,
+          reason: '不得进入扩容确认卡（那是唯一扣费路径）');
+      expect(find.text('解锁全部功能'), findsNothing,
+          reason: '孩子端不得出现任何销售按钮（Apple 3.1.1 + 儿童体验）');
+      expect(find.text('Unlock All'), findsNothing);
+      // 锁图标仍在 = 没有任何状态被点亮。
+      expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+
+      // 提示自带 2.8s 自清定时器；用例结束前显式撤掉，否则框架报
+      // 「A Timer is still pending after the widget tree was disposed」（F165 同款）。
+      hideQuotaNotice();
+      await tester.pump();
     });
   });
 }

@@ -289,3 +289,40 @@ const List<int> kDailyAppCapOptions = <int>[20, 30, 45];
 /// ⚠️ 刻意走 SP 而不进 `AppSettings`/Drift：零 schema 迁移（同 C14 防沉迷
 /// `kPrefAppUsageDate` 先例）。
 const String kPrefAppLanguage = 'app_language';
+
+// ── 开发者联系方式 / 关于（F166，玄参 2026-10-29）────────────────────
+//
+// 玄参原话：「增加一个我的网站和邮箱的说明，有问题或者有反馈的 bug 可以通过
+// 邮箱联系我推送给我，没有这个说明的话，用户很难联系到开发者提供有价值的信息」。
+// 落点：家长端设置页「关于与反馈」分区（PIN 门内，孩子端不可达）。
+
+/// 用户反馈 / 技术支持邮箱（**与隐私政策正文的联系方式保持一致**）。
+///
+/// 选 QQ 邮箱而非域名邮箱：政策文件与 App Store 支持页目前都写这个地址，
+/// 单一真源，避免出现「政策写 A、App 内写 B」的合规瑕疵。将来配好域名邮箱
+/// 只需改这一行 + 政策底稿两处。
+const String kSupportEmail = '1007681634@qq.com';
+
+/// 官方网站（HTTPS，无尾斜杠）。
+///
+/// 站点承载：产品介绍、使用说明、更新记录、隐私政策在线版
+/// （`~/WorkBuddy/sunflowerTimeHTML`，GitHub Pages / Cloudflare 双线）。
+const String kOfficialWebsite = 'https://sunfocused.cn';
+
+/// App 展示版本名（`CFBundleShortVersionString` 同值）。
+///
+/// 🔴 **与 `pubspec.yaml` 的 `version:` 同源**：改版本必须两处同步，
+/// `test/m3/f166_about_section_test.dart` 有守卫用例读 `pubspec.yaml` 断言一致
+///（漂移 → 测试红），故「忘了改」在本仓不可能静默通过。
+const String kAppVersionName = '1.0.0';
+
+/// App 构建号（`CFBundleVersion` 同值）。同源纪律见 [kAppVersionName]。
+const String kAppBuildNumber = '2105';
+
+/// 关于页展示的版本串：`1.0.0 (2105)`。
+const String kAppVersionLabel = '$kAppVersionName ($kAppBuildNumber)';
+
+/// 反馈邮件的主题前缀（正文由 ARB 组装，见 `parent_settings_contact_body`）。
+///
+/// 用英文品牌名而非中文名：首发市场为海外，客服邮箱收到的第一眼就能定位产品。
+const String kSupportMailSubjectTag = '[Tiny Sunflower]';

@@ -26,6 +26,7 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/app_language.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/core/utils/external_link.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
@@ -288,6 +289,36 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
     }
   }
 
+  /// 唤起系统邮件 App 写反馈（F166，玄参 2026-10-29）。
+  ///
+  /// 主题与正文都**预填好版本/平台**：玄参要的是「用户能方便地把有价值的信息
+  /// 发过来」，若还要用户手打版本号，一半人会在这一步放弃。正文留 4 个空行，
+  /// 光标落在空行上可直接写现象。
+  ///
+  /// 打开失败（iPad 未配邮件账户 / 无浏览器）→ [_snack] 给可手动操作的地址，
+  /// 绝不静默（本仓 UX 纪律：不可用状态必须分因提示）。
+  Future<void> _openSupportMail() async {
+    final AppLocalizations t = l10nOf(context);
+    final Uri uri = buildSupportMailUri(
+      subject: t.parent_settings_contact_mail_subject(kAppVersionName),
+      body: t.parent_settings_contact_mail_body(
+        kAppVersionLabel,
+        supportMailPlatformLabel(defaultTargetPlatform),
+      ),
+    );
+    final bool ok = await externalLinkOpener(uri);
+    if (!mounted || ok) return;
+    _snack(t.parent_settings_open_failed(kSupportEmail));
+  }
+
+  /// 用系统浏览器打开官网（F166）。失败同样给可手动操作的地址。
+  Future<void> _openOfficialWebsite() async {
+    final AppLocalizations t = l10nOf(context);
+    final bool ok = await externalLinkOpener(Uri.parse(kOfficialWebsite));
+    if (!mounted || ok) return;
+    _snack(t.parent_settings_open_failed(kOfficialWebsite));
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading || _s == null) {
@@ -454,6 +485,40 @@ class _ParentSettingsPageState extends ConsumerState<ParentSettingsPage> {
           subtitle: Text(l10n.parent_settings_entry_delete_sub),
           danger: true,
           onTap: () => context.push('/parent/delete'),
+        ),
+        const SizedBox(height: 12),
+        // F166（玄参 2026-10-29）：**用户反馈通道**。
+        //
+        // 玄参原话：「增加一个我的网站和邮箱的说明，有问题或者有反馈的 bug 可以
+        // 通过邮箱联系我推送给我，没有这个说明的话，用户是不是很难联系到开发者
+        // 提供有价值的信息？」——上架前补上，同时满足 App Store 审核对
+        // 「可联系到的开发者」的隐含期待（2.1 拒审常见理由之一是联系不上）。
+        //
+        // 三行各司其职：
+        //  · 版本号 → 纯展示（报 bug 第一句必须问的就是它，`onTap: null` 无箭头）；
+        //  · 联系开发者 → mailto，主题/正文预填版本 + 平台；
+        //  · 官方网站 → 系统浏览器打开，站点承载说明/更新记录/在线隐私政策。
+        //
+        // 位置：PIN 门内、隐私政策与删除入口之后 —— 家长找「怎么联系」的自然
+        // 走向，且**孩子端到不了**（不给孩子端任何站外链接，避免 1.3/5.x 风险）。
+        _SectionTitle(l10n.parent_settings_section_about),
+        _EntryCard(
+          icon: Icons.info_outline,
+          title: l10n.parent_settings_version_title,
+          subtitle: const Text(kAppVersionLabel),
+          onTap: null,
+        ),
+        _EntryCard(
+          icon: Icons.mail_outline,
+          title: l10n.parent_settings_contact_title,
+          subtitle: Text(l10n.parent_settings_contact_sub),
+          onTap: _openSupportMail,
+        ),
+        _EntryCard(
+          icon: Icons.public,
+          title: l10n.parent_settings_website_title,
+          subtitle: Text(l10n.parent_settings_website_sub),
+          onTap: _openOfficialWebsite,
         ),
         // 🐞 C85 · Debug 专用区：真机预览付费内容（月 / 年报告、热力图、深度报告）。
         // `kDebugMode` 为编译期常量 → release 构建里整段被 tree-shake，
@@ -629,14 +694,17 @@ class _EntryCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final Widget subtitle;
-  final VoidCallback onTap;
+
+  /// 为 `null` = **纯展示行**（F166 版本号行）：不带点击、不画 chevron ——
+  /// 画了箭头却没有下一级，会让家长以为「点了没反应」是个 bug。
+  final VoidCallback? onTap;
   final bool danger;
   final bool gold;
   const _EntryCard({
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.onTap,
+    this.onTap,
     this.danger = false,
     this.gold = false,
   });
@@ -664,7 +732,9 @@ class _EntryCard extends StatelessWidget {
             ),
           ),
           subtitle: subtitle,
-          trailing: const Icon(Icons.chevron_right, color: Color(0xFFE8A600)),
+          trailing: onTap == null
+              ? null
+              : const Icon(Icons.chevron_right, color: Color(0xFFE8A600)),
           onTap: onTap,
         ),
       );
@@ -677,7 +747,7 @@ class _EntryCard extends StatelessWidget {
                 ? const TextStyle(color: Colors.red)
                 : null),
         subtitle: subtitle,
-        trailing: const Icon(Icons.chevron_right),
+        trailing: onTap == null ? null : const Icon(Icons.chevron_right),
         onTap: onTap,
       ),
     );

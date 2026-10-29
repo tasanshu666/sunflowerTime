@@ -182,13 +182,21 @@ void main() {
       (await settingsRepository.getSettings()).gardenPotCapacity;
 
   group('F142-QA 探针 A · 反向基线：免费档容量 4（恰好卡线）必须被拦', () {
-    testWidgets('UI 门控：扩容格不渲染（4 ≥ 免费上限 4）', (WidgetTester tester) async {
+    testWidgets('UI 门控：扩容格为**锁定态**（4 ≥ 免费上限 4，点了也不扩容）',
+        (WidgetTester tester) async {
       await boot(tester);
       // 不开开关。
       await pumpGarden(tester);
 
-      expect(find.byType(ExpandPotSlot), findsNothing,
-          reason: '免费档容量已到 4 盆上限 ⇒ 扩容格不得渲染');
+      // F166（玄参 2026-10-29 改判 D4）：格子**渲染**（提示花园可再大），
+      // 但锁定 —— 「门控仍然生效」从「没有格子」改由 `unlockable == false` 表达。
+      expect(find.byType(ExpandPotSlot), findsOneWidget,
+          reason: '免费档满 4 → 渲染锁定加盆格（F166）');
+      expect(
+        tester.widget<ExpandPotSlot>(find.byType(ExpandPotSlot)).unlockable,
+        isFalse,
+        reason: '免费档满 4 ⇒ 绝不可扩容（本条是 F142 的门控本体）',
+      );
       expect(drainExceptions(tester), isEmpty);
     });
 

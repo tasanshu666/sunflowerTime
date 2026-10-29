@@ -74,6 +74,7 @@ import 'package:sunflower_time/presentation/child/widgets/garden_sign_hotspot.da
 import 'package:sunflower_time/presentation/child/widgets/plant_care_sheet.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_confirm_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
+import 'package:sunflower_time/presentation/shared/quota_notice.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
@@ -1535,6 +1536,19 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     );
   }
 
+  /// 点「锁定加盆格」→ **只给一句温和提示，绝不给付费路径**（F166）。
+  ///
+  /// 玄参口径：这一格「仅用于提示、展示使用，不用于孩子操作」，目的是让孩子
+  /// 产生「跟爸爸妈妈说想多种几盆」的意向。故：
+  ///  · 走 [showQuotaNotice] 居中浮层（F165 起本仓统一不用底部 SnackBar）；
+  ///  · **不传 `actionLabel` / `onAction`** → 浮层里没有任何按钮，孩子点点就到
+  ///    这里截止，不会出现「解锁全部功能」这类销售文案；
+  ///  · 不读也不改阳光余额，不触发 `_run`，故不可能产生任何账本记录。
+  void _onLockedPotTap() {
+    if (_busy) return;
+    showQuotaNotice(context, message: _t.garden_pot_locked_hint);
+  }
+
   /// 扩容确认：先弹卡写明「当前阳光 / 将扣除多少 / 容量 N → N+1」，
   /// **只有点「确定，扣除」才真正调 `expandPot`**；点「取消」什么都不做、一分不扣。
   ///
@@ -2298,12 +2312,36 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         ],
       ));
     }
-    if (_capacity < _potCapLimit) {
+    // F166（玄参 2026-10-29）：免费档**到顶后仍然渲染一格「锁定加盆格」**。
+    //
+    // 玄参原话：「免费模式下就只有 4 个花盆，后面也没有可以增加花盆的图标，
+    // 就给孩子的印象是只有 4 个花盆、不可以多培养，这样就少了一个多种花盆的
+    // 驱动力」——这一格本身就是「花园还能变大」的视觉提示，孩子据此去找父母。
+    //
+    // 三条硬约束（缺一不可）：
+    //  ① **只展示不销售**：格子不显示价格、点了不弹付费墙、不出现任何
+    //     「解锁 / 购买」按钮 —— 孩子端不做销售（Apple 3.1.1 + 儿童体验）；
+    //  ② **绝无扣费路径**：锁定态点击走 [_onLockedPotTap]，**不进**
+    //     [_confirmAndExpand]，故不可能扣阳光；
+    //  ③ 买断档满 12 是真上限 → 不渲染（已是最高档，再给提示属误导，玄参拍板）。
+    //
+    // 历史：D4 口径（阶段 4）曾是「free 档直接不渲染本格」，本条为玄参
+    // 2026-10-29 明确改判 —— `ExpandPotSlot.unlockable` 早就为此场景预留。
+    final int capLimit = _potCapLimit;
+    if (_capacity < capLimit) {
       cells.add(ExpandPotSlot(
         cost: _expandCost,
         shortfall: (_expandCost - _balance).ceil(),
         busy: _busy,
         onTap: _confirmAndExpand,
+      ));
+    } else if (capLimit < kPremiumGardenPotQuota) {
+      cells.add(ExpandPotSlot(
+        cost: _expandCost,
+        shortfall: (_expandCost - _balance).ceil(),
+        busy: _busy,
+        unlockable: false,
+        onTap: _onLockedPotTap,
       ));
     }
     return cells;

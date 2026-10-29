@@ -1,7 +1,7 @@
 name: sunflower_time
 description: 《小小葵番茄钟 Tiny Sunflower》MVP（Plan B 无账号单机版）。分支 m0/skeleton：工程/导航/加密本地库/PIN锁/同意流骨架。
 publish_to: 'none'
-version: 1.0.0+2104
+version: 1.0.0+2105
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -45,6 +45,11 @@ dependencies:
   # 用**全平台包** in_app_purchase（含 iOS StoreKit + Android Play Billing 适配），
   # 而非只引入 in_app_purchase_storekit：API 是一等公民，Android 版将来必然接入。
   in_app_purchase: ^3.3.1
+  # ── 外部链接（F166）：家长端「关于与反馈」→ 唤起邮件 App / 系统浏览器。
+  # 纯 UI 跳转，不申请任何系统敏感权限（相机/麦克风/相册/定位/通讯录/ATT/蓝牙/
+  # 运动/语音识别/媒体库/健康 均无调用）→ 不触发 iOS 隐私串，无需新增 UsageDescription。
+  # onboarding 审核铁律仍要求：接入后复核二进制敏感符号（见 `docs/上架执行手册`）。
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

@@ -833,11 +833,12 @@ class ExpandPotSlot extends StatelessWidget {
   /// 是否可扩容（阶段 4）。
   ///
   /// - `true`（默认）：常规可点加号格，**旧行为逐像素不变**；
-  /// - `false`：**锁定态**——渲染中性灰「需解锁」样式，点击仍走 [onTap] 给分因提示
-  ///   （对齐 C62：不可点 ≠ `onTap:null`）。
+  /// - `false`：**锁定态**——渲染中性灰「需解锁」样式 + 锁图标，点击仍走 [onTap]
+  ///   给分因提示（对齐 C62：不可点 ≠ `onTap:null`）。
   ///
-  /// 注（D4）：孩子端 free 档**直接不渲染本格**（`garden_page` 按档位上限决定是否加格），
-  /// 故 `false` 主要保留给 legacy / 未来需要展示锁定入口的场景。
+  /// 用途（F166，玄参 2026-10-29 改判 D4）：孩子端 free 档**满 4 盆后仍然渲染**
+  /// 一格锁定态，作为「花园还能再大」的视觉提示（孩子据此去找父母扩容）；
+  /// 买断档满 12 真到顶则**不渲染**。故本参数从「留给未来」变成真在用。
   final bool unlockable;
 
   const ExpandPotSlot({
@@ -907,7 +908,11 @@ class ExpandPotSlot extends StatelessWidget {
                             ),
                           ),
                           child: Icon(
-                            Icons.add_circle_outline,
+                            // F166：锁定态用**锁**而不是加号 —— 加号会让孩子以为
+                            // 「点了就能加」，锁一眼说明「要大人帮忙」，减少无谓点击。
+                            unlockable
+                                ? Icons.add_circle_outline
+                                : Icons.lock_outline,
                             size: diameter * 0.58,
                             color: ring,
                           ),

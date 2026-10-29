@@ -1,14 +1,14 @@
 # App Store 上架执行手册 v1（2026-10-28）
 
 > 用途：**上架单一执行源**。逐项打勾推进，不依赖记忆与旧文档。
-> 代码基线：`9172dc9`（= `origin/main`）+ 本批改名改动（未提交）· 版本 `1.0.0 (build 2102)` · Bundle ID `com.sunflowertime.app` · Team `6NW722K2GN`（付费开发者计划已确认）。
+> 代码基线：`897d0f3`（= `origin/main`，含 F163/F164 布局修复）· 版本 `1.0.0 (build 2104)` · Bundle ID `com.sunflowertime.app` · Team `6NW722K2GN`（付费开发者计划已确认）。
 > 状态图例：✅ 已就绪 ｜ ⬜ 待做 ｜ 🔒 需玄参亲手操作 ｜ ⚠️ 需玄参拍板
 
 ---
 
 ## 0. 一句话现状
 
-**代码与工程侧已经就绪**（测试 3285 全绿、analyze 零 error/warning、图标无 alpha、隐私清单已入包、加密声明已加、双语显示名生效、麦克风用途说明已补）。
+**代码与工程侧已经就绪**（测试 3314 全绿、analyze 零 error/warning、图标无 alpha、隐私清单已入包、加密声明已加、双语显示名生效、麦克风用途说明已补、英文长文案挤压/溢出已修）。
 
 **剩下的三件事都在你手上**：① Xcode 登录账号让发布证书自动生成 → ② App Store Connect 建档 + 建内购商品 → ③ 上传包并提审。
 
@@ -18,10 +18,10 @@
 
 | 项 | 值 | 证据 |
 |---|---|---|
-| 全量测试 | **3285 全绿** | `flutter test --no-pub` 实跑 |
+| 全量测试 | **3314 全绿** | `flutter test --no-pub` 实跑（2026-10-29） |
 | 静态检查 | **77 info / 0 error / 0 warning** | `flutter analyze`，与历史基线持平 |
 | Bundle ID | `com.sunflowertime.app`（Android/iOS 统一） | `project.pbxproj` |
-| 版本号 | `1.0.0 (2102)`，`MARKETING_VERSION 1.0` + `FLUTTER_BUILD_NUMBER 2102`（由 `pubspec.yaml` 的 `version:` 推导） | `pubspec.yaml:4` + `project.pbxproj` 三处 `MARKETING_VERSION = 1.0` |
+| 版本号 | `1.0.0 (2104)`，`MARKETING_VERSION 1.0` + `FLUTTER_BUILD_NUMBER 2104`（由 `pubspec.yaml` 的 `version:` 推导） | `pubspec.yaml:4` + `project.pbxproj` 三处 `MARKETING_VERSION = 1.0` |
 | 设备族 | `1,2`（iPhone + iPad） | `TARGETED_DEVICE_FAMILY` |
 | 最低系统 | iOS 15.0 | `IPHONEOS_DEPLOYMENT_TARGET` / `Podfile` |
 | App 图标 | 15 档齐全，**1024×1024 无 alpha** | `sips -g hasAlpha` = no |
@@ -397,4 +397,16 @@ SFSpeechRecognizer / MPMediaLibrary / HKHealthStore   → 全部 0
 ```
 
 ### 提审注意
-ASC 里现在会有多个构建版本：**2100（被拒）、2101（本地归档，未上传，作废）、2102（修复版）**。提审时**只能选 2102**。
+ASC 里现在会有多个构建版本：
+
+| build | 内容 | 状态 |
+|---|---|---|
+| 2100 | 改名前的旧包 | **被拒**（ITMS-90683 缺麦克风用途串） |
+| 2101 | 本地归档，与 2100 同一缺陷 | 作废，未上传 |
+| 2102 | 修完 ITMS-90683（含麦克风串 + PrivacyInfo + 加密声明 + Tiny Sunflower 新名） | 已上传 ASC |
+| 2103 | 加 F161/F162（成长页任务卡 + 商店确认卡英文挤压） | 本地归档，未上传 |
+| **2104** | **再加 F163/F164（花园养护卡按钮折行/截断 + 全仓英文溢出排查批）** | **当前提审版** |
+
+提审时**只能选 2104**。
+
+> 为什么跳过 2103：F163/F164 是玄参在小米 14 Pro 与 iOS 模拟器上实测发现的英文长文案问题（花园养护卡 `Remove` 折成 `Remov/e`、`Fertilize +0.8%` 的增幅被省略号吃掉、花盆标签静默截断吞掉价格、成长页进度头行与家长端任务页标题行溢出）。2026-10-29 全部修复，代码 `897d0f3`，玄参在 iOS 模拟器（默认字号）逐项验收通过。`bug记录表.md` F163/F164 有完整根因与测试记录。

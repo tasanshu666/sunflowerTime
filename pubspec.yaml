@@ -1,7 +1,7 @@
 name: sunflower_time
 description: 《小小葵番茄钟 Tiny Sunflower》MVP（Plan B 无账号单机版）。分支 m0/skeleton：工程/导航/加密本地库/PIN锁/同意流骨架。
 publish_to: 'none'
-version: 1.0.0+2103
+version: 1.0.0+2104
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

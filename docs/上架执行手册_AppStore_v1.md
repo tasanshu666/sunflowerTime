@@ -226,11 +226,9 @@ App Store 要求：6.9"/6.5" iPhone 至少 1 组，13" iPad 至少 1 组（支�
 
 > ⚠️ 商品 ID 若拼错，App 内购买页会拿不到商品 → 按钮降级不可点，审核会以 2.1 拒。
 
-### 沙盒自测（建议在提审前做）
+### 内购自测
 
-1. App Store Connect → Users and Access → Sandbox → Testers → 建一个沙盒账号（用非真实 Apple ID 邮箱）
-2. 真机（iPad mini 4 或 iPhone）设置 → App Store → 沙盒账户 登录
-3. 进 App → 家长天地（右上角）→ 设 PIN → 会员购买页 → 完成一次沙盒购买 → 确认解锁态生效、重装后可「恢复购买」
+🔴 **本项目已于 2026-10-30 完成内购全链路验收（7/7 通过）**，走的不是沙盒账号而是 **Xcode 本地 StoreKit 配置**（原因与完整记录见 **§15**）。提审前无需重跑；发布新版本后若改了内购代码，按 §15 的 7 项重测一遍即可。
 
 ---
 
@@ -418,3 +416,67 @@ ASC 里现在会有多个构建版本：
 > ② `CMMotionManager`（`native_device_orientation.framework`）—— **只引用 `CMMotionManager` 类读设备朝向**，无 `CMMotionActivityManager` / `CMPedometer` / `CMSensorRecorder` → 不触碰「运动与健身」健康数据，**无需 `NSMotionUsageDescription`**，也不会弹权限框；且 2102（已上传并处理完成）/2104 包内同样存在，审核侧从未提异议。
 > 其余 11 类全部 0 命中。`url_launcher` 只走 `UIApplication openURL`，不申请任何权限；**代码未使用 `canLaunchUrl`** → 无需 `LSApplicationQueriesSchemes` 白名单（若将来改用 `canLaunchUrl`，必须补 `mailto`/`https` 白名单，否则永远返回 false）。
 > 包内实测：`1.0.0 / 2105` · `Tiny Sunflower`(en) / `小小葵番茄钟`(zh) · 麦克风串 ✓ · `ITSAppUsesNonExemptEncryption=false` ✓ · `PrivacyInfo.xcprivacy` 1140B ✓ · `url_launcher_ios.framework` 已入包 · 344MB。
+
+---
+
+## 15. ✅ 内购验收（2026-10-30 实测通过 · 7 项全绿）
+
+### 15.1 为什么不走沙盒账号
+
+三条路全被堵，逐条实测取证：
+
+| 路线 | 阻塞原因（实测） |
+|---|---|
+| iPad mini 4 真机 + TestFlight | **TestFlight 要求 iOS 16+**，iPad mini 4 封顶 iOS 15.8 |
+| iPad mini 4 真机 + Xcode 直装 | Xcode 27.1 对该机返回 `Pairing State: unsupported`（USB 枚举正常、已信任，是系统版本不支持） |
+| 模拟器 + 沙盒测试员账号 | 「设置 → 开发者 → 沙盒 Apple 账户」输入账号密码后**静默退出**，无任何提示（模拟器已知缺陷）；网络已排除（`sandbox.itunes.apple.com` 直连 200） |
+
+最终采用 **Xcode 本地 StoreKit 配置**：走同一套 StoreKit API、同一份 ASC 商品 ID，不联网、不登录、不扣费。**它验证不了**「ASC 后台商品是否配置正确」—— 但这一点早先已由真实沙盒单独验证：在登录沙盒账号的模拟器上按钮显示出 `US$14.99`，说明 ASC 商品 ID 与代码一致、商品可被拉取。
+
+### 15.2 已入库的配置（勿删）
+
+| 文件 | 作用 |
+|---|---|
+| `ios/Runner.storekit` | 商品定义：`com.sunflowertime.app.premium.lifetime` / `$14.99` / NonConsumable / `Tiny Sunflower Premium` |
+| `ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme` | `StoreKitConfigurationFileReference identifier = "../Runner.storekit"`（Xcode 在 GUI 里选文件后自动写入，**手写相对路径会解析失败变红字**） |
+| `ios/Runner.xcworkspace/contents.xcworkspacedata` | `group:Runner.storekit` 引用（Xcode 自动写入） |
+
+🔴 **副作用与关闭方法**：从 Xcode ⌘R 跑 Debug 时，内购一律走**本地假商店**（购买框显示 `[Environment: Xcode]`，不连真沙盒）。想临时关掉：`Product → Scheme → Edit Scheme… → Run → Options → StoreKit Configuration` 选 **None**。**archive / TestFlight / 上架包不受影响**（该配置只存在于 scheme 的 Run 动作里）。
+
+### 15.3 验收结果（玄参 2026-10-30 操作、AI 记录）
+
+| # | 验收项 | 结果 |
+|---|---|---|
+| 1 | 商品可拉取（ASC 商品 ID 配对） | ✅ 按钮显示 `Unlock now · $14.99` |
+| 2 | 购买链路（本地商店，无登录） | ✅ `[Environment: Xcode]`，确认即完成 |
+| 3 | 购买后即时解锁 | ✅ `Unlocked · thank you`，按钮变灰不可点 |
+| 4 | 杀进程重进仍解锁（本地持久化） | ✅ |
+| 5 | **无票据 + 无交易** 时恢复购买的正确空态 | ✅ `No purchases found to restore` |
+| 6 | **免费态 + 有交易** 时恢复购买 → 解锁 | ✅ 免费态 `Unlock now` → 点恢复 → `Purchases restored — welcome back 🌻` → `Unlocked · thank you` |
+| 7 | 恢复入口可点、三态文案齐全（Apple 硬性要求） | ✅ `restored / nothingToRestore / failed` 三分支均有独立文案 |
+
+第 6 项是关键：**先回到免费态、再靠恢复购买恢复解锁**，这正是苹果审核员会做的动作。
+
+### 15.4 复跑这套测试的两个坑（都实际踩过）
+
+**坑 1：卸载 App 会连 StoreKit 测试交易一起删。**
+交易记录存在**设备级**共享容器里，不在 App 数据容器内：
+
+```
+<模拟器 data>/Containers/Shared/AppGroup/<group-id>/Library/Caches/storeUser.db
+  表 iap_receipts_v2 / octane_transactions → product_id, account_type=4 表示 Xcode 本地商店
+```
+
+`xcrun simctl uninstall` 之后 `iap_receipts_v2` 会被清空 → 此时点恢复购买**必然**返回 `No purchases found to restore`（这是正确行为，不是 bug）。
+
+✅ **正确的造状态顺序**（想复现「免费态 → 恢复成功」）：
+
+1. 装 App → 买一次（本地商店，0 成本）→ 确认已解锁
+2. **不卸载**，直接 `xcrun simctl keychain <udid> reset`（只清钥匙串里的票据三件套 `iap.productId` / `iap.jws` / `iap.acquiredAt`）
+3. 复查 `storeUser.db` 里 `iap_receipts_v2` **仍为 1 行**（交易保住了）
+4. 重进 App → 金卡应为**免费态**（这步是关键，先证明票据真没了）
+5. 点 `Restore purchases` → 应弹 `Purchases restored — welcome back 🌻`
+
+> 钥匙串重置会连带清掉**家长 PIN**（`SecureStore` 也在钥匙串），需重设；**花园数据在 `Documents/sunfocus.sqlite`，不受影响**。
+
+**坑 2：⌘R 后白屏。** 见 `bug记录表.md` **F167** —— 是模拟器调试器僵死，不是 App 缺陷，真机不受影响。

@@ -1,0 +1,40 @@
+{
+  "identifier" : "3F8A1C64-2D5B-4E77-9A10-6C4B8E2D5F01",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "14.99",
+      "familyShareable" : false,
+      "internalID" : "5100001",
+      "localizations" : [
+        {
+          "description" : "Unlock the full feature set. One-time purchase, not a subscription. Restorable on your other devices.",
+          "displayName" : "Tiny Sunflower Premium",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "一次性解锁全部功能，非订阅，可在其他设备恢复。",
+          "displayName" : "小小葵番茄钟 · 完整版",
+          "locale" : "zh_CN"
+        }
+      ],
+      "productID" : "com.sunflowertime.app.premium.lifetime",
+      "referenceName" : "Premium Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA"
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

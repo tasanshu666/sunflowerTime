@@ -73,6 +73,12 @@
             ReferencedContainer = "container:Runner.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <StoreKitConfigurationFileReference
+         identifier = "../Runner.storekit">
+      </StoreKitConfigurationFileReference>
+      <MetalAPIValidationSettings
+         isEnabled = "No">
+      </MetalAPIValidationSettings>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Profile"

@@ -47,6 +47,7 @@ import 'package:sunflower_time/presentation/parent/pages/parent_reward_page.dart
 import 'package:sunflower_time/presentation/parent/pages/parent_settings_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_today_page.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
+import 'package:sunflower_time/presentation/shared/quota_notice.dart';
 
 /// 离线 IAP 适配器：商店恒不可用（**绝不触碰真实 StoreKit**）。
 ///
@@ -214,6 +215,10 @@ void main() {
       expect(find.text('Unlock All'), findsOneWidget,
           reason: '动作按钮文案必须来自 ARB');
       expect(find.text('解锁全部功能'), findsNothing);
+
+      // F165：提示已由 SnackBar 改为 Overlay 浮层，定时器需在用例内排空。
+      hideQuotaNotice();
+      await tester.pump();
     });
   });
 

@@ -38,6 +38,7 @@ import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 // 后续若要在 `shared/` 长期使用，可把卡壳迁到 `shared/`（需同步改所有调用方）。
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart'
     show showChildConfirmCard;
+import 'package:sunflower_time/presentation/shared/quota_notice.dart';
 
 /// 能力点的展示名（付费引导文案用，i18n B2 经 ARB 取）。
 String _featureLabel(AppLocalizations t, FeatureKey f) {
@@ -153,24 +154,28 @@ class PremiumQuotaGate {
       return;
     }
     final int quota = featureQuotaFor(feature, entitlement.tier);
-    // i18n B2：文案在**调用方上下文**（页级 scope 内）取好再进 SnackBar/弹窗 ——
-    // SnackBar 的 content 在 overlay 里重建，不得直调 `AppLocalizations.of`。
+    // i18n B2：文案在**调用方上下文**（页级 scope 内）取好再传给浮层 ——
+    // 浮层的 builder 在 overlay 里重建，不得直调 `AppLocalizations.of`。
     final AppLocalizations t = l10nOf(context);
     final String limit =
         quota == kUnlimitedQuota ? t.shared_unlimited : '$quota';
-    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(t.premium_quota_snack(limit, currentCount)),
-        duration: const Duration(milliseconds: 1000),
-        action: allowUpsell
-            ? SnackBarAction(
-                label: t.premium_gate_unlock_all,
-                onPressed: () => context.push('/parent/premium'),
-              )
-            : null,
-      ),
+    // 🔴 F165（2026-10-29 玄参实测「黑条常驻」）：原实现是**带 action 的 SnackBar**，
+    // 两条硬缺陷 —— ① `accessibleNavigation` 开启时不自动关闭、② 计时器还依赖
+    // 「当前路由命中」，跳页/切 tab 后永不启动；加之 `ScaffoldMessenger` 全局导致
+    // 跨路由残留（回孩子端还在）、M3 深色底与暖米白风格冲突。改用自绘卡片浮层，
+    // 根因与设计见 `quota_notice.dart` 头注释。
+    showQuotaNotice(
+      context,
+      message: t.premium_quota_snack(limit, currentCount),
+      actionLabel: allowUpsell ? t.premium_gate_unlock_all : null,
+      onAction: allowUpsell
+          ? () {
+              // 浮层已在 showQuotaNotice 内部先撤，这里只管跳转；`context` 可能因
+              // 期间页面销毁而失效，先查 mounted。
+              if (!context.mounted) return;
+              context.push('/parent/premium');
+            }
+          : null,
     );
   }
 

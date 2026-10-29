@@ -37,6 +37,7 @@ import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dar
 import 'package:sunflower_time/presentation/parent/pages/parent_settings_page.dart';
 import 'package:sunflower_time/presentation/parent/widgets/premium_unlock_table.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
+import 'package:sunflower_time/presentation/shared/quota_notice.dart';
 
 /// 商店返回的本地化价格（与既有 `premium_page_test` 同款，刻意区别于硬编码金额）。
 const String _storePrice = r'HK$88.00';
@@ -408,6 +409,10 @@ void main() {
         reason: '轻提示正文（带参 key，limit / count 顺序不得漂移）');
     expect(find.text('解锁全部功能'), findsOneWidget,
         reason: '轻提示动作应渲染「解锁全部功能」');
+
+    // F165：提示已由 SnackBar 改为 Overlay 浮层，定时器需在用例内排空。
+    hideQuotaNotice();
+    await tester.pump();
   });
 
   group('阶段5 · T1 保留文案未被误改（描述句 / 升级动作）', () {

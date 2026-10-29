@@ -47,6 +47,7 @@ import 'package:sunflower_time/domain/services/weekly_pool_service.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_reward_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_task_config_page.dart';
 import 'package:sunflower_time/presentation/parent/widgets/task_editor_dialog.dart';
+import 'package:sunflower_time/presentation/shared/quota_notice.dart';
 
 String _projectRoot() {
   final String cwd = Directory.current.path;
@@ -419,6 +420,10 @@ void main() {
       // 分因提示（C62：不静默失败）。
       expect(find.textContaining('免费版最多 5'), findsOneWidget);
       expect(find.textContaining('免费上限 5'), findsOneWidget);
+
+      // F165：提示已由 SnackBar 改为 Overlay 浮层，定时器需在用例内排空。
+      hideQuotaNotice();
+      await tester.pump();
     });
 
     testWidgets('未达上限（3 条）→ 点新增 → 打开编辑器（对照，证明放行路径未坏）',
@@ -489,6 +494,10 @@ void main() {
 
       expect(find.textContaining('免费版最多 5'), findsOneWidget);
       expect(find.textContaining('免费上限 5'), findsOneWidget);
+
+      // F165：提示已由 SnackBar 改为 Overlay 浮层，定时器需在用例内排空。
+      hideQuotaNotice();
+      await tester.pump();
     });
   });
 

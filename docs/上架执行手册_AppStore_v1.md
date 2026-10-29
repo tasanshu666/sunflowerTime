@@ -1,14 +1,14 @@
 # App Store 上架执行手册 v1（2026-10-28）
 
 > 用途：**上架单一执行源**。逐项打勾推进，不依赖记忆与旧文档。
-> 代码基线：`897d0f3`（= `origin/main`，含 F163/F164 布局修复）· 版本 `1.0.0 (build 2104)` · Bundle ID `com.sunflowertime.app` · Team `6NW722K2GN`（付费开发者计划已确认）。
+> 代码基线：`e2cc5ec`（= `origin/main`，含 F163/F164 布局修复 + F165 提示浮层 + F166 关于与反馈/锁定加盆格）· 版本 `1.0.0 (build 2105，**唯一可提审版本**)` · Bundle ID `com.sunflowertime.app` · Team `6NW722K2GN`（付费开发者计划已确认）。
 > 状态图例：✅ 已就绪 ｜ ⬜ 待做 ｜ 🔒 需玄参亲手操作 ｜ ⚠️ 需玄参拍板
 
 ---
 
 ## 0. 一句话现状
 
-**代码与工程侧已经就绪**（测试 3314 全绿、analyze 零 error/warning、图标无 alpha、隐私清单已入包、加密声明已加、双语显示名生效、麦克风用途说明已补、英文长文案挤压/溢出已修）。
+**代码与工程侧已经就绪**（测试 3348 全绿、analyze 零 error/warning、图标无 alpha、隐私清单已入包、加密声明已加、双语显示名生效、麦克风用途说明已补、英文长文案挤压/溢出已修、家长端已提供开发者联系方式）。
 
 **剩下的三件事都在你手上**：① Xcode 登录账号让发布证书自动生成 → ② App Store Connect 建档 + 建内购商品 → ③ 上传包并提审。
 
@@ -18,10 +18,10 @@
 
 | 项 | 值 | 证据 |
 |---|---|---|
-| 全量测试 | **3314 全绿** | `flutter test --no-pub` 实跑（2026-10-29） |
+| 全量测试 | **3348 全绿** | `flutter test --no-pub` 实跑（2026-10-29，含 F165/F166） |
 | 静态检查 | **77 info / 0 error / 0 warning** | `flutter analyze`，与历史基线持平 |
 | Bundle ID | `com.sunflowertime.app`（Android/iOS 统一） | `project.pbxproj` |
-| 版本号 | `1.0.0 (2104)`，`MARKETING_VERSION 1.0` + `FLUTTER_BUILD_NUMBER 2104`（由 `pubspec.yaml` 的 `version:` 推导） | `pubspec.yaml:4` + `project.pbxproj` 三处 `MARKETING_VERSION = 1.0` |
+| 版本号 | **`1.0.0 (2105)` 已归档并校验通过（唯一可提审版本）** · `~/Library/Developer/Xcode/Archives/2026-10-29/Runner-2105.xcarchive`（`MARKETING_VERSION 1.0` + `FLUTTER_BUILD_NUMBER` 由 `pubspec.yaml` 的 `version:` 推导） | `pubspec.yaml:4` + `project.pbxproj` 三处 `MARKETING_VERSION = 1.0` |
 | 设备族 | `1,2`（iPhone + iPad） | `TARGETED_DEVICE_FAMILY` |
 | 最低系统 | iOS 15.0 | `IPHONEOS_DEPLOYMENT_TARGET` / `Podfile` |
 | App 图标 | 15 档齐全，**1024×1024 无 alpha** | `sips -g hasAlpha` = no |
@@ -405,8 +405,16 @@ ASC 里现在会有多个构建版本：
 | 2101 | 本地归档，与 2100 同一缺陷 | 作废，未上传 |
 | 2102 | 修完 ITMS-90683（含麦克风串 + PrivacyInfo + 加密声明 + Tiny Sunflower 新名） | 已上传 ASC |
 | 2103 | 加 F161/F162（成长页任务卡 + 商店确认卡英文挤压） | 本地归档，未上传 |
-| **2104** | **再加 F163/F164（花园养护卡按钮折行/截断 + 全仓英文溢出排查批）** | **当前提审版** |
+| 2104 | 加 F163/F164（花园养护卡按钮折行/截断 + 全仓英文溢出排查批） | 本地归档，**作废**（缺 F165/F166） |
+| **2105** | **再加 F165（免费档提示条常驻黑条 → 居中浮层）+ F166（家长端「关于与反馈」+ 花园锁定加盆格）** | ✅ **已归档并校验通过（唯一可提审版本）** |
 
-提审时**只能选 2104**。
+提审时**只能选 2105**（2104 已作废，勿传）。
 
-> 为什么跳过 2103：F163/F164 是玄参在小米 14 Pro 与 iOS 模拟器上实测发现的英文长文案问题（花园养护卡 `Remove` 折成 `Remov/e`、`Fertilize +0.8%` 的增幅被省略号吃掉、花盆标签静默截断吞掉价格、成长页进度头行与家长端任务页标题行溢出）。2026-10-29 全部修复，代码 `897d0f3`，玄参在 iOS 模拟器（默认字号）逐项验收通过。`bug记录表.md` F163/F164 有完整根因与测试记录。
+> 为什么跳过 2103/2104：F163/F164 是玄参在小米 14 Pro 与 iOS 模拟器上实测发现的英文长文案问题（花园养护卡 `Remove` 折成 `Remov/e`、`Fertilize +0.8%` 的增幅被省略号吃掉、花盆标签静默截断吞掉价格、成长页进度头行与家长端任务页标题行溢出），代码 `897d0f3`。此后又补两批：**F165** 修免费用户「新增」达上限时那条**永久驻留的黑色提示条**（改居中浮层）、**F166** 加开发者联系方式与花园可扩展性提示（新增 `url_launcher` 依赖）。`bug记录表.md` F163–F166 有完整根因与测试记录。
+
+> ✅ **2105 归档后已完成二进制敏感符号复核（2026-10-29，本仓上架铁律，F160 就是这么漏的）**：
+> 扫 13 类符号（`AVCaptureDevice` / `requestRecordPermission` / `AVCaptureSession` / `PHPhotoLibrary` / `CLLocationManager` / `CNContactStore` / `CBPeripheralManager` / `ATTrackingManager` / `CMMotionManager` / `SFSpeechRecognizer` / `MPMediaLibrary` / `HKHealthStore` / `ASIdentifierManager`），**结果 2 命中、均无害**：
+> ① `requestRecordPermission`（`audio_session.framework`）—— 已知，`NSMicrophoneUsageDescription` 已声明（F160 修复项）；
+> ② `CMMotionManager`（`native_device_orientation.framework`）—— **只引用 `CMMotionManager` 类读设备朝向**，无 `CMMotionActivityManager` / `CMPedometer` / `CMSensorRecorder` → 不触碰「运动与健身」健康数据，**无需 `NSMotionUsageDescription`**，也不会弹权限框；且 2102（已上传并处理完成）/2104 包内同样存在，审核侧从未提异议。
+> 其余 11 类全部 0 命中。`url_launcher` 只走 `UIApplication openURL`，不申请任何权限；**代码未使用 `canLaunchUrl`** → 无需 `LSApplicationQueriesSchemes` 白名单（若将来改用 `canLaunchUrl`，必须补 `mailto`/`https` 白名单，否则永远返回 false）。
+> 包内实测：`1.0.0 / 2105` · `Tiny Sunflower`(en) / `小小葵番茄钟`(zh) · 麦克风串 ✓ · `ITSAppUsesNonExemptEncryption=false` ✓ · `PrivacyInfo.xcprivacy` 1140B ✓ · `url_launcher_ios.framework` 已入包 · 344MB。

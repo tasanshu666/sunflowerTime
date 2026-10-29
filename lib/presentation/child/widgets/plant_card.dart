@@ -368,12 +368,20 @@ class PlantCard extends StatelessWidget {
                         children: <Widget>[
                           Icon(Icons.delete_outline,
                               size: 26, color: Colors.red.shade400),
-                          Text(
-                            l10n.card_action_shovel,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.red.shade400,
+                          // F163：「Remove」在 44pt 列宽里只有 ~40pt 可用，系统字号一调大
+                          // 就折成「Remov / e」——末行只剩一个孤字母（玄参小米 14 Pro 截图）。
+                          // 单行 + FittedBox(scaleDown)：宁可整词等比缩小，绝不折行。
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              l10n.card_action_shovel,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.red.shade400,
+                              ),
                             ),
                           ),
                         ],
@@ -538,6 +546,9 @@ class PlantCard extends StatelessWidget {
   /// ⚠️ 为什么不用单行 `OutlinedButton.icon('浇水 +1% · 5 ☀')`：窄屏下单行放不下，
   /// `maxLines:1 + ellipsis` 会把**价格**截掉（玄参 2026-09-25 截图「浇水 +1% · 5...」，
   /// 价格恰恰是最不能丢的信息）。拆成两行后各自都有充足宽度，永不截断。
+  ///
+  /// F163（2026-10-29）：英文标签 `Fertilize +0.8%` 比中文长，半宽按钮里仍可能被
+  /// 省略号吃掉「+0.8%」→ 标题改「单行 + FittedBox(scaleDown)」，放不下时等比缩小。
   Widget _actionButton({
     required IconData icon,
     required String title,
@@ -566,12 +577,21 @@ class PlantCard extends StatelessWidget {
               Icon(icon, size: 18, color: mainColor, applyTextScaling: true),
               const SizedBox(width: 6),
               Flexible(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w700, color: mainColor),
+                // F163：英文「Fertilize +1%」比中文「施肥 +1%」长，半宽按钮里系统字号
+                // 一调大就被截成「Fertilize +...」——增幅百分比正好被吃掉（玄参截图）。
+                // 单行 + FittedBox(scaleDown)：整词等比缩小，保证「+1%」永远看得见。
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: mainColor),
+                  ),
                 ),
               ),
             ],

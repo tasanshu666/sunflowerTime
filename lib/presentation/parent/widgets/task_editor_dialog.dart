@@ -185,6 +185,14 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
         builder: (BuildContext context) {
           final AppLocalizations t = AppLocalizations.of(context);
           return AlertDialog(
+            // F164：320pt 极窄档（iPhone SE）+ 英文 + 系统大字号时，默认 40pt
+            // 左右留白让内容区只剩 ≈240pt —— 「Sunlight reward」滑块行与内容
+            // 分类下拉各溢出 20 / 24px（实测见 `test/i18n/f164_overflow_probe_test.dart`
+            // ⑧）。窄屏收到 16pt（内容 +48pt）即可容纳；≥360pt 档不传值（保持
+            // theme 默认），主流机型视觉零变化。
+            insetPadding: MediaQuery.sizeOf(context).width < 360
+                ? const EdgeInsets.symmetric(horizontal: 16, vertical: 24)
+                : null,
             title: Text(widget.initial == null
                 ? t.parent_task_edit_title_new
                 : t.parent_task_edit_title_edit),

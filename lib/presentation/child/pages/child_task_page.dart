@@ -423,40 +423,50 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          // F164：这一行原来是「标题 + 计数 + 每周提示 + Spacer + 百分比」的裸
+          // `Row` —— 四段文字**全部裸放**，英文下 `Today's Growth` +
+          // `· Plus 3 weekly item(s)` 合计宽度直接顶穿屏宽（实测 392 宽 + 1.3 字号
+          // 溢出 428px，320 宽溢出 500px）。中文三段加起来才 ~150pt，从未暴露。
+          // 修法：左侧三段收进 `Expanded(Wrap)`（放不下就整段换行），百分比留在
+          // 行尾恒贴右。`WrapCrossAlignment.center` 近似原 `baseline` 的视觉重心。
           Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
             children: <Widget>[
-              Text(
-                _t.task_progress_title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF6B4A2B),
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 6,
+                  runSpacing: 2,
+                  children: <Widget>[
+                    Text(
+                      _t.task_progress_title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF6B4A2B),
+                      ),
+                    ),
+                    Text(
+                      '${board.doneCount}/${board.total}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF8A7A66),
+                      ),
+                    ),
+                    // 每周提示内联到标题行（不再单独占一行）。
+                    if (board.weeklyCount > 0)
+                      Text(
+                        _t.task_weekly_more(board.weeklyCount),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF8A7A66),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 6),
-              Text(
-                '${board.doneCount}/${board.total}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF8A7A66),
-                ),
-              ),
-              // 每周提示内联到标题行（不再单独占一行）。
-              if (board.weeklyCount > 0) ...<Widget>[
-                const SizedBox(width: 8),
-                Text(
-                  _t.task_weekly_more(board.weeklyCount),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF8A7A66),
-                  ),
-                ),
-              ],
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 '$pct%',
                 style: const TextStyle(

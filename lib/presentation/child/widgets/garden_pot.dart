@@ -430,15 +430,24 @@ class GardenPot extends StatelessWidget {
                                   )
                                 : null,
                           ),
-                          child: Text(
-                            _label(l10n),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: _labelColor,
+                          // F164：花盆标签是「植物名 + 状态」（英文
+                          // `Coral Orchid · save me` 比中文「珊瑚岭兰 · 救救我」长近
+                          // 一倍），原本 `maxLines:1 + ellipsis` 在手机格宽
+                          // （96~118pt）必然截断 —— 被吃掉的是**状态词**。
+                          // 改「单行 + 等比缩小」：放不下就整词缩，不折行不省略；
+                          // 中文文案短，缩放比 = 1.0，视觉零回归。
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              _label(l10n),
+                              maxLines: 1,
+                              softWrap: false,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: _labelColor,
+                              ),
                             ),
                           ),
                         ),
@@ -930,19 +939,27 @@ class ExpandPotSlot extends StatelessWidget {
                             color: _labelPillColor,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(
-                            !unlockable
-                                ? l10n.pot_label_locked
-                                : affordable
-                                    ? l10n.pot_label_expand(cost)
-                                    : l10n.pot_label_shortfall(shortfall),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: label,
+                          // F164：这三条文案都**带数字/价格**（`Add pot · 300☀`
+                          // `Need 120☀ more`），原本 `maxLines:1 + ellipsis` 在手机
+                          // 格宽下被省略号吃掉的是价格本身（实测格宽 96 与 118 均
+                          // `didExceedMaxLines = true`）。
+                          // 改「单行 + 等比缩小」：宁可整词缩小，绝不吃掉金额。
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              !unlockable
+                                  ? l10n.pot_label_locked
+                                  : affordable
+                                      ? l10n.pot_label_expand(cost)
+                                      : l10n.pot_label_shortfall(shortfall),
+                              maxLines: 1,
+                              softWrap: false,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: label,
+                              ),
                             ),
                           ),
                         ),

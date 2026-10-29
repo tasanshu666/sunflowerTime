@@ -180,32 +180,57 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          // F164：原来是「列表名 + 计数 + Spacer + 新建按钮」的裸 `Row` ——
+          // 左侧两段文字裸放，英文 `Growth tasks` + `3 items` 与按钮
+          // `New growth item` 三者在窄屏抢宽（实测 392 宽 + 1.3 字号溢出 354px，
+          // 320 宽溢出 426px）。中文三处都短，从未暴露。
+          // 修法：左侧两段收进 `Expanded(Wrap)`（放不下就换行），按钮固定右侧。
           Row(
             children: <Widget>[
-              Text(
-                l10n.parent_task_config_list_title,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                l10n.parent_today_count(_tasks.length),
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: () => PremiumQuotaGate.onTap(
-                  context: context,
-                  feature: FeatureKey.taskTemplateCount,
-                  currentCount: _tasks.length,
-                  onAllowed: () => _openEditor(),
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 2,
+                  children: <Widget>[
+                    Text(
+                      l10n.parent_task_config_list_title,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      l10n.parent_today_count(_tasks.length),
+                      style:
+                          TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    ),
+                  ],
                 ),
-                icon: const Icon(Icons.add, size: 18),
-                // 达上限 → 置灰（视觉）；仍可点 → 走分因提示（C62）。
-                style: canAdd
-                    ? null
-                    : OutlinedButton.styleFrom(foregroundColor: Colors.grey),
-                label: Text(l10n.parent_task_edit_title_new),
+              ),
+              // 极窄屏（320pt 档 + 系统大字号）下按钮自身的英文 `New growth item`
+              // 就会顶满整行 —— 给它一个随 uiScaleOf 等比的上限，超了让 label 省略
+              // 而不是把整行撑出屏幕。真机 392 档按钮自然宽 ≈177pt，永不触发。
+              ConstrainedBox(
+                constraints:
+                    BoxConstraints(maxWidth: 220 * uiScaleOf(context)),
+                child: OutlinedButton.icon(
+                  onPressed: () => PremiumQuotaGate.onTap(
+                    context: context,
+                    feature: FeatureKey.taskTemplateCount,
+                    currentCount: _tasks.length,
+                    onAllowed: () => _openEditor(),
+                  ),
+                  icon: const Icon(Icons.add, size: 18),
+                  // 达上限 → 置灰（视觉）；仍可点 → 走分因提示（C62）。
+                  style: canAdd
+                      ? null
+                      : OutlinedButton.styleFrom(foregroundColor: Colors.grey),
+                  label: Text(
+                    l10n.parent_task_edit_title_new,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
             ],
           ),

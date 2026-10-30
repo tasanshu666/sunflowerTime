@@ -54,6 +54,11 @@ TEMPLATE = """<!DOCTYPE html>
 <title>{title}</title>
 <meta name="description" content="{description}">
 <link rel="canonical" href="{canonical}">
+<!-- 中英互指：与 sitemap.xml 里这一组的 hreflang 逐字一致（zh-CN / en / x-default）。
+     两处不一致时 Google 会忽略整组标注，改这里务必同步 sitemap。 -->
+<link rel="alternate" hreflang="zh-CN" href="https://sunfocused.cn/privacy.html">
+<link rel="alternate" hreflang="en" href="https://sunfocused.cn/privacy-en.html">
+<link rel="alternate" hreflang="x-default" href="https://sunfocused.cn/privacy.html">
 <meta name="robots" content="index,follow">
 <meta name="theme-color" content="#FBF7EF">
 <link rel="icon" href="favicon.ico" sizes="any">
@@ -63,7 +68,9 @@ TEMPLATE = """<!DOCTYPE html>
 <meta property="og:title" content="{title}">
 <meta property="og:description" content="{description}">
 <meta property="og:url" content="{canonical}">
-<meta property="og:image" content="https://sunfocused.cn/src/assets/img/og-cover.jpg">
+<meta property="og:image" content="{og_image}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <style>
   :root {{
@@ -130,6 +137,9 @@ TEMPLATE = """<!DOCTYPE html>
   code {{
     background: #F1EBDD; padding: 1px 5px; border-radius: 4px;
     font-size: 13.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    /* 长路径（如 android/app/src/main/kotlin/com/sunflowertime/app/MainActivity.kt）
+       在 390px 宽下宽 538px，会把整页撑出 189px 横向滚动 —— 允许在任意字符处折行 */
+    overflow-wrap: anywhere;
   }}
   ul, ol {{ padding-left: 22px; }}
   li {{ margin: 6px 0; }}
@@ -154,6 +164,7 @@ TEMPLATE = """<!DOCTYPE html>
   </div>
 </div>
 <main class="wrap">
+<h1>{h1}</h1>
 {body}
 </main>
 <footer>
@@ -165,7 +176,8 @@ TEMPLATE = """<!DOCTYPE html>
 
 
 def render(src: pathlib.Path, lang: str, title: str, description: str,
-           canonical: str, drop_heading: str, switcher: str, footer: str, replacements) -> str:
+           canonical: str, og_image: str, drop_heading: str, switcher: str,
+           footer: str, replacements) -> str:
     text = src.read_text(encoding="utf-8")
 
     # 1) 剔除内部待办小节（从该标题到文件末尾）
@@ -199,12 +211,18 @@ def render(src: pathlib.Path, lang: str, title: str, description: str,
         spaced.append(line)
     text = "\n".join(spaced)
 
-    # 4) 去掉与模板重复的一级标题
+    # 4) 一级标题从正文挪到模板的 <h1> 里（正文若也留着会变成两个 H1）。
+    #    历史 bug：旧版只做了「删掉」没做「补上」，导致两个隐私页 H1 计数为 0。
+    m = re.search(r"^#\s+(.+?)\s*$", text, flags=re.MULTILINE)
+    if not m:
+        raise SystemExit(f"未找到一级标题（# ...）：{src.name}")
+    h1 = m.group(1)
     text = re.sub(r"^#\s+.*?\n", "", text, count=1)
 
     body = markdown.markdown(text, extensions=["tables", "sane_lists"])
     return TEMPLATE.format(lang=lang, title=title, description=description,
-                           canonical=canonical, switcher=switcher, body=body, footer=footer)
+                           canonical=canonical, og_image=og_image, h1=h1,
+                           switcher=switcher, body=body, footer=footer)
 
 
 def main() -> None:
@@ -215,6 +233,7 @@ def main() -> None:
         title="隐私政策｜小小葵番茄钟 Tiny Sunflower",
         description="小小葵番茄钟（Tiny Sunflower）隐私政策：不联网、不收集个人信息，数据仅存本机。",
         canonical="https://sunfocused.cn/privacy.html",
+        og_image="https://sunfocused.cn/src/assets/img/og-cover-zh.jpg",
         drop_heading="## 附：待确认项汇总",
         switcher='<a href="privacy-en.html" hreflang="en">English</a>',
         footer='版本 v2.0 ｜ 生效日期 2026-10-23 ｜ 开发者 小小葵 ｜ 1007681634@qq.com<br>'
@@ -229,8 +248,9 @@ def main() -> None:
         title="Privacy Policy | Tiny Sunflower",
         description="Tiny Sunflower privacy policy: offline by design, no personal data collected, everything stays on your device.",
         canonical="https://sunfocused.cn/privacy-en.html",
+        og_image="https://sunfocused.cn/src/assets/img/og-cover-en.jpg",
         drop_heading="## Open Items (to be confirmed)",
-        switcher='<a href="privacy.html" hreflang="zh-Hans">简体中文</a>',
+        switcher='<a href="privacy.html" hreflang="zh-CN">简体中文</a>',
         footer='Version v2.0 ｜ Effective 23 October 2026 ｜ Developer Xiaoxiaokui ｜ 1007681634@qq.com<br>'
                '简体中文版：<a href="privacy.html">隐私政策（简体中文）</a><br>'
                '<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">京ICP备2026070040号-1</a>',

@@ -6,6 +6,11 @@
 <title>隐私政策｜小小葵番茄钟 Tiny Sunflower</title>
 <meta name="description" content="小小葵番茄钟（Tiny Sunflower）隐私政策：不联网、不收集个人信息，数据仅存本机。">
 <link rel="canonical" href="https://sunfocused.cn/privacy.html">
+<!-- 中英互指：与 sitemap.xml 里这一组的 hreflang 逐字一致（zh-CN / en / x-default）。
+     两处不一致时 Google 会忽略整组标注，改这里务必同步 sitemap。 -->
+<link rel="alternate" hreflang="zh-CN" href="https://sunfocused.cn/privacy.html">
+<link rel="alternate" hreflang="en" href="https://sunfocused.cn/privacy-en.html">
+<link rel="alternate" hreflang="x-default" href="https://sunfocused.cn/privacy.html">
 <meta name="robots" content="index,follow">
 <meta name="theme-color" content="#FBF7EF">
 <link rel="icon" href="favicon.ico" sizes="any">
@@ -15,7 +20,9 @@
 <meta property="og:title" content="隐私政策｜小小葵番茄钟 Tiny Sunflower">
 <meta property="og:description" content="小小葵番茄钟（Tiny Sunflower）隐私政策：不联网、不收集个人信息，数据仅存本机。">
 <meta property="og:url" content="https://sunfocused.cn/privacy.html">
-<meta property="og:image" content="https://sunfocused.cn/src/assets/img/og-cover.jpg">
+<meta property="og:image" content="https://sunfocused.cn/src/assets/img/og-cover-zh.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <style>
   :root {
@@ -82,6 +89,9 @@
   code {
     background: #F1EBDD; padding: 1px 5px; border-radius: 4px;
     font-size: 13.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    /* 长路径（如 android/app/src/main/kotlin/com/sunflowertime/app/MainActivity.kt）
+       在 390px 宽下宽 538px，会把整页撑出 189px 横向滚动 —— 允许在任意字符处折行 */
+    overflow-wrap: anywhere;
   }
   ul, ol { padding-left: 22px; }
   li { margin: 6px 0; }
@@ -106,10 +116,10 @@
   </div>
 </div>
 <main class="wrap">
+<h1>小小葵番茄钟（Tiny Sunflower）隐私政策</h1>
 <blockquote>
 <p><strong>版本</strong>：v2.0 ｜ <strong>生效日期</strong>：2026-10-23 ｜ <strong>适用范围</strong>：<strong>全球用户（海外优先）</strong>，首发 Apple App Store（美区为主）</p>
 <p><strong>更新记录</strong>：v1（2026-10 初稿）→ v1.1（2026-10-19，全球海外优先重排）→ <strong>v2.0（2026-10-23，新增 §10.3 应用内重新确认机制；本版随「首启告知 2.0」批发布）</strong> ｜ 同日修订：应用更名「<strong>小小葵番茄钟</strong>（英文版 <strong>Tiny Bloom</strong>）」、开发者名称确认「<strong>小小葵</strong>」（个人开发者）——数据口径无任何变化，政策版本号维持 v2.0 ｜ <strong>2026-10-28 英文名由 Tiny Bloom 变更为 Tiny Sunflower（App Store 查重），数据口径无变化，版本号维持 v2.0</strong></p>
-<p>⚠️ 文件名中的 <code>_v1</code> 是<strong>固定底稿名</strong>（发布页固定 <code>privacy.html</code> 同理），不代表政策版本；版本以本行三要素为准。</p>
 <p><strong>适用法律</strong>：GDPR（欧盟）、COPPA（美国 13 岁以下儿童）、Apple App Store 儿童类别（Kids Category）政策；Android 版上架时另适用 Google Play Families 政策（详见第十一节）</p>
 <p><strong>中国大陆专项条款</strong>：《个人信息保护法》《儿童个人信息网络保护规定》相关条款已独立为<strong>附录 A，未来上架中国大陆时适用</strong></p>
 <p><strong>维护人</strong>：1007681634@qq.com（可署名）</p>
@@ -330,9 +340,9 @@
 <h2>十、语言版本与政策更新机制</h2>
 <h3>10.1 语言版本效力</h3>
 <ul>
-<li>本政策提供两个文本：<strong>简体中文版</strong>（<code>docs/隐私政策_向日葵专注_v1.md</code>）与<strong>英文版</strong>（<code>docs/隐私政策_向日葵专注_v1_EN.md</code>），英文版为中文版的翻译。</li>
+<li>本政策提供简体中文与英文两个版本，英文版译自中文版；两版如有歧义，以简体中文版为准。</li>
 <li>🔴 <strong>两版表述如有任何不一致，一律以简体中文版为准。</strong></li>
-<li>两版为同步维护的草稿；重大变更将在应用内或更新说明中提示。</li>
+<li>两版同步维护；重大变更将在应用内或更新说明中提示。</li>
 </ul>
 <h3>10.2 更新与发布</h3>
 <ul>

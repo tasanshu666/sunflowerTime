@@ -6,6 +6,11 @@
 <title>Privacy Policy | Tiny Sunflower</title>
 <meta name="description" content="Tiny Sunflower privacy policy: offline by design, no personal data collected, everything stays on your device.">
 <link rel="canonical" href="https://sunfocused.cn/privacy-en.html">
+<!-- 中英互指：与 sitemap.xml 里这一组的 hreflang 逐字一致（zh-CN / en / x-default）。
+     两处不一致时 Google 会忽略整组标注，改这里务必同步 sitemap。 -->
+<link rel="alternate" hreflang="zh-CN" href="https://sunfocused.cn/privacy.html">
+<link rel="alternate" hreflang="en" href="https://sunfocused.cn/privacy-en.html">
+<link rel="alternate" hreflang="x-default" href="https://sunfocused.cn/privacy.html">
 <meta name="robots" content="index,follow">
 <meta name="theme-color" content="#FBF7EF">
 <link rel="icon" href="favicon.ico" sizes="any">
@@ -15,7 +20,9 @@
 <meta property="og:title" content="Privacy Policy | Tiny Sunflower">
 <meta property="og:description" content="Tiny Sunflower privacy policy: offline by design, no personal data collected, everything stays on your device.">
 <meta property="og:url" content="https://sunfocused.cn/privacy-en.html">
-<meta property="og:image" content="https://sunfocused.cn/src/assets/img/og-cover.jpg">
+<meta property="og:image" content="https://sunfocused.cn/src/assets/img/og-cover-en.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <style>
   :root {
@@ -82,6 +89,9 @@
   code {
     background: #F1EBDD; padding: 1px 5px; border-radius: 4px;
     font-size: 13.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    /* 长路径（如 android/app/src/main/kotlin/com/sunflowertime/app/MainActivity.kt）
+       在 390px 宽下宽 538px，会把整页撑出 189px 横向滚动 —— 允许在任意字符处折行 */
+    overflow-wrap: anywhere;
   }
   ul, ol { padding-left: 22px; }
   li { margin: 6px 0; }
@@ -102,19 +112,19 @@
 <div class="topbar">
   <div class="inner">
     <a class="brand" href="https://sunfocused.cn/">小小葵番茄钟</a>
-    <span><a href="privacy.html" hreflang="zh-Hans">简体中文</a></span>
+    <span><a href="privacy.html" hreflang="zh-CN">简体中文</a></span>
   </div>
 </div>
 <main class="wrap">
+<h1>Tiny Sunflower (小小葵番茄钟) Privacy Policy</h1>
 <blockquote>
 <p><strong>Version</strong>: v2.0 ｜ <strong>Effective date</strong>: 23 October 2026 ｜ <strong>Scope</strong>: <strong>Global users (overseas-first)</strong>, launching on the Apple App Store (US region primary)</p>
 <p><strong>Change log</strong>: v1 (initial) → v1.1 (19 Oct 2026, overseas-first restructure) → <strong>v2.0 (23 Oct 2026, adds §10.3 in-app re-confirmation mechanism; released with the "Consent 2.0" batch)</strong> ｜ Same-day revision: the app has been renamed "<strong>Tiny Bloom</strong>" (Chinese name "<strong>小小葵番茄钟</strong>") and the developer name confirmed as "<strong>Xiaoxiaokui</strong>" (individual developer) — no change whatsoever to data practices, policy version stays v2.0 ｜ <strong>28 Oct 2026: the English name was changed from Tiny Bloom to Tiny Sunflower (App Store name-uniqueness check); no change whatsoever to data practices, policy version stays v2.0</strong></p>
-<p>⚠️ The <code>_v1</code> in the filename is a <strong>fixed master-copy name</strong> (just like the fixed published page <code>privacy.html</code>); it does not indicate the policy version — see the version line above.</p>
 <p><strong>Applicable laws</strong>: GDPR (EU), COPPA (US, children under 13), Apple App Store Kids Category requirements; Google Play Families Policy applies when the Android version launches (see Section 11)</p>
 <p><strong>Mainland China addendum</strong>: the PRC Personal Information Protection Law (PIPL) and the Provisions on the Protection of Children's Personal Information Online are set out separately as <strong>Appendix A, applicable only when the app is distributed in mainland China</strong></p>
 <p><strong>Maintainer</strong>: 1007681634@qq.com</p>
 <p><strong>App</strong>: Tiny Sunflower (Chinese name: 小小葵番茄钟) ｜ <strong>Bundle ID</strong>: <code>com.sunflowertime.app</code></p>
-<p>This is the English version of the Tiny Sunflower Privacy Policy. The Chinese original is <code>docs/隐私政策_向日葵专注_v1.md</code>; both are drafts and are kept in sync.</p>
+<p>This is the English version of the Tiny Sunflower Privacy Policy, translated from the Simplified Chinese original. If the two versions differ, the Simplified Chinese version prevails.</p>
 </blockquote>
 <hr />
 <h2>1. A Note for Parents and Kids</h2>
@@ -331,9 +341,9 @@
 <h2>10. Language Versions and Policy Updates</h2>
 <h3>10.1 Language version precedence</h3>
 <ul>
-<li>This policy is published in two texts: a <strong>Simplified Chinese version</strong> (<code>docs/隐私政策_向日葵专注_v1.md</code>) and an <strong>English version</strong> (<code>docs/隐私政策_向日葵专注_v1_EN.md</code>), the latter being a translation of the former.</li>
+<li>This policy is published in Simplified Chinese and English; the English text is a translation of the Chinese original.</li>
 <li>🔴 <strong>Should the two versions differ in any way, the Simplified Chinese version prevails.</strong></li>
-<li>Both texts are synchronised drafts; material changes will be announced in the app or in the release notes.</li>
+<li>Both versions are kept in sync. Material changes will be announced in the app or in the release notes.</li>
 </ul>
 <h3>10.2 Updates and publication</h3>
 <ul>

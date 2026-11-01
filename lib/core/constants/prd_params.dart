@@ -278,6 +278,22 @@ const double kBloomDewNeglectFactor = 0.5;
 /// 折损后**保底阳光**（晨露永不为零 —— 玄参口径「不能说完忘就一点都没有」）。
 const int kBloomDewMinSunlight = 1;
 
+/// 一株花最多**挂几份**未领取的晨露（玄参 2026-11-01 拍板：上限 3 条，超出自动入账）。
+///
+/// 背景：晨露在开花瞬间就把**整个花期**的每个 08:00 预登记进库（见
+/// `PlantGrowthService._enqueueBloomRewards`），到点即「可收集」。此前不设上限，
+/// 孩子几天不来收，同一株头顶就会并排堆出一串晨露图标（F168 溢出问题的根源，
+/// 当时只兜住了视觉溢出，数量仍会无限增长）。
+///
+/// 口径：每株**已到期未领取的每日晨露**最多保留 [kBloomDewPendingMax] 份供孩子点击，
+/// **更晚到期的**由 `PlantGrowthService._autoSettleOverflowDews` 在 tick 时直接结算入账
+/// ——奖励不丢，界面有天花板，「第 4 天起当天新晨露直接发到余额」。
+///
+/// 🔴 只约束**每日晨露**（`rewardKind` = normal / premium），**不含开花瞬间奖励**
+/// （`kBloomRewardPhaseInstant`）：后者是开花那一下的即时奖励，不该占晨露的额度，
+/// 否则会把晨露挤掉。
+const int kBloomDewPendingMax = 3;
+
 // ───────────────────────────────────────────────────────────────────────────
 // 成株后循环玩法 Batch 1（玄参大人拍板）：复开花节奏 + 花期双阶段奖励 + 精品碎片。
 //
@@ -919,6 +935,17 @@ const String kGardenWeedRefType = 'plant_weed';
 
 /// 账本 `refType`：除虫（冻结约束同 [kGardenWeedRefType]）。
 const String kGardenPestRefType = 'plant_pest';
+
+/// 账本 `refType`：浇水（冻结约束同上 —— **字符串值一经写入即冻结**）。
+///
+/// ⚠️ 该值在 `PlantGrowthService.water()` 内历史上以**字面量** `'plant_water'`
+/// 写入（每浇一次水正好一条扣费行），与本能值逐字节一致。此处补常量仅供
+/// **只读统计方**（孩子端「我的 → 花园统计」）引用，不改既有写入点 ——
+/// 改写入点会扩散到 6 处，收益为零、风险非零。
+const String kPlantWaterRefType = 'plant_water';
+
+/// 账本 `refType`：施肥（冻结约束与说明同 [kPlantWaterRefType]）。
+const String kPlantFertilizeRefType = 'plant_fertilize';
 
 /// 杂草 emoji（**回退**：`kGardenWeedAsset` 图片加载失败时显示）。
 const String kGardenWeedEmoji = '🌿';

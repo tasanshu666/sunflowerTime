@@ -33,6 +33,7 @@ import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
+import 'package:sunflower_time/presentation/child/widgets/sun_burst.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
@@ -135,6 +136,46 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   /// 演出兜底定时器（onComplete 因任何原因没触发也保证浮层被清走）。
   Timer? _levelUpFxTimer;
 
+  /// 阳光爆发浮层（F170，玄参 2026-11-01）。
+  ///
+  /// 用**根 Overlay**：粒子要飞出胶囊边界（胶囊在场景区 Stack 的 `Positioned` 内，
+  /// 有裁剪风险），根 Overlay 不被任何局部 Stack 裁剪，且坐标系恒等于屏幕。
+  OverlayEntry? _sunBurstEntry;
+
+  /// 爆发兜底定时器（`onComplete` 未触发也要清走，防浮层滞留挡视线）。
+  Timer? _sunBurstTimer;
+
+  /// 点阳光胶囊 → 播一次「阳光四散」。
+  ///
+  /// **连点策略：先撤旧的、再插新的**（绝不叠两层）。相反做法（忽略新点击）
+  /// 会让孩子以为「点了没反应」；撤旧再插的观感更接近「重新炸一次」。
+  ///
+  /// 🔴 纯视觉：**不加阳光、不写账本、不发奖励**。孩子的阳光余额只由真实
+  /// 专注 / 打卡 / 养护产生 —— 这是防「狂点刷阳光」的产品红线。
+  void _fireSunBurst(Offset center) {
+    if (!mounted) return;
+    _removeSunBurst();
+    final OverlayEntry entry = OverlayEntry(
+      builder: (BuildContext _) => Positioned.fill(
+        child: SunBurst(origin: center, onComplete: _removeSunBurst),
+      ),
+    );
+    _sunBurstEntry = entry;
+    Overlay.of(context, rootOverlay: true).insert(entry);
+    _sunBurstTimer = Timer(
+      const Duration(milliseconds: kSunBurstDurationMs + 200),
+      _removeSunBurst,
+    );
+  }
+
+  /// 移除爆发浮层（幂等）。
+  void _removeSunBurst() {
+    _sunBurstTimer?.cancel();
+    _sunBurstTimer = null;
+    _sunBurstEntry?.remove();
+    _sunBurstEntry = null;
+  }
+
   /// 悬浮气泡的漂动时钟（C44i：玄参反馈太陕太窄 → 12s 一圈、振幅放大 ~70%；
   /// Lissajous 轨迹，整数倍谐波 → 无规律小范围飘动感且循环无跳变）。
   late final AnimationController _drift =
@@ -150,6 +191,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   @override
   void dispose() {
     _cancelLevelUpFx(); // 根 Overlay 浮层不随本页卸载，必须显式移除。
+    _removeSunBurst(); // 同上：爆发浮层也要显式摘掉。
     _drift.dispose();
     super.dispose();
   }
@@ -493,6 +535,8 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
             capsuleKey: ChildTodayPage.sunBubbleKey,
             balance: _balance,
             drift: _drift,
+            // F170：点击 → 阳光四散（纯视觉，见 [_fireSunBurst]）。
+            onBurst: _fireSunBurst,
           ),
         ),
         // C74 · 专注等级徽章。
@@ -550,18 +594,73 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
 /// 图标与数字间距 6 → **7**。胶囊高 36.3 → **44pt**（+21%）。
 /// ⚠️ 手机端（402pt 宽）右侧边界复核：锚点左缘 0.65×402 = 261.3pt，胶囊宽
 /// ≈ 13+30+7+42+13 = 105pt，加最大水平漂移 31.9pt → 右缘 ≈ **398pt < 402pt**（不越屏）。
-class _FloatingSunBubble extends StatelessWidget {
+///
+/// 🔴 **F170（玄参 2026-11-01）——可点击 + 阳光四散**：胶囊从纯展示变成**可点**。
+/// 点击 → ① 数字轻弹一下（220ms，1.0→1.16→1.0，即时触觉反馈）；
+/// ② 上报**爆发圆心（全局坐标）**给页面，由页面插根 Overlay 播 [SunBurst]。
+/// 组件自身**不碰经济**（无奖励、无账本），只负责「点我 → 给坐标」。
+class _FloatingSunBubble extends StatefulWidget {
   final double balance;
   final Animation<double> drift;
 
   /// 胶囊容器的 Key（度量护栏用，由页面传入 [ChildTodayPage.sunBubbleKey]）。
   final Key? capsuleKey;
 
+  /// 点击胶囊 → 回调**爆发圆心全局坐标**（页面据此插根 Overlay）。
+  /// 为 null 时胶囊不可点（保留旧的纯展示语义，供只做度量的测试使用）。
+  final ValueChanged<Offset>? onBurst;
+
   const _FloatingSunBubble({
     required this.balance,
     required this.drift,
     this.capsuleKey,
+    this.onBurst,
   });
+
+  @override
+  State<_FloatingSunBubble> createState() => _FloatingSunBubbleState();
+}
+
+class _FloatingSunBubbleState extends State<_FloatingSunBubble>
+    with SingleTickerProviderStateMixin {
+  /// 点击后的数字轻弹（有限时长，绝不无限循环 → 不干扰 `pumpAndSettle` 纪律）。
+  late final AnimationController _pop = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+
+  late final Animation<double> _popScale = TweenSequence<double>(
+    <TweenSequenceItem<double>>[
+      TweenSequenceItem<double>(
+        tween: Tween<double>(begin: 1.0, end: 1.16)
+            .chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 38,
+      ),
+      TweenSequenceItem<double>(
+        tween: Tween<double>(begin: 1.16, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 62,
+      ),
+    ],
+  ).animate(_pop);
+
+  @override
+  void dispose() {
+    _pop.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    // 数字轻弹：连点直接从头重播（`forward(from:0)` 幂等，不叠加控制器）。
+    _pop.forward(from: 0);
+    final ValueChanged<Offset>? onBurst = widget.onBurst;
+    if (onBurst == null) return;
+    // 用**自身 RenderObject** 的全局矩形换算圆心：外层 `Transform.translate`
+    // 的漂移已在 `localToGlobal` 里被祖先变换计入 → 圆心永远跟着胶囊走。
+    final RenderBox? rb = context.findRenderObject() as RenderBox?;
+    if (rb == null || !rb.attached || !rb.hasSize) return;
+    onBurst(rb.localToGlobal(rb.size.center(Offset.zero)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -569,9 +668,9 @@ class _FloatingSunBubble extends StatelessWidget {
     // 故与旁边已放大的数字相比会显小 —— 显式乘 uiScaleOf 补平（手机 = 1.0，零回归）。
     final double s = uiScaleOf(context);
     return AnimatedBuilder(
-      animation: drift,
+      animation: widget.drift,
       builder: (BuildContext context, Widget? child) {
-        final double t = drift.value * 2 * math.pi;
+        final double t = widget.drift.value * 2 * math.pi;
         // C44h（玄参 2026-10-09）：频率必须是基频**整数倍**（1/2/3/4/5/6 次谐波）——
         // 旧版用 2.7/1.3/0.7 非整倍频，t=2π 归零瞬间各分量不回原点（dy 跳 ~12pt），
         // 观感「飘着飘着突然跳变」。整数谐波下 sin(2π·k)=0、cos(2π·k)=1，轨迹
@@ -588,45 +687,63 @@ class _FloatingSunBubble extends StatelessWidget {
             math.cos(6 * t) * 2.4;
         return Transform.translate(offset: Offset(dx, dy), child: child);
       },
-      child: Container(
-        key: capsuleKey,
-        // C67：胶囊整体放大（见类文档的尺寸表）。
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: const Color(0x33E8A600)),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(
-                color: Color(0x33000000),
-                blurRadius: 10,
-                offset: Offset(0, 4)),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            // 阳光素材（2026-10-06 玄参交付），缺失回退内置图标。
-            // C65：随平板 UI 倍率放大（见 build 内 s 的说明）。
-            // C67：22 → **30**（玄参要求「把里面的阳光图标变大一些」，主导放大）。
-            Image.asset(
-              'assets/rewards/sunlight.png',
-              width: 30 * s,
-              height: 30 * s,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Icon(Icons.wb_sunny,
-                  color: const Color(0xFFE8A600), size: 30 * s),
-            ),
-            const SizedBox(width: 7), // C67：6 → 7
-            Text(
-              '${sunlightDisplayInt(balance)}',
-              // C67：18 → 19（数字只微幅跟进，把放大余量让给图标）。
-              style:
-                  const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
-            ),
-            // C44g（玄参 2026-10-09）：删掉尾部小太阳「☀」——阳光素材图标已
-            // 表意，双太阳重复（用户截图实证）。仅保留素材图标 + 数字。
-          ],
+      // GestureDetector 包在胶囊**外层**：命中区 = 胶囊矩形本身（不透明白底），
+      // 不需要额外放大 —— 胶囊已有 44pt 高，满足触控下限。
+      child: GestureDetector(
+        // `opaque`：让空白内边距也算命中，避免「点在胶囊里却没反应」。
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onBurst == null ? null : _handleTap,
+        child: Container(
+          key: widget.capsuleKey,
+          // C67：胶囊整体放大（见类文档的尺寸表）。
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: const Color(0x33E8A600)),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 4)),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              // 阳光素材（2026-10-06 玄参交付），缺失回退内置图标。
+              // C65：随平板 UI 倍率放大（见 build 内 s 的说明）。
+              // C67：22 → **30**（玄参要求「把里面的阳光图标变大一些」，主导放大）。
+              Image.asset(
+                'assets/rewards/sunlight.png',
+                width: 30 * s,
+                height: 30 * s,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Icon(Icons.wb_sunny,
+                    color: const Color(0xFFE8A600), size: 30 * s),
+              ),
+              const SizedBox(width: 7), // C67：6 → 7
+              // 数字：点击时 `_popScale` 轻弹（1.0 → 1.16 → 1.0）。
+              // `transformHitTests: false` —— 缩放只影响绘制，不能把命中区一起放大，
+              // 否则连点边界会随动画抖动（`ScaleTransition` 无此开关，故手写）。
+              AnimatedBuilder(
+                animation: _popScale,
+                builder: (BuildContext _, Widget? child) => Transform.scale(
+                  scale: _popScale.value,
+                  transformHitTests: false,
+                  child: child,
+                ),
+                child: Text(
+                  '${sunlightDisplayInt(widget.balance)}',
+                  // C67：18 → 19（数字只微幅跟进，把放大余量让给图标）。
+                  style:
+                      const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+                ),
+              ),
+              // C44g（玄参 2026-10-09）：删掉尾部小太阳「☀」——阳光素材图标已
+              // 表意，双太阳重复（用户截图实证）。仅保留素材图标 + 数字。
+            ],
+          ),
         ),
       ),
     );

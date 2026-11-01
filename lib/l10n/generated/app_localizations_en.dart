@@ -592,6 +592,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String garden_dew_overflow_settled(Object parts) {
+    return 'Dew is full (3 kept), the newest one was collected for you: $parts';
+  }
+
+  @override
   String shared_op_failed(Object error) {
     return 'Operation failed: $error';
   }
@@ -1106,6 +1111,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profile_stat_eyecare => 'Total eye-care breaks';
+
+  @override
+  String get profile_garden_stats_title => 'Garden stats';
+
+  @override
+  String get profile_stat_water => 'Watering';
+
+  @override
+  String get profile_stat_fertilize => 'Fertilizing';
+
+  @override
+  String get profile_stat_weed => 'Weeding';
+
+  @override
+  String get profile_stat_pest => 'Pest removal';
 
   @override
   String get hist_title => 'Sunlight History';

@@ -449,6 +449,14 @@
       }
     }
   },
+  "garden_dew_overflow_settled": "Dew is full (3 kept), the newest one was collected for you: {parts}",
+  "@garden_dew_overflow_settled": {
+    "placeholders": {
+      "parts": {
+        "type": "Object"
+      }
+    }
+  },
   "shared_op_failed": "Operation failed: {error}",
   "@shared_op_failed": {
     "placeholders": {
@@ -924,6 +932,11 @@
     }
   },
   "profile_stat_eyecare": "Total eye-care breaks",
+  "profile_garden_stats_title": "Garden stats",
+  "profile_stat_water": "Watering",
+  "profile_stat_fertilize": "Fertilizing",
+  "profile_stat_weed": "Weeding",
+  "profile_stat_pest": "Pest removal",
   "hist_title": "Sunlight History",
   "hist_empty_hint": "No sunlight records yet 🌻",
   "hist_balance_label": "Current sunlight",

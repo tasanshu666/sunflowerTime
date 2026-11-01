@@ -1082,6 +1082,12 @@ abstract class AppLocalizations {
   /// **'花朵凋谢，奖励已自动收下：{parts}'**
   String garden_settle_withered(Object parts);
 
+  /// No description provided for @garden_dew_overflow_settled.
+  ///
+  /// In zh, this message translates to:
+  /// **'晨露攒满 3 份，新的已自动收下：{parts}'**
+  String garden_dew_overflow_settled(Object parts);
+
   /// No description provided for @shared_op_failed.
   ///
   /// In zh, this message translates to:
@@ -1897,6 +1903,36 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'累计护眼'**
   String get profile_stat_eyecare;
+
+  /// No description provided for @profile_garden_stats_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'花园统计'**
+  String get profile_garden_stats_title;
+
+  /// No description provided for @profile_stat_water.
+  ///
+  /// In zh, this message translates to:
+  /// **'浇水'**
+  String get profile_stat_water;
+
+  /// No description provided for @profile_stat_fertilize.
+  ///
+  /// In zh, this message translates to:
+  /// **'施肥'**
+  String get profile_stat_fertilize;
+
+  /// No description provided for @profile_stat_weed.
+  ///
+  /// In zh, this message translates to:
+  /// **'除草'**
+  String get profile_stat_weed;
+
+  /// No description provided for @profile_stat_pest.
+  ///
+  /// In zh, this message translates to:
+  /// **'除虫'**
+  String get profile_stat_pest;
 
   /// No description provided for @hist_title.
   ///

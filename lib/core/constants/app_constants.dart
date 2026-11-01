@@ -317,7 +317,12 @@ const String kOfficialWebsite = 'https://sunfocused.cn';
 const String kAppVersionName = '1.0.0';
 
 /// App 构建号（`CFBundleVersion` 同值）。同源纪律见 [kAppVersionName]。
-const String kAppBuildNumber = '2105';
+///
+/// 🔴 **2106 起 = 2105 之后的新批次**：2105 已于 2026-10-30 提交 App Store 审核
+/// （tag `appstore-1.0.0-2105`），**构建号一经苹果接收不可重传**。本批改动
+/// （F168 溢出修复 + 花园统计 + 阳光胶囊爆发）**绝不能再打 2105**，否则回溯时
+/// 分不清「审核中的包」与「开发中的代码」。
+const String kAppBuildNumber = '2106';
 
 /// 关于页展示的版本串：`1.0.0 (2105)`。
 const String kAppVersionLabel = '$kAppVersionName ($kAppBuildNumber)';

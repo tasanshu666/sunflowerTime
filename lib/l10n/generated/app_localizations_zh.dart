@@ -575,6 +575,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String garden_dew_overflow_settled(Object parts) {
+    return '晨露攒满 3 份，新的已自动收下：$parts';
+  }
+
+  @override
   String shared_op_failed(Object error) {
     return '操作失败：$error';
   }
@@ -1071,6 +1076,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get profile_stat_eyecare => '累计护眼';
+
+  @override
+  String get profile_garden_stats_title => '花园统计';
+
+  @override
+  String get profile_stat_water => '浇水';
+
+  @override
+  String get profile_stat_fertilize => '施肥';
+
+  @override
+  String get profile_stat_weed => '除草';
+
+  @override
+  String get profile_stat_pest => '除虫';
 
   @override
   String get hist_title => '阳光来源记录';

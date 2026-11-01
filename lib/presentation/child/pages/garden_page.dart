@@ -484,7 +484,14 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       // 花谢兜底自动到账：收集本次 tick 自动结算的奖励 outcome（用于「花朵凋谢，奖励已自动
       // 收下：…」提示——玄参要求花谢自动到账**也要提示**）。
       final List<BloomRewardOutcome> autoSettled = <BloomRewardOutcome>[];
-      _plants = await svc.tickAll(now, autoSettled: autoSettled);
+      // 晨露超上限自动入账（玄参 2026-11-01：每株最多挂 3 份，新的直接进余额）——
+      // 独立通道，文案与花谢兜底不同（两者互斥：花谢时该株晨露已被上面那条兜底清空）。
+      final List<BloomRewardOutcome> dewOverflow = <BloomRewardOutcome>[];
+      _plants = await svc.tickAll(
+        now,
+        autoSettled: autoSettled,
+        dewOverflowSettled: dewOverflow,
+      );
       // 任务 A（玄参 2026-09-28）：刷新时把「v12 之前登记的零值哨兵旧 pending 行」
       // 按当前档位回写为明细，使旧数据头顶图标直接显示阳光/碎片/种子（不再礼物盒）。
       await svc.materializeLegacyBloomRewards(now);
@@ -553,6 +560,11 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       // 花谢自动到账提示（有则可，无则静默）。
       if (autoSettled.isNotEmpty && mounted) {
         _snack(_t.garden_settle_withered(autoSettled.map(_outcomeParts).join('；')));
+      }
+      // 晨露攒满 3 份、新的已自动入账（同样有则可、无则静默）。
+      if (dewOverflow.isNotEmpty && mounted) {
+        _snack(
+            _t.garden_dew_overflow_settled(dewOverflow.map(_outcomeParts).join('；')));
       }
     } catch (e) {
       _error = e.toString();
@@ -3760,7 +3772,17 @@ class CollectGhost extends StatelessWidget {
           ),
         );
       },
-      child: Row(mainAxisSize: MainAxisSize.min, children: icons),
+      // 🔴 F168（玄参 2026-11-01 截图实证「晨露累积多了，点收取时右侧溢出」）：
+      // 幽灵被调用方用 `Positioned.fromRect` **锁死在花盆格矩形内**，这一层 Row 若
+      // 是裸的，聚合出 3~4 个图标（阳光 + 碎片 + 种子 + 礼包，单个命中区
+      // 42×uiScaleOf）就必然超出格宽 → `RenderFlex overflowed by N pixels on the
+      // right`（实测手机 360 屏溢出 18px、真机截图为 4px）。
+      // 常驻的 [BloomRewardIconsBar] 早有同款 `FittedBox(scaleDown)` 兜底，幽灵漏了
+      // ——这里补齐同一口径：图标多 → **整体等比缩小**，绝不横向溢出、绝不裁切。
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(mainAxisSize: MainAxisSize.min, children: icons),
+      ),
     );
   }
 }

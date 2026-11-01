@@ -749,9 +749,14 @@ class PlantGrowthService {
   /// [autoSettled]（可选，非 null 时）按结算顺序**追加**每条「花谢兜底自动到账」奖励的
   /// [BloomRewardOutcome]（`autoSettled: true`），供花园页提示「花朵凋谢，奖励已自动收下：…」。
   /// 默认 null → 完全向后兼容，**不改返回类型**（仍为 `List<Plant>`）。
+  /// [dewOverflowSettled]（可选，非 null 时）按结算顺序**追加**每条「晨露超上限自动入账」
+  /// 的 [BloomRewardOutcome]（`autoSettled: true`），供花园页提示「晨露攒满了，新的已自动
+  /// 收下：…」。**与 [autoSettled] 分开两个通道**——花谢兜底与晨露超限是两回事，文案不同。
+  /// 默认 null → 完全向后兼容，**不改返回类型**（仍为 `List<Plant>`）。
   Future<List<Plant>> tickAll(
     DateTime now, {
     List<BloomRewardOutcome>? autoSettled,
+    List<BloomRewardOutcome>? dewOverflowSettled,
   }) async {
     final List<PlantSpecies> species = await _plants.species();
     final Map<String, PlantSpecies> speciesMap =
@@ -802,7 +807,12 @@ class PlantGrowthService {
     final bool anyAutoSettled = await _autoSettleUncollectibleRewards(
         species, now, updated, autoSettled);
 
-    if (anyAutoSettled) _onEconomyChanged?.call();
+    // 晨露超上限自动入账（玄参 2026-11-01：每株最多挂 3 份，第 4 天起直接发到余额）。
+    // 必须在上一句**之后**：不可收集的先被兜底清掉，这里只处理「仍可收集但太多」的。
+    final bool anyDewOverflow =
+        await _autoSettleOverflowDews(species, now, updated, dewOverflowSettled);
+
+    if (anyAutoSettled || anyDewOverflow) _onEconomyChanged?.call();
     return updated;
   }
 
@@ -1561,6 +1571,67 @@ class PlantGrowthService {
       await _bloomRewards.markPendingBloomRewardClaimed(reward.id);
       autoSettled?.add(outcome.copyWith(autoSettled: true));
       granted = true;
+    }
+    return granted;
+  }
+
+  /// 晨露**超上限**自动入账（玄参 2026-11-01 拍板：每株最多挂 [kBloomDewPendingMax] 份）。
+  ///
+  /// 为什么需要它：晨露在开花瞬间就把整个花期的每个 08:00 预登记进库（见
+  /// [_enqueueBloomRewards]），到点即「可收集」。此前不设上限，孩子几天不来收，
+  /// 同一株头顶会并排堆出一串晨露图标（F168 只兜住了视觉溢出，数量仍无限增长）。
+  ///
+  /// 规则：
+  ///  · 按株分组，只统计**每日晨露**（`rewardKind` ≠ [kBloomRewardPhaseInstant]）；
+  ///  · 按 `dueAt` **升序**排序 → **保留最早的 [kBloomDewPendingMax] 份**给孩子点；
+  ///  · 其余（更晚到期的）当场结算入账并置 claimed —— **奖励不丢**，只是不再占界面。
+  ///
+  /// 🔴 为什么保留**最早**的而不是最新的：口径「第 4 天起**当天新**晨露直接发到余额」——
+  /// 新的那条自动进余额，老的一直留着等孩子点，符合孩子「攒了几份一起收」的预期；
+  /// 若反过来（保留最新、把最老的卖掉），孩子会看到图标原地换了一批，更像 bug。
+  ///
+  /// 幂等：没超限时零结算、零写库。调用点在 [tickAll]，排在
+  /// [_autoSettleUncollectibleRewards] **之后**（不可收集的已被清掉，这里只处理
+  /// 「仍可收集但超量」的）。
+  Future<bool> _autoSettleOverflowDews(
+    List<PlantSpecies> species,
+    DateTime now,
+    List<Plant> plants,
+    List<BloomRewardOutcome>? overflowSettled,
+  ) async {
+    final List<PendingBloomReward> due =
+        await _bloomRewards.pendingBloomRewardsDue(now);
+    if (due.isEmpty) return false;
+
+    // 只留每日晨露，按株分组（开花瞬间奖励不占晨露额度）。
+    final Map<String, List<PendingBloomReward>> byPlant =
+        <String, List<PendingBloomReward>>{};
+    for (final PendingBloomReward r in due) {
+      if (r.rewardKind == kBloomRewardPhaseInstant) continue;
+      byPlant.putIfAbsent(r.plantId, () => <PendingBloomReward>[]).add(r);
+    }
+    if (byPlant.isEmpty) return false;
+
+    final Map<String, Plant> byId = <String, Plant>{
+      for (final Plant p in plants) p.id: p,
+    };
+    bool granted = false;
+    for (final MapEntry<String, List<PendingBloomReward>> entry
+        in byPlant.entries) {
+      final List<PendingBloomReward> list = entry.value
+        ..sort((PendingBloomReward a, PendingBloomReward b) =>
+            a.dueAt.compareTo(b.dueAt));
+      if (list.length <= kBloomDewPendingMax) continue;
+      for (final PendingBloomReward reward in list.skip(kBloomDewPendingMax)) {
+        // 双保险：不可收集的本该已被上一句清掉；若仍遇到（并发 tick / 状态刚变），
+        // 交回给花谢兜底处理，绝不在这里重复入账。
+        if (!_isRewardCollectible(byId[reward.plantId], reward)) continue;
+        final BloomRewardOutcome outcome =
+            await _settlePendingReward(reward, species, plants, now);
+        await _bloomRewards.markPendingBloomRewardClaimed(reward.id);
+        overflowSettled?.add(outcome.copyWith(autoSettled: true));
+        granted = true;
+      }
     }
     return granted;
   }

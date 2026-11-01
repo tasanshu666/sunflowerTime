@@ -449,6 +449,14 @@
       }
     }
   },
+  "garden_dew_overflow_settled": "晨露攒满 3 份，新的已自动收下：{parts}",
+  "@garden_dew_overflow_settled": {
+    "placeholders": {
+      "parts": {
+        "type": "Object"
+      }
+    }
+  },
   "shared_op_failed": "操作失败：{error}",
   "@shared_op_failed": {
     "placeholders": {
@@ -924,6 +932,11 @@
     }
   },
   "profile_stat_eyecare": "累计护眼",
+  "profile_garden_stats_title": "花园统计",
+  "profile_stat_water": "浇水",
+  "profile_stat_fertilize": "施肥",
+  "profile_stat_weed": "除草",
+  "profile_stat_pest": "除虫",
   "hist_title": "阳光来源记录",
   "hist_empty_hint": "还没有阳光记录哦 🌻",
   "hist_balance_label": "当前拥有阳光",

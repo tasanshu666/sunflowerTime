@@ -34,6 +34,7 @@ import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
+import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart'
     show levelOfMinutes, thresholdMinutesOfLevel;
 import 'package:sunflower_time/presentation/child/widgets/child_avatar.dart';
@@ -58,6 +59,19 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
   int _totalCheckIns = 0;
   int _bloomedPlants = 0;
   int _totalEyeCares = 0;
+  /// 🔴 花园统计（玄参 2026-11-01）：浇水 / 施肥 / 除草 / 除虫各自的**累计次数**。
+  ///
+  /// 口径与 [kEyeCareRefType] 的累计护眼完全一致 —— 以**阳光账本**为唯一事实源，
+  /// 用 `countByRefType` 全量计数（含上线以来全部历史，不按天/按月切分）：
+  ///  · 浇水 = `plant_water`（每次浇水写且仅写一条扣费行，见 `PlantGrowthService.water`）
+  ///  · 施肥 = `plant_fertilize`（同上，`fertilize`）
+  ///  · 除草 = `plant_weed`（`clearWeed` 无条件入账；空花盆走 `EmptyPotService` 复用同一 refType）
+  ///  · 除虫 = `plant_pest`（同上）
+  /// 失败动作（额度用尽 / 无草无虫 / 阳光不足）在写账本**之前**就抛出，天然不计数。
+  int _waterCount = 0;
+  int _fertilizeCount = 0;
+  int _weedCount = 0;
+  int _pestCount = 0;
   double _balance = 0;
   bool _loading = true;
   /// 当前页文案（build 期在 L10nScope 内赋值；异步回调经 [_t] 取，
@@ -314,6 +328,15 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
       final int eyeCares = await ref
           .read(sunlightRepositoryProvider)
           .countByRefType(kEyeCareRefType);
+      // 花园统计（玄参 2026-11-01）：与累计护眼同源同法 —— 账本 countByRefType 全量。
+      // 四个计数串行 await（非 Future.wait）：SQLCipher 单连接，并发读无收益且
+      // 会让出错时的堆栈与「谁先失败」解耦，排查变难。
+      final SunlightRepository ledger = ref.read(sunlightRepositoryProvider);
+      final int waterCount = await ledger.countByRefType(kPlantWaterRefType);
+      final int fertilizeCount =
+          await ledger.countByRefType(kPlantFertilizeRefType);
+      final int weedCount = await ledger.countByRefType(kGardenWeedRefType);
+      final int pestCount = await ledger.countByRefType(kGardenPestRefType);
       // C90 期 2：当前孩子档案（name + 年龄段）随每次刷新重读 —— 家长改档 /
       // 切孩子后 childProfileRevisionProvider 自增 → ChildTabAutoRefresh 无条件
       // 触发本方法，展示即时跟随。
@@ -334,6 +357,10 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
             .where(speciesIds.contains)
             .toSet();
         _totalEyeCares = eyeCares;
+        _waterCount = waterCount;
+        _fertilizeCount = fertilizeCount;
+        _weedCount = weedCount;
+        _pestCount = pestCount;
         _balance = balance;
         _loading = false;
       });
@@ -586,6 +613,37 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
               label: _t.profile_stat_eyecare,
               value: _t.profile_value_times(_totalEyeCares),
               accent: const Color(0xFF2FA8B8),
+            ),
+            // ── 花园统计（玄参 2026-11-01）──────────────────────────────────
+            // 与「累计成就」**分开放**：上面 6 项是专注侧指标，这 4 项是花园劳动侧
+            // 指标，混在一列孩子分不清「哪个该干什么才会涨」。
+            // 口径全部是阳光账本 countByRefType（见 state 字段注释），零 schema 变更。
+            const SizedBox(height: 8),
+            _SectionTitle(_t.profile_garden_stats_title),
+            _AchievementTile(
+              icon: Icons.water_drop,
+              label: _t.profile_stat_water,
+              value: _t.profile_value_times(_waterCount),
+              accent: const Color(0xFF3E9BD6),
+            ),
+            _AchievementTile(
+              icon: Icons.energy_savings_leaf,
+              label: _t.profile_stat_fertilize,
+              value: _t.profile_value_times(_fertilizeCount),
+              accent: const Color(0xFFA0764B),
+            ),
+            _AchievementTile(
+              icon: Icons.grass,
+              label: _t.profile_stat_weed,
+              value: _t.profile_value_times(_weedCount),
+              accent: const Color(0xFF6BA84F),
+            ),
+            _AchievementTile(
+              icon: Icons.bug_report,
+              label: _t.profile_stat_pest,
+              value: _t.profile_value_times(_pestCount),
+              accent: const Color(0xFFD9622B),
+              // 末卡：不再留底部间距（与旧「累计护眼」同口径）。
               isLast: true,
             ),
             // ── 调试区（玄参 2026-09-24 要求加回，供调试验收）────────────────────

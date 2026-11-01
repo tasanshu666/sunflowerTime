@@ -364,4 +364,110 @@ void main() {
       expect(outcome.sunlight, 4);
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 晨露上限（玄参 2026-11-01 拍板：每株最多挂 3 份，超出的自动入账）
+  // ══════════════════════════════════════════════════════════════════════════
+  group('晨露超上限自动入账（kBloomDewPendingMax）', () {
+    // 盛开中、当天刚浇过水（不触发枯萎），花期未结束（不触发花谢兜底）。
+    final DateTime now = DateTime(2026, 10, 12, 10, 0);
+    final DateTime bloomed = DateTime(2026, 10, 11, 10, 0);
+
+    Plant fresh() => Plant(
+          id: 'p1',
+          speciesId: 'species_sunflower',
+          potIndex: 0,
+          stage: PlantStage.adult,
+          status: PlantStatus.bloomed,
+          growthProgress: 1.0,
+          growthFactor: 1.0,
+          plantedAt: bloomed.subtract(const Duration(days: 30)),
+          stageStartedAt: bloomed,
+          bloomedAt: bloomed,
+          lastWaterAt: now,
+        );
+
+    /// 第 [h] 小时的晨露（全部已到期、都属本轮花期 → 都可收集）。
+    PendingBloomReward dew(String id, int h, {String kind = kBloomRewardKindNormal}) =>
+        PendingBloomReward(
+          id: id,
+          plantId: 'p1',
+          dueAt: bloomed.add(Duration(hours: h)),
+          rewardKind: kind,
+          rewardSunlight: 5,
+        );
+
+    test('5 份晨露 → 保留最早 3 份，后 2 份自动入账（奖励不丢）', () async {
+      final ctx = _make();
+      await ctx.plants.savePlant(fresh());
+      for (int i = 1; i <= 5; i++) {
+        await ctx.bloomRewards.insertPendingBloomReward(dew('r$i', i));
+      }
+
+      final List<BloomRewardOutcome> overflow = <BloomRewardOutcome>[];
+      await ctx.svc.tickAll(now, dewOverflowSettled: overflow);
+
+      expect(overflow.length, 2,
+          reason: '5 份超出上限 3 → 最晚的 2 份必须当场入账，绝不允许无上限累积');
+      final List<PendingBloomReward> left =
+          await ctx.bloomRewards.pendingBloomRewardsDue(now);
+      expect(left.length, 3, reason: '界面上只剩 3 份等孩子点');
+      expect(left.map((PendingBloomReward r) => r.id).toSet(),
+          <String>{'r1', 'r2', 'r3'},
+          reason: '留下的是**最早**的 3 份（口径：新的那条进余额，老的一直等孩子点）');
+      expect(overflow.every((BloomRewardOutcome o) => o.autoSettled), isTrue,
+          reason: '自动入账必须打 autoSettled 标记');
+    });
+
+    test('正好 3 份 → 一份都不自动入账（边界不误伤）', () async {
+      final ctx = _make();
+      await ctx.plants.savePlant(fresh());
+      for (int i = 1; i <= 3; i++) {
+        await ctx.bloomRewards.insertPendingBloomReward(dew('r$i', i));
+      }
+
+      final List<BloomRewardOutcome> overflow = <BloomRewardOutcome>[];
+      await ctx.svc.tickAll(now, dewOverflowSettled: overflow);
+
+      expect(overflow, isEmpty, reason: '未超限时零结算');
+      expect(
+          (await ctx.bloomRewards.pendingBloomRewardsDue(now)).length, 3);
+    });
+
+    test('开花瞬间奖励不占晨露额度（3 晨露 + 1 瞬间 → 不触发）', () async {
+      final ctx = _make();
+      await ctx.plants.savePlant(fresh());
+      await ctx.bloomRewards.insertPendingBloomReward(
+          dew('inst', 0, kind: kBloomRewardPhaseInstant));
+      for (int i = 1; i <= 3; i++) {
+        await ctx.bloomRewards.insertPendingBloomReward(dew('r$i', i));
+      }
+
+      final List<BloomRewardOutcome> overflow = <BloomRewardOutcome>[];
+      await ctx.svc.tickAll(now, dewOverflowSettled: overflow);
+
+      expect(overflow, isEmpty,
+          reason: '瞬间奖励是开花那一下的，不该把晨露挤掉');
+      expect(
+          (await ctx.bloomRewards.pendingBloomRewardsDue(now)).length, 4);
+    });
+
+    test('幂等：连续两次 tick 不会重复入账', () async {
+      final ctx = _make();
+      await ctx.plants.savePlant(fresh());
+      for (int i = 1; i <= 5; i++) {
+        await ctx.bloomRewards.insertPendingBloomReward(dew('r$i', i));
+      }
+
+      final List<BloomRewardOutcome> first = <BloomRewardOutcome>[];
+      await ctx.svc.tickAll(now, dewOverflowSettled: first);
+      final List<BloomRewardOutcome> second = <BloomRewardOutcome>[];
+      await ctx.svc.tickAll(now, dewOverflowSettled: second);
+
+      expect(first.length, 2);
+      expect(second, isEmpty, reason: '第二次 tick 已无超限，必须零结算');
+      expect(
+          (await ctx.bloomRewards.pendingBloomRewardsDue(now)).length, 3);
+    });
+  });
 }

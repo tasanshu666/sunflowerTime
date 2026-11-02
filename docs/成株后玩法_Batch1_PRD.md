@@ -83,7 +83,7 @@
 | 花谢回落下限 | **0.5** | **0.5** | 复用 `kBloomWiltProgressFloor`，**不变** |
 | 花期时长（盛开保持） | **3 天** | **4.5 天** | `kBloomDurationDays = 3`；精品 = 3 × 1.5 |
 | **复开花自动回填率** | **≈3.6%/天** | **≈2.4%/天** | `kRebloomAutoProgressPerDay = 0.036`；精品 = 0.036 ÷ 1.5 |
-| **复开花养护增量（封顶）** | **≈3.6%/天** | **≈2.4%/天** | 浇水 `kRebloomWaterProgressGain = 0.008`（3 次/天）+ 施肥 `kRebloomFertilizeProgressGain = 0.012`（1 次/天）= 3.6%/天；精品同步 ÷1.5 |
+| **复开花养护增量（封顶）** | **≈3.6%/天** | **≈2.4%/天** | 浇水 `kRebloomWaterProgressGain = 0.007`（3 次/天）+ 施肥 `kRebloomFertilizeProgressGain = 0.015`（1 次/天）= 3.6%/天；精品同步 ÷1.5（⚠️ 2026-11-02 玄参拍板把 0.008/0.012 改为 0.007/0.015，**日合计严格不变**，见 C116-1） |
 | 不养护再开花 | **≈14 天** | **≈21 天** | 0.5 ÷ 回填率 |
 | 养护再开花 | **≈7 天** | **≈10.5 天** | 0.5 ÷ (回填率 + 养护增量) |
 
@@ -164,7 +164,7 @@
 - 迁移测试：v9→v10（3 表 + `bloom_count`）、v10→v11（旧植株清理）、**v11→v12（补 3 列，幂等 + 老 pending 行不丢）**。
 
 ### 4.3 复开花节奏（技术方案影响）
-- **独立常量**：`kRebloomAutoProgressPerDay = 0.036`、`kRebloomWaterProgressGain = 0.008`、`kRebloomFertilizeProgressGain = 0.012`、`kRebloomPremiumCycleMultiplier = 1.5`。
+- **独立常量**：`kRebloomAutoProgressPerDay = 0.036`、`kRebloomWaterProgressGain = 0.007`、`kRebloomFertilizeProgressGain = 0.015`、`kRebloomPremiumCycleMultiplier = 1.5`。
 - 复开花回填**不再**使用 `kPlantGrowthHoursPerStageDefault(240)/Premium(480)` 推导的 10%/5%/天。
 - **复开花识别**：`Plants.bloom_count`（INT）列。
 

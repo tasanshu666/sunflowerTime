@@ -1914,3 +1914,243 @@ const Duration kPlantPerkProviderTimeout = Duration(seconds: 2);
 /// **绝不把「读档案」变成会挂住 UI 流程的 await**。200ms 远大于正常查询耗时。
 const Duration kChildProfileReadTimeout = Duration(milliseconds: 200);
 
+// ───────────────────────────────────────────────────────────────────────────
+// 花园天气系统 · 日型参数（玄参 2026-11-02 终裁 v6.1，**删高温后的 9 日型表**）
+//
+// 口径真源：`docs/天气系统_最终方案.md` §3.1~§3.4 + 玄参 2026-11-02 拍板
+// 「**删掉高温**」。🔴 全仓只有 **9 种**日型，**没有 heat**，禁止再加回来
+// （单测 `test/m3/weather_system_test.dart` 有守卫：values.length == 9 且无 'heat'）。
+//
+// 生成方式（§3.1，**确定性纯函数、禁用 Random**）：
+//   dayKey = 'yyyy-MM-dd'（孩子设备本地自然日，时分秒无关）
+//   seed   = FNV-1a 32bit(dayKey + [kWeatherSaltV1])
+//   u      = seed / 2^32                              → [0,1)
+//   bucket = 按累计权重落桶（权重合计恒为 100，故权重数值即概率百分位）
+//   软约束（仍在纯函数内，不改 u / 不引入随机）：
+//     ① 同一日型不得连续出现 3 天       → 命中则顺延到下一桶（回绕）
+//     ② **同一种**极端不得连续两天      → 命中则顺延到下一桶（回绕）
+//        ⚠️ 是「同型」，不是「任何两种极端」：后者会让极端占比数学上掉到
+//        1/6 ≈ 16.67%，与玄参「极端 20% 概率保持不变」互斥（2026-11-02 裁定：
+//        让约束、不让概率）。干旱→暴雨 允许；干旱→干旱 才重选。
+//
+// 实现落点：`lib/domain/services/weather_system.dart`
+// （[WeatherKind] / [WeatherDay] / `WeatherSystem`）。
+//
+// 🔴 权重合计**必须恒等于 100**（单测钉死）；改权重 = 改概率 = 改经济学，须走裁定。
+// 🔴 温和 5 种加权 `g` **精确 = 1.0000**（玄参要的「温和月不吃亏」，G2），
+//    改任一温和乘数前先手算：20g₁ + 14g₂ + 18g₃ + 14g₄ + 14g₅ ≡ 80.00。
+// ───────────────────────────────────────────────────────────────────────────
+
+/// 天气哈希**固定 salt**（方案 §3.1）。
+///
+/// 🔴 **跨版本不得改动**：改了等于给所有设备**重排历史天气** —— 同一台设备
+/// 「昨天是暴雨、今天回看昨天变晴天」，历史惩罚记录（账本已按当日日型扣过进度）
+/// 与当前展示会永久对不上，且无法迁移修复。
+const String kWeatherSaltV1 = '|weather|v1';
+
+/// 天气日历的**锚点日**（年/月/日三个整数，`DateTime` 无常量构造故拆开写）。
+///
+/// 软约束需要「昨天 / 前天」的结论，而结论本身又依赖它们的前一天 —— 为了让
+/// **同一天的日型与「谁先被查询」无关**（可重放、跨会话一致），链条必须有一个
+/// **绝对起点**：锚点日之前的日子按**裸桶**（只落权重、不套软约束）取值，
+/// 锚点日起逐日按 §3.1 全规则推进。
+///
+/// 取 **2000-01-01** 的两条理由：
+///  ① 早于产品可能产生的任何真实数据（本作 2026 年上线），裸桶区只存在于虚构的过去；
+///  ② 与分布单测的取样区间起点**重合** —— 被断言的每一天都在约束生效区内，
+///     测试覆盖 = 生产覆盖，不存在「测的是 A 口径、跑的是 B 口径」。
+/// 代价：冷缓存首次查询要补算「锚点 → 目标日」这一串（见 `WeatherSystem` 的缓存与
+/// 逐日正向回填设计），约一万天的量级，一次性开销。
+const int kWeatherCalendarEpochYear = 2000;
+
+/// 天气日历锚点日 · 月（见 [kWeatherCalendarEpochYear]）。
+const int kWeatherCalendarEpochMonth = 1;
+
+/// 天气日历锚点日 · 日（见 [kWeatherCalendarEpochYear]）。
+const int kWeatherCalendarEpochDay = 1;
+
+/// 软约束顺延时的**最大尝试次数**（= 日型总数 9，即最多把 9 个桶全试一遍）。
+///
+/// 数学上必然在 9 次内命中：极端被约束 ② 挡住时温和 5 种最多只有 1 种被约束 ①
+/// 挡住（温和 → 温和 → 温和 才违 ①），故至少 4 个合法桶。**超限是理论不可达分支**，
+/// 兜底返回原桶（宁可偶发违约束，也不死循环）。
+const int kWeatherRebucketMaxAttempts = 9;
+
+/// 日型内存缓存的**条目上限**（纯性能设施，不参与口径）。
+///
+/// 时间序访问时缓存里恒有「昨天 / 前天」，命中率接近 100%；上限存在的意义只是
+/// 「不给长寿进程留无界内存」。超限按**插入顺序（FIFO）淘汰最旧一条** ——
+/// 选 FIFO 而不是清空，是因为顺序回看只需要最新的两条，FIFO 天然保住它们。
+const int kWeatherCacheMaxEntries = 4096;
+
+// ── 权重（合计 100，权重即概率百分位）───────────────────────────────────────
+//
+// 温和 5 种 = 20 + 14 + 18 + 14 + 14 = 80
+// 极端 4 种 =  7 +  5 +  5 +  3      = 20
+// 🔴 干旱是 7（不是 5）：删掉高温后它的 4 个点并入干旱（原 5+4 → 现 7，其余不变）。
+
+/// 天气权重 · 阳光明媚（温和，§3.2）
+const int kWeatherSunnyWeight = 20;
+
+/// 天气权重 · 微风（温和，§3.2）
+const int kWeatherBreezeWeight = 14;
+
+/// 天气权重 · 多云（温和，§3.2）
+const int kWeatherCloudyWeight = 18;
+
+/// 天气权重 · 阴天（温和，§3.2）
+const int kWeatherOvercastWeight = 14;
+
+/// 天气权重 · 小雨（温和，§3.2；唯一一个会压低浇水额度的温和日）
+const int kWeatherLightRainWeight = 14;
+
+/// 天气权重 · 干旱（极端，§3.3）
+const int kWeatherDroughtWeight = 7;
+
+/// 天气权重 · 大风（极端，§3.3）
+const int kWeatherWindWeight = 5;
+
+/// 天气权重 · 极寒（极端，§3.3）
+const int kWeatherColdWeight = 5;
+
+/// 天气权重 · 暴雨（极端，§3.3）
+const int kWeatherRainstormWeight = 3;
+
+// ── 乘数 g（自然生长）/ w（浇水）/ f（施肥）──────────────────────────────────
+//
+// 🔴 温和 5 种加权 g = (20×1.05 + 14×1.02 + 18×0.96 + 14×0.93 + 14×1.03) / 80
+//    = 80.00 / 80 = **1.0000**（精确，G2「温和月不吃亏」）
+// 🔴 极端 4 种加权 g = (7×0.20 + 5×0.95 + 5×0.85 + 3×0.80) / 20 = 12.80 / 20 = 0.6400
+// 🔴 E[g] = 0.80×1.0000 + 0.20×0.6400 = **0.9280**（天气净拖慢自然生长 7.2%）
+//    E[w] = **1.0700**，E[f] = **0.9514**（三个派生量单测钉死 1e-9）
+
+/// 阳光明媚 · 自然生长乘数 g（温和合计 g 加权 = 1.0000 的第一块）
+const double kWeatherSunnyGrowthFactor = 1.05;
+
+/// 阳光明媚 · 浇水乘数 w
+const double kWeatherSunnyWaterFactor = 1.10;
+
+/// 阳光明媚 · 施肥乘数 f
+const double kWeatherSunnyFertilizeFactor = 1.05;
+
+/// 微风 · 自然生长乘数 g
+const double kWeatherBreezeGrowthFactor = 1.02;
+
+/// 微风 · 浇水乘数 w
+const double kWeatherBreezeWaterFactor = 1.00;
+
+/// 微风 · 施肥乘数 f
+const double kWeatherBreezeFertilizeFactor = 1.00;
+
+/// 多云 · 自然生长乘数 g
+const double kWeatherCloudyGrowthFactor = 0.96;
+
+/// 多云 · 浇水乘数 w
+const double kWeatherCloudyWaterFactor = 0.95;
+
+/// 多云 · 施肥乘数 f
+const double kWeatherCloudyFertilizeFactor = 0.98;
+
+/// 阴天 · 自然生长乘数 g
+const double kWeatherOvercastGrowthFactor = 0.93;
+
+/// 阴天 · 浇水乘数 w
+const double kWeatherOvercastWaterFactor = 0.90;
+
+/// 阴天 · 施肥乘数 f
+const double kWeatherOvercastFertilizeFactor = 0.95;
+
+/// 小雨 · 自然生长乘数 g（**温和偏正面**：×1.03）
+const double kWeatherLightRainGrowthFactor = 1.03;
+
+/// 小雨 · 浇水乘数 w（额度已压到 1 次，「只能浇 1 次」本身就是主约束，故不再重罚）
+const double kWeatherLightRainWaterFactor = 0.65;
+
+/// 小雨 · 施肥乘数 f
+const double kWeatherLightRainFertilizeFactor = 0.90;
+
+/// 干旱 · 自然生长乘数 g（极端最狠的一档：几乎停长）
+const double kWeatherDroughtGrowthFactor = 0.20;
+
+/// 干旱 · 浇水乘数 w（×3.00：**浇水变成救命**，孩子端最强的一次正反馈）
+const double kWeatherDroughtWaterFactor = 3.00;
+
+/// 干旱 · 施肥乘数 f
+const double kWeatherDroughtFertilizeFactor = 0.60;
+
+/// 大风 · 自然生长乘数 g
+const double kWeatherWindGrowthFactor = 0.95;
+
+/// 大风 · 浇水乘数 w
+const double kWeatherWindWaterFactor = 0.90;
+
+/// 大风 · 施肥乘数 f
+const double kWeatherWindFertilizeFactor = 0.80;
+
+/// 极寒 · 自然生长乘数 g
+const double kWeatherColdGrowthFactor = 0.85;
+
+/// 极寒 · 浇水乘数 w
+const double kWeatherColdWaterFactor = 1.10;
+
+/// 极寒 · 施肥乘数 f（**×1.50：施肥保暖**，极端里唯一的高倍施肥）
+const double kWeatherColdFertilizeFactor = 1.50;
+
+/// 暴雨 · 自然生长乘数 g
+const double kWeatherRainstormGrowthFactor = 0.80;
+
+/// 暴雨 · 浇水乘数 w（额度为 0，本乘数只在「雨水代劳」口径里被读数）
+const double kWeatherRainstormWaterFactor = 0.40;
+
+/// 暴雨 · 施肥乘数 f
+const double kWeatherRainstormFertilizeFactor = 0.30;
+
+// ── 浇水 / 施肥额度（§3.2 / §3.3）─────────────────────────────────────────────
+
+/// 默认**浇水额度**（温和 4 种 + 极端 4 种中的 3 种，均 3 次）——
+/// §3.5 硬纪律：天气**只改乘数、不改额度**（小雨 / 暴雨是仅有的两个例外）。
+const int kWeatherDefaultWaterQuota = 3;
+
+/// 默认**施肥额度**（全部 9 种日型都是 1 次，含暴雨）
+const int kWeatherDefaultFertilizeQuota = 1;
+
+/// 小雨 · 浇水额度（3 → **1**）：温和日里唯一压额度的一个，
+/// 给「雨水代劳」一个 14% 的**日常出口**，而不是只在 3% 的暴雨里出现。
+const int kWeatherLightRainWaterQuota = 1;
+
+/// 暴雨 · 浇水额度（**0**）：雨水代劳，孩子当天不能浇水（详见
+/// [kWeatherRainstormWaterBonusPp]）。
+const int kWeatherRainstormWaterQuota = 0;
+
+/// 暴雨 · **雨水代劳的自动进度**（单位 = 百分点 pp，1.00pp = 0.01 进度）。
+///
+/// 额度为 0 的那天不能什么都不长，故按「一场雨顶一次浇水」给 1.00pp 自动进度；
+/// 这是纯收益项，与 `f`（施肥乘数 ×0.30）的惩罚分开记，互不抵消。
+const double kWeatherRainstormWaterBonusPp = 0.01;
+
+// ── 道具 refType（§4.1）───────────────────────────────────────────────────────
+//
+// 🔴 终裁：**一个天气一个 refType**（不是 `refType='shelter'` + refId 区分）。
+// 理由：同一天买两种棚时，同一 refType + 不同 refId 在账本里无法区分；
+// 四个 refType 则天然「一行一物」，且既有
+// `countByRefTypeAndRefIdOnDay(refType, 'garden', day)` 直接可用。
+// 🔴 禁止为此给 `SunlightRepository` 加任何接口方法（全仓约 45 处测试假实现）。
+
+/// 道具 refType · 遮阳棚（护 **干旱**）
+const String kWeatherShelterRefTypeShade = 'shelter_shade';
+
+/// 道具 refType · 挡风板（护 **大风**）
+const String kWeatherShelterRefTypeWind = 'shelter_wind';
+
+/// 道具 refType · 保温棚（护 **极寒**）
+const String kWeatherShelterRefTypeWarm = 'shelter_warm';
+
+/// 道具 refType · 遮雨棚（护 **暴雨**）
+const String kWeatherShelterRefTypeRain = 'shelter_rain';
+
+/// 道具 `refId`（**按园买、不按盆买**：一棚护全园，这是 10☀ 定价成立的前提）
+const String kWeatherShelterRefId = 'garden';
+
+/// 单件道具价格（☀/天/园，§4.1；4 种同价）
+const int kWeatherShelterPrice = 10;
+

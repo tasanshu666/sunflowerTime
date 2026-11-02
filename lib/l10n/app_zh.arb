@@ -549,6 +549,7 @@
   "garden_batch_none_water": "今天没有可浇水的植物",
   "garden_batch_none_fertilize": "今天没有可施肥的植物",
   "garden_batch_none_care": "没有需要护理的植物",
+  "garden_batch_none_collect": "暂时没有可以采集的晨露",
   "garden_row_total_cost": "本次合计扣除",
   "garden_water_note": "将对 {count} 盆植物各浇 1 次水（每盆 {cost} ☀）",
   "@garden_water_note": {
@@ -724,6 +725,7 @@
   "garden_action_water": "一键浇水",
   "garden_action_fertilize": "一键施肥",
   "garden_action_care": "一键护理",
+  "garden_action_collect": "一键采集",
   "garden_oneclick_title": "一键操作",
   "garden_help_sheet_title": "碎片与种子",
   "garden_help_fragment_title": "植物碎片",

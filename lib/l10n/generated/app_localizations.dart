@@ -1226,6 +1226,12 @@ abstract class AppLocalizations {
   /// **'没有需要护理的植物'**
   String get garden_batch_none_care;
 
+  /// No description provided for @garden_batch_none_collect.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时没有可以采集的晨露'**
+  String get garden_batch_none_collect;
+
   /// No description provided for @garden_row_total_cost.
   ///
   /// In zh, this message translates to:
@@ -1465,6 +1471,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'一键护理'**
   String get garden_action_care;
+
+  /// No description provided for @garden_action_collect.
+  ///
+  /// In zh, this message translates to:
+  /// **'一键采集'**
+  String get garden_action_collect;
 
   /// No description provided for @garden_oneclick_title.
   ///

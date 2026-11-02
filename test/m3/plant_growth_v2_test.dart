@@ -531,7 +531,7 @@ void main() {
       );
     });
 
-    test('复开花（普通）：浇水 +0.8% / 施肥 +1.2%', () {
+    test('复开花（普通）：浇水 +0.7% / 施肥 +1.5%', () {
       expect(
         PlantGrowthService.careProgressGain(
           bloomCount: 1,
@@ -548,8 +548,8 @@ void main() {
           firstGain: kPlantFertilizeProgressGain,
           rebloomGain: kRebloomFertilizeProgressGain,
         ),
-        closeTo(0.012, 1e-12),
-        reason: '玄参实证：59% 施肥后 60.2%（截断显示 60%）',
+        closeTo(0.015, 1e-12),
+        reason: '2026-11-02 比例修正后为 1.5%；59% 施肥 → 60.5%（截断显示 60%）',
       );
     });
 

@@ -667,6 +667,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get garden_batch_none_care => '没有需要护理的植物';
 
   @override
+  String get garden_batch_none_collect => '暂时没有可以采集的晨露';
+
+  @override
   String get garden_row_total_cost => '本次合计扣除';
 
   @override
@@ -821,6 +824,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get garden_action_care => '一键护理';
+
+  @override
+  String get garden_action_collect => '一键采集';
 
   @override
   String get garden_oneclick_title => '一键操作';

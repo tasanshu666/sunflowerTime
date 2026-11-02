@@ -449,11 +449,21 @@ void main() {
 
     test('复开花常量钉死（防回退）', () {
       expect(kRebloomAutoProgressPerDay, 0.036);
-      expect(kRebloomWaterProgressGain, 0.008);
-      expect(kRebloomFertilizeProgressGain, 0.012);
+      // 2026-11-02 玄参拍板：浇水/施肥单次进度按「阳光性价比」重新分配，
+      // 但两者日合计 (3×0.007 + 0.015) = 0.036 与旧值 (3×0.008 + 0.012) 严格相等，
+      // 所以复开花周期一天都没变，只有「单次点击看到多少」变了。
+      expect(kRebloomWaterProgressGain, 0.007);
+      expect(kRebloomFertilizeProgressGain, 0.015);
       expect(kRebloomPremiumCycleMultiplier, 1.5);
       expect(kBloomDurationDaysPremium, 4.5);
-      // 普通：0.5 / 0.036 ≈ 14；0.5 / (0.036 + 3×0.008 + 0.012) ≈ 7。
+      // 日合计守卫：改动其中任一常量都必须回头验算这条，防止周期被悄悄改掉。
+      expect(
+        kPlantWaterMaxPerDay * kRebloomWaterProgressGain +
+            kRebloomFertilizeProgressGain,
+        closeTo(0.036, 1e-12),
+        reason: '日养护增量合计必须恒为 3.6%（玄参要求「保持跟原样的进度不变」）',
+      );
+      // 普通：0.5 / 0.036 ≈ 14；0.5 / (0.036 + 3×0.007 + 0.015) ≈ 7。
       expect(0.5 / kRebloomAutoProgressPerDay, closeTo(13.89, 0.05));
       expect(
         0.5 /

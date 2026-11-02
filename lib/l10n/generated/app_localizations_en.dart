@@ -684,6 +684,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get garden_batch_none_care => 'No plants need care';
 
   @override
+  String get garden_batch_none_collect => 'No dew to collect right now';
+
+  @override
   String get garden_row_total_cost => 'Total cost';
 
   @override
@@ -844,6 +847,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get garden_action_care => 'Care all';
+
+  @override
+  String get garden_action_collect => 'Collect all';
 
   @override
   String get garden_oneclick_title => 'One-tap care';

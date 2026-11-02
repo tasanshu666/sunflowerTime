@@ -53,7 +53,10 @@ const double _kPhoneCardWidth = _kPhoneLogicalWidth - 24 * 2 - 12 * 2; // = 320
 const double _kIpad13LogicalWidth = 1032;
 const double _kIpad13CardWidth = _kIpad13LogicalWidth - 24 * 2 - 12 * 2;
 
-/// 精英物种（走 1.5 倍复开花折减 → 浇水 +0.5% / 施肥 +0.8%，与玄参截图同值）。
+/// 精英物种（走 1.5 倍复开花折减 → 浇水 +0.5% / 施肥 +1%，见 `careProgressGain`）。
+/// 注：2026-11-02 比例修正前是 +0.5% / +0.8%（玄参截图值）；修正后施肥 1.0% 走
+/// `_fmtGain` 收口成 `Fertilize +1%`（比 `+0.8%` 还短一个字符），本用例仍继续
+/// 当「英文最长标签」的宽度守卫，不会因为这次调参而松掉。
 const PlantSpecies _coralOrchid = PlantSpecies(
   id: 'species_coral_orchid',
   name: '珊瑚岭兰',

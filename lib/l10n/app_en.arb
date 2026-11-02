@@ -549,6 +549,7 @@
   "garden_batch_none_water": "No plants to water today",
   "garden_batch_none_fertilize": "No plants to fertilize today",
   "garden_batch_none_care": "No plants need care",
+  "garden_batch_none_collect": "No dew to collect right now",
   "garden_row_total_cost": "Total cost",
   "garden_water_note": "Water each of {count} plants once ({cost} ☀ each)",
   "@garden_water_note": {
@@ -724,6 +725,7 @@
   "garden_action_water": "Water all",
   "garden_action_fertilize": "Fertilize all",
   "garden_action_care": "Care all",
+  "garden_action_collect": "Collect all",
   "garden_oneclick_title": "One-tap care",
   "garden_help_sheet_title": "Fragments & Seeds",
   "garden_help_fragment_title": "Plant fragments",

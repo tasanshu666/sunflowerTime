@@ -881,9 +881,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       if (mounted) setState(() => _busy = false);
     }
     if (outcomes.isNotEmpty && mounted) {
-      // 合并提示：多段正文用「 + 」拼接（如「+10 ☀ 阳光 + +1 植物碎片」读起来怪，
-      // 用「 · 」分隔）；阶段前缀按首条判定（instant / 晨露）。
-      final String body = outcomes.map(_outcomeParts).join(' · ');
+      // 合并提示：单条走原口径（逐字不变），多条按类目合并（见 [_batchRewardBody]）。
+      final String body = _batchRewardBody(outcomes);
       final bool allInstant = outcomes.every((BloomRewardOutcome o) => o.isInstantPhase);
       _showCollectHint(allInstant ? body : _t.garden_collect_gift_prefix(body));
     }
@@ -1048,6 +1047,50 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       if (o.fragments > 0) parts.add(_t.garden_reward_fragments(o.fragments));
       final String? seed = o.seedSpeciesId;
       if (seed != null) parts.add(_t.garden_seed_dropped(_rarityLabelOf(seed)));
+    }
+    return parts.isEmpty ? _t.garden_gift_default : parts.join(' · ');
+  }
+
+  /// 批量收集提示正文：**单条逐字不变**（走 [_outcomeParts]）；多条则按类目合并，
+  /// 避免复读（「+6 ☀ 阳光 · +6 ☀ 阳光 · +6 ☀ 阳光 · +6 ☀ 阳光」）。
+  ///
+  /// ## 为什么必须合并（玄参 2026-11-02 一键采集晨露）
+  /// 「一键采集」一次可能收 4 株 × 每株 1~3 条 = 最多十几条，逐条拼接出来的句子
+  /// 孩子根本读不完，也看不出「一共收到多少」。合并成「+24 ☀ 阳光」才是他真正想知道的。
+  /// 顺带修好既有的「点一株头顶多个图标」同款复读。
+  ///
+  /// ## 合并规则（钱的账不重不漏）
+  ///  · 阳光：Σ `o.sunlight`；
+  ///  · 碎片：Σ `o.fragments`，但**分解行单独列**——`_settlePendingReward` 把
+  ///    分解所得写在 `fragments` 上并置 `decomposedSeedSpeciesId`，若一并计入会重复；
+  ///  · 种子：按物种**去重**后逐个列（同档掉两颗读成一句「普通种子」即可）。
+  String _batchRewardBody(List<BloomRewardOutcome> outcomes) {
+    if (outcomes.length == 1) return _outcomeParts(outcomes.first);
+    int sunlight = 0;
+    int plainFragments = 0;
+    final Map<String, int> decomposed = <String, int>{};
+    final Set<String> seeds = <String>{};
+    for (final BloomRewardOutcome o in outcomes) {
+      sunlight += o.sunlight;
+      final String? dec = o.decomposedSeedSpeciesId;
+      if (dec != null) {
+        decomposed[dec] = (decomposed[dec] ?? 0) + o.fragments;
+        continue;
+      }
+      plainFragments += o.fragments;
+      final String? seed = o.seedSpeciesId;
+      if (seed != null) seeds.add(seed);
+    }
+    final List<String> parts = <String>[];
+    if (sunlight > 0) parts.add(_t.garden_reward_sunlight(sunlight));
+    if (plainFragments > 0) {
+      parts.add(_t.garden_reward_fragments(plainFragments));
+    }
+    for (final MapEntry<String, int> e in decomposed.entries) {
+      parts.add(_t.garden_seed_decomposed(e.value, _rarityLabelOf(e.key)));
+    }
+    for (final String seed in seeds) {
+      parts.add(_t.garden_seed_dropped(_rarityLabelOf(seed)));
     }
     return parts.isEmpty ? _t.garden_gift_default : parts.join(' · ');
   }
@@ -1633,6 +1676,31 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       _oneClickUnlocked &&
       _plants.where((Plant p) => p.status != PlantStatus.dead).length >=
           kOneClickMinPlants;
+
+  /// 一键采集晨露（玄参 2026-11-02 需求：「在一键操作系统里面，再增加一个一键采集」）。
+  ///
+  /// 把**所有株当前可收集**的待收奖励一次性收进账户 —— 数据源就是页面已缓存的
+  /// [_collectibles]（每株一份，且**已套过晨露折损** `withBloomDewDiscount`，
+  /// 与实际入账口径同源），摊平后复用逐条收集的 [_collectRewards]：
+  /// 它内部已经做了「单条失败跳过不中断整批 / 收完刷经济修订号 / 合并成一个提示」。
+  ///
+  /// 与浇水 / 施肥 / 护理的三处刻意差异：
+  ///  1. **不走确认卡**：这是收钱不是花钱，多一步确认只会让孩子多点一次；
+  ///  2. **不走 `oneClickPlan`**：晨露没有「每日额度 / 间隔冷却」概念，到期即可收；
+  ///  3. **不受阳光余额拦截**：不扣阳光，无需校验。
+  ///
+  /// 空态：没有任何到期晨露时给一句居中提示（与其余三项同节奏，走 [_showBatchHint]）。
+  Future<void> _onOneClickCollect() async {
+    if (_busy) return;
+    final List<PendingBloomReward> all = <PendingBloomReward>[
+      for (final List<PendingBloomReward> list in _collectibles.values) ...list,
+    ];
+    if (all.isEmpty) {
+      _showBatchHint(_t.garden_batch_none_collect, 0, showSunlight: false);
+      return;
+    }
+    await _collectRewards(all);
+  }
 
   /// 一键操作入口（悬浮按钮下拉菜单选中后）：
   ///  1. [PlantGrowthService.oneClickPlan] 纯读计划（跳过已达上限 / 间隔中的株）；
@@ -2579,7 +2647,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                   Positioned(
                     right: 12,
                     bottom: 12,
-                    child: _OneClickFab(onSelected: _onOneClick),
+                    child: _OneClickFab(
+                      onSelected: _onOneClick,
+                      onCollect: _onOneClickCollect,
+                    ),
                   ),
                 // 一键操作汇总提示（C29）已于 2026-10-07 改为**根 Overlay 全屏浮层**
                 // （见 [_showBatchHint]）——不再挂在根 Stack 内，避免真机「贴底」问题。
@@ -3470,10 +3541,13 @@ class _PayButtonWidget extends StatelessWidget {
 ///     真顶到上限时标签走 `Flexible` + `TextOverflow.ellipsis`（`maxLines: 1`），
 ///     **不允许再出现溢出条**。
 class _OneClickFab extends StatefulWidget {
-  const _OneClickFab({required this.onSelected});
+  const _OneClickFab({required this.onSelected, required this.onCollect});
 
   /// 选中某项一键操作（选中即收拢）。
   final ValueChanged<PlantOneClickKind> onSelected;
+
+  /// 一键采集晨露（玄参 2026-11-02）：收钱动作，**不走确认卡**、不走 `oneClickPlan`。
+  final VoidCallback onCollect;
 
   @override
   State<_OneClickFab> createState() => _OneClickFabState();
@@ -3529,12 +3603,15 @@ class _OneClickFabState extends State<_OneClickFab> {
     // 才是随语言变化的量。
     final double iconWidth = kOneClickIconSize * uiScale;
 
-    // ① 三行操作项（图标 + 间距 + 文本 + 行内左右内边距）取最宽。
+    // ① 四行操作项（图标 + 间距 + 文本 + 行内左右内边距）取最宽。
+    //    ⚠️ 新增行必须同步加进本列表，否则「量出来的宽度」装不下新文案 →
+    //    该行被 `Flexible + ellipsis` 截字（本方法的存在意义就是防这个）。
     double widest = 0;
     for (final String label in <String>[
       l10n.garden_action_water,
       l10n.garden_action_fertilize,
       l10n.garden_action_care,
+      l10n.garden_action_collect,
     ]) {
       final double rowWidth = iconWidth +
           kOneClickIconGap +
@@ -3589,7 +3666,7 @@ class _OneClickFabState extends State<_OneClickFab> {
     return width;
   }
 
-  /// 展开卡：三行操作项，与胶囊同宽（[width]；C65 平板随字号同比放大）。
+  /// 展开卡：四行操作项，与胶囊同宽（[width]；C65 平板随字号同比放大）。
   Widget _buildActionCard(AppLocalizations l10n, double width) {
     return SizedBox(
       key: kOneClickCardKey,
@@ -3619,6 +3696,21 @@ class _OneClickFabState extends State<_OneClickFab> {
               color: const Color(0xFFE8A33D),
               label: l10n.garden_action_care,
             ),
+            // 一键采集晨露（玄参 2026-11-02）：**收钱动作**，点一下收走全部到期晨露。
+            // 摆在最后一行 —— 前三个是「花钱的日常」，这个是「收钱的清点」，语义不混；
+            // 且不改变既有三行的位置，回归面最小。
+            //
+            // ⚠️ 文案**刻意与前三行同为 4 个汉字**（一键浇水 / 一键施肥 / 一键护理 /
+            // 一键采集）：`_sharedWidth` 按最宽一行定卡宽，写「一键采集晨露」会把中文侧
+            // 从 108 撑到 116，破坏 `garden_one_click_adaptive_width_test` 的逐像素零回归
+            // 守卫；4 字等长既对齐好看，也让「采集」的含义由露珠图标 + 空态文案
+            // 「暂时没有可以采集的晨露」承担。
+            _OneClickItem(
+              onTap: widget.onCollect,
+              icon: Icons.opacity, // 露珠形态；暖金色与上面蓝色的浇水明显区分
+              color: const Color(0xFFE0A21B),
+              label: l10n.garden_action_collect,
+            ),
           ].map(_buildActionRow).toList(),
         ),
       ),
@@ -3631,7 +3723,12 @@ class _OneClickFabState extends State<_OneClickFab> {
       borderRadius: BorderRadius.circular(10),
       onTap: () {
         setState(() => _expanded = false);
-        widget.onSelected(item.kind);
+        final PlantOneClickKind? kind = item.kind;
+        if (kind != null) {
+          widget.onSelected(kind);
+        } else {
+          item.onTap?.call();
+        }
       },
       child: Container(
         height: 36 * uiScaleOf(context),
@@ -3701,13 +3798,29 @@ class _OneClickFabState extends State<_OneClickFab> {
 /// 一键操作项的静态展示模型（图标 + 文案 + 主色 + 对应枚举）。
 class _OneClickItem {
   const _OneClickItem({
-    required this.kind,
+    this.kind,
+    this.onTap,
     required this.icon,
     required this.color,
     required this.label,
   });
 
-  final PlantOneClickKind kind;
+  /// 领域层的一键动作（浇水 / 施肥 / 护理）。
+  ///
+  /// 与 [onTap] **二选一**：本字段非空 → 走 [_OneClickFabState.onSelected] →
+  /// 页面 [_onOneClick] 的「计划 → 拦截 → 确认卡 → 执行」全套流程；
+  /// 本字段为空 → 直接调 [onTap]（用于**不需要确认卡**的即时动作）。
+  final PlantOneClickKind? kind;
+
+  /// 即时动作回调（当前唯一使用者 = 一键采集晨露）。
+  ///
+  /// 为什么不塞进 [PlantOneClickKind]：采集是**收钱**不是花钱，
+  /// 既不需要 `oneClickPlan`（没有额度 / 间隔概念），也不需要确认卡
+  /// （玄参 2026-11-02：「点一下就把所有晨露收走」）。塞进枚举会让
+  /// `oneClickPlan` 与 7 处 `switch` 全部要为一个语义不同的动作加分支，
+  /// 收益为零、风险非零 —— 故用「可选回调」而不是「扩枚举」。
+  final VoidCallback? onTap;
+
   final IconData icon;
   final Color color;
   final String label;

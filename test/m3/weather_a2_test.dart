@@ -1929,6 +1929,53 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // FD1 · 满档提示语不得被 ellipsis 吞字（A3 首件）
+  //
+  // 🔴 **根因**：修复前 `measureTextWidth` 量宽度**不含**环境 `DefaultTextStyle`
+  //    （M3 bodyMedium 自带 `letterSpacing: 0.25`）⇒ 量得比实际渲的窄 `0.25 × 字数`
+  //    ⇒ 满档提示语预算算「放得下」⇒ 选满档 ⇒ 实际渲更宽 ⇒ Flexible 位不够 ⇒
+  //    ellipsis 吞 1 字（「· 浇…」）。修复后测量与渲染**共用同一套样式**
+  //    （`kWeatherLetterSpacing`），「量」==「渲」，满档提示语必须完整。
+  // 🔴 **守卫口径（实测定宽，非拍脑袋）**：FD1 只在「满档被选、但测量漏算字距」的
+  //    **窄窗口**复现——太宽（如 768，scale 1.3 余量太大）永远不截；太窄则已降到
+  //    「提示语整句消失」档（那不是 bug）。本仓用 TEMP sweep 实测：修复前
+  //    `didExceedMaxLines` **true** 的窗口约 pageWidth ∈ [≈500, 590]（短边 <600 ⇒
+  //    scale 1.0），590 之后转 false；修复后**所有宽度**均为 false。**故选 585**
+  //    （scale 1.0、满档复现窗口中央）：修复前必红（提示语在树里却被截），修复后必绿
+  //    （量==渲，不再残字）—— 这条守卫是真的能抓回归，不是假绿。
+  // ══════════════════════════════════════════════════════════════════════════
+  group('FD1 · 满档提示语不吞字（A3 首件 · 量==渲同源）', () {
+    testWidgets(
+        'pageWidth=585（满档复现窗口）：提示语完整渲染、未被 ellipsis 截断（didExceedMaxLines == false）',
+        (WidgetTester tester) async {
+      // 585×1194 逻辑视口 ⇒ 短边 585 < 600 ⇒ scale 1.0；该宽度下满档（含完整提示语）
+      // 被选中，且正好落在 FD1 复现窗口（测量漏算字距 ⇒ 实际渲更宽 ⇒ Flexible 截断）。
+      tester.view.physicalSize = const Size(585 * 2, 1194 * 2);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_host(
+        kind: WeatherKind.drought,
+        pageWidth: 585,
+        chipsWidth: 179,
+      ));
+
+      final AppLocalizations zh = AppLocalizationsZh();
+      final String hintText = '· ${zh.garden_weather_hint_drought}';
+      // ① 满档必须把完整提示语放进树里（不是整体退场 ⇒ findsNothing）。
+      expect(find.text(hintText), findsOneWidget,
+          reason: 'pageWidth=585 应走满档，完整提示语「$hintText」必须在树里');
+      // ② 提示语**不得**被 ellipsis 截断（FD1 修复前的残字「· 浇…」正是这里漏的）。
+      //    `find.text` 命中的是 `data`（截断不改 data），故必须用渲染期
+      //    `didExceedMaxLines` 判「半截」。修复前这条必红。
+      final RenderParagraph para =
+          tester.renderObject<RenderParagraph>(find.text(hintText));
+      expect(para.didExceedMaxLines, isFalse,
+          reason: 'FD1：满档提示语「$hintText」不得被 ellipsis 截断（量==渲同源）');
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   // 🔎 TEMP PROBE（跑完即删）
   testWidgets('TEMP probe 平板视口', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(834 * 3, 1194 * 3);

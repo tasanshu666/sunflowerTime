@@ -236,11 +236,22 @@ const Color kWeatherHintColor = Color(0xFF8A8172);
 
 // ── 文本样式（测量与渲染**必须**用同一套，否则宽度预算会漂）────────────────
 
+/// 环境 `DefaultTextStyle`（M3 `bodyMedium`）自带字距，渲染实际生效的字距。
+///
+/// 🔴 **FD1 根因与修复**：组件里所有 `Text` 都**未显式**设 `letterSpacing`，于是
+///    继承 `DefaultTextStyle`（M3 material2021 的 `bodyMedium` 含 `letterSpacing: 0.25`）
+///    ⇒ 实际渲染宽 = 测量宽 + 0.25 × 字数。而 [measureTextWidth] 用这些显式样式测量时
+///    **不含**这 0.25 ⇒ 量得比渲的窄 ⇒ 满档提示语预算算「放得下」⇒ 选满档 ⇒ 实际渲
+///    更宽 ⇒ Flexible 位不够 ⇒ ellipsis 吞 1 字（「· 浇…」）。
+///    修复：测量与渲染**共用同一套样式**（这里显式带上等效字距），使「量」==「渲」。
+const double kWeatherLetterSpacing = 0.25;
+
 /// 天气名的样式（胶囊内）。
 TextStyle weatherNameTextStyle() => const TextStyle(
       fontSize: 13,
       fontWeight: FontWeight.w600,
       height: 1.0,
+      letterSpacing: kWeatherLetterSpacing,
       color: kWeatherTextColor,
     );
 
@@ -249,6 +260,7 @@ TextStyle weatherHintTextStyle() => const TextStyle(
       fontSize: 12,
       fontWeight: FontWeight.w500,
       height: 1.0,
+      letterSpacing: kWeatherLetterSpacing,
       color: kWeatherHintColor,
     );
 
@@ -257,6 +269,7 @@ TextStyle shelterNameTextStyle() => const TextStyle(
       fontSize: 13,
       fontWeight: FontWeight.w700,
       height: 1.0,
+      letterSpacing: kWeatherLetterSpacing,
       color: Color(0xFF5D4200),
     );
 
@@ -265,6 +278,7 @@ TextStyle shelterBoughtTextStyle() => const TextStyle(
       fontSize: 13,
       fontWeight: FontWeight.w700,
       height: 1.0,
+      letterSpacing: kWeatherLetterSpacing,
       color: kShelterBoughtFg,
     );
 
@@ -273,6 +287,7 @@ TextStyle shelterPriceTextStyle(Color fg) => TextStyle(
       fontSize: 12,
       fontWeight: FontWeight.w600,
       height: 1.0,
+      letterSpacing: kWeatherLetterSpacing,
       color: fg,
     );
 

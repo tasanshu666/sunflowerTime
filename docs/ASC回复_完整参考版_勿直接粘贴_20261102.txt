@@ -1,0 +1,117 @@
+Hello, and thank you for the detailed guidance. Below is every item you asked
+for. The same text has been added to the Notes field of App Review Information
+for future reference.
+
+1) SCREEN RECORDING
+Attached (61 seconds, 1920x1080, H.264). It was captured on a physical iPad
+(iPad Air 11-inch, M4) running iPadOS 26.7.2, using the submitted build
+(1.0.0, build 2105) installed via TestFlight. The recording starts from
+launching the app on the home screen and shows the typical user flow: first-run
+consent, the child tabs, starting a focus session, the focus timer, the
+eye-care break, the reward screen showing the sunlight earned, the garden
+(planting and caring for a plant), the parent area with the first-time parent
+PIN setup, the task list, the report screen, and finally the premium page with
+the price loaded from the App Store and the "Restore purchases" entry.
+
+Two notes on the recording itself, for full transparency:
+- The focus session is ended early in the video only to keep the clip short, so
+  the reward screen reads "Ended early". In normal use the session runs to
+  completion and the child receives the full amount of sunlight.
+- On the premium page we tap "Restore purchases" instead of completing a
+  purchase, so that no personal account details appear in the video. The
+  purchase itself is handled entirely by StoreKit and can be verified in the
+  sandbox environment.
+
+The app has no account creation, login or account deletion, so those flows do
+not exist in the app and are therefore not in the recording.
+
+2) PURPOSE AND TARGET AUDIENCE
+Tiny Sunflower is a focus timer for children roughly 4-12 years old, used
+together with a parent. The problem it solves: children's study time is easily
+broken by distractions, and parents lack a simple, non-punitive way to build
+focus habits and to see whether the time was actually spent. The value: the
+child starts a timer, focused minutes earn an in-app currency ("sunlight"),
+and the sunlight is spent growing plants in a small garden - so effort turns
+into visible, patient progress instead of a score. The parent side lets the
+parent define tasks and rewards, approve what the child claims, review daily/
+weekly reports, and set eye-care breaks. Everything runs fully offline: no
+accounts, no ads, no tracking, no data leaves the device.
+
+3) HOW TO SET UP AND ACCESS THE MAIN FEATURES
+No account, login or credentials are required - the app works immediately
+after install.
+- Child area: opens on launch. Five bottom tabs, in this order: Today, Growth,
+  Garden, Store, Mine. Tap a task card on Today or Growth to start a focus
+  session; the sun icon in the header shows the current sunlight balance.
+- Parent area: tap the icon button in the TOP-RIGHT corner of the child screen
+  (its accessibility label is "Parent Hub"). On the FIRST entry the app asks
+  you to SET your own 4-digit PIN - there is no preset PIN, so please choose
+  one, for example 1234. This gate exists so a child cannot reach the parent
+  area or the purchase entry.
+- Inside the parent area there are five tabs: Today, Rewards, Growth, Records
+  and Settings. Today shows what the child has done; Rewards and Growth hold
+  the reward and task templates; Records holds the daily and weekly focus
+  reports; Settings holds the eye-care break, PIN change, language, links to
+  the support website and privacy policy, the purchase entry, and "delete all
+  data".
+- Claim approval: when the child claims a task or a reward, it appears in the
+  parent area for the parent to approve or reject.
+
+4) EXTERNAL SERVICES, TOOLS AND PLATFORMS
+None are used to deliver core functionality. All data (tasks, rewards, focus
+history, garden state) is stored in a local database on the device; there is no
+server, no cloud sync, no analytics SDK, no advertising SDK and no AI service.
+The only external system involved is Apple's In-App Purchase (StoreKit), used
+solely to process the one-time purchase. The app uses a few open-source Flutter
+plugins for local audio playback and for opening the system browser / mail app
+(the support link and the support e-mail address); neither transmits app data.
+
+5) REGIONAL DIFFERENCES
+There are none. The app's features and content are identical in every region.
+The interface is localized in Simplified Chinese and English and follows the
+device language. The only region-dependent element is the price displayed for
+the in-app purchase, which is localized automatically by the App Store.
+
+6) REGULATED INDUSTRY / THIRD-PARTY PROTECTED MATERIAL
+The app is not in a regulated industry and does not provide any regulated
+service. It does not display or link to third-party content: all illustrations,
+animations, audio and text were created for this app by the developer, and no
+third-party trademarks, brands or copyrighted works are included. There is
+nothing to license or authorize.
+
+7) IN-APP PURCHASE OVERVIEW
+There is exactly one product: a non-consumable, "Tiny Sunflower Premium"
+(product identifier com.sunflowertime.app.premium.lifetime), US$14.99 one-time,
+not a subscription and with no auto-renewal. It permanently unlocks:
+  a. One-click care in the garden (watering / fertilizing / tending all plants
+     at once). Free users can still care for each plant individually.
+  b. Garden capacity from 4 pots to 12 pots.
+  c. Unlimited growth-task templates (free: up to 5).
+  d. Unlimited reward templates (free: up to 5).
+  e. Up to 3 child profiles (free: 1).
+  f. Title perks: plants gain small bonuses as the child's focus level rises.
+
+On the premium page these six benefits are shown as three summary cards -
+"A roomier garden" (b + a), "Flexible routines" (c + d) and "Growth perks"
+(f + e) - together with a "One-time · forever" badge and four short notes
+(no subscription, how to restore on a new device, iOS/Android purchases are
+not interchangeable, and that payment is handled by the App Store).
+
+Navigation to the purchase flow:
+  Child screen -> the icon button in the top-right corner ("Parent Hub") ->
+  set/enter parent PIN -> "Settings" tab -> the "Unlock All" section ->
+  the premium page -> "Unlock now · <price>" (the price is loaded from the
+  App Store) or "Restore purchases".
+The purchase entry is intentionally placed inside the PIN-protected parent
+area, so a child cannot reach or trigger it.
+
+ADDITIONAL NOTES
+- No account-based features exist, therefore no demo account is needed and no
+  account deletion flow is required.
+- The app does not require login to use any feature.
+- Before this submission the build was installed via TestFlight and exercised
+  end to end on a physical iPad (iPadOS 26.7.2), in addition to simulator
+  testing on both the iPhone and the iPad layouts.
+- If you need any further material (e.g. a second recording focused on a
+  specific flow, or a localized version of this text), please let us know and
+  we will provide it promptly.

@@ -95,6 +95,20 @@ String refLabelOf(String? refType, AppLocalizations t) {
     // 🔴 新增 refType 必须同步本映射，否则孩子端显示「其他」，阳光来源对不上账（既有铁律）。
     case kFocusLevelUpRefType:
       return t.child_hist_ref_focus_level_up;
+    // A2 天气道具（4 种，refType 值冻结在 `prd_params.dart`）。
+    // 🔴 漏配这 4 条时孩子买完棚在「阳光来源记录」里看到「其他」，来源对不上账
+    //    （既有铁律：新增 refType 必须同步本映射）。
+    // 🔴 文案**复用** `garden_shelter_*`（不另造 `child_hist_ref_shelter_*`）：
+    //    同一个名词、双 key 会导致中英翻译分叉 —— 与「阳光不足复用
+    //    `garden_need_more_sun`」是同一原则。
+    case kWeatherShelterRefTypeShade:
+      return t.garden_shelter_shade;
+    case kWeatherShelterRefTypeRain:
+      return t.garden_shelter_rain;
+    case kWeatherShelterRefTypeWind:
+      return t.garden_shelter_wind;
+    case kWeatherShelterRefTypeWarm:
+      return t.garden_shelter_warm;
     default:
       // 未知 refType 安全兜底（与原 `?? hist_other` 同语义）。
       return t.hist_other;

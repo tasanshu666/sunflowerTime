@@ -5470,6 +5470,198 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'这里还能再种更多花！跟爸爸妈妈说说，请他们帮你解锁更多花盆 🌻'**
   String get garden_pot_locked_hint;
+
+  /// No description provided for @weather_sunny.
+  ///
+  /// In zh, this message translates to:
+  /// **'阳光明媚'**
+  String get weather_sunny;
+
+  /// No description provided for @weather_breeze.
+  ///
+  /// In zh, this message translates to:
+  /// **'微风'**
+  String get weather_breeze;
+
+  /// No description provided for @weather_cloudy.
+  ///
+  /// In zh, this message translates to:
+  /// **'多云'**
+  String get weather_cloudy;
+
+  /// No description provided for @weather_overcast.
+  ///
+  /// In zh, this message translates to:
+  /// **'阴天'**
+  String get weather_overcast;
+
+  /// No description provided for @weather_light_rain.
+  ///
+  /// In zh, this message translates to:
+  /// **'小雨'**
+  String get weather_light_rain;
+
+  /// No description provided for @weather_drought.
+  ///
+  /// In zh, this message translates to:
+  /// **'干旱'**
+  String get weather_drought;
+
+  /// No description provided for @weather_wind.
+  ///
+  /// In zh, this message translates to:
+  /// **'大风'**
+  String get weather_wind;
+
+  /// No description provided for @weather_cold.
+  ///
+  /// In zh, this message translates to:
+  /// **'极寒'**
+  String get weather_cold;
+
+  /// No description provided for @weather_rainstorm.
+  ///
+  /// In zh, this message translates to:
+  /// **'暴雨'**
+  String get weather_rainstorm;
+
+  /// No description provided for @garden_weather_hint_sunny.
+  ///
+  /// In zh, this message translates to:
+  /// **'浇浇水，晒晒太阳'**
+  String get garden_weather_hint_sunny;
+
+  /// No description provided for @garden_weather_hint_breeze.
+  ///
+  /// In zh, this message translates to:
+  /// **'风很舒服，浇浇水'**
+  String get garden_weather_hint_breeze;
+
+  /// No description provided for @garden_weather_hint_cloudy.
+  ///
+  /// In zh, this message translates to:
+  /// **'慢慢长，浇点水'**
+  String get garden_weather_hint_cloudy;
+
+  /// No description provided for @garden_weather_hint_overcast.
+  ///
+  /// In zh, this message translates to:
+  /// **'太阳躲起来了'**
+  String get garden_weather_hint_overcast;
+
+  /// No description provided for @garden_weather_hint_light_rain.
+  ///
+  /// In zh, this message translates to:
+  /// **'雨在帮忙，少浇点'**
+  String get garden_weather_hint_light_rain;
+
+  /// No description provided for @garden_weather_hint_drought.
+  ///
+  /// In zh, this message translates to:
+  /// **'浇水'**
+  String get garden_weather_hint_drought;
+
+  /// No description provided for @garden_weather_hint_rainstorm.
+  ///
+  /// In zh, this message translates to:
+  /// **'施肥'**
+  String get garden_weather_hint_rainstorm;
+
+  /// No description provided for @garden_shelter_shade.
+  ///
+  /// In zh, this message translates to:
+  /// **'遮阳棚'**
+  String get garden_shelter_shade;
+
+  /// No description provided for @garden_shelter_rain.
+  ///
+  /// In zh, this message translates to:
+  /// **'遮雨棚'**
+  String get garden_shelter_rain;
+
+  /// No description provided for @garden_shelter_wind.
+  ///
+  /// In zh, this message translates to:
+  /// **'挡风板'**
+  String get garden_shelter_wind;
+
+  /// No description provided for @garden_shelter_warm.
+  ///
+  /// In zh, this message translates to:
+  /// **'保温棚'**
+  String get garden_shelter_warm;
+
+  /// No description provided for @garden_shelter_confirm_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'要搭{name}吗？'**
+  String garden_shelter_confirm_title(String name);
+
+  /// No description provided for @garden_shelter_confirm_message.
+  ///
+  /// In zh, this message translates to:
+  /// **'搭上它，今天的花就不怕啦。棚只管今天，明天要重新搭。'**
+  String get garden_shelter_confirm_message;
+
+  /// No description provided for @garden_shelter_confirm_ok.
+  ///
+  /// In zh, this message translates to:
+  /// **'搭起来'**
+  String get garden_shelter_confirm_ok;
+
+  /// No description provided for @garden_shelter_row_cost.
+  ///
+  /// In zh, this message translates to:
+  /// **'本次花费'**
+  String get garden_shelter_row_cost;
+
+  /// No description provided for @garden_shelter_done.
+  ///
+  /// In zh, this message translates to:
+  /// **'已搭好'**
+  String get garden_shelter_done;
+
+  /// No description provided for @garden_shelter_already.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天已经搭好啦 👍'**
+  String get garden_shelter_already;
+
+  /// No description provided for @garden_shelter_bought_shade.
+  ///
+  /// In zh, this message translates to:
+  /// **'遮阳棚搭好啦 👍'**
+  String get garden_shelter_bought_shade;
+
+  /// No description provided for @garden_shelter_bought_rain.
+  ///
+  /// In zh, this message translates to:
+  /// **'遮雨棚搭好啦 👍'**
+  String get garden_shelter_bought_rain;
+
+  /// No description provided for @garden_shelter_bought_wind.
+  ///
+  /// In zh, this message translates to:
+  /// **'挡风板立好啦 👍'**
+  String get garden_shelter_bought_wind;
+
+  /// No description provided for @garden_shelter_bought_warm.
+  ///
+  /// In zh, this message translates to:
+  /// **'保温棚盖好啦 👍'**
+  String get garden_shelter_bought_warm;
+
+  /// No description provided for @garden_help_weather_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'天气'**
+  String get garden_help_weather_title;
+
+  /// No description provided for @garden_help_weather_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'花园每天有一种天气。遇上干旱、大风、极寒、暴雨，花会难受一点——花 10 ☀ 搭上对应的棚，今天就不会被扣成长。棚只管今天。'**
+  String get garden_help_weather_body;
 }
 
 class _AppLocalizationsDelegate

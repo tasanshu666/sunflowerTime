@@ -55,6 +55,7 @@ import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/services/empty_pot_service.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
+import 'package:sunflower_time/domain/services/weather_system.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
@@ -74,6 +75,7 @@ import 'package:sunflower_time/presentation/child/widgets/garden_sign_hotspot.da
 import 'package:sunflower_time/presentation/child/widgets/plant_care_sheet.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_confirm_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
+import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dart';
 import 'package:sunflower_time/presentation/shared/quota_notice.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
@@ -204,6 +206,13 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   AgeTier _tier = AgeTier.low;
   int _capacity = kGardenPotCapacityDefault;
   double _balance = 0;
+
+  /// 今日推荐道具是否**已买**（A2 · 账本判定）。
+  ///
+  /// 由 [_reload] 写入（只在**极端日**查一次账本，温和日 0 次额外 IO）；
+  /// 购买成功后**立即置 true**（不等刷新 —— P0-5「按钮当场变」）。
+  /// 温和日恒 `false`（`shelterRefType == null` 时压根不查库）。
+  bool _shelterBoughtToday = false;
 
   /// C77 · 当前称号专属属性（随 [_reload] 刷新；未就绪时 [PlantPerk.none] = 无加成）。
   PlantPerk _perk = PlantPerk.none;
@@ -546,6 +555,32 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       // 注意：养护额度不在这里取——草地不展示次数，额度由弹出的养护面板自行读取
       // （见 PlantCareCard），少一次查询，也避免两处口径漂移。
       _balance = await ref.read(sunlightRepositoryProvider).balance();
+      // ── 天气道具「今日已买」（A2 · 设计文档 Q4 / 风险 R1）─────────────────
+      // 🔴 只在**极端日**查一次（温和日 0 次额外 IO）：[_reload] 本身已有 10+ 次
+      //    IO（含逐物种循环），+1 次单索引 COUNT 是噪声级。
+      // 🔴 **必须独立 try/catch 并降级 false**：本查询只是「锦上添花」的 UI 态，
+      //    绝不能让它被外层 `catch (e) { _error = ... }` 接住打成**整页错误页** ——
+      //    纯 widget 测试宿主里存在靠 `noSuchMethod` 抛 `UnimplementedError` 的
+      //    假仓储（`test/qa/phase4_gating_test.dart:157` 等），裸放会连带打红
+      //    30+ 个泵花园页的既有用例。降级方向安全：领域层 `buyShelter` 仍是硬闸门
+      //    （重复购买必拒），最坏只是按钮显示为「可买」、点一下被拒并给一句提示。
+      bool shelterBought = false;
+      final String? shelterRef = WeatherSystem.ofDay(now).kind.shelterRefType;
+      if (shelterRef != null) {
+        try {
+          shelterBought = await ref
+                  .read(sunlightRepositoryProvider)
+                  .countByRefTypeAndRefIdOnDay(
+                    shelterRef,
+                    kWeatherShelterRefId,
+                    WeatherSystem.dayKey(now),
+                  ) >
+              0;
+        } catch (_) {
+          shelterBought = false;
+        }
+      }
+      _shelterBoughtToday = shelterBought;
       // 预取各物种支付按钮（玄参 2026-10-07「种子同步到种植卡片慢」）：余额 / 券 /
       // 碎片全部就绪后统一算一遍，打开选种弹窗零等待。逐物种仍走领域单点。
       final PlantGrowthService svcForButtons = ref.read(plantGrowthServiceProvider);
@@ -1649,6 +1684,108 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         ref.read(plantGrowthServiceProvider).expandPot(DateTime.now(), perk: _perk));
   }
 
+  // ── 天气道具「搭棚」（A2 · 天气系统二期）──────────────────────────────────
+
+  /// 今日推荐道具的 refType（`null` = 温和日，不该有按钮）。
+  ///
+  /// 只读 [WeatherSystem] 这一个入口，页面内**禁止自己算天气**（A2-1 源码守卫）。
+  String? get _shelterRefTypeToday =>
+      WeatherSystem.ofDay(DateTime.now()).kind.shelterRefType;
+
+  /// 点「推荐道具」按钮 → 三态分发：**已购 → 余额不足 → 确认卡**。
+  ///
+  /// ## 顺序是写死的（K4）
+  ///  · 已购：只给 `garden_shelter_already` 浮层，**不出确认卡、不发请求**；
+  ///  · 余额不足：只给 `garden_need_more_sun(差额)` 浮层，**0 次 `showDialog`**；
+  ///    与扩容的既有 UX 逐字同型 —— 本仓已有先例「`onTap: null` 让孩子点了毫无
+  ///    反馈」被判为缺陷（F166），故按钮**不真禁用**，灰态也保留点击；
+  ///  · 其余：进确认卡，**只有点「搭起来」才扣费**（取消分毫不扣）。
+  Future<void> _onShelterTap() async {
+    if (_busy) return;
+    final String? refType = _shelterRefTypeToday;
+    if (refType == null) return; // 温和日没有按钮（防御分支）
+    if (_shelterBoughtToday) {
+      _snack(_t.garden_shelter_already);
+      return;
+    }
+    const int cost = kWeatherShelterPrice;
+    if (_balance < cost) {
+      _snack(_t.garden_need_more_sun((cost - _balance).ceil()));
+      return;
+    }
+    // 🔴 弹窗 builder 在页级 `L10nScope` **之外**（弹窗铁律），故标题 / 正文 /
+    //    两个按钮文案与道具名全部在**页面 context** 里取好后传参。
+    final AppLocalizations t = _t;
+    final bool? ok = await showChildConfirmCard(
+      context: context,
+      title: t.garden_shelter_confirm_title(shelterNameOf(refType, t)),
+      hero: const ConfirmCardBadge(icon: Icons.shield_outlined),
+      rows: <ConfirmCardRow>[
+        ConfirmCardRow(
+          icon: Icons.savings_outlined,
+          name: t.garden_shelter_row_cost,
+          value: '−$cost ☀',
+        ),
+        ConfirmCardRow(
+          icon: Icons.account_balance_wallet_outlined,
+          name: t.garden_row_balance,
+          value: '${_balance.toInt()} ☀',
+          muted: true,
+        ),
+      ],
+      message: t.garden_shelter_confirm_message,
+      confirmLabel: t.garden_shelter_confirm_ok,
+      // 🔴 必须显式传（`gold_notice_confirm_label_l10n_test.dart` 的源码守卫）。
+      cancelLabel: t.shared_cancel,
+    );
+    if (ok != true) return; // 取消 / 点卡外 / 系统返回 → 一分不扣
+    await _buyShelterNow();
+  }
+
+  /// 确认后真正扣费写账（结果对象四态分发）。
+  ///
+  /// 不走 [_run]，因为 [_run] 会自增 `economyRevisionProvider`，而域层
+  /// `buyShelter` 已经通过 `onEconomyChanged`（`providers.dart` 的 DI 装配）
+  /// 自增过一次 —— 双自增会触发**两轮** `_reload`。
+  ///
+  /// 已购态用 `setState` **就地生效**（P0-5「按钮当场变」），不等刷新；
+  /// 余额由 `economyRevisionProvider` 的既有监听 → 静默刷新拉齐。
+  Future<void> _buyShelterNow() async {
+    if (!mounted) return;
+    setState(() => _busy = true);
+    try {
+      final ShelterBuyResult result = await ref
+          .read(plantGrowthServiceProvider)
+          .buyShelter(DateTime.now());
+      if (!mounted) return;
+      final AppLocalizations t = _t;
+      // 「今天已经买过了」是**正常业务态**（孩子点了已购按钮），不是异常。
+      if (result.status == ShelterBuyStatus.bought ||
+          result.status == ShelterBuyStatus.alreadyBought) {
+        setState(() => _shelterBoughtToday = true);
+      }
+      final String? toast = switch (result.status) {
+        // 买对推荐件 → 按道具给专属 toast；买错件（允许买、照扣，但**不减免**惩罚）
+        // → 只给中性反馈（🔴 不新增第 33 条 ARB key，key 总数被 PM 锁死 32 条）。
+        ShelterBuyStatus.bought => result.isRecommended
+            ? shelterBoughtToastOf(result.refType ?? '', t)
+            : t.garden_shelter_done,
+        ShelterBuyStatus.alreadyBought => t.garden_shelter_already,
+        ShelterBuyStatus.insufficientSunlight =>
+          t.garden_need_more_sun(result.missing),
+        ShelterBuyStatus.notNeeded => null,
+      };
+      if (toast != null) _snack(toast);
+    } on PlantOperationException catch (e) {
+      // 领域层只回语义码，文案经单点映射装配（i18n B3）。
+      _snack(plantErrorMessage(e, _t));
+    } catch (e) {
+      _snack(_t.shared_op_failed(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   // ── 一键操作（口径 C29，玄参 2026-10-05 拍板）────────────────────────────
 
   /// 当前**权益**档位（阶段 4 门控判定；build 期与回调期读取一致）。
@@ -2583,6 +2720,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         final Widget page = LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
             final Size size = constraints.biggest;
+            // A2：今日天气（`WeatherSystem.ofDay` 是 static 纯函数、零 IO、自带缓存，
+            // 故首帧就拿得到 —— 天气胶囊「首帧即可见」不依赖任何 loading）。
+            // 🔴 页面**禁止自己算天气**（A2-1 源码守卫），只读这一个入口。
+            final WeatherDay todayWeather = WeatherSystem.ofDay(DateTime.now());
             final Widget content;
             if (_loading) {
               content = const Center(child: CircularProgressIndicator());
@@ -2592,7 +2733,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
               content = _buildGardenBody(size);
             }
 
-            // 整页叠放：背景铺满 → 内容区（锁 2 行 + 区域内滚动）→ 左下角木牌热区
+            // 整页叠放：背景铺满 → 内容区（锁 **3 行** + 区域内滚动）→ 左下角木牌热区
             // → 养护成功的一次性动效叠加层（仅播放期间存在）。
             // 木牌在左下、花盆区在中上部，互不重叠，故不会挡住花盆点击。
             // ⚠️ `clipBehavior: Clip.none`（2026-09-29）：养护效果帧按玄参口径「略大于格宽、
@@ -2612,30 +2753,86 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                 // 原右下角与一键操作按钮挤在一起）。根 Stack 浮层——**不占布局高度**，避免
                 // 改动花盆网格的可视高度（矮屏用例硬钉该高度）。内嵌 tab 时左上角无阳光胶囊
                 // （在 shell AppBar）；独立路由 /garden 左上角有胶囊 → 下移到胶囊之下。
-                if (!_loading && _error == null)
+                //
+                // 🔴 A2（天气系统二期）：本行从「只有 chips 的 Row」改成
+                // 「chips（左） + 天气行（贴右）」的 `spaceBetween` 行 —— 天气行仍是
+                // **同一个 Positioned 浮层**，绝不进 `_buildGardenBody` 的 Column
+                // （否则 `firstRowTop` 变 → `gardenGridVisibleHeight` 矮屏断言必红）。
+                //
+                // 🔴 高度是两个量：**视觉带恒 32**（chips 28 / 胶囊 32 / 按钮 32，
+                //    两者各自居中于 44 高的容器里）；**容器 44**（= 命中容器，
+                //    否则子树的 44 命中盒收不到真实点击 —— 见 weather_status_bar
+                //    文件头「触控热区」节）。
+                // 为此本 `Positioned.top` 比「视觉顶」高 6pt、chips 额外 `Padding(top: 6)`
+                // ⇒ **chips 与胶囊的视觉位置逐位不变**（都从 y=12 开始）。
+                if (_error == null)
                   Positioned(
                     left: 12,
-                    top: widget.embedded ? 12 : 60,
+                    right: 12,
+                    top: (widget.embedded ? 12 : 60) - 6,
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      // 🔴 `crossAxisAlignment: start`（设计文档 v1.3 变更清单第 1 条）：
+                      //    默认的 `center` 会把 44 高的命中容器与 28 高的 chips 各自居中 ⇒
+                      //    chips 视觉顶落到 y=11、胶囊视觉顶落到 y=6，**两个都不在 y=12**
+                      //    （A2-8⑥ 红）。改成 `start` 后：命中容器顶 = y=6，视觉顶 = 6+6 = 12；
+                      //    chips 靠自己的 `Padding(top: 6)` 抵消同一段 6pt ⇒ 逐位不变。
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        _FragmentEntry(
-                          balance: _fragmentBalance,
-                          onTap: _openFragmentSheet,
-                        ),
-                        const SizedBox(width: 8),
-                        // 种子计数（2026-10-05 玄参「碎片右边并列显示普通/精英种子个数」）：
-                        // 分档种子素材图 + ×N；素材缺失回退 🌰。2026-10-06：点击也打开
-                        // 「碎片与种子」说明卡（玄参「点击种子就不会弹出来，都需要弹出」）。
-                        _SeedCountChip(
-                          count: _commonSeedCount,
-                          asset: 'assets/rewards/seed_common.png',
-                          onTap: _openFragmentSheet,
-                        ),
-                        const SizedBox(width: 6),
-                        _SeedCountChip(
-                          count: _premiumSeedCount,
-                          asset: 'assets/rewards/seed_premium.png',
-                          onTap: _openFragmentSheet,
+                        // 左端：既有资源 chips（三个 chip 的构造参数 / 样式 / 顺序**逐字不动**）。
+                        // 🔴 必须显式 `MainAxisSize.min`：它从「Positioned 的唯一子项（有限宽
+                        //    约束）」变成「Row 的非弹性子项」，默认 max 会吃满整行 →
+                        //    天气行被挤成 0 宽 → 溢出。
+                        // 🔴 `Padding(top: 6)`：抵消本行整体上移的 6pt ⇒ 视觉位置不变。
+                        if (!_loading)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                _FragmentEntry(
+                                  balance: _fragmentBalance,
+                                  onTap: _openFragmentSheet,
+                                ),
+                                const SizedBox(width: 8),
+                                // 种子计数（2026-10-05 玄参「碎片右边并列显示普通/精英种子个数」）：
+                                // 分档种子素材图 + ×N；素材缺失回退 🌰。2026-10-06：点击也打开
+                                // 「碎片与种子」说明卡（玄参「点击种子就不会弹出来，都需要弹出」）。
+                                _SeedCountChip(
+                                  count: _commonSeedCount,
+                                  asset: 'assets/rewards/seed_common.png',
+                                  onTap: _openFragmentSheet,
+                                ),
+                                const SizedBox(width: 6),
+                                _SeedCountChip(
+                                  count: _premiumSeedCount,
+                                  asset: 'assets/rewards/seed_premium.png',
+                                  onTap: _openFragmentSheet,
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          // 🔴 加载中**仍要留一个零宽占位项**：`spaceBetween` 在只有 1 个
+                          //    子项时会把剩下的自由空间全部放在它右边 ⇒ 天气行被顶到最左，
+                          //    账本读完后 chips 出现、天气行再跳到右边（每次进页闪一下）。
+                          //    有了占位项，天气胶囊从**第 1 帧**起就固定在右端（A2-2）。
+                          const SizedBox.shrink(),
+                        // 右端：天气行（胶囊 9 种日型恒在；推荐道具按钮仅极端日渲染）。
+                        // `_loading` 只门控按钮，胶囊永远渲染（P0-1「首帧即可见」）。
+                        Flexible(
+                          child: GardenWeatherRow(
+                            key: kWeatherRowKey,
+                            kind: todayWeather.kind,
+                            shelterRefType: todayWeather.kind.shelterRefType,
+                            bought: _shelterBoughtToday,
+                            affordable: _balance >= kWeatherShelterPrice,
+                            showShelterButton: !_loading && _error == null,
+                            onShelterTap: _onShelterTap,
+                            // 主理人裁定 R4：胶囊**永不可点**（纯展示元素），
+                            // 故恒传 null，不引入 GlobalKey 测量 / 44pt 透明热区。
+                            onPillTap: null,
+                          ),
                         ),
                       ],
                     ),
@@ -2670,7 +2867,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                     !_loading &&
                     _error == null)
                   Positioned(
-                    top: 12,
+                    top: 12 + kWeatherRowHeight + 6,
                     right: 12,
                     child: BloomDebugEntry(onTap: _openDebugPanel),
                   ),

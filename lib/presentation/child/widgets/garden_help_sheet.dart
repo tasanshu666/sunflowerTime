@@ -113,6 +113,15 @@ class GardenHelpSheet extends StatelessWidget {
                   kPlantWiltRecoverHardDays, kPlantWiltRecoverHardWater,
                   kPlantWiltRecoverHardFertilize),
             ),
+            // A2（天气系统二期 · P1-1）：天气段的**静态规则说明**。
+            // 只讲规则、不带任何运行期数字（故不新增构造参数）：花园页顶部那条
+            // 天气行负责「今天是什么天气」，这里负责「天气是怎么运作的」。
+            // 温和日没有道具按钮（买了次日即失效＝纯亏），孩子的好奇心由本段兜住。
+            _HelpRow(
+              icon: Icons.wb_cloudy_rounded,
+              title: l10n.garden_help_weather_title,
+              detail: l10n.garden_help_weather_body,
+            ),
             _HelpRow(
               icon: Icons.check_circle_outline,
               title: l10n.ghelp_task_title,

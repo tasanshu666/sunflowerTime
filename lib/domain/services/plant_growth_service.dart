@@ -174,6 +174,143 @@ class PlantBlockReason {
       '${b == null ? '' : ', b: $b'})';
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 天气道具读/写侧的结果类型（A2）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 买棚结果的语义态（A2 · PRD §4.2 / §4.3 / §4.5）。
+///
+/// 为什么是**结果对象**而不是异常（设计文档 Q2 / Q3 的裁定）：
+///  · 「今天已经买过了」是**正常业务态**（孩子点了已购按钮），不是异常 ——
+///    把它建模成 throw 会让页面把常规交互写进 `catch`；
+///  · 四态的文案全部已存在（4 条 toast / already / garden_need_more_sun），
+///    不需要新增 `PlantOperationError` 码，也就不动 `error_l10n.dart` 的
+///    穷举 switch 与 `error_l10n_test.dart` 的「恰好 17 码」硬断言。
+///
+/// 真正的意外异常（`_ledger.append` 的 IO 失败）照常向上抛，由页面兜底。
+enum ShelterBuyStatus {
+  /// 成功：已扣价并写入账本一行。
+  bought,
+
+  /// 当日该 refType 已有账本记录：余额与账本零变化。
+  alreadyBought,
+
+  /// 阳光不足：未扣费、未写账；[ShelterBuyResult.missing] 为差额（已 ceil）。
+  insufficientSunlight,
+
+  /// 当日天气**不需要**道具（温和 5 种，`shelterRefType == null`）：不扣费、不写账。
+  ///
+  /// 调用方显式传了 `shelterRefType` 时不会走到这里（买错棚允许写、但不减免）。
+  notNeeded,
+}
+
+/// 买棚结果（不可变值对象）：语义态 + 可选数值载荷。
+///
+/// 与 [PlantBlockReason] 同风格：只出语义码与数字，**不含任何人类文案**
+/// （`lib/domain/**` 注释外零 CJK 纪律，`test/i18n/no_han_in_domain_test.dart`）。
+class ShelterBuyResult {
+  /// 结果语义态。
+  final ShelterBuyStatus status;
+
+  /// 本次（或已存在的）道具 `refType`；[ShelterBuyStatus.notNeeded] 时为 null。
+  final String? refType;
+
+  /// 本次买的是**不是今天推荐的那件**（`refType != WeatherSystem.ofDay(now).kind.shelterRefType`）。
+  ///
+  /// ## 为什么由领域层算
+  /// 「推荐件」是天气口径（`WeatherKind.shelterRefType`），只有领域层知道；
+  /// UI 侧若自己比对，就会有机会拿错日期 / 错天气 —— 那是**扣了钱却没减免**的
+  /// 事故。故判定放这里，UI 只读结果。
+  ///
+  /// ## 用途
+  /// 「买错棚」允许写账、照扣 10☀，但**不减免任何惩罚**（PRD §4.4-2）；
+  /// 反馈语因此要与「买对」区分开（不同 toast）。
+  final bool isRecommended;
+
+  /// 还差多少阳光（**仅** [ShelterBuyStatus.insufficientSunlight] 有意义，已 `.ceil()`）。
+  final int missing;
+
+  /// 写账后的余额（**仅** [ShelterBuyStatus.bought] 有意义）。
+  ///
+  /// ⚠️ 是**预估值**（`balance - cost`）：[_appendSpend] 内部会再读一次 `balance()`
+  /// 重算写入 `balanceAfter`。与 `expandPot` 的既有行为一致；UI 展示以 `_reload`
+  /// 读到的真值为准，故本字段只供调用方判「是否有变化」，不要直接用于展示。
+  final double? balanceAfter;
+
+  const ShelterBuyResult._(
+    this.status, {
+    this.refType,
+    this.isRecommended = false,
+    this.missing = 0,
+    this.balanceAfter,
+  });
+
+  /// 成功（[refType] 已扣费，[balanceAfter] 为预估余额）。
+  const ShelterBuyResult.bought(
+    String refType,
+    double balanceAfter, {
+    required bool isRecommended,
+  }) : this._(ShelterBuyStatus.bought,
+            refType: refType,
+            isRecommended: isRecommended,
+            balanceAfter: balanceAfter);
+
+  /// 今日已购（余额与账本零变化）。
+  const ShelterBuyResult.alreadyBought(
+    String refType, {
+    required bool isRecommended,
+  }) : this._(ShelterBuyStatus.alreadyBought,
+            refType: refType, isRecommended: isRecommended);
+
+  /// 阳光不足（[missing] 为差额，已 ceil）。
+  const ShelterBuyResult.insufficient(
+    int missing, {
+    String? refType,
+    required bool isRecommended,
+  }) : this._(ShelterBuyStatus.insufficientSunlight,
+            refType: refType,
+            isRecommended: isRecommended,
+            missing: missing);
+
+  /// 今日不需要道具（温和日且未显式指定 refType，或 refType 非法）。
+  const ShelterBuyResult.notNeeded()
+      : this._(ShelterBuyStatus.notNeeded, isRecommended: false);
+
+  /// 是否真的买到了（**仅**成功态为 true）。
+  bool get isBought => status == ShelterBuyStatus.bought;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ShelterBuyResult &&
+          other.status == status &&
+          other.refType == refType &&
+          other.isRecommended == isRecommended &&
+          other.missing == missing &&
+          other.balanceAfter == balanceAfter;
+
+  @override
+  int get hashCode =>
+      Object.hash(status, refType, isRecommended, missing, balanceAfter);
+
+  @override
+  String toString() => 'ShelterBuyResult: ${status.name}'
+      '${refType == null ? '' : '($refType)'}'
+      '${isRecommended ? ', recommended' : ''}'
+      '${missing == 0 ? '' : ', missing: $missing'}';
+}
+
+/// 4 个合法道具 refType 的白名单（**一个天气一个 refType**，见 `prd_params.dart`）。
+///
+/// 🔴 「绝不为一条我们自己都无法命名的账本行收孩子的钱」：写进账本的 `refType`
+/// 必须是**已知**的四件之一，否则日结侧根本认不出它（`shelterByDay` 按 refType
+/// 匹配），孩子却已经被扣了 10☀ —— 那是**收钱不办事**。
+bool isKnownShelterRefType(String refType) =>
+    refType == kWeatherShelterRefTypeShade ||
+    refType == kWeatherShelterRefTypeRain ||
+    refType == kWeatherShelterRefTypeWind ||
+    refType == kWeatherShelterRefTypeWarm;
+
 /// 单株养护额度快照（M3 修订）：今日已用次数 + 是否可操作 + 阻塞原因。
 ///
 /// 事实源为阳光账本（每次养护写一条 `refType='plant_water'/'plant_fertilize'`、
@@ -355,6 +492,12 @@ class _WeatherBatch {
 }
 
 /// 植物养成领域服务。
+///
+/// ## 本类同时承载**全园级经济动作**
+/// 除逐株养护外，扩容（`plant_expand`）与天气道具（`shelter_*`，A2 新增）也在这里 ——
+/// 它们都**不写 `plant` 表**、只写一行账本、语义上是「按园/按全局买一次」。
+/// 放进本类的唯一理由是扣费链路（`_ledger` / [_spendCheck] / [_appendSpend] /
+/// [_onEconomyChanged]）是私有成员，跨类复用只能重写一遍口径。
 class PlantGrowthService {
   final PlantRepository _plants;
   final FocusRepository _focus;
@@ -1660,6 +1803,98 @@ class PlantGrowthService {
     await _settings.saveSettings(settings.copyWith(
       gardenPotCapacity: settings.gardenPotCapacity + 1,
     ));
+  }
+
+  /// 天气道具购买（A2）：全园一份、当日有效、**不写任何 plant 记录**。
+  ///
+  /// ## 为什么在 [PlantGrowthService] 而不是新建 service
+  /// 扣费链路依赖本类的私有成员（`_ledger` / [_appendSpend] / [_onEconomyChanged]）；
+  /// 新建 service 只能把扣费口径重写一遍 → 未来对账分叉。与 [expandPot] 结构同构
+  /// （全园一份 / 固定 refType / 非植物动作 / 扣阳光），唯一差别是本方法带
+  /// `refId = kWeatherShelterRefId`（按园买，不按盆买）。
+  ///
+  /// ## refType 的推导（最关键的一条）
+  /// 缺省由本方法自己从天气推导：`WeatherSystem.ofDay(now).kind.shelterRefType`。
+  /// 这与读侧 `_prefetchShelter` 用的是**同一个属性**，因此「写进去的 refType」与
+  /// 「读出来的 refType」物理上不可能对不上 —— 写错 refType 就等于减免永不生效。
+  ///
+  /// [shelterRefType] 显式传入时**允许与推荐件不同**（PRD §4.4-2「买错棚允许写、
+  /// 但不减免任何惩罚」；供全览卡与测试使用）。
+  ///
+  /// ## 幂等 / 并发
+  /// 当日已有该 refType + `refId='garden'` 的账本记录 → 直接返回
+  /// [ShelterBuyStatus.alreadyBought]，余额与账本**零变化**（领域层硬闸门）。
+  /// UI 侧另有 `_busy` 串行闸门与已购态拦截。
+  ///
+  /// ## 不做什么
+  ///  · 不写 `plant` 表、不改 `growthProgress`、不改任何计时（快照逐位不变）；
+  ///  · 不碰晨露；
+  ///  · 不动浇水 / 施肥额度（额度用尽仍可买）。
+  Future<ShelterBuyResult> buyShelter(
+    DateTime now, {
+    String? shelterRefType,
+  }) async {
+    // 当日**推荐件**（天气口径）：缺省用它，也是 `isRecommended` 的比对基准。
+    final String? recommended = WeatherSystem.ofDay(now).kind.shelterRefType;
+    final String? refType = shelterRefType ?? recommended;
+    // 温和日且未显式指定 → 不需要道具（不扣费、不写账）。
+    if (refType == null) return const ShelterBuyResult.notNeeded();
+
+    // 🔴 防御：只接受 4 个已知 refType。
+    //    「绝不为一条我们自己都无法命名的账本行收孩子的钱」—— 未知 refType 写进
+    //    账本后，日结侧（`shelterByDay` 按 refType 匹配）根本认不出它，
+    //    孩子却已经被扣了 10☀ ⇒ 收钱不办事。
+    //    debug 用 assert 炸（开发期立刻暴露），release 降级为 notNeeded（不扣费）。
+    assert(
+      isKnownShelterRefType(refType),
+      'unknown shelter refType: $refType '
+      '(must be one of the four kWeatherShelterRefType* constants)',
+    );
+    if (!isKnownShelterRefType(refType)) return const ShelterBuyResult.notNeeded();
+
+    // 本次买的**是不是**推荐件（买错棚允许写、照扣，但不减免惩罚）。
+    final bool isRecommended = refType == recommended;
+
+    // ① 幂等闸门：当日该 refType + 本园是否已有记录。
+    //    dayKey 必须与 [_appendSpend] 用**同一个**函数（`datetime_ext.dayKey`），
+    //    否则「查的」与「写的」不是同一个字符串。
+    final int todayCount = await _ledger.countByRefTypeAndRefIdOnDay(
+      refType,
+      kWeatherShelterRefId,
+      dayKey(now),
+    );
+    if (todayCount > 0) {
+      return ShelterBuyResult.alreadyBought(refType,
+          isRecommended: isRecommended);
+    }
+
+    // ② 余额闸门：不足 → 返回语义态（**不抛**，见 [ShelterBuyStatus] 的说明）。
+    const int cost = kWeatherShelterPrice;
+    final double balance = await _ledger.balance();
+    if (balance < cost) {
+      return ShelterBuyResult.insufficient(
+        (cost - balance).ceil(),
+        refType: refType,
+        isRecommended: isRecommended,
+      );
+    }
+
+    // ③ 扣费写账（复用既有私有链路：refType 区分来源、refId = 'garden'）。
+    await _appendSpend(
+      amount: cost.toDouble(),
+      type: SunlightType.plant,
+      refType: refType,
+      refId: kWeatherShelterRefId,
+      now: now,
+    );
+
+    // ④ 经济变更通知：DI 里装配为 `economyRevisionProvider.state++` → 花园页
+    //    `ref.listen` → 静默刷新。⚠️ 页面侧**不要**再手动 `state++`（会刷两轮）。
+    _onEconomyChanged?.call();
+
+    // balanceAfter 为预估值（[_appendSpend] 内部会重算真实值），见字段注释。
+    return ShelterBuyResult.bought(refType, balance - cost,
+        isRecommended: isRecommended);
   }
 
   // ── 成株后循环玩法 Batch 1：节奏辅助 + 花期双阶段奖励 ──────────────────────

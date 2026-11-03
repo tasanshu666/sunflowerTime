@@ -3157,4 +3157,103 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get garden_pot_locked_hint => '这里还能再种更多花！跟爸爸妈妈说说，请他们帮你解锁更多花盆 🌻';
+
+  @override
+  String get weather_sunny => '阳光明媚';
+
+  @override
+  String get weather_breeze => '微风';
+
+  @override
+  String get weather_cloudy => '多云';
+
+  @override
+  String get weather_overcast => '阴天';
+
+  @override
+  String get weather_light_rain => '小雨';
+
+  @override
+  String get weather_drought => '干旱';
+
+  @override
+  String get weather_wind => '大风';
+
+  @override
+  String get weather_cold => '极寒';
+
+  @override
+  String get weather_rainstorm => '暴雨';
+
+  @override
+  String get garden_weather_hint_sunny => '浇浇水，晒晒太阳';
+
+  @override
+  String get garden_weather_hint_breeze => '风很舒服，浇浇水';
+
+  @override
+  String get garden_weather_hint_cloudy => '慢慢长，浇点水';
+
+  @override
+  String get garden_weather_hint_overcast => '太阳躲起来了';
+
+  @override
+  String get garden_weather_hint_light_rain => '雨在帮忙，少浇点';
+
+  @override
+  String get garden_weather_hint_drought => '浇水';
+
+  @override
+  String get garden_weather_hint_rainstorm => '施肥';
+
+  @override
+  String get garden_shelter_shade => '遮阳棚';
+
+  @override
+  String get garden_shelter_rain => '遮雨棚';
+
+  @override
+  String get garden_shelter_wind => '挡风板';
+
+  @override
+  String get garden_shelter_warm => '保温棚';
+
+  @override
+  String garden_shelter_confirm_title(String name) {
+    return '要搭$name吗？';
+  }
+
+  @override
+  String get garden_shelter_confirm_message => '搭上它，今天的花就不怕啦。棚只管今天，明天要重新搭。';
+
+  @override
+  String get garden_shelter_confirm_ok => '搭起来';
+
+  @override
+  String get garden_shelter_row_cost => '本次花费';
+
+  @override
+  String get garden_shelter_done => '已搭好';
+
+  @override
+  String get garden_shelter_already => '今天已经搭好啦 👍';
+
+  @override
+  String get garden_shelter_bought_shade => '遮阳棚搭好啦 👍';
+
+  @override
+  String get garden_shelter_bought_rain => '遮雨棚搭好啦 👍';
+
+  @override
+  String get garden_shelter_bought_wind => '挡风板立好啦 👍';
+
+  @override
+  String get garden_shelter_bought_warm => '保温棚盖好啦 👍';
+
+  @override
+  String get garden_help_weather_title => '天气';
+
+  @override
+  String get garden_help_weather_body =>
+      '花园每天有一种天气。遇上干旱、大风、极寒、暴雨，花会难受一点——花 10 ☀ 搭上对应的棚，今天就不会被扣成长。棚只管今天。';
 }

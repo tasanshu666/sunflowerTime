@@ -3247,4 +3247,104 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get garden_pot_locked_hint =>
       'More flowers can grow here! Ask your parents to unlock more pots 🌻';
+
+  @override
+  String get weather_sunny => 'Sunny';
+
+  @override
+  String get weather_breeze => 'Breezy';
+
+  @override
+  String get weather_cloudy => 'Cloudy';
+
+  @override
+  String get weather_overcast => 'Overcast';
+
+  @override
+  String get weather_light_rain => 'Light rain';
+
+  @override
+  String get weather_drought => 'Drought';
+
+  @override
+  String get weather_wind => 'Windy';
+
+  @override
+  String get weather_cold => 'Freezing';
+
+  @override
+  String get weather_rainstorm => 'Heavy rain';
+
+  @override
+  String get garden_weather_hint_sunny => 'Water them — nice and sunny';
+
+  @override
+  String get garden_weather_hint_breeze => 'Nice breeze — time to water';
+
+  @override
+  String get garden_weather_hint_cloudy => 'Growing slowly — water a bit';
+
+  @override
+  String get garden_weather_hint_overcast => 'The sun is hiding';
+
+  @override
+  String get garden_weather_hint_light_rain => 'Rain helps — water less';
+
+  @override
+  String get garden_weather_hint_drought => 'Water';
+
+  @override
+  String get garden_weather_hint_rainstorm => 'Fertilize';
+
+  @override
+  String get garden_shelter_shade => 'Shade awning';
+
+  @override
+  String get garden_shelter_rain => 'Rain cover';
+
+  @override
+  String get garden_shelter_wind => 'Windbreak';
+
+  @override
+  String get garden_shelter_warm => 'Warm cover';
+
+  @override
+  String garden_shelter_confirm_title(String name) {
+    return 'Set up the $name?';
+  }
+
+  @override
+  String get garden_shelter_confirm_message =>
+      'This keeps your plants safe today. Shelters only last one day.';
+
+  @override
+  String get garden_shelter_confirm_ok => 'Set it up';
+
+  @override
+  String get garden_shelter_row_cost => 'Cost';
+
+  @override
+  String get garden_shelter_done => 'Up';
+
+  @override
+  String get garden_shelter_already => 'Already up for today 👍';
+
+  @override
+  String get garden_shelter_bought_shade => 'Shade awning is up 👍';
+
+  @override
+  String get garden_shelter_bought_rain => 'Rain cover is up 👍';
+
+  @override
+  String get garden_shelter_bought_wind => 'Windbreak is up 👍';
+
+  @override
+  String get garden_shelter_bought_warm => 'Warm cover is on 👍';
+
+  @override
+  String get garden_help_weather_title => 'Weather';
+
+  @override
+  String get garden_help_weather_body =>
+      'Your garden gets one weather each day. On drought, wind, freezing or heavy rain, build the matching shelter for 10 ☀ to avoid the growth penalty. Shelters last one day only.';
 }

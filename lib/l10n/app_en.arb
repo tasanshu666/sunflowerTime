@@ -2452,5 +2452,44 @@
       }
     }
   },
-  "garden_pot_locked_hint": "More flowers can grow here! Ask your parents to unlock more pots 🌻"
+  "garden_pot_locked_hint": "More flowers can grow here! Ask your parents to unlock more pots 🌻",
+  "weather_sunny": "Sunny",
+  "weather_breeze": "Breezy",
+  "weather_cloudy": "Cloudy",
+  "weather_overcast": "Overcast",
+  "weather_light_rain": "Light rain",
+  "weather_drought": "Drought",
+  "weather_wind": "Windy",
+  "weather_cold": "Freezing",
+  "weather_rainstorm": "Heavy rain",
+  "garden_weather_hint_sunny": "Water them — nice and sunny",
+  "garden_weather_hint_breeze": "Nice breeze — time to water",
+  "garden_weather_hint_cloudy": "Growing slowly — water a bit",
+  "garden_weather_hint_overcast": "The sun is hiding",
+  "garden_weather_hint_light_rain": "Rain helps — water less",
+  "garden_weather_hint_drought": "Water",
+  "garden_weather_hint_rainstorm": "Fertilize",
+  "garden_shelter_shade": "Shade awning",
+  "garden_shelter_rain": "Rain cover",
+  "garden_shelter_wind": "Windbreak",
+  "garden_shelter_warm": "Warm cover",
+  "garden_shelter_confirm_title": "Set up the {name}?",
+  "@garden_shelter_confirm_title": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "garden_shelter_confirm_message": "This keeps your plants safe today. Shelters only last one day.",
+  "garden_shelter_confirm_ok": "Set it up",
+  "garden_shelter_row_cost": "Cost",
+  "garden_shelter_done": "Up",
+  "garden_shelter_already": "Already up for today 👍",
+  "garden_shelter_bought_shade": "Shade awning is up 👍",
+  "garden_shelter_bought_rain": "Rain cover is up 👍",
+  "garden_shelter_bought_wind": "Windbreak is up 👍",
+  "garden_shelter_bought_warm": "Warm cover is on 👍",
+  "garden_help_weather_title": "Weather",
+  "garden_help_weather_body": "Your garden gets one weather each day. On drought, wind, freezing or heavy rain, build the matching shelter for 10 ☀ to avoid the growth penalty. Shelters last one day only."
 }

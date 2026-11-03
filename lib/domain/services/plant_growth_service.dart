@@ -40,6 +40,8 @@ import 'package:sunflower_time/domain/services/account_service.dart';
 import 'package:sunflower_time/domain/services/entitlement_service.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
+import 'package:sunflower_time/domain/services/weather_growth_math.dart';
+import 'package:sunflower_time/domain/services/weather_system.dart';
 
 /// 植物操作失败的**语义码**（i18n B3 · T03）。
 ///
@@ -299,6 +301,57 @@ class OneClickPlan {
 
   /// 计划是否为空（无可执行目标 → UI 提示「没有需要…的植物」）。
   bool get isEmpty => actionCount == 0;
+}
+
+/// 一次 [PlantGrowthService.tickAll] 内的**天气 / 惩罚快照**（方案 §11.4 改法 3）。
+///
+/// 存在意义：把「日结循环需要的全部非同步事实」装成一个不可变包，让
+/// `_advanceGrowth` 保持**纯同步**（R6：函数内不得出现 `await`）。
+///
+/// 🔴 **批内缓存，不落库、不跨 tick 复用**：每次 [PlantGrowthService.tickAll]
+/// 新建一份，方法返回即丢弃 —— 故意用局部变量 + 传参而不是服务字段落地，
+/// 避免「上一次 tick 的天气」泄漏到 `water` / `fertilize` 等 tick 之外的路径。
+class _WeatherBatch {
+  /// 完整快照（含动作侧账本事实）。
+  const _WeatherBatch({
+    required this.byDay,
+    required this.shelterByDay,
+    required this.wateredDays,
+    required this.fertilizedDays,
+  });
+
+  /// 无动作事实的**空快照**：用于「本株根本不会进日结循环」的早退分支
+  /// （死亡 / 有虫草），一次账本查询也不发。
+  const _WeatherBatch.withoutActions({
+    required this.byDay,
+    required this.shelterByDay,
+  })  : wateredDays = const <String>{},
+        fertilizedDays = const <String>{};
+
+  /// `dayKey('yyyy-MM-dd') → 当日天气`（纯函数 [WeatherSystem.ofDay] 的产物）。
+  final Map<String, WeatherDay> byDay;
+
+  /// `dayKey → 当日该园是否已买对应道具`。
+  ///
+  /// 温和日恒 `false`（根本不会进 [WeatherGrowthMath.penaltyOf] 的惩罚分支）；
+  /// 极端日由账本 `countByRefTypeAndRefIdOnDay(refType: 该日型 shelterRefType,
+  /// refId: [kWeatherShelterRefId], day)` 一次查得（R8 / R9：只用既有方法）。
+  final Map<String, bool> shelterByDay;
+
+  /// `dayKey` 集合：该株当天账本上有 ≥1 条 `plant_water`（= 已完成「浇水」强制项）。
+  final Set<String> wateredDays;
+
+  /// `dayKey` 集合：该株当天账本上有 ≥1 条 `plant_fertilize`（= 已完成「施肥」强制项）。
+  final Set<String> fertilizedDays;
+
+  /// 当日是否有对应道具（未记录 = 无）。
+  bool hasShelterOn(String dayKeyValue) => shelterByDay[dayKeyValue] ?? false;
+
+  /// 当日是否已浇水（未记录 = 未浇）。
+  bool wateredOn(String dayKeyValue) => wateredDays.contains(dayKeyValue);
+
+  /// 当日是否已施肥（未记录 = 未施）。
+  bool fertilizedOn(String dayKeyValue) => fertilizedDays.contains(dayKeyValue);
 }
 
 /// 植物养成领域服务。
@@ -774,6 +827,18 @@ class PlantGrowthService {
       final Set<String> wfdDays = await _validFocusDayKeys(earliest, now);
       final bool todayWfd = await _hasValidFocusDay(now);
 
+      // ── 天气预取（方案 §11.4 改法 3；先例 = 上面的 `_validFocusDayKeys`）──
+      // 两张表都是**批内缓存**：每次 tickAll 重建、不落库、不跨 tick 复用。
+      // 故意用**局部变量 + 传参**（而非字段）落地，避免状态泄漏到 `water` /
+      // `fertilize` 等 tick 之外的路径。全部 await 集中在这里，
+      // `_advanceGrowth` 保持同步（R6）、循环内零 IO（R7）。
+      final List<DateTime> weatherWindow = _weatherWindowDays(all, now);
+      final Map<String, WeatherDay> weatherByDay = <String, WeatherDay>{
+        for (final DateTime d in weatherWindow) dayKey(d): WeatherSystem.ofDay(d),
+      };
+      final Map<String, bool> shelterByDay =
+          await _prefetchShelter(weatherWindow, weatherByDay);
+
       for (final Plant p in all) {
         final PlantSpecies? sp = speciesMap[p.speciesId];
         if (sp == null) {
@@ -782,7 +847,23 @@ class PlantGrowthService {
         }
         // 花园干扰物「杂草 / 害虫」每日 roll（口径 C26）：每株**当天一次**、活株才参与。
         // 次日零点 ≠ 今日零点 → 杂草 / 虫自动失效、成长恢复，**不会永久卡住成长**。
-        Plant np = _advanceGrowth(_rollWeedPest(p, now), sp, now, wfdDays);
+        final Plant rolled = _rollWeedPest(p, now);
+        // 动作侧（watered / fertilized）**必须按日查账本**：`Plant.waterUsed` /
+        // `fertilizerUsed` 只反映「当前这一轮」，跨日会被重置，日结历史拿不到。
+        // 早退分支（死亡 / 有虫草）用空集合，一次账本查询也不发（V10 已知行为）。
+        final _WeatherBatch batch =
+            (rolled.status == PlantStatus.dead || rolled.hasPestOrWeed)
+                ? _WeatherBatch.withoutActions(
+                    byDay: weatherByDay,
+                    shelterByDay: shelterByDay,
+                  )
+                : await _prefetchActionDays(
+                    plantId: rolled.id,
+                    weatherWindow: weatherWindow,
+                    weatherByDay: weatherByDay,
+                    shelterByDay: shelterByDay,
+                  );
+        Plant np = _advanceGrowth(rolled, sp, now, wfdDays, batch);
         // 本次 tick 新盛开（growing → bloomed）：发放开花瞬间奖励。
         final bool justBloomed =
             p.status != PlantStatus.bloomed && np.status == PlantStatus.bloomed;
@@ -843,12 +924,17 @@ class PlantGrowthService {
   bool _rollHit(double rate, [Random? source]) =>
       (source ?? _random).nextDouble() < rate;
 
-  /// 逐日推进成长进度（sync）。系数：当日有效专注 ×1.3，否则 ×1.0。
+  /// 逐日推进成长进度（sync）。系数：当日有效专注 ×1.3，否则 ×1.0；
+  /// 再乘当日天气 `g`（方案 §11.3 改法 2），并按日结算极端日惩罚。
+  ///
+  /// 🔴 **同步函数，内部不得出现 `await`**（R6）：天气表 [batch] 与惩罚所需的
+  /// 账本事实全部由 [tickAll] 预取后传入（R7）。
   Plant _advanceGrowth(
     Plant p,
     PlantSpecies sp,
     DateTime now,
     Set<String> wfdDays,
+    _WeatherBatch batch,
   ) {
     if (p.status == PlantStatus.dead) return p;
 
@@ -883,9 +969,15 @@ class PlantGrowthService {
       // 2026-09-22 修）。此处改用微秒 / 3.6e9，避免 inHours 截断不足 1 小时的片段。
       final double segHours =
           segEnd.difference(cursor).inMicroseconds / 3600000000.0;
-      final bool wfd = wfdDays.contains(dayKey(cursor));
+      final String cursorDayKey = dayKey(cursor);
+      final bool wfd = wfdDays.contains(cursorDayKey);
       final double factor = wfd ? kGrowthFactorFocused : 1.0;
       lastFactor = factor;
+      // 当日天气（§11.3）：批内快照命中即取；未覆盖的极边缘日子退化为当日纯函数
+      // （`WeatherSystem.ofDay` 零 IO、确定性，不会引入不确定性，只是慢一点）。
+      final WeatherDay weather =
+          batch.byDay[cursorDayKey] ?? WeatherSystem.ofDay(cursor);
+      final double g = weather.growthFactor;
       // V2（玄参大人 2026-09-22）：growthHoursPerStage 已是「不养护也要 N 天长成」
       // 的**真实目标时长**，故 [kPlantAutoGrowthScale] = 1.0，自动成长按真实时间
       // 推进、不再额外缓速；养护（浇水 +1% / 施肥 +3%）在其之上叠加。
@@ -896,15 +988,54 @@ class PlantGrowthService {
       // 沿用原常量、零改动；复开花（bloomCount ≥ 1，花谢回落 0.5 后的回填）改用独立复开花
       // 速率 [kRebloomAutoProgressPerDay]（普通 0.036/天），精品再 ÷ [kRebloomPremiumCycleMultiplier]。
       // 当日有效专注系数（factor）对两档一致生效，保持软绑定。
+      //
+      // 🔴 两档**都**乘 `g`（天气是真实环境，不能只影响首花）。复开花不经过
+      // [WeatherGrowthMath.segmentProgress]（它是固定 pp/天，没有
+      // `growthHoursPerStage`），故直接把 `g` 乘在等式末尾，算口径等价。
       if (p.bloomCount == 0) {
-        progress +=
-            segHours * factor / sp.growthHoursPerStage * kPlantAutoGrowthScale;
+        progress += WeatherGrowthMath.segmentProgress(
+              segHours: segHours,
+              day: weather,
+              growthHoursPerStage: sp.growthHoursPerStage,
+            ) *
+            factor *
+            kPlantAutoGrowthScale;
       } else {
         final double premiumDiv =
             sp.isPremium ? kRebloomPremiumCycleMultiplier : 1.0;
-        progress +=
-            segHours * factor * (kRebloomAutoProgressPerDay / 24.0) / premiumDiv;
+        progress += segHours *
+            factor *
+            (kRebloomAutoProgressPerDay / 24.0) /
+            premiumDiv *
+            g;
       }
+
+      // ── 极端日惩罚（§11.3 / 惩罚口径 B，判据见 [WeatherGrowthMath.penaltyOf]）──
+      // 🔴 P2：**今天永远不罚**，只结算「已过本地零点」也就是已关门的日子
+      // ⇒ 当天补救永远来得及，不需要退款机制。判据写作 `dayEnd <= now`，
+      // 与 `:881` 的 `segEnd` 选取同源，不引入第二套日期口径。
+      //
+      // ⚠️ **已知口径偏差（team-lead 2026-11-02 裁定：保持现状，不修）**：
+      // 跨阶段时 `stageStartedAt` 会被重置到当次 tick 时刻，于是每级的**首日
+      // 往往只有半天段**，但本判据仍按「一整天」罚它。一株首花最多多挨 2~3 次
+      // 1~2pp（≈0.05~0.1 天，在 71 天量级里约 0.1%），接受。
+      // 🔴 **将来若要修，必须做成「按日累计 + 按该日被覆盖的小时数比例罚」**，
+      // 绝不能简单加一条「必须是完整自然日才罚」的守卫 —— 因为本方法结束时会把
+      // `stageStartedAt` 推到 `now`，游标因此永远不是零点，「每天都是半天段」，
+      // 那条守卫会让**固定时间开 App 的孩子永远不被罚**（比现在严重得多的 bug）。
+      if (!dayEnd.isAfter(now)) {
+        progress += WeatherGrowthMath.penaltyOf(
+          day: weather,
+          hasShelter: batch.hasShelterOn(cursorDayKey),
+          watered: batch.wateredOn(cursorDayKey),
+          fertilized: batch.fertilizedOn(cursorDayKey),
+        );
+      }
+      // TODO(weather-A4): 暴雨日「雨水代劳」[WeatherDay.rainWaterBonusPp]（+1pp）
+      // 本批（A1）未接线 —— 方案的三条改法里没有它，且 §5.4 的对账基准口径不含它
+      // （含了会对不上表）。A4 期接「极端日特殊规则」时在这里另加：
+      // `if (weather.rainWaterBonusPp > 0) progress += weather.rainWaterBonusPp;`
+      // 同理 A4 还要接 `WeatherDay.waterQuota`（小雨 1 / 暴雨 0），见 [careQuota]。
       cursor = segEnd;
 
       // 阶段推进（seed→sprout→adult），每段重置浇水 / 施肥标记。
@@ -920,6 +1051,13 @@ class PlantGrowthService {
         fertilizerUsed = false;
         stageStartedAt = now; // 阶段计时自本次 tick 起
       }
+
+      // 🔴 P1：本段结束 `clamp(0.0, 1.0)`，干旱日（`g ×0.20`）叠惩罚也不为负。
+      // ⚠️ 位置在**阶段推进之后**：若放在加进度之后立刻 clamp，跨阶段那一小段
+      // 溢出（例如 1.05）会被削成 1.0，阶段推进再减 1 只剩 0 —— 每跨一级白丢
+      // 最多 0.05 阶段进度，等于凭 clamp 人为拖慢成长。放在此处则溢出已先被
+      // 阶段推进消费掉，clamp 只作用于「剩下的余数」，语义与方案 P1 完全一致。
+      progress = progress.clamp(0.0, 1.0);
     }
 
     // 幂等基准（2026-09-22 修）：把「上次成长结算点」推进到 now（只推进、不回退）。
@@ -1071,6 +1209,13 @@ class PlantGrowthService {
   /// 意义 = 重置枯萎计时 + 保住次日晨露满额（见 [bloomDewSunlightOf]）。
   Future<PlantCareQuota> careQuota(Plant p, DateTime now) async {
     final String today = dayKey(now);
+    // TODO(weather-A4): 本方法目前只认 [kPlantWaterMaxPerDay]（恒 3），
+    // **尚未接** [WeatherDay.waterQuota]（小雨 1 / 暴雨 0）—— A1 期（天气乘数接线）
+    // 的三条改法里不含额度，且 §15 对账表的 `E[w] = 1.0700` 就是**不含额度截断**的
+    // 口径（接线额度后 §5.4 的日数会整体再动一次，A4 期统一重算）。
+    // A4 期接法：`final int quota = WeatherSystem.ofDay(now).waterQuota;`
+    // 再用 `min(kPlantWaterMaxPerDay, quota)` 替换下面两处上限判定，并同步 UI 禁用态
+    // （方案 §6.2：额度用尽的按钮必须是禁用 + 一句原因，不能只是点了没反应）。
     final int waterUsed = await _ledger.countByRefTypeAndRefIdOnDay(
       'plant_water',
       p.id,
@@ -1170,11 +1315,22 @@ class PlantGrowthService {
     );
     // 固定增量（当前阶段 0..1），非「剩余比例」，避免种子阶段一步涨太多（用户 2026-09-21）。
     // 成株后循环 Batch 1：复开花（bloomCount≥1）改用 [kRebloomWaterProgressGain]，精品再 ÷1.5。
+    //
+    // 🔴 天气 `w` 乘在**即时加值侧**（方案 §11.2 改法 1）：浇水是点按钮即时加进度，
+    // 不是日结，所以 `w` 不进 `_advanceGrowth` 的循环、只在这里生效。
+    // 天气来源用 [WeatherSystem.ofDay]（纯函数、零 IO）——本方法**不在** `tickAll`
+    // 里，拿不到批内快照；方案禁止的是「在点击路径里现查**账本**」，纯函数不在禁令内。
     final PlantSpecies? sp = await _speciesOf(p.speciesId);
-    final double progress = p.growthProgress +
+    final double baseGain =
         _careProgressGain(p, kPlantWaterProgressGain, kRebloomWaterProgressGain, sp);
+    final double progress = p.growthProgress +
+        WeatherGrowthMath.careProgress(
+          baseGain: baseGain,
+          day: WeatherSystem.ofDay(now),
+          isWater: true,
+        );
     final Plant after = p.copyWith(
-      growthProgress: progress > 1.0 ? 1.0 : progress,
+      growthProgress: progress > 1.0 ? 1.0 : progress, // 上限不变
       waterUsed: true,
       lastWaterAt: now,
     );
@@ -1215,12 +1371,19 @@ class PlantGrowthService {
     );
     // 固定增量（当前阶段 0..1），同浇水口径（用户 2026-09-21）。
     // 成株后循环 Batch 1：复开花（bloomCount≥1）改用 [kRebloomFertilizeProgressGain]，精品再 ÷1.5。
+    //
+    // 🔴 天气 `f` 同样乘在**即时加值侧**（方案 §11.2 改法 1），理由见 [water]。
     final PlantSpecies? sp = await _speciesOf(p.speciesId);
+    final double baseGain = _careProgressGain(
+        p, kPlantFertilizeProgressGain, kRebloomFertilizeProgressGain, sp);
     final double progress = p.growthProgress +
-        _careProgressGain(
-            p, kPlantFertilizeProgressGain, kRebloomFertilizeProgressGain, sp);
+        WeatherGrowthMath.careProgress(
+          baseGain: baseGain,
+          day: WeatherSystem.ofDay(now),
+          isWater: false,
+        );
     final Plant after = p.copyWith(
-      growthProgress: progress > 1.0 ? 1.0 : progress,
+      growthProgress: progress > 1.0 ? 1.0 : progress, // 上限不变
       fertilizerUsed: true,
       lastWaterAt: now,
     );
@@ -2303,6 +2466,114 @@ class PlantGrowthService {
     final double completion =
         s.plannedMin == 0 ? 1.0 : s.actualFocusMin / s.plannedMin;
     return completion >= kCompletionRateThreshold;
+  }
+
+  // ── 天气预取（方案 §11.4 改法 3；唯一 `await` 点，R6 / R7）──────────────────
+
+  /// 天气 / 惩罚预取窗口的自然日列表（**升序，含 [now] 当天**）。
+  ///
+  /// 起点 = `min(各盆 stageStartedAt 的最早日, now 当天 − [kWeatherGrowthLookbackDays])`：
+  /// 「各盆最早」保证长寿命的盆整天都被覆盖。
+  ///
+  /// 🔴 **[kWeatherGrowthLookbackDays] 是「下限保证」，不是「上限截断」。**
+  /// 取 `min`（更早那个）⇒ 窗口 = 全部覆盖，由最老那盆的年龄决定；90 天只保证
+  /// 「再短也短不过 90 天」。**千万不要改成 `max`（真正的 90 天上限）**：
+  /// 超出窗口的日子在 [_WeatherBatch.byDay] 里查不到 ⇒ `hasShelterOn` 退化成
+  /// `false`、`wateredOn` / `fertilizedOn` 也退化成 `false` ⇒ 老盆的远古极端日会被
+  /// **错误地按「一个动作都没做」罚满 2pp，而且不抛异常、不打日志**，属于最难查的
+  /// 静默错（行为看似正常，只是花长得莫名慢）。覆盖优先是 team-lead 2026-11-02 批准
+  /// 的取舍；代价是超龄盆冷启动时窗口从 90 天放大到「盆龄」，但 [WeatherSystem.ofDay]
+  /// 有内存缓存、账本查询是本地 SQLite，且 `_validFocusDayKeys` 本来就在做同样粒度的
+  /// 逐日扫（还比我贵）。
+  ///
+  /// 逐日平移用 `DateTime(y, m, d + 1)` 而不是 `add(Duration(days: 1))`：后者在
+  /// 夏令时切换日会落在 23:00 / 01:00，把自然日边界算歪。
+  List<DateTime> _weatherWindowDays(List<Plant> plants, DateTime now) {
+    final DateTime today = DateTime(now.year, now.month, now.day);
+    DateTime start =
+        DateTime(today.year, today.month, today.day - kWeatherGrowthLookbackDays);
+    for (final Plant p in plants) {
+      final DateTime planted = DateTime(
+        p.stageStartedAt.year,
+        p.stageStartedAt.month,
+        p.stageStartedAt.day,
+      );
+      if (planted.isBefore(start)) start = planted;
+    }
+    final List<DateTime> days = <DateTime>[];
+    DateTime cursor = start;
+    while (!cursor.isAfter(today)) {
+      days.add(cursor);
+      cursor = DateTime(cursor.year, cursor.month, cursor.day + 1);
+    }
+    return days;
+  }
+
+  /// 预取「每天该园有没有对应道具」（全园一份，与植物无关）。
+  ///
+  /// 温和日（`shelterRefType == null`）**不查账本**，直接记 `false`；只有极端日
+  /// 才发一次 [SunlightRepository.countByRefTypeAndRefIdOnDay]（R8 / R9：禁止新增
+  /// 仓储方法，也禁止改它的签名 —— 全仓约 45 处测试假实现）。
+  Future<Map<String, bool>> _prefetchShelter(
+    List<DateTime> weatherWindow,
+    Map<String, WeatherDay> weatherByDay,
+  ) async {
+    final Map<String, bool> result = <String, bool>{};
+    for (final DateTime day in weatherWindow) {
+      final String key = dayKey(day);
+      final WeatherDay? wd = weatherByDay[key];
+      if (wd == null) continue;
+      final String? refType = wd.kind.shelterRefType;
+      if (refType == null) {
+        result[key] = false; // 温和日：不需要道具，也不吃惩罚
+        continue;
+      }
+      result[key] = await _ledger
+              .countByRefTypeAndRefIdOnDay(refType, kWeatherShelterRefId, key) >
+          0;
+    }
+    return result;
+  }
+
+  /// 预取单株在窗口内「已完成强制动作」的日子，返回可直接喂给
+  /// [_advanceGrowth] 的 [_WeatherBatch]。
+  ///
+  /// 🔴 动作侧**必须查账本**，不能用 `Plant.waterUsed` / `Plant.fertilizerUsed`：
+  /// 后两者只反映「当前这一轮」，跨日（以及跨阶段）会被重置，日结历史里拿不到。
+  ///
+  /// 只对**真正需要**的日子发查询（干旱 → `plant_water`、暴雨 → `plant_fertilize`）：
+  /// 90 天窗口内极端日约占 20%，其中需要动作的只有干旱 7% + 暴雨 3%，
+  /// 故每株每批通常只有个位数查询，而不是 90 × 2。
+  Future<_WeatherBatch> _prefetchActionDays({
+    required String plantId,
+    required List<DateTime> weatherWindow,
+    required Map<String, WeatherDay> weatherByDay,
+    required Map<String, bool> shelterByDay,
+  }) async {
+    final Set<String> wateredDays = <String>{};
+    final Set<String> fertilizedDays = <String>{};
+    for (final DateTime day in weatherWindow) {
+      final String key = dayKey(day);
+      final WeatherDay? wd = weatherByDay[key];
+      if (wd == null) continue;
+      if (wd.kind == WeatherKind.drought) {
+        // 干旱：当天该盆浇水记录 ≥ 1 条即算完成强制项（方案 §5.1）。
+        final int count = await _ledger.countByRefTypeAndRefIdOnDay(
+            kPlantWaterRefType, plantId, key);
+        if (count > 0) wateredDays.add(key);
+      } else if (wd.kind == WeatherKind.rainstorm) {
+        // 暴雨：当天该盆施肥记录 ≥ 1 条即算完成强制项（浇水额度为 0，不在判据里）。
+        final int count = await _ledger.countByRefTypeAndRefIdOnDay(
+            kPlantFertilizeRefType, plantId, key);
+        if (count > 0) fertilizedDays.add(key);
+      }
+    }
+    return _WeatherBatch(
+      byDay: weatherByDay,
+      shelterByDay: shelterByDay,
+      wateredDays: wateredDays,
+      fertilizedDays: fertilizedDays,
+    );
   }
 
   /// 轻量 firstWhereOrNull（避免引入 collection 依赖）。

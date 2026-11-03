@@ -411,40 +411,66 @@ Future<void> _collectInstant(
 void main() {
   // ── ① 复开花节奏分档 ─────────────────────────────────────────────────────
   group('复开花节奏（成株后循环 Batch 1）', () {
-    test('普通植物：不养护 ≈ 14 天再盛开', () async {
+    test('普通植物：不养护 ≈ 16 天再盛开（含天气 g 与 B 口径惩罚）', () async {
       final int days = await _daysToRebloom(
         speciesId: 'sp_common_a',
         fullCare: false,
       );
       print('[复开花] 普通 不养护 = $days 天');
-      expect(days, inInclusiveRange(13, 15));
+      // 🔴 天气接线后由「≈14 天」改为 16 量级：`docs/天气系统_最终方案.md` §5.4
+      // 「复开花 · 零养护」设计值 基准 **14.97** / B **16.44**。
+      // ⚠️ **不能断言精确值**：§5.4.1 实测（730 个起点）单起点整数天范围
+      // **14 ~ 21**（中位 17，本起点落 16），区间取实测包络以满足 §5.4.1
+      // 「复开花单起点整数天 ≥ ±2 天」。
+      expect(days, inInclusiveRange(14, 21));
     });
 
-    test('普通植物：满养护（3 浇 +1 肥）≈ 7 天再盛开', () async {
+    test('普通植物：满养护（3 浇 +1 肥）≈ 8 天再盛开', () async {
       final int days = await _daysToRebloom(
         speciesId: 'sp_common_a',
         fullCare: true,
       );
       print('[复开花] 普通 满养护 = $days 天');
-      expect(days, inInclusiveRange(6, 8));
+      // 天气接线后设计值由「无天气时代」的 6.94 天变为：不截断 7.13 / 7.34 / 7.45、
+      // 截断（A4 接额度后）7.29 / 7.50 / 7.62（§5.4 复开花表）。
+      // ⚠️ 原区间 `(6, 8)` 只有 ±1 天，比复开花的采样方差（±2 天）还窄，
+      // 现在绿是抽签抽中的（本测试起点 2026-09-01 落 7，中位偏快一侧）。
+      // 取 `docs/天气系统_最终方案.md` §5.4.1「成品区间（测试直接抄这四个）」的
+      // **[6, 10]** —— 它同时覆盖 A1 的「不截断」与 A4 接额度后的「截断」两种口径，
+      // 故 A4 期接完 `waterQuota` / `rainWaterBonusPp` 后本条无需再改区间。
+      expect(days, inInclusiveRange(6, 10));
     });
 
-    test('精品植物：不养护 ≈ 21 天再盛开（×1.5 更慢）', () async {
+    test('精品植物：不养护 ≈ 27 天再盛开（×1.5 更慢，含天气 g 与 B 口径惩罚）', () async {
       final int days = await _daysToRebloom(
         speciesId: 'sp_premium',
         fullCare: false,
       );
       print('[复开花] 精品 不养护 = $days 天');
-      expect(days, inInclusiveRange(20, 22));
+      // 天气接线后由「≈21 天」改为 27 量级：精品复开花零养护**设计值**
+      // 基准 **22.45** / A 24.66 / B **25.94**（§5.4 末段，auto 与养护增量 ÷1.5，
+      // 但**惩罚不 ÷1.5** —— 惩罚是绝对量，见 §5.6，别按「普通 ×1.5」推 B：
+      // 那样会把 0.30pp 惩罚也稀释成 0.20pp，算出来的必然是 A 值）。
+      // 🔴 区间必须宽：产品按真 FNV-1a 在 730 个起点上测出 B 口径整数天分布
+      // **22 ~ 34，中位 27**（本测试起点 2026-09-01 正好落 27 = 中位）。
+      // 为什么方差是普通复开花的 3 倍：精品日进度只有 2.23pp，而惩罚是绝对值
+      // 0.3~2.0pp/天 —— 一个干旱日 = 0.48pp 增长配 −2.0pp 惩罚 = **净倒退 1.52pp
+      // （≈0.7 天）**；二十几天的窗口撞上 2~3 个极端日就差 5~6 天。
+      // 故取实测包络 22~34（满足 §5.4.1 修订后的「精品复开花 ≥ ±6 天」）。
+      expect(days, inInclusiveRange(22, 34));
     });
 
-    test('精品植物：满养护 ≈ 11 天再盛开（×1.5 更慢）', () async {
+    test('精品植物：满养护 ≈ 12 天再盛开（×1.5 更慢）', () async {
       final int days = await _daysToRebloom(
         speciesId: 'sp_premium',
         fullCare: true,
       );
       print('[复开花] 精品 满养护 = $days 天');
-      expect(days, inInclusiveRange(10, 12));
+      // 设计值：不截断 10.69 / 11.17 / 11.42、截断（A4 后）10.93 / 11.43 / 11.70。
+      // ⚠️ 原区间 `(10, 12)` **连 A1 现状的 B 口径上界 14 都包不住**，是本组最脆的一条
+      // （本测试起点 2026-09-01 恰好抽到 11）。
+      // 取 §5.4.1「成品区间」的 **[10, 15]** —— 同时覆盖 A1 不截断与 A4 截断两种口径。
+      expect(days, inInclusiveRange(10, 15));
     });
 
     test('复开花常量钉死（防回退）', () {
@@ -878,24 +904,28 @@ void main() {
       expect(_kSpecies[2].isPremium, isTrue, reason: 'legendary = 精品档');
     });
 
-    test('rare 物种：复开花节奏按精品档 ×1.5 —— 不养护 ≈ 21 天', () async {
+    test('rare 物种：复开花节奏按精品档 ×1.5 —— 不养护 ≈ 27 天', () async {
       final int days = await _daysToRebloom(
         speciesId: 'sp_rare',
         fullCare: false,
         species: <PlantSpecies>[_rareSpecies],
       );
       print('[复开花] rare 不养护 = $days 天');
-      expect(days, inInclusiveRange(20, 22));
+      // 同精品档（rare 计入精品，`PlantSpecies.isPremium`）：设计值 基准 22.45 / B 25.94，
+      // 730 起点实测整数天 22~34、中位 27（方差成因见上一条注释）。
+      expect(days, inInclusiveRange(22, 34));
     });
 
-    test('rare 物种：满养护 ≈ 11 天再盛开（与 legendary 同步）', () async {
+    test('rare 物种：满养护 ≈ 12 天再盛开（与 legendary 同步）', () async {
       final int days = await _daysToRebloom(
         speciesId: 'sp_rare',
         fullCare: true,
         species: <PlantSpecies>[_rareSpecies],
       );
       print('[复开花] rare 满养护 = $days 天');
-      expect(days, inInclusiveRange(10, 12));
+      // 同精品档（rare 计入 `isPremium`）：原 `(10, 12)` 包不住 A1 现状的 B 口径上界 14；
+      // 取 §5.4.1「成品区间」的 [10, 15]（同时覆盖 A1 不截断与 A4 截断口径）。
+      expect(days, inInclusiveRange(10, 15));
     });
 
     test('rare 物种：开花瞬间保底走精品档（+10☀，非普通 +6☀）', () async {

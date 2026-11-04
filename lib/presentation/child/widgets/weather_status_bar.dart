@@ -318,7 +318,14 @@ double measureTextWidth(String text, TextStyle style, TextScaler textScaler) {
 
 // ── 单点映射（新增日型 / 道具时只改这里；`switch` 穷举、无 default）──────────
 
-/// 日型 → Material 图标（A2 占位，A5 换真美术时**组件 API 不变**）。
+/// 日型 → Material 图标（**A2 占位；A5-b 才换真美术**）。
+///
+/// 🔴 **A5 改口径（2026-11-04）**：本注释原文写「换真美术时**组件 API 不变**」，
+///    **不成立** —— 本函数返回 [IconData]，承载不了 PNG / WebP。真美术到位时的真实
+///    改动是：**新增 `weatherArtOf(kind, size) -> Widget`**（内部 `Image.asset` +
+///    `errorBuilder` 回退到本函数）+ 替换 `_WeatherPill` 内的 `Icon(weatherIconOf(..))`
+///    调用点 + `pubspec.yaml` 声明 `assets/weather/` 叶子目录（目录**不递归**）。
+///    本函数**保留为回退路径**，不删。
 ///
 /// 9 个图标**两两语义可辨**：多云 = 实心云、阴天 = 线框云；小雨 = 稀疏雨点、
 /// 暴雨 = 雷雨云；微风 = 气流、大风 = 风力装置。
@@ -368,7 +375,12 @@ String? weatherHintOf(WeatherKind kind, AppLocalizations t) => switch (kind) {
       WeatherKind.rainstorm => t.garden_weather_hint_rainstorm,
     };
 
-/// 道具 refType → 道具图标（A2 占位，A5 换真美术）。
+/// 道具 refType → 道具图标（**A2 占位；A5-b 才换真美术**）。
+///
+/// 🔴 **A5 改口径（2026-11-04）**：同 [weatherIconOf] —— 返回 [IconData] 承载不了位图，
+///    真美术到位时新增 `shelterArtOf(refType, size) -> Widget`（`errorBuilder` 回退到本函数）。
+///    ⚠️ 但「已购」态的 `Icons.check_circle_rounded` **必须保留 Material 图标**：
+///    §9.5 的完成态语义优先于美术，换成位图会让「做成/没做成」的判别变模糊。
 ///
 /// `String` 无法穷举，故保留 `default`：未知 refType 回退盾牌图标，
 /// **绝不抛异常**（表现层不允许把异常抛到 build 里）。

@@ -1891,23 +1891,25 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // M-G · 平板档 UI 层守卫（第 4 轮 QA 路由）
+  // M-G · 平板档 UI 层守卫（第 4 轮 QA 路由；A3 收口补齐平板档）
   //
-  // 🔴 **已知覆盖缺口（登记，不是失败断言）**：
-  //    生产代码 `weather_status_bar.dart:1103` 的 `uiScaleOf(context)` 是**视口驱动**
-  //    （= `tabletUiScaleFor(MediaQuery.sizeOf(context).shortestSide)`）：手机（短边
-  //    <600）恒 1.0；834 → 1.3；1032 → 1.6（钳制）。**平板档 1.3 / 1.6 在生产代码里
-  //    是走得到的**（与「写死 1.0 ⇒ 走不到」的假设不符 —— 详见下方实测佐证）。
+  // 生产代码 `weather_status_bar.dart` 的 `uiScaleOf(context)` 是**视口驱动**
+  // （= `tabletUiScaleFor(MediaQuery.sizeOf(context).shortestSide)`）：手机（短边
+  // <600）恒 1.0；834 → 1.3；1032 → 1.6（钳制）。
   //
-  //    但**当前测试从未在平板视口 pump 过 UI 层** ⇒ 平板档（1.3 / 1.6×）的 UI 表现
-  //    **无测试覆盖**。本组只锁「手机视口下组件实际使用 == 1.0」这一条（保证手机档
-  //    不被回归），**平板档缺口就登记在这里，不靠改 `lib/`（uiScaleOf / responsive.dart）
-  //    来凑绿**。覆盖缺口就是缺口，登记即可。
+  // 🔴 **A3 收口前**：本组只有「手机视口 == 1.0」一条 ⇒ 平板档（1.3 / 1.6×）UI 表现
+  //    **无测试覆盖**（＝已登记的「M-G 平板覆盖缺口」）。
+  // ✅ **A3 收口后**：缺口已补 —— 见本文件尾部两组：
+  //    · `M-G · 平板视口 UI 层（A3 收口）`：834 / 1032 视口下 pump UI 层，断言
+  //      视觉带高 / 胶囊槽高 / 胶囊实体高 / 命中容器高 / 实体顶对齐槽顶 / 无溢出，
+  //      以及「`resolveWeatherRowTier` 用**实测**可用宽算出的档位 == 组件实际渲染形态」；
+  //    · `平板不齐边 6×(s−1)（A3 收口 · 已登记差异）`：把 1.8pt 差异钉成契约。
   //
-  //    🔎 实测佐证（TEMP probe @ 834×1194，第 4 轮）：scale=1.3、天气行顶 13.8 vs
-  //    chips 顶 12.0 ⇒ 差 1.8pt 不齐边（根因：chips 的 `Padding(top:6)` 是固定字面量，
-  //    天气行内 6 = (44−32)/2 乘了 s；s=1 时两者相等故手机零回归）。此不齐边是否需
-  //    修，由主理人 / 架构师裁定；本测试**不**就此断言。
+  // 🔎 1.8pt 的根因（架构师 A3 盘点 · 已实测复现）：chips 的 `Padding(top:6)` 是**固定
+  //    字面量**（不乘 s），行内垂直居中偏移 `(44−32)/2 = 6` **乘了 s** ⇒ 差 = `6×(s−1)`。
+  //    s=1（手机）两者相等 ⇒ 手机零回归；s=1.3 ⇒ 1.8pt；s=1.6 ⇒ 3.6pt。
+  //    **主理人裁定：登记不改（与 K27 / R24 同类处置），但必须补守卫钉住**（防止将来
+  //    有人悄悄把 chips 的 top 也乘上倍率或改掉这条公式）。
   // ══════════════════════════════════════════════════════════════════════════
   testWidgets('M-G · 手机视口（390×844）下组件实际 uiScaleOf == 1.0',
       (WidgetTester tester) async {
@@ -1974,6 +1976,244 @@ void main() {
           reason: 'FD1：满档提示语「$hintText」不得被 ellipsis 截断（量==渲同源）');
       expect(tester.takeException(), isNull);
     });
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // M-G · 平板视口 UI 层（A3 收口 · 只动 test，不动 lib）
+  //
+  // 补齐「M-G 平板覆盖缺口」：A3 之前 UI 层从未在平板视口 pump 过 ⇒ 把平板分支
+  // （倍率 1.3 / 1.6）改坏了自动化也不会红。
+  //
+  // 🔴 口径纪律（A2 期反复踩过的坑，W-1/W-2/D-14 已封版）：
+  //    **只断言不变式，不断言「某宽度 = 某档位」** —— 测试字体是方块字体（每字形
+  //    advance = 字号），「宽度→档位」的结论在测试环境下不成立。
+  // 🔴 倍率**一律从真实 `context` 取 `uiScaleOf`**（不写死 1.3 / 1.6）；
+  //    期望值里的 32 / 28 / 44 是**规格常量**（写死，不引用实现同名常量），
+  //    从而「期望值」与「实现取值」不同源，不会自证。
+  // ══════════════════════════════════════════════════════════════════════════
+  group('M-G · 平板视口 UI 层（A3 收口）', () {
+    for (final List<double> vp in <List<double>>[
+      <double>[834, 1112],
+      <double>[1032, 1376],
+    ]) {
+      testWidgets(
+          '行级 ${vp[0].toInt()}×${vp[1].toInt()}：槽 32s / 实体 28s / 命中 44s，'
+          '实体顶对齐槽顶，且【判据==渲染】（档位用实测可用宽算）',
+          (WidgetTester tester) async {
+        tester.view.physicalSize = Size(vp[0] * 3, vp[1] * 3);
+        tester.view.devicePixelRatio = 3.0;
+        addTearDown(tester.view.reset);
+
+        // 极端日 + 有按钮（干旱 = 遮阳棚）：按钮与胶囊都会渲染 ⇒ 覆盖最全。
+        const WeatherKind kind = WeatherKind.drought;
+        // 可用宽 = 页面宽 − 左右各 12（与真页面同口径），由 SizedBox 钉成 tight。
+        final double available = vp[0] - 24;
+        await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: available,
+                child: GardenWeatherRow(
+                  key: kWeatherRowKey,
+                  kind: kind,
+                  shelterRefType: kind.shelterRefType,
+                  bought: false,
+                  affordable: true,
+                  showShelterButton: true,
+                  onShelterTap: () {},
+                  onPillTap: null,
+                ),
+              ),
+            ),
+          ),
+        ));
+        await tester.pump();
+
+        final BuildContext ctx = tester.element(find.byKey(kWeatherPillKey));
+        final double s = uiScaleOf(ctx);
+        expect(s, greaterThan(1.0),
+            reason: '前置：${vp[0].toInt()} 档必须真的处于平板倍率（>1.0），'
+                '否则本条量的是手机分支');
+
+        final Rect slot = tester.getRect(find.byKey(kWeatherPillSlotKey));
+        final Rect entity = tester.getRect(find.byKey(kWeatherPillKey));
+        final Rect pillHit = tester.getRect(find.byKey(kWeatherPillHitKey));
+        final Rect btnVisual = tester.getRect(find.byKey(kShelterButtonVisualKey));
+        final Rect btnHit = tester.getRect(find.byKey(kShelterButtonHitKey));
+
+        // ── 尺寸层：每层各自「规格常量 × 真实倍率」────────────────────────
+        expect(slot.height, closeTo(32 * s, 0.5),
+            reason: '胶囊槽高必须随倍率（32×s），实测 ${slot.height}');
+        expect(entity.height, closeTo(28 * s, 0.5),
+            reason: '胶囊实体高必须随倍率（28×s），实测 ${entity.height}');
+        expect(pillHit.height, closeTo(44 * s, 0.5),
+            reason: '胶囊命中容器高必须随倍率（44×s），实测 ${pillHit.height}');
+        expect(btnVisual.height, closeTo(32 * s, 0.5),
+            reason: '道具按钮视觉高必须随倍率（32×s），实测 ${btnVisual.height}');
+        expect(btnHit.height, closeTo(44 * s, 0.5),
+            reason: '道具按钮命中容器高必须随倍率（44×s），实测 ${btnHit.height}');
+
+        // ── 对齐层：实体顶 == 槽顶（顶对齐，不是居中）──────────────────────
+        expect(entity.top - slot.top, closeTo(0, 0.5),
+            reason: '胶囊实体必须顶对齐槽顶（不是居中）：'
+                'entity.top=${entity.top} slot.top=${slot.top}');
+
+        // ── 档位层：用**实测**可用宽 + 真实倍率/字号算档位，再比渲染形态 ────
+        // （判据与渲染共用同一套数字 ⇒ 若实现分家，这里必红。）
+        final AppLocalizations zh = AppLocalizationsZh();
+        final WeatherRowMetrics metrics = measureWeatherRowMetrics(
+          kind: kind,
+          shelterRefType: kind.shelterRefType,
+          hasButton: true,
+          t: zh,
+          scaler: MediaQuery.textScalerOf(ctx),
+          scale: s,
+        );
+        final WeatherRowWidths w = computeWeatherRowWidths(
+          metrics: metrics,
+          bought: false,
+          hasButton: true,
+        );
+        final WeatherRowTier tier = resolveWeatherRowTier(
+          availableWidth: available,
+          widthFull: w.widthFull,
+          widthHintTruncated: w.widthHintTruncated,
+          widthNoHint: w.widthNoHint,
+          widthNoShelterName: w.widthNoShelterName,
+          widthNoWeatherName: w.widthNoWeatherName,
+        );
+        final ({bool hint, bool shelterName, bool weatherName}) p =
+            presenceOf(tester);
+        final bool expectHint = tier == WeatherRowTier.full ||
+            tier == WeatherRowTier.hintTruncated;
+        final bool expectShelterName =
+            tier != WeatherRowTier.noShelterName &&
+                tier != WeatherRowTier.noWeatherName;
+        final bool expectWeatherName = tier != WeatherRowTier.noWeatherName;
+        expect(p.hint, expectHint,
+            reason: '档位 $tier ⇒ 提示语在树里应 == $expectHint（实测 $p）');
+        expect(p.shelterName, expectShelterName,
+            reason: '档位 $tier ⇒ 道具名在树里应 == $expectShelterName（实测 $p）');
+        expect(p.weatherName, expectWeatherName,
+            reason: '档位 $tier ⇒ 天气名在树里应 == $expectWeatherName（实测 $p）');
+
+        // 防假绿：行宽不得被压成 0（否则上面的尺寸/对齐断言毫无意义）。
+        expect(tester.getRect(find.byKey(kWeatherRowKey)).width, greaterThan(0),
+            reason: '天气行宽度必须 > 0');
+        expect(tester.takeException(), isNull,
+            reason: '${vp[0].toInt()} 平板档 pump 完不得有溢出/异常（$vp）');
+      });
+
+      testWidgets(
+          '真页面 ${vp[0].toInt()}×${vp[1].toInt()}：'
+          '视觉带高 / 胶囊槽高 / 实体高 / 命中容器高随倍率，实体顶对齐槽顶，无溢出',
+          (WidgetTester tester) async {
+        final Locale prevLocale = AppLocaleController.current;
+        addTearDown(() => AppLocaleController.current = prevLocale);
+        AppLocaleController.current = const Locale('zh');
+
+        tester.view.physicalSize = Size(vp[0] * 3, vp[1] * 3);
+        tester.view.devicePixelRatio = 3.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(_realGardenPage(plants: _alivePlants(5)));
+        final bool ready = await _pumpUntilReady(
+          tester,
+          () => find.byKey(kOneClickCapsuleKey).evaluate().isNotEmpty,
+        );
+        expect(ready, isTrue,
+            reason: '真实 GardenPage 应在有限帧内加载完成并出现一键 FAB');
+        await tester.pump();
+
+        final BuildContext ctx = tester.element(find.byKey(kWeatherPillKey));
+        final double s = uiScaleOf(ctx);
+        expect(s, greaterThan(1.0),
+            reason: '前置：${vp[0].toInt()} 档必须真的处于平板倍率（>1.0）');
+
+        final Rect slot = tester.getRect(find.byKey(kWeatherPillSlotKey));
+        final Rect entity = tester.getRect(find.byKey(kWeatherPillKey));
+        final Rect pillHit = tester.getRect(find.byKey(kWeatherPillHitKey));
+
+        expect(slot.height, closeTo(32 * s, 0.5),
+            reason: '真页面：胶囊槽高必须随倍率（32×s），实测 ${slot.height}');
+        expect(entity.height, closeTo(28 * s, 0.5),
+            reason: '真页面：胶囊实体高必须随倍率（28×s），实测 ${entity.height}');
+        expect(pillHit.height, closeTo(44 * s, 0.5),
+            reason: '真页面：胶囊命中容器高必须随倍率（44×s），实测 ${pillHit.height}');
+        expect(entity.top - slot.top, closeTo(0, 0.5),
+            reason: '真页面：实体顶必须对齐槽顶');
+
+        expect(tester.takeException(), isNull,
+            reason: '${vp[0].toInt()} 平板真页面 pump 完不得有溢出/异常');
+      });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 平板不齐边 6×(s−1)（A3 收口 · 已登记差异 → 契约）
+  //
+  // 🔴 **这是 K27 同类的已登记差异（chips 内距 const、行内内距乘倍率），不是 bug**；
+  //    若哪天有人把 chips 的 top 也乘上倍率、或改掉这条公式，本用例必须红。
+  // 🔴 公式里的 `6` 是**契约本身**（写死不算「对着常量自证」）；`s` 必须从真实
+  //    `context` 取，**绝对不许写死 1.3 / 1.6**。
+  // ══════════════════════════════════════════════════════════════════════════
+  group('平板不齐边 6×(s−1)（A3 收口 · 已登记差异）', () {
+    for (final List<double> vp in <List<double>>[
+      <double>[390, 844],
+      <double>[834, 1112],
+      <double>[1032, 1376],
+    ]) {
+      testWidgets('${vp[0].toInt()}×${vp[1].toInt()}：胶囊顶 − chips 顶 == 6×(s−1)',
+          (WidgetTester tester) async {
+        final Locale prevLocale = AppLocaleController.current;
+        addTearDown(() => AppLocaleController.current = prevLocale);
+        AppLocaleController.current = const Locale('zh');
+
+        tester.view.physicalSize = Size(vp[0] * 3, vp[1] * 3);
+        tester.view.devicePixelRatio = 3.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(_realGardenPage(plants: _alivePlants(5)));
+        final bool ready = await _pumpUntilReady(
+          tester,
+          () => find.byKey(kOneClickCapsuleKey).evaluate().isNotEmpty,
+        );
+        expect(ready, isTrue, reason: '真实 GardenPage 应在有限帧内加载完成');
+        await tester.pump();
+
+        // chips 行定位：与 A2-8④ 同款结构定位（外层 Row → 第一个后代 Row），
+        // 并用「×N」文本落在其中做自检，防止定位错对象假绿。
+        final Finder weatherRow = find.byKey(kWeatherRowKey);
+        final Finder outerRow =
+            find.ancestor(of: weatherRow, matching: find.byType(Row)).first;
+        final Finder chipTexts =
+            find.descendant(of: outerRow, matching: find.textContaining('×'));
+        expect(chipTexts, findsAtLeastNWidgets(1),
+            reason: 'chips（碎片 / 普通种子 / 精英种子）必须渲染');
+        final Finder chipsRow =
+            find.descendant(of: outerRow, matching: find.byType(Row)).first;
+
+        final BuildContext ctx = tester.element(weatherRow);
+        // 倍率从真实 context 取（不写死 1.3 / 1.6）。
+        final double s = uiScaleOf(ctx);
+        final double delta = tester.getRect(find.byKey(kWeatherPillSlotKey)).top -
+            tester.getRect(chipsRow).top;
+
+        if (s == 1.0) {
+          expect(delta, closeTo(0, 1e-9),
+              reason: 's=1（手机）时 chips 内距与行内内距同为 6 ⇒ 必须**逐像素**齐边；'
+                  '若这里不齐，说明手机档被改坏了（手机零回归红线）');
+        } else {
+          expect(delta, closeTo(6 * (s - 1), 1e-9),
+              reason: '这是 K27 同类的已登记差异（chips 内距 const、行内内距乘倍率），'
+                  '不是 bug；若哪天有人把 chips 的 top 也乘上倍率、'
+                  '或改掉这条公式，本用例必须红。实测 s=$s delta=$delta，'
+                  '期望 ${6 * (s - 1)}');
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 
 }

@@ -1035,6 +1035,14 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get task_focus_confirm_title => '进入专注？';
+
+  @override
+  String task_focus_confirm_message(int count) {
+    return '将开始 $count 分钟专注，专注期间会静音通知，开始后请尽量不离开。';
+  }
+
+  @override
   String profile_balance_line(int count) {
     return '我的阳光：$count';
   }

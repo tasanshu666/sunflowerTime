@@ -21,6 +21,7 @@ import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
+import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
@@ -778,13 +779,28 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
 
   /// 联动项「去专注」两行方盒：上行「去专注」主文案 + 下行「N分钟」小字。
   ///
-  /// 点击进入专注页（达标后由专注页 [TaskCheckInService.settleFocusLinked] 自动结算），
-  /// onTap 口径与原「开始专注」一致：`/focus?minutes=...&dnd=1&task=...`。
+  /// 点击**先弹确认卡**（F177 · C105 口径：复用 [showChildConfirmCard]、禁止内联
+  /// AlertDialog、显式传 [AppLocalizations.shared_cancel]）确认后才进入专注页；
+  /// 取消（`ok != true`）分毫不扣，绝不进专注。进入专注后由专注页
+  /// [TaskCheckInService.settleFocusLinked] 自动结算，onTap 口径与原「开始专注」
+  /// 一致：`/focus?minutes=...&dnd=1&task=...`。
   Widget _focusBox(Task task) {
     return InkWell(
-      onTap: () => context.go(
-        '/focus?minutes=${task.minFocusMin}&dnd=1&task=${task.id}',
-      ),
+      onTap: () async {
+        // F177：误触保护——先确认，再进专注。取消即止，流不断。
+        final bool? ok = await showChildConfirmCard(
+          context: context,
+          title: _t.task_focus_confirm_title,
+          message: _t.task_focus_confirm_message(task.minFocusMin),
+          confirmLabel: _t.shared_start_focus,
+          cancelLabel: _t.shared_cancel,
+        );
+        if (ok != true) return; // 取消 / 点外部 → 不进专注（C105 硬契约）
+        if (!mounted) return; // 异步后先确认页面还在（避免专注页已经 pop）
+        context.go(
+          '/focus?minutes=${task.minFocusMin}&dnd=1&task=${task.id}',
+        );
+      },
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

@@ -28,6 +28,11 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- F175（玄参 2026-10-30）：iPad 专注 / 护眼强制横屏 → 必须全屏。
+	     UIRequiresFullScreen=true 让 iPad 不以分屏 / 多任务形态进入，配合
+	     setPreferredOrientations([landscapeLeft, landscapeRight]) 才能稳定锁横屏。 -->
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<!-- 2026-10-28 补：ITMS-90683。本 App 只播放音频、从不录音。
 	     audio_session（just_audio 的依赖）iOS 源码内置了 requestRecordPermission 调用，
 	     Apple 静态检查器据此要求 NSMicrophoneUsageDescription（即使从不请求权限）。 -->

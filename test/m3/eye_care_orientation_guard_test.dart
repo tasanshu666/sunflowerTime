@@ -25,6 +25,7 @@
 /// pump（与 eye_care_page_test / settle_eye_care_test 同纪律）。
 library eye_care_orientation_guard_test;
 
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -53,6 +54,7 @@ import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
+import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/pages/focus_page.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
 
@@ -289,9 +291,33 @@ void _usePhoneScreen(WidgetTester tester) {
   tester.view.devicePixelRatio = 3.0;
   addTearDown(tester.view.reset);
   const MethodChannel assets = MethodChannel('flutter/assets');
+  // F181：护眼帧是真实位图，真解码会 OOM。原实现「图片一律返回 null」会让
+  // `AssetImage.loadImage` 拿到 null → 触发 image resource service 上报（测试变红），
+  // 转屏重解析图片时必现。改为返回一张 **1×1 透明 PNG**：正常解码、无异常、不 OOM。
+  final ByteData onePixelPng = ByteData.sublistView(base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='));
   tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
     assets,
-    (MethodCall call) async => null,
+    (MethodCall call) async {
+      final Object? args = call.arguments;
+      // `AssetManifest.bin` 必须回**合法空清单**：否则其 proto 解码抛
+      // FormatException（「Message corrupted」），在转屏重解析帧时被记为测试错误。
+      if (call.method == 'loadStructuredBinaryData' &&
+          args is String &&
+          args.endsWith('AssetManifest.bin')) {
+        return ByteData.sublistView(Uint8List(0));
+      }
+      // 图片资产：给 1×1 透明 PNG（可正常解码，避免 image service 上报）。
+      if (call.method == 'load' &&
+          args is String &&
+          (args.endsWith('.png') ||
+              args.endsWith('.jpg') ||
+              args.endsWith('.jpeg') ||
+              args.endsWith('.webp'))) {
+        return onePixelPng;
+      }
+      return null; // 其余资产走失败路径
+    },
   );
   addTearDown(() => tester.binding.defaultBinaryMessenger
       .setMockMethodCallHandler(assets, null));
@@ -515,6 +541,48 @@ void main() {
       expect(log.calls, hasLength(4),
           reason: '护眼横屏之后、护眼结束之前不得再发任何方向指令'
               '（FocusPage dispose 迟到 portrait 即 Bug 复现）');
+    });
+  });
+
+  group('F181 护眼转屏播放器不重播（玄参 2026-10-30）', () {
+    testWidgets(
+        '进入护眼页（竖屏）后转横屏：FrameSequencePlayer 不得卸载重建',
+        (WidgetTester tester) async {
+      // 390×844 = 竖屏 → 播放器落在 Column(竖) 分支。
+      _usePhoneScreen(tester);
+      final _EyeCareHarness h = _EyeCareHarness();
+      await h.open(tester);
+      expect(find.byType(FrameSequencePlayer), findsOneWidget);
+
+      // 让动画跑一会（≈6s），确证播放器已挂载且进度在推进（fakes 时间由 pump 驱动）。
+      for (int i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 500));
+        // 测试环境 fake-time 不驱动真实图片解码 → 会上报 image-resource 异常；
+        // 生产侧图片均有 errorBuilder 兜底、真机无此问题。此处消费掉，不干扰本测试意图。
+        tester.takeException();
+      }
+      final Element before = tester.element(find.byType(FrameSequencePlayer));
+
+      // 模拟设备由竖屏转横屏（护眼页强制横屏时真实会发生）：改视口尺寸后重建。
+      // 此时 `landscape` 标志翻转，播放器从 Column 分支迁移到 Row 分支——若无
+      // GlobalKey 搬迁，会因父节点类型变化而卸载重建，动画从第 0 帧重播。
+      tester.view.physicalSize = const Size(844 * 3, 390 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      for (int i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 500));
+        // 转屏触发图片资源重解析 → 测试环境无真实帧会上报 image 异常
+        //（生产侧有 errorBuilder 兜底，真机无此问题）。消费掉，不干扰本测试意图。
+        tester.takeException();
+      }
+
+      // 核心断言：横屏后播放器仍在树中，且 Element 与转屏前**同一实例**——
+      // 未卸载重建即不会从第 0 帧重播（否则转屏瞬间动画归零、收尾 onComplete
+      // 永不触发 → 护眼不自动结算，即 F181 真机现象）。
+      expect(find.byType(FrameSequencePlayer), findsOneWidget);
+      final Element after = tester.element(find.byType(FrameSequencePlayer));
+      expect(identical(before, after), isTrue,
+          reason: 'F181：转屏后 FrameSequencePlayer 必须保留同一 Element'
+              '（动画不重播）；若重建即 Bug 复现');
     });
   });
 }

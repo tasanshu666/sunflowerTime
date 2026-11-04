@@ -1976,36 +1976,6 @@ void main() {
     });
   });
 
-  // 🔎 TEMP PROBE（跑完即删）
-  testWidgets('TEMP probe 平板视口', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(834 * 3, 1194 * 3);
-    tester.view.devicePixelRatio = 3.0;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(_realGardenPage(plants: _alivePlants(5)));
-    final bool ready = await _pumpUntilReady(
-      tester,
-      () => find.byKey(kOneClickCapsuleKey).evaluate().isNotEmpty,
-    );
-    expect(ready, isTrue);
-    await tester.pump();
-    final BuildContext ctx = tester.element(find.byKey(kWeatherPillKey));
-    final Finder outerRow =
-        find.ancestor(of: find.byKey(kWeatherRowKey), matching: find.byType(Row)).first;
-    final Finder chipsRow =
-        find.descendant(of: outerRow, matching: find.byType(Row)).first;
-    // ignore: avoid_print
-    print('PROBE scale=${uiScaleOf(ctx)} '
-        'weather=${tester.getRect(find.byKey(kWeatherRowKey))} '
-        'slot=${tester.getRect(find.byKey(kWeatherPillSlotKey))} '
-        'entity=${tester.getRect(find.byKey(kWeatherPillKey))} '
-        'btnVisual=${tester.getRect(find.byKey(kShelterButtonVisualKey))} '
-        'chips=${tester.getRect(chipsRow)} '
-        'fab=${tester.getRect(find.byKey(kOneClickCapsuleKey))} '
-        'sign=${tester.getRect(find.byType(GardenSignHotspot))} '
-        'icon=${tester.getSize(find.byIcon(weatherIconOf(WeatherKind.wind)))} '
-        'price=${find.text('10 ☀').evaluate().length} '
-        'exc=${tester.takeException()}');
-  });
 }
 
 /// 中文「阳光明媚」（直接取 ARB 生成物，避免在测试里手抄文案）。

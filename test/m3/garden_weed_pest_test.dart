@@ -291,12 +291,13 @@ void main() {
     });
   });
 
-  // ── ③ 成长暂停且不倒补 ───────────────────────────────────────────────────
-  group('③ 成长暂停且不倒补（惩罚不能归零）', () {
-    test('有杂草期间进度为 0；清掉后只补「清掉之后」的时间', () async {
+  // ── ③ 成长暂停且不倒补（惩罚不能归零）+ F174 不回溯出现前 ─────────────────
+  group('③ 成长暂停且不倒补（惩罚不能归零）+ F174 只暂停当天', () {
+    test('F174：有杂草当天只暂停「今天」，出现前段正常结算且不倒补', () async {
       final DateTime now = DateTime(2026, 10, 3, 9, 0);
       final ({PlantGrowthService svc, _MemPlantRepo plants, _MemLedgerRepo ledger}) f = _make(4);
-      // 阶段起点定在 24h 前：若暂停时长被倒补，这里会一次涨掉 24h 的量
+      // 阶段起点定在 24h 前（跨了昨天）：F174 修复后昨天那段（无杂草）照常结算，
+      // 只有「今天」因杂草暂停；旧实现把 24h 整段吞掉（progress == 0）。
       f.plants.store.add(_livePlant(
         now.subtract(const Duration(hours: 24)),
       ));
@@ -304,30 +305,60 @@ void main() {
       await f.svc.tickAll(now);
       final Plant rolled = (await f.plants.plant(_kPlantId))!;
       expect(rolled.hasWeed, isTrue);
-      expect(rolled.growthProgress, 0.0,
-          reason: '有杂草的当天一步都不许涨');
+      // F174 核心：杂草出现前那一整段（昨天）必须照常生长，不得被回溯归零
+      expect(rolled.growthProgress, greaterThan(0.0),
+          reason: 'F174：杂草出现前的昨天那段必须生长，不得被回溯吞掉');
+      final double priorProgress = rolled.growthProgress;
 
-      final DateTime cleared = now.add(const Duration(hours: 6));
-      await f.svc.tickAll(cleared);
+      final DateTime pausedAt = now.add(const Duration(hours: 6));
+      await f.svc.tickAll(pausedAt);
       final Plant stillPaused = (await f.plants.plant(_kPlantId))!;
-      expect(stillPaused.growthProgress, 0.0, reason: '暂停期间一直不许涨');
+      // 有杂草期间「今天」整天暂停，且不把已结算的昨天倒补
+      expect(stillPaused.growthProgress, closeTo(priorProgress, 1e-9),
+          reason: '有杂草期间今天不涨、昨天已结算的不动（惩罚不归零）');
 
-      await f.svc.clearWeed(_kPlantId, cleared);
-      // ⚠️ 必须再往后推 1h 才 tick：清除那一刻 stageStartedAt 已被暂停推进到 `cleared`，
-      // 同一时刻再 tick 是 0 增量（这正是「暂停不倒补」的证明方式之一）。
-      final DateTime resumed = cleared.add(const Duration(hours: 1));
+      await f.svc.clearWeed(_kPlantId, pausedAt);
+      // 清除后再推 1h 才 tick：只补「清掉之后」的 1h，不倒补暂停掉的 6h。
+      final DateTime resumed = pausedAt.add(const Duration(hours: 1));
       await f.svc.tickAll(resumed);
       final Plant after = (await f.plants.plant(_kPlantId))!;
       expect(after.hasWeed, isFalse);
-      // 1h / 阶段时长。若把暂停的 30h 一起倒补回来会是 30/240 ≈ 0.125。
       final double expect1h =
           1.0 / kPlantGrowthHoursPerStageDefault / kPlantAutoGrowthScale;
-      expect(after.growthProgress, greaterThan(0.0));
+      expect(after.growthProgress, greaterThan(priorProgress));
       expect(
-        after.growthProgress,
+        after.growthProgress - priorProgress,
         lessThan(expect1h * 2),
-        reason: '清除后只补 1h 的量（≈$expect1h），不得倒补暂停掉的 30h',
+        reason: '清除后只补 1h（≈$expect1h），不得倒补暂停掉的 6h',
       );
+    });
+
+    test('F174：App 多天没开 + 当天冒杂草 → 离开那几天照常生长（不被回溯吞掉）',
+        () async {
+      final DateTime now = DateTime(2026, 10, 8, 9, 0);
+      final DateTime fiveDaysAgo = now.subtract(const Duration(days: 5));
+
+      // 对照：无杂草（seed 0），同一 5 天窗口 → 全额生长
+      final ({PlantGrowthService svc, _MemPlantRepo plants, _MemLedgerRepo ledger}) f0 =
+          _make(0);
+      f0.plants.store.add(_livePlant(fiveDaysAgo));
+      await f0.svc.tickAll(now);
+      final double control = (await f0.plants.plant(_kPlantId))!.growthProgress;
+
+      // 实验：同起点，当天冒杂草（seed 4）
+      final ({PlantGrowthService svc, _MemPlantRepo plants, _MemLedgerRepo ledger}) f4 =
+          _make(4);
+      f4.plants.store.add(_livePlant(fiveDaysAgo));
+      await f4.svc.tickAll(now);
+      final Plant rolled = (await f4.plants.plant(_kPlantId))!;
+
+      expect(rolled.hasWeed, isTrue);
+      expect(rolled.growthProgress, greaterThan(0.0),
+          reason: 'F174：离开 5 天不该被一次杂草回溯归零（旧实现这里 = 0）');
+      expect(rolled.growthProgress, greaterThan(control * 0.8),
+          reason: 'F174：离开那几天应基本全额结算，只有今天暂停');
+      expect(rolled.growthProgress, lessThan(control),
+          reason: 'F174：今天有杂草，应比无杂草对照略少');
     });
   });
 

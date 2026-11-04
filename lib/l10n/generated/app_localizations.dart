@@ -1838,6 +1838,18 @@ abstract class AppLocalizations {
   /// **'{count}分钟'**
   String task_focus_minutes(int count);
 
+  /// No description provided for @task_focus_confirm_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'进入专注？'**
+  String get task_focus_confirm_title;
+
+  /// No description provided for @task_focus_confirm_message.
+  ///
+  /// In zh, this message translates to:
+  /// **'将开始 {count} 分钟专注，专注期间会静音通知，开始后请尽量不离开。'**
+  String task_focus_confirm_message(int count);
+
   /// No description provided for @profile_balance_line.
   ///
   /// In zh, this message translates to:

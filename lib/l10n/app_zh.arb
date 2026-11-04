@@ -886,6 +886,15 @@
       }
     }
   },
+  "task_focus_confirm_title": "进入专注？",
+  "task_focus_confirm_message": "将开始 {count} 分钟专注，专注期间会静音通知，开始后请尽量不离开。",
+  "@task_focus_confirm_message": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "profile_balance_line": "我的阳光：{count}",
   "@profile_balance_line": {
     "placeholders": {

@@ -405,7 +405,17 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
   void initState() {
     super.initState();
     final RewardTemplate? t = widget.initial;
-    _nameCtrl = TextEditingController(text: t?.name ?? '');
+    // F179：预制种子奖励的显示名跟随当前语言（英文模式下不再显示 DB 里的中文
+    // 默认名）。只改显示层 —— 字段初值走 [rewardDisplayName]，保存逻辑 / 存储不变
+    // （用户改过名 → [rewardDisplayName] 回退 storedName，原样可编辑）。
+    // ⚠️ 名称初值依赖当前语言，而 initState 期 Localizations 尚未对弹窗子树就绪
+    // （delegate 异步加载 → `AppLocalizations.of` 抛异常被 [l10nOf] 回退中文）→
+    // 延到首帧后再赋值（locale 已确定）。
+    _nameCtrl = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _nameCtrl.text = rewardDisplayName(t?.id ?? '', t?.name ?? '', l10nOf(context));
+    });
     _category = t?.category ?? RewardCategory.parentHandled;
     _contentCategory = t?.contentCategory ?? RewardContentCategory.other;
     _baseCost = t?.baseCost ?? 20;

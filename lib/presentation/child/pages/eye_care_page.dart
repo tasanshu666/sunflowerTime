@@ -131,6 +131,17 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
   Timer? _timer;
   static const Uuid _uuid = Uuid();
 
+  /// 护眼播放器稳定 [GlobalKey]（F181，玄参 2026-10-30）：
+  /// `FrameSequencePlayer` 的播放进度由 `initState` 创建的 [AnimationController]
+  /// 承载——只要其 Element 被卸载重建，动画就从第 0 帧重播；若重播发生在收尾附近，
+  /// `onComplete` 永远不触发 → 护眼「不自动结算」。
+  ///
+  /// 进入护眼页时设备常从竖屏（来自结算页）切到横屏（本页强制），`landscape` 标志翻转
+  /// 使播放器在 `Row`(横) / `Column`(竖) **两个不同父分支**间迁移。普通 [ValueKey] 只在
+  /// 同一父节点下区分兄弟，无法跨父保留 State；故用 [GlobalKey] 让 Flutter 在分支间
+  /// **整体搬迁**播放器子树、保留其 State（含进行中的动画）——转屏不再重播。
+  final GlobalKey _playerKey = GlobalKey(debugLabel: 'eye-care-player');
+
   /// 护眼横屏指令的完成信号（initState 发出，[_finish] 退场前 await）。
   ///
   /// 玄参荣耀平板竞速修复（2026-10-16）：横屏指令不再 `unawaited` 裸奔——await 它
@@ -415,7 +426,10 @@ class _EyeCarePageState extends ConsumerState<EyeCarePage> {
                       math.min(c.maxWidth * 0.86, c.maxHeight * 0.45));
 
               // 动画画面（素材 720×720 带背景；圆角卡裁切）——两布局共用。
+              // F181：根挂稳定 [_playerKey]，转屏在 Row/Column 分支间迁移时由
+              // GlobalKey 整体搬迁、保留进行中的动画（见字段注释）。
               final Widget player = ConstrainedBox(
+                key: _playerKey,
                 constraints: BoxConstraints(maxWidth: frameSide),
                 child: AspectRatio(
                   aspectRatio: 1,

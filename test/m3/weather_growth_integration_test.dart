@@ -631,12 +631,12 @@ void main() {
   // ════════════════════════════════════════════════════════════════════════
   // 6. V10：有虫草时早退、惩罚也不结算 —— **有意为之**
   // ════════════════════════════════════════════════════════════════════════
-  group('V10：有虫草早退是已知且接受的行为（不要「顺手修好」）', () {
-    test('害虫在今日：进度完全不动，惩罚也不结算', () async {
-      // 🔴 V10（方案 §12 / 交付说明）：`_advanceGrowth` 的「有虫草早退」分支位于
-      // 日结循环**之前**，所以那一天既不加进度、也不结算极端日惩罚。这**不是**接线
-      // 漏了，而是本版已知且接受的行为（惩罚期望因此被稀释，方案要求测试里显式声明
-      // 「无虫草」前提）。将来的修法必须走裁定，不许由接线顺手改掉。
+  group('F174：有虫草时只暂停「今天」（原 V10 整段早退已按玄参 2026-11-04 拍板修正）', () {
+    test('害虫在今日：出现前那几天照常结算，今天暂停，基准推到 now', () async {
+      // 🔴 F174（玄参 2026-11-04 拍板「顺序修正」）：旧 V10 行为是「有虫草 → 整段
+      // [stageStartedAt, now] 早退丢弃」。App 多天没开时，这会把「离开那几天」本该
+      // 长的进度全吞掉（孩子什么都没做错就白长了）。现改为**只暂停今天**：出现前
+      // 那段（stageStartedAt → 今天零点）照常结算，只暂停今天零点 → now。
       final DateTime drought = _dayOfKind(WeatherKind.drought);
       final DateTime today = _dayStart(drought);
 
@@ -648,12 +648,15 @@ void main() {
       await ctx.svc.tickAll(now);
       final Plant after = await _load(ctx.plants);
 
-      print('[接线/V10] 有虫时进度 = ${after.growthProgress}（原 0.4），'
+      print('[接线/F174] 有虫时进度 = ${after.growthProgress}（原 0.4），'
           'stageStartedAt = ${after.stageStartedAt}');
-      expect(after.growthProgress, closeTo(0.4, 1e-12));
-      // 幂等基准照常前移到 now（暂停的时长永久损失，不倒补）。
+      // 出现前那 3 天必须照常结算 → 进度严格大于起点 0.4（旧行为是恒等 0.4）。
+      expect(after.growthProgress, greaterThan(0.4),
+          reason: 'F174：出现前那几天照常生长，不得被今日害虫回溯归零');
+      // 幂等基准照常前移到 now（今天这段暂停、永不倒补）。
       expect(after.stageStartedAt, now);
       expect(after.status, PlantStatus.growing);
+      expect(after.hasPest, isTrue);
     });
   });
 

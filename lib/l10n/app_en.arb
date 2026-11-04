@@ -886,6 +886,15 @@
       }
     }
   },
+  "task_focus_confirm_title": "Start focusing?",
+  "task_focus_confirm_message": "This starts a {count}-minute focus session. Notifications are muted while focusing — try not to leave once it begins.",
+  "@task_focus_confirm_message": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "profile_balance_line": "Sunlight: {count}",
   "@profile_balance_line": {
     "placeholders": {

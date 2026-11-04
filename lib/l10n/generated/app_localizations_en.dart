@@ -1070,6 +1070,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get task_focus_confirm_title => 'Start focusing?';
+
+  @override
+  String task_focus_confirm_message(int count) {
+    return 'This starts a $count-minute focus session. Notifications are muted while focusing — try not to leave once it begins.';
+  }
+
+  @override
   String profile_balance_line(int count) {
     return 'Sunlight: $count';
   }

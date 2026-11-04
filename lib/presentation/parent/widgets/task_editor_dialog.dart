@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
@@ -63,7 +64,6 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
     super.initState();
     final Task? t = widget.initial;
     if (t != null) {
-      _nameCtrl.text = t.name;
       _subject = t.subject;
       _customSubjectCtrl.text = t.customSubject ?? '';
       _requiresFocus = t.requiresFocus;
@@ -71,6 +71,15 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
       _reward = t.sunlightReward;
       _repeat = _ruleFrom(t.repeatRule);
       _category = t.category;
+      // F179：预制种子任务的显示名要跟随当前语言（英文模式下不再显示 DB 里的中文
+      // 默认名）。只改显示层 —— 字段初值走 [taskDisplayName]，保存逻辑 / 存储不变
+      //（用户改过名 → [taskDisplayName] 回退 storedName，原样可编辑）。
+      // ⚠️ 名称初值依赖当前语言，而 initState 期 Localizations 尚未对弹窗子树就绪、
+      // 直接 `l10nOf(context)` 会回退中文 → 延到首帧后再赋值（locale 已确定）。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _nameCtrl.text = taskDisplayName(t.id, t.name, l10nOf(context));
+      });
     }
     // 编辑历史超标老成长项时，打开即夹回合法区间并显示合规值。
     _reward = _clampReward(_reward);

@@ -1081,13 +1081,34 @@ class PlantGrowthService {
   ) {
     if (p.status == PlantStatus.dead) return p;
 
-    // 杂草 / 害虫任一存在 → 当天成长暂停（口径 C26）：不累加进度。
+    // 杂草 / 害虫任一存在 → 当天成长暂停（口径 C26）：不累加**今天**的进度。
     //
-    // ⚠️ 但**照常推进幂等基准** `stageStartedAt → now`：暂停的这段时间就让它过去，
-    // 清掉干扰物后不再倒补。否则「有虫不长」会因为「攒着暂停时长、清完一次补回来」
-    // 而**净损失为零** —— 惩罚彻底归零，孩子不除草照样一点不亏。
-    // （返回入参 p 本身也会「不推进基准」，那是另一个 bug，不要照抄。）
+    // 🔴 F174（玄参 2026-11-04 拍板「顺序修正」）：**只暂停今天，不回溯吞掉出现前
+    // 的整段**。旧实现直接把 `stageStartedAt → now` 整段丢弃 —— 若 App 好几天没开
+    // （`stageStartedAt` 落后多日），当天一次 roll 出虫就把「离开那几天」本该长的
+    // 进度全吞了（bug 表量化：每天只开一次 → 周期 31.5→约 75 天）。
+    // 现改为：先把 `stageStartedAt → 今天零点` 这段（**无虫草的过去几天**）正常结算
+    // 进进度，只把 `今天零点 → now`（有虫草的当天）暂停；再把基线推到 `now`，保证
+    // 「今天」这段永不倒补（惩罚不归零）。
+    // ⚠️ `hasPestOrWeed` 是 `weedAt!=null||pestAt!=null`（**不是**按「当日」判定），
+    // 所以不能简单「advance 先、roll 后」—— 那样会看到上一轮遗留的 stale 虫草。必须
+    // 显式清掉标记再结算过去、结算后恢复标记。
     if (p.hasPestOrWeed) {
+      final DateTime todayStart = DateTime(now.year, now.month, now.day);
+      if (todayStart.isAfter(p.stageStartedAt)) {
+        // 清掉虫草标记，用同一套逐日循环把「过去无虫草的那段」正常结算到今天零点。
+        final Plant noPest =
+            p.copyWith(weedAt: Plant.kClear, pestAt: Plant.kClear);
+        final Plant accrued =
+            _advanceGrowth(noPest, sp, todayStart, wfdDays, batch);
+        // 恢复虫草标记供界面展示；基线推到 now（今天这段暂停、永不倒补）。
+        return accrued.copyWith(
+          weedAt: p.weedAt,
+          pestAt: p.pestAt,
+          stageStartedAt:
+              now.isAfter(p.stageStartedAt) ? now : p.stageStartedAt,
+        );
+      }
       return p.copyWith(
         stageStartedAt:
             now.isAfter(p.stageStartedAt) ? now : p.stageStartedAt,

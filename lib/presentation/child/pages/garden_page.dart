@@ -1859,7 +1859,20 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     switch (kind) {
       case PlantOneClickKind.water:
         if (plan.isEmpty) {
-          _showBatchHint(_t.garden_batch_none_water, 0, showSunlight: false);
+          // A4（§12.1-Q2）：暴雨日全员禁浇 ⇒ 计划必然为空。此时给孩子一个
+          // **雨天专属原因**，而不是「今天没有可浇水的植物」这种通用空话。
+          // 🔴 只判「plan 空 **且** 当日暴雨」；其余空态沿用通用文案。
+          // 🔴 文案刻意与卡片上的 `garden_care_water_disabled_rainstorm` 不同字
+          //    （同屏两处一模一样的话比不说更糟）：卡片讲「雨水帮你浇好啦」，
+          //    这里讲「今天不用一键浇水」。
+          // 判据本身住在 [batchNoneWaterMessage]（纯函数）：页面只递天气快照，
+          // 这样 9 种日型的映射能在纯单测里穷举（本页时间源是 `DateTime.now()`，
+          // widget 测试碰不到暴雨日）。
+          _showBatchHint(
+            batchNoneWaterMessage(day: WeatherSystem.ofDay(now), t: _t),
+            0,
+            showSunlight: false,
+          );
           return;
         }
       case PlantOneClickKind.fertilize:

@@ -3367,4 +3367,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get parent_editor_section_redeem => 'Redemption rules';
+
+  @override
+  String get garden_care_water_disabled_rainstorm =>
+      'It\'s pouring today — the rain already watered your plants, no need to water';
+
+  @override
+  String get garden_care_water_disabled_light_rain =>
+      'It\'s just a light drizzle today — one watering is enough';
+
+  @override
+  String get garden_care_water_disabled_quota =>
+      'Watered enough today — come back tomorrow';
+
+  @override
+  String get garden_care_fertilize_disabled_quota =>
+      'Fertilized enough today — come back tomorrow';
+
+  @override
+  String get garden_batch_none_water_rainstorm =>
+      'The rain already watered your plants — no one-click watering today';
 }

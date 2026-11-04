@@ -1,11 +1,16 @@
 /// 领域异常 → 文案映射守卫（i18n B3 · T03）。
 ///
 /// ## 为什么需要它
-/// T03 把 `PlantOperationException`（17 码）/ `TaskCheckInException`（9 码）从
-/// 「中文串」改成「语义码 + 数值载荷」，26 条文案全部挪进 ARB。一旦某个 case 写错
+/// T03 把 `PlantOperationException`（**A4 起 19 码**）/ `TaskCheckInException`（9 码）
+/// 从「中文串」改成「语义码 + 数值载荷」，28 条文案全部挪进 ARB。一旦某个 case 写错
 /// （A 码返回 B 文案），领域逻辑零变化、单测若只断言 `throwsA(isA<...>())` 也全绿，
-/// 只有**孩子看到错话**。故本测试把 26 条 zh 文案**逐字钉死**（含载荷插值位置），
+/// 只有**孩子看到错话**。故本测试把 28 条 zh 文案**逐字钉死**（含载荷插值位置），
 /// 并对 en 断言「不含 CJK」—— 后者能立刻暴露「漏翻 / 复制中文占位」。
+///
+/// ## A4 增量（17 → 19）
+/// `waterRainstorm` / `waterLightRain` 是 A4「雨水代劳」带出的两个新码，**无载荷**
+/// （不走 `shared_plant_err_*` 那组带 `{max}` 的账本口吻，直接复用卡片的常驻孩子
+/// 话术 `garden_care_water_disabled_*`），故 `payloads` 表里没有它们。
 ///
 /// 载荷语义见 `PlantOperationError` 的文档表（a/b 随 code 而变）。
 library error_l10n_test;
@@ -29,7 +34,7 @@ void main() {
   PlantOperationException plantErr(PlantOperationError code, {int? a, int? b}) =>
       PlantOperationException(code, a: a, b: b);
 
-  group('植物操作错误：17 码 zh 逐字钉死', () {
+  group('植物操作错误：19 码 zh 逐字钉死', () {
     const Map<PlantOperationError, String> table = <PlantOperationError, String>{
       PlantOperationError.speciesNotFound: '未找到该植物物种',
       PlantOperationError.potOutOfCapacity: '花盆序号超出容量（3 / 4）',
@@ -40,6 +45,9 @@ void main() {
       PlantOperationError.fragmentsNotEnough: '碎片不足，还差 3 片',
       PlantOperationError.careStateInvalid: '仅成长中/开花/枯萎植物可养护',
       PlantOperationError.waterDailyLimit: '今日浇水已达 6 次上限',
+      // A4 新增 2 码：无载荷，直接复用卡片常驻孩子话术（与 plantBlockReasonMessage 同源）。
+      PlantOperationError.waterRainstorm: '今天下暴雨，雨水帮你浇好啦，不用再浇～',
+      PlantOperationError.waterLightRain: '今天只有小雨，浇一次就够啦～',
       PlantOperationError.waterInterval: '浇水间隔需 30 分钟，还需 12 分钟',
       PlantOperationError.fertilizeDailyLimit: '今日施肥已达 2 次上限',
       PlantOperationError.plantNotFound: '植物不存在',
@@ -51,6 +59,10 @@ void main() {
     };
 
     /// 每个 code 对应的载荷（无载荷的给 null）。
+    ///
+    /// A4 两个新码（`waterRainstorm` / `waterLightRain`）**刻意不在此表**：
+    /// 它们在契约上就是「无载荷的禁用态」，若将来有人给它们加上载荷，本表缺席 +
+    /// 下面的 `payloads` 完整性断言会一起提醒「契约变了」。
     const Map<PlantOperationError, List<int?>> payloads =
         <PlantOperationError, List<int?>>{
       PlantOperationError.potOutOfCapacity: <int?>[3, 4],
@@ -63,9 +75,11 @@ void main() {
       PlantOperationError.gardenFull: <int?>[6, null],
     };
 
-    test('枚举恰好 17 个语义码（新增/删除必须同步本测试与 error_l10n）', () {
-      expect(PlantOperationError.values.length, 17);
+    test('枚举恰好 19 个语义码（新增/删除必须同步本测试与 error_l10n）', () {
+      expect(PlantOperationError.values.length, 19);
       expect(table.keys.toSet(), PlantOperationError.values.toSet());
+      // 反向：带载荷的码也必须都还在枚举里（防止「表里留了已删码」这种假绿）。
+      expect(payloads.keys.every(PlantOperationError.values.contains), isTrue);
     });
 
     for (final PlantOperationError code in PlantOperationError.values) {
@@ -145,17 +159,19 @@ void main() {
     });
   });
 
-  group('额度阻塞原因（PlantBlockReason）→ 文案：与异常同源', () {
+  group('额度阻塞原因（PlantBlockReason）→ 文案：卡片口径（A4 起与异常分层）', () {
     test('careStateInvalid / waterDailyLimit / waterInterval / fertilizeDailyLimit', () {
       expect(
         plantBlockReasonMessage(
             const PlantBlockReason(PlantOperationError.careStateInvalid), zh),
         '仅成长中/开花/枯萎植物可养护',
       );
+      // A4：额度用尽在**卡片**上说孩子话术（不再是「已达 N 次上限」）。
+      // 即使调用方仍传来 a=6，文案也不该漏出账本口吻 —— 这就钉死了口径。
       expect(
         plantBlockReasonMessage(
             const PlantBlockReason(PlantOperationError.waterDailyLimit, a: 6), zh),
-        '今日浇水已达 6 次上限',
+        '今天已经浇够啦，明天再来～',
       );
       expect(
         plantBlockReasonMessage(
@@ -166,7 +182,52 @@ void main() {
       expect(
         plantBlockReasonMessage(
             const PlantBlockReason(PlantOperationError.fertilizeDailyLimit, a: 2), zh),
-        '今日施肥已达 2 次上限',
+        '今天已经施过肥啦，明天再来～',
+      );
+    });
+
+    test('A4 两新码：waterRainstorm / waterLightRain → 孩子话术（无载荷）', () {
+      const PlantBlockReason rain =
+          PlantBlockReason(PlantOperationError.waterRainstorm);
+      expect(plantBlockReasonMessage(rain, zh), '今天下暴雨，雨水帮你浇好啦，不用再浇～');
+      expect(plantBlockReasonMessage(const PlantBlockReason(
+              PlantOperationError.waterLightRain), zh),
+          '今天只有小雨，浇一次就够啦～');
+
+      // en 侧同两条也必须真的翻译过（无 CJK），避免「只补了 zh」。
+      for (final PlantBlockReason r in <PlantBlockReason>[
+        rain,
+        const PlantBlockReason(PlantOperationError.waterLightRain),
+      ]) {
+        final String enText = plantBlockReasonMessage(r, en);
+        expect(enText, isNotEmpty);
+        expect(_cjkRe.hasMatch(enText), isFalse,
+            reason: '${r.code.name} 的 en 文案含 CJK —— 漏翻或复制了中文');
+      }
+    });
+
+    test('A4 口径：卡片常驻话术 ≠ 异常账本话术（两个入口刻意不同）', () {
+      // 同一次「额度用尽」，异常路径说账本口吻，卡片路径说孩子话术。
+      // 若有人图省事把两者合并，本测试立刻红 —— 这是 A4 §6.2 的显式设计。
+      expect(
+        plantErrorMessage(
+            plantErr(PlantOperationError.waterDailyLimit, a: 3), zh),
+        '今日浇水已达 3 次上限',
+      );
+      expect(
+        plantBlockReasonMessage(
+            const PlantBlockReason(PlantOperationError.waterDailyLimit, a: 3), zh),
+        '今天已经浇够啦，明天再来～',
+      );
+      expect(
+        plantErrorMessage(
+            plantErr(PlantOperationError.fertilizeDailyLimit, a: 1), zh),
+        '今日施肥已达 1 次上限',
+      );
+      expect(
+        plantBlockReasonMessage(
+            const PlantBlockReason(PlantOperationError.fertilizeDailyLimit, a: 1), zh),
+        '今天已经施过肥啦，明天再来～',
       );
     });
 

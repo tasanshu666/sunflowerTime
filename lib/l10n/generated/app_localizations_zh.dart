@@ -3276,4 +3276,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get parent_editor_section_redeem => '兑换规则';
+
+  @override
+  String get garden_care_water_disabled_rainstorm => '今天下暴雨，雨水帮你浇好啦，不用再浇～';
+
+  @override
+  String get garden_care_water_disabled_light_rain => '今天只有小雨，浇一次就够啦～';
+
+  @override
+  String get garden_care_water_disabled_quota => '今天已经浇够啦，明天再来～';
+
+  @override
+  String get garden_care_fertilize_disabled_quota => '今天已经施过肥啦，明天再来～';
+
+  @override
+  String get garden_batch_none_water_rainstorm => '雨已经把花浇过啦，今天不用一键浇水';
 }

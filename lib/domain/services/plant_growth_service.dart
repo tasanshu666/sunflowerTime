@@ -93,6 +93,12 @@ enum PlantOperationError {
   /// 今日浇水已达上限（a = 上限次数）。
   waterDailyLimit,
 
+  /// **A4**：今日暴雨，浇水额度为 0（雨水代劳）—— 不是「用完了」，是「今天不用浇」。
+  waterRainstorm,
+
+  /// **A4**：今日小雨，浇水额度只有 1 次且已用掉（a 不带载荷）。
+  waterLightRain,
+
   /// 浇水间隔未到（a = 间隔分钟，b = 还需等待分钟）。
   waterInterval,
 
@@ -172,6 +178,78 @@ class PlantBlockReason {
   String toString() =>
       'PlantBlockReason(${code.name}${a == null ? '' : ', a: $a'}'
       '${b == null ? '' : ', b: $b'})';
+}
+
+/// 某状态下是否「可养护」（仅成长中 / 枯萎 / 盛开；`dead` 不可）——**单一判据**。
+///
+/// 抽出来是因为 [resolveWaterGate] / [resolveFertilizeGate] 与 UI 侧的灰态判断
+/// 必须同源，否则「卡片可点但领域抛异常」这类错位会重现。
+bool isPlantCareActionable(PlantStatus status) =>
+    status == PlantStatus.growing ||
+    status == PlantStatus.wilting ||
+    status == PlantStatus.bloomed; // F111：盛开态放行（防枯萎 + 保晨露）
+
+/// 浇水「为什么点不动」的**纯判据**（A4）：不读账本、不读 DB，入参全是已算好的值。
+///
+/// 返回 `null` = 可浇；否则返回 [PlantBlockReason]（语义码 + 载荷）。
+///
+/// 🔴 **优先级（高 → 低，顺序不可换）**：
+///   ① [PlantOperationError.careStateInvalid] —— 死亡等不可养护态；
+///   ② [PlantOperationError.waterRainstorm]    —— `day.waterQuota == 0`（暴雨，雨水代劳）；
+///   ③ [PlantOperationError.waterLightRain]    —— `day.waterQuota == 1` 且今日已浇；
+///   ④ [PlantOperationError.waterDailyLimit]   —— 已用 >= 有效上限（`min(3, quota)`）；
+///   ⑤ [PlantOperationError.waterInterval]     —— 距上次浇水不足 [kPlantWaterIntervalMinutes]。
+///
+/// 顺序不可换的理由：暴雨日有效上限为 0，若让 ④ 先判，`0 >= 0` 立刻成立 ⇒
+/// 孩子看到的是「今天浇够了」而不是「今天下暴雨，雨水帮你浇好啦」。
+PlantBlockReason? resolveWaterGate({
+  required PlantStatus status,
+  required WeatherDay day,
+  required int waterUsedToday,
+  required int minutesUntilNextWater,
+}) {
+  if (!isPlantCareActionable(status)) {
+    return const PlantBlockReason(PlantOperationError.careStateInvalid);
+  }
+  if (day.waterQuota <= 0) {
+    return const PlantBlockReason(PlantOperationError.waterRainstorm);
+  }
+  if (day.waterQuota == 1 && waterUsedToday >= 1) {
+    return const PlantBlockReason(PlantOperationError.waterLightRain);
+  }
+  final int effectiveMax = min(kPlantWaterMaxPerDay, day.waterQuota);
+  if (waterUsedToday >= effectiveMax) {
+    return PlantBlockReason(PlantOperationError.waterDailyLimit, a: effectiveMax);
+  }
+  if (minutesUntilNextWater > 0) {
+    return PlantBlockReason(
+      PlantOperationError.waterInterval,
+      a: kPlantWaterIntervalMinutes,
+      b: minutesUntilNextWater,
+    );
+  }
+  return null;
+}
+
+/// 施肥「为什么点不动」的**纯判据**（A4）。
+///
+/// 🔴 **天气不参与**（§12.1-Q1 裁定）：`WeatherDay.fertilizeQuota` 9 种日型恒 1，
+/// 与 [kPlantFertilizeMaxPerDay] 相等 ⇒ 接进来是 `min(1,1)` 恒等变换，只会造出一条
+/// 永远绿的假守卫。**若将来新增日型使 `fertilizeQuota != 1`，必须回来接 `min`。**
+PlantBlockReason? resolveFertilizeGate({
+  required PlantStatus status,
+  required int fertilizeUsedToday,
+}) {
+  if (!isPlantCareActionable(status)) {
+    return const PlantBlockReason(PlantOperationError.careStateInvalid);
+  }
+  if (fertilizeUsedToday >= kPlantFertilizeMaxPerDay) {
+    return const PlantBlockReason(
+      PlantOperationError.fertilizeDailyLimit,
+      a: kPlantFertilizeMaxPerDay,
+    );
+  }
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -336,17 +414,25 @@ class PlantCareQuota {
   /// 不可施肥的**语义原因**（`null` = 可施）。
   final PlantBlockReason? fertilizeBlockReason;
 
+  /// **当日有效浇水上限**（A4）：`min([kPlantWaterMaxPerDay], WeatherDay.waterQuota)`
+  /// —— 普通日 3 / 小雨 1 / 暴雨 0。
+  ///
+  /// 🔴 存的是**快照**而不是「现查天气」：卡片渲染与额度显示必须用**同一次判定**的数字，
+  /// 若 `waterRemaining` 自己再去查 `WeatherSystem`，跨零点的那一帧就可能出现
+  /// 「剩余 3 次但点不动」的错位。
+  final int waterQuota;
+
   const PlantCareQuota({
     required this.waterUsedToday,
     required this.fertilizeUsedToday,
     required this.minutesUntilNextWater,
     required this.waterBlockReason,
     required this.fertilizeBlockReason,
+    required this.waterQuota,
   });
 
-  /// 今日还可浇水次数。
-  int get waterRemaining =>
-      (kPlantWaterMaxPerDay - waterUsedToday).clamp(0, kPlantWaterMaxPerDay);
+  /// 今日还可浇水次数（按**有效上限**算：暴雨 0 / 小雨 1 / 普通 3）。
+  int get waterRemaining => (waterQuota - waterUsedToday).clamp(0, waterQuota);
 
   /// 今日还可施肥次数。
   int get fertilizeRemaining =>
@@ -1194,12 +1280,20 @@ class PlantGrowthService {
           watered: batch.wateredOn(cursorDayKey),
           fertilized: batch.fertilizedOn(cursorDayKey),
         );
+        // ── A4 · 暴雨「雨水代劳」（§5.1）──────────────────────────────────
+        // 🔴 **必须放在本守卫内**：`rainWaterBonusPp` 是**按日扁平量**（暴雨 +1pp，
+        //    其余 0），本守卫 `!dayEnd.isAfter(now)` 保证「每个自然日只结算一次」。
+        //    若照旧 TODO 的字面写法放到守卫**外**，同一天多 tick 一次（页面刷新 /
+        //    一键操作 / 浇水都会触发 `tickAll`）就会重复累加 ⇒ 暴雨日被浇成 +2pp、
+        //    +3pp，且**不报错、不红测**。
+        //    与 `progress += segmentProgress(segHours…)`（按小时、天然不重复）不同，
+        //    这一项只能靠守卫做到「按日一次」。
+        if (weather.rainWaterBonusPp > 0) {
+          progress += weather.rainWaterBonusPp;
+        }
       }
-      // TODO(weather-A4): 暴雨日「雨水代劳」[WeatherDay.rainWaterBonusPp]（+1pp）
-      // 本批（A1）未接线 —— 方案的三条改法里没有它，且 §5.4 的对账基准口径不含它
-      // （含了会对不上表）。A4 期接「极端日特殊规则」时在这里另加：
-      // `if (weather.rainWaterBonusPp > 0) progress += weather.rainWaterBonusPp;`
-      // 同理 A4 还要接 `WeatherDay.waterQuota`（小雨 1 / 暴雨 0），见 [careQuota]。
+      // A4 说明（原 `TODO(weather-A4)` 已清）：`WeatherDay.waterQuota` 的接线在
+      // [careQuota] / [resolveWaterGate]（额度侧、实时），不在日结循环里。
       cursor = segEnd;
 
       // 阶段推进（seed→sprout→adult），每段重置浇水 / 施肥标记。
@@ -1373,13 +1467,19 @@ class PlantGrowthService {
   /// 意义 = 重置枯萎计时 + 保住次日晨露满额（见 [bloomDewSunlightOf]）。
   Future<PlantCareQuota> careQuota(Plant p, DateTime now) async {
     final String today = dayKey(now);
-    // TODO(weather-A4): 本方法目前只认 [kPlantWaterMaxPerDay]（恒 3），
-    // **尚未接** [WeatherDay.waterQuota]（小雨 1 / 暴雨 0）—— A1 期（天气乘数接线）
-    // 的三条改法里不含额度，且 §15 对账表的 `E[w] = 1.0700` 就是**不含额度截断**的
-    // 口径（接线额度后 §5.4 的日数会整体再动一次，A4 期统一重算）。
-    // A4 期接法：`final int quota = WeatherSystem.ofDay(now).waterQuota;`
-    // 再用 `min(kPlantWaterMaxPerDay, quota)` 替换下面两处上限判定，并同步 UI 禁用态
-    // （方案 §6.2：额度用尽的按钮必须是禁用 + 一句原因，不能只是点了没反应）。
+    // ── A4 · 天气额度接线 ────────────────────────────────────────────────
+    // 今日天气走**唯一入口** [WeatherSystem.ofDay]（纯函数、零 IO、确定性），
+    // 额度侧（点按钮前实时判）与结算侧（日结循环）同源不同时点，互不污染。
+    //   · 暴雨 `waterQuota = 0` → 雨水代劳，今天不用浇；
+    //   · 小雨 `waterQuota = 1` → 只能浇一次；
+    //   · 其余 `waterQuota = 3` → 与 [kPlantWaterMaxPerDay] 相同，**手机零变化**。
+    //
+    // 🔴 **施肥额度不接**（`docs/天气系统_A4_增量设计.md` §12.1-Q1 主理人裁定）：
+    //    `WeatherDay.fertilizeQuota` 9 种日型恒 1，与 [kPlantFertilizeMaxPerDay] 相等
+    //    ⇒ `min(1, 1)` 是恒等变换，接进来只会造出一条永远绿的假守卫。
+    //    **若将来新增日型使 `fertilizeQuota != 1`，此处必须回来接 `min`**（否则施肥
+    //    额度会静默地不随天气变化，且没有任何测试会红）。
+    final WeatherDay day = WeatherSystem.ofDay(now);
     final int waterUsed = await _ledger.countByRefTypeAndRefIdOnDay(
       'plant_water',
       p.id,
@@ -1394,31 +1494,17 @@ class PlantGrowthService {
         await _ledger.lastTsByRefTypeAndRefId('plant_water', p.id);
     final int minutesUntilNextWater = _minutesUntilNextWater(lastWater, now);
 
-    final bool actionable = p.status == PlantStatus.growing ||
-        p.status == PlantStatus.wilting ||
-        p.status == PlantStatus.bloomed; // F111：盛开态放行（防枯萎 + 保晨露）
-    final PlantBlockReason? waterBlock = !actionable
-        ? const PlantBlockReason(PlantOperationError.careStateInvalid)
-        : waterUsed >= kPlantWaterMaxPerDay
-            ? const PlantBlockReason(
-                PlantOperationError.waterDailyLimit,
-                a: kPlantWaterMaxPerDay,
-              )
-            : minutesUntilNextWater > 0
-                ? PlantBlockReason(
-                    PlantOperationError.waterInterval,
-                    a: kPlantWaterIntervalMinutes,
-                    b: minutesUntilNextWater,
-                  )
-                : null;
-    final PlantBlockReason? fertilizeBlock = !actionable
-        ? const PlantBlockReason(PlantOperationError.careStateInvalid)
-        : fertilizeUsed >= kPlantFertilizeMaxPerDay
-            ? const PlantBlockReason(
-                PlantOperationError.fertilizeDailyLimit,
-                a: kPlantFertilizeMaxPerDay,
-              )
-            : null;
+    // 判据交给**纯函数**（零 widget / 零 DB 可穷举；优先级写死，暴雨先于额度）。
+    final PlantBlockReason? waterBlock = resolveWaterGate(
+      status: p.status,
+      day: day,
+      waterUsedToday: waterUsed,
+      minutesUntilNextWater: minutesUntilNextWater,
+    );
+    final PlantBlockReason? fertilizeBlock = resolveFertilizeGate(
+      status: p.status,
+      fertilizeUsedToday: fertilizeUsed,
+    );
 
     return PlantCareQuota(
       waterUsedToday: waterUsed,
@@ -1426,6 +1512,8 @@ class PlantGrowthService {
       minutesUntilNextWater: minutesUntilNextWater,
       waterBlockReason: waterBlock,
       fertilizeBlockReason: fertilizeBlock,
+      // 有效上限快照（暴雨 0 / 小雨 1 / 普通 3）——卡片「今日剩余 X/Y」的 Y 用它。
+      waterQuota: min(kPlantWaterMaxPerDay, day.waterQuota),
     );
   }
 

@@ -267,7 +267,10 @@ Plant _wiltingPlant(
     );
 
 void main() {
-  final DateTime t0 = DateTime(2026, 9, 21, 9, 0);
+  // 🔴 A4 起浇水额度随天气变化（暴雨 0 / 小雨 1 / 普通 3）⇒ 基准日必须落在
+  // **普通日**。原值 `2026-09-21` 确定性为**暴雨日**，接线后当天一次都浇不了，
+  // 「1 浇即复活」「3 浇 + 1 施才复活」这些门槛全测不出来。改到 09-22（普通日）。
+  final DateTime t0 = DateTime(2026, 9, 22, 9, 0);
 
   group('A. kPlantWiltDays=3：3 天未浇→wilting，2 天仍 growing（不因旧值 7 误判）', () {
     test('lastWaterAt = now-3天 → tickAll 后 status==wilting', () async {

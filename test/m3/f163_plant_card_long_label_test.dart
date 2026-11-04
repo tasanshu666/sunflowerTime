@@ -90,6 +90,8 @@ const PlantCareQuota _freshQuota = PlantCareQuota(
   minutesUntilNextWater: 0,
   waterBlockReason: null,
   fertilizeBlockReason: null,
+  // A4：`waterQuota` = 当日有效浇水上限（本用例取普通日满额度 3）。
+  waterQuota: 3,
 );
 
 /// 与 `PlantCard._fmtGain` 同口径（三位小数由 `toStringAsFixed(1)` 收口）。

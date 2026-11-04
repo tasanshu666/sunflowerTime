@@ -285,16 +285,26 @@ DateTime _twoConsecutiveMildDays() {
   throw StateError('no two consecutive mild days found within 800 days');
 }
 
-/// 一天满养护：3 次浇水（间隔 >30min）+ 1 次施肥。
+/// 一天「尽额度养护」：最多 3 次浇水（间隔 >30min）+ 1 次施肥。
+///
+/// 🔴 **A4 起额度随天气变化**（暴雨 0 / 小雨 1 / 普通 3）：真实孩子在下雨天也
+/// 点不了那么多次，故这里逐次问 `careQuota` 的判据（**判据与 UI 同源**），
+/// 额度不允许就停手 —— 模拟的是「孩子每天尽可能照顾」而不是「无视规则刷满 3 次」。
+/// ⚠️ 施肥不受天气影响（§12.1-Q1 裁定：`fertilizeQuota` 恒 1），但仍走同一判据。
 Future<void> _dailyCare(
   PlantGrowthService svc,
   Plant p,
   DateTime dayStart,
 ) async {
-  await svc.water(p.id, dayStart);
-  await svc.water(p.id, dayStart.add(const Duration(minutes: 31)));
-  await svc.water(p.id, dayStart.add(const Duration(minutes: 62)));
-  await svc.fertilize(p.id, dayStart.add(const Duration(minutes: 93)));
+  for (int i = 0; i < kPlantWaterMaxPerDay; i++) {
+    final DateTime at = dayStart.add(Duration(minutes: 31 * i));
+    final PlantCareQuota q = await svc.careQuota(p, at);
+    if (!q.canWater) break;
+    await svc.water(p.id, at);
+  }
+  final DateTime fertAt = dayStart.add(const Duration(minutes: 93));
+  final PlantCareQuota qf = await svc.careQuota(p, fertAt);
+  if (qf.canFertilize) await svc.fertilize(p.id, fertAt);
 }
 
 /// 逐日推进直到 bloomed，返回**天数**（-1 = 上限内未开花）。

@@ -761,11 +761,25 @@ void main() {
           days = day;
           break;
         }
-        // 3 次浇水（间隔 > 30 分钟）+ 1 次施肥。
-        await ctx.svc.water(_kPlantId, now);
-        await ctx.svc.water(_kPlantId, now.add(const Duration(minutes: 31)));
-        await ctx.svc.water(_kPlantId, now.add(const Duration(minutes: 62)));
-        await ctx.svc.fertilize(_kPlantId, now.add(const Duration(minutes: 93)));
+        // 尽额度养护：最多 3 次浇水（间隔 > 30 分钟）+ 1 次施肥。
+        // 🔴 A4 起额度随天气截断（暴雨 0 / 小雨 1 / 普通 3）—— 逐次问 `careQuota`
+        // 的判据（与 UI 同源），额度不允许就停手；无视额度直接浇会抛
+        // `waterLightRain` / `waterRainstorm`。
+        for (int i = 0; i < 3; i++) {
+          final DateTime at = now.add(Duration(minutes: 31 * i));
+          final PlantCareQuota q = await ctx.svc.careQuota(
+            (await _load(ctx.plants)),
+            at,
+          );
+          if (!q.canWater) break;
+          await ctx.svc.water(_kPlantId, at);
+        }
+        final DateTime fertAt = now.add(const Duration(minutes: 93));
+        final PlantCareQuota qf = await ctx.svc.careQuota(
+          (await _load(ctx.plants)),
+          fertAt,
+        );
+        if (qf.canFertilize) await ctx.svc.fertilize(_kPlantId, fertAt);
         now = _plusDays(now, 1);
       }
 

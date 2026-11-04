@@ -207,7 +207,11 @@ Future<String> _seedSunflower(PlantGrowthService svc, DateTime now) async {
 }
 
 void main() {
-  final DateTime day1 = DateTime(2026, 9, 21, 9, 0); // 周一 09:00
+  // 🔴 A4 起额度与天气挂钩（暴雨 0 / 小雨 1 / 普通 3）⇒ 固定日期必须落在
+  // **普通日**上。原值 `2026-09-21` 正好是**暴雨日**（`WeatherSystem.ofDay`
+  // 纯函数确定性可查），接额度后当天浇水**一次都不允许**，本组「每日 3 次上限」
+  // 的口径就测不到了。故基日改到 09-22（周二，普通日，额度 3）。
+  final DateTime day1 = DateTime(2026, 9, 22, 9, 0); // 周二 09:00（普通日）
 
   test('浇水固定扣 5 阳光（不分年龄档），账本落 refType=plant_water', () async {
     final ctx = _make();

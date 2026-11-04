@@ -5698,6 +5698,36 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'兑换规则'**
   String get parent_editor_section_redeem;
+
+  /// No description provided for @garden_care_water_disabled_rainstorm.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天下暴雨，雨水帮你浇好啦，不用再浇～'**
+  String get garden_care_water_disabled_rainstorm;
+
+  /// No description provided for @garden_care_water_disabled_light_rain.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天只有小雨，浇一次就够啦～'**
+  String get garden_care_water_disabled_light_rain;
+
+  /// No description provided for @garden_care_water_disabled_quota.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天已经浇够啦，明天再来～'**
+  String get garden_care_water_disabled_quota;
+
+  /// No description provided for @garden_care_fertilize_disabled_quota.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天已经施过肥啦，明天再来～'**
+  String get garden_care_fertilize_disabled_quota;
+
+  /// No description provided for @garden_batch_none_water_rainstorm.
+  ///
+  /// In zh, this message translates to:
+  /// **'雨已经把花浇过啦，今天不用一键浇水'**
+  String get garden_batch_none_water_rainstorm;
 }
 
 class _AppLocalizationsDelegate

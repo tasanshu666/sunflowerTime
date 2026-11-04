@@ -512,7 +512,9 @@ class PlantCard extends StatelessWidget {
             if (q != null) ...<Widget>[
               const SizedBox(height: 8),
               Text(
-                l10n.card_quota_left(q.waterRemaining, kPlantWaterMaxPerDay,
+                // A4：浇水上限传**当日有效上限**（暴雨 0 / 小雨 1 / 普通 3），
+                // 不再恒传 3 —— 否则雨天会显示「剩余 0/3 次」，与灰按钮说的事对不上。
+                l10n.card_quota_left(q.waterRemaining, q.waterQuota,
                     q.fertilizeRemaining, kPlantFertilizeMaxPerDay),
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),

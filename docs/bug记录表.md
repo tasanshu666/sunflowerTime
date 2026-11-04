@@ -1038,7 +1038,10 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 
 **两条已裁定事项**：
 - `精品首花·零养护·B` 描述包络 **65~77 → 64~77**（730 里 2 个起点探到 64）。裁定 = **只补记描述、不改代码不改常量**：该行**无断言载体**，G1d 护栏断的是连续均值 `[52,68]`（未变）。已在《最终方案》§5.4.1 该行补记 A4 实测。
-- `plant_care_sheet_iphone_test` **既有 flaky**（A4 前就红）：A4 连跑 8 次 **4 过 4 红**；`git show HEAD:` 覆盖回 A3 全量 lib 后连跑 8 次**同样 4 过 4 红** ⇒ **非 A4 引入**，不另开 bug 号。根因线索：该用例桩仓库没注入 `weedRandom`，tick 后有时是「开花」态 → 点花盆走收花流程而非养护卡。
+- `plant_care_sheet_iphone_test` **既有 flaky**（A4 前就红；**2026-11-04 已修复**）：A4 连跑 8 次 **4 过 4 红**；`git show HEAD:` 覆盖回 A3 全量 lib 后连跑 8 次**同样 4 过 4 红** ⇒ **非 A4 引入**，不另开 bug 号。
+  🔴 **真根因（诊断实测，推翻了此前登记的错误线索）**：`_host()` 没覆盖 `plantGrowthServiceProvider` ⇒ `PlantGrowthService._rollWeedPest` 每株每 tick 用真 `Random()` roll 两把（`kGardenWeedRate` 0.40 / `kGardenPestRate` 0.30，**互不排斥**）⇒ 单日至少中一项 = `1 − 0.6×0.7 = **58%**`。中招时花盆上多出「杂草/害虫」清除浮标，而该浮标**故意**设成 opaque 吃掉点击（`garden_pot.dart:531`：「让本浮标吃掉这次点击，不穿透到外层整格 onTap」）且压在花盆命中中心 ⇒ `tester.tap(find.byType(GardenPot))` 点到的是**浮标**，弹出「这盆没有害虫哦」（`shared_plant_err_no_pest`），**养护卡压根没打开** ⇒ `find.text('向日葵')` 找到 0 个。58% 与「连跑 8 次 5 红 3 绿」严丝合缝；红的那一轮屏幕文案里**没有任何 Dialog 内容**。
+  ⚠️ **此前登记的「tick 后有时是开花态 → 点花盆走收花流程」是错的**（本条 2026-11-04 订正）：① `_plantedSunflower()` 每次读库都**重新构造**、`savePlant` 是 no-op ⇒ 卡片永远看到 `seed` + `growthProgress 0.1`（红绿两态都一样）；② `GardenPot.onTap` 无条件走 `_openCareSheet`，**不存在「收花流程」这个分支**。⇒ 教训：别信文档里没核过的因果链，连自己写的也算。
+  ✅ **修法**（只改测试文件）：`_host()` 增 `plantGrowthServiceProvider.overrideWithValue(_serviceForTest())`（**只覆盖仓储没用** —— `weedRandom` 长在 provider 内部的 `Random()` 上，该 provider 没暴露注入位）+ `weedRandom: NoHitRandom()`；另把夹具写死的 `DateTime(2026,9,24,8)` 改成相对当前（「5 分钟前」）—— 非本次病因，但固定过去日期随日期推进迟早把「点花盆→弹卡」这条**前置**整体拖坏。修后**连跑 16/16 绿**；变异（养护卡 Row 里 `SizedBox(width:10)` → `320`）在 `:215` 的 `takeException` 变红且**越过了 `:175`**（证明面板确实稳定打开），说明用例仍有鉴别力、没被改成恒绿。
 
 ⚠️ 待真机回归要点（玄参出差中，顺延）：
 - 暴雨日：浇水按钮**灰 + 常驻原因**（不是点了没反应），且**一键浇水**给的是雨天专属文案、与卡片文案不重复；

@@ -26,10 +26,21 @@ import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart';
 
-final DateTime _t = DateTime(2026, 9, 24, 8);
+import '../helpers/no_hit_random.dart';
+
+/// 夹具的时间基准：**相对当前时刻**，不写死日期。
+///
+/// 🔴 原写法是 `DateTime(2026, 9, 24, 8)`（一个固定过去的日期）。本文件每跑一天，
+/// 这株「种子」的「已种时长」就多一天；`_sunflower.growthHoursPerStage = 240`
+/// （10 天/阶段），41 天后它会被 `tickAll` 补结算到开花甚至枯萎，
+/// 「点花盆 → 弹养护卡」这条**前置**会在某个日期之后整体失效。
+/// 取「5 分钟前」⇒ 无论哪天跑都稳定停在 `seed` + `growing`（5 分钟只够走
+/// 0.0035 个阶段，离下一阶段差 299.6pp）。
+DateTime get _t => DateTime.now().subtract(const Duration(minutes: 5));
 
 const PlantSpecies _sunflower = PlantSpecies(
   id: 'species_sunflower',
@@ -136,6 +147,29 @@ class _FakePlantRepository implements PlantRepository {
   Future<List<PlantSpecies>> species() async => <PlantSpecies>[_sunflower];
 }
 
+/// 被测领域服务：**干扰物随机源注入 [NoHitRandom]**，让这一轮恒定没有杂草 / 害虫。
+///
+/// 🔴 为什么必须注入（真正的 flaky 根因，2026-11-05 诊断实测确认）：
+/// `PlantGrowthService._rollWeedPest` 每株每次 tick 各自 roll 一次
+/// （`kGardenWeedRate` 0.40 / `kGardenPestRate` 0.30，互不排斥），默认 `Random()`
+/// 是**真随机** ⇒ 每天至少中一项的概率 `1 − 0.6×0.7 = 58%`。中招时花盆上会多出
+/// 「杂草 / 害虫」清除浮标，且它压在花盆的命中中心上 ——
+/// `tester.tap(find.byType(GardenPot))` 于是点到的是**清除浮标**而不是花盆：
+/// 弹出来的是「这盆没有害虫哦」（`shared_plant_err_no_pest`）的 SnackBar，
+/// 养护卡压根没打开 ⇒ `find.text('向日葵')` 找到 0 个。
+/// 这个 58% 与「连跑 8 次 5 红 3 绿」的实测比例吻合，且红的那一轮屏幕文案里
+/// **没有**任何 Dialog 内容、只有一句「这盆没有害虫哦」。
+///
+/// ⚠️ 只改时间**不足以**修好它：roll 与盆龄无关，是每次 tick 独立掷骰子。
+PlantGrowthService _serviceForTest() => PlantGrowthService(
+      plants: _FakePlantRepository(),
+      focus: _FakeFocusRepository(),
+      ledger: _FakeSunlightRepository(),
+      settings: _FakeSettingsRepository(),
+      bloomRewards: InMemoryBloomRewardRepository(),
+      weedRandom: NoHitRandom(), // C26 干扰物永不出现（0.40 / 0.30 任一命中都会抢走点击）
+    );
+
 Widget _host() => ProviderScope(
       overrides: <Override>[
         settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
@@ -144,6 +178,10 @@ Widget _host() => ProviderScope(
         plantRepositoryProvider.overrideWithValue(_FakePlantRepository()),
         bloomRewardRepositoryProvider
             .overrideWithValue(InMemoryBloomRewardRepository()),
+        // 领域服务必须一并覆盖：仓储覆盖只换了数据源，`weedRandom` 仍然长在
+        // `plantGrowthServiceProvider` 内部的 `Random()` 上（该 provider 没有暴露
+        // 注入位），不覆盖就等于没注入。
+        plantGrowthServiceProvider.overrideWithValue(_serviceForTest()),
       ],
       child: const MaterialApp(home: Scaffold(body: GardenPage(embedded: true))),
     );

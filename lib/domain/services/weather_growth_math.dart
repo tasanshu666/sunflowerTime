@@ -23,12 +23,25 @@
 /// `test/m3/weather_growth_math_test.dart` D 层）。
 ///
 /// ## 不在本层口径内（调用方处理）
-///  · 雨水代劳 [WeatherDay.rainWaterBonusPp]：**收益项**，由日结侧在暴雨日另加，
-///    §5.4 的基准口径不含它（含了会对不上表）；
 ///  · 进度 clamp（P1：`progress.clamp(0.0, 1.0)`）；
 ///  · 「只罚已关门的日子」（P2）与游标选择（P3，用既有 `stageStartedAt`）；
-///  · 复开花（`kRebloomAutoProgressPerDay` 那条速率线）不经过本层。
+///  · 复开花（`kRebloomAutoProgressPerDay` 那条速率线）在**日结**里不经过本层的
+///    [segmentProgress]，但 **ETA（[naturalDailyProgress]）需要它** —— 见下条。
+///
+/// ## A5 起本层新增的两个「展示口径」纯函数
+/// [naturalDailyProgress] / [dailyEstimateProgress] 是**卡片「还要约 N 天长成」
+/// 的唯一算式来源**（A5 · `docs/天气系统_A5_增量设计.md` §4.2/§4.4）。它们的定位
+/// 与上面三个函数不同：前面三个是**日结实际怎么累加**，这两个是**「按今天这个天气、
+/// 把当日额度做满」一天能推多少**（用于把人话天数算出来）。
+///
+/// 🔴 与 §5.4 基准口径的关系：§5.4 的日均表**不含** [WeatherDay.rainWaterBonusPp]
+/// （那是 A4 才接进日结的收益项，`plant_growth_service.dart` 守卫内那一行）。
+/// [dailyEstimateProgress] **含**它 —— 因为卡片要报的是**实现真值**（含代劳），
+/// 不是 §5.4 的对账基准。两者差 `E[rainBonus] = 0.01 × 3% = 0.03pp/天`，对账时
+/// 必须显式加回（`test/m3/weather_a5_eta_test.dart` 的 V1/V2 就是这么断的）。
 library weather_growth_math;
+
+import 'dart:math' as math;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/services/weather_system.dart';
@@ -52,6 +65,84 @@ class WeatherGrowthMath {
     required double growthHoursPerStage,
   }) {
     return segHours * day.growthFactor / growthHoursPerStage;
+  }
+
+  /// **无天气的自然日速率**（progress 单位 / 天，不含 `g`）——A5 · ETA 专用。
+  ///
+  /// 两条速率线**必须在这里分岔**（A5 §4.2 / D5）：这是本仓「复开花」唯一的
+  /// 鉴别点，漏了它就会把复花当成首花算。
+  ///
+  ///  · 首花（`bloomCount == 0`）：`24 / growthHoursPerStage × kPlantAutoGrowthScale`
+  ///    —— 与日结 `_advanceGrowth` 的 `segmentProgress(segHours: 24)` 同源
+  ///    （`segmentProgress(24) = 24 × g / T`，故此处不带 `g`）；
+  ///  · 复开花（`bloomCount >= 1`）：`kRebloomAutoProgressPerDay ÷ (isPremium ? 1.5 : 1)`
+  ///    —— 与日结里 `segHours × (kRebloomAutoProgressPerDay / 24) / premiumDiv × g`
+  ///    的 24h 值**完全一致**。注意复花**没有** `growthHoursPerStage` 的概念，
+  ///    所以它**不经过** [segmentProgress]（那是首花的算式），只在这里对应。
+  ///
+  /// ⚠️ 为什么 `bloomCount >= 1` 而不是 `status == bloomed`：本仓「复开花」= 花谢后
+  /// 从 [kBloomWiltProgressFloor] 重新爬满的**整段 `growing` 期**（花谢时
+  /// `_applyBloomCycle` 把 status 改回 `growing`），不是盛开那 3~4.5 天。用 status
+  /// 判会把整段复花期判成首花，正是 D5 的病灶。
+  ///
+  /// `growthHoursPerStage <= 0`（脏数据）时返回 0：调用方据此走「只报百分比」兜底，
+  /// 绝不显示 `∞ 天`。
+  static double naturalDailyProgress({
+    required double growthHoursPerStage,
+    required int bloomCount,
+    required bool isPremium,
+  }) {
+    if (bloomCount >= 1) {
+      final double premiumDiv =
+          isPremium ? kRebloomPremiumCycleMultiplier : 1.0;
+      return kRebloomAutoProgressPerDay / premiumDiv;
+    }
+    if (growthHoursPerStage <= 0) return 0.0;
+    return 24.0 / growthHoursPerStage * kPlantAutoGrowthScale;
+  }
+
+  /// **按今天这个天气、把当日额度做满**的日推进量（progress 单位 / 天，含雨水代劳）。
+  ///
+  /// 这是卡片「每天按时养护，还需约 N 天长成」的**唯一算式**（A5 §4.2）。拆三项：
+  ///  · 自然项 = [naturalGainPerDay] × 当日 `g`；
+  ///  · 养护项 = **当日有效额度**次 × 单次增量（已含复花/精品修正）× 当日 `w`/`f`；
+  ///  · 雨水代劳 = 当日 [WeatherDay.rainWaterBonusPp]（暴雨 1pp，其余 0）。
+  ///
+  /// 🔴 **次数取「当日额度」而不是「今天已做几次」**（A5 §4.2 取舍①，有意偏离
+  /// 方案 §10 原文）：① 文案已写「每天按时养护」，两者自相矛盾；② 早晨 8 点
+  /// 「已浇水 0 次」会让干旱日只剩自然项 2pp/天 ⇒ `50pp` 报 25 天（满载是 4 天，
+  /// 差 6.4 倍）；③ 满载口径下「浇了水 ⇒ 进度↑ ⇒ N 不增」，一天内单调不增。
+  ///
+  /// 复用 [careProgress] 而不是自己乘 `w`/`f`：乘数语义单点，将来 `w/F` 变了不会
+  /// 只改一处（A4 `resolveWaterGate` 同款纪律）。
+  ///
+  /// 返回值恒 `≥ 0`（三项都非负），**不需要 clamp**；调用方用 `daily <= 0` 兜底
+  /// 判「速率非法」。
+  static double dailyEstimateProgress({
+    required WeatherDay day,
+    required double naturalGainPerDay,
+    required double waterGainPerUse,
+    required double fertilizeGainPerUse,
+  }) {
+    // A4 纪律：额度必须截断（小雨 1 / 暴雨 0），否则雨天会多算 2~3 次浇水。
+    final int waterUses = math.min(kPlantWaterMaxPerDay, day.waterQuota);
+    final int fertilizeUses =
+        math.min(kPlantFertilizeMaxPerDay, day.fertilizeQuota);
+    return naturalGainPerDay * day.growthFactor +
+        waterUses *
+            careProgress(
+              baseGain: waterGainPerUse,
+              day: day,
+              isWater: true,
+            ) +
+        fertilizeUses *
+            careProgress(
+              baseGain: fertilizeGainPerUse,
+              day: day,
+              isWater: false,
+            ) +
+        // A4 已把它接进日结（守卫内每天一次），ETA 不加上它就会在暴雨日多报 1~2 天。
+        day.rainWaterBonusPp;
   }
 
   /// 一次养护动作（浇水 / 施肥共用）的**即时**进度增量。

@@ -422,6 +422,22 @@ class PlantCareQuota {
   /// 「剩余 3 次但点不动」的错位。
   final int waterQuota;
 
+  /// **当日天气快照**（A5）：卡片算「还要约 N 天长成」时读它，不在 widget 里现查。
+  ///
+  /// 与 [waterQuota] 同一次 `WeatherSystem.ofDay(now)` 的产物 —— 分两次查会在跨零点
+  /// 那一帧出现「额度按昨天、天数按今天」的错位。
+  ///
+  /// ⚠️ **可空**（默认 `null`）是为了**零侵入** A4 期已落地的 7 处测试构造点；
+  /// 生产路径由 [PlantGrowthService.careQuota] 恒填，`weather_a5_eta_test` 的 V9
+  /// 专门钉住这一点（否则「新增字段没人传」会在全绿状态下上线，线上仍走旧口径）。
+  final WeatherDay? weather;
+
+  /// **快照的取样时刻**（A5）：两个 hint（「还要 N 天」/「花期剩余」）共用同一瞬间。
+  ///
+  /// 原本 `_bloomRemainingHint` 直接读 `DateTime.now()` ⇒ 同一帧里两行数字可能差几
+  /// 毫秒的基准、且 widget 不可测。可空理由同 [weather]。
+  final DateTime? observedAt;
+
   const PlantCareQuota({
     required this.waterUsedToday,
     required this.fertilizeUsedToday,
@@ -429,6 +445,8 @@ class PlantCareQuota {
     required this.waterBlockReason,
     required this.fertilizeBlockReason,
     required this.waterQuota,
+    this.weather,
+    this.observedAt,
   });
 
   /// 今日还可浇水次数（按**有效上限**算：暴雨 0 / 小雨 1 / 普通 3）。
@@ -1514,6 +1532,10 @@ class PlantGrowthService {
       fertilizeBlockReason: fertilizeBlock,
       // 有效上限快照（暴雨 0 / 小雨 1 / 普通 3）——卡片「今日剩余 X/Y」的 Y 用它。
       waterQuota: min(kPlantWaterMaxPerDay, day.waterQuota),
+      // A5：把**同一次** `ofDay(now)` 的结论与取样时刻一起递出去，卡片的
+      // 「还要约 N 天长成」直接吃快照，widget 内零 IO、零现算（V9 钉住恒非 null）。
+      weather: day,
+      observedAt: now,
     );
   }
 

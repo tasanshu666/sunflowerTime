@@ -24,6 +24,11 @@ import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_perk.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+// A5：「还要约 N 天长成」的算式**只在** [WeatherGrowthMath] 里存在一份（T01 纯函数），
+// 本文件只负责把「天气快照 + 品种速率」喂进去并把结果翻成人话——绝不在这里另写算式。
+import 'package:sunflower_time/domain/services/weather_growth_math.dart';
+import 'package:sunflower_time/domain/services/weather_system.dart'
+    show WeatherDay;
 // C77 称号专属属性取值函数：本文件已 import 同名类 `PlantPerk`（能力接口骨架，
 // `domain/entities/plant_perk.dart`），故称号属性侧**加前缀**避免类名冲突。
 import 'package:sunflower_time/domain/services/plant_perk.dart' as title_perk
@@ -129,36 +134,75 @@ class PlantCard extends StatelessWidget {
     }
   }
 
-  /// 距下一阶段还需约多少天（V2 数值，用户 2026-09-22）。
+  /// 距下一阶段还需约多少天（V2 数值，用户 2026-09-22；A5 口径重做）。
   ///
-  /// 旧文案「还需约 N 次浇水」在新数值下会算出荒谬结果（浇水仅 +1%/次 → 100 次），
-  /// 对孩子毫无意义，故改为**时间口径**：
-  ///   每日推进量 = 自然成长 + 当天养护上限（按「每天都养护做满」估算，未养护会更久）。
-  ///  - 自然成长：一阶段需 [PlantSpecies.growthHoursPerStage] 小时（普通 240 / 精品 480），
-  ///    故每天推进 24 / growthHoursPerStage（普通约 10%/天、精品约 5%/天）；
-  ///  - 养护上限：浇水 [kPlantWaterMaxPerDay] 次 × [kPlantWaterProgressGain]
-  ///    + 施肥 [kPlantFertilizeMaxPerDay] 次 × [kPlantFertilizeProgressGain]。
+  /// ## 口径（A5 · `docs/天气系统_A5_增量设计.md` §4.2）
+  /// 「按**今天这个天气**、把**当日额度**做满」一天能推多少，再取整：
+  ///   每日推进量 = 自然项 + 养护项 + 雨水代劳
+  ///  · 自然项：首花 `24 / growthHoursPerStage`（普通 10pp/天、精品 5pp/天），
+  ///    **复开花 `kRebloomAutoProgressPerDay`（3.6pp/天、精品 ÷1.5）**；
+  ///  · 养护项：`min(3, waterQuota)` 次浇水 + `min(1, fertilizeQuota)` 次施肥，
+  ///    单次增量走 [PlantGrowthService.careProgressGain]（含复花/精品修正），
+  ///    再乘当日 `w` / `f`；
+  ///  · 雨水代劳：暴雨 +1pp。
+  ///
+  /// 🔴 **算式全部住在 `WeatherGrowthMath`（领域层纯函数），本文件不另写一份**：
+  /// 这里只做「取三个已算好的量 → 调纯函数 → 取整」。任何在这里复算 `w`/`f`、
+  /// 复算额度截断的写法，都会让「卡片数字」与「真实 tick 增量」二次分叉
+  /// （A4 的 `resolveWaterGate` 已立此戒）。
+  ///
+  /// ## A5 修掉的四个失真（§4.1）
+  ///  ① 不看天气（`g`/`w`/`f` 一个都没用）；② 不看额度截断（小雨 1 / 暴雨 0）；
+  ///  ③ 不含雨水代劳；④ **复开花用首花的 `24/T`**（真值 3.6pp/天，差 2.8 倍 ⇒
+  ///  花谢后 `remaining = 0.5` 时错报 4 天，真值 7~12 天）。
+  ///
+  /// ## 为什么返回 `String?`（F182）
+  /// `dead` 态返回 `null` ⇒ 调用方整行不渲染。死亡的花不该出现「还需约 N 天长成」，
+  /// 那是「还会继续长」的暗示。
   ///
   /// 口径只用于卡片展示，不写回任何数据；常量变了文案自动跟随，无裸字面量。
-  String _nextStageHint(AppLocalizations l10n) {
+  String? _nextStageHint(AppLocalizations l10n) {
+    // F182：死亡态不给任何进度承诺（连进度条一起在 build 里折叠）。
+    if (plant.status == PlantStatus.dead) return null;
     if (plant.status == PlantStatus.bloomed) {
       // F111：盛开期可养护（防枯萎 + 保次日晨露满额），不再暗示「养护能延长花期」。
       return l10n.card_hint_bloomed;
     }
     final double remaining = (1.0 - plant.growthProgress).clamp(0.0, 1.0);
+    // 「已长满」容差。🔴 **刻意保留 1e-3 这个字面量，不要换成 [kGrowthEpsilon]**：
+    // 后者是 1e-9（`prd_params.dart:237`，专给日结的浮点累加用），拿它当显示阈值
+    // 会让「差 0.05% 长满」的植物去报「还需 1 天」——A5 设计 §3 表把它写成 1e-3 是
+    // 笔误，§9 的 V7① 断的也是 1e-3（与 A5 之前的行为逐位一致）。
     if (remaining <= 0.001) return l10n.card_hint_next_soon;
 
-    // 兜底：阶段时长 / 每日推进量之一无效时退化为「只报百分比」，绝不显示荒谬数字。
+    // 兜底：天气快照缺失 / 速率非法时退化为「只报百分比」，绝不显示荒谬数字。
     final String percentOnly =
         l10n.card_hint_progress((plant.growthProgress * 100).toInt());
-    final double hoursPerStage = species.growthHoursPerStage;
-    if (hoursPerStage <= 0) return percentOnly;
-    final double perDay = (24.0 / hoursPerStage) +
-        kPlantWaterMaxPerDay * kPlantWaterProgressGain +
-        kPlantFertilizeMaxPerDay * kPlantFertilizeProgressGain;
-    if (perDay <= 0) return percentOnly;
+    final WeatherDay? today = quota?.weather;
+    if (today == null) return percentOnly;
 
-    final int days = (remaining / perDay).ceil().clamp(1, 999);
+    final double natural = WeatherGrowthMath.naturalDailyProgress(
+      growthHoursPerStage: species.growthHoursPerStage,
+      // 🔴 复花开的**唯一**鉴别器就是 bloomCount：首花进度恰好 50% 时算出来也是
+      //    「4 天」，按数字反查一定误命中（A5 §4.3.1）。
+      bloomCount: plant.bloomCount,
+      isPremium: species.isPremium,
+    );
+    final double daily = WeatherGrowthMath.dailyEstimateProgress(
+      day: today,
+      naturalGainPerDay: natural,
+      waterGainPerUse: _careGain(
+        firstGain: kPlantWaterProgressGain,
+        rebloomGain: kRebloomWaterProgressGain,
+      ),
+      fertilizeGainPerUse: _careGain(
+        firstGain: kPlantFertilizeProgressGain,
+        rebloomGain: kRebloomFertilizeProgressGain,
+      ),
+    );
+    if (daily <= 0) return percentOnly;
+
+    final int days = (remaining / daily).ceil().clamp(1, 999);
     return l10n.card_hint_grow_days(days);
   }
 
@@ -169,6 +213,10 @@ class PlantCard extends StatelessWidget {
   /// **同口径**（单点常量，改常量文案自动跟随）。
   /// 剩余 = 花期时长 − (now − [Plant.bloomedAt])；`bloomedAt` 缺失（老库升级来的已开花植物
   /// 尚未补计时）时返回 null，绝不编造数字。
+  ///
+  /// A5：`now` 改为读 [PlantCareQuota.observedAt]（与「还要 N 天」**同一瞬间**的
+  /// 快照时刻），不再自己 `DateTime.now()` —— 否则同一帧里两行数字各用一个时钟基准，
+  /// 且 widget 测试无法固定时间。快照缺失（测试手工构造）才退回 `DateTime.now()`。
   String? _bloomRemainingHint(AppLocalizations l10n) {
     if (plant.status != PlantStatus.bloomed || plant.bloomedAt == null) {
       return null;
@@ -178,7 +226,8 @@ class PlantCard extends StatelessWidget {
         : kBloomDurationDays.toDouble();
     final Duration total =
         Duration(milliseconds: (days * Duration.millisecondsPerDay).round());
-    final Duration left = total - DateTime.now().difference(plant.bloomedAt!);
+    final DateTime now = quota?.observedAt ?? DateTime.now();
+    final Duration left = total - now.difference(plant.bloomedAt!);
     final double daysLeft =
         (left.inMinutes / Duration.minutesPerDay).clamp(0, 999).toDouble();
     return l10n.card_hint_bloom_left(_fmtDays(daysLeft));
@@ -253,6 +302,8 @@ class PlantCard extends StatelessWidget {
     final String? hint = blockReason == null
         ? null
         : plantBlockReasonMessage(blockReason, l10n);
+    // 两个文案都在 build 顶部一次性算好（同一帧同一瞬间），渲染处只做 null 判空。
+    final String? nextHint = _nextStageHint(l10n);
     final String? bloomLeft = _bloomRemainingHint(l10n);
     final List<Widget> perkEntries = _perkEntries();
 
@@ -391,61 +442,69 @@ class PlantCard extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 14),
           // ── ② 成长分区：进度条 + 百分比 + 距离下一阶段（浅色圆角底）──────
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: _statusColor.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                          value: plant.growthProgress.clamp(0.0, 1.0),
-                          minHeight: 8,
-                          backgroundColor: Colors.white,
+          // F182（A5-a）：**死亡态整块折叠** —— 进度条是「还会继续长」的暗示，
+          // 与「成株 · 已死亡」直接矛盾。死亡卡只留上方状态徽章 + 下方清除按钮。
+          if (!isDead) ...<Widget>[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _statusColor.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: plant.growthProgress.clamp(0.0, 1.0),
+                            minHeight: 8,
+                            backgroundColor: Colors.white,
+                            color: _statusColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '${(plant.growthProgress * 100).toInt()}%',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
                           color: _statusColor,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
+                    ],
+                  ),
+                  // F182：`_nextStageHint` 返回 `String?`（死亡态为 null）——
+                  // 这里不是「渲染空串」，而是**整行 Widget 都不存在**（连 6px 间距不占）。
+                  if (nextHint != null) ...<Widget>[
+                    const SizedBox(height: 6),
                     Text(
-                      '${(plant.growthProgress * 100).toInt()}%',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: _statusColor,
-                      ),
+                      nextHint,
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.teal.shade700),
                     ),
                   ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _nextStageHint(l10n),
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.teal.shade700),
-                ),
-                if (bloomLeft != null) ...<Widget>[
-                  const SizedBox(height: 4),
-                  Text(
-                    bloomLeft,
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.green.shade700),
-                  ),
+                  if (bloomLeft != null) ...<Widget>[
+                    const SizedBox(height: 4),
+                    Text(
+                      bloomLeft,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade700),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 10),
           // ── ③ 心情徽章（按心情着色的胶囊，替代通底一行字）───────────────
           Container(

@@ -5674,6 +5674,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'花园每天有一种天气。遇上干旱、大风、极寒、暴雨，花会难受一点——花 10 ☀ 搭上对应的棚，今天就不会被扣成长。棚只管今天。'**
   String get garden_help_weather_body;
+
+  /// No description provided for @parent_editor_section_basic.
+  ///
+  /// In zh, this message translates to:
+  /// **'基本信息'**
+  String get parent_editor_section_basic;
+
+  /// No description provided for @parent_editor_section_focus_reward.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注与奖励'**
+  String get parent_editor_section_focus_reward;
+
+  /// No description provided for @parent_editor_section_repeat.
+  ///
+  /// In zh, this message translates to:
+  /// **'重复'**
+  String get parent_editor_section_repeat;
+
+  /// No description provided for @parent_editor_section_redeem.
+  ///
+  /// In zh, this message translates to:
+  /// **'兑换规则'**
+  String get parent_editor_section_redeem;
 }
 
 class _AppLocalizationsDelegate

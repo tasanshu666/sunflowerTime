@@ -16,6 +16,9 @@ import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/core/i18n/enum_l10n.dart';
+// F178：分区卡片容器 + 平板收窄（380×uiScaleOf）所需的响应式倍率。
+import 'package:sunflower_time/presentation/parent/widgets/editor_section_card.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 任务模板编辑对话框。
 ///
@@ -117,12 +120,14 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
   /// 分类下拉项（C52）：UI 图标 + 文字；图标加载失败回退 emoji（美术永不阻塞）。
   ///
   /// i18n B3：分类名不再从 domain 的 `c.label` 取（已删除），改传 [t] 走 ARB。
+  /// F178-fix：下拉改 `isExpanded: true` 后内容宽由父容器决定 → 文本必须用
+  /// [Expanded] + 单行 ellipsis 收纳（英文长分类名 + 1.3 字号在 320 档会超宽）；
+  /// 不再用 `mainAxisSize: MainAxisSize.min`（会去抢内在宽，把父容器撑爆）。
   DropdownMenuItem<TaskCategory> _categoryDropdownItem(
       TaskCategory c, AppLocalizations t) {
     return DropdownMenuItem<TaskCategory>(
       value: c,
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
@@ -135,7 +140,13 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
             ),
           ),
           const SizedBox(width: 8),
-          Text(taskCategoryLabel(c, t)),
+          Expanded(
+            child: Text(
+              taskCategoryLabel(c, t),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
@@ -206,180 +217,218 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
                 ? t.parent_task_edit_title_new
                 : t.parent_task_edit_title_edit),
             content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  TextField(
-                    controller: _nameCtrl,
-                    decoration: InputDecoration(
-                        labelText: t.parent_task_edit_name_label),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<TaskSubject>(
-                    value: _subject,
-                    decoration: InputDecoration(
-                        labelText: t.parent_task_edit_subject_label),
-                    items: <DropdownMenuItem<TaskSubject>>[
-                      DropdownMenuItem(
-                          value: TaskSubject.general,
-                          child: Text(t.parent_task_edit_subject_general)),
-                      DropdownMenuItem(
-                          value: TaskSubject.chinese,
-                          child: Text(t.parent_task_edit_subject_chinese)),
-                      DropdownMenuItem(
-                          value: TaskSubject.math,
-                          child: Text(t.parent_task_edit_subject_math)),
-                      DropdownMenuItem(
-                          value: TaskSubject.english,
-                          child: Text(t.parent_task_edit_subject_english)),
-                      DropdownMenuItem(
-                          value: TaskSubject.custom,
-                          child: Text(t.parent_task_edit_subject_custom)),
-                    ],
-                    onChanged: (TaskSubject? v) =>
-                        v == null ? null : setState(() => _subject = v),
-                  ),
-                  // 自定义科目：自由输入科目名（如「科学」「书法」），内置科目不显示该输入框。
-                  if (_subject == TaskSubject.custom) ...<Widget>[
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _customSubjectCtrl,
-                      textInputAction: TextInputAction.done,
-                      decoration: InputDecoration(
-                        labelText: t.parent_task_edit_custom_label,
-                        hintText: t.parent_task_edit_custom_hint,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  // 分类下拉（C52 / 玄参 2026-10-10：换「UI 图标 + 文字」渲染，并新增
-                  // 「习惯」分类；图标与孩子端卡片同一素材池，视觉语言统一）。
-                  DropdownButtonFormField<TaskCategory>(
-                    value: _category,
-                    decoration: InputDecoration(
-                        labelText: t.parent_task_edit_category_label),
-                    items: TaskCategory.values
-                        .map((TaskCategory c) => _categoryDropdownItem(c, t))
-                        .toList(),
-                    onChanged: (TaskCategory? v) =>
-                        v == null ? null : setState(() => _category = v),
-                  ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(t.parent_task_edit_link_title),
-                    subtitle: Text(t.parent_task_edit_link_subtitle),
-                    value: _requiresFocus,
-                    onChanged: (bool v) => setState(() {
-                      _requiresFocus = v;
-                      _reward = _clampReward(_reward);
-                    }),
-                  ),
-                  if (_requiresFocus)
-                    Row(
+              // F178（玄参 2026-11-04）：分区卡片化 + 平板收窄。宽度上限 380×uiScaleOf
+              // ——手机可用宽（≈312 / 288）恒小于 380 → 逐像素零变化；iPad 13″（1.6）
+              // 收到 608，避免 AlertDialog 铺成一条横带（玄参「太素/不好看」的一半原因）。
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 380 * uiScaleOf(context)),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    // 卡 1 · 基本信息
+                    EditorSectionCard(
+                      icon: Icons.edit_note,
+                      title: t.parent_editor_section_basic,
                       children: <Widget>[
-                        Text(t.parent_task_edit_min_focus_label),
-                        Expanded(
-                          child: Slider(
-                            value: _minFocusMin.toDouble(),
-                            min: 5,
-                            max: 60,
-                            divisions: 11,
-                            label:
-                                t.parent_task_edit_minutes(_minFocusMin),
-                            onChanged: (double v) => setState(() {
-                              _minFocusMin = v.round();
-                              // 分钟变化 → 固定奖励同步变化（联动奖励 = 分钟 × 40%）。
-                              _reward = _clampReward(_reward);
-                            }),
-                          ),
+                        TextField(
+                          controller: _nameCtrl,
+                          decoration: InputDecoration(
+                              labelText: t.parent_task_edit_name_label),
                         ),
-                        Text('$_minFocusMin′'),
-                      ],
-                    ),
-                  const SizedBox(height: 8),
-                  // 联动项奖励固定 = 专注分钟 × 40%，家长不可调（用户 2026-09-21 拍板）。
-                  if (_requiresFocus)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 10, horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.teal.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: <Widget>[
-                          const Icon(Icons.lock_outline,
-                              size: 18, color: Colors.teal),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              t.parent_task_edit_reward_fixed(
-                                _minFocusMin,
-                                Task.rewardCapFor(_minFocusMin),
-                              ),
-                              style: const TextStyle(
-                                  fontSize: 13, color: Colors.teal),
+                        const SizedBox(height: 8),
+                        // F178-fix：`isExpanded: true` —— 默认 false 时按钮宽取「最宽菜单项」
+                        // 的内在宽，可用宽一收窄（卡片内距 / 平板 380×uiScaleOf 上限）就向下溢出。
+                        DropdownButtonFormField<TaskSubject>(
+                          isExpanded: true,
+                          value: _subject,
+                          decoration: InputDecoration(
+                              labelText: t.parent_task_edit_subject_label),
+                          items: <DropdownMenuItem<TaskSubject>>[
+                            DropdownMenuItem(
+                                value: TaskSubject.general,
+                                child: Text(
+                                    t.parent_task_edit_subject_general)),
+                            DropdownMenuItem(
+                                value: TaskSubject.chinese,
+                                child: Text(
+                                    t.parent_task_edit_subject_chinese)),
+                            DropdownMenuItem(
+                                value: TaskSubject.math,
+                                child: Text(t.parent_task_edit_subject_math)),
+                            DropdownMenuItem(
+                                value: TaskSubject.english,
+                                child: Text(
+                                    t.parent_task_edit_subject_english)),
+                            DropdownMenuItem(
+                                value: TaskSubject.custom,
+                                child: Text(
+                                    t.parent_task_edit_subject_custom)),
+                          ],
+                          onChanged: (TaskSubject? v) =>
+                              v == null ? null : setState(() => _subject = v),
+                        ),
+                        // 自定义科目：自由输入科目名（如「科学」「书法」），内置科目不显示该输入框。
+                        if (_subject == TaskSubject.custom) ...<Widget>[
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _customSubjectCtrl,
+                            textInputAction: TextInputAction.done,
+                            decoration: InputDecoration(
+                              labelText: t.parent_task_edit_custom_label,
+                              hintText: t.parent_task_edit_custom_hint,
                             ),
                           ),
                         ],
-                      ),
-                    )
-                  else
-                    Row(
-                      children: <Widget>[
-                        Text(t.parent_task_edit_reward_label),
-                        Expanded(
-                          child: Slider(
-                            value: _clampReward(_reward).toDouble(),
-                            min: _minReward.toDouble(),
-                            max: _maxReward.toDouble(),
-                            divisions: _maxReward > _minReward
-                                ? (_maxReward - _minReward)
-                                : null,
-                            label:
-                                t.parent_task_edit_reward_slider(_reward),
-                            onChanged: (double v) =>
-                                setState(() => _reward = v.round()),
-                          ),
+                        const SizedBox(height: 8),
+                        // 分类下拉（C52 / 玄参 2026-10-10：换「UI 图标 + 文字」渲染，并新增
+                        // 「习惯」分类；图标与孩子端卡片同一素材池，视觉语言统一）。
+                        DropdownButtonFormField<TaskCategory>(
+                          isExpanded: true,
+                          value: _category,
+                          decoration: InputDecoration(
+                              labelText: t.parent_task_edit_category_label),
+                          items: TaskCategory.values
+                              .map((TaskCategory c) =>
+                                  _categoryDropdownItem(c, t))
+                              .toList(),
+                          onChanged: (TaskCategory? v) =>
+                              v == null ? null : setState(() => _category = v),
                         ),
-                        Text('$_reward'),
                       ],
                     ),
-                  // 仅非联动项：提示奖励区间（默认 8 / 最大 15）。
-                  if (!_requiresFocus)
-                    Text(
-                      t.parent_task_edit_reward_range(
-                          _minReward, _maxReward, kTaskRewardDefault),
-                      style: Theme.of(context).textTheme.bodySmall,
+                    const SizedBox(height: 10),
+                    // 卡 2 · 专注与奖励
+                    EditorSectionCard(
+                      icon: Icons.wb_sunny_outlined,
+                      title: t.parent_editor_section_focus_reward,
+                      children: <Widget>[
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(t.parent_task_edit_link_title),
+                          subtitle: Text(t.parent_task_edit_link_subtitle),
+                          value: _requiresFocus,
+                          onChanged: (bool v) => setState(() {
+                            _requiresFocus = v;
+                            _reward = _clampReward(_reward);
+                          }),
+                        ),
+                        if (_requiresFocus)
+                          Row(
+                            children: <Widget>[
+                              Text(t.parent_task_edit_min_focus_label),
+                              Expanded(
+                                child: Slider(
+                                  value: _minFocusMin.toDouble(),
+                                  min: 5,
+                                  max: 60,
+                                  divisions: 11,
+                                  label:
+                                      t.parent_task_edit_minutes(_minFocusMin),
+                                  onChanged: (double v) => setState(() {
+                                    _minFocusMin = v.round();
+                                    // 分钟变化 → 固定奖励同步变化（联动奖励 = 分钟 × 40%）。
+                                    _reward = _clampReward(_reward);
+                                  }),
+                                ),
+                              ),
+                              Text('$_minFocusMin′'),
+                            ],
+                          ),
+                        const SizedBox(height: 8),
+                        // 联动项奖励固定 = 专注分钟 × 40%，家长不可调（用户 2026-09-21 拍板）。
+                        if (_requiresFocus)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 10, horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.teal.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                const Icon(Icons.lock_outline,
+                                    size: 18, color: Colors.teal),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    t.parent_task_edit_reward_fixed(
+                                      _minFocusMin,
+                                      Task.rewardCapFor(_minFocusMin),
+                                    ),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.teal),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          Row(
+                            children: <Widget>[
+                              Text(t.parent_task_edit_reward_label),
+                              Expanded(
+                                child: Slider(
+                                  value: _clampReward(_reward).toDouble(),
+                                  min: _minReward.toDouble(),
+                                  max: _maxReward.toDouble(),
+                                  divisions: _maxReward > _minReward
+                                      ? (_maxReward - _minReward)
+                                      : null,
+                                  label: t.parent_task_edit_reward_slider(
+                                      _reward),
+                                  onChanged: (double v) =>
+                                      setState(() => _reward = v.round()),
+                                ),
+                              ),
+                              Text('$_reward'),
+                            ],
+                          ),
+                        // 仅非联动项：提示奖励区间（默认 8 / 最大 15）。
+                        if (!_requiresFocus)
+                          Text(
+                            t.parent_task_edit_reward_range(
+                                _minReward, _maxReward, kTaskRewardDefault),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
                     ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<RepeatRule>(
-                    value: _repeat,
-                    decoration: InputDecoration(
-                        labelText: t.parent_task_edit_repeat_label),
-                    items: <DropdownMenuItem<RepeatRule>>[
-                      DropdownMenuItem(
-                          value: RepeatRule.none,
-                          child: Text(t.parent_task_edit_repeat_none)),
-                      DropdownMenuItem(
-                          value: RepeatRule.daily,
-                          child: Text(t.parent_task_edit_repeat_daily)),
-                      DropdownMenuItem(
-                          value: RepeatRule.weekly,
-                          child: Text(t.parent_task_edit_repeat_weekly)),
+                    const SizedBox(height: 10),
+                    // 卡 3 · 重复
+                    EditorSectionCard(
+                      icon: Icons.repeat,
+                      title: t.parent_editor_section_repeat,
+                      children: <Widget>[
+                        DropdownButtonFormField<RepeatRule>(
+                          isExpanded: true,
+                          value: _repeat,
+                          decoration: InputDecoration(
+                              labelText: t.parent_task_edit_repeat_label),
+                          items: <DropdownMenuItem<RepeatRule>>[
+                            DropdownMenuItem(
+                                value: RepeatRule.none,
+                                child: Text(t.parent_task_edit_repeat_none)),
+                            DropdownMenuItem(
+                                value: RepeatRule.daily,
+                                child: Text(t.parent_task_edit_repeat_daily)),
+                            DropdownMenuItem(
+                                value: RepeatRule.weekly,
+                                child: Text(t.parent_task_edit_repeat_weekly)),
+                          ],
+                          onChanged: (RepeatRule? v) =>
+                              v == null ? null : setState(() => _repeat = v),
+                        ),
+                      ],
+                    ),
+                    // 错误是「校验态」，不装进分区卡，仍在 Column 末尾。
+                    if (_error != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Text(_error!,
+                          style: const TextStyle(
+                              color: Colors.red, fontSize: 13)),
                     ],
-                    onChanged: (RepeatRule? v) =>
-                        v == null ? null : setState(() => _repeat = v),
-                  ),
-                  if (_error != null) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(_error!,
-                        style: const TextStyle(
-                            color: Colors.red, fontSize: 13)),
                   ],
-                ],
+                ),
               ),
             ),
             actions: <Widget>[

@@ -3355,4 +3355,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get garden_help_weather_body =>
       'Your garden gets one weather each day. On drought, wind, freezing or heavy rain, build the matching shelter for 10 ☀ to avoid the growth penalty. Shelters last one day only.';
+
+  @override
+  String get parent_editor_section_basic => 'Basic info';
+
+  @override
+  String get parent_editor_section_focus_reward => 'Focus & reward';
+
+  @override
+  String get parent_editor_section_repeat => 'Repeat';
+
+  @override
+  String get parent_editor_section_redeem => 'Redemption rules';
 }

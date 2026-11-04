@@ -3264,4 +3264,16 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get garden_help_weather_body =>
       '花园每天有一种天气。遇上干旱、大风、极寒、暴雨，花会难受一点——花 10 ☀ 搭上对应的棚，今天就不会被扣成长。棚只管今天。';
+
+  @override
+  String get parent_editor_section_basic => '基本信息';
+
+  @override
+  String get parent_editor_section_focus_reward => '专注与奖励';
+
+  @override
+  String get parent_editor_section_repeat => '重复';
+
+  @override
+  String get parent_editor_section_redeem => '兑换规则';
 }

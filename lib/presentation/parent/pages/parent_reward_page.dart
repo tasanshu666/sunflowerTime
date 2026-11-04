@@ -20,6 +20,7 @@ import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/parent/widgets/pool_indicator.dart';
+import 'package:sunflower_time/presentation/parent/widgets/editor_section_card.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart';
@@ -433,10 +434,12 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
   /// 并纳入新增「玩具 / 阅读」分类；图标加载失败回退 emoji（美术永不阻塞）。
   DropdownMenuItem<RewardContentCategory> _contentCategoryDropdownItem(
       RewardContentCategory c, AppLocalizations l10n) {
+    // F178-fix：下拉改 `isExpanded: true` 后内容宽由父容器决定 → 文本必须用
+    // [Expanded] + 单行 ellipsis 收纳（22pt 图标 + 英文长分类名在窄屏会超宽）；
+    // 不再用 `mainAxisSize: MainAxisSize.min`（会去抢内在宽，把父容器撑爆）。
     return DropdownMenuItem<RewardContentCategory>(
       value: c,
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
@@ -449,7 +452,13 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
             ),
           ),
           const SizedBox(width: 8),
-          Text(rewardContentCategoryLabel(c, l10n)),
+          Expanded(
+            child: Text(
+              rewardContentCategoryLabel(c, l10n),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
@@ -463,136 +472,164 @@ class _RewardEditorDialogState extends State<_RewardEditorDialog> {
       child: Builder(builder: (BuildContext context) {
         final AppLocalizations l10n = AppLocalizations.of(context);
         return AlertDialog(
-      title: Text(widget.initial == null
-          ? l10n.parent_reward_edit_title_new
-          : l10n.parent_reward_edit_title_edit),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              TextFormField(
-                controller: _nameCtrl,
-                decoration: InputDecoration(
-                  labelText: l10n.parent_reward_name_label,
+          title: Text(widget.initial == null
+              ? l10n.parent_reward_edit_title_new
+              : l10n.parent_reward_edit_title_edit),
+          content: SingleChildScrollView(
+            // F178（玄参 2026-11-04）：分区卡片化 + 平板收窄（同 task_editor_dialog）。
+            child: Form(
+              key: _formKey,
+              child: ConstrainedBox(
+                constraints:
+                    BoxConstraints(maxWidth: 380 * uiScaleOf(context)),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    // 卡 1 · 基本信息
+                    EditorSectionCard(
+                      icon: Icons.card_giftcard,
+                      title: l10n.parent_editor_section_basic,
+                      children: <Widget>[
+                        TextFormField(
+                          controller: _nameCtrl,
+                          decoration: InputDecoration(
+                            labelText: l10n.parent_reward_name_label,
+                          ),
+                          validator: (String? v) =>
+                              (v == null || v.trim().isEmpty)
+                                  ? l10n.parent_reward_err_required
+                                  : null,
+                        ),
+                        const SizedBox(height: 8),
+                        // F178-fix：`isExpanded: true` —— 默认 false 时按钮宽取「最宽菜单项」
+                        // 的内在宽，可用宽一收窄（卡片内距 / 平板 380×uiScaleOf 上限）就向下溢出。
+                        DropdownButtonFormField<RewardCategory>(
+                          isExpanded: true,
+                          initialValue: _category,
+                          decoration: InputDecoration(
+                            labelText: l10n.parent_reward_category_label,
+                          ),
+                          items: <DropdownMenuItem<RewardCategory>>[
+                            DropdownMenuItem(
+                              value: RewardCategory.parentHandled,
+                              child: Text(
+                                  l10n.parent_verify_cat_parent_handled),
+                            ),
+                            DropdownMenuItem(
+                              value: RewardCategory.selfService,
+                              child: Text(l10n.parent_reward_cat_self_full),
+                            ),
+                          ],
+                          onChanged: (RewardCategory? v) =>
+                              setState(() => _category = v!),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<RewardContentCategory>(
+                          isExpanded: true,
+                          initialValue: _contentCategory,
+                          decoration: InputDecoration(
+                            labelText: l10n.parent_reward_content_label,
+                          ),
+                          items: RewardContentCategory.values
+                              .map((RewardContentCategory c) =>
+                                  _contentCategoryDropdownItem(c, l10n))
+                              .toList(),
+                          onChanged: (RewardContentCategory? v) =>
+                              setState(() => _contentCategory = v!),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    // 卡 2 · 兑换规则
+                    EditorSectionCard(
+                      icon: Icons.redeem,
+                      title: l10n.parent_editor_section_redeem,
+                      children: <Widget>[
+                        TextFormField(
+                          initialValue: _baseCost.toString(),
+                          decoration: InputDecoration(
+                            labelText: l10n.parent_reward_cost_label,
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (String? v) {
+                            final int? n = int.tryParse(v ?? '');
+                            return (n == null || n <= 0)
+                                ? l10n.parent_reward_err_positive
+                                : null;
+                          },
+                          onSaved: (String? v) => _baseCost = int.parse(v!),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          initialValue: _freq.toString(),
+                          decoration: InputDecoration(
+                            labelText: l10n.parent_reward_freq_label,
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (String? v) {
+                            final int? n = int.tryParse(v ?? '');
+                            return (n == null || n < 0)
+                                ? l10n.parent_reward_err_nonneg
+                                : null;
+                          },
+                          onSaved: (String? v) => _freq = int.parse(v!),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<CooldownRule>(
+                          isExpanded: true,
+                          initialValue: _cooldown,
+                          decoration: InputDecoration(
+                            labelText: l10n.parent_reward_cooldown_label,
+                          ),
+                          items: <DropdownMenuItem<CooldownRule>>[
+                            DropdownMenuItem(
+                              value: CooldownRule.none,
+                              child: Text(l10n.parent_reward_cooldown_none),
+                            ),
+                            DropdownMenuItem(
+                              value: CooldownRule.weekly,
+                              child: Text(l10n.parent_reward_cooldown_weekly),
+                            ),
+                            DropdownMenuItem(
+                              value: CooldownRule.monthly,
+                              child:
+                                  Text(l10n.parent_reward_cooldown_monthly),
+                            ),
+                          ],
+                          onChanged: (CooldownRule? v) =>
+                              setState(() => _cooldown = v!),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                validator: (String? v) => (v == null || v.trim().isEmpty)
-                    ? l10n.parent_reward_err_required
-                    : null,
               ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<RewardCategory>(
-                initialValue: _category,
-                decoration: InputDecoration(
-                  labelText: l10n.parent_reward_category_label,
-                ),
-                items: <DropdownMenuItem<RewardCategory>>[
-                  DropdownMenuItem(
-                    value: RewardCategory.parentHandled,
-                    child: Text(l10n.parent_verify_cat_parent_handled),
-                  ),
-                  DropdownMenuItem(
-                    value: RewardCategory.selfService,
-                    child: Text(l10n.parent_reward_cat_self_full),
-                  ),
-                ],
-                onChanged: (RewardCategory? v) =>
-                    setState(() => _category = v!),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<RewardContentCategory>(
-                initialValue: _contentCategory,
-                decoration: InputDecoration(
-                  labelText: l10n.parent_reward_content_label,
-                ),
-                items: RewardContentCategory.values
-                    .map((RewardContentCategory c) =>
-                        _contentCategoryDropdownItem(c, l10n))
-                    .toList(),
-                onChanged: (RewardContentCategory? v) =>
-                    setState(() => _contentCategory = v!),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                initialValue: _baseCost.toString(),
-                decoration: InputDecoration(
-                  labelText: l10n.parent_reward_cost_label,
-                ),
-                keyboardType: TextInputType.number,
-                validator: (String? v) {
-                  final int? n = int.tryParse(v ?? '');
-                  return (n == null || n <= 0)
-                      ? l10n.parent_reward_err_positive
-                      : null;
-                },
-                onSaved: (String? v) => _baseCost = int.parse(v!),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                initialValue: _freq.toString(),
-                decoration: InputDecoration(
-                  labelText: l10n.parent_reward_freq_label,
-                ),
-                keyboardType: TextInputType.number,
-                validator: (String? v) {
-                  final int? n = int.tryParse(v ?? '');
-                  return (n == null || n < 0)
-                      ? l10n.parent_reward_err_nonneg
-                      : null;
-                },
-                onSaved: (String? v) => _freq = int.parse(v!),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<CooldownRule>(
-                initialValue: _cooldown,
-                decoration: InputDecoration(
-                  labelText: l10n.parent_reward_cooldown_label,
-                ),
-                items: <DropdownMenuItem<CooldownRule>>[
-                  DropdownMenuItem(
-                    value: CooldownRule.none,
-                    child: Text(l10n.parent_reward_cooldown_none),
-                  ),
-                  DropdownMenuItem(
-                    value: CooldownRule.weekly,
-                    child: Text(l10n.parent_reward_cooldown_weekly),
-                  ),
-                  DropdownMenuItem(
-                    value: CooldownRule.monthly,
-                    child: Text(l10n.parent_reward_cooldown_monthly),
-                  ),
-                ],
-                onChanged: (CooldownRule? v) => setState(() => _cooldown = v!),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.shared_cancel),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (_formKey.currentState!.validate()) {
-              _formKey.currentState!.save();
-              final RewardTemplate tpl = RewardTemplate(
-                id: widget.initial?.id ?? const Uuid().v4(),
-                name: _nameCtrl.text.trim(),
-                category: _category,
-                contentCategory: _contentCategory,
-                baseCost: _baseCost,
-                frequencyLimitPerWeek: _freq,
-                cooldownRule: _cooldown,
-              );
-              Navigator.of(context).pop(tpl);
-            }
-          },
-          child: Text(l10n.parent_task_edit_btn_save),
-        ),
-      ],
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.shared_cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (_formKey.currentState!.validate()) {
+                  _formKey.currentState!.save();
+                  final RewardTemplate tpl = RewardTemplate(
+                    id: widget.initial?.id ?? const Uuid().v4(),
+                    name: _nameCtrl.text.trim(),
+                    category: _category,
+                    contentCategory: _contentCategory,
+                    baseCost: _baseCost,
+                    frequencyLimitPerWeek: _freq,
+                    cooldownRule: _cooldown,
+                  );
+                  Navigator.of(context).pop(tpl);
+                }
+              },
+              child: Text(l10n.parent_task_edit_btn_save),
+            ),
+          ],
         );
       }),
     );

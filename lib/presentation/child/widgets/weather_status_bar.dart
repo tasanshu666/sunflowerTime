@@ -318,14 +318,15 @@ double measureTextWidth(String text, TextStyle style, TextScaler textScaler) {
 
 // ── 单点映射（新增日型 / 道具时只改这里；`switch` 穷举、无 default）──────────
 
-/// 日型 → Material 图标（**A2 占位；A5-b 才换真美术**）。
+/// 日型 → Material 图标（**A2 占位 → A5-b 起降级为「回退路径」**）。
 ///
-/// 🔴 **A5 改口径（2026-11-04）**：本注释原文写「换真美术时**组件 API 不变**」，
-///    **不成立** —— 本函数返回 [IconData]，承载不了 PNG / WebP。真美术到位时的真实
-///    改动是：**新增 `weatherArtOf(kind, size) -> Widget`**（内部 `Image.asset` +
-///    `errorBuilder` 回退到本函数）+ 替换 `_WeatherPill` 内的 `Icon(weatherIconOf(..))`
-///    调用点 + `pubspec.yaml` 声明 `assets/weather/` 叶子目录（目录**不递归**）。
-///    本函数**保留为回退路径**，不删。
+/// 🔴 **A5-b 已接入真美术（2026-11-05，既成事实）**：本注释原文写「换真美术时
+///    **组件 API 不变**」**不成立** —— 返回 [IconData] 承载不了 PNG / WebP。
+///    真实落地 = 新增 [weatherArtOf]（`Image.asset` + `errorBuilder` 回退到本函数）
+///    + 替换 [WeatherPill] 内的 `Icon(weatherIconOf(..))` 调用点
+///    + `pubspec.yaml` 声明 `assets/weather/`（目录**不递归**）。
+///    **本函数不删**：它现在是 [weatherArtOf] 的 `errorBuilder` 唯一出口，
+///    也是无美术环境（CI / 素材未随包）下唯一能画出东西的路径。
 ///
 /// 9 个图标**两两语义可辨**：多云 = 实心云、阴天 = 线框云；小雨 = 稀疏雨点、
 /// 暴雨 = 雷雨云；微风 = 气流、大风 = 风力装置。
@@ -340,6 +341,65 @@ IconData weatherIconOf(WeatherKind kind) => switch (kind) {
       WeatherKind.cold => Icons.ac_unit_rounded,
       WeatherKind.rainstorm => Icons.thunderstorm_rounded,
     };
+
+/// 日型 → 天气美术 asset 路径（**文件名即契约**，与 `assets/weather/` 一一对应）。
+///
+/// 为什么不写 `'assets/weather/weather_${kind.name}.webp'`：`WeatherKind.lightRain`
+/// 的 `name` 是驼峰 `lightRain`，而磁盘上的契约文件名是**下划线** `light_rain`
+/// （玄参交付时定的）。拼字符串会在小雨这一天**静默**回退成 Material 图标 ——
+/// 不报错、不红测，只有肉眼能看出「别的天都是画，就小雨是个雨点符号」。
+/// 穷举 `switch` 还换来「将来加第 10 种日型时编译期就报错」，与 [weatherNameOf]
+/// / [weatherIconOf] 同一条纪律。
+String weatherArtPathOf(WeatherKind kind) => switch (kind) {
+      WeatherKind.sunny => 'assets/weather/weather_sunny.webp',
+      WeatherKind.breeze => 'assets/weather/weather_breeze.webp',
+      WeatherKind.cloudy => 'assets/weather/weather_cloudy.webp',
+      WeatherKind.overcast => 'assets/weather/weather_overcast.webp',
+      WeatherKind.lightRain => 'assets/weather/weather_light_rain.webp',
+      WeatherKind.drought => 'assets/weather/weather_drought.webp',
+      WeatherKind.wind => 'assets/weather/weather_wind.webp',
+      WeatherKind.cold => 'assets/weather/weather_cold.webp',
+      WeatherKind.rainstorm => 'assets/weather/weather_rainstorm.webp',
+    };
+
+/// 日型 → 天气美术**位图**（A5-b；素材缺失时回退 [weatherIconOf]）。
+///
+/// ## 为什么必须带 `errorBuilder`
+/// `Image.asset` **静默吞掉**资源缺失（连日志都不一定有），而本行是根 `Stack` 上的
+/// 浮层——一旦那枚图缺了，孩子看到的是**一块空白**，不是「图标不好看」。
+/// `growth_icons.dart:8` 已立此规：「美术永不阻塞」。故缺失/解码失败一律回退到
+/// 同尺寸的 Material 图标，绝不出现空框、也绝不把异常抛进 `build`。
+///
+/// ## 为什么 `width` / `height` 必须显式给
+/// 与 [Icon] 的 `size` 走**同一个盒子**：`Icon(size: n)` 的 RenderBox 是 n×n，
+/// `Image(width: n, height: n)` 也是 n×n ⇒ 换图后 A2 封版的胶囊宽度预算
+/// （`:554` 把 [kWeatherPillIconSize] 算进胶囊宽）**逐位不变**，
+/// 5 档压缩阶梯与 `noHint` 阈值全部不受影响。
+/// 🔴 **不要**改成 `Image.asset(path)` 再靠 `fit` 自适应：那会按原图 288² 布局，
+/// 直接撑爆整行。
+///
+/// ## `assetPath` 参数
+/// **仅供测试注入坏路径**，用来证明 `errorBuilder` 不是死代码
+/// （`test/m3/weather_art_assets_test.dart`）。生产调用恒不传 ⇒ 走
+/// [weatherArtPathOf]。留这个口子的代价是零：多一次 `??` 判断，不影响布局。
+///
+/// `filterQuality: medium`：288 → 18 是 **16 倍**缩小，默认 `low` 会出锯齿/断线。
+Widget weatherArtOf(
+  WeatherKind kind, {
+  required double size,
+  String? assetPath,
+}) {
+  return Image.asset(
+    assetPath ?? weatherArtPathOf(kind),
+    width: size,
+    height: size,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.medium,
+    // 三条 `_`：签名是 (BuildContext, Object, StackTrace?)，一个都用不上。
+    errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+        Icon(weatherIconOf(kind), size: size, color: kWeatherTextColor),
+  );
+}
 
 /// 日型 → 天气名（ARB 下划线 getter）。
 ///
@@ -375,11 +435,11 @@ String? weatherHintOf(WeatherKind kind, AppLocalizations t) => switch (kind) {
       WeatherKind.rainstorm => t.garden_weather_hint_rainstorm,
     };
 
-/// 道具 refType → 道具图标（**A2 占位；A5-b 才换真美术**）。
+/// 道具 refType → 道具图标（**A2 占位 → A5-b 起降级为「回退路径」**）。
 ///
-/// 🔴 **A5 改口径（2026-11-04）**：同 [weatherIconOf] —— 返回 [IconData] 承载不了位图，
-///    真美术到位时新增 `shelterArtOf(refType, size) -> Widget`（`errorBuilder` 回退到本函数）。
-///    ⚠️ 但「已购」态的 `Icons.check_circle_rounded` **必须保留 Material 图标**：
+/// 🔴 **A5-b 已接入真美术（2026-11-05，既成事实）**：同 [weatherIconOf] —— 返回
+///    [IconData] 承载不了位图，故新增 [shelterArtOf]（`errorBuilder` 回退到本函数）。
+///    ⚠️ 但「已购」态的 `Icons.check_circle_rounded` **保留 Material 图标**：
 ///    §9.5 的完成态语义优先于美术，换成位图会让「做成/没做成」的判别变模糊。
 ///
 /// `String` 无法穷举，故保留 `default`：未知 refType 回退盾牌图标，
@@ -397,6 +457,63 @@ IconData shelterIconOf(String refType) {
     default:
       return Icons.shield_outlined;
   }
+}
+
+/// 道具 refType → 道具美术 asset 路径；**未知 refType 返回 `null`**。
+///
+/// `null` 的语义是「没有美术可用，直接用 [shelterIconOf] 的盾牌图标」——
+/// 绝不能编一个路径出来：`Image.asset` 会去 load 一个不存在的文件，
+/// 白白多一次异步失败再走 errorBuilder（多一帧空白）。
+String? shelterArtPathOf(String refType) {
+  switch (refType) {
+    case kWeatherShelterRefTypeShade:
+      return 'assets/weather/shelter_shade.webp';
+    case kWeatherShelterRefTypeRain:
+      return 'assets/weather/shelter_rain.webp';
+    case kWeatherShelterRefTypeWind:
+      return 'assets/weather/shelter_wind.webp';
+    case kWeatherShelterRefTypeWarm:
+      return 'assets/weather/shelter_warm.webp';
+    default:
+      return null;
+  }
+}
+
+/// 道具 refType → 道具美术**位图**（A5-b；素材缺失 / 未知 refType 时回退
+/// [shelterIconOf]）。
+///
+/// 与 [weatherArtOf] 同一条「美术永不阻塞」纪律：
+///  · `errorBuilder` 兜住「文件缺了 / 解码失败」；
+///  · [shelterArtPathOf] 返回 `null` 时**连 `Image` 都不建**，直接给 `Icon`
+///    （未知 refType 的正常表现：一个盾牌，而不是一帧空白）。
+///
+/// 回退图标着色 [GoldNoticeStyle.buttonFg]：这是**未购态**前景色，也是唯一会走到
+/// 本函数的调用点颜色（已购态走 `Icons.check_circle_rounded`，见
+/// [ShelterBuyButton]）。灰态（`affordable == false`）由外层 `Opacity(0.4)` 统一降
+/// 透明度，与回退图标无关，故这里不需要再感知余额。
+///
+/// [assetPath] 同 [weatherArtOf]：**仅测试注入坏路径**用，生产恒不传。
+Widget shelterArtOf(
+  String refType, {
+  required double size,
+  String? assetPath,
+}) {
+  final String? path = assetPath ?? shelterArtPathOf(refType);
+  if (path == null) {
+    // 未知 refType：不建 Image（省掉一次注定失败的异步 load）。
+    return Icon(shelterIconOf(refType), size: size,
+        color: GoldNoticeStyle.buttonFg);
+  }
+  return Image.asset(
+    path,
+    width: size,
+    height: size,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.medium,
+    errorBuilder: (BuildContext _, Object __, StackTrace? ___) =>
+        Icon(shelterIconOf(refType), size: size,
+            color: GoldNoticeStyle.buttonFg),
+  );
 }
 
 /// 道具 refType → 道具名（与 `refLabelOf` **共用同一批 ARB key**，不另造词）。
@@ -798,11 +915,9 @@ class WeatherPill extends StatelessWidget {
     final Widget row = Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Icon(
-          weatherIconOf(kind),
-          size: kWeatherPillIconSize * s,
-          color: kWeatherTextColor,
-        ),
+        // A5-b：真美术（288² WebP）位图。盒子尺寸仍是 `kWeatherPillIconSize * s`
+        // ——与原来 `Icon(size:)` 逐位同尺寸，胶囊宽度预算不受影响。
+        weatherArtOf(kind, size: kWeatherPillIconSize * s),
         if (showWeatherName) ...<Widget>[
           const SizedBox(width: kWeatherRowInnerGap),
           // 名字：**整块**给出，宽度由预算算死；`FittedBox` 只在测量有亚像素误差时
@@ -964,11 +1079,12 @@ class ShelterBuyButton extends StatelessWidget {
 
     final List<Widget> children = <Widget>[
       // 道具图标：非弹性、永不被挤掉（R3）。
-      Icon(
-        bought ? Icons.check_circle_rounded : shelterIconOf(refType),
-        size: kShelterIconSize * s,
-        color: fg,
-      ),
+      // A5-b：未购态走真美术位图；**已购态保留 Material ✓**（§9.5 完成态语义优先
+      // 于美术，A2 已封版）。两条分支的盒子尺寸同为 `kShelterIconSize * s`。
+      bought
+          ? Icon(Icons.check_circle_rounded,
+              size: kShelterIconSize * s, color: fg)
+          : shelterArtOf(refType, size: kShelterIconSize * s),
     ];
     if (bought) {
       children

@@ -5579,6 +5579,54 @@ abstract class AppLocalizations {
   /// **'施肥'**
   String get garden_weather_hint_rainstorm;
 
+  /// No description provided for @garden_weather_banner_todo_drought.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天很干，给花浇点水，再搭个遮阳棚吧'**
+  String get garden_weather_banner_todo_drought;
+
+  /// No description provided for @garden_weather_banner_todo_wind.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天风大，立一块挡风板护住花'**
+  String get garden_weather_banner_todo_wind;
+
+  /// No description provided for @garden_weather_banner_todo_cold.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天很冷，给花盖上保温棚吧'**
+  String get garden_weather_banner_todo_cold;
+
+  /// No description provided for @garden_weather_banner_todo_rainstorm.
+  ///
+  /// In zh, this message translates to:
+  /// **'今天下暴雨，施点肥 + 搭个遮雨棚'**
+  String get garden_weather_banner_todo_rainstorm;
+
+  /// No description provided for @garden_weather_banner_done_drought.
+  ///
+  /// In zh, this message translates to:
+  /// **'浇好啦，花喝饱了 👍'**
+  String get garden_weather_banner_done_drought;
+
+  /// No description provided for @garden_weather_banner_done_wind.
+  ///
+  /// In zh, this message translates to:
+  /// **'挡风板立好了 👍'**
+  String get garden_weather_banner_done_wind;
+
+  /// No description provided for @garden_weather_banner_done_cold.
+  ///
+  /// In zh, this message translates to:
+  /// **'盖好被子啦，暖暖的 👍'**
+  String get garden_weather_banner_done_cold;
+
+  /// No description provided for @garden_weather_banner_done_rainstorm.
+  ///
+  /// In zh, this message translates to:
+  /// **'遮雨棚搭好啦 👍'**
+  String get garden_weather_banner_done_rainstorm;
+
   /// No description provided for @garden_shelter_shade.
   ///
   /// In zh, this message translates to:

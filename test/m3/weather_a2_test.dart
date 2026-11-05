@@ -38,6 +38,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/di/today_weather.dart';
 import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart' as db;
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
@@ -64,6 +65,38 @@ import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dar
 import 'package:sunflower_time/shared/responsive.dart' show uiScaleOf;
 
 import '../helpers/no_hit_random.dart';
+
+// ── 图标槽 finder（A5-b 起图标可能是 `Image`，不再是 `Icon`）──────────────────
+//
+// 🔴 **为什么不能再用 `find.byIcon(weatherIconOf(kind))`**：A5-b 把天气 / 道具图标
+//    换成了 288² 的 WebP 位图，`find.byIcon` 只匹配 `Icon` widget ⇒ 恒 0 命中。
+//    但这几条断言的本意**不是**「必须用 Icon 画」，而是「**图标槽还在、且没被挤缩**」
+//    （R3：图标永不缩水 / 兜底档只缩尺寸不删元素）。故按**契约路径或回退图标**匹配：
+//    路径写错、图标被换掉，两条都会红，强度不变。
+Finder _glyphOf({required String? assetPath, required IconData iconData}) =>
+    find.byWidgetPredicate(
+      (Widget w) =>
+          (w is Image &&
+              w.image is AssetImage &&
+              (w.image as AssetImage).assetName == assetPath) ||
+          (w is Icon && w.icon == iconData),
+      description: '图标槽（${assetPath ?? '(无美术)'} / $iconData）',
+    );
+
+/// 天气图标槽：位图（[weatherArtPathOf]）或回退 Material 图标。
+Finder weatherGlyphOf(WeatherKind kind) => _glyphOf(
+      assetPath: weatherArtPathOf(kind),
+      iconData: weatherIconOf(kind),
+    );
+
+/// 道具图标槽：位图（[shelterArtPathOf]）或回退 Material 图标。
+///
+/// ⚠️ **已购态**的 ✓ 仍是 `Icon(Icons.check_circle_rounded)`，不在本 finder 覆盖范围内
+/// （那是 §9.5 完成态语义，A2 已封版）——本 finder 只用于**未购态**断言。
+Finder shelterGlyphOf(String refType) => _glyphOf(
+      assetPath: shelterArtPathOf(refType),
+      iconData: shelterIconOf(refType),
+    );
 
 // ── 内存 Fake 仓储（只实现本批用得到的成员）──────────────────────────────────
 
@@ -244,6 +277,28 @@ DateTime _droughtDay() => _findDay((WeatherKind k) => k == WeatherKind.drought);
 /// `'yyyy-MM-dd'`（与领域层 [_appendSpend] 用的 `datetime_ext.dayKey` 同口径）。
 String _dayKeyOf(DateTime day) => WeatherSystem.dayKey(day);
 
+/// 钉死的**温和日**天气快照（A3 测试接缝，设计 §13 / §10 T-6）。
+///
+/// ## 为什么必须钉
+/// A3 起**极端日不再渲染天气胶囊**（`kWeatherRowKey` 在树里不存在），而下面三处
+/// 真页面用例（`:1838` / `:2152` / `:2209`，共 **7 次执行**）原先的日型由
+/// 「跑测试那天」决定 ⇒ 约 20% 的日历天上会整片变红（今天 2026-11-05 正好是
+/// `drought`，改前实测全红）。
+///
+/// ## 处置口径（🔴 断言一行不改）
+/// 把页面用的 `todayWeatherProvider` 钉到 [WeatherSystem.ofDay] 实测出来的
+/// **温和日**（`_mildDay()` 从 2026-11-03 起扫描，恒返回温和日；不手写「某月某日
+/// 是晴天」——那是猜）。这样 7 次执行从「依赖日历」变成「依赖显式入参」，
+/// 语义（温和日：胶囊在、按钮不渲染、几何 y=12）与原先完全一致。
+TodayWeather _pinnedMildToday() {
+  final DateTime day = _mildDay();
+  return TodayWeather(
+    day: WeatherSystem.ofDay(day),
+    dayKey: WeatherSystem.dayKey(day),
+    observedAt: day,
+  );
+}
+
 // ── 表现层宿主 ──────────────────────────────────────────────────────────────
 
 /// 按页面真实结构搭壳：`Row(spaceBetween)[chips 占位, Flexible(天气行)]`。
@@ -423,7 +478,12 @@ List<Plant> _alivePlants(int n) {
 ///
 /// 🔴 权益必须给**买断档**：`entitlement_matrix` 里 `oneClickCare.freeEnabled = false`
 ///    ⇒ 免费档**不渲染**一键 FAB ⇒ 本组就量不到 FAB（用例会假绿）。
-Widget _realGardenPage({required List<Plant> plants}) {
+///
+/// 🔴 A3 测试接缝（§13.6）：天气一律经 [todayWeatherProvider] **钉死**（缺省 = 温和日，
+///    见 [_pinnedMildToday]）。三处调用点（`:1838` / `:2152` / `:2209`）因此与
+///    「跑测试那天是什么天气」彻底解耦，**断言内容一行不改**（§10 T-6 / V7b）。
+///    需要别的日型时显式传 `today:`（本轮无此需求，参数留作接缝）。
+Widget _realGardenPage({required List<Plant> plants, TodayWeather? today}) {
   return ProviderScope(
     overrides: <Override>[
       entitlementProvider.overrideWith((Ref ref) => Entitlement.lifetime()),
@@ -434,6 +494,7 @@ Widget _realGardenPage({required List<Plant> plants}) {
       plantRepositoryProvider.overrideWithValue(_RealPagePlants(plants)),
       bloomRewardRepositoryProvider
           .overrideWithValue(InMemoryBloomRewardRepository()),
+      todayWeatherProvider.overrideWithValue(today ?? _pinnedMildToday()),
     ],
     child: const MaterialApp(
       home: Scaffold(body: GardenPage(embedded: true)),
@@ -792,7 +853,7 @@ void main() {
       final double uiScale =
           uiScaleOf(tester.element(find.byKey(kWeatherPillKey)));
       final Size iconSize =
-          tester.getSize(find.byIcon(weatherIconOf(WeatherKind.drought)));
+          tester.getSize(weatherGlyphOf(WeatherKind.drought));
 
       // 🔴 **期望值写死 18**（**不引用 kWeatherPillIconSize**）——
       //    引用同一常量时，常量本身被改（18 → 16）会两边一起变 ⇒ 断言恒绿
@@ -811,7 +872,7 @@ void main() {
 
       // 内容不溢出：图标的矩形必须**完整落在**实体矩形内（纵向等效留白 = 5）。
       final Rect entity = tester.getRect(find.byKey(kWeatherPillKey));
-      final Rect icon = tester.getRect(find.byIcon(weatherIconOf(WeatherKind.drought)));
+      final Rect icon = tester.getRect(weatherGlyphOf(WeatherKind.drought));
       expect(icon.top, greaterThanOrEqualTo(entity.top - 0.5),
           reason: '天气图标不得顶出实体上沿');
       expect(icon.bottom, lessThanOrEqualTo(entity.bottom + 0.5),
@@ -848,10 +909,10 @@ void main() {
       expect(find.text('10 ☀', skipOffstage: false),
           findsOneWidget,
           reason: '兜底档不许把价格吞掉');
-      expect(find.byIcon(shelterIconOf(kWeatherShelterRefTypeShade)),
+      expect(shelterGlyphOf(kWeatherShelterRefTypeShade),
           findsOneWidget,
           reason: '兜底档不许把道具图标吞掉');
-      expect(find.byIcon(weatherIconOf(WeatherKind.drought)), findsOneWidget,
+      expect(weatherGlyphOf(WeatherKind.drought), findsOneWidget,
           reason: '兜底档不许把天气图标吞掉');
       // 槽宽必须非负（直接量槽的宽度，负数会立刻炸在 `SizedBox` 上）。
       expect(tester.getSize(find.byKey(kWeatherPillSlotKey)).width,
@@ -1076,10 +1137,10 @@ void main() {
             findsOneWidget,
             reason: 'width=$pageWidth：价格被吞掉了');
         // ② 道具图标 + 天气图标：都在。
-        expect(find.byIcon(shelterIconOf(kWeatherShelterRefTypeShade)),
+        expect(shelterGlyphOf(kWeatherShelterRefTypeShade),
             findsOneWidget,
             reason: 'width=$pageWidth：道具图标不见了');
-        expect(find.byIcon(weatherIconOf(WeatherKind.drought)), findsOneWidget,
+        expect(weatherGlyphOf(WeatherKind.drought), findsOneWidget,
             reason: 'width=$pageWidth：天气图标不见了');
         // ③ 320 + 3 位数 chips（可用 96）走的是**兜底档**（`FittedBox(scaleDown)`
         //    等比缩整行）—— 缩的是尺寸不是内容 ⇒ 这条也必须成立。

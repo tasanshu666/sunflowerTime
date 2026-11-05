@@ -3305,6 +3305,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get garden_weather_hint_rainstorm => 'Fertilize';
 
   @override
+  String get garden_weather_banner_todo_drought =>
+      'It\'s dry today — water your plants and put up a shade awning';
+
+  @override
+  String get garden_weather_banner_todo_wind =>
+      'Windy today — set up a windbreak for your plants';
+
+  @override
+  String get garden_weather_banner_todo_cold =>
+      'Freezing today — put a warm cover on your plants';
+
+  @override
+  String get garden_weather_banner_todo_rainstorm =>
+      'Heavy rain today — fertilize and add a rain cover';
+
+  @override
+  String get garden_weather_banner_done_drought =>
+      'Watered — your plant is happy 👍';
+
+  @override
+  String get garden_weather_banner_done_wind => 'Windbreak is up 👍';
+
+  @override
+  String get garden_weather_banner_done_cold =>
+      'Warm cover on — nice and cozy 👍';
+
+  @override
+  String get garden_weather_banner_done_rainstorm => 'Rain cover is up 👍';
+
+  @override
   String get garden_shelter_shade => 'Shade awning';
 
   @override

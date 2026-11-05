@@ -3215,6 +3215,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get garden_weather_hint_rainstorm => '施肥';
 
   @override
+  String get garden_weather_banner_todo_drought => '今天很干，给花浇点水，再搭个遮阳棚吧';
+
+  @override
+  String get garden_weather_banner_todo_wind => '今天风大，立一块挡风板护住花';
+
+  @override
+  String get garden_weather_banner_todo_cold => '今天很冷，给花盖上保温棚吧';
+
+  @override
+  String get garden_weather_banner_todo_rainstorm => '今天下暴雨，施点肥 + 搭个遮雨棚';
+
+  @override
+  String get garden_weather_banner_done_drought => '浇好啦，花喝饱了 👍';
+
+  @override
+  String get garden_weather_banner_done_wind => '挡风板立好了 👍';
+
+  @override
+  String get garden_weather_banner_done_cold => '盖好被子啦，暖暖的 👍';
+
+  @override
+  String get garden_weather_banner_done_rainstorm => '遮雨棚搭好啦 👍';
+
+  @override
   String get garden_shelter_shade => '遮阳棚';
 
   @override

@@ -88,6 +88,12 @@ flutter:
     - assets/pots/
     # 花园背景图（2026-09-23）：background.png，缺失时回退绿色渐变+草叶纹理自绘。
     - assets/garden/
+    # 天气美术资源（A5-b，2026-11-05 玄参交付 13 枚 288×288 透明 WebP）：
+    # `weather_<日型>.webp` × 9 + `shelter_<道具>.webp` × 4，文件名即契约。
+    # 接入点见 `weather_status_bar.dart` 的 `weatherArtOf` / `shelterArtOf`
+    # （均带 `errorBuilder` 回退 Material 图标 ⇒ 素材缺失也不空白）。
+    # ⚠️ 同上面的老坑：**目录声明不递归**，这一行漏了 = 13 枚图静默不进包。
+    - assets/weather/
     # 序列帧资源（2026-09-28）：成长过渡帧 grow/、浇水·施肥效果层帧 care/。
     # ⚠️ 目录声明**不递归**，必须把**叶子目录**逐个列全（漏一行 = 帧不进包 =
     # Image.asset errorBuilder 静默吞 → 只剩音效没有动画，2026-09-28 实证翻车）；

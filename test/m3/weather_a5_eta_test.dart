@@ -526,7 +526,7 @@ void main() {
       closeTo(6.8141, 1e-3),
       reason: '复花满养护 6.7741pp/天 + 0.04 ⇒ 6.8141。'
           '（逐月权重表上线后由 6.8623 派生：auto 3.6×E[g] 0.9280→0.9565、'
-          '养护项随 E[w]/E[f] 变化；doc §5.4 的复花子表尚未同步，见交付报告。）'
+          '养护项随 E[w]/E[f] 变化；doc §5.4 复花子表已同步（A6 期）。）'
           'M-A5-3（复花误用 24/T）会让它跳到 15.1812',
     );
     expect(oracle.naturalPerDay, kRebloomAutoProgressPerDay);

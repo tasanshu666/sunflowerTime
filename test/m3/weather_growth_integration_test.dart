@@ -682,7 +682,7 @@ void main() {
       expect(extreme, 20);
     });
 
-    test('温和加权 g = 1.0000 / 极端加权 g = 0.6400 / E[g] = 0.9280', () {
+    test('温和加权 g = 1.0000 / 极端加权 g = 0.7825 / E[g] = 0.9565', () {
       double mildWeighted = 0;
       double extremeWeighted = 0;
       for (final WeatherKind k in WeatherKind.values) {
@@ -700,11 +700,11 @@ void main() {
 
       print('[对账] 温和加权 g = $mildG，极端加权 g = $extremeG，E[g] = $expectedG');
       expect(mildG, closeTo(1.0, 5e-5));
-      expect(extremeG, closeTo(0.64, 5e-5));
-      expect(expectedG, closeTo(0.9280, 5e-5));
+      expect(extremeG, closeTo(0.7825, 5e-5));
+      expect(expectedG, closeTo(0.9565, 5e-5));
     });
 
-    test('E[w] = 1.0700 / E[f] = 0.9514（按权重加权，不含额度截断）', () {
+    test('E[w] = 0.9810 / E[f] = 0.9544（按权重加权，不含额度截断）', () {
       double expectedW = 0;
       double expectedF = 0;
       for (final WeatherKind k in WeatherKind.values) {
@@ -714,8 +714,8 @@ void main() {
         expectedF += weight * day.fertilizeFactor;
       }
       print('[对账] E[w] = $expectedW，E[f] = $expectedF');
-      expect(expectedW, closeTo(1.0700, 5e-5));
-      expect(expectedF, closeTo(0.9514, 5e-5));
+      expect(expectedW, closeTo(0.9810, 5e-5));
+      expect(expectedF, closeTo(0.9544, 5e-5));
     });
   });
 
@@ -784,14 +784,15 @@ void main() {
       }
 
       print('[§5.4] 复开花 3 水 1 肥实测 = $days 天（设计值 基准 7.29 / B 7.62）');
-      // 口径已由产品经理 2026-11-02 校准（`docs/天气系统_最终方案.md` v6.2 §5.4）：
+      // 口径已由产品经理 2026-11-02 校准（`docs/天气系统_最终方案.md` v6.2 §5.4），
+      // 数值 2026-11-05 随「逐月权重表」重算（年度基准 3/8/5/4）：
       //   `日均 = 3.6×E[g] + 0.7×ΣP·min(3,额度)·w + 1.5×E[f]`
-      //        = 3.3408 + 0.7×2.9920 + 1.5×0.9514 = **6.8623 pp/天**
-      //   ⇒ `50 ÷ 6.8623 = 7.29 天`（基准）/ B 口径 7.62 天。
+      //        = 3.4434 + 0.7×2.7130 + 1.5×0.9544 = **6.7741 pp/天**
+      //   ⇒ `50 ÷ 6.7741 = 7.38 天`（基准）/ B 口径 7.69 天。
       // ⚠️ 两个口径陷阱，别写错：
-      //  ① **不能省掉额度截断**：不截断是 7.0149 pp/天 → 7.13 天；B 口径 6.7149 → 7.45 天。
+      //  ① **不能省掉额度截断**：不截断是 6.9351 pp/天 → 7.21 天；B 口径 6.6651 → 7.50 天。
       //     A1 期额度**尚未接线**（`TODO(weather-A4)`，`careQuota` 仍只认 3 次），
-      //     故本测试实测的是「不截断口径」7.45 天 → 整数 8；与截断口径 7.62 的
+      //     故本测试实测的是「不截断口径」7.50 天 → 整数 8；与截断口径 7.69 的
       //     **整数天相同**，不影响结论（§5.4.1 末条「一条给 A4 期的提醒」）。
       //  ② **次数与乘数必须按日相关**（`E[次数×w]`），不能拆成 `E[次数]×E[w]`。
       // §5.4.1 规定复开花单起点整数天的区间宽度 ≥ ±2 天，故取 6~10（本起点落 8）。

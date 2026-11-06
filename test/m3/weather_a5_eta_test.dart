@@ -15,7 +15,7 @@
 /// ## 期望值来源（🔴 一律独立于被测物）
 /// 本文件**不调用** `WeatherGrowthMath.naturalDailyProgress` /
 /// `dailyEstimateProgress` 来当预言机（那是拿被测物自证），而是：
-///  · V1/V2：方案 §5.4 的**外部锚** `15.1262` / `6.8623` pp/天（+ `E[rainBonus]=0.03`）；
+///  · V1/V2：方案 §5.4 的**外部锚** `15.1412` / `6.7741` pp/天（+ `E[rainBonus]=0.04`）；
 ///  · V3~V5：`prd_params.dart` 的单点常量直接复算；
 ///  · V6：**真 service 跑一个自然日的 tick**（行为本身当预言机），36 组；
 ///  · V7/V8/V9：卡片渲染出的**字符串**与快照字段。
@@ -439,9 +439,9 @@ void main() {
   WeatherDay dayOf(WeatherKind kind) => WeatherSystem.ofKind(kind);
 
   // ───────────────────────────────────────────────────────────────────────────
-  // V1 · 加权对账（普通首花满养护）：外部锚 = 方案 §5.4 的 15.1262 + 0.03
+  // V1 · 加权对账（普通首花满养护）：外部锚 = 方案 §5.4 的 15.1412 + 0.04
   // ───────────────────────────────────────────────────────────────────────────
-  test('V1 · Σ P(d)×estimate(d) == 方案 §5.4 的 15.1262 + E[rainBonus]=0.03', () {
+  test('V1 · Σ P(d)×estimate(d) == §5.4 的 15.1412 + E[rainBonus]=0.04', () {
     final _Oracle oracle = _Oracle(
       day: dayOf(WeatherKind.sunny), // 占位；V1 逐日替换
       growthHoursPerStage: _common.growthHoursPerStage,
@@ -470,8 +470,9 @@ void main() {
 
     expect(
       weighted * 100.0,
-      closeTo(15.1562, 1e-3),
-      reason: '方案 §5.4 首花满养护 15.1262pp/天 + E[rainBonus]=0.03 ⇒ 15.1562。'
+      closeTo(15.1812, 1e-3),
+      reason: '方案 §5.4 首花满养护 15.1412pp/天 + E[rainBonus]=0.04 ⇒ 15.1812。'
+          '（逐月权重表上线后：15.1262 → 15.1412，暴雨 3% → 4% 让 bonus 0.03 → 0.04。）'
           'M-A5-1（删 bonus）/ M-A5-2（额度不截断）/ M-A5-4（漏乘 g）都会把它拉走',
     );
     // 顺带把「权重合计 100」这条前提显式钉一次，否则上面的加权值只是巧合。
@@ -492,9 +493,9 @@ void main() {
   });
 
   // ───────────────────────────────────────────────────────────────────────────
-  // V2 · 加权对账（普通复花满养护）：6.8623 + 0.03
+  // V2 · 加权对账（普通复花满养护）：6.7741 + 0.04
   // ───────────────────────────────────────────────────────────────────────────
-  test('V2 · 复花 Σ P(d)×estimate(d) == 6.8623 + 0.03（与首花完全不同的量级）', () {
+  test('V2 · 复花 Σ P(d)×estimate(d) == 6.7741 + 0.04（与首花完全不同的量级）', () {
     final _Oracle oracle = _Oracle(
       day: dayOf(WeatherKind.sunny),
       growthHoursPerStage: _common.growthHoursPerStage,
@@ -522,9 +523,11 @@ void main() {
 
     expect(
       weighted * 100.0,
-      closeTo(6.8922, 1e-3),
-      reason: '方案 §5.4 复花满养护 6.8623pp/天 + 0.03 ⇒ 6.8922。'
-          'M-A5-3（复花误用 24/T）会让它跳到 15.1562',
+      closeTo(6.8141, 1e-3),
+      reason: '复花满养护 6.7741pp/天 + 0.04 ⇒ 6.8141。'
+          '（逐月权重表上线后由 6.8623 派生：auto 3.6×E[g] 0.9280→0.9565、'
+          '养护项随 E[w]/E[f] 变化；doc §5.4 的复花子表尚未同步，见交付报告。）'
+          'M-A5-3（复花误用 24/T）会让它跳到 15.1812',
     );
     expect(oracle.naturalPerDay, kRebloomAutoProgressPerDay);
   });

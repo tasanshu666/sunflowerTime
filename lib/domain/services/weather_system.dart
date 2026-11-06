@@ -59,16 +59,16 @@ enum WeatherKind {
   /// 小雨（温和，14%；唯一压浇水额度的温和日）
   lightRain,
 
-  /// 干旱（极端，7%；`g` ×0.20 / `w` ×3.00）
+  /// 干旱（极端，年度基准 3%；**仅 5-9 月出现**；`g` ×0.20 / `w` ×3.00）
   drought,
 
-  /// 大风（极端，5%）
+  /// 大风（极端，年度基准 8%）
   wind,
 
-  /// 极寒（极端，5%；`f` ×1.50）
+  /// 极寒（极端，年度基准 5%；`f` ×1.50）
   cold,
 
-  /// 暴雨（极端，3%；浇水额度 0 + 雨水代劳 +1.00pp）
+  /// 暴雨（极端，年度基准 4%；浇水额度 0 + 雨水代劳 +1.00pp）
   rainstorm;
 
   /// 是否**极端**日型（后 4 个：drought / wind / cold / rainstorm）。
@@ -167,10 +167,14 @@ class WeatherSystem {
 
   // ── 参数表 ────────────────────────────────────────────────────────────────
 
-  /// 9 种日型的权重（**下标 = [WeatherKind.index]**，合计恒为 100）。
+  /// 9 种日型的**年度名义基准**权重（**下标 = [WeatherKind.index]**，合计恒为 100）。
   ///
   /// 单点真源是 `prd_params.dart` 的 `kWeather*Weight`；本表只是按枚举顺序排好，
   /// `weightOf` 与分布单测双向钉死（既钉「数值」也钉「顺序」）。
+  ///
+  /// 🔴 这**不是**某一天真正用的权重：逐日判定走 [weightsOfMonth]（逐月表）。
+  /// 本表的用途只有两个 —— [weightOf] 的返回口径，以及由它派生的经济量
+  /// （E[g] / E[w] / E[f]）。语义 = 12 个月权重的列均值（最大偏差 1.25pp）。
   static const List<int> _weights = <int>[
     kWeatherSunnyWeight,
     kWeatherBreezeWeight,
@@ -182,6 +186,14 @@ class WeatherSystem {
     kWeatherColdWeight,
     kWeatherRainstormWeight,
   ];
+
+  /// `month` 月（1..12）的 9 档权重（**内部直取**，不做越界校验）。
+  ///
+  /// 只有本文件内部的调用点用它 —— 月份恒来自 [DateTime.month]（`1..12` 的
+  /// 不变量由 `DateTime` 构造器保证），故无需重复校验。**外部**一律走
+  /// [weightsOfMonth]（那里有 `ArgumentError` 校验）。
+  static List<int> _weightsOfMonth(int month) =>
+      kWeatherWeightsByMonth[month - 1];
 
   /// 9 种日型的完整参数（`const` 表，无任何运行时构造）。
   static const Map<WeatherKind, WeatherDay> _table = <WeatherKind, WeatherDay>{
@@ -283,8 +295,35 @@ class WeatherSystem {
   /// 不该自己重抄一遍乘数表 —— 防孪生（同仓 S2 纪律）。
   static WeatherDay ofKind(WeatherKind kind) => _table[kind]!;
 
-  /// 日型权重（= 概率百分位，合计 100）。
+  /// 日型权重的**年度名义基准**（= 12 个月权重的列均值，合计 100）。
+  ///
+  /// 🔴 这是**年度基准**，**不是某个月的权重**：逐日判定用的是逐月表，
+  /// 要取某个月的权重请用 [weightOfMonth] / [weightsOfMonth]。
+  /// 本函数只服务「与月份无关」的派生经济量（E[g] / E[w] / E[f]）与基线单测。
   static int weightOf(WeatherKind kind) => _weights[kind.index];
+
+  /// `month` 月（**1..12**）的 9 档权重表（下标 = [WeatherKind.index]）。
+  ///
+  /// 🔴 **越界抛 [ArgumentError]**，不静默回绕：这是本层唯一的越界入口，
+  /// 一旦静默回绕，`ofDay(DateTime(2026, 13, 1))` 那类「月份传错」的 bug
+  /// 会算出一个**看起来合理**的天气，永远查不出来。
+  static List<int> weightsOfMonth(int month) {
+    if (month < 1 || month > kWeatherWeightsByMonth.length) {
+      throw ArgumentError.value(
+        month,
+        'month',
+        'month must be in 1..${kWeatherWeightsByMonth.length}',
+      );
+    }
+    return _weightsOfMonth(month);
+  }
+
+  /// `month` 月（**1..12**）里 `kind` 的权重（= 该月的概率百分位）。
+  ///
+  /// 逐月权重合计恒为 100，且温和 5 档合计 80 / 极端 4 档合计 20
+  /// （`test/m3/weather_season_test.dart` 钉死）。月份校验复用 [weightsOfMonth]。
+  static int weightOfMonth(WeatherKind kind, int month) =>
+      weightsOfMonth(month)[kind.index];
 
   /// 清空缓存（**仅供测试与诊断**：缓存无副作用，只影响耗时）。
   ///
@@ -351,22 +390,28 @@ class WeatherSystem {
   /// `seed` 的字符流恒为 `dayKey + [kWeatherSaltV1]`（salt 由 [_fnv1a32] 内部追加，
   /// 此处**不得再拼一次**，否则等于盐了两遍、与 §3.1 的公式不符）。
   /// 权重合计 100 ⇒ 等价于「按百分位落桶」，第 i 个桶占
-  /// `[前 i 个权重之和, +权重_i) / 100`。末尾兜底 `_weights.length - 1`
+  /// `[前 i 个权重之和, +权重_i) / 100`。末尾兜底 `w.length - 1`
   /// 是理论不可达分支（`u < 1` 且合计 100，浮点累加误差也在 1e-16 量级）。
-  static int _bucketOf(String dayKeyValue) {
+  ///
+  /// [w] 是本日**所属月份**的 9 档权重（`kWeatherWeightsByMonth[month - 1]`）：
+  /// 权重 0 的桶永远不会被落中（区间宽度 0），这正是「1 月不可能干旱」的实现基础。
+  static int _bucketOf(String dayKeyValue, List<int> w) {
     final int seed = _fnv1a32(dayKeyValue);
     final double u = seed / 4294967296.0;
     double cumulative = 0;
-    for (int i = 0; i < _weights.length; i++) {
-      cumulative += _weights[i] / 100.0;
+    for (int i = 0; i < w.length; i++) {
+      cumulative += w[i] / 100.0;
       if (u < cumulative) return i;
     }
-    return _weights.length - 1;
+    return w.length - 1;
   }
 
   /// 裸桶（**只落权重、不套软约束**）：锚点前的日子与理论不可达分支用它。
-  static WeatherKind _nakedKind(String dayKeyValue) =>
-      WeatherKind.values[_bucketOf(dayKeyValue)];
+  ///
+  /// 入参是**日期**而不是 `dayKey` 字符串：落桶要用「这一天自己那个月」的权重表，
+  /// 只传 key 就拿不到月份。锚点分支同理 —— 只是不套软约束，权重仍按月取。
+  static WeatherKind _nakedKind(DateTime day) =>
+      WeatherKind.values[_bucketOf(dayKey(day), _weightsOfMonth(day.month))];
 
   // ── 约束链 ────────────────────────────────────────────────────────────────
 
@@ -384,7 +429,7 @@ class WeatherSystem {
 
     // 锚点之前：裸桶（无更早历史可参照，故不套约束）。
     if (target.isBefore(_epoch)) {
-      final WeatherDay bare = _table[_nakedKind(targetKey)]!;
+      final WeatherDay bare = _table[_nakedKind(target)]!;
       _put(targetKey, bare);
       return bare;
     }
@@ -423,7 +468,9 @@ class WeatherSystem {
       if (hit != null) {
         value = hit; // 已定稿的日子：权威值直接沿用（顺带推进链条状态）
       } else {
-        value = _table[_pickKind(key, prev1, prev2)]!;
+        // 🔴 月份取 **`pending[i]` 自己**的月份，不是 `target` 的：
+        //    链条可能横跨月末（3 月 31 日 → 4 月 1 日），每天的权重表由它自己决定。
+        value = _table[_pickKind(key, pending[i].month, prev1, prev2)]!;
         if (i < cacheFrom) _put(key, value);
       }
       prev2 = prev1; // 前进一天：新「前天」= 旧「昨天」
@@ -433,7 +480,7 @@ class WeatherSystem {
 
     // `pending` 恒以 `target` 收尾（首轮迭代必入列且 `target` 未缓存），故 `result`
     // 必已赋值；可空类型只是为了让「正常路径」零假初值。
-    final WeatherDay resolved = result ?? _table[_nakedKind(targetKey)]!;
+    final WeatherDay resolved = result ?? _table[_nakedKind(target)]!;
     // 目标日可能因「只缓存尾部」而没入缓存，补写一次：下次查询 O(1)。
     if (!_cache.containsKey(targetKey)) _put(targetKey, resolved);
     return resolved;
@@ -453,26 +500,37 @@ class WeatherSystem {
     final String key = dayKey(day);
     final WeatherDay? cached = _cache[key];
     if (cached != null) return cached.kind;
-    return _nakedKind(key);
+    return _nakedKind(day);
   }
 
   /// 落桶 + 顺延，直到得到一个**合法**日型。
   ///
   /// 顺延最多 [kWeatherRebucketMaxAttempts] 次（= 9，相当于把 9 个桶全试一遍）；
-  /// 第 9 次仍不合法是**理论不可达**（同型极端被约束 ② 挡住时，往后顺延必然先
-  /// 撞上另一种极端——它是合法的，直接命中；温和 5 种里最多只有 1 种被约束 ①
-  /// 挡住 ⇒ 至少 4 个合法桶），届时兜底返回原桶：宁可偶发违反一次软约束，
+  /// 第 9 次仍不合法是**理论不可达**，届时兜底返回原桶：宁可偶发违反一次软约束，
   /// 也不留死循环。
+  ///
+  /// 🔴 **`w[bucket] > 0` 这条判据是必须的**（逐月表上线后才存在）：权重为 0 的
+  /// 日型在当月「物理上不该出现」（如 1 月的干旱 / 7 月的极寒）。若不加这条，
+  /// 被约束 ② 挡下的 `cold` 会顺延到权重为 0 的 `rainstorm`，实测漏出 0.3~0.5%，
+  /// 「冬季不下暴雨 / 非旱季不干旱」就成了空话。旧表（9 桶全正）下它零行为变化。
+  ///
+  /// 🔴 **顺延是枚举顺序 +1，不跨月换表** —— 3 月 31 日被挡仍按 **3 月**权重顺延，
+  /// 不会串到 4 月。月份只由**被算的那一天自己**决定（[month] 参数），
+  /// 与链条上下文、与查询顺序都无关。
   static WeatherKind _pickKind(
     String dayKeyValue,
+    int month,
     WeatherKind prev1,
     WeatherKind prev2,
   ) {
-    final int base = _bucketOf(dayKeyValue);
+    final List<int> w = _weightsOfMonth(month);
+    final int base = _bucketOf(dayKeyValue, w);
     int bucket = base;
     for (int attempt = 0; attempt < kWeatherRebucketMaxAttempts; attempt++) {
-      final WeatherKind candidate = WeatherKind.values[bucket];
-      if (_isAllowed(candidate, prev1, prev2)) return candidate;
+      if (w[bucket] > 0) {
+        final WeatherKind candidate = WeatherKind.values[bucket];
+        if (_isAllowed(candidate, prev1, prev2)) return candidate;
+      }
       bucket = (bucket + 1) % WeatherKind.values.length; // 超出末尾回绕到第一个桶
     }
     return WeatherKind.values[base];
@@ -487,9 +545,8 @@ class WeatherSystem {
   /// `docs/天气系统_最终方案.md` 与 team-lead 2026-11-02 的裁定），而玄参重申
   /// 「极端 20% 的概率保持不变」⇒ **让的是约束，不是概率**。
   /// 干旱→暴雨 是**允许**的（那本来就是天气变化）；干旱→干旱 才重选。
-  /// 顺延方向仍是「下一个桶」，故干旱被挡会落到大风（另一种极端，合法），
-  /// 极端总量几乎不损失；只有暴雨（最后一个极端桶）被挡才回绕到 sunny，
-  /// 概率约 `0.03 × 0.03` ⇒ sunny 只多 0.09pp。
+  /// 顺延方向仍是「下一个桶」，且**跳过当月权重为 0 的桶**（见 [_pickKind]），
+  /// 故极端的实际占比只会因「被挡后落到温和」略低于名义 20%（实测世纪均值 18.92%）。
   static bool _isAllowed(
     WeatherKind candidate,
     WeatherKind prev1,

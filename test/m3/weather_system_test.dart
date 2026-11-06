@@ -153,11 +153,14 @@ void main() {
 
     // 每个日型的**容忍度**：一律 1.5pp（含 4 种极端，无任何例外）。
     //
-    // 软约束会让实际值轻微偏离名义值：被挡下的日子一律「顺延到下一个桶」。
+    // 软约束会让实际值轻微偏离名义值：被挡下的日子一律「顺延到下一个桶」，
+    // 且**跳过当月权重为 0 的桶**（逐月权重表上线后的 `w[bucket] > 0`）。
     // 因为约束 ② 已收窄为「**同一种**极端不得连续两天」（不是「任何极端」），
-    // 被挡下的日型只可能落到**相邻的那种极端**（干旱→大风…），不会成群回绕到
-    // sunshine 上，故 9 种日型实测偏差全在 0.72pp 以内（实测最大 |偏差| =
-    // sunny −0.71pp）。唯一会回绕到 sunny 的是暴雨撞暴雨（≈0.03×0.03）。
+    // 被挡下的极端日型只可能落到**同一列的另一种极端**或（当月已无其它极端时）
+    // 回绕到 sunny —— 后者正是 3 月大风被挡后的落点：3 月 cold / rainstorm 权重
+    // 都是 0，wind（名义 20%）只能回绕，故 3 月 wind 实测 16.32%（−3.68pp）。
+    // 全世纪 9 种日型实测偏差都在 1.1pp 以内（实测最大 |偏差| = lightRain −1.06pp），
+    // 极端合计实测 **18.92%**（名义 20%，最大偏差的另一处 −1.08pp）。
     const double tolerancePp = 1.5;
 
     for (final WeatherKind k in WeatherKind.values) {
@@ -171,10 +174,17 @@ void main() {
     }
 
     // 极端合计：玄参硬裁定「**极端 20% 的概率保持不变**」（2026-11-02 重申）⇒
-    // 这里钉 20%，只留 ±1.5pp 给软约束的扰动。实测 20.31%。
+    // 这里钉 20%，只留 ±1.5pp 给软约束的扰动。实测 18.92%。
     // ⚠️ 反例记档：若把约束 ② 改回「任何两种极端不得相邻」，极端占比会掉到
     // 1/6 ≈ 16.67%（稳态解 e = 0.20 × (1 − e)），本断言会立刻报红 —— 这正是
     // 我们要的守卫：让的是约束，不是概率。
+    // ⚠️ 2026-11-05 追加：冬季 / 春季 drought 与 rainstorm 权重为 0，被约束 ②
+    // 挡下的 cold 只能一路回绕到 sunny ⇒ 冬季极端实测明显低于名义 20%：
+    // **1 月 17.5% / 2 月 16.8% / 12 月 17.5%**（实测天数 542/3100、474/2825、541/3100），
+    // 这正是极端合计从 20% 掉到 18.92%（−1.08pp）的主要来源。
+    // 逐月极端占比（正确盐下的实测，供核对）：1 月 17.5 / 2 月 16.8 / 3 月 16.3 /
+    // 4 月 19.3 / 5 月 19.2 / 6 月 21.0 / 7 月 20.6 / 8 月 20.2 / 9 月 19.2 /
+    // 10 月 20.4 / 11 月 19.0 / 12 月 17.5。
     double extremePp = 0;
     for (final WeatherKind k in WeatherKind.values) {
       if (k.isExtreme) extremePp += hist[k]! * 100.0 / total;
@@ -246,7 +256,7 @@ void main() {
     );
   });
 
-  test('⑦ 三条派生量：E[g] = 0.9280 / E[w] = 1.0700 / E[f] = 0.9514', () {
+  test('⑦ 三条派生量：E[g] = 0.9565 / E[w] = 0.9810 / E[f] = 0.9544', () {
     double g = 0;
     double w = 0;
     double f = 0;
@@ -257,10 +267,13 @@ void main() {
       w += weight * day.waterFactor;
       f += weight * day.fertilizeFactor;
     }
-    expect(g / 100, closeTo(0.9280, 1e-9), reason: 'E[g]（删高温后）');
-    expect(w / 100, closeTo(1.0700, 1e-9), reason: 'E[w]');
-    expect(f / 100, closeTo(0.9514, 1e-9), reason: 'E[f]');
-    // 极端 4 种加权 g = 0.6400（E[g] = 0.8×1.0 + 0.2×0.64 的另一半）。
+    // 🔴 2026-11-05 逐月权重表上线后年度基准变成 3/8/5/4，三条派生量随之下移：
+    //    极端加权 g 0.6400 → 0.7825，E[g] 0.9280 → 0.9565，E[w] 1.0700 → 0.9810，
+    //    E[f] 0.9514 → 0.9544（温和 5 档不变 ⇒ 温和加权 g 仍精确 1.0000）。
+    expect(g / 100, closeTo(0.9565, 1e-9), reason: 'E[g]（逐月权重表 · 年度基准）');
+    expect(w / 100, closeTo(0.9810, 1e-9), reason: 'E[w]');
+    expect(f / 100, closeTo(0.9544, 1e-9), reason: 'E[f]');
+    // 极端 4 种加权 g = 0.7825（E[g] = 0.8×1.0 + 0.2×0.7825 的另一半）。
     double extremeG = 0;
     int extremeWeight = 0;
     for (final WeatherKind k in WeatherKind.values) {
@@ -269,7 +282,7 @@ void main() {
       extremeWeight += WeatherSystem.weightOf(k);
     }
     expect(extremeWeight, 20);
-    expect(extremeG / extremeWeight, closeTo(0.6400, 1e-9));
+    expect(extremeG / extremeWeight, closeTo(0.7825, 1e-9));
   });
 
   test('⑧ 道具映射：4 极端各一件棚，5 温和全部 null', () {

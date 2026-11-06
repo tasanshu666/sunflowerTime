@@ -620,8 +620,14 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       bool anyFertilized = false;
       if (shelterRef != null && _plants.isNotEmpty) {
         try {
+          // 🔴 用 `today.observedAt`（条幅认定的今天）而**不是**本方法的局部
+          //    `now`：`careQuotas` 的「今日已用次数」是按它自己的入参算日窗口的，
+          //    若传另一处读钟的时刻，「条幅认定的今天」与「查的是哪天用了几次」
+          //    就可能不是同一天（跨零点、以及测试里钉死 `todayWeatherProvider`
+          //    的场景都会踩到）⇒ 账本明明有 `plant_water` 行、条幅却停在 todo。
+          //    同源化后二者由构造保证一致（§13.3 的同一条纪律）。
           final Map<String, PlantCareQuota> quotas =
-              await svc.careQuotas(_plants, now);
+              await svc.careQuotas(_plants, today.observedAt);
           for (final PlantCareQuota q in quotas.values) {
             if (q.waterUsedToday >= 1) anyWatered = true;
             if (q.fertilizeUsedToday >= 1) anyFertilized = true;

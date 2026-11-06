@@ -265,7 +265,7 @@ void main() {
     }
   });
 
-  test('A · B 口径期望 = 0.30pp/天、A 口径期望 = 0.20pp/天（§5.2）', () {
+  test('A · B 口径期望 = 0.27pp/天、A 口径期望 = 0.20pp/天（§5.2）', () {
     double expectedB = 0;
     double expectedA = 0;
     for (final WeatherKind k in WeatherKind.values) {
@@ -281,7 +281,12 @@ void main() {
         expectedA += p * kWeatherPenaltyPerMissingItem; // A：每极端日固定 1 项
       }
     }
-    expect(expectedB * 100, closeTo(0.30, 1e-9), reason: 'B = 1%×30%');
+    // 🔴 逐月权重表上线后（2026-11-05 玄参裁定「干旱只在 5-9 月」）年度基准变成
+    // 干旱 3 / 大风 8 / 极寒 5 / 暴雨 4：**极端合计仍是 20**，但「两项惩罚」的
+    // 日型（干旱、暴雨）合计从 10 掉到 7，「一项惩罚」的（大风、极寒）从 10 升到 13
+    // ⇒ B 口径期望从 0.30pp/天 派生为 (2×3 + 1×8 + 1×5 + 2×4)/100 = **0.27pp/天**。
+    // ⚠️ 这不是玩法常量的改动，是权重重配后的派生结果（常量仍是 1pp/项）。
+    expect(expectedB * 100, closeTo(0.27, 1e-9), reason: 'B = 1%×27%');
     expect(expectedA * 100, closeTo(0.20, 1e-9), reason: 'A = 1%×20%');
   });
 
@@ -289,9 +294,9 @@ void main() {
     // 合成日：乘数取三条派生量（§3.4），日型取温和（惩罚另行按期望扣）。
     const WeatherDay synthetic = WeatherDay(
       kind: WeatherKind.sunny,
-      growthFactor: 0.9280,
-      waterFactor: 1.0700,
-      fertilizeFactor: 0.9514,
+      growthFactor: 0.9565,
+      waterFactor: 0.9810,
+      fertilizeFactor: 0.9544,
     );
     double dailyPp({
       required bool oneWater,
@@ -310,7 +315,7 @@ void main() {
         );
       }
       if (withPenalty) {
-        // B 口径期望：真权重 × 真 penaltyOf（全没做）= 0.30pp/天。
+        // B 口径期望：真权重 × 真 penaltyOf（全没做）= 0.27pp/天（由 weightOf 派生）。
         for (final WeatherKind k in WeatherKind.values) {
           gain += WeatherSystem.weightOf(k) /
               100.0 *
@@ -327,20 +332,21 @@ void main() {
 
     double daysOf(double ppPerDay) => _firstBloomPp / ppPerDay;
 
-    // 零养护：9.28pp/天 → 32.33 天（文档 §5.4）。
+    // 零养护：9.5650pp/天 → 31.36 天（文档 §5.4）。
     expect(daysOf(dailyPp(oneWater: false, withPenalty: false)),
-        closeTo(32.33, 0.15), reason: '零养护基准');
-    // 1 水 0 肥：合成日 10.35pp/天 → 28.99 天。
-    // ⚠️ 文档写 29.02（日均 10.3380）：文档口径是 E[次数(d)×w(d)]（按日相关，
-    // 1.0580pp），合成日是 1×E[w]（1.0700pp），差 0.012pp/天 → 0.036 天，
-    // 来源就是这层相关性行，不是实现错（D 层用相关口径精确复现 29.02）。
+        closeTo(31.36, 0.15), reason: '零养护基准');
+    // 1 水 0 肥：合成日 10.5460pp/天 → 28.45 天。文档写 28.49（日均 10.5300）：
+    // 文档口径是 E[次数(d)×w(d)]（按日相关），合成日是 1×E[w]（0.9810），
+    // 差 0.016pp/天 → 0.043 天，来源就是这层相关性行，不是实现错
+    // （D 层用相关口径精确复现 28.49）。
     expect(daysOf(dailyPp(oneWater: true, withPenalty: false)),
-        closeTo(29.02, 0.15), reason: '1水0肥基准（0.036 天差 = 相关性行，见注释）');
-    // 带 B 惩罚：零养护 33.41 / 1水0肥 29.89（文档）。
+        closeTo(28.49, 0.15), reason: '1水0肥基准（0.043 天差 = 相关性行，见注释）');
+    // 带 B 惩罚：零养护 32.28 / 1水0肥 29.24（文档）。合成日分别 32.2754 / 29.1942，
+    // 差 0.005 / 0.046 天，同样来自相关性行（B 口径 0.27pp/天 × 相关性）。
     expect(daysOf(dailyPp(oneWater: false, withPenalty: true)),
-        closeTo(33.41, 0.15), reason: '零养护 + B 惩罚');
+        closeTo(32.28, 0.15), reason: '零养护 + B 惩罚');
     expect(daysOf(dailyPp(oneWater: true, withPenalty: true)),
-        closeTo(29.89, 0.15), reason: '1水0肥 + B 惩罚（同上 0.04 天相关性差）');
+        closeTo(29.24, 0.15), reason: '1水0肥 + B 惩罚（同上 0.046 天相关性差）');
   });
 
   test('B · G1a 护栏：零养护与 1 水 0 肥 ∈ [26, 34] 天（§5.5 断言 A/B）', () {
@@ -394,11 +400,11 @@ void main() {
   test('D · §5.4 五档日均 pp 与天数全表对账（1e-9 / 0.02 天）', () {
     // 档位 → (日均 pp 文档值, 天数文档值)。
     const Map<String, List<double>> table = <String, List<double>>{
-      '零养护': <double>[9.2800, 32.33],
-      '1水0肥': <double>[10.3380, 29.02],
-      '1水1肥': <double>[13.1922, 22.74],
-      '2水1肥': <double>[14.1592, 21.19],
-      '3水1肥': <double>[15.1262, 19.83],
+      '零养护': <double>[9.5650, 31.36],
+      '1水0肥': <double>[10.5300, 28.49],
+      '1水1肥': <double>[13.3932, 22.40],
+      '2水1肥': <double>[14.2672, 21.03],
+      '3水1肥': <double>[15.1412, 19.81],
     };
     const Map<String, List<int>> plans = <String, List<int>>{
       '零养护': <int>[0, 0],
@@ -418,11 +424,11 @@ void main() {
   test('D · §5.4 惩罚两列（A / B 口径）全表对账', () {
     // 档位 → (基准天数, A 天数, B 天数)。
     const Map<String, List<double>> table = <String, List<double>>{
-      '3水1肥': <double>[19.83, 20.10, 20.23],
-      '2水1肥': <double>[21.19, 21.49, 21.65],
-      '1水1肥': <double>[22.74, 23.09, 23.27],
-      '1水0肥': <double>[29.02, 29.59, 29.89],
-      '零养护': <double>[32.33, 33.04, 33.41],
+      '3水1肥': <double>[19.81, 20.08, 20.17],
+      '2水1肥': <double>[21.03, 21.33, 21.43],
+      '1水1肥': <double>[22.40, 22.74, 22.86],
+      '1水0肥': <double>[28.49, 29.04, 29.24],
+      '零养护': <double>[31.36, 32.03, 32.28],
     };
     const Map<String, List<int>> plans = <String, List<int>>{
       '3水1肥': <int>[3, 1],
@@ -431,27 +437,45 @@ void main() {
       '1水0肥': <int>[1, 0],
       '零养护': <int>[0, 0],
     };
+    // 🔴 B 口径的日均扣减 = `E[每个极端日的缺失项数] × 1pp`（§5.2），**由 weightOf 派生**，
+    //    不写死字面量：权重一改，这里跟着变，不会出现「断言说 0.27、算式用 0.30」的分裂
+    //    （这正是本文件 2026-11-05 修掉的那个缺陷）。
+    //    A 口径恒 `0.20`：极端合计 20% × 每极端日固定 1 项，与极端内部构成无关。
+    double bDailyPp = 0;
+    for (final WeatherKind k in WeatherKind.values) {
+      bDailyPp += WeatherSystem.weightOf(k) /
+          100.0 *
+          -WeatherGrowthMath.penaltyOf(
+            day: WeatherSystem.ofKind(k),
+            hasShelter: false,
+            watered: false,
+            fertilized: false,
+          );
+    }
+    bDailyPp *= 100;
+    // 与「A · B 口径期望」那条断言互锁（同一量，两处都不许写死成不同的数）。
+    expect(bDailyPp, closeTo(0.27, 1e-9));
+    const double withA = 0.20 * kWeatherPenaltyPerMissingItem * 100;
+    final double withB = bDailyPp;
     table.forEach((String tier, List<double> doc) {
       final List<int> plan = plans[tier]!;
       final double base = _docDailyPp(waterPlan: plan[0], fertPlan: plan[1]);
       expect(_firstBloomPp / base, closeTo(doc[0], 0.02),
           reason: '$tier 基准天数');
-      final double withA = base - 0.20 * kWeatherPenaltyPerMissingItem * 100;
-      final double withB = base - 0.30 * kWeatherPenaltyPerMissingItem * 100;
-      expect(_firstBloomPp / withA, closeTo(doc[1], 0.02),
+      expect(_firstBloomPp / (base - withA), closeTo(doc[1], 0.02),
           reason: '$tier A 口径天数');
-      expect(_firstBloomPp / withB, closeTo(doc[2], 0.02),
+      expect(_firstBloomPp / (base - withB), closeTo(doc[2], 0.02),
           reason: '$tier B 口径天数');
     });
   });
 
   test('D · 反向守卫：拆开算（E[次数]×E[乘数]）必然对不上 §5.4', () {
-    // 把「3 水 1 肥」按拆开口径算一遍：9.28 + 3×1.07 + 1×3×0.9514 = 15.3442pp
-    // → 19.55 天 ≠ 文档 19.83（差 0.28 天）。钉住这个差，防止将来有人
+    // 把「3 水 1 肥」按拆开口径算一遍：9.5650 + 3×0.9810 + 1×3×0.9544 = 15.3712pp
+    // → 19.52 天 ≠ 文档 19.81（差 0.29 天）。钉住这个差，防止将来有人
     // 「顺手简化」成拆开算（次数与乘数的相关性：暴雨日次数为 0 且 w 也低）。
-    const double naive = 9.28 + 3 * 1.07 + 1 * 3 * 0.9514;
+    const double naive = 9.5650 + 3 * 0.9810 + 1 * 3 * 0.9544;
     final double correlated = _docDailyPp(waterPlan: 3, fertPlan: 1);
-    expect(correlated, closeTo(15.1262, 1e-9));
+    expect(correlated, closeTo(15.1412, 1e-9));
     expect(naive - correlated, greaterThan(0.2),
         reason: '拆开算 vs 相关算差 $naive vs $correlated：简化即错');
   });

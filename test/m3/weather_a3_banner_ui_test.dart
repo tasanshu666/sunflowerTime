@@ -1,12 +1,14 @@
 /// 天气系统 A3 期 · 顶部天气条幅 **验收测试**（V6~V10 + 跨零点接缝）。
 ///
 /// ## 全部走**真页面** + 钉死天气（设计 §13）
-/// 每条用例都 `todayWeatherProvider.overrideWithValue(...)` 把日型钉死，日期来自
-/// **探针实测**（`WeatherSystem.ofDay` 是纯函数，但「某天是哪种天气」只能打印确认）：
-///  · `2026-11-10` ⇒ `sunny`（温和日）；
-///  · `2026-11-05` ⇒ `drought`（极端日）；
-///  · `2026-01-01` ⇒ `drought`（跨零点用例：与「跑测试那天」**不同日**才抓得住
-///    重新读钟的实现）。
+/// 每条用例都 `todayWeatherProvider.overrideWithValue(...)` 把日型钉死，日期由
+/// `_findDay` **动态查找**（`WeatherSystem.ofDay` 是纯函数，故查找结果是确定值；
+/// 但不许手写日期 —— 逐月权重表上线后「哪天是干旱」会随季节口径变化，
+/// 写死日期 = 埋一个只在某些月份红的雷）：
+///  · `_kMildDay` ⇒ 2026-11-03 起第一个 `sunny`（温和日，胶囊路径）；
+///  · `_kDroughtDay` ⇒ 2026-11-03 起第一个 `drought`（极端日，条幅路径）；
+///  · `_kCrossMidnightDroughtDay` ⇒ 同上那天的 `23:59:59`（跨零点用例：
+///    与「跑测试那天」**不同日**才抓得住重新读钟的实现）。
 ///
 /// 🔴 **禁 `pumpAndSettle`**：花园页有两个无限动画（木牌呼吸 / 氛围音），
 ///    `pumpAndSettle` 永不返回 ⇒ 本文件一律用有界 `pump`。
@@ -50,20 +52,44 @@ import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart'
 import 'package:sunflower_time/presentation/child/widgets/weather_banner.dart';
 import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dart';
 
-// ── 钉死的日期（**探针实测**，见文件头）────────────────────────────────────────
+// ── 日期挑选（**绝不手写日型 / 绝不写死日期**，一律走真源 `WeatherSystem.ofDay`）──
 
-/// 温和日：`WeatherSystem.ofDay(2026-11-10) == sunny`（实测打印确认）。
-final DateTime _kMildDay = DateTime(2026, 11, 10, 9);
-
-/// 极端日：`WeatherSystem.ofDay(2026-11-05) == drought`（实测打印确认）。
+/// 从 **2026-11-03** 起逐日往后扫，找到第一个满足 [match] 的自然日（上限 800 天）。
 ///
-/// 选它的另一个好处：**它正是 A3 的批准日**，将来回看这份用例不必再查日历。
-final DateTime _kDroughtDay = DateTime(2026, 11, 5, 9);
+/// 与 `weather_a2_test.dart` 里的同名工具同法：800 天覆盖两年多，对 9 种日型
+/// （最稀有的干旱在非旱季权重为 0，旱季也有 7~8%）来说必然命中；扫不到就是
+/// 权重表被改坏了，`StateError` 让根因直接暴露，而不是退回一个假日期。
+DateTime _findDay(bool Function(WeatherKind) match) {
+  final DateTime base = DateTime(2026, 11, 3);
+  for (int i = 0; i < 800; i++) {
+    final DateTime day = DateTime(base.year, base.month, base.day + i, 9);
+    if (match(WeatherSystem.ofDay(day).kind)) return day;
+  }
+  throw StateError('no matching day found within 800 days');
+}
 
-/// 跨零点用例用：`WeatherSystem.ofDay(2026-01-01) == drought`（实测打印确认），
-/// 且与「跑测试那天」不是同一天 ⇒ 任何一处偷偷 `DateTime.now()` 都会写出不同的
-/// `dayKey`，断言当场变红（变异点 M-A3-9）。
-final DateTime _kCrossMidnightDroughtDay = DateTime(2026, 1, 1, 23, 59, 59);
+/// 温和日（`sunny`）：2026-11-03 起第一个阳光明媚日（动态查找）。
+final DateTime _kMildDay = _findDay((WeatherKind k) => k == WeatherKind.sunny);
+
+/// 极端日（`drought`）：2026-11-03 起第一个干旱日（动态查找）。
+///
+/// 🔴 **不能写死 2026-11-05**：逐月权重表上线后干旱只在 **5-9 月**出现，
+/// 而 11 月的干旱权重是 0 ⇒ 那个日期现在是大风/极寒，写死必红。
+final DateTime _kDroughtDay = _findDay((WeatherKind k) => k == WeatherKind.drought);
+
+/// 跨零点用例用：**同一个干旱日的 `23:59:59`**（动态查找 + 后移时分秒）。
+///
+/// 与「跑测试那天」不是同一天（2026-11-03 起扫到的旱季日子距真实今天至少半年），
+/// 故任何一处偷偷 `DateTime.now()` 都会写出不同的 `dayKey`，断言当场变红
+/// （变异点 M-A3-9）。
+final DateTime _kCrossMidnightDroughtDay = DateTime(
+  _kDroughtDay.year,
+  _kDroughtDay.month,
+  _kDroughtDay.day,
+  23,
+  59,
+  59,
+);
 
 /// 把某个自然日包成 [TodayWeather]（三字段同源，与生产口径一致）。
 TodayWeather _todayOf(DateTime day) => TodayWeather(
@@ -357,7 +383,7 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
   // V6 · 温和日：**零几何变化**（条幅不渲染，胶囊与 chips 都在 y=12）
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('V6 · 温和日（sunny 2026-11-10）：条幅不存在、胶囊存在，'
+  testWidgets('V6 · 温和日（sunny，动态查找）：条幅不存在、胶囊存在，'
       '胶囊槽顶/胶囊实体顶/chips 行顶 == 12（与 A2 基线同值）', (WidgetTester tester) async {
     _phoneViewport(tester);
     await _pumpLoaded(tester, _page(today: _todayOf(_kMildDay)));
@@ -386,7 +412,7 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
   // V7 · 极端日几何（**写死坐标**，不引用实现常量）
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('V7 · 极端日（drought 2026-11-05）：条幅 top==6 / height==56 / '
+  testWidgets('V7 · 极端日（drought，动态查找）：条幅 top==6 / height==56 / '
       'left==12 / width==366；chips 行顶==68；kWeatherRowKey 不存在',
       (WidgetTester tester) async {
     _phoneViewport(tester);
@@ -597,7 +623,7 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
   // T-7.3 · 跨零点：确认卡写的道具 == 账本记的道具 == provider 的 dayKey
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('T-7 · 跨零点（钉 2026-01-01 23:59:59 drought，与真实今天不同日）：'
+  testWidgets('T-7 · 跨零点（钉「动态查找的干旱日 23:59:59」，与真实今天不同日）：'
       '确认卡写「遮阳棚」，账本写入 refType==shelter_shade 且 dayKey==钉死日',
       (WidgetTester tester) async {
     _phoneViewport(tester);
@@ -608,7 +634,7 @@ void main() {
 
     // 前置：钉的这一天确实是干旱日、且与真实今天不是同一天（否则本用例没意义）。
     expect(pinned.day.kind, WeatherKind.drought);
-    expect(pinned.dayKey, '2026-01-01');
+    expect(pinned.dayKey, WeatherSystem.dayKey(_kCrossMidnightDroughtDay));
     expect(pinned.dayKey, isNot(WeatherSystem.dayKey(DateTime.now())),
         reason: '钉死的日子必须与「跑测试那天」不同，才能抓住重新读钟的实现');
 

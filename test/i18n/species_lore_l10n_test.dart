@@ -12,9 +12,9 @@
 /// UI 经 `core/i18n/species_lore_l10n.dart::speciesLoreL10n` 取用。
 ///
 /// ## 本文件锁四条
-///  ① **zh 逐字节不变**：8 物种 × 2（intro/story）+ 2 条兜底 = 18 条 ARB zh 值
+///  ① **zh 逐字节不变**：10 物种 × 2（intro/story）+ 2 条兜底 = 22 条 ARB zh 值
 ///     与迁移前 `kSpeciesLore` / `kFallbackSpeciesLore` 宪法原文完全一致（F151
-///     增葡萄、F153 增玫瑰时按当时 ARB 原文追加锚点）；
+///     增葡萄、F153 增玫瑰、2026-11-08 增荷花 / 蓝莓时按当时 ARB 原文追加锚点）；
 ///  ② **en 无 CJK**：14 条英文全部非空且不含任何汉字（英文模式不再显中文）；
 ///  ③ **未知 id 回退**：已删物种（star_flower / rainbow_fern）与自造 id →
 ///     fallback 文案，不抛异常；
@@ -65,6 +65,14 @@ const Map<String, List<String>> _constitutionZh = <String, List<String>>{
     '带刺的小卫士',
     '玫瑰身上的小刺是它的「铠甲」，专门保护软软的花瓣不被小动物一口吃掉。我们闻到的玫瑰香，是花瓣里藏着的小油滴在悄悄散发——要好多好多花瓣，才能收满一小瓶玫瑰香水呢。',
   ],
+  'species_lotus': <String>[
+    '泥里长出的花',
+    '荷花的根扎在黑黑的泥里，叶子却要一路伸到水面上晒太阳。荷叶表面有一层看不见的蜡，水珠落上去会变成圆圆的小球滚下来，顺手把灰尘也带走了——所以荷叶总是干干净净的。',
+  ],
+  'species_blueberry': <String>[
+    '蓝色的小圆球',
+    '蓝莓的蓝，一半来自果皮本身，一半来自表面那层薄薄的白霜。白霜像给果子穿的防晒衣，能挡住最烈的太阳。所以摘蓝莓的时候别把它搓掉——白霜越完整，果子越新鲜。',
+  ],
   '__fallback__': <String>[
     '花园里的小植物',
     '每种植物都有自己的小故事，等着你去发现哦。',
@@ -79,7 +87,7 @@ void main() {
   final AppLocalizations en = AppLocalizationsEn();
 
   group('① zh 逐字节不变（零回归）', () {
-    test('8 物种 × 2 + 兜底 2 = 18 条 zh 值与宪法原文逐字节一致', () {
+    test('10 物种 × 2 + 兜底 2 = 22 条 zh 值与宪法原文逐字节一致', () {
       for (final MapEntry<String, List<String>> entry
           in _constitutionZh.entries) {
         final SpeciesLore lore = entry.key == '__fallback__'
@@ -94,7 +102,7 @@ void main() {
   });
 
   group('② en 译文：非空 + 无 CJK', () {
-    test('18 条 en 全部不含汉字且非空（英文模式不再显中文）', () {
+    test('22 条 en 全部不含汉字且非空（英文模式不再显中文）', () {
       for (final String id in _constitutionZh.keys) {
         final SpeciesLore lore = speciesLoreL10n(
             id == '__fallback__' ? 'no_such_species' : id, en);
@@ -107,7 +115,7 @@ void main() {
       }
     });
 
-    test('8 条 en intro 简短（≤ 8 词，儿童友好口径）', () {
+    test('10 条 en intro 简短（≤ 8 词，儿童友好口径）', () {
       const List<String> ids = <String>[
         'species_sunflower',
         'species_tomato',
@@ -117,6 +125,8 @@ void main() {
         'species_jade_hydrangea',
         'species_grape',
         'species_rose',
+        'species_lotus',
+        'species_blueberry',
       ];
       for (final String id in ids) {
         final String intro = speciesLoreL10n(id, en).intro;

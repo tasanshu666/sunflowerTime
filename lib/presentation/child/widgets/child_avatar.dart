@@ -220,29 +220,38 @@ Future<String?> showChildAvatarPickerDialog(
                 const SizedBox(height: 16),
                 // 🔴 C91 二轮：固定每行恰 3 个 + 每行（含尾行）水平居中 ——
                 // 行结构不再随屏宽漂移（旧 Wrap 平板 3+3+1、窄屏手机 2 列）。
-                Column(
-                  children: <Widget>[
-                    for (int rowStart = 0;
-                        rowStart < options.length;
-                        rowStart += 3) ...<Widget>[
-                      if (rowStart > 0) const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          for (
-                              int i = rowStart;
-                              i < rowStart + 3 && i < options.length;
-                              i++)
-                            Padding(
-                              // 相邻条目间距 = 5 + 5 = 10（首尾各让 5，整行仍居中）。
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 5),
-                              child: options[i],
-                            ),
+                //
+                // 2026-11-08（物种 8 → 10，头像选项 9 → 11 = 3+3+3+2）：网格改为
+                // **可滚动**。最窄 320×568 / 默认 800×600 视口下 11 项放不进卡片，
+                // 硬撑会 RenderFlex 溢出（实测 14px）；用 Flexible + 单子滚动让卡片
+                // 按可用高度收缩、网格内滚，既不裁掉任何物种，也保住 3 列对称。
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: <Widget>[
+                        for (int rowStart = 0;
+                            rowStart < options.length;
+                            rowStart += 3) ...<Widget>[
+                          if (rowStart > 0) const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: <Widget>[
+                              for (
+                                  int i = rowStart;
+                                  i < rowStart + 3 && i < options.length;
+                                  i++)
+                                Padding(
+                                  // 相邻条目间距 = 5 + 5 = 10（首尾各让 5，整行仍居中）。
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 5),
+                                  child: options[i],
+                                ),
+                            ],
+                          ),
                         ],
-                      ),
-                    ],
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),

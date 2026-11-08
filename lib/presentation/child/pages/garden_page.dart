@@ -3873,10 +3873,18 @@ class _PlantTileState extends State<_PlantTile>
             children: <Widget>[
               Icon(Icons.auto_stories, size: 14, color: _accent),
               const SizedBox(width: 4),
-              Text(speciesNameOr(species.id, species.name, l10n),
+              // `Expanded` 占满剩余宽度 + 末尾省略：短名（中文）下与原先
+              // `Text + Spacer` 视觉等价（右侧提示仍被推到最右），长名（英文）
+              // 自动省略号，不再把 Row 顶出可用宽度。
+              Expanded(
+                child: Text(
+                  speciesNameOr(species.id, species.name, l10n),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w700)),
-              const Spacer(),
+                      fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
               Text(l10n.garden_flip_back,
                   style: const TextStyle(
                       fontSize: 10, color: Color(0xFFB9AE97))),

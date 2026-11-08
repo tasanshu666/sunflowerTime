@@ -236,11 +236,12 @@ void main() {
       );
     });
 
-    t.test('普通档（番茄 / 草莓 / 玫瑰）→ 300 阳光（默认取阳光，二选一之一；C29 修订 400→300）', () async {
+    t.test('普通档（番茄 / 草莓 / 玫瑰 / 蓝莓）→ 300 阳光（默认取阳光，二选一之一；C29 修订 400→300）', () async {
       for (final String id in <String>[
         'species_tomato',
         'species_strawberry',
         'species_rose',
+        'species_blueberry',
       ]) {
         final PlantCost c = await ctx.svc.plantCost(_sp(id), AgeTier.low);
         t.expect(c.kind, PlantCostKind.sunlight);
@@ -249,12 +250,13 @@ void main() {
       }
     });
 
-    t.test('精英档（4 种）→ 精英档碎片价（F144：10 → 20）', () async {
+    t.test('精英档（5 种）→ 精英档碎片价（F144：10 → 20）', () async {
       for (final String id in <String>[
         'species_moon_orchid',
         'species_coral_orchid',
         'species_jade_hydrangea',
         'species_grape',
+        'species_lotus',
       ]) {
         final PlantCost c = await ctx.svc.plantCost(_sp(id), AgeTier.low);
         t.expect(c.kind, PlantCostKind.fragments);
@@ -272,8 +274,9 @@ void main() {
           reason: '月光兰为 rare（精英档），碎片价按档位派生 = kSpeciesFragmentCostPremium（F144：10 → 20）');
     });
 
-    t.test('物种表：恰 8 种、顺序 = 展示顺序、移除 daisy/cactus', () {
-      t.expect(kSeedPlantSpecies.length, 8, reason: 'F153 起为 8 种（+葡萄+玫瑰）');
+    t.test('物种表：恰 10 种、顺序 = 展示顺序、移除 daisy/cactus', () {
+      t.expect(kSeedPlantSpecies.length, 10,
+          reason: '2026-11-08 起为 10 种（+葡萄+玫瑰+荷花+蓝莓）');
       t.expect(
         kSeedPlantSpecies.map((PlantSpecies s) => s.id).toList(),
         <String>[
@@ -285,6 +288,8 @@ void main() {
           'species_jade_hydrangea',
           'species_grape',
           'species_rose',
+          'species_lotus',
+          'species_blueberry',
         ],
       );
       final Set<String> ids =
@@ -968,7 +973,7 @@ void main() {
   });
 }
 
-// ── 弹窗用例的假仓储（返回真实 8 物种种子表）─────────────────────────────────
+// ── 弹窗用例的假仓储（返回真实 10 物种种子表）─────────────────────────────────
 
 class _FakeSettingsRepo implements SettingsRepository {
   @override

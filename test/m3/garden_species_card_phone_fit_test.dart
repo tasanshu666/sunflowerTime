@@ -149,6 +149,7 @@ const Map<String, List<String>> _kPremiumSpeciesNames =
   'species_jade_hydrangea': <String>['Jade Hydrangea', '翡翠绣球'],
   'species_moon_orchid': <String>['Moon Orchid', '月光兰'],
   'species_grape': <String>['Grape', '葡萄'], // F151（2026-10-23）第 4 精英
+  'species_lotus': <String>['Lotus', '荷花'], // 2026-11-08 第 5 精英
 };
 
 /// 普通物种的**渲染名**（en / zh 两套；QA 补测：守卫原本只探精英卡，普通卡
@@ -158,6 +159,8 @@ const Map<String, List<String>> _kCommonSpeciesNames =
   'species_sunflower': <String>['Sunflower', '向日葵'],
   'species_tomato': <String>['Tomato', '番茄'],
   'species_strawberry': <String>['Strawberry', '草莓'],
+  'species_rose': <String>['Rose', '玫瑰'], // F153（2026-10-26）
+  'species_blueberry': <String>['Blueberry', '蓝莓'], // 2026-11-08
 };
 
 /// 有界帧推进（花园页有呼吸动画 → 禁用 pumpAndSettle）。
@@ -223,8 +226,8 @@ Future<void> _pumpPickPlantDialog(
 
   // 防假绿：弹窗必须真的打开（标题在 zh / en 下不同，按 rarity chip 锚定）。
   final String premiumLabel = lang == AppLanguage.en ? 'Premium' : '精英';
-  expect(find.text(premiumLabel), findsNWidgets(4),
-      reason: '选种弹窗必须打开且 4 个精英物种卡都在场（防装配失败假绿）');
+  expect(find.text(premiumLabel), findsNWidgets(5),
+      reason: '选种弹窗必须打开且 5 个精英物种卡都在场（防装配失败假绿）');
 }
 
 /// 逐个把精英物种卡滚到眼前并断言无布局异常。

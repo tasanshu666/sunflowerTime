@@ -47,6 +47,8 @@ const Map<String, String> _zhExpected = <String, String>{
   'species_jade_hydrangea': '翡翠绣球',
   'species_grape': '葡萄', // F151（2026-10-23 精英档）
   'species_rose': '玫瑰', // F153（2026-10-26 普通档）
+  'species_lotus': '荷花', // 2026-11-08（精英档）
+  'species_blueberry': '蓝莓', // 2026-11-08（普通档）
 };
 
 const Map<String, String> _enExpected = <String, String>{
@@ -58,6 +60,8 @@ const Map<String, String> _enExpected = <String, String>{
   'species_jade_hydrangea': 'Jade Hydrangea',
   'species_grape': 'Grape', // F151（2026-10-23 精英档）
   'species_rose': 'Rose', // F153（2026-10-26 普通档）
+  'species_lotus': 'Lotus', // 2026-11-08（精英档）
+  'species_blueberry': 'Blueberry', // 2026-11-08（普通档）
 };
 
 final RegExp _cjk = RegExp(r'[\u4e00-\u9fff\u3400-\u4dbf]');
@@ -108,8 +112,9 @@ void main() {
 
   // ─────────────────────── ① zh 逐字节等价 ───────────────────────
   group('① speciesNameOrNull · zh 逐字节等价', () {
-    test('7 个已知物种全部命中既有中文名', () {
-      expect(kKnownSpeciesIds.length, 8, reason: 'F153 起为 8 种（+葡萄+玫瑰）');
+    test('全部已知物种命中既有中文名', () {
+      expect(kKnownSpeciesIds.length, 10,
+          reason: '2026-11-08 起为 10 种（+葡萄+玫瑰+荷花+蓝莓）');
       for (final String id in kKnownSpeciesIds) {
         expect(_zhExpected.containsKey(id), isTrue, reason: '缺期望值：$id');
         expect(

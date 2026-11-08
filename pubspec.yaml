@@ -73,7 +73,7 @@ flutter:
     # 植物美术资源（2026-09-22 渲染抽象）：按「{speciesId}_{stage}_{status}.png」
     # 命名丢进对应**物种子目录**即自动生效，缺失时回退内置自绘。命名规范与
     # 目录结构见 lib/presentation/child/widgets/plant_artwork.dart 顶部文档注释。
-    # 2026-10-08 目录重组：按物种分目录（6 物种 + shared 通用级）；⚠️ 目录声明
+    # 2026-10-08 目录重组：按物种分目录（10 物种 + shared 通用级）；⚠️ 目录声明
     # **不递归**，必须把叶子目录逐个列全（漏一行 = 图静默不进包）。
     - assets/plants/sunflower/
     - assets/plants/tomato/
@@ -83,6 +83,9 @@ flutter:
     - assets/plants/jade_hydrangea/
     - assets/plants/grape/
     - assets/plants/rose/
+    # 2026-11-08 新物种（玄参交付，静态图 1440×2000 已归一化）：荷花（精英）/ 蓝莓（普通）。
+    - assets/plants/lotus/
+    - assets/plants/blueberry/
     - assets/plants/shared/
     # 花盆美术资源（2026-09-23）：通用空花盆 pot.png，缺失时回退内置 CustomPaint 自绘。
     - assets/pots/
@@ -124,6 +127,14 @@ flutter:
     - assets/fx/grow/rose/seed_to_sprout/
     - assets/fx/grow/rose/sprout_to_adult/
     - assets/fx/grow/rose/adult_to_bloomed/
+    # 2026-11-08 新物种成长帧（荷花 / 蓝莓，各 3 段 × 27 帧 720×720 WebP q95）：
+    # 同样受「目录声明不递归」约束，六个叶子目录必须逐个列全。
+    - assets/fx/grow/lotus/seed_to_sprout/
+    - assets/fx/grow/lotus/sprout_to_adult/
+    - assets/fx/grow/lotus/adult_to_bloomed/
+    - assets/fx/grow/blueberry/seed_to_sprout/
+    - assets/fx/grow/blueberry/sprout_to_adult/
+    - assets/fx/grow/blueberry/adult_to_bloomed/
     - assets/fx/care/water/
     - assets/fx/care/fertilize/
     # 除草 / 除虫效果帧（2026-10-03 玄参交付，各 27 帧）：点干扰物播放，禁止归一化。

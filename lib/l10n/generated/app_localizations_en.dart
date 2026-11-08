@@ -2729,6 +2729,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shared_species_rose => 'Rose';
 
   @override
+  String get shared_species_lotus => 'Lotus';
+
+  @override
+  String get shared_species_blueberry => 'Blueberry';
+
+  @override
   String get shared_weekday_mon => 'Mon';
 
   @override
@@ -3154,6 +3160,20 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get species_lore_rose_story =>
       'A rose wears its thorns like tiny armor, keeping its soft petals safe from hungry visitors. That lovely smell comes from little drops of oil hiding inside the petals — it takes heaps and heaps of petals to fill just one small bottle of rose perfume!';
+
+  @override
+  String get species_lore_lotus_intro => 'A flower that grows out of the mud';
+
+  @override
+  String get species_lore_lotus_story =>
+      'A lotus roots itself deep in dark mud, yet its leaves reach all the way up to the sun. Its leaves wear an invisible coat of wax, so water drops roll off as little round beads and carry the dust away — that is why lotus leaves always look clean.';
+
+  @override
+  String get species_lore_blueberry_intro => 'Tiny blue marbles';
+
+  @override
+  String get species_lore_blueberry_story =>
+      'A blueberry\'s color comes from its skin, and from a thin white coating on top. That coating works like sunscreen, blocking the strongest sun. So when you pick blueberries, try not to rub it off — the more coating it keeps, the fresher the berry.';
 
   @override
   String get species_lore_fallback_intro => 'A little garden plant';

@@ -20,7 +20,7 @@ library species_l10n;
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
-/// 已知物种 id 列表（8 种，顺序 = 花园「选择要种的植物」弹窗顺序）。
+/// 已知物种 id 列表（10 种，顺序 = 花园「选择要种的植物」弹窗顺序）。
 ///
 /// 与 `lib/data/local/plant_seed.dart` 的 `kSeedPlantSpecies` 一一对应；
 /// 单独列在这里是为了让本文件零 dart:ui / 零数据层依赖（纯 switch 映射）。
@@ -33,6 +33,8 @@ const List<String> kKnownSpeciesIds = <String>[
   'species_jade_hydrangea', // 翡翠绣球
   'species_grape', // 葡萄（F151，精英档）
   'species_rose', // 玫瑰（F153，普通档）
+  'species_lotus', // 荷花（2026-11-08，精英档）
+  'species_blueberry', // 蓝莓（2026-11-08，普通档）
 ];
 
 /// speciesId → 当前语言的物种名；**未知 id 返回 `null`**（调用方决定兜底）。
@@ -57,6 +59,10 @@ String? speciesNameOrNull(String speciesId, AppLocalizations t) {
       return t.shared_species_grape;
     case 'species_rose':
       return t.shared_species_rose;
+    case 'species_lotus':
+      return t.shared_species_lotus;
+    case 'species_blueberry':
+      return t.shared_species_blueberry;
     default:
       return null;
   }

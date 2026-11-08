@@ -103,7 +103,8 @@ Future<int> _plantCount(db.AppDatabase database) async {
 PlantSpecies _sp(String id) =>
     kSeedPlantSpecies.firstWhere((PlantSpecies s) => s.id == id);
 
-// 8 物种 id（顺序 = 展示顺序；2026-10-08 删星辰花/虹影蕨，F151 增葡萄、F153 增玫瑰）。
+// 10 物种 id（顺序 = 展示顺序；2026-10-08 删星辰花/虹影蕨，F151 增葡萄、F153 增玫瑰，
+// 2026-11-08 增荷花 / 蓝莓）。
 const List<String> _kAllIds = <String>[
   'species_sunflower',
   'species_moon_orchid',
@@ -113,12 +114,14 @@ const List<String> _kAllIds = <String>[
   'species_jade_hydrangea',
   'species_grape',
   'species_rose',
+  'species_lotus',
+  'species_blueberry',
 ];
 
 void main() {
   // ── 计价矩阵 ────────────────────────────────────────────────────────────
-  group('D1 · plantCost / fragmentCostOf 8 物种矩阵（与口径逐条对齐）', () {
-    test('物种表恰 8 种、顺序 = 展示顺序、无 daisy/cactus', () {
+  group('D1 · plantCost / fragmentCostOf 10 物种矩阵（与口径逐条对齐）', () {
+    test('物种表恰 10 种、顺序 = 展示顺序、无 daisy/cactus', () {
       expect(kSeedPlantSpecies.map((PlantSpecies s) => s.id).toList(), _kAllIds);
       final Set<String> ids =
           kSeedPlantSpecies.map((PlantSpecies s) => s.id).toSet();
@@ -141,6 +144,8 @@ void main() {
             (PlantCostKind.fragments, kSpeciesFragmentCostPremium),
         'species_grape': (PlantCostKind.fragments, kSpeciesFragmentCostPremium),
         'species_rose': (PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
+        'species_lotus': (PlantCostKind.fragments, kSpeciesFragmentCostPremium),
+        'species_blueberry': (PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
       };
       for (final MapEntry<String, (PlantCostKind, int)> e in expectLow.entries) {
         final PlantCost low = await ctx.svc.plantCost(_sp(e.key), AgeTier.low);
@@ -160,11 +165,15 @@ void main() {
           kSpeciesFragmentCostCommon);
       expect(ctx.svc.fragmentCostOf(_sp('species_rose')), kSpeciesFragmentCostCommon,
           reason: 'species_rose 为普通档（F153）→ 档位派生 10');
+      expect(ctx.svc.fragmentCostOf(_sp('species_blueberry')),
+          kSpeciesFragmentCostCommon,
+          reason: 'species_blueberry 为普通档（2026-11-08）→ 档位派生 10');
       for (final String id in <String>[
         'species_moon_orchid',
         'species_coral_orchid',
         'species_jade_hydrangea',
         'species_grape',
+        'species_lotus',
       ]) {
         expect(ctx.svc.fragmentCostOf(_sp(id)), kSpeciesFragmentCostPremium,
             reason: '$id 为 rare → 档位派生 15（F144：10 → 15）');

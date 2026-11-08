@@ -87,7 +87,7 @@ void main() {
     });
   });
 
-  group('成长序列帧契约（8 物种 × 3 过渡，WebP q95 压缩管线）', () {
+  group('成长序列帧契约（10 物种 × 3 过渡，WebP q95 压缩管线）', () {
     // 帧数各不同（25~27 ≠ kFxFrameCount），代码侧由 resolveGrowFxAssets 从 AssetManifest
     // 实测；本护栏锁：目录存在、从 frame001 连续编号、三位零填充、且每帧 720×720
     // （直读 WebP 头）。2026-10-13 起全部走 WebP（tools/convert_grow_fx.py）。
@@ -100,6 +100,8 @@ void main() {
       'jade_hydrangea',
       'grape', // 2026-10-23 第 7 物种（F151，精英档）
       'rose', // 2026-10-26 第 8 物种（F153，普通档）
+      'lotus', // 2026-11-08 第 9 物种（荷花，精英档）
+      'blueberry', // 2026-11-08 第 10 物种（蓝莓，普通档）
     ];
 
     for (final String species in speciesDirs) {
@@ -130,8 +132,9 @@ void main() {
   });
 
   group('成长音效（物种 × 过渡）契约（C59，2026-10-13 玄参交付）', () {
-    // 7 物种 × 3 过渡 = 21 段**物种专属**音效（向日葵仍走通用兜底，不在本表内；
-    // grape 2026-10-23 加入（F151）、rose 2026-10-26 加入（F153））。
+    // 9 物种 × 3 过渡 = 27 段**物种专属**音效（向日葵仍走通用兜底，不在本表内；
+    // grape 2026-10-23 加入（F151）、rose 2026-10-26 加入（F153）、
+    // lotus / blueberry 2026-11-08 加入）。
     // 硬规格（规范 §4.5）：时长必须 = kGrow*DurationMs（4100ms）——三段帧速由该常量
     // 驱动，音效不等长即音画不同步；且必须 ≥3s（iOS CoreAudio -11849 红线）。
     const List<String> speciesDirs = <String>[
@@ -142,6 +145,8 @@ void main() {
       'jade_hydrangea',
       'grape',
       'rose',
+      'lotus',
+      'blueberry',
     ];
 
     for (final String dir in speciesDirs) {
@@ -443,6 +448,8 @@ void main() {
           'jade_hydrangea',
           'grape', // F151
           'rose', // F153
+          'lotus', // 2026-11-08（荷花）
+          'blueberry', // 2026-11-08（蓝莓）
         ])
           for (final GrowTransition t in GrowTransition.values)
             growFxDir(sp, t),
@@ -477,10 +484,11 @@ void main() {
           .whereType<File>()
           .where((File f) => f.path.endsWith('_adult_bloomed.png'))
           .toList();
-      expect(blooms.length, 8,
-          reason: '8 物种应各有 1 张盛开图（2026-10-08 删星辰花/虹影蕨后余 6，'
-              '2026-10-23 增葡萄至 7、2026-10-26 增玫瑰至 8：向日葵 + 番茄 + 草莓 + '
-              '月光兰 + 珊瑚岭兰 + 翡翠绣球 + 葡萄 + 玫瑰），实际 ${blooms.length}');
+      expect(blooms.length, 10,
+          reason: '10 物种应各有 1 张盛开图（2026-10-08 删星辰花/虹影蕨后余 6，'
+              '2026-10-23 增葡萄至 7、2026-10-26 增玫瑰至 8、2026-11-08 增荷花/蓝莓至 10：'
+              '向日葵 + 番茄 + 草莓 + 月光兰 + 珊瑚岭兰 + 翡翠绣球 + 葡萄 + 玫瑰 + '
+              '荷花 + 蓝莓），实际 ${blooms.length}');
       // 2026-10-09 全局等盆：新五物种统一 1720×2000（盆 800、盆心居中）；向日葵
       // 无 wilted/dead 原图备份、维持 1200×2000 定稿不动 —— contain 按高度绑定
       // 缩放，两种画布的盆显示大小一致（比例同为 800/画布宽 × 高 2000）。

@@ -34,6 +34,8 @@
 /// | 翡翠绣球 | `species_jade_hydrangea` | `jade_hydrangea/` |
 /// | 葡萄 | `species_grape` | `grape/`（F151，精英档） |
 /// | 玫瑰 | `species_rose` | `rose/`（F153，普通档） |
+/// | 荷花 | `species_lotus` | `lotus/`（2026-11-08，精英档） |
+/// | 蓝莓 | `species_blueberry` | `blueberry/`（2026-11-08，普通档） |
 ///
 /// 说明：④/⑤ 的「通用级」（`shared_*`）供**跨物种共用的阶段图**使用 —— 种子期各物种
 /// 形态相近，**全物种只出 3 张通用图**即可覆盖所有物种的种子期：

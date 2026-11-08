@@ -4601,6 +4601,18 @@ abstract class AppLocalizations {
   /// **'玫瑰'**
   String get shared_species_rose;
 
+  /// No description provided for @shared_species_lotus.
+  ///
+  /// In zh, this message translates to:
+  /// **'荷花'**
+  String get shared_species_lotus;
+
+  /// No description provided for @shared_species_blueberry.
+  ///
+  /// In zh, this message translates to:
+  /// **'蓝莓'**
+  String get shared_species_blueberry;
+
   /// No description provided for @shared_weekday_mon.
   ///
   /// In zh, this message translates to:
@@ -5314,6 +5326,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'玫瑰身上的小刺是它的「铠甲」，专门保护软软的花瓣不被小动物一口吃掉。我们闻到的玫瑰香，是花瓣里藏着的小油滴在悄悄散发——要好多好多花瓣，才能收满一小瓶玫瑰香水呢。'**
   String get species_lore_rose_story;
+
+  /// 物种图鉴 · 荷花一句话介绍（选种卡背面，新增）
+  ///
+  /// In zh, this message translates to:
+  /// **'泥里长出的花'**
+  String get species_lore_lotus_intro;
+
+  /// 物种图鉴 · 荷花小故事（选种卡背面，新增）
+  ///
+  /// In zh, this message translates to:
+  /// **'荷花的根扎在黑黑的泥里，叶子却要一路伸到水面上晒太阳。荷叶表面有一层看不见的蜡，水珠落上去会变成圆圆的小球滚下来，顺手把灰尘也带走了——所以荷叶总是干干净净的。'**
+  String get species_lore_lotus_story;
+
+  /// 物种图鉴 · 蓝莓一句话介绍（选种卡背面，新增）
+  ///
+  /// In zh, this message translates to:
+  /// **'蓝色的小圆球'**
+  String get species_lore_blueberry_intro;
+
+  /// 物种图鉴 · 蓝莓小故事（选种卡背面，新增）
+  ///
+  /// In zh, this message translates to:
+  /// **'蓝莓的蓝，一半来自果皮本身，一半来自表面那层薄薄的白霜。白霜像给果子穿的防晒衣，能挡住最烈的太阳。所以摘蓝莓的时候别把它搓掉——白霜越完整，果子越新鲜。'**
+  String get species_lore_blueberry_story;
 
   /// 物种图鉴 · 未知物种兜底一句话介绍（F147 自 species_lore.dart 迁入）
   ///

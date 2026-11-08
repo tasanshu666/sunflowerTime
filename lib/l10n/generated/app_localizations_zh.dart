@@ -2664,6 +2664,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shared_species_rose => '玫瑰';
 
   @override
+  String get shared_species_lotus => '荷花';
+
+  @override
+  String get shared_species_blueberry => '蓝莓';
+
+  @override
   String get shared_weekday_mon => '周一';
 
   @override
@@ -3075,6 +3081,20 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get species_lore_rose_story =>
       '玫瑰身上的小刺是它的「铠甲」，专门保护软软的花瓣不被小动物一口吃掉。我们闻到的玫瑰香，是花瓣里藏着的小油滴在悄悄散发——要好多好多花瓣，才能收满一小瓶玫瑰香水呢。';
+
+  @override
+  String get species_lore_lotus_intro => '泥里长出的花';
+
+  @override
+  String get species_lore_lotus_story =>
+      '荷花的根扎在黑黑的泥里，叶子却要一路伸到水面上晒太阳。荷叶表面有一层看不见的蜡，水珠落上去会变成圆圆的小球滚下来，顺手把灰尘也带走了——所以荷叶总是干干净净的。';
+
+  @override
+  String get species_lore_blueberry_intro => '蓝色的小圆球';
+
+  @override
+  String get species_lore_blueberry_story =>
+      '蓝莓的蓝，一半来自果皮本身，一半来自表面那层薄薄的白霜。白霜像给果子穿的防晒衣，能挡住最烈的太阳。所以摘蓝莓的时候别把它搓掉——白霜越完整，果子越新鲜。';
 
   @override
   String get species_lore_fallback_intro => '花园里的小植物';

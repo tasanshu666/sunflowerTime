@@ -1043,6 +1043,15 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get task_checkin_confirm_title => '提交打卡？';
+
+  @override
+  String get task_checkin_confirm_message => '确认做完了就提交给爸爸妈妈吧，等他们确认后就能收到阳光啦。';
+
+  @override
+  String get task_checkin_confirm_ok => '提交';
+
+  @override
   String profile_balance_line(int count) {
     return '我的阳光：$count';
   }
@@ -1287,6 +1296,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ghelp_title => '玩法说明';
+
+  @override
+  String get garden_sign_label => '玩法';
 
   @override
   String get ghelp_earn_title => '怎么挣阳光';
@@ -3239,6 +3251,78 @@ class AppLocalizationsZh extends AppLocalizations {
   String get garden_weather_banner_done_rainstorm => '遮雨棚搭好啦 👍';
 
   @override
+  String get garden_weather_guide_sunny => '今天阳光满满！正常浇水施肥，花儿长得快~';
+
+  @override
+  String get garden_weather_guide_breeze => '微风轻轻吹，是照顾花儿的好日子~';
+
+  @override
+  String get garden_weather_guide_cloudy => '多云凉凉的，花儿喝水慢一些，少浇一点哦。';
+
+  @override
+  String get garden_weather_guide_overcast => '阴天到啦，花儿不怎么渴，记得少浇点水。';
+
+  @override
+  String get garden_weather_guide_light_rain => '小雨会帮忙浇花，今天浇一次水就够啦。';
+
+  @override
+  String get garden_weather_guide_drought => '太晒太干啦！搭好遮阳棚就完成保护啦，记得给花浇浇水哦~';
+
+  @override
+  String get garden_weather_guide_wind => '风好大呀！给花搭好挡风板，就完成保护啦！';
+
+  @override
+  String get garden_weather_guide_cold => '要上冻啦！给花搭好保温棚就完成保护啦，暖暖地过冬！';
+
+  @override
+  String get garden_weather_guide_rainstorm => '暴雨来啦！搭好遮雨棚就完成保护啦；今天雨水代劳，不用浇水哦。';
+
+  @override
+  String get garden_weather_growth_sunny => '今天太阳最给力，花儿长得更快一点，浇水也更管用哦～';
+
+  @override
+  String get garden_weather_growth_breeze => '微风暖暖的，花儿长得比平时快一点点～';
+
+  @override
+  String get garden_weather_growth_cloudy => '云朵挡住了一点太阳，花儿长得慢一点点。';
+
+  @override
+  String get garden_weather_growth_overcast => '天阴阴的，太阳躲起来了，花儿长得慢一点点。';
+
+  @override
+  String get garden_weather_growth_light_rain =>
+      '小雨帮了忙，花儿长得比平时快一点点；不过今天只能浇一次水哦。';
+
+  @override
+  String get garden_weather_growth_drought => '太干啦，花儿几乎不长个儿；快浇浇水吧，这时候浇水最管用！';
+
+  @override
+  String get garden_weather_growth_wind => '风有点大，花儿长得慢一点点，搭好挡风板会更安心。';
+
+  @override
+  String get garden_weather_growth_cold => '有点冷，花儿长得慢一些；施点肥能帮它暖暖身子。';
+
+  @override
+  String get garden_weather_growth_rainstorm => '雨太大啦，花儿长得慢一些；雨水替你浇了水，记得施一次肥哦。';
+
+  @override
+  String get garden_weather_action_drought => '植物极度口渴，记得多浇水哦';
+
+  @override
+  String get garden_weather_action_rainstorm => '雨水替你浇花啦，记得施一次肥哦';
+
+  @override
+  String get garden_weather_protected => '已获保护';
+
+  @override
+  String get garden_weather_dialog_close => '知道啦';
+
+  @override
+  String garden_weather_dialog_tomorrow(String name) {
+    return '明天 · $name';
+  }
+
+  @override
   String get garden_shelter_shade => '遮阳棚';
 
   @override
@@ -3281,6 +3365,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get garden_shelter_bought_warm => '保温棚盖好啦 👍';
+
+  @override
+  String get garden_help_weather_intro_title => '花园天气';
+
+  @override
+  String get garden_help_weather_intro_body =>
+      '花园每天都有不一样的天气。晴天花儿长得快，阴天会慢一点；小雨会帮忙浇花，浇一次水就够啦，暴雨天雨水代劳，不用你浇水。遇到干旱、大风、极寒、暴雨这些极端天气也别担心——点右上角的天气图标，买好保护道具就完成保护啦。想知道今天是什么天气，点一下右上角的天气图标就知道啦！';
 
   @override
   String get garden_help_weather_title => '天气';

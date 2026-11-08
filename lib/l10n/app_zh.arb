@@ -895,6 +895,9 @@
       }
     }
   },
+  "task_checkin_confirm_title": "提交打卡？",
+  "task_checkin_confirm_message": "确认做完了就提交给爸爸妈妈吧，等他们确认后就能收到阳光啦。",
+  "task_checkin_confirm_ok": "提交",
   "profile_balance_line": "我的阳光：{count}",
   "@profile_balance_line": {
     "placeholders": {
@@ -1131,6 +1134,7 @@
     }
   },
   "ghelp_title": "玩法说明",
+  "garden_sign_label": "玩法",
   "ghelp_earn_title": "怎么挣阳光",
   "ghelp_earn_detail": "白天专注就能挣阳光：每分钟 +{perMinute} ☀；\n完成成长任务打卡，还能获得额外的阳光（按专注时长算）；\n认真做完护眼休息，也有 +{eyeCare} ☀。",
   "@ghelp_earn_detail": {
@@ -2570,6 +2574,93 @@
   "garden_weather_banner_done_wind": "挡风板立好了 👍",
   "garden_weather_banner_done_cold": "盖好被子啦，暖暖的 👍",
   "garden_weather_banner_done_rainstorm": "遮雨棚搭好啦 👍",
+  "garden_weather_guide_sunny": "今天阳光满满！正常浇水施肥，花儿长得快~",
+  "@garden_weather_guide_sunny": {
+    "description": "天气对话框孩子视角引导（第六批）。浇水额度 = kWeatherDefaultWaterQuota(3)/kWeatherDefaultFertilizeQuota(1)"
+  },
+  "garden_weather_guide_breeze": "微风轻轻吹，是照顾花儿的好日子~",
+  "garden_weather_guide_cloudy": "多云凉凉的，花儿喝水慢一些，少浇一点哦。",
+  "@garden_weather_guide_cloudy": {
+    "description": "kWeatherCloudyWaterFactor(0.95) < 1 ⇒ 喝水慢，额度仍为默认 3"
+  },
+  "garden_weather_guide_overcast": "阴天到啦，花儿不怎么渴，记得少浇点水。",
+  "@garden_weather_guide_overcast": {
+    "description": "kWeatherOvercastWaterFactor(0.90) < 1 ⇒ 喝水慢，额度仍为默认 3"
+  },
+  "garden_weather_guide_light_rain": "小雨会帮忙浇花，今天浇一次水就够啦。",
+  "@garden_weather_guide_light_rain": {
+    "description": "数字对应 kWeatherLightRainWaterQuota = 1（额度背景说明，不是完成条件）"
+  },
+  "garden_weather_guide_drought": "太晒太干啦！搭好遮阳棚就完成保护啦，记得给花浇浇水哦~",
+  "@garden_weather_guide_drought": {
+    "description": "done 判据 = 仅买棚 kWeatherShelterRefTypeShade（第八批玄参拍板「买棚即 done」，浇水门槛已删）；浇水只作背景提醒（浇水额度常量照旧）"
+  },
+  "garden_weather_guide_wind": "风好大呀！给花搭好挡风板，就完成保护啦！",
+  "@garden_weather_guide_wind": {
+    "description": "done 判据 = 仅 kWeatherShelterRefTypeWind（买棚即 done，第八批）"
+  },
+  "garden_weather_guide_cold": "要上冻啦！给花搭好保温棚就完成保护啦，暖暖地过冬！",
+  "@garden_weather_guide_cold": {
+    "description": "done 判据 = 仅 kWeatherShelterRefTypeWarm（买棚即 done，第八批）"
+  },
+  "garden_weather_guide_rainstorm": "暴雨来啦！搭好遮雨棚就完成保护啦；今天雨水代劳，不用浇水哦。",
+  "@garden_weather_guide_rainstorm": {
+    "description": "数字对应 kWeatherRainstormWaterQuota = 0（不浇水的背景说明，不是完成条件）+ done 判据 = 仅 kWeatherShelterRefTypeRain（买棚即 done，第八批：施肥门槛已删）"
+  },
+  "garden_weather_growth_sunny": "今天太阳最给力，花儿长得更快一点，浇水也更管用哦～",
+  "@garden_weather_growth_sunny": {
+    "description": "天气对话框「今天对成长的影响」行（第十批 2026-11-08 玄参：每天浇水但进度不一样，孩子会迷茫）。🔴 只写**方向**、不写倍率；方向依据常量：g=kWeatherSunnyGrowthFactor(1.05) > 1 ⇒ 更快，w=kWeatherSunnyWaterFactor(1.10) > 1 ⇒ 浇水更管用，f=kWeatherSunnyFertilizeFactor(1.05) > 1。改乘数必同步改本句方向。"
+  },
+  "garden_weather_growth_breeze": "微风暖暖的，花儿长得比平时快一点点～",
+  "@garden_weather_growth_breeze": {
+    "description": "g=kWeatherBreezeGrowthFactor(1.02) > 1 ⇒ 略快；w/f 均 1.00 ⇒ 浇水施肥与平时一样（不写进句子，避免误导）。"
+  },
+  "garden_weather_growth_cloudy": "云朵挡住了一点太阳，花儿长得慢一点点。",
+  "@garden_weather_growth_cloudy": {
+    "description": "g=kWeatherCloudyGrowthFactor(0.96) < 1 ⇒ 略慢（w=0.95 / f=0.98 同样 <1，方向一致）。"
+  },
+  "garden_weather_growth_overcast": "天阴阴的，太阳躲起来了，花儿长得慢一点点。",
+  "@garden_weather_growth_overcast": {
+    "description": "g=kWeatherOvercastGrowthFactor(0.93) < 1 ⇒ 略慢（w=0.90 / f=0.95 同样 <1）。"
+  },
+  "garden_weather_growth_light_rain": "小雨帮了忙，花儿长得比平时快一点点；不过今天只能浇一次水哦。",
+  "@garden_weather_growth_light_rain": {
+    "description": "g=kWeatherLightRainGrowthFactor(1.03) > 1 ⇒ 略快（温和 5 种里唯一「下雨还更快」的一档）；后半句对应 kWeatherLightRainWaterQuota = 1，不是完成条件。"
+  },
+  "garden_weather_growth_drought": "太干啦，花儿几乎不长个儿；快浇浇水吧，这时候浇水最管用！",
+  "@garden_weather_growth_drought": {
+    "description": "g=kWeatherDroughtGrowthFactor(0.20) ⇒ 几乎停长（极端最狠的一档）；w=kWeatherDroughtWaterFactor(3.00) > 1 ⇒ 浇水是最强正反馈。两句方向必须与常量一致，不得为「好听」写反。"
+  },
+  "garden_weather_growth_wind": "风有点大，花儿长得慢一点点，搭好挡风板会更安心。",
+  "@garden_weather_growth_wind": {
+    "description": "g=kWeatherWindGrowthFactor(0.95) < 1 ⇒ 略慢（w=0.90 / f=0.80 同样 <1）；后半句只提「安心」，不承诺加成长。"
+  },
+  "garden_weather_growth_cold": "有点冷，花儿长得慢一些；施点肥能帮它暖暖身子。",
+  "@garden_weather_growth_cold": {
+    "description": "g=kWeatherColdGrowthFactor(0.85) < 1 ⇒ 慢；f=kWeatherColdFertilizeFactor(1.50) > 1（极端里唯一的高倍施肥）⇒ 「施肥帮它保暖」与常量方向一致；w=1.10 也 ≥1。"
+  },
+  "garden_weather_growth_rainstorm": "雨太大啦，花儿长得慢一些；雨水替你浇了水，记得施一次肥哦。",
+  "@garden_weather_growth_rainstorm": {
+    "description": "g=kWeatherRainstormGrowthFactor(0.80) < 1 ⇒ 慢；kWeatherRainstormWaterQuota = 0 + kWeatherRainstormWaterBonusPp(1pp) ⇒ 雨水代劳（不能说「浇水」）；f=kWeatherRainstormFertilizeFactor(0.30) 但仍要施一次肥（施肥门槛不在 done 判据里）。"
+  },
+  "garden_weather_action_drought": "植物极度口渴，记得多浇水哦",
+  "@garden_weather_action_drought": {
+    "description": "天气对话框 done 态额外动作提醒（第九批 2026-11-07 玄参原话）。仅 done 态 + 动作未完成时显示：干旱日当日浇水 ≥1 次后消失（大风/极寒买棚即全部完成，无此行）"
+  },
+  "garden_weather_action_rainstorm": "雨水替你浇花啦，记得施一次肥哦",
+  "@garden_weather_action_rainstorm": {
+    "description": "天气对话框 done 态额外动作提醒（第九批）。仅 done 态 + 动作未完成时显示：暴雨日当日施肥 ≥1 次后消失"
+  },
+  "garden_weather_protected": "已获保护",
+  "garden_weather_dialog_close": "知道啦",
+  "garden_weather_dialog_tomorrow": "明天 · {name}",
+  "@garden_weather_dialog_tomorrow": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "garden_shelter_shade": "遮阳棚",
   "garden_shelter_rain": "遮雨棚",
   "garden_shelter_wind": "挡风板",
@@ -2591,6 +2682,14 @@
   "garden_shelter_bought_rain": "遮雨棚搭好啦 👍",
   "garden_shelter_bought_wind": "挡风板立好啦 👍",
   "garden_shelter_bought_warm": "保温棚盖好啦 👍",
+  "garden_help_weather_intro_title": "花园天气",
+  "@garden_help_weather_intro_title": {
+    "description": "玩法说明「花园天气」小节标题。玄参 2026-11-08（第十一批）：玩法里面要增加对天气的介绍"
+  },
+  "garden_help_weather_intro_body": "花园每天都有不一样的天气。晴天花儿长得快，阴天会慢一点；小雨会帮忙浇花，浇一次水就够啦，暴雨天雨水代劳，不用你浇水。遇到干旱、大风、极寒、暴雨这些极端天气也别担心——点右上角的天气图标，买好保护道具就完成保护啦。想知道今天是什么天气，点一下右上角的天气图标就知道啦！",
+  "@garden_help_weather_intro_body": {
+    "description": "花园天气的通俗介绍（面向孩子）：晴/阴生长快慢、小雨浇水额度 1 次、暴雨雨水代劳、极端 4 种买保护道具即完成、右上角天气图标可查看今日天气。🔴 事实必须与 weather_system.dart 一致，改 PRD 参数须同步本段"
+  },
   "garden_help_weather_title": "天气",
   "garden_help_weather_body": "花园每天有一种天气。遇上干旱、大风、极寒、暴雨，花会难受一点——花 10 ☀ 搭上对应的棚，今天就不会被扣成长。棚只管今天。",
   "parent_editor_section_basic": "基本信息",

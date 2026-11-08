@@ -895,6 +895,9 @@
       }
     }
   },
+  "task_checkin_confirm_title": "Submit check-in?",
+  "task_checkin_confirm_message": "All done? Submit it to Mom and Dad — you'll get sunlight once they confirm.",
+  "task_checkin_confirm_ok": "Submit",
   "profile_balance_line": "Sunlight: {count}",
   "@profile_balance_line": {
     "placeholders": {
@@ -1131,6 +1134,7 @@
     }
   },
   "ghelp_title": "How to play",
+  "garden_sign_label": "PLAY",
   "ghelp_earn_title": "Earning sunlight",
   "ghelp_earn_detail": "Focus during the day to earn sunlight: +{perMinute} ☀ per minute;\nfinish a growth task check-in for extra sunlight based on focus time;\ncomplete an eye-care break for +{eyeCare} ☀.",
   "@ghelp_earn_detail": {
@@ -2486,6 +2490,63 @@
   "garden_weather_banner_done_wind": "Windbreak is up 👍",
   "garden_weather_banner_done_cold": "Warm cover on — nice and cozy 👍",
   "garden_weather_banner_done_rainstorm": "Rain cover is up 👍",
+  "garden_weather_guide_sunny": "So much sunshine today! Water and fertilize as usual — your flowers grow fast!",
+  "garden_weather_guide_breeze": "A gentle breeze is blowing — a lovely day to care for your flowers!",
+  "garden_weather_guide_cloudy": "It's cool and cloudy — flowers drink slower, so water a little less.",
+  "garden_weather_guide_overcast": "An overcast day! The flowers aren't very thirsty — remember to water less.",
+  "garden_weather_guide_light_rain": "The light rain helps water your flowers — one watering is enough today.",
+  "garden_weather_guide_drought": "So hot and dry! Put up the shade awning to complete the protection — and give your flowers a drink too!",
+  "garden_weather_guide_wind": "The wind is so strong! Set up the windbreak to complete the protection!",
+  "garden_weather_guide_cold": "It's about to freeze! Put up the warm cover to complete the protection — cozy winter!",
+  "garden_weather_guide_rainstorm": "A rainstorm is here! Put up the rain cover to complete the protection — the rain does the watering today, no need to water!",
+  "garden_weather_growth_sunny": "The sun is at its best today — your flowers grow a little faster, and watering helps more!",
+  "@garden_weather_growth_sunny": {
+    "description": "Weather dialog「how today's weather affects growth」line (batch 10). Direction only, never the multiplier: g=kWeatherSunnyGrowthFactor(1.05) > 1 ⇒ faster; w=kWeatherSunnyWaterFactor(1.10) > 1 ⇒ watering helps more."
+  },
+  "garden_weather_growth_breeze": "A warm little breeze — your flowers grow a tiny bit faster than usual!",
+  "@garden_weather_growth_breeze": {
+    "description": "g=kWeatherBreezeGrowthFactor(1.02) > 1 ⇒ slightly faster; w/f are 1.00 ⇒ unchanged, so not mentioned."
+  },
+  "garden_weather_growth_cloudy": "Clouds hide a bit of the sun, so your flowers grow a little slower.",
+  "@garden_weather_growth_cloudy": {
+    "description": "g=kWeatherCloudyGrowthFactor(0.96) < 1 ⇒ slightly slower (w=0.95 / f=0.98 also < 1)."
+  },
+  "garden_weather_growth_overcast": "It's grey and the sun is hiding, so your flowers grow a little slower.",
+  "@garden_weather_growth_overcast": {
+    "description": "g=kWeatherOvercastGrowthFactor(0.93) < 1 ⇒ slightly slower (w=0.90 / f=0.95 also < 1)."
+  },
+  "garden_weather_growth_light_rain": "The light rain helps out, so your flowers grow a tiny bit faster — but you can only water once today.",
+  "@garden_weather_growth_light_rain": {
+    "description": "g=kWeatherLightRainGrowthFactor(1.03) > 1 ⇒ slightly faster; second clause matches kWeatherLightRainWaterQuota = 1 (not a completion condition)."
+  },
+  "garden_weather_growth_drought": "It's so dry that your flowers hardly grow at all — water them now, watering helps the most on a day like this!",
+  "@garden_weather_growth_drought": {
+    "description": "g=kWeatherDroughtGrowthFactor(0.20) ⇒ almost stopped; w=kWeatherDroughtWaterFactor(3.00) > 1 ⇒ watering is the strongest positive feedback. Direction must never be written backwards."
+  },
+  "garden_weather_growth_wind": "The wind is a bit strong, so your flowers grow a little slower — a windbreak will make them feel safer.",
+  "@garden_weather_growth_wind": {
+    "description": "g=kWeatherWindGrowthFactor(0.95) < 1 ⇒ slightly slower (w=0.90 / f=0.80 also < 1); the windbreak clause promises comfort only, not extra growth."
+  },
+  "garden_weather_growth_cold": "It's a bit cold, so your flowers grow a little slower — a little fertilizer helps keep them warm.",
+  "@garden_weather_growth_cold": {
+    "description": "g=kWeatherColdGrowthFactor(0.85) < 1 ⇒ slower; f=kWeatherColdFertilizeFactor(1.50) > 1 (the only high fertilize multiplier among extremes) ⇒ 「fertilizer keeps them warm」 matches the constant."
+  },
+  "garden_weather_growth_rainstorm": "The rain is very heavy, so your flowers grow a little slower — the rain did the watering, so remember to fertilize once.",
+  "@garden_weather_growth_rainstorm": {
+    "description": "g=kWeatherRainstormGrowthFactor(0.80) < 1 ⇒ slower; kWeatherRainstormWaterQuota = 0 + kWeatherRainstormWaterBonusPp ⇒ rain waters for you (never say 「water」); f=0.30 but still fertilize once."
+  },
+  "garden_weather_action_drought": "Your plants are super thirsty — remember to give them extra water!",
+  "garden_weather_action_rainstorm": "The rain did the watering for you — remember to fertilize once!",
+  "garden_weather_protected": "Protected",
+  "garden_weather_dialog_close": "Got it",
+  "garden_weather_dialog_tomorrow": "Tomorrow · {name}",
+  "@garden_weather_dialog_tomorrow": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "garden_shelter_shade": "Shade awning",
   "garden_shelter_rain": "Rain cover",
   "garden_shelter_wind": "Windbreak",
@@ -2507,6 +2568,14 @@
   "garden_shelter_bought_rain": "Rain cover is up 👍",
   "garden_shelter_bought_wind": "Windbreak is up 👍",
   "garden_shelter_bought_warm": "Warm cover is on 👍",
+  "garden_help_weather_intro_title": "Garden weather",
+  "@garden_help_weather_intro_title": {
+    "description": "How-to-play section title for the plain-language weather intro (batch 11)"
+  },
+  "garden_help_weather_intro_body": "Every day the garden has a different weather. Plants grow a little faster on sunny days and a little slower on overcast days. A light rain helps water your flowers — one watering is enough; a downpour does the watering for you. Don't worry about drought, wind, freezing cold or heavy rain — tap the weather icon at the top right and buy the matching protection to stay safe. Want to know today's weather? Just tap the weather icon at the top right.",
+  "@garden_help_weather_intro_body": {
+    "description": "Plain-language weather intro for kids. Must stay factually in sync with WeatherSystem (sunny/overcast growth, light-rain water quota 1, rainstorm auto-watering, 4 extreme kinds resolved by buying protection)."
+  },
   "garden_help_weather_title": "Weather",
   "garden_help_weather_body": "Your garden gets one weather each day. On drought, wind, freezing or heavy rain, build the matching shelter for 10 ☀ to avoid the growth penalty. Shelters last one day only.",
   "parent_editor_section_basic": "Basic info",

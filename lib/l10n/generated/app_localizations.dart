@@ -1850,6 +1850,24 @@ abstract class AppLocalizations {
   /// **'将开始 {count} 分钟专注，专注期间会静音通知，开始后请尽量不离开。'**
   String task_focus_confirm_message(int count);
 
+  /// No description provided for @task_checkin_confirm_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'提交打卡？'**
+  String get task_checkin_confirm_title;
+
+  /// No description provided for @task_checkin_confirm_message.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认做完了就提交给爸爸妈妈吧，等他们确认后就能收到阳光啦。'**
+  String get task_checkin_confirm_message;
+
+  /// No description provided for @task_checkin_confirm_ok.
+  ///
+  /// In zh, this message translates to:
+  /// **'提交'**
+  String get task_checkin_confirm_ok;
+
   /// No description provided for @profile_balance_line.
   ///
   /// In zh, this message translates to:
@@ -2251,6 +2269,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'玩法说明'**
   String get ghelp_title;
+
+  /// No description provided for @garden_sign_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'玩法'**
+  String get garden_sign_label;
 
   /// No description provided for @ghelp_earn_title.
   ///
@@ -5627,6 +5651,144 @@ abstract class AppLocalizations {
   /// **'遮雨棚搭好啦 👍'**
   String get garden_weather_banner_done_rainstorm;
 
+  /// 天气对话框孩子视角引导（第六批）。浇水额度 = kWeatherDefaultWaterQuota(3)/kWeatherDefaultFertilizeQuota(1)
+  ///
+  /// In zh, this message translates to:
+  /// **'今天阳光满满！正常浇水施肥，花儿长得快~'**
+  String get garden_weather_guide_sunny;
+
+  /// No description provided for @garden_weather_guide_breeze.
+  ///
+  /// In zh, this message translates to:
+  /// **'微风轻轻吹，是照顾花儿的好日子~'**
+  String get garden_weather_guide_breeze;
+
+  /// kWeatherCloudyWaterFactor(0.95) < 1 ⇒ 喝水慢，额度仍为默认 3
+  ///
+  /// In zh, this message translates to:
+  /// **'多云凉凉的，花儿喝水慢一些，少浇一点哦。'**
+  String get garden_weather_guide_cloudy;
+
+  /// kWeatherOvercastWaterFactor(0.90) < 1 ⇒ 喝水慢，额度仍为默认 3
+  ///
+  /// In zh, this message translates to:
+  /// **'阴天到啦，花儿不怎么渴，记得少浇点水。'**
+  String get garden_weather_guide_overcast;
+
+  /// 数字对应 kWeatherLightRainWaterQuota = 1（额度背景说明，不是完成条件）
+  ///
+  /// In zh, this message translates to:
+  /// **'小雨会帮忙浇花，今天浇一次水就够啦。'**
+  String get garden_weather_guide_light_rain;
+
+  /// done 判据 = 仅买棚 kWeatherShelterRefTypeShade（第八批玄参拍板「买棚即 done」，浇水门槛已删）；浇水只作背景提醒（浇水额度常量照旧）
+  ///
+  /// In zh, this message translates to:
+  /// **'太晒太干啦！搭好遮阳棚就完成保护啦，记得给花浇浇水哦~'**
+  String get garden_weather_guide_drought;
+
+  /// done 判据 = 仅 kWeatherShelterRefTypeWind（买棚即 done，第八批）
+  ///
+  /// In zh, this message translates to:
+  /// **'风好大呀！给花搭好挡风板，就完成保护啦！'**
+  String get garden_weather_guide_wind;
+
+  /// done 判据 = 仅 kWeatherShelterRefTypeWarm（买棚即 done，第八批）
+  ///
+  /// In zh, this message translates to:
+  /// **'要上冻啦！给花搭好保温棚就完成保护啦，暖暖地过冬！'**
+  String get garden_weather_guide_cold;
+
+  /// 数字对应 kWeatherRainstormWaterQuota = 0（不浇水的背景说明，不是完成条件）+ done 判据 = 仅 kWeatherShelterRefTypeRain（买棚即 done，第八批：施肥门槛已删）
+  ///
+  /// In zh, this message translates to:
+  /// **'暴雨来啦！搭好遮雨棚就完成保护啦；今天雨水代劳，不用浇水哦。'**
+  String get garden_weather_guide_rainstorm;
+
+  /// 天气对话框「今天对成长的影响」行（第十批 2026-11-08 玄参：每天浇水但进度不一样，孩子会迷茫）。🔴 只写**方向**、不写倍率；方向依据常量：g=kWeatherSunnyGrowthFactor(1.05) > 1 ⇒ 更快，w=kWeatherSunnyWaterFactor(1.10) > 1 ⇒ 浇水更管用，f=kWeatherSunnyFertilizeFactor(1.05) > 1。改乘数必同步改本句方向。
+  ///
+  /// In zh, this message translates to:
+  /// **'今天太阳最给力，花儿长得更快一点，浇水也更管用哦～'**
+  String get garden_weather_growth_sunny;
+
+  /// g=kWeatherBreezeGrowthFactor(1.02) > 1 ⇒ 略快；w/f 均 1.00 ⇒ 浇水施肥与平时一样（不写进句子，避免误导）。
+  ///
+  /// In zh, this message translates to:
+  /// **'微风暖暖的，花儿长得比平时快一点点～'**
+  String get garden_weather_growth_breeze;
+
+  /// g=kWeatherCloudyGrowthFactor(0.96) < 1 ⇒ 略慢（w=0.95 / f=0.98 同样 <1，方向一致）。
+  ///
+  /// In zh, this message translates to:
+  /// **'云朵挡住了一点太阳，花儿长得慢一点点。'**
+  String get garden_weather_growth_cloudy;
+
+  /// g=kWeatherOvercastGrowthFactor(0.93) < 1 ⇒ 略慢（w=0.90 / f=0.95 同样 <1）。
+  ///
+  /// In zh, this message translates to:
+  /// **'天阴阴的，太阳躲起来了，花儿长得慢一点点。'**
+  String get garden_weather_growth_overcast;
+
+  /// g=kWeatherLightRainGrowthFactor(1.03) > 1 ⇒ 略快（温和 5 种里唯一「下雨还更快」的一档）；后半句对应 kWeatherLightRainWaterQuota = 1，不是完成条件。
+  ///
+  /// In zh, this message translates to:
+  /// **'小雨帮了忙，花儿长得比平时快一点点；不过今天只能浇一次水哦。'**
+  String get garden_weather_growth_light_rain;
+
+  /// g=kWeatherDroughtGrowthFactor(0.20) ⇒ 几乎停长（极端最狠的一档）；w=kWeatherDroughtWaterFactor(3.00) > 1 ⇒ 浇水是最强正反馈。两句方向必须与常量一致，不得为「好听」写反。
+  ///
+  /// In zh, this message translates to:
+  /// **'太干啦，花儿几乎不长个儿；快浇浇水吧，这时候浇水最管用！'**
+  String get garden_weather_growth_drought;
+
+  /// g=kWeatherWindGrowthFactor(0.95) < 1 ⇒ 略慢（w=0.90 / f=0.80 同样 <1）；后半句只提「安心」，不承诺加成长。
+  ///
+  /// In zh, this message translates to:
+  /// **'风有点大，花儿长得慢一点点，搭好挡风板会更安心。'**
+  String get garden_weather_growth_wind;
+
+  /// g=kWeatherColdGrowthFactor(0.85) < 1 ⇒ 慢；f=kWeatherColdFertilizeFactor(1.50) > 1（极端里唯一的高倍施肥）⇒ 「施肥帮它保暖」与常量方向一致；w=1.10 也 ≥1。
+  ///
+  /// In zh, this message translates to:
+  /// **'有点冷，花儿长得慢一些；施点肥能帮它暖暖身子。'**
+  String get garden_weather_growth_cold;
+
+  /// g=kWeatherRainstormGrowthFactor(0.80) < 1 ⇒ 慢；kWeatherRainstormWaterQuota = 0 + kWeatherRainstormWaterBonusPp(1pp) ⇒ 雨水代劳（不能说「浇水」）；f=kWeatherRainstormFertilizeFactor(0.30) 但仍要施一次肥（施肥门槛不在 done 判据里）。
+  ///
+  /// In zh, this message translates to:
+  /// **'雨太大啦，花儿长得慢一些；雨水替你浇了水，记得施一次肥哦。'**
+  String get garden_weather_growth_rainstorm;
+
+  /// 天气对话框 done 态额外动作提醒（第九批 2026-11-07 玄参原话）。仅 done 态 + 动作未完成时显示：干旱日当日浇水 ≥1 次后消失（大风/极寒买棚即全部完成，无此行）
+  ///
+  /// In zh, this message translates to:
+  /// **'植物极度口渴，记得多浇水哦'**
+  String get garden_weather_action_drought;
+
+  /// 天气对话框 done 态额外动作提醒（第九批）。仅 done 态 + 动作未完成时显示：暴雨日当日施肥 ≥1 次后消失
+  ///
+  /// In zh, this message translates to:
+  /// **'雨水替你浇花啦，记得施一次肥哦'**
+  String get garden_weather_action_rainstorm;
+
+  /// No description provided for @garden_weather_protected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已获保护'**
+  String get garden_weather_protected;
+
+  /// No description provided for @garden_weather_dialog_close.
+  ///
+  /// In zh, this message translates to:
+  /// **'知道啦'**
+  String get garden_weather_dialog_close;
+
+  /// No description provided for @garden_weather_dialog_tomorrow.
+  ///
+  /// In zh, this message translates to:
+  /// **'明天 · {name}'**
+  String garden_weather_dialog_tomorrow(String name);
+
   /// No description provided for @garden_shelter_shade.
   ///
   /// In zh, this message translates to:
@@ -5710,6 +5872,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'保温棚盖好啦 👍'**
   String get garden_shelter_bought_warm;
+
+  /// 玩法说明「花园天气」小节标题。玄参 2026-11-08（第十一批）：玩法里面要增加对天气的介绍
+  ///
+  /// In zh, this message translates to:
+  /// **'花园天气'**
+  String get garden_help_weather_intro_title;
+
+  /// 花园天气的通俗介绍（面向孩子）：晴/阴生长快慢、小雨浇水额度 1 次、暴雨雨水代劳、极端 4 种买保护道具即完成、右上角天气图标可查看今日天气。🔴 事实必须与 weather_system.dart 一致，改 PRD 参数须同步本段
+  ///
+  /// In zh, this message translates to:
+  /// **'花园每天都有不一样的天气。晴天花儿长得快，阴天会慢一点；小雨会帮忙浇花，浇一次水就够啦，暴雨天雨水代劳，不用你浇水。遇到干旱、大风、极寒、暴雨这些极端天气也别担心——点右上角的天气图标，买好保护道具就完成保护啦。想知道今天是什么天气，点一下右上角的天气图标就知道啦！'**
+  String get garden_help_weather_intro_body;
 
   /// No description provided for @garden_help_weather_title.
   ///

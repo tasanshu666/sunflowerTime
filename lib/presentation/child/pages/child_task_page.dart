@@ -5,7 +5,9 @@
 ///  - **联动项**（requiresFocus == true）：只给「去专注」两行方盒（N 分钟）——从本项进入专注、
 ///    达标后由专注页 [TaskCheckInService.settleFocusLinked] **自动结算**，孩子**没有**可点的
 ///    打卡按钮（无从刷分）；已完成 → 「已完成 ✓」只读。
-///  - **非联动项**（requiresFocus == false）：只给「我做到了」——调用 [TaskCheckInService.checkIn]
+///  - **非联动项**（requiresFocus == false）：只给「我做到了」——**先弹确认卡**
+///    （玄参 2026-11-06：与联动项 F177 同款误触保护，文案「提交给爸爸妈妈」），
+///    确认后调用 [TaskCheckInService.checkIn]
 ///    落 **待家长确认**（当期不发阳光）；待确认中 → 「等家长确认」只读；已核销 → 「已做到 ✓」。
 ///
 /// 全部阳光 / 软顶 / 联动结算 / 核销逻辑均由 [TaskCheckInService] 负责，本页**不自行实现**
@@ -230,6 +232,25 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
         _loading = false;
       });
     }
+  }
+
+  /// 非联动项「我做到了」的**误触保护**（玄参 2026-11-06：与联动项 F177 同款）——
+  /// 先弹 [showChildConfirmCard] 确认，确认后才真正走 [_checkIn] 落待家长确认；
+  /// 取消（`ok != true`）不落任何记录、流不断（C105 硬契约）。
+  ///
+  /// 确认卡在 busy 闸门**之前**：busy 只保护真正的打卡请求（防连点重复落行），
+  /// 弹卡期间允许孩子改主意，取消后按钮立即可再点。
+  Future<void> _confirmCheckIn(Task task) async {
+    final bool? ok = await showChildConfirmCard(
+      context: context,
+      title: _t.task_checkin_confirm_title,
+      message: _t.task_checkin_confirm_message,
+      confirmLabel: _t.task_checkin_confirm_ok,
+      cancelLabel: _t.shared_cancel,
+    );
+    if (ok != true) return; // 取消 / 点外部 → 不落任何记录
+    if (!mounted) return; // 异步后先确认页面还在
+    await _checkIn(task);
   }
 
   /// 非联动项手动打卡：调服务 → 反馈 → 自增经济修订号令今日卡/商店/花园同步。
@@ -773,7 +794,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
               child: const CircularProgressIndicator(strokeWidth: 2),
             )
           : null,
-      onTap: busy ? null : () => _checkIn(item.task),
+      onTap: busy ? null : () => _confirmCheckIn(item.task),
     );
   }
 

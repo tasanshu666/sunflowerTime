@@ -1014,6 +1014,13 @@ void main() {
       for (int i = 0; i < 12; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
+      // 「我做到了」确认卡（玄参 2026-11-06 误触保护）：先点「提交」才真正打卡。
+      expect(find.text('提交打卡？'), findsOneWidget,
+          reason: '打卡前必须先弹确认卡');
+      await tester.tap(find.text('提交'));
+      for (int i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
 
       expect(find.byType(GoldNoticeDialog), findsOneWidget,
           reason: '完美日庆祝必须走统一通知卡壳');

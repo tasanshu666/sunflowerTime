@@ -1078,6 +1078,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get task_checkin_confirm_title => 'Submit check-in?';
+
+  @override
+  String get task_checkin_confirm_message =>
+      'All done? Submit it to Mom and Dad — you\'ll get sunlight once they confirm.';
+
+  @override
+  String get task_checkin_confirm_ok => 'Submit';
+
+  @override
   String profile_balance_line(int count) {
     return 'Sunlight: $count';
   }
@@ -1323,6 +1333,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ghelp_title => 'How to play';
+
+  @override
+  String get garden_sign_label => 'PLAY';
 
   @override
   String get ghelp_earn_title => 'Earning sunlight';
@@ -3335,6 +3348,97 @@ class AppLocalizationsEn extends AppLocalizations {
   String get garden_weather_banner_done_rainstorm => 'Rain cover is up 👍';
 
   @override
+  String get garden_weather_guide_sunny =>
+      'So much sunshine today! Water and fertilize as usual — your flowers grow fast!';
+
+  @override
+  String get garden_weather_guide_breeze =>
+      'A gentle breeze is blowing — a lovely day to care for your flowers!';
+
+  @override
+  String get garden_weather_guide_cloudy =>
+      'It\'s cool and cloudy — flowers drink slower, so water a little less.';
+
+  @override
+  String get garden_weather_guide_overcast =>
+      'An overcast day! The flowers aren\'t very thirsty — remember to water less.';
+
+  @override
+  String get garden_weather_guide_light_rain =>
+      'The light rain helps water your flowers — one watering is enough today.';
+
+  @override
+  String get garden_weather_guide_drought =>
+      'So hot and dry! Put up the shade awning to complete the protection — and give your flowers a drink too!';
+
+  @override
+  String get garden_weather_guide_wind =>
+      'The wind is so strong! Set up the windbreak to complete the protection!';
+
+  @override
+  String get garden_weather_guide_cold =>
+      'It\'s about to freeze! Put up the warm cover to complete the protection — cozy winter!';
+
+  @override
+  String get garden_weather_guide_rainstorm =>
+      'A rainstorm is here! Put up the rain cover to complete the protection — the rain does the watering today, no need to water!';
+
+  @override
+  String get garden_weather_growth_sunny =>
+      'The sun is at its best today — your flowers grow a little faster, and watering helps more!';
+
+  @override
+  String get garden_weather_growth_breeze =>
+      'A warm little breeze — your flowers grow a tiny bit faster than usual!';
+
+  @override
+  String get garden_weather_growth_cloudy =>
+      'Clouds hide a bit of the sun, so your flowers grow a little slower.';
+
+  @override
+  String get garden_weather_growth_overcast =>
+      'It\'s grey and the sun is hiding, so your flowers grow a little slower.';
+
+  @override
+  String get garden_weather_growth_light_rain =>
+      'The light rain helps out, so your flowers grow a tiny bit faster — but you can only water once today.';
+
+  @override
+  String get garden_weather_growth_drought =>
+      'It\'s so dry that your flowers hardly grow at all — water them now, watering helps the most on a day like this!';
+
+  @override
+  String get garden_weather_growth_wind =>
+      'The wind is a bit strong, so your flowers grow a little slower — a windbreak will make them feel safer.';
+
+  @override
+  String get garden_weather_growth_cold =>
+      'It\'s a bit cold, so your flowers grow a little slower — a little fertilizer helps keep them warm.';
+
+  @override
+  String get garden_weather_growth_rainstorm =>
+      'The rain is very heavy, so your flowers grow a little slower — the rain did the watering, so remember to fertilize once.';
+
+  @override
+  String get garden_weather_action_drought =>
+      'Your plants are super thirsty — remember to give them extra water!';
+
+  @override
+  String get garden_weather_action_rainstorm =>
+      'The rain did the watering for you — remember to fertilize once!';
+
+  @override
+  String get garden_weather_protected => 'Protected';
+
+  @override
+  String get garden_weather_dialog_close => 'Got it';
+
+  @override
+  String garden_weather_dialog_tomorrow(String name) {
+    return 'Tomorrow · $name';
+  }
+
+  @override
   String get garden_shelter_shade => 'Shade awning';
 
   @override
@@ -3378,6 +3482,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get garden_shelter_bought_warm => 'Warm cover is on 👍';
+
+  @override
+  String get garden_help_weather_intro_title => 'Garden weather';
+
+  @override
+  String get garden_help_weather_intro_body =>
+      'Every day the garden has a different weather. Plants grow a little faster on sunny days and a little slower on overcast days. A light rain helps water your flowers — one watering is enough; a downpour does the watering for you. Don\'t worry about drought, wind, freezing cold or heavy rain — tap the weather icon at the top right and buy the matching protection to stay safe. Want to know today\'s weather? Just tap the weather icon at the top right.';
 
   @override
   String get garden_help_weather_title => 'Weather';

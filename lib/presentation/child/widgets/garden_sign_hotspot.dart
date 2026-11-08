@@ -1,9 +1,15 @@
-/// 花园左下角木牌的可点击热区 + 轻微呼吸高亮（2026-09-24 花园页 v3 改造）。
+/// 花园木牌的可点击热区 + 轻微呼吸高亮 + **本地化文字**（2026-09-24 v3 / 2026-11-06 无字版）。
 ///
 /// ## 职责
-/// 背景图左下角有一块木牌，玄参大人要求它**可点击**并弹出「玩法说明」（原来贴底的
-/// 半透明白块文案收进该弹窗）。本组件只负责「热区 + 按下反馈 + 呼吸高亮」，弹窗内容
-/// 由调用方（`GardenPage._showGardenHelp` → `GardenHelpSheet`）给出。
+/// 背景图上有一块木牌，玄参大人要求它**可点击**并弹出「玩法说明」（原来贴底的
+/// 半透明白块文案收进该弹窗）。本组件负责「热区 + 按下反馈 + 呼吸高亮 +
+/// **牌面文字**」，弹窗内容由调用方（`GardenPage._showGardenHelp` → `GardenHelpSheet`）给出。
+///
+/// ## 为什么牌面文字在代码里画（2026-11-06，玄参拍板方案 B）
+/// 旧背景图把「玩法」二字**烤死**在图里，换语言不跟着变。新图（无字版）木牌留白，
+/// 本组件按 `label` 参数在牌面中央叠加本地化文字（zh「玩法」/ en "PLAY"）——
+/// 一张图永久用，以后改文案不用再找美术。文字用 [FittedBox] 自适应，并按牌面
+/// 透视角度整体倾斜（见 [kGardenSignLabelTiltRadians]）。
 ///
 /// ## 位置由调用方给定（不在组件内再算一遍）
 /// 木牌在屏幕上的矩形由 `garden_background_layout.dart` 的 [gardenSignScreenRect] 算出，
@@ -15,14 +21,34 @@
 /// 故 [GardenSignHotspot.animate] 提供关停开关：widget 测试传 `false`，花园页默认 `true`。
 library garden_sign_hotspot;
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
-/// 背景图左下角木牌的点击热区（含按下缩放 + 呼吸光晕）。
+/// 牌面文字的**倾斜角** = **-7.6°**（弧度；负值 = 逆时针 = 左低右高）。
+///
+/// 测量依据（2026-11-06，无字版 background.jpg 牌面 flood-fill 后按列拟合）：
+///  · 牌面**顶边**斜率 -0.1111（= -6.34°）；
+///  · 牌面**底边**斜率 -0.1582（= -8.99°）；
+///  · 牌面是透视梯形（非平行四边形），文字取两边的**均值** -7.6° 最不违和。
+const double kGardenSignLabelTiltRadians = -7.6 * math.pi / 180;
+
+/// 背景图木牌的点击热区（含牌面文字 + 按下缩放 + 呼吸光晕）。
 class GardenSignHotspot extends StatefulWidget {
-  const GardenSignHotspot({super.key, required this.onTap, this.animate = true});
+  const GardenSignHotspot({
+    super.key,
+    required this.onTap,
+    this.label,
+    this.animate = true,
+  });
 
   /// 点击木牌的回调（花园页里打开「玩法说明」弹窗）。
   final VoidCallback onTap;
+
+  /// 牌面中央叠加的本地化文字（zh「玩法」/ en "PLAY"）。
+  ///
+  /// `null` 时不渲染文字层（旧图带字时代的行为，向后兼容）。
+  final String? label;
 
   /// 是否执行呼吸动画。
   ///
@@ -99,9 +125,45 @@ class _GardenSignHotspotState extends State<GardenSignHotspot>
         scale: _pressed ? _pressedScale : 1.0,
         duration: const Duration(milliseconds: 120),
         child: Stack(
-          // StackFit.expand：让唯一子层填满热区矩形（`Positioned.fromRect` 已给定边界）。
+          // StackFit.expand：让子层填满热区矩形（`Positioned.fromRect` 已给定边界）。
           fit: StackFit.expand,
-          children: <Widget>[_buildGlow()],
+          children: <Widget>[
+            _buildGlow(),
+            if (widget.label != null) _buildLabel(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 牌面文字层（[GardenSignHotspot.label] 非空时渲染）。
+  ///
+  /// 深棕字压亮橙牌面（对比足够，无需描边）；整体按 [kGardenSignLabelTiltRadians]
+  /// 倾斜以贴合牌面透视；[FittedBox] 等比缩放兜底——基准字号 34 下 zh「玩法」/
+  /// en "PLAY" 都在宽约束内原尺寸呈现，串长变化只会 scaleDown、永不溢出牌面。
+  Widget _buildLabel() {
+    return Transform.rotate(
+      angle: kGardenSignLabelTiltRadians,
+      child: Center(
+        child: FractionallySizedBox(
+          // 占热区中带：宽 84% / 高 50%（热区上下各外扩过 ~6‰，牌面本体在中段）；
+          // 目标 = 文字高度接近牌面高的 40~50%（玄参 2026-11-06 复看截图后拍板放大）。
+          widthFactor: 0.84,
+          heightFactor: 0.50,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              widget.label!,
+              maxLines: 1,
+              style: const TextStyle(
+                fontSize: 34,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF6B3F10),
+                height: 1.0,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
         ),
       ),
     );

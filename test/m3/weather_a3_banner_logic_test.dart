@@ -8,10 +8,10 @@
 ///
 /// ## 期望值的来源（**独立于实现**）
 /// · 「哪 4 种是极端日」= 方案 §9.1 与 `WeatherKind.isExtreme` 的口径；
-/// · 「动作齐」按日型的规则 = 方案 §5.1 规则表（干旱看浇水、暴雨看施肥、
-///   大风 / 极寒只看棚）；
-/// · 「完成 = 动作 **且** 道具」= 方案 §9.3。
-/// 本文件**不引用实现里的私有判据**（`_actionsComplete`），只喂入参与断言输出。
+/// · 「完成判据」= 第八批 2026-11-07 玄参拍板：**买棚即 done** —— 4 种极端日
+///   统一只看棚（干旱浇水门槛 / 暴雨施肥门槛已删）；
+/// · 「动作入参不参与判定」= 喂任何动作组合都不改变结论（本文件穷举验证）。
+/// 本文件不引用实现内部细节，只喂入参与断言输出。
 library weather_a3_banner_logic_test;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -94,64 +94,43 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // V2 · 完成判据 = 动作 **且** 道具（4 组笛卡尔积全覆盖）
+  // V2 · 完成判据 = **买棚即 done**（第八批 2026-11-07 玄参拍板）
   // ══════════════════════════════════════════════════════════════════════════
-  group('V2 · 完成 = 动作齐 且 道具已买', () {
-    // 干旱看浇水、暴雨看施肥 —— 这两种日型的动作判据不同，各跑一遍笛卡尔积。
-    for (final WeatherKind kind in <WeatherKind>[
-      WeatherKind.drought,
-      WeatherKind.rainstorm,
-    ]) {
-      final bool drought = kind == WeatherKind.drought;
-      // (动作, 道具) → 期望
-      const Map<String, WeatherBannerMood> expectations = <String, WeatherBannerMood>{
-        '动作齐 + 有棚': WeatherBannerMood.done,
-        '动作齐 + 无棚': WeatherBannerMood.todo,
-        '无动作 + 有棚': WeatherBannerMood.todo,
-        '无动作 + 无棚': WeatherBannerMood.todo,
-      };
-      for (final MapEntry<String, WeatherBannerMood> e in expectations.entries) {
-        test('${kind.name}：${e.key} ⇒ ${e.value.name}', () {
-          final bool actionDone = e.key.startsWith('动作齐');
-          final bool shelter = e.key.endsWith('有棚');
-          final WeatherBannerState st = resolveWeatherBanner(
+  group('V2 · 买棚即 done（动作入参不参与判定）', () {
+    for (final WeatherKind kind in _kExtremeKinds) {
+      test('${kind.name}：只买棚不浇水不施肥 ⇒ done（第八批新语义守卫）', () {
+        expect(
+          resolveWeatherBanner(
             day: _dayOf(kind),
-            // 干旱的动作是浇水；暴雨的动作是施肥 —— 只点亮「对的那个」入参。
-            anyWateredToday: drought && actionDone,
-            anyFertilizedToday: !drought && actionDone,
-            shelterBoughtToday: shelter,
+            anyWateredToday: false,
+            anyFertilizedToday: false,
+            shelterBoughtToday: true,
             sessionDone: false,
+          ).mood,
+          WeatherBannerMood.done,
+          reason: '${kind.name}：第八批起买棚即完成 —— 旧语义「只买棚不浇水永远 '
+              'todo」已反转（干旱浇水门槛 / 暴雨施肥门槛已删）',
+        );
+      });
+
+      test('${kind.name}：动作入参任意组合、无棚 ⇒ todo（动作不能替代棚）', () {
+        // 2^2 = 4 组「浇水 / 施肥」组合全部喂进去 —— 动作入参已不参与判定，
+        // 但喂什么都不许无棚翻 done。
+        for (int mask = 0; mask < 4; mask++) {
+          expect(
+            resolveWeatherBanner(
+              day: _dayOf(kind),
+              anyWateredToday: mask & 1 != 0,
+              anyFertilizedToday: mask & 2 != 0,
+              shelterBoughtToday: false,
+              sessionDone: false,
+            ).mood,
+            WeatherBannerMood.todo,
+            reason: '${kind.name}：mask=$mask —— 无棚就是 todo（M-A3-4 抓手）',
           );
-          expect(st.mood, e.value, reason: '${kind.name}：${e.key}');
-        });
-      }
+        }
+      });
     }
-
-    test('干旱：**只施肥**不算动作齐（浇水与施肥不可互换）', () {
-      expect(
-        resolveWeatherBanner(
-          day: _dayOf(WeatherKind.drought),
-          anyWateredToday: false,
-          anyFertilizedToday: true,
-          shelterBoughtToday: true,
-          sessionDone: false,
-        ).mood,
-        WeatherBannerMood.todo,
-      );
-    });
-
-    test('暴雨：**只浇水**不算动作齐（暴雨浇水额度为 0，强制动作是施肥）', () {
-      expect(
-        resolveWeatherBanner(
-          day: _dayOf(WeatherKind.rainstorm),
-          anyWateredToday: true,
-          anyFertilizedToday: false,
-          shelterBoughtToday: true,
-          sessionDone: false,
-        ).mood,
-        WeatherBannerMood.todo,
-      );
-    });
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -253,24 +232,26 @@ void main() {
       }
     });
 
-    test('「先买棚后做动作」与「先做动作后买棚」结果相同（无隐藏顺序依赖）', () {
+    test('「只买棚即 done」与事实追加顺序无关（先浇水后买棚 / 先买棚后浇水同结果）', () {
       WeatherBannerState stepwise = resolveWeatherBanner(
+        day: _dayOf(WeatherKind.drought),
+        anyWateredToday: false,
+        anyFertilizedToday: false,
+        shelterBoughtToday: false,
+        sessionDone: false,
+      );
+      expect(stepwise.mood, WeatherBannerMood.todo);
+      // 只买棚（不浇水）⇒ **立即 done**（第八批语义；旧语义这里还是 todo）。
+      stepwise = resolveWeatherBanner(
         day: _dayOf(WeatherKind.drought),
         anyWateredToday: false,
         anyFertilizedToday: false,
         shelterBoughtToday: true,
         sessionDone: false,
       );
-      expect(stepwise.mood, WeatherBannerMood.todo);
-      stepwise = resolveWeatherBanner(
-        day: _dayOf(WeatherKind.drought),
-        anyWateredToday: true,
-        anyFertilizedToday: false,
-        shelterBoughtToday: true,
-        sessionDone: false,
-      );
       expect(stepwise.mood, WeatherBannerMood.done);
 
+      // 反向追加（先浇水、后买棚）：最终结果相同 —— 无隐藏顺序依赖。
       final WeatherBannerState reverse = resolveWeatherBanner(
         day: _dayOf(WeatherKind.drought),
         anyWateredToday: true,

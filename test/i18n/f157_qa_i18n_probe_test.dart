@@ -309,6 +309,10 @@ void main() {
       // 唯一任务 → 打卡按钮（en = `I did`，zh =「我做」）。
       await tester.tap(find.text('I did'));
       await _pumpFrames(tester, frames: 12);
+      // 「我做到了」确认卡（玄参 2026-11-06 误触保护，en 确认钮 = `Submit`）：
+      // 先确认才真正打卡。
+      await tester.tap(find.text('Submit'));
+      await _pumpFrames(tester, frames: 12);
 
       expect(find.byType(GoldNoticeDialog), findsOneWidget,
           reason: '打完当日最后一条 → 完美日庆祝卡在场');
@@ -327,6 +331,9 @@ void main() {
       _useLocale(AppLanguage.zh);
       await _pumpTaskPageAndFinishAll(tester);
       await tester.tap(find.text('我做'));
+      await _pumpFrames(tester, frames: 12);
+      // 「我做到了」确认卡（玄参 2026-11-06 误触保护）：先点「提交」才真正打卡。
+      await tester.tap(find.text('提交'));
       await _pumpFrames(tester, frames: 12);
 
       expect(find.byType(GoldNoticeDialog), findsOneWidget);

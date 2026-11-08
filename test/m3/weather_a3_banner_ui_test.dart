@@ -13,12 +13,29 @@
 /// 🔴 **禁 `pumpAndSettle`**：花园页有两个无限动画（木牌呼吸 / 氛围音），
 ///    `pumpAndSettle` 永不返回 ⇒ 本文件一律用有界 `pump`。
 ///
+/// ## 2026-11-07 第三轮改写（玄参拍板「白色长条删除」）
+///  · 停靠条（`GardenWeatherDock`，72 白条）**退役**，改名 `GardenWeatherBadge`
+///    独立图标状态灯（56×56）—— 本文件的停靠条
+///    几何断言（72 高 / 全宽）全部改写为状态灯断言；
+///  · 买棚按钮在**天气对话框**里（点状态灯弹出）—— V9 done 态补断言盾牌，
+///    T-7 恢复执行（前置「点 badge → 弹对话框」两步）。
+///
+/// ## 2026-11-07 第四轮改写（玄参第四批排版）
+///  · 状态灯移**右上角**（`right:12 / top:12`，与左上 chips 行对称）。
+///
+/// ## 2026-11-07 第五轮改写（玄参第五批拍板）
+///  · 底部天气提示框（`GardenWeatherTicker`）**整体撤除**（「不显示了，就放在
+///    天气弹窗里吧」）—— 明日预告由对话框承接；本文件的 ticker 断言删除，
+///    并补「ticker 不存在」守卫；
+///  · 一键 FAB 回归**右下角原位**（`right:12 / bottom:12`）。
+///
 /// ## 期望值来源（独立于实现常量）
-/// · 条幅 `top == 6` / `height == 56` / `left == 12` / `width == 页宽−24`
-///   = 设计 §1.4 的**写死坐标表**（不是读实现常量自证）；
-/// · `chips 文本顶 == 68` = `6 + 56 + 6`；
-/// · 温和日 `y == 12` = A2 封版基线（§1.1 表）；
-/// · `kWeatherRowKey` 在极端日**不存在** = 设计 §6 的契约（不是实现细节）。
+/// · 状态灯 `right == 390 − 12 / top == 12 / 尺寸 == 56`
+///   + 底色（温和/done = `0xFFC0DD97` 绿、极端 todo = `0xFF6FA3A0` 雾霾青蓝 + 红描边，
+///   + 叹号角标 / done 对勾角标）= 玄参 2026-11-07 拍板的**写死坐标表**；
+/// · `chips 视觉顶 == 12` = A2 封版基线；
+/// · `kWeatherRowKey` / `kWeatherBannerKey` 在真页面树里**不存在** = 2026-11-06
+///   「天气预告整体撤出顶部」的契约（不是实现细节）。
 library weather_a3_banner_ui_test;
 
 import 'package:drift/native.dart';
@@ -49,6 +66,8 @@ import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart'
     show GardenGrid, GardenPot;
+import 'package:sunflower_time/presentation/child/widgets/garden_weather_badge.dart';
+import 'package:sunflower_time/presentation/child/widgets/garden_weather_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/weather_banner.dart';
 import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dart';
 
@@ -337,18 +356,8 @@ void _phoneViewport(WidgetTester tester) {
   addTearDown(tester.view.reset);
 }
 
-/// 定位 chips 行（**结构定位** + 「×N」自检，与 A2-8④ 同款）。
-Finder _chipsRowFinder(WidgetTester tester, Finder weatherRow) {
-  final Finder outerRow =
-      find.ancestor(of: weatherRow, matching: find.byType(Row)).first;
-  final Finder chipTexts =
-      find.descendant(of: outerRow, matching: find.textContaining('×'));
-  expect(chipTexts, findsAtLeastNWidgets(1),
-      reason: 'chips（碎片 / 普通种子 / 精英种子）必须渲染 —— 否则定位到的不是浮层行');
-  return find.descendant(of: outerRow, matching: find.byType(Row)).first;
-}
-
-/// 不依赖天气行也能定位 chips 行（极端日天气行**不存在**）。
+/// 不依赖天气行定位 chips 行（2026-11-06 起顶部天气行/胶囊整体撤除，页面树里
+/// **不再存在** `kWeatherRowKey`，旧的结构定位口径随之退役）。
 ///
 /// `×N` 文本的**最近** Row 祖先是 `_SeedCountChip` 内部的布局 Row（它上面还有
 /// `Padding(vertical: 6)`），故取「再上一层」= 三个 chip 所在的行。
@@ -381,87 +390,153 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // V6 · 温和日：**零几何变化**（条幅不渲染，胶囊与 chips 都在 y=12）
+  // V6 · 温和日：顶部零天气件（条幅/胶囊均撤除），右上角状态灯渲染
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('V6 · 温和日（sunny，动态查找）：条幅不存在、胶囊存在，'
-      '胶囊槽顶/胶囊实体顶/chips 行顶 == 12（与 A2 基线同值）', (WidgetTester tester) async {
+  testWidgets('V6 · 温和日（sunny，动态查找）：条幅/顶部胶囊不存在，'
+      '右上角状态灯（绿底 56×56 贴 right12/top12，无白条）在场，'
+      '底部提示框不存在（第五批撤除），chips 行顶 == 12',
+      (WidgetTester tester) async {
     _phoneViewport(tester);
     await _pumpLoaded(tester, _page(today: _todayOf(_kMildDay)));
 
+    // 旧顶部件全部退场（2026-11-06 玄参拍板：天气预告整体撤出顶部）。
     expect(find.byKey(kWeatherBannerKey), findsNothing,
-        reason: '温和日**不得**渲染条幅（M-A3-2 的抓手：多渲染一条会顶高 62pt）');
-    expect(find.byKey(kWeatherRowKey), findsOneWidget,
-        reason: '温和日天气胶囊必须照旧渲染（A2 §6：极端日才由条幅承接）');
+        reason: '旧条幅不再渲染（无论温和日 / 极端日）');
+    expect(find.byKey(kWeatherRowKey), findsNothing,
+        reason: '顶部天气胶囊整体撤除 —— 契约：`kWeatherRowKey` 在真页面树里不存在');
+    expect(find.byKey(kWeatherPillKey), findsNothing);
 
-    final Rect slot = tester.getRect(find.byKey(kWeatherPillSlotKey));
-    final Rect entity = tester.getRect(find.byKey(kWeatherPillKey));
-    expect(slot.top, closeTo(12, 0.5), reason: '胶囊槽顶必须仍是 12（A2 基线）');
-    expect(entity.top, closeTo(slot.top, 0.5), reason: '实体顶对齐槽顶');
-    expect(slot.height, closeTo(32, 0.5), reason: '槽高 32');
-    expect(entity.height, closeTo(28, 0.5), reason: '实体 28');
-    expect(tester.getRect(find.byKey(kWeatherPillHitKey)).height, closeTo(44, 0.5),
-        reason: '命中盒 44（A11y 下限）');
+    // 右上角状态灯：温和日 = 图标状态灯（绿底 56×56），无角标 / 无买棚按钮。
+    final Finder badge = find.byKey(kGardenWeatherBadgeKey);
+    expect(badge, findsOneWidget, reason: '温和日也必须渲染状态灯（点击开对话框）');
+    expect(find.byKey(kGardenWeatherBadgeIconKey), findsOneWidget,
+        reason: '56×56 图标状态灯在场（玄参：「图标太小了要单独拎出来放大」）');
+    expect(
+      (tester.widget<Container>(find.byKey(kGardenWeatherBadgeIconKey))
+              .decoration! as BoxDecoration)
+          .color,
+      const Color(0xFFC0DD97),
+      reason: '温和日状态灯 = 浅绿底（正常，写死色值）',
+    );
+    expect(find.byKey(kGardenWeatherBadgeMarkKey), findsNothing,
+        reason: '温和日无状态角标');
+    expect(find.byKey(kShelterButtonHitKey), findsNothing,
+        reason: '买棚按钮只在天气对话框里，状态灯上永不存在');
+    expect(
+      find.descendant(
+        of: badge,
+        matching: find.textContaining(zh.weather_sunny),
+      ),
+      findsNothing,
+      reason: '状态灯不渲染描述文字（玄参第三轮：「只保留 56×56 的圆角块就好了」）',
+    );
 
-    final Rect chips = tester.getRect(_chipsRowFinder(tester, find.byKey(kWeatherRowKey)));
-    expect(chips.top, closeTo(12, 0.5),
-        reason: 'chips 行顶必须仍是 12（`Padding(top: 6)` 仍在）');
+    // 几何：真实 56×56 块贴右上（right 12 / top 12，与左上 chips 行对称）；
+    // 旧 72 白条已删（组件总高 == 56，不是 72）。
+    final Rect badgeRect = tester.getRect(badge);
+    expect(badgeRect.right, closeTo(390 - 12, 0.5), reason: '状态灯右锚 12');
+    expect(badgeRect.top, closeTo(12, 0.5), reason: '状态灯贴顶 12');
+    expect(badgeRect.width, closeTo(56, 0.5), reason: '状态灯宽 56（无白条全宽）');
+    expect(badgeRect.height, closeTo(56, 0.5), reason: '状态灯高 56（白条已删）');
+
+    // 底部提示框已撤（第五批玄参拍板）：kGardenWeatherTickerKey 在树里不存在
+    // ——「今日 / 明日」信息全部收进天气对话框（点状态灯弹出）。
+    expect(find.byKey(const ValueKey<String>('garden_weather_ticker')),
+        findsNothing,
+        reason: '底部天气提示框已整体撤除（第五批），契约：其 Key 不在页面树里');
+
+    // 顶部 chips 行不动：视觉顶仍 y=12（A2 基线）。
+    final Rect chips = tester.getRect(_chipsRowFinderNoWeatherRow(tester));
+    expect(chips.top, closeTo(12, 0.5), reason: 'chips 行顶必须仍是 12');
+
+    // 一键操作按钮：右下角原位（right:12 / bottom:12；第五批 ticker 撤除后
+    // 从「ticker 右上方 bottom:52」的临时摆位回归玄参预期的右下角）。
+    final Finder fab = find.byKey(kOneClickCapsuleKey);
+    expect(fab, findsOneWidget, reason: '买断档 + 存活 5 株 ⇒ 一键 FAB 在场');
+    final Rect fabRect = tester.getRect(fab);
+    expect(fabRect.right, closeTo(390 - 12, 0.5), reason: 'FAB 右缘 = 页宽 − 12');
+    expect(fabRect.bottom, closeTo(844 - 12, 0.5),
+        reason: 'FAB 底缘 = 页高 − 12（右下角原位）');
 
     expect(tester.takeException(), isNull);
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // V7 · 极端日几何（**写死坐标**，不引用实现常量）
+  // V7 · 极端日几何（**写死坐标**，不引用实现常量）—— 2026-11-07 第四批起
+  //      状态灯在右上角（第五批起底部提示框撤除，FAB 回右下角）
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('V7 · 极端日（drought，动态查找）：条幅 top==6 / height==56 / '
-      'left==12 / width==366；chips 行顶==68；kWeatherRowKey 不存在',
-      (WidgetTester tester) async {
+  testWidgets('V7 · 极端日（drought，动态查找）：状态灯 right==390−12 / top==12 / '
+      '56×56 + 红底 + 红色「!」角标（无白条、无买棚按钮）；底部提示框不存在；'
+      'chips 行顶==12；kWeatherRowKey 不存在', (WidgetTester tester) async {
     _phoneViewport(tester);
     await _pumpLoaded(tester, _page(today: _todayOf(_kDroughtDay)));
 
-    final Finder banner = find.byKey(kWeatherBannerKey);
-    expect(banner, findsOneWidget, reason: '极端日必须渲染条幅');
+    final Finder badge = find.byKey(kGardenWeatherBadgeKey);
+    expect(badge, findsOneWidget, reason: '极端日必须渲染状态灯');
 
-    final Rect rect = tester.getRect(banner);
-    expect(rect.top, closeTo(6, 0.5), reason: '条幅顶 = 浮层 top = 6（embedded）');
-    expect(rect.height, closeTo(56, 0.5), reason: '条幅固定高 56');
-    expect(rect.left, closeTo(12, 0.5), reason: '左边距 12');
-    expect(rect.width, closeTo(390 - 24, 0.5), reason: '全宽 = 页宽 − 24');
+    // 图标状态灯（todo 态）：雾霾青蓝底 + 1.5 红描边 + 红色「!」角标
+    // （写死色值，不引用实现常量；第八批：淡青底加深，纯白雪花要清晰）。
+    expect(
+      (tester.widget<Container>(find.byKey(kGardenWeatherBadgeIconKey))
+              .decoration! as BoxDecoration)
+          .color,
+      const Color(0xFF6FA3A0),
+      reason: '极端 todo 态状态灯 = 雾霾青蓝底（第八批：白 vs 底对比度 ≥2.5）',
+    );
+    expect(
+      ((tester.widget<Container>(find.byKey(kGardenWeatherBadgeIconKey))
+                  .decoration! as BoxDecoration)
+              .border! as Border)
+          .top
+          .color,
+      const Color(0xFFE24B4A),
+      reason: '极端 todo 态状态灯 = 1.5 红描边',
+    );
+    expect(find.byKey(kGardenWeatherBadgeMarkKey), findsOneWidget,
+        reason: 'todo 态必须有叹号角标（「背景红色加叹号，表示需要处理」）');
+    expect(
+      (tester.widget<Container>(find.byKey(kGardenWeatherBadgeMarkKey))
+              .decoration! as BoxDecoration)
+          .color,
+      const Color(0xFFE24B4A),
+      reason: '叹号角标 = 红底（写死色值）',
+    );
+    expect(find.text('!'), findsOneWidget, reason: '角标内容 = 白色「!」');
+    expect(find.byKey(kShelterButtonHitKey), findsNothing,
+        reason: '买棚按钮只在对话框里（点状态灯弹出），页面上无按钮');
 
-    // 契约（设计 §6）：极端日天气胶囊**不渲染**。
+    // 几何：真实 56×56 块贴右上（写死坐标，不引用实现常量）。
+    final Rect rect = tester.getRect(badge);
+    expect(rect.right, closeTo(390 - 12, 0.5), reason: '状态灯右锚 12');
+    expect(rect.top, closeTo(12, 0.5), reason: '状态灯贴顶 12');
+    expect(rect.width, closeTo(56, 0.5), reason: '状态灯宽 56（无白条全宽）');
+    expect(rect.height, closeTo(56, 0.5), reason: '状态灯高 56（白条已删）');
+
+    // 底部提示框已撤（第五批）：极端日也不再有底部警示条目。
+    expect(find.byKey(const ValueKey<String>('garden_weather_ticker')),
+        findsNothing,
+        reason: '极端日底部提示框同样不存在（第五批撤除）');
+
+    // 旧顶部件全部退场（条幅时代的「chips 下移到 68」几何随之退役）。
+    expect(find.byKey(kWeatherBannerKey), findsNothing);
     expect(find.byKey(kWeatherRowKey), findsNothing,
-        reason: '极端日 `kWeatherRowKey` 在树里**不存在** —— 这是契约不是实现细节'
+        reason: '极端日 `kWeatherRowKey` 在树里**不存在** —— 契约不是实现细节'
             '（变异点 M-A3-6 的抓手）');
     expect(find.byKey(kWeatherPillKey), findsNothing);
 
-    // chips 行下移到条幅之下：6 + 56 + 6 = 68（chips 的 `Padding(top: 6)` 必须置 0，
-    // 否则会是 74 —— 变异点 M-A3-8 的抓手）。
-    // 🔴 定位口径：`×N` 文本的**最近** Row 祖先是 `_SeedCountChip` 内部那层
-    //    （它上面还有 `Padding(vertical: 6)` ⇒ 比 chips 行顶低 6）⇒ 必须取
-    //    「再上一层 Row」= 三个 chip 所在的行（`_chipsRowFinderNoWeatherRow` 内含自检）。
-    final Rect chipsRow =
-        tester.getRect(_chipsRowFinderNoWeatherRow(tester));
-    expect(chipsRow.top, closeTo(68, 0.5),
-        reason: 'chips 行顶 = 6 + 56 + 6 = 68');
+    // chips 行顶不变：极端日不再下移（旧的 6 + 56 + 6 = 68 已退役）。
+    final Rect chipsRow = tester.getRect(_chipsRowFinderNoWeatherRow(tester));
+    expect(chipsRow.top, closeTo(12, 0.5),
+        reason: 'chips 行顶 == 12（顶部条幅撤除后极端日不再下移 chips）');
     expect(chipsRow.left, closeTo(12, 0.5), reason: 'chips 仍贴左边距 12');
-
-    // 条幅文案 = todo_drought（zh），且**没有** ellipsis。
-    expect(find.text(zh.garden_weather_banner_todo_drought), findsOneWidget);
-
-    // 道具按钮在条幅内（视觉 32 / 命中 44），且**只有一个**（薄行那条已不渲染）。
-    expect(find.byKey(kShelterButtonHitKey), findsOneWidget);
-    expect(tester.getRect(find.byKey(kShelterButtonVisualKey)).height,
-        closeTo(32, 0.5),
-        reason: '条幅内的道具按钮视觉高 32');
-    expect(tester.getRect(find.byKey(kShelterButtonHitKey)).height,
-        closeTo(44, 0.5),
-        reason: '命中盒 44（A11y 下限）');
 
     expect(tester.takeException(), isNull,
         reason: '极端日真页面不得有 RenderFlex overflow / 负宽断言等异常');
   });
 
-  testWidgets('V7 · 极端日 standalone（embedded: false）几何整体 +48，'
-      '条幅 top==54、chips 行顶==116', (WidgetTester tester) async {
+  testWidgets('V7 · 极端日 standalone（embedded: false）：状态灯贴 body 顶'
+      '（right:12 / top:12、56×56），chips 视觉顶 − body 顶 == 12',
+      (WidgetTester tester) async {
     _phoneViewport(tester);
     await tester.pumpWidget(
       ProviderScope(
@@ -486,19 +561,23 @@ void main() {
     );
     expect(ready, isTrue, reason: 'standalone 花园页也应加载完成');
 
-    final Rect rect = tester.getRect(find.byKey(kWeatherBannerKey));
-    // standalone 有 AppBar：坐标以 **body 顶**为基准（AppBar 之下），
-    // 故这里用「AppBar 底」换算，而不是写死屏幕坐标。
+    final Rect rect = tester.getRect(find.byKey(kGardenWeatherBadgeKey));
+    // standalone 有 AppBar：坐标以 **body** 为基准（AppBar 之下）。
     final double bodyTop = tester.getRect(find.byType(AppBar)).bottom;
-    expect(rect.top - bodyTop, closeTo(54, 0.5),
-        reason: 'standalone 浮层 top = (60 − 6) = 54（独立路由有阳光胶囊）');
-    expect(rect.height, closeTo(56, 0.5));
-    // 相对几何与 embedded 同一套：chips 行顶 − 条幅顶 = 56 + 6 = 62。
+    expect(rect.width, closeTo(56, 0.5), reason: '状态灯宽 56');
+    expect(rect.height, closeTo(56, 0.5), reason: '状态灯高 56（白条已删）');
+    expect(rect.right, closeTo(390 - 12, 0.5), reason: '状态灯右锚 12');
+    expect(rect.top - bodyTop, closeTo(12, 0.5),
+        reason: 'standalone 状态灯贴 body 顶（top:12）');
+    // 相对几何与 embedded 同一套：chips 视觉顶 − body 顶 == 60
+    //（standalone 浮层 top = (60 − 6) = 54 + chips 内距 6；A2 温和日基线原值）。
     final Rect chipsRow =
         tester.getRect(_chipsRowFinderNoWeatherRow(tester));
-    expect(chipsRow.top - rect.top, closeTo(62, 0.5),
-        reason: 'chips 行顶 − 条幅顶 = 56 + 6 = 62（与 embedded 同一套相对几何）');
+    expect(chipsRow.top - bodyTop, closeTo(60, 0.5),
+        reason: 'chips 视觉顶 − body 顶 = 54 + 6 = 60（与 embedded 同一套相对几何：'
+            'embedded 为 12，standalone 整体 +48）');
     expect(find.byKey(kWeatherRowKey), findsNothing);
+    expect(find.byKey(kWeatherBannerKey), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -528,8 +607,9 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
   // V9 · 完成态：账本重算 ⇒ done（页面重建后不回退）
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('V9 · 极端日 + 当日「浇过水」+「已买遮阳棚」⇒ 条幅 done 态'
-      '（✓ 图标 + done 文案，todo 文案退场）', (WidgetTester tester) async {
+  testWidgets('V9 · 极端日 + 当日「浇过水」+「已买遮阳棚」⇒ 状态灯 done 态'
+      '（绿底 + 绿对勾角标；badge 左侧盾牌在场；对话框无盾牌行、买棚按钮退场）',
+      (WidgetTester tester) async {
     _phoneViewport(tester);
     final String key = WeatherSystem.dayKey(_kDroughtDay);
     final _FakeLedger ledger = _FakeLedger()
@@ -560,70 +640,129 @@ void main() {
 
     await _pumpLoaded(tester, _page(today: _todayOf(_kDroughtDay), ledger: ledger));
 
-    expect(find.byKey(kWeatherBannerKey), findsOneWidget);
-    expect(find.text(zh.garden_weather_banner_done_drought), findsOneWidget,
-        reason: '账本事实齐全 ⇒ 条幅必须直接进 done 态（重建后以账本重算为准，§3.2）');
-    expect(find.text(zh.garden_weather_banner_todo_drought), findsNothing,
-        reason: 'done 态不得同时显示 todo 文案');
+    final Finder badge = find.byKey(kGardenWeatherBadgeKey);
+    expect(badge, findsOneWidget);
 
-    // 完成态图标：**天气位图换成 ✓**（§9.5 语义优先于美术）。
+    // done 态 = 绿底状态灯 + 绿底对勾角标（完成 = 正常色；todo 文案 / 买棚按钮
+    // 均不在场 —— 买棚入口在对话框里，done 态对话框换盾牌）。
     expect(
-      find.descendant(
-        of: find.byKey(kWeatherBannerIconKey),
-        matching: find.byIcon(Icons.check_circle_rounded),
-      ),
-      findsOneWidget,
-      reason: '完成态图标位必须是 ✓（不是天气位图）',
+      (tester.widget<Container>(find.byKey(kGardenWeatherBadgeIconKey))
+              .decoration! as BoxDecoration)
+          .color,
+      const Color(0xFFC0DD97),
+      reason: 'done 态状态灯 = 浅绿底（完成 = 正常，写死色值）',
+    );
+    expect(find.byKey(kGardenWeatherBadgeMarkKey), findsOneWidget,
+        reason: 'done 态角标在场（玄参：「叹号换成绿对勾」）');
+    expect(
+      (tester.widget<Container>(find.byKey(kGardenWeatherBadgeMarkKey))
+              .decoration! as BoxDecoration)
+          .color,
+      const Color(0xFF2E7D32),
+      reason: 'done 角标 = 绿底（与「已获保护」同族色）',
+    );
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget,
+        reason: 'done 角标内容 = 白对勾');
+    expect(find.text(zh.garden_weather_banner_todo_drought), findsNothing,
+        reason: 'done 态不得显示 todo 文案（状态灯本身也不渲染文字）');
+    expect(find.byKey(kShelterButtonHitKey), findsNothing,
+        reason: '页面上无买棚按钮（在对话框里）');
+
+    // 第七批：已购棚 ⇒ 状态灯**左侧**盾牌位图在场（盾牌语义从对话框迁出）。
+    expect(find.byKey(kGardenWeatherBadgeShelterKey), findsOneWidget,
+        reason: '已购棚 ⇒ badge 左侧盾牌位图在场（第七批 2026-11-07）');
+    final Rect badgeRectV9 = tester.getRect(find.byKey(kGardenWeatherBadgeKey));
+    expect(badgeRectV9.right, closeTo(390 - 12, 0.5),
+        reason: '有盾牌时状态灯右锚仍 12（整排向左生长，右缘不变）');
+
+    // 点状态灯 → 天气对话框弹出：买棚按钮退场（done）；盾牌行已迁往 badge 左侧
+    //（第七批），框内不再有「已获保护」。
+    await tester.tap(badge);
+    final bool dialogShown = await _pumpUntilReady(
+      tester,
+      () => find.byKey(kGardenWeatherDialogKey).evaluate().isNotEmpty,
+      maxFrames: 40,
+    );
+    expect(dialogShown, isTrue, reason: '点状态灯应弹出天气对话框');
+    expect(find.text(zh.garden_weather_protected), findsNothing,
+        reason: 'done 态对话框不再渲染盾牌 /「已获保护」行（第七批迁往 badge 左侧）');
+    expect(find.byKey(kShelterButtonHitKey), findsNothing,
+        reason: 'done 态无买棚按钮（退场逻辑保留）');
+    // 关对话框（不污染后续断言）。
+    await tester.tap(find.text(zh.garden_weather_dialog_close));
+    await _pumpUntilReady(
+      tester,
+      () => find.byKey(kGardenWeatherDialogKey).evaluate().isEmpty,
+      maxFrames: 20,
     );
 
     // 页面再跑若干帧（经济修订号 / tab 刷新会反复 _reload）也不许回退。
     for (int i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
-    expect(find.text(zh.garden_weather_banner_done_drought), findsOneWidget,
-        reason: '重复刷新后仍必须 done（重算幂等，§3.2）');
+    expect(
+      (tester.widget<Container>(find.byKey(kGardenWeatherBadgeIconKey))
+              .decoration! as BoxDecoration)
+          .color,
+      const Color(0xFFC0DD97),
+      reason: '重复刷新后仍必须 done（绿底不回退；重算幂等，§3.2）',
+    );
+    expect(find.byKey(kGardenWeatherBadgeMarkKey), findsOneWidget,
+        reason: '重复刷新后仍是对勾角标（重算幂等，§3.2）');
     expect(tester.takeException(), isNull);
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // V10 · 零动画（条幅子树内没有任何动画件；连续帧几何逐位不变）
+  // V10 · 状态灯零动画（badge 子树内没有任何动画件；连续帧几何逐位不变）
+  // （ticker 已于第五批撤除，其轮播契约测试 `garden_weather_ticker_test.dart`
+  //   一并删除——不再有该组件。）
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('V10 · 条幅零动画：子树内无 AnimatedContainer / AnimatedOpacity / '
+  testWidgets('V10 · 状态灯零动画：子树内无 AnimatedContainer / AnimatedOpacity / '
       'AnimatedSwitcher / TweenAnimationBuilder，且 30 帧内矩形逐位不变',
       (WidgetTester tester) async {
     _phoneViewport(tester);
     await _pumpLoaded(tester, _page(today: _todayOf(_kDroughtDay)));
 
-    final Finder banner = find.byKey(kWeatherBannerKey);
-    expect(banner, findsOneWidget);
+    final Finder badge = find.byKey(kGardenWeatherBadgeKey);
+    expect(badge, findsOneWidget);
 
     // 🔴 只对「进场 / 尺寸」类动画下断言：`Material(elevation: 2)` 内部的
     //    `AnimatedPhysicalModel` 只在 elevation 变化时才跑，本页永不变化，
-    //    且它是薄行同一个组件既有的实现细节，不算「条幅加了动画」。
+    //    且它是薄行 / 旧条幅同一个组件既有的实现细节，不算「条加了动画」。
     for (final Finder animated in <Finder>[
-      find.descendant(of: banner, matching: find.byType(AnimatedContainer)),
-      find.descendant(of: banner, matching: find.byType(AnimatedOpacity)),
-      find.descendant(of: banner, matching: find.byType(AnimatedSwitcher)),
-      find.descendant(of: banner, matching: find.byType(TweenAnimationBuilder<double>)),
-      find.descendant(of: banner, matching: find.byType(ScaleTransition)),
-      find.descendant(of: banner, matching: find.byType(FadeTransition)),
+      find.descendant(of: badge, matching: find.byType(AnimatedContainer)),
+      find.descendant(of: badge, matching: find.byType(AnimatedOpacity)),
+      find.descendant(of: badge, matching: find.byType(AnimatedSwitcher)),
+      find.descendant(of: badge, matching: find.byType(TweenAnimationBuilder<double>)),
+      find.descendant(of: badge, matching: find.byType(ScaleTransition)),
+      find.descendant(of: badge, matching: find.byType(FadeTransition)),
     ]) {
-      expect(animated, findsNothing, reason: '条幅内不许有任何入场 / 尺寸动画（§9.8）');
+      expect(animated, findsNothing, reason: '状态灯内不许有任何入场 / 尺寸动画（§9.8）');
     }
 
-    final Rect first = tester.getRect(banner);
+    final Rect first = tester.getRect(badge);
     for (int i = 0; i < 30; i++) {
       await tester.pump(const Duration(milliseconds: 16));
-      final Rect now = tester.getRect(banner);
-      expect(now, first, reason: '第 $i 帧条幅矩形发生了变化 ⇒ 存在动画');
+      final Rect now = tester.getRect(badge);
+      expect(now, first, reason: '第 $i 帧状态灯矩形发生了变化 ⇒ 存在动画');
     }
     expect(tester.takeException(), isNull);
   });
 
   // ══════════════════════════════════════════════════════════════════════════
   // T-7.3 · 跨零点：确认卡写的道具 == 账本记的道具 == provider 的 dayKey
+  //
+  // ✅ **恢复执行（2026-11-07，第三批）**：极端日买棚 UI 入口已恢复 —— 从「旧条幅
+  // → 停靠条」一路迁到「**天气对话框**」（点右上角状态灯弹出，玄参 2026-11-07
+  // 拍板）。入口链登记：**条幅 → 停靠条 → 天气对话框（2026-11-07）**。
+  // 前置步骤 = 「点 badge → pump 弹出对话框」两步，测试体其余原样未动；
+  //  · 被保护的生产逻辑（`_onShelterTap` / `_buyShelterNow` / 记账链路 / §13.5
+  //    同源快照纪律）一直未变；
+  //  · 2026-11-06 曾因「停靠条只做状态灯、入口撤除」skip 过一轮，本次随对话框
+  //    落地正式摘除 skip。
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('T-7 · 跨零点（钉「动态查找的干旱日 23:59:59」，与真实今天不同日）：'
+  testWidgets(
+      'T-7 · 跨零点（钉「动态查找的干旱日 23:59:59」，与真实今天不同日）：'
       '确认卡写「遮阳棚」，账本写入 refType==shelter_shade 且 dayKey==钉死日',
       (WidgetTester tester) async {
     _phoneViewport(tester);
@@ -638,7 +777,18 @@ void main() {
     expect(pinned.dayKey, isNot(WeatherSystem.dayKey(DateTime.now())),
         reason: '钉死的日子必须与「跑测试那天」不同，才能抓住重新读钟的实现');
 
-    // 点条幅里的道具按钮 → 弹确认卡（文案由页面 context 取好，走 zh）。
+    // 前置（2026-11-07 入口链：状态灯 → 天气对话框）：点状态灯弹出对话框，
+    // 买棚按钮（kShelterButtonHitKey）如今住在对话框里。
+    await tester.tap(find.byKey(kGardenWeatherBadgeKey));
+    final bool dialogShown = await _pumpUntilReady(
+      tester,
+      () => find.byKey(kGardenWeatherDialogKey).evaluate().isNotEmpty,
+      maxFrames: 40,
+    );
+    expect(dialogShown, isTrue, reason: '点状态灯应弹出天气对话框（买棚入口）');
+
+    // 点对话框里的「遮阳棚 · 10 ☀」→ 关对话框 + 弹确认卡（文案由页面 context
+    // 取好，走 zh）。
     await tester.tap(find.byKey(kShelterButtonHitKey));
     final bool cardShown = await _pumpUntilReady(
       tester,
@@ -664,12 +814,70 @@ void main() {
     expect(shelters, isNotEmpty,
         reason: '账本必须写入 shelter_shade 行（买棚必须真的记账）');
     expect(shelters.single.dayKey, pinned.dayKey,
-        reason: '账本的 dayKey 必须与 provider 的 dayKey 一致 —— 若 `:1759` 还在'
-            '自己 `DateTime.now()`，这里会是真实今天（M-A3-9 / M-A3-10 的抓手）');
+        reason: '账本的 dayKey 必须与 provider 的 dayKey 一致 —— 若任何一步偷偷'
+            ' `DateTime.now()`，这里会是真实今天（M-A3-9 / M-A3-10 的抓手）');
     expect(
       ledger.entries.where((SunlightEntry e) => e.refType == kWeatherShelterRefTypeRain),
       isEmpty,
       reason: '不许因跨零点写成次日的「遮雨棚」',
     );
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // T-11 · done 判据语义（第八批 ① · 玄参 2026-11-07 拍板：**买棚即 done**）
+  //
+  // 干旱日 done 判据 = **仅买棚**（第八批语义：干旱「浇水 ≥ 1」门槛已删，旧
+  // T-11「只买棚永远 todo」守卫已反转）。只买棚不浇水 ⇒ badge **立即** done
+  // （绿底对勾）+ 左侧盾牌在场 —— 买棚成功走 `_buyShelterNow` 的 setState 同帧
+  // 切 done（判据已满足时无需等任何刷新，见 `_rememberWeatherBannerDone`）。
+  // 本用例把新语义钉死：若有人把旧门槛加回来，这里变红。
+  // ══════════════════════════════════════════════════════════════════════════
+  testWidgets(
+      'T-11 · 干旱日只买棚不浇水 ⇒ badge 立即 done（绿底对勾）+ 左侧盾牌在场'
+      '（第八批新语义守卫：买棚即 done，浇水门槛已删）',
+      (WidgetTester tester) async {
+    _phoneViewport(tester);
+    final String key = WeatherSystem.dayKey(_kDroughtDay);
+    // 只有买棚行，**没有** plant_water 行。
+    final _FakeLedger ledger = _FakeLedger()
+      ..entries.add(SunlightEntry(
+        id: 'a3_shelter_only',
+        ts: _kDroughtDay,
+        type: SunlightType.plant,
+        gross: -10,
+        net: -10,
+        balanceAfter: 90,
+        refType: kWeatherShelterRefTypeShade,
+        refId: kWeatherShelterRefId,
+        dayKey: key,
+      ));
+
+    await _pumpLoaded(tester, _page(today: _todayOf(_kDroughtDay), ledger: ledger));
+
+    // badge = done：绿底白对勾角标在场，叹号退场。
+    expect(find.byKey(kGardenWeatherBadgeMarkKey), findsOneWidget,
+        reason: '只买棚即 done ⇒ 角标在场（对勾）');
+    expect(
+      (tester.widget<Container>(find.byKey(kGardenWeatherBadgeMarkKey))
+              .decoration! as BoxDecoration)
+          .color,
+      const Color(0xFF2E7D32),
+      reason: 'done 角标 = 绿底（不是 todo 红）',
+    );
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget,
+        reason: '买棚即 done ⇒ 对勾立即出现（无需等浇水）');
+    expect(find.text('!'), findsNothing, reason: 'done 态叹号退场');
+    // 棚买了 ⇒ badge 左侧盾牌在场（盾牌语义与 done 同帧齐现）。
+    expect(find.byKey(kGardenWeatherBadgeShelterKey), findsOneWidget,
+        reason: '已购棚 ⇒ badge 左侧盾牌在场');
+
+    // 多跑若干帧（经济修订号触发的静默刷新重算）结论不变（重算幂等）。
+    for (int i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget,
+        reason: '重算幂等：只买棚的 done 重算多少次都不许闪回 todo');
+
+    expect(tester.takeException(), isNull);
   });
 }

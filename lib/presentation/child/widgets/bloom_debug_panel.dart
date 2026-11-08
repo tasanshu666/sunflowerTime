@@ -36,6 +36,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/di/today_weather.dart'
+    show debugWeatherOverrideProvider, todayWeatherProvider;
+import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/pending_bloom_reward.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
@@ -47,7 +50,11 @@ import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/pot_disturbance_repository.dart';
 import 'package:sunflower_time/domain/services/empty_pot_service.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/domain/services/weather_system.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
+import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dart'
+    show weatherArtOf, weatherNameOf;
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
 
 /// 花园页右上角「花期调试」浮层入口（**紧凑圆形按钮**）。
@@ -607,6 +614,8 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
               // 空盆调试与「有没有植物」无关：一株都没种也应该能用
               // （玄参场景 = 只有空盆，正是最需要强制长草的时刻）。
               _emptyPotSection(),
+              const SizedBox(height: 12),
+              _weatherSection(),
             ]
             else ...<Widget>[
               // ── 植物选择 ──────────────────────────────────────────────
@@ -778,6 +787,8 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
               //    集体变红。放末尾 = 既有条目 offset 逐像素不变（零回归），
               //    新入口多滚一屏即可见（面板本来就是可滚动列表）。
               _emptyPotSection(),
+              const SizedBox(height: 12),
+              _weatherSection(),
             ],
           ],
         ),
@@ -871,6 +882,94 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
               FilledButton.tonal(
                 onPressed: disabled ? null : _clearEmptyPotDisturbance,
                 child: const Text('空盆草虫全清'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 「今日天气」调试区块（第五批 2026-11-07；玄参「调试面板里面没有关于天气
+  /// 的调试按钮，所以我无法调试天气」）。
+  ///
+  ///  · 9 种日型按钮：点击 → 写 [debugWeatherOverrideProvider]（**provider 层
+  ///    override**，`todayWeatherProvider` 里组装为 `WeatherSystem.ofKind`）；
+  ///    页面 / 状态灯 / 天气对话框全链路 watch 自动刷新，无需手动 invalidate；
+  ///  · 「跟随真实日期」复位钮 → override 置 null；
+  ///  · 🔴 **账本口径永不乱**：override 只换「显示的日型」，`dayKey` / `observedAt`
+  ///    仍来自真实 `now`（见 `today_weather.dart` 文件头）——买棚照旧按真实今天落账；
+  ///  · 🔴 位置纪律：本区块在 [_emptyPotSection] **之后**追加（既有条目 offset
+  ///    逐像素不变，零回归，同空盆区块的末尾纪律）。
+  ///  · 选中态：override 高亮（实心按钮）；跟随真实日期时「复位钮」高亮。
+  Widget _weatherSection() {
+    final WeatherKind? override = ref.watch(debugWeatherOverrideProvider);
+    final WeatherKind effective =
+        ref.watch(todayWeatherProvider).day.kind;
+    final AppLocalizations t = l10nOf(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF4FF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFB8D4F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            '今日天气（调试）',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '当前生效：${weatherNameOf(effective, t)}'
+            '${override == null ? '（跟随真实日期）' : '（调试 override：日型已换，账本 dayKey 仍按真实今天）'}',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              for (final WeatherKind kind in WeatherKind.values)
+                FilledButton(
+                  key: ValueKey<String>('debug_weather_kind_${kind.name}'),
+                  // 选中 = 实心高亮；未选 = tonal 弱化（同族双态，零新样式）。
+                  style: override == kind
+                      ? null
+                      : FilledButton.styleFrom(
+                          backgroundColor: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          foregroundColor:
+                              Theme.of(context).colorScheme.onSurface,
+                        ),
+                  onPressed: () => ref
+                      .read(debugWeatherOverrideProvider.notifier)
+                      .state = kind,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      weatherArtOf(kind, size: 18),
+                      const SizedBox(width: 6),
+                      Text(weatherNameOf(kind, t)),
+                    ],
+                  ),
+                ),
+              FilledButton.tonal(
+                key: const ValueKey<String>('debug_weather_follow_real'),
+                style: override == null
+                    ? FilledButton.styleFrom(
+                        backgroundColor:
+                            Theme.of(context).colorScheme.primaryContainer,
+                      )
+                    : null,
+                onPressed: () =>
+                    ref.read(debugWeatherOverrideProvider.notifier).state =
+                        null,
+                child: const Text('跟随真实日期'),
               ),
             ],
           ),

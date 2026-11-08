@@ -12,20 +12,22 @@
 /// ```
 /// (1) kind.isMild                      => none   （5 种温和日，不问任何入参）
 /// (2) sessionDone                      => done   （本会话已置上，见设计 §3.3）
-/// (3) 动作齐 && shelterBoughtToday      => done
+/// (3) shelterBoughtToday               => done   （第八批：买棚即完成）
 /// (4) 其余                             => todo
 /// ```
 ///
-/// ## 动作齐按日型（逐条对齐方案 §5.1 的规则表）
+/// ## 完成判据（第八批 2026-11-07 玄参拍板：**买棚即 done**）
 /// | 日型 | 判据 | 道具 |
 /// |---|---|---|
-/// | `drought` | 任一盆今日浇水 >= 1 次 | `shelter_shade` |
-/// | `rainstorm` | 任一盆今日施肥 >= 1 次（暴雨浇水额度为 0，**不判浇水**） | `shelter_rain` |
+/// | `drought` | 无动作 | `shelter_shade` |
+/// | `rainstorm` | 无动作 | `shelter_rain` |
 /// | `wind` | 无动作 | `shelter_wind` |
 /// | `cold` | 无动作 | `shelter_warm` |
 ///
-/// 大风 / 极寒**不判动作**：它们的强制动作只有「买棚」一件事，故 `anyWateredToday` /
-/// `anyFertilizedToday` 对它们**根本不读**（不是传 false）。
+/// 第八批起 4 种极端日**统一只看棚**：干旱去掉「浇水 ≥ 1」、暴雨去掉「施肥 ≥ 1」
+/// 门槛（浇水 / 施肥的**额度**与天气影响照旧，只是不再作为 done 条件）。
+/// `anyWateredToday` / `anyFertilizedToday` 已不参与判定 —— 参数保留（调用点
+/// 不拆装），实现**根本不读**。
 library weather_banner_logic;
 
 import 'package:sunflower_time/domain/services/weather_system.dart';
@@ -33,8 +35,8 @@ import 'package:sunflower_time/domain/services/weather_system.dart';
 /// 条幅三态（设计 §9.2）。
 ///
 /// · [none] = 今天不出条幅（5 种温和日）；
-/// · [todo] = 出了但还没做齐（动作 / 道具二者缺一）；
-/// · [done] = 做齐了（`✓` + 一句完成语）。
+/// · [todo] = 出了但还没做齐（第八批起判据只剩道具：未买棚）；
+/// · [done] = 已完成（`✓` + 一句完成语；买棚即 done）。
 enum WeatherBannerMood {
   /// 不渲染条幅（温和日）。
   none,
@@ -42,7 +44,7 @@ enum WeatherBannerMood {
   /// 待办（极端日，动作或道具未齐）。
   todo,
 
-  /// 已完成（极端日，动作齐 **且** 道具已买）。
+  /// 已完成（极端日，道具已买 —— 第八批起买棚即 done）。
   done,
 }
 
@@ -76,12 +78,13 @@ class WeatherBannerState {
       'WeatherBannerState(${mood.name}, ${kind.name}, $shelterRefType)';
 }
 
-/// 园级判定：**园内任意一盆**动作做齐 + 道具已买 ⇒ `done`（方案 §9.3）。
+/// 园级判定：**道具已买 ⇒ `done`**（第八批 2026-11-07 玄参拍板「买棚即完成」）。
 ///
 /// 🔴 全部入参都是**已算好的事实**（页面从账本 / 快照读出）：
 ///  · [day]：`todayWeatherProvider` 的 `day`（不是现算的天气）；
-///  · [anyWateredToday]：`careQuotas` 里**任一株** `waterUsedToday >= 1`；
-///  · [anyFertilizedToday]：同上，`fertilizeUsedToday >= 1`；
+///  · [anyWateredToday]：`careQuotas` 里**任一株** `waterUsedToday >= 1`
+///    （第八批起**不参与判定**，参数保留 —— 调用点不拆装）；
+///  · [anyFertilizedToday]：同上，`fertilizeUsedToday >= 1`（不参与判定）；
 ///  · [shelterBoughtToday]：`countByRefTypeAndRefIdOnDay(refType, 'garden', dayKey) > 0`；
 ///  · [sessionDone]：本会话内存 Set 命中当日日键（`done` 的加速层，不是事实源）。
 ///
@@ -114,13 +117,9 @@ WeatherBannerState resolveWeatherBanner({
     );
   }
 
-  // (3) 动作齐 **且** 道具已买 ⇒ done。
-  if (_actionsComplete(
-        kind: kind,
-        anyWateredToday: anyWateredToday,
-        anyFertilizedToday: anyFertilizedToday,
-      ) &&
-      shelterBoughtToday) {
+  // (3) 道具已买 ⇒ done（第八批：买棚即完成，4 种极端日统一只看棚；
+  //     干旱「浇水 ≥ 1」/ 暴雨「施肥 ≥ 1」门槛已删，动作入参根本不读）。
+  if (shelterBoughtToday) {
     return WeatherBannerState(
       mood: WeatherBannerMood.done,
       kind: kind,
@@ -134,31 +133,4 @@ WeatherBannerState resolveWeatherBanner({
     kind: kind,
     shelterRefType: kind.shelterRefType,
   );
-}
-
-/// 「动作齐」判据（按日型，见文件头的规则表）。
-///
-/// 🔴 大风 / 极寒返回 `true`（无动作要求）—— 它们的入参**根本不读**：
-/// 写成「所有日型都要求动作齐」会让这两种日型**永远停在 todo**（变异点 M-A3-4）。
-bool _actionsComplete({
-  required WeatherKind kind,
-  required bool anyWateredToday,
-  required bool anyFertilizedToday,
-}) {
-  return switch (kind) {
-    // 干旱：浇 1 次即算（方案 §9.3）。
-    WeatherKind.drought => anyWateredToday,
-    // 暴雨：浇水额度为 0（雨水代劳），强制动作是**施肥**，故不判浇水。
-    WeatherKind.rainstorm => anyFertilizedToday,
-    // 大风 / 极寒：只看棚，不看动作。
-    WeatherKind.wind => true,
-    WeatherKind.cold => true,
-    // 5 种温和日：条幅不渲染，永远走不到这里（穷举兜底，保持 switch 无 default）。
-    WeatherKind.sunny ||
-    WeatherKind.breeze ||
-    WeatherKind.cloudy ||
-    WeatherKind.overcast ||
-    WeatherKind.lightRain =>
-      true,
-  };
 }

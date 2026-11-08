@@ -43,16 +43,19 @@ Future<void> _pumpTall(WidgetTester tester, Widget child) async {
 }
 
 void main() {
-  testWidgets('zh：10 行主题齐全，关键数字与当前口径一致', (WidgetTester tester) async {
+  testWidgets('zh：11 行主题齐全（含第十一批「花园天气」），关键数字与当前口径一致',
+      (WidgetTester tester) async {
     await _pumpTall(tester, _host(AppLocalizationsZh()));
 
-    // 行标题（10 行 = 7 旧 + 3 新）。
+    // 行标题（11 行 = 7 旧 + 3 新 + 第十一批「花园天气」介绍段）。
     expect(find.text('玩法说明'), findsOneWidget);
     for (final String title in <String>[
       '怎么挣阳光',
       '阳光能干什么',
       '植物怎么长大',
       '别让植物枯萎',
+      '花园天气',
+      '天气',
       '任务打卡与家长核销',
       '开花的小惊喜',
       '杂草和害虫',
@@ -62,6 +65,22 @@ void main() {
     ]) {
       expect(find.text(title), findsOneWidget, reason: '缺行：$title');
     }
+
+    // 🔴 第十一批天气介绍的事实口径（玄参：玩法里面要增加对天气的介绍）。
+    // 事实真源 = weather_system.dart：晴 g=1.05 / 阴 g=0.93、小雨浇水额度 1 次、
+    // 暴雨雨水代劳、极端 4 种（干旱/大风/极寒/暴雨）买保护道具即 done。
+    expect(find.textContaining('晴天花儿长得快'), findsOneWidget,
+        reason: '晴天生长加成（kWeatherSunnyGrowthFactor = 1.05）必须讲');
+    expect(find.textContaining('阴天会慢一点'), findsOneWidget,
+        reason: '阴天生长折损（kWeatherOvercastGrowthFactor = 0.93）必须讲');
+    expect(find.textContaining('小雨会帮忙浇花，浇一次水就够啦'), findsOneWidget,
+        reason: '小雨浇水额度 1 次（kWeatherLightRainWaterQuota = 1，与天气引导卡口径一致）');
+    expect(find.textContaining('暴雨天雨水代劳，不用你浇水'), findsOneWidget,
+        reason: '暴雨雨水代劳（rainWaterBonusPp）');
+    expect(find.textContaining('点右上角的天气图标'), findsOneWidget,
+        reason: '必须告诉孩子从右上角天气图标进入保护 / 查看天气');
+    expect(find.textContaining('买好保护道具就完成保护啦'), findsOneWidget,
+        reason: '第八批语义：买保护道具即 done，不是「等它生效」');
 
     // 关键数字钉死当前口径（改 prd_params 必须同步玩法说明，这里先红）。
     expect(find.textContaining('每分钟 +1 ☀'), findsOneWidget,

@@ -66,9 +66,35 @@ class TodayWeather {
 ///    再 `_reload()`（`Provider` 会缓存，不 invalidate 就永远停在首次取值）。
 final Provider<TodayWeather> todayWeatherProvider = Provider<TodayWeather>((ref) {
   final DateTime now = DateTime.now();
+  // 调试 override（第五批，玄参「调试面板里面没有天气的调试按钮」）：
+  // 非空 = 显示的日型换成 [WeatherSystem.ofKind]（参数表既有单点，不许手搓
+  // WeatherDay 字段）；`dayKey` / `observedAt` 仍来自**真实 now** ——
+  // 买棚等账本口径（dayKey / 时间戳）永不因调试被带歪。
+  // watch 而非 read：override 变化 ⇒ 本 provider 重算 ⇒ 页面 / 状态灯 /
+  // 对话框全链路自动刷新，无需手动 invalidate。
+  final WeatherKind? override = ref.watch(debugWeatherOverrideProvider);
   return TodayWeather(
-    day: WeatherSystem.ofDay(now),
+    day: override == null
+        ? WeatherSystem.ofDay(now)
+        : WeatherSystem.ofKind(override),
     dayKey: WeatherSystem.dayKey(now),
     observedAt: now,
   );
 });
+
+/// 调试**天气日型 override**（第五批 2026-11-07，玄参拍板）。
+///
+///  · **仅花期调试面板（BloomDebugPanel）会写它**：release 构建调试面板整块
+///    不出现（`shouldShowDebugUi` 守卫）⇒ 本 provider **无写入口、恒 null**，
+///    生产用户永远走到上面的 `WeatherSystem.ofDay(now)` 真实分支；
+///  · `null` = 跟随真实日期（默认）；非空 = 换「**本快照的日型**」——
+///    状态灯 / 对话框 / 明日预告等展示层，**以及**买棚的落账 refType
+///    （第六批 2026-11-07「买棚后不出现绿对勾」：按钮显示 / 落账 refType /
+///    done 判定三者必须同源，全部取本快照 `day.kind`）；
+///    `dayKey` / `observedAt` 仍来自真实 `now` —— **账本日期 / 时间戳口径
+///    永不乱**（A3 §13 同源纪律不被调试破坏；跨天后 override 关闭自然回到
+///    真实判定）；
+///  · 测试接缝：widget 测试不改 `todayWeatherProvider`（保持生产装配），
+///    直接写本 provider 驱动全链路（badge / 对话框 / 账本）。
+final StateProvider<WeatherKind?> debugWeatherOverrideProvider =
+    StateProvider<WeatherKind?>((StateProviderRef<WeatherKind?> ref) => null);

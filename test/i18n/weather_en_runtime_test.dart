@@ -290,6 +290,21 @@ void main() {
       // 正文本身不得含汉字（ARB 漏翻）。
       expect(_cjk.hasMatch(_en.garden_help_weather_body), isFalse,
           reason: 'app_en.arb 的 garden_help_weather_body 含汉字');
+
+      // 第十一批新增「花园天气」通俗介绍段（玄参：玩法里要介绍天气）——
+      // 同样必须随语言切换，且英文 ARB 不得漏翻。
+      expect(find.text(_en.garden_help_weather_intro_title), findsOneWidget,
+          reason: 'en 下必须渲染「花园天气」段标题');
+      expect(find.text(_zh.garden_help_weather_intro_title), findsNothing,
+          reason: 'en 下不得出现中文「花园天气」标题');
+      expect(find.text(_en.garden_help_weather_intro_body), findsOneWidget,
+          reason: 'en 下必须渲染花园天气介绍正文');
+      expect(find.text(_zh.garden_help_weather_intro_body), findsNothing,
+          reason: 'en 下不得出现中文介绍正文');
+      expect(_cjk.hasMatch(_en.garden_help_weather_intro_body), isFalse,
+          reason: 'app_en.arb 的 garden_help_weather_intro_body 含汉字');
+      expect(_cjk.hasMatch(_en.garden_help_weather_intro_title), isFalse,
+          reason: 'app_en.arb 的 garden_help_weather_intro_title 含汉字');
     });
   });
 

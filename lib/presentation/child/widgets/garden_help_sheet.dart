@@ -16,6 +16,8 @@
 ///  6. 开花的小惊喜（开花保底阳光 + 碎片/种子/大额概率惊喜 + 花期晨露）；
 ///  7. 杂草和害虫（点掉 + 阳光奖励）；
 ///  8. 种子和碎片（种子当支付方式 + 重复分解 + 精英档碎片价）；
+///  9. **花园天气**（2026-11-08 第十一批新增：晴/阴生长快慢、小雨浇水额度、暴雨雨水代劳、
+///     极端 4 种买保护道具即完成、右上角天气图标查看今日天气）；
 ///  另有花园容量与扩容价。
 ///
 /// ## 数字口径（硬要求）
@@ -112,6 +114,16 @@ class GardenHelpSheet extends StatelessWidget {
               detail: l10n.ghelp_wilt_detail(kPlantWiltDays, kPlantDeathDays,
                   kPlantWiltRecoverHardDays, kPlantWiltRecoverHardWater,
                   kPlantWiltRecoverHardFertilize),
+            ),
+            // 玄参 2026-11-08（第十一批）：「玩法里面记得增加对天气的介绍」——
+            // 先给**通俗介绍**（晴/阴长得快慢、雨帮你浇水、买道具即完成保护、
+            // 右上角图标可查天气），再给下面的静态规则条目（极端 4 种 + 棚只管今天）。
+            // 事实口径来自 `weather_system.dart`：晴天 g=1.05 / 阴天 g=0.93、
+            // 小雨浇水额度 1 次（不够自动浇）、暴雨雨水代劳、极端 4 种买道具即 done。
+            _HelpRow(
+              icon: Icons.wb_sunny_rounded,
+              title: l10n.garden_help_weather_intro_title,
+              detail: l10n.garden_help_weather_intro_body,
             ),
             // A2（天气系统二期 · P1-1）：天气段的**静态规则说明**。
             // 只讲规则、不带任何运行期数字（故不新增构造参数）：花园页顶部那条

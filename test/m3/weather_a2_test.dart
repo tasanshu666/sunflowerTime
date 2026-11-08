@@ -61,6 +61,7 @@ import 'package:sunflower_time/l10n/generated/app_localizations_en.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_sign_hotspot.dart';
+import 'package:sunflower_time/presentation/child/widgets/garden_weather_badge.dart';
 import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dart';
 import 'package:sunflower_time/shared/responsive.dart' show uiScaleOf;
 
@@ -289,7 +290,10 @@ String _dayKeyOf(DateTime day) => WeatherSystem.dayKey(day);
 /// 把页面用的 `todayWeatherProvider` 钉到 [WeatherSystem.ofDay] 实测出来的
 /// **温和日**（`_mildDay()` 从 2026-11-03 起扫描，恒返回温和日；不手写「某月某日
 /// 是晴天」——那是猜）。这样 7 次执行从「依赖日历」变成「依赖显式入参」，
-/// 语义（温和日：胶囊在、按钮不渲染、几何 y=12）与原先完全一致。
+/// 语义与原先完全一致。
+/// ⚠️ 2026-11-06（玄参拍板）后语义更新：温和日顶部**不再渲染**天气胶囊
+/// （`kWeatherRowKey` 在真页面树里不存在——整体迁往底部停靠条）；钉温和日
+/// 的价值不变：真页面用例与「跑测试那天是什么天气」彻底解耦。
 TodayWeather _pinnedMildToday() {
   final DateTime day = _mildDay();
   return TodayWeather(
@@ -518,20 +522,6 @@ Future<bool> _pumpUntilReady(
   }
   return ready();
 }
-
-/// 元素在**全局坐标**下的矩形（`tester.getRect` 只吃 Finder，按 Element 取更灵活）。
-Rect _globalRectOf(Element element) {
-  final RenderObject? ro = element.renderObject;
-  if (ro is! RenderBox) return Rect.zero;
-  return ro.localToGlobal(Offset.zero) & ro.size;
-}
-
-/// [inner] 是否整体落在 [outer] 内（`Rect.contains` 只吃 Offset，故自己判四个边）。
-bool _rectInside(Rect inner, Rect outer) =>
-    inner.left >= outer.left &&
-    inner.top >= outer.top &&
-    inner.right <= outer.right &&
-    inner.bottom <= outer.bottom;
 
 void main() {
   // 共享内存库在**全部用例结束后**关闭（drift 的多实例计数随 close 归零）。
@@ -1838,22 +1828,27 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // A2-8④ · 真页面级几何：天气行 vs chips 行 / 一键 FAB / 木牌
-  // ══════════════════════════════════════════════════════════════════════════
+  // A2-8④ · 真页面级几何：chips 行 / 右上角状态灯 / 一键 FAB / 木牌
   //
-  // 🔴 为什么必须**真页面**：chips 行 / 一键 FAB / 木牌三者的位置**只在真实页面**
-  //    才有意义（它们分别是浮层 Row 的左端、贴底 FAB、左下木牌）。行级宿主
-  //    （`_host` / T04 骨架）里根本没有这三个元素 ⇒ 挡不住「真页面里三者互相压住」
-  //    的回归，也验不到 A2-8⑥ 的「视觉顶 == 12」在真实浮层坐标系里成立。
+  // 🔴 2026-11-06（玄参拍板）：顶部天气行/条幅整体撤除，天气信息迁到**底部**。
+  // 🔴 2026-11-07（玄参第三轮拍板）：旧 72 白条（GardenWeatherDock）整体删除，
+  //    改名 `GardenWeatherBadge` 独立图标状态灯（56×56）。
+  // 🔴 2026-11-07（玄参第四批排版）：状态灯移**右上角**（right:12 / top:12，与
+  //    左上 chips 行对称）。
+  // 🔴 2026-11-07（玄参第五批拍板）：底部提示框（ticker）整体撤除，「明日预告」
+  //    由天气对话框承接；一键 FAB 回归**右下角原位**（right:12 / bottom:12）。
+  //    本组断言随之改写。
+  // ══════════════════════════════════════════════════════════════════════════
   group('A2-8④ · 真页面几何（真实 GardenPage · 390×844）', () {
     for (final Locale locale in const <Locale>[Locale('zh'), Locale('en')]) {
       testWidgets(
-          '${locale.languageCode}：天气行与 chips 行 / 一键 FAB / 木牌三者互不相交，且视觉顶落在 y=12',
+          '${locale.languageCode}：chips 视觉顶 y=12；右上角状态灯齐备（56×56）、'
+          '不与木牌相交；一键 FAB 在右下角原位；温和日无买棚按钮',
           (WidgetTester tester) async {
         // 🔴 页面文案语言由 `AppLocaleController.current` 决定（页级 [L10nScope]
         //    读它，**不是** MaterialApp 的 `locale`）⇒ 改静态值 + 用例结束还原。
-        //    zh / en 两轮都跑：两边文案长度不同 ⇒ 压缩阶梯的落档可能不同 ⇒
-        //    天气行的实际宽度也不同 ⇒ 两个 locale 合起来覆盖面更大。
+        //    zh / en 两轮都跑：两边文案长度不同 ⇒ 短语 / FAB 宽度不同 ⇒
+        //    两个 locale 合起来覆盖面更大。
         final Locale prevLocale = AppLocaleController.current;
         addTearDown(() => AppLocaleController.current = prevLocale);
         AppLocaleController.current = locale;
@@ -1876,75 +1871,74 @@ void main() {
                 '（买断档 + 存活 5 株 ⇒ FAB 必须出现；不出现说明宿主没搭起来）');
         await tester.pump();
 
-        // ── 四组矩形 ────────────────────────────────────────────────────────
-        final Finder weatherRow = find.byKey(kWeatherRowKey);
-        expect(weatherRow, findsOneWidget, reason: '天气行必须渲染（A2-2 首帧即可见）');
-        final Rect weatherRect = tester.getRect(weatherRow);
+        // ── 顶部：天气行退场，chips 顶恒 y=12 ────────────────────────────────
+        expect(find.byKey(kWeatherRowKey), findsNothing,
+            reason: '顶部天气行已整体撤除（迁往底部停靠条）—— 契约：kWeatherRowKey '
+                '在真页面树里不存在');
+        expect(find.byKey(kWeatherPillSlotKey), findsNothing);
 
-        // chips 行：`_FragmentEntry` / `_SeedCountChip` 都是 `garden_page.dart` 内
-        // **私有类** ⇒ 测试**不能** `find.byType` ⇒ 改用结构定位：
-        //   外层 Row（= 浮层行 `spaceBetween`）→ 它的**第一个后代 Row**（= chips 行）。
-        // 再用「chips 的『×N』文本必须全落在里面」做**自检** ⇒ 万一以后页面结构变了
-        // 导致定位到别的 Row，用例会**响亮地红**，而不是量错对象假绿。
-        final Finder outerRow =
-            find.ancestor(of: weatherRow, matching: find.byType(Row)).first;
-        final Finder chipTexts =
-            find.descendant(of: outerRow, matching: find.textContaining('×'));
-        expect(chipTexts, findsAtLeastNWidgets(1),
-            reason: 'chips（碎片 / 普通种子 / 精英种子）必须渲染');
-        final Finder chipsRow =
-            find.descendant(of: outerRow, matching: find.byType(Row)).first;
+        // chips 行结构定位（自检：「×N」文本必须落在其中）。
+        final Finder rows = find.ancestor(
+          of: find.textContaining('×').first,
+          matching: find.byType(Row),
+        );
+        expect(rows.evaluate().length, greaterThanOrEqualTo(2),
+            reason: 'chips 行与 chip 内部行两层 Row 都必须存在');
+        final Finder chipsRow = rows.at(1);
         final Rect chipsRect = tester.getRect(chipsRow);
-        for (final Element e in chipTexts.evaluate()) {
-          expect(_rectInside(_globalRectOf(e), chipsRect), isTrue,
-              reason: '「×N」文本必须落在 chips 行矩形内 —— 否则说明定位到的不是'
-                  ' chips 行（自检，防假绿）');
-        }
+        expect(chipsRect.top, closeTo(12, 0.5),
+            reason: 'chips 视觉顶必须恒 y=12（A2 基线，顶部条幅撤除后不分态）');
+        expect(chipsRect.left, closeTo(12, 0.5), reason: 'chips 贴左边距 12');
 
-        final Finder fab = find.byKey(kOneClickCapsuleKey);
-        expect(fab, findsOneWidget, reason: '买断档 + 存活 5 株 ⇒ 一键 FAB 必须在场');
-        final Rect fabRect = tester.getRect(fab);
+        // ── 右上角状态灯：齐备且不与木牌相交 ──────────────────────────────
+        final Finder badge = find.byKey(kGardenWeatherBadgeKey);
+        expect(badge, findsOneWidget, reason: '天气图标状态灯必须渲染（温和日）');
+        final Rect badgeRect = tester.getRect(badge);
+        expect(badgeRect.right, closeTo(390 - 12, 0.5),
+            reason: '状态灯右锚 12（右上角，与左上 chips 行对称）');
+        expect(badgeRect.top, closeTo(12, 0.5), reason: '状态灯贴顶 12');
+        expect(badgeRect.width, closeTo(56, 0.5),
+            reason: '状态灯宽 56（旧 72 白条已删，玄参 2026-11-07 拍板）');
+        expect(badgeRect.height, closeTo(56, 0.5),
+            reason: '状态灯高 56（白条已删，不再全宽）');
+        expect(find.byKey(kGardenWeatherBadgeIconKey), findsOneWidget,
+            reason: '56×56 天气图标状态灯在场');
+        // 2026-11-06 第二轮简化：短语文字层整体撤除（玄参：「不需要描述性的文字」）。
+        expect(
+          find.descendant(
+            of: badge,
+            matching: find.textContaining(zhSunnyText),
+          ),
+          findsNothing,
+          reason: '温和日短语已撤 —— 状态灯只渲染图标，无描述性文字',
+        );
+        // 防假绿：图标不得被压成 0 宽。
+        expect(tester.getSize(find.byKey(kGardenWeatherBadgeIconKey)).width,
+            greaterThan(0));
 
         final Finder sign = find.byType(GardenSignHotspot);
         expect(sign, findsOneWidget, reason: '木牌热区必须在场');
         final Rect signRect = tester.getRect(sign);
 
-        // ── ① 天气行 vs chips 行：不得相交 ─────────────────────────────────
-        expect(weatherRect.overlaps(chipsRect), isFalse,
-            reason: '天气行与 chips 行不得相交（chips 左 / 天气行贴右）；'
-                'weather=$weatherRect chips=$chipsRect');
-        expect(weatherRect.left >= chipsRect.right - 0.5, isTrue,
-            reason: '天气行必须整体在 chips 行右侧（chips 右缘 ${chipsRect.right}'
-                ' vs 天气行左缘 ${weatherRect.left}）');
+        // ① chips vs 木牌：不得相交（chips 左上 / 木牌左下）。
+        expect(chipsRect.overlaps(signRect), isFalse,
+            reason: 'chips 行与木牌热区不得相交；chips=$chipsRect sign=$signRect');
+        // ② 状态灯 vs 木牌：不得相交（状态灯在右上角、木牌在左下角）。
+        expect(badgeRect.overlaps(signRect), isFalse,
+            reason: '状态灯与左下木牌热区不得相交；badge=$badgeRect sign=$signRect');
 
-        // ── ② 天气行 vs 一键 FAB：不得相交 ─────────────────────────────────
-        expect(weatherRect.overlaps(fabRect), isFalse,
-            reason: '天气行不得与贴底的一键 FAB 相交；weather=$weatherRect fab=$fabRect');
+        // ── 一键 FAB：右下角原位（right:12 / bottom:12，第五批 ticker 撤除）──
+        final Finder fab = find.byKey(kOneClickCapsuleKey);
+        expect(fab, findsOneWidget, reason: '买断档 + 存活 5 株 ⇒ 一键 FAB 必须在场');
+        final Rect fabRect = tester.getRect(fab);
+        expect(fabRect.right, closeTo(390 - 12, 0.5),
+            reason: 'FAB 右缘 = 页宽 − 12；fab=$fabRect');
+        expect(fabRect.bottom, closeTo(844 - 12, 0.5),
+            reason: 'FAB 底缘 = 页高 − 12（右下角原位，玄参第五批拍板）');
 
-        // ── ③ 天气行 vs 木牌：不得相交 ─────────────────────────────────────
-        expect(weatherRect.overlaps(signRect), isFalse,
-            reason: '天气行不得与左下木牌热区相交；weather=$weatherRect sign=$signRect');
-
-        // ── ④ A2-8⑥：天气行的**视觉顶**必须落在 y=12 ───────────────────────
-        final Rect slotRect = tester.getRect(find.byKey(kWeatherPillSlotKey));
-        expect(slotRect.top, closeTo(12, 0.5),
-            reason: '胶囊**槽**（视觉带 32 高）的顶必须落在 y=12'
-                '（`Positioned.top = 12 − 6` + 命中带内居中 +6）');
-        expect(slotRect.height, closeTo(32, 0.5),
-            reason: '胶囊槽高必须恒 32（32 写死，不引用实现常量）'
-                ' —— 若被外层 FittedBox 缩放，说明该档形态根本放不下，'
-                '视觉顶会整体漂移 ⇒ 这条会先红');
-        final Rect entityRect = tester.getRect(find.byKey(kWeatherPillKey));
-        expect(entityRect.top - slotRect.top, closeTo(0, 0.5),
-            reason: '实体顶对齐槽顶（顶对齐，不是 2，也不是 6）');
-        expect(entityRect.height, closeTo(28, 0.5),
-            reason: '胶囊实体必须恒 28（28 写死，不引用实现常量）');
-
-        // ── 防假绿：天气行不得被压成 0 宽（否则「不相交」毫无意义）──────────
-        expect(weatherRect.width, greaterThan(0),
-            reason: '天气行宽度必须 > 0（被压成 0 宽 ⇒ 与谁都「不相交」⇒ 假绿）');
-        expect(slotRect.width, greaterThan(0),
-            reason: '胶囊槽宽度必须 > 0（同上，防假绿）');
+        // ── 温和日没有买棚按钮 ─────────────────────────────────────────────
+        expect(find.byKey(kShelterButtonHitKey), findsNothing,
+            reason: '温和日（钉死 sunny）页面上不得出现买棚按钮（在对话框里）');
 
         expect(tester.takeException(), isNull);
       });
@@ -2167,8 +2161,8 @@ void main() {
       });
 
       testWidgets(
-          '真页面 ${vp[0].toInt()}×${vp[1].toInt()}：'
-          '视觉带高 / 胶囊槽高 / 实体高 / 命中容器高随倍率，实体顶对齐槽顶，无溢出',
+          '真页面 ${vp[0].toInt()}×${vp[1].toInt()}：状态灯 56×s 随倍率（K27 口径），'
+          'chips 视觉顶恒 12，无溢出',
           (WidgetTester tester) async {
         final Locale prevLocale = AppLocaleController.current;
         addTearDown(() => AppLocaleController.current = prevLocale);
@@ -2187,23 +2181,32 @@ void main() {
             reason: '真实 GardenPage 应在有限帧内加载完成并出现一键 FAB');
         await tester.pump();
 
-        final BuildContext ctx = tester.element(find.byKey(kWeatherPillKey));
+        // 顶部胶囊撤除（2026-11-06）⇒ 倍率探针改从状态灯图标取。
+        expect(find.byKey(kWeatherPillKey), findsNothing,
+            reason: '顶部天气胶囊已整体撤除');
+        final BuildContext ctx =
+            tester.element(find.byKey(kGardenWeatherBadgeIconKey));
         final double s = uiScaleOf(ctx);
         expect(s, greaterThan(1.0),
             reason: '前置：${vp[0].toInt()} 档必须真的处于平板倍率（>1.0）');
 
-        final Rect slot = tester.getRect(find.byKey(kWeatherPillSlotKey));
-        final Rect entity = tester.getRect(find.byKey(kWeatherPillKey));
-        final Rect pillHit = tester.getRect(find.byKey(kWeatherPillHitKey));
+        final Rect badge = tester.getRect(find.byKey(kGardenWeatherBadgeKey));
+        expect(badge.width, closeTo(56 * s, 0.5),
+            reason: '真页面：状态灯宽必须随倍率（56×s，K27 口径），实测 ${badge.width}');
+        expect(badge.height, closeTo(56 * s, 0.5),
+            reason: '真页面：状态灯高必须随倍率（56×s；旧 72 白条已删）');
+        expect(badge.right, closeTo(vp[0] - 12, 0.5),
+            reason: '真页面：状态灯右锚 12（右上角）');
+        expect(badge.top, closeTo(12, 0.5), reason: '真页面：状态灯贴顶 12');
 
-        expect(slot.height, closeTo(32 * s, 0.5),
-            reason: '真页面：胶囊槽高必须随倍率（32×s），实测 ${slot.height}');
-        expect(entity.height, closeTo(28 * s, 0.5),
-            reason: '真页面：胶囊实体高必须随倍率（28×s），实测 ${entity.height}');
-        expect(pillHit.height, closeTo(44 * s, 0.5),
-            reason: '真页面：胶囊命中容器高必须随倍率（44×s），实测 ${pillHit.height}');
-        expect(entity.top - slot.top, closeTo(0, 0.5),
-            reason: '真页面：实体顶必须对齐槽顶');
+        // chips 行顶恒 12（内距不乘倍率的契约件，见下方「chips 视觉顶恒 12」组）。
+        final Finder rows = find.ancestor(
+          of: find.textContaining('×').first,
+          matching: find.byType(Row),
+        );
+        final Rect chipsRect = tester.getRect(rows.at(1));
+        expect(chipsRect.top, closeTo(12, 0.5),
+            reason: '真页面：chips 视觉顶恒 12');
 
         expect(tester.takeException(), isNull,
             reason: '${vp[0].toInt()} 平板真页面 pump 完不得有溢出/异常');
@@ -2212,20 +2215,23 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 平板不齐边 6×(s−1)（A3 收口 · 已登记差异 → 契约）
+  // chips 视觉顶恒 12（2026-11-06 迁移后的契约）
   //
-  // 🔴 **这是 K27 同类的已登记差异（chips 内距 const、行内内距乘倍率），不是 bug**；
-  //    若哪天有人把 chips 的 top 也乘上倍率、或改掉这条公式，本用例必须红。
-  // 🔴 公式里的 `6` 是**契约本身**（写死不算「对着常量自证」）；`s` 必须从真实
+  // 🔴 旧契约「胶囊顶 − chips 顶 == 6×(s−1)」随顶部胶囊撤除**退役**（胶囊已不在
+  //    页面树里，没有第二个可对的顶）。保留下来的可守不变式是：chips 的
+  //    `Padding(top: 6)` 是**固定字面量**（不乘倍率）⇒ chips 视觉顶在任何倍率下
+  //    都恒等于 12 —— 若哪天有人把 chips 的 top 也乘上倍率，本用例必红。
+  // 🔴 期望值里的 `12` 是**契约本身**（写死不算「对着常量自证」）；`s` 从真实
   //    `context` 取，**绝对不许写死 1.3 / 1.6**。
   // ══════════════════════════════════════════════════════════════════════════
-  group('平板不齐边 6×(s−1)（A3 收口 · 已登记差异）', () {
+  group('chips 视觉顶恒 12（2026-11-06 迁移后契约）', () {
     for (final List<double> vp in <List<double>>[
       <double>[390, 844],
       <double>[834, 1112],
       <double>[1032, 1376],
     ]) {
-      testWidgets('${vp[0].toInt()}×${vp[1].toInt()}：胶囊顶 − chips 顶 == 6×(s−1)',
+      testWidgets('${vp[0].toInt()}×${vp[1].toInt()}：chips 视觉顶 == 12 ± 0.5'
+          '（内距不乘倍率），状态灯 56×s 随倍率',
           (WidgetTester tester) async {
         final Locale prevLocale = AppLocaleController.current;
         addTearDown(() => AppLocaleController.current = prevLocale);
@@ -2243,35 +2249,34 @@ void main() {
         expect(ready, isTrue, reason: '真实 GardenPage 应在有限帧内加载完成');
         await tester.pump();
 
-        // chips 行定位：与 A2-8④ 同款结构定位（外层 Row → 第一个后代 Row），
-        // 并用「×N」文本落在其中做自检，防止定位错对象假绿。
-        final Finder weatherRow = find.byKey(kWeatherRowKey);
-        final Finder outerRow =
-            find.ancestor(of: weatherRow, matching: find.byType(Row)).first;
-        final Finder chipTexts =
-            find.descendant(of: outerRow, matching: find.textContaining('×'));
-        expect(chipTexts, findsAtLeastNWidgets(1),
-            reason: 'chips（碎片 / 普通种子 / 精英种子）必须渲染');
-        final Finder chipsRow =
-            find.descendant(of: outerRow, matching: find.byType(Row)).first;
+        // chips 行定位：与 A2-8④ 同款结构定位（×N 文本 → 最近两层 Row 的外层），
+        // 防止定位错对象假绿。
+        final Finder rows = find.ancestor(
+          of: find.textContaining('×').first,
+          matching: find.byType(Row),
+        );
+        expect(rows.evaluate().length, greaterThanOrEqualTo(2),
+            reason: 'chips 行与 chip 内部行两层 Row 都必须存在');
+        final Finder chipsRow = rows.at(1);
+        expect(
+          find.descendant(of: chipsRow, matching: find.textContaining('×')),
+          findsAtLeastNWidgets(2),
+          reason: '自检：定位到的 Row 必须装着「碎片 + 两档种子」的 ×N 文本',
+        );
 
-        final BuildContext ctx = tester.element(weatherRow);
+        final Rect chipsRect = tester.getRect(chipsRow);
+        expect(chipsRect.top, closeTo(12, 0.5),
+            reason: 'chips 视觉顶 = 浮层 top(6) + Padding(6) = 12，'
+                '任何倍率下恒定（chips 内距不乘倍率）；实测 ${chipsRect.top}');
+
         // 倍率从真实 context 取（不写死 1.3 / 1.6）。
+        final BuildContext ctx =
+            tester.element(find.byKey(kGardenWeatherBadgeIconKey));
         final double s = uiScaleOf(ctx);
-        final double delta = tester.getRect(find.byKey(kWeatherPillSlotKey)).top -
-            tester.getRect(chipsRow).top;
-
-        if (s == 1.0) {
-          expect(delta, closeTo(0, 1e-9),
-              reason: 's=1（手机）时 chips 内距与行内内距同为 6 ⇒ 必须**逐像素**齐边；'
-                  '若这里不齐，说明手机档被改坏了（手机零回归红线）');
-        } else {
-          expect(delta, closeTo(6 * (s - 1), 1e-9),
-              reason: '这是 K27 同类的已登记差异（chips 内距 const、行内内距乘倍率），'
-                  '不是 bug；若哪天有人把 chips 的 top 也乘上倍率、'
-                  '或改掉这条公式，本用例必须红。实测 s=$s delta=$delta，'
-                  '期望 ${6 * (s - 1)}');
-        }
+        final double badgeW =
+            tester.getRect(find.byKey(kGardenWeatherBadgeKey)).width;
+        expect(badgeW, closeTo(56 * s, 0.5),
+            reason: '状态灯随倍率（56×s，K27 口径），实测 $badgeW，s=$s');
         expect(tester.takeException(), isNull);
       });
     }

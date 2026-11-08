@@ -125,12 +125,12 @@ double _contrastRatio(Color fg, Color bg) {
 /// **独立推导**木牌屏幕矩形：直接用背景源图像素区间 + cover 映射公式算，
 /// **不引用**被测常量 [kGardenSignNormalizedRect]（破自指 → 改常量必红）。
 ///
-/// 标定来源：`background.png` 左下角木牌（2026-10-06 玄参「热区比木牌大出不少」
-/// 后用 PIL 逐像素重标）牌面 x 54~272 / y 1507~1659（含 ~5px 点按余量），
-/// 画布 1056×2336。
+/// 标定来源：`background.jpg`（2026-11-06 无字版新图，flood-fill 从牌面中心按
+/// 亮橙木色连通扩散）牌面 x 96~356 / y 2026~2178，热区外扩后 x 91~361 / y 1998~2204，
+/// 画布 1408×3104。
 Rect _expectedSignScreenRect(Size box) {
-  const double srcW = 1056, srcH = 2336;
-  const double x0 = 54, x1 = 272, y0 = 1507, y1 = 1659;
+  const double srcW = 1408, srcH = 3104;
+  const double x0 = 91, x1 = 361, y0 = 1998, y1 = 2204;
   final double scale = math.max(box.width / srcW, box.height / srcH);
   final double drawnW = srcW * scale, drawnH = srcH * scale;
   final double ox = (box.width - drawnW) / 2;
@@ -334,9 +334,9 @@ void main() {
   // ── 改动 1：背景映射纯函数 ────────────────────────────────────────────────
   group('gardenCoverRect · BoxFit.cover 映射（纯函数）', () {
     test('容器比图更「宽」（宽满、上下溢出、居中）', () {
-      const Size box = Size(1056, 2000); // 与图同宽但更矮 → 宽度铺满
+      const Size box = Size(1408, 2000); // 与图同宽但更矮 → 宽度铺满
       final Rect r = gardenCoverRect(box);
-      const double scale = 1056 / 1056; // = 1
+      const double scale = 1408 / 1408; // = 1
       expect(r.width, closeTo(kGardenBackgroundSize.width * scale, 0.001));
       expect(r.height, closeTo(kGardenBackgroundSize.height * scale, 0.001));
       expect(r.left, closeTo((box.width - r.width) / 2, 0.001));
@@ -346,9 +346,9 @@ void main() {
     });
 
     test('容器比图更「高」（高满、左右溢出、居中）', () {
-      const Size box = Size(600, 2336); // 与图同高但更窄 → 高度铺满
+      const Size box = Size(600, 3104); // 与图同高但更窄 → 高度铺满
       final Rect r = gardenCoverRect(box);
-      const double scale = 2336 / 2336; // = 1
+      const double scale = 3104 / 3104; // = 1
       expect(r.width, closeTo(kGardenBackgroundSize.width * scale, 0.001));
       expect(r.height, closeTo(kGardenBackgroundSize.height * scale, 0.001));
       expect(r.left, lessThan(0)); // 左右溢出
@@ -359,8 +359,8 @@ void main() {
     test('scale 取 max（不失真、覆盖容器）', () {
       const Size box = Size(720, 1280);
       final Rect r = gardenCoverRect(box);
-      const double scale = 720 / 1056; // 0.6818 > 1280/2336 = 0.5479
-      expect(scale, greaterThan(1280 / 2336));
+      const double scale = 720 / 1408; // 0.5114 > 1280/3104 = 0.4124
+      expect(scale, greaterThan(1280 / 3104));
       expect(r.width, closeTo(kGardenBackgroundSize.width * scale, 0.001));
       expect(r.height, closeTo(kGardenBackgroundSize.height * scale, 0.001));
       expect(r.width, greaterThanOrEqualTo(box.width - 0.001));
@@ -378,7 +378,7 @@ void main() {
       expect(bottom, greaterThan(gardenCoverRect(box).top));
     });
 
-    test('比例常量 = 0.64（C48：上移避开木牌牌面顶 0.6451）', () {
+    test('比例常量 = 0.64（C48；2026-11-06 新图下仍成立：木牌热区顶 0.6437 > 0.64）', () {
       expect(kGardenPotAreaBottomFraction, closeTo(0.64, 1e-9));
     });
   });
@@ -448,17 +448,17 @@ void main() {
       expect(actual.bottom, closeTo(expected.bottom, 0.05));
     });
 
-    test('360×780：硬钉实测值（2026-10-06 重标 18.41 / 505.56 / 92.73 / 557.39）', () {
+    test('360×780：硬钉实测值（2026-11-06 新图重标 23.27 / 504.03 / 92.30 / 556.70）', () {
       const Size box = Size(360, 780);
       final Rect r = gardenSignScreenRect(box);
-      expect(r.left, closeTo(18.41, 0.05));
-      expect(r.top, closeTo(505.56, 0.05));
-      expect(r.right, closeTo(92.73, 0.05));
-      expect(r.bottom, closeTo(557.39, 0.05));
-      expect(r.width, closeTo(74.32, 0.05));
-      expect(r.height, closeTo(51.82, 0.05));
+      expect(r.left, closeTo(23.27, 0.05));
+      expect(r.top, closeTo(504.03, 0.05));
+      expect(r.right, closeTo(92.30, 0.05));
+      expect(r.bottom, closeTo(556.70, 0.05));
+      expect(r.width, closeTo(69.03, 0.05));
+      expect(r.height, closeTo(52.67, 0.05));
       // cover 上下裁切证据（origin.dy 为负 → 木牌整体上移）。
-      expect(gardenCoverRect(box).top, closeTo(-8.1818, 0.01));
+      expect(gardenCoverRect(box).top, closeTo(-6.8182, 0.01));
     });
 
     test('400×880：硬钉实测值 + cover 裁切证据', () {
@@ -469,10 +469,10 @@ void main() {
       expect(r.top, closeTo(expected.top, 0.05));
       expect(r.right, closeTo(expected.right, 0.05));
       expect(r.bottom, closeTo(expected.bottom, 0.05));
-      // 2026-10-06 重标：218×152 源像素 → 尺寸 82.58×57.58。
-      expect(r.width, closeTo(82.58, 0.2));
-      expect(r.height, closeTo(57.58, 0.2));
-      expect(gardenCoverRect(box).top, closeTo(-2.4242, 0.01));
+      // 2026-11-06 新图：270×206 源像素热区 → 尺寸 76.70×58.52。
+      expect(r.width, closeTo(76.70, 0.2));
+      expect(r.height, closeTo(58.52, 0.2));
+      expect(gardenCoverRect(box).top, closeTo(-0.9091, 0.01));
     });
 
     test('多屏宽下宽高 ≥ 44 逻辑像素且基本落在容器内', () {

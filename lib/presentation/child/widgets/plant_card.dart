@@ -60,6 +60,16 @@ class PlantCard extends StatelessWidget {
   /// C77 · 当前称号专属属性（缺省 null → 按钮 cost 显示基础价 = 旧口径，零回归）。
   final title_perk.PlantPerk? perk;
 
+  /// 🔴 第四批 A · 券叠加后的**水价**专用 perk（缺省 null → 回落到 [perk]）。
+  ///
+  /// 为什么必须单独两个参数：水价与肥价共用同一个 `perk` 时，把浇水券叠上去会
+  /// **污染肥价**（`perk.add` 是全字段相加）。调用方（养护卡）按株分别算好，
+  /// 这里只做「取用」，不参与任何算式。
+  final title_perk.PlantPerk? perkWater;
+
+  /// 券叠加后的**肥价**专用 perk（缺省 null → 回落到 [perk]）。
+  final title_perk.PlantPerk? perkFertilize;
+
   const PlantCard({
     super.key,
     required this.plant,
@@ -70,6 +80,8 @@ class PlantCard extends StatelessWidget {
     this.onClear,
     this.onShovel,
     this.perk,
+    this.perkWater,
+    this.perkFertilize,
   });
 
   String _stageLabel(AppLocalizations l10n) {
@@ -547,7 +559,8 @@ class PlantCard extends StatelessWidget {
                         : l10n.card_action_water_gain(_fmtGain(_careGain(
                             firstGain: kPlantWaterProgressGain,
                             rebloomGain: kRebloomWaterProgressGain))),
-                    cost: title_perk.waterCostOf(perk ?? title_perk.PlantPerk.none),
+                    cost: title_perk.waterCostOf(
+                        perkWater ?? perk ?? title_perk.PlantPerk.none),
                     enabled: canWater,
                     onTap: onWater,
                   ),
@@ -561,7 +574,8 @@ class PlantCard extends StatelessWidget {
                         : l10n.card_action_fertilize_gain(_fmtGain(_careGain(
                             firstGain: kPlantFertilizeProgressGain,
                             rebloomGain: kRebloomFertilizeProgressGain))),
-                    cost: title_perk.fertilizeCostOf(perk ?? title_perk.PlantPerk.none),
+                    cost: title_perk.fertilizeCostOf(
+                        perkFertilize ?? perk ?? title_perk.PlantPerk.none),
                     enabled: canFertilize,
                     onTap: onFertilize,
                   ),

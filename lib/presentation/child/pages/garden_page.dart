@@ -48,18 +48,21 @@ import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/domain/entities/bloom_reward_outcome.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/guard_day_state.dart';
 import 'package:sunflower_time/domain/entities/pending_bloom_reward.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/entities/pot_disturbance.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/domain/services/empty_pot_service.dart';
+import 'package:sunflower_time/domain/services/guard_voucher.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/domain/services/weather_banner_logic.dart';
 import 'package:sunflower_time/domain/services/weather_system.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
+import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_reward_icons.dart';
@@ -74,6 +77,7 @@ import 'package:sunflower_time/presentation/child/widgets/garden_help_sheet.dart
 import 'package:sunflower_time/presentation/child/widgets/garden_pot.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_fx_overlay.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_sign_hotspot.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_buff_chip.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_care_sheet.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_confirm_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/sunlight_pill.dart';
@@ -244,6 +248,22 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
 
   /// C77 · 当前称号专属属性（随 [_reload] 刷新；未就绪时 [PlantPerk.none] = 无加成）。
   PlantPerk _perk = PlantPerk.none;
+
+  /// 花园守卫「今日券」快照（随 [_reload] 刷新）。
+  ///
+  /// `null` = 今天没券 / 读不到（含 prefs 不可用：纯 widget 宿主常见）。
+  /// 🔴 只读不写：本页**不**调 `GuardService.expire()` / `resolve()`（那两个会写存档、
+  /// 甚至真扣钱），券的减免一律经 [GuardVoucherService.overlayFor] 折算。
+  GuardBuffState? _guardBuff;
+
+  /// [_reload] 的代次号：每次调用自增；旧代次的异步结果**不许**覆盖新状态。
+  ///
+  /// 背景（玄参真机 ③）：调试面板 `onChanged` 曾是 fire-and-forget，快速连点会
+  /// 产生两个并发 `_reload`，后启动的先完成、旧代次最后落地 ⇒ 左上角胶囊停在
+  /// 上一次的券。有了代次保护，只有最新一次 `_reload` 能写 [_guardBuff] /
+  /// `setState`。
+  int _reloadGeneration = 0;
+
   bool _loading = true;
   bool _busy = false;
   String? _error;
@@ -505,7 +525,66 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   }
 
   /// 扩容一只花盆的阳光价（按年段 + C77 称号减免）：供按钮文案与确认卡使用。
+  ///
+  /// 🔴 券**不**覆盖扩容：这里刻意仍只叠 [_perk]（展示与 `_expandPot` 实际扣费同源）。
   int get _expandCost => expandCostOf(_perk, premium: _tier != AgeTier.low);
+
+  // ── 花园守卫「今日券」：券减免叠在称号 perk 上（第四批 A）─────────────────
+
+  /// 券减免叠在称号 perk 上（**同步纯函数**，展示与扣费**必须**都走这里）。
+  ///
+  /// · [GuardVoucherService.overlayFor] 是唯一允许产出券减免的入口 —— 本页
+  ///   **禁止**内联 `-1` / `-2` / 「归零」（否则与称号减免二次分叉）；
+  /// · [_guardBuff] == null（今天没券 / prefs 不可用）⇒ **不触 provider**、原样返回
+  ///   [_perk]：既保证零回归，也避免在未 override prefs 的宿主里抛 `UnimplementedError`；
+  /// · 「动作 → 券种类」（含免费券换名）单点在
+  ///   [guardVoucherKindForAction]：本页与养护卡**都只调它**，不许各写一份映射；
+  /// · 教学页 `garden_help_sheet.dart` 刻意用**基础常量**、不走本函数 —— 它的口径是
+  ///   「浇水 {waterCost} ☀/次**起**」＝最低价，券只会更便宜，不算错。
+  PlantPerk _perkFor(GuardActionKind action, {String? plantId}) {
+    final GuardBuffState? buff = _guardBuff;
+    if (buff == null) return _perk;
+    return ref.read(guardVoucherProvider).overlayFor(
+          buff,
+          _perk,
+          kind: guardVoucherKindForAction(action, activeDrop: buff.kind),
+          plantId: plantId,
+        );
+  }
+
+  /// 一键批量：把 [PlantOneClickKind] 映射到**动作种类**（批量一律 `plantId: null`
+  /// ⇒ 免费券由 `overlayFor` / `recordConsumed` 双重拒绝，**绝不整批免费**）。
+  ///
+  /// 枚举新增值时本 switch 会**编译失败**（比运行期兜底更早暴露），故不写 default。
+  PlantPerk _perkForOneClick(PlantOneClickKind kind) {
+    switch (kind) {
+      case PlantOneClickKind.water:
+        return _perkFor(GuardActionKind.water);
+      case PlantOneClickKind.fertilize:
+        return _perkFor(GuardActionKind.fertilize);
+      case PlantOneClickKind.care:
+        return _perkFor(GuardActionKind.labor);
+    }
+  }
+
+  /// 动作**成功后**核销一次券额度（失败不核销 = 不白送减免）。
+  ///
+  /// 券不可用 / 核销读失败 ⇒ 空操作（动作已完成，绝不因此给用户报错）。
+  Future<void> _recordVoucherConsumed(
+    GuardActionKind action, {
+    required String? plantId,
+  }) async {
+    final GuardBuffState? buff = _guardBuff;
+    if (buff == null) return; // 今天没券 / 券不可用
+    try {
+      await ref.read(guardVoucherProvider).recordConsumed(
+            kind: guardVoucherKindForAction(action, activeDrop: buff.kind),
+            plantId: plantId,
+          );
+    } catch (e) {
+      debugPrint('[Guard] 券核销失败（忽略，动作已完成）：$e');
+    }
+  }
 
   /// [silent] = true 时不整页转圈（养护动作后静默刷新），避免每次浇水都闪一次
   /// 全屏 loading，孩子看着像「页面重载」而不是「浇完了」。
@@ -514,6 +593,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 界面要等「播完 → 淡出」才更新，见 [_clearPest]）。
   Future<void> _reload({bool silent = false}) async {
     if (_suppressReload) return;
+    final int gen = ++_reloadGeneration;
     if (!silent && mounted) setState(() => _loading = true);
     try {
       final DateTime now = DateTime.now();
@@ -529,6 +609,21 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         autoSettled: autoSettled,
         dewOverflowSettled: dewOverflow,
       );
+      // 🔴 结算提示必须**紧跟 tickAll**发射，不能留在 try 块末尾：本方法带代次
+      // 保护（`gen != _reloadGeneration` 早退），而 tickAll 的自动入账会 bump 经济
+      // 修订号 → 本页 listen 立刻再跑一次 `_reload`（gen+1）⇒ 本次调用恢复后会被
+      // 当成「旧代次」杀掉，走到末尾前就被 return —— 结算事实已发生、提示却被吞
+      // （实测回归：`garden_reward_icons_ui_test` 的「花谢自动到账也要提示」）。
+      // 提示属于「已完成结算」的事实播报，不属于会被新代次覆盖的页面快照。
+      // 花谢自动到账提示（有则可，无则静默）。
+      if (autoSettled.isNotEmpty && mounted) {
+        _snack(_t.garden_settle_withered(autoSettled.map(_outcomeParts).join('；')));
+      }
+      // 晨露攒满 3 份、新的已自动入账（同样有则可、无则静默）。
+      if (dewOverflow.isNotEmpty && mounted) {
+        _snack(
+            _t.garden_dew_overflow_settled(dewOverflow.map(_outcomeParts).join('；')));
+      }
       // 任务 A（玄参 2026-09-28）：刷新时把「v12 之前登记的零值哨兵旧 pending 行」
       // 按当前档位回写为明细，使旧数据头顶图标直接显示阳光/碎片/种子（不再礼物盒）。
       await svc.materializeLegacyBloomRewards(now);
@@ -547,6 +642,32 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       // C77：当前称号专属属性（与域层 [PlantGrowthService.currentPerk] 同源；随经济
       // 修订号 / tab 刷新重算）。批量路径以本值下发，避免逐株重读。
       _perk = await ref.read(currentPlantPerkProvider.future);
+      // ── 花园守卫「今日券」快照（第四批 A）──────────────────────────────────
+      // 🔴 **必须独立 try/catch 并降级为 null**，绝不能裸 await 在主路径上：
+      //    `guardVoucherProvider` 依赖 `sharedPreferencesProvider`，而后者在未
+      //    override 的纯 widget 宿主里直接 `throw UnimplementedError`
+      //    （`providers.dart`）。裸放会被本方法的 `catch (e) { _error = ... }`
+      //    接住 → **整页错误页**（`empty_pot_ui_test` / `plant_care_sheet_perk_test`
+      //    等大量宿主都没 override prefs）。
+      // 降级方向安全：券不可用 ⇒ 价格原样（称号 perk 照常），只少一层减免。
+      GuardBuffState? nextBuff;
+      try {
+        nextBuff = await ref
+            .read(guardVoucherProvider)
+            .currentBuff()
+            .timeout(kGuardVoucherReadTimeout);
+      } catch (e) {
+        debugPrint('[Guard] 今日券不可用，按「无券」处理：$e');
+      }
+      // 🔴 代次保护 ①：旧代次的异步结果不许覆盖新代次已写入的券快照。
+      if (gen != _reloadGeneration) return;
+      _guardBuff = nextBuff;
+      // 诊断日志（玄参 2026-11-09 晚：与今日页 claim 的 bump 日志配对 ——
+      // 「claim 日志有、本日志却是 null」⇒ 通知通道断；「本日志有券、屏上无 chip」
+      // ⇒ 渲染层问题。kDebugOnly，release 无输出）。
+      debugPrint('[Guard] garden reload gen=$gen '
+          'buff=${nextBuff?.kind.name ?? 'null'} '
+          'used=${nextBuff?.used}');
       _capacity = settings.gardenPotCapacity;
       // ── F155-B（玄参 2026-10-27 拍板）：空花盆也会长杂草 / 害虫 ─────────────
       // 每次刷新顺带跑一次「空盆每日 roll」（幂等：同日重复刷新不重 roll），
@@ -657,18 +778,11 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       // 升级检测：与「孩子上次看到」的持久化快照 diff，发现「阶段/开花」推进 →
       // 可见就播、不可见就入队（F132）。
       await _detectGrowthTransitions();
-      // 花谢自动到账提示（有则可，无则静默）。
-      if (autoSettled.isNotEmpty && mounted) {
-        _snack(_t.garden_settle_withered(autoSettled.map(_outcomeParts).join('；')));
-      }
-      // 晨露攒满 3 份、新的已自动入账（同样有则可、无则静默）。
-      if (dewOverflow.isNotEmpty && mounted) {
-        _snack(
-            _t.garden_dew_overflow_settled(dewOverflow.map(_outcomeParts).join('；')));
-      }
     } catch (e) {
-      _error = e.toString();
+      if (gen == _reloadGeneration) _error = e.toString();
     }
+    // 🔴 代次保护 ②：旧代次不许用早先读到的旧快照 `setState` 覆盖新状态。
+    if (gen != _reloadGeneration) return;
     if (mounted) setState(() => _loading = false);
     // 网格建好后，下一帧按实际滚动指标刷新滚动条可见性（仅溢出时显示）。
     WidgetsBinding.instance.addPostFrameCallback((_) => _syncScrollable());
@@ -1017,16 +1131,34 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     final int ticket = ++_suppressTicketSeq;
     _suppressTickets.add(ticket);
     final String? pid = plantId; // 局部提纯：闭包内类型提升稳定
-    final bool ok = await _run(() {
+    // 🔴 劳动券**只算一次**：领域层实发（[clearWeed] / [clearPest] 的 `perk:`）与
+    //    飘字（[_onClearAnimated]）必须同源。两处各算一次会在「券刚好用完」的边界
+    //    分叉出「飘字 +3、实到 +2」。
+    // ⚠️ 空盆与有植物盆的**缺省 perk 语义不同**（`EmptyPotService._clear` 缺省
+    //    `PlantPerk.none`，植物侧缺省 `await currentPerk()`），故这里对两条分支
+    //    **都显式传**同一个变量，绝不依赖领域层缺省。
+    final PlantPerk clearPerk = _perkFor(GuardActionKind.labor, plantId: pid);
+    final bool ok = await _run(() async {
       final DateTime now = DateTime.now();
       if (pid != null) {
         final PlantGrowthService svc = ref.read(plantGrowthServiceProvider);
-        return weed ? svc.clearWeed(pid, now) : svc.clearPest(pid, now);
+        if (weed) {
+          await svc.clearWeed(pid, now, perk: clearPerk);
+        } else {
+          await svc.clearPest(pid, now, perk: clearPerk);
+        }
+        // 🔴 成功之后立刻核销（本株单次）：券的额度与实发同源推进。
+        await _recordVoucherConsumed(GuardActionKind.labor, plantId: pid);
+        return;
       }
       final EmptyPotService svc = ref.read(emptyPotServiceProvider);
-      return weed
-          ? svc.clearWeed(potIndex, now, perk: _perk)
-          : svc.clearPest(potIndex, now, perk: _perk);
+      if (weed) {
+        await svc.clearWeed(potIndex, now, perk: clearPerk);
+      } else {
+        await svc.clearPest(potIndex, now, perk: clearPerk);
+      }
+      // 空盆没有 plantId ⇒ 传 null（劳动券不是单株限定，仍会正常核销）。
+      await _recordVoucherConsumed(GuardActionKind.labor, plantId: null);
     });
     if (!ok) {
       _suppressTickets.remove(ticket); // 写库失败（无草可除等）：释放刷新，SnackBar 已给分因。
@@ -1047,8 +1179,13 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     _playCareEffect(
       potIndex,
       weed ? CareEffectType.weed : CareEffectType.pest,
-      onFinished: () =>
-          _onClearAnimated(pid, potIndex, weed: weed, ticket: ticket),
+      onFinished: () => _onClearAnimated(
+        pid,
+        potIndex,
+        weed: weed,
+        ticket: ticket,
+        clearPerk: clearPerk,
+      ),
     );
   }
 
@@ -1079,6 +1216,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     int potIndex, {
     required bool weed,
     required int ticket,
+    required PlantPerk clearPerk,
   }) {
     if (!mounted) return;
     final ({String? plantId, int potIndex, bool weed}) fading =
@@ -1100,7 +1238,11 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         _clearHint = (
           potIndex: potIndex,
           label: weed ? _t.garden_cleared_weed : _t.garden_cleared_pest,
-          sunlight: (weed ? weedRewardOf(_perk) : pestRewardOf(_perk)).toInt(),
+          // 🔴 与领域层实发**同一个** [clearPerk]（由 [_clearPest] 传入），
+          //    绝不在这里用 `_perk` / `_perkFor(...)` 另算一遍：那会在「券刚好
+          //    用完」的边界分叉出「飘字 +3、实到 +2」。
+          sunlight: (weed ? weedRewardOf(clearPerk) : pestRewardOf(clearPerk))
+              .toInt(),
         );
       });
       unawaited(_reload(silent: true));
@@ -1238,8 +1380,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   Future<void> _openDebugPanel() {
     return showBloomDebugPanel(
       context,
-      onChanged: () {
-        if (mounted) _reload(silent: true);
+      onChanged: () async {
+        // 🔴 可 await：调试面板会等本次 `_reload` 完成才收尾，避免 fire-and-forget
+        // 产生并发 `_reload`、旧代次覆盖新代次（玄参真机 ③）。
+        if (mounted) await _reload(silent: true);
       },
       onPreviewGrowth: (GrowTransition t, String speciesDir) {
         _playGrowthFx(t, speciesDir);
@@ -2072,7 +2216,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     if (_busy) return;
     final PlantGrowthService svc = ref.read(plantGrowthServiceProvider);
     final DateTime now = DateTime.now();
-    final OneClickPlan plan = await svc.oneClickPlan(kind, now, perk: _perk);
+    final OneClickPlan plan =
+        await svc.oneClickPlan(kind, now, perk: _perkForOneClick(kind));
     if (!mounted) return;
     // 一键操作的「计划为空 / 不可执行」提示统一走**居中 Overlay 浮层**（玄参 2026-10-07
     // 截图实证：旧 `_snack` 是屏幕最下面的 SnackBar，停留久且不居中）——复用 [_showBatchHint]，
@@ -2113,10 +2258,85 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
           return;
         }
     }
+    // ── 逐盆减免序列（F1/F2）：确认卡合计、余额闸门、执行扣费**共用同一个 seq** ──
+    // 🔴 券有当日封顶（浇水 6☀ / 劳动 4☀），批量里额度会中途用尽。
+    //    「券后单价 × 盆数」在额度用尽后就是错的（12 盆会少报 6☀），故这里一次性
+    //    算出「第 i 盆该用的 perk」，后续三处都只读它 —— 口径不可能再分叉。
+    // · 券服务只在「今天确实有券」时才取：未 override `sharedPreferencesProvider`
+    //   的宿主里 `guardVoucherProvider` 会直接抛 `UnimplementedError`。
+    GuardVoucherService? guardVouchers;
+    if (_guardBuff != null) {
+      try {
+        guardVouchers = ref.read(guardVoucherProvider);
+      } catch (e) {
+        guardVouchers = null;
+        debugPrint('[Guard] 一键操作读券失败，按「无券」处理：$e');
+      }
+    }
+    final int seqCount = kind == PlantOneClickKind.care
+        ? plan.careTargets.length
+        : plan.plantIds.length;
+    final GuardVoucherKind seqKind = switch (kind) {
+      PlantOneClickKind.water => guardVoucherKindForAction(
+          GuardActionKind.water,
+          activeDrop: _guardBuff?.kind,
+        ),
+      PlantOneClickKind.fertilize => guardVoucherKindForAction(
+          GuardActionKind.fertilize,
+          activeDrop: _guardBuff?.kind,
+        ),
+      PlantOneClickKind.care => GuardVoucherKind.labor,
+    };
+    final List<PlantPerk> seq = guardVouchers == null
+        ? List<PlantPerk>.filled(seqCount, _perk)
+        : guardVouchers.overlaySequenceFor(
+            _guardBuff,
+            _perk,
+            kind: seqKind,
+            count: seqCount,
+          );
+    // 计划合计（浇水 / 施肥 = 各盆实价之和；护理 = 各目标实发之和）。
+    int plannedCost = 0;
+    int plannedEarn = 0;
+    switch (kind) {
+      case PlantOneClickKind.water:
+        for (final PlantPerk perk in seq) {
+          plannedCost += waterCostOf(perk);
+        }
+      case PlantOneClickKind.fertilize:
+        for (final PlantPerk perk in seq) {
+          plannedCost += fertilizeCostOf(perk);
+        }
+      case PlantOneClickKind.care:
+        for (int i = 0; i < seq.length; i++) {
+          final ({String plantId, bool weed}) target = plan.careTargets[i];
+          plannedEarn +=
+              (target.weed ? weedRewardOf(seq[i]) : pestRewardOf(seq[i]))
+                  .toInt();
+        }
+    }
+    // ── note 分档（G1）：单价一致 → 沿用「每盆 X ☀」；有高有低 → 区间文案 ──
+    // 取 [seq] 里**逐盆实价**的 min / max（与合计、闸门、执行同一份数据）。
+    // 券额度中途用尽时（前 6 盆 4、后 6 盆 5），单值文案会与「合计 −54」自相矛盾。
+    final List<int> unitCosts = switch (kind) {
+      PlantOneClickKind.water =>
+        <int>[for (final PlantPerk p in seq) waterCostOf(p)],
+      PlantOneClickKind.fertilize =>
+        <int>[for (final PlantPerk p in seq) fertilizeCostOf(p)],
+      PlantOneClickKind.care => const <int>[],
+    };
+    final int unitCostLow = unitCosts.isEmpty
+        ? 0
+        : unitCosts.reduce((int a, int b) => a < b ? a : b);
+    final int unitCostHigh = unitCosts.isEmpty
+        ? 0
+        : unitCosts.reduce((int a, int b) => a > b ? a : b);
     // 阳光不足 → 整体拦截（玄参拍板：一株都不执行，避免「浇一半没阳光」的挫败）。
-    if (kind != PlantOneClickKind.care && _balance < plan.totalCost) {
+    // 🔴 闸门必须用 [plannedCost]（逐盆实价之和），用「单价 × 盆数」会在券额度
+    //    用尽后低估总价 ⇒ 放行后中途失败，与「整体拦截」的承诺相反。
+    if (kind != PlantOneClickKind.care && _balance < plannedCost) {
       _showBatchHint(
-        _t.garden_need_more_sun((plan.totalCost - _balance).ceil()),
+        _t.garden_need_more_sun((plannedCost - _balance).ceil()),
         0,
         showSunlight: false,
       );
@@ -2132,7 +2352,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             ConfirmCardRow(
               icon: Icons.wb_sunny,
               name: _t.garden_row_total_cost,
-              value: '−${plan.totalCost} ☀',
+              value: '−$plannedCost ☀',
             ),
             ConfirmCardRow(
               icon: Icons.account_balance_wallet_outlined,
@@ -2141,8 +2361,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
               muted: true,
             ),
           ],
-          note: _t.garden_water_note(
-              plan.plantIds.length, waterCostOf(_perk)),
+          note: unitCostLow == unitCostHigh
+              ? _t.garden_water_note(plan.plantIds.length, unitCostLow)
+              : _t.garden_water_note_range(
+                  plan.plantIds.length, unitCostLow, unitCostHigh),
           icon: Icons.water_drop_outlined,
         ),
       PlantOneClickKind.fertilize => (
@@ -2150,7 +2372,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             ConfirmCardRow(
               icon: Icons.wb_sunny,
               name: _t.garden_row_total_cost,
-              value: '−${plan.totalCost} ☀',
+              value: '−$plannedCost ☀',
             ),
             ConfirmCardRow(
               icon: Icons.account_balance_wallet_outlined,
@@ -2159,8 +2381,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
               muted: true,
             ),
           ],
-          note: _t.garden_fertilize_note(
-              plan.plantIds.length, fertilizeCostOf(_perk)),
+          note: unitCostLow == unitCostHigh
+              ? _t.garden_fertilize_note(plan.plantIds.length, unitCostLow)
+              : _t.garden_fertilize_note_range(
+                  plan.plantIds.length, unitCostLow, unitCostHigh),
           icon: Icons.eco_outlined,
         ),
       PlantOneClickKind.care => (
@@ -2177,8 +2401,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
               muted: true,
             ),
           ],
-          note: _t.garden_care_note(weedRewardOf(_perk).toInt(),
-              pestRewardOf(_perk).toInt()),
+          // F3：券额度会在批量中途用尽 ⇒ 单次奖励（「除草 +2」）会多报。
+          // 改用**合计口径**：处数 + 逐处实发之和（[plannedEarn]）。
+          note: _t.garden_care_note_total(
+              plan.careTargets.length, plannedEarn),
           icon: Icons.cleaning_services_outlined,
         ),
     };
@@ -2210,50 +2436,90 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     final Map<String, int> potOf = <String, int>{
       for (final Plant p in _plants) p.id: p.potIndex,
     };
-    await _run(() async {
+    // ── 执行（券减免用上面的 [seq]，逐盆核销 + 实际量累加）──────────────────
+    // 🔴 不再每盆重读 prefs：seq 已经把「额度中途用尽」算准（与确认卡同一份数据），
+    //    每盆只剩一次核销（read + write），串行往返从 3 次降到 2 次。
+    // 逐盆结果：成功次数 / 实际扣除合计 / 实际获得合计。
+    // 🔴 成功收尾的文案与阳光数**一律用这三个累加值**，不再用 `plan.totalCost`
+    //    或按 `careTargets` 反推 —— 后者与「实际发奖」脱钩（任一株抛异常它照样加）。
+    int okCount = 0;
+    int spentSun = 0;
+    int earnedSun = 0;
+    final Map<int, CareEffectType> pulse = <int, CareEffectType>{};
+    Object? firstError;
+    final bool batchOk = await _run(() async {
       switch (kind) {
         case PlantOneClickKind.water:
-          for (final String id in plan.plantIds) {
-            await svc.water(id, now, perk: _perk);
+          for (int i = 0; i < plan.plantIds.length; i++) {
+            final String id = plan.plantIds[i];
+            try {
+              final PlantPerk perk = seq[i];
+              final int cost = waterCostOf(perk);
+              await svc.water(id, now, perk: perk);
+              // 🔴 核销紧跟**本盆**成功之后（不在循环外、不在 finally / catch 里：
+              //    失败要白送减免）。
+              await _recordVoucherConsumed(GuardActionKind.water,
+                  plantId: null);
+              okCount++;
+              spentSun += cost;
+              final int? pot = potOf[id];
+              if (pot != null) pulse[pot] = CareEffectType.water;
+            } catch (e) {
+              firstError ??= e;
+              debugPrint('[Guard] 一键浇水失败（$id），跳过：$e');
+            }
           }
         case PlantOneClickKind.fertilize:
-          for (final String id in plan.plantIds) {
-            await svc.fertilize(id, now, perk: _perk);
+          for (int i = 0; i < plan.plantIds.length; i++) {
+            final String id = plan.plantIds[i];
+            try {
+              final PlantPerk perk = seq[i];
+              final int cost = fertilizeCostOf(perk);
+              await svc.fertilize(id, now, perk: perk);
+              await _recordVoucherConsumed(GuardActionKind.fertilize,
+                  plantId: null);
+              okCount++;
+              spentSun += cost;
+              final int? pot = potOf[id];
+              if (pot != null) pulse[pot] = CareEffectType.fertilize;
+            } catch (e) {
+              firstError ??= e;
+              debugPrint('[Guard] 一键施肥失败（$id），跳过：$e');
+            }
           }
         case PlantOneClickKind.care:
-          for (final ({String plantId, bool weed}) t in plan.careTargets) {
-            t.weed
-                ? await svc.clearWeed(t.plantId, now, perk: _perk)
-                : await svc.clearPest(t.plantId, now, perk: _perk);
+          for (int i = 0; i < plan.careTargets.length; i++) {
+            final ({String plantId, bool weed}) t = plan.careTargets[i];
+            try {
+              final PlantPerk perk = seq[i];
+              final int reward =
+                  (t.weed ? weedRewardOf(perk) : pestRewardOf(perk)).toInt();
+              if (t.weed) {
+                await svc.clearWeed(t.plantId, now, perk: perk);
+              } else {
+                await svc.clearPest(t.plantId, now, perk: perk);
+              }
+              await _recordVoucherConsumed(GuardActionKind.labor,
+                  plantId: null);
+              okCount++;
+              earnedSun += reward;
+              final int? pot = potOf[t.plantId];
+              if (pot != null) {
+                pulse[pot] =
+                    t.weed ? CareEffectType.weed : CareEffectType.pest;
+              }
+            } catch (e) {
+              firstError ??= e;
+              debugPrint('[Guard] 一键护理失败（${t.plantId}），跳过：$e');
+            }
           }
       }
+      // 一盆都没成功 ⇒ 交给 [_run] 的分因提示（否则会显示「成功 ×0」）。
+      if (okCount == 0 && firstError != null) throw firstError!;
     });
     if (!mounted) return;
-    // 成功收尾：每盆轻量反馈 + 顶部汇总飘字。
-    final Map<int, CareEffectType> pulse = <int, CareEffectType>{};
-    switch (kind) {
-      case PlantOneClickKind.water:
-      case PlantOneClickKind.fertilize:
-        final CareEffectType t = kind == PlantOneClickKind.water
-            ? CareEffectType.water
-            : CareEffectType.fertilize;
-        for (final String id in plan.plantIds) {
-          final int? pot = potOf[id];
-          if (pot != null) pulse[pot] = t;
-        }
-      case PlantOneClickKind.care:
-        for (final ({String plantId, bool weed}) t in plan.careTargets) {
-          final int? pot = potOf[t.plantId];
-          if (pot != null) {
-            pulse[pot] = t.weed ? CareEffectType.weed : CareEffectType.pest;
-          }
-        }
-    }
-    final int careEarned = plan.careTargets.fold<int>(
-      0,
-      (int sum, ({String plantId, bool weed}) t) =>
-          sum + (t.weed ? weedRewardOf(_perk) : pestRewardOf(_perk)).toInt(),
-    );
+    if (!batchOk) return; // [_run] 已给分因提示（整批失败 / 串行闸门）
+    // 成功收尾：每盆轻量反馈（只脉冲**真正成功**的盆）+ 顶部汇总飘字。
     setState(() {
       _batchPulse
         ..clear()
@@ -2261,13 +2527,14 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     });
     // 汇总提示（**根 Overlay 全屏浮层**，确定性居中）：「一键XX成功 ×N」+ 阳光增减
     // （扣费负数 / 护理奖励正数），走 envelope 自清。
+    // 🔴 数字一律取**实际累加值**：中途失败时 ×N 会小于计划数，绝不谎报。
     final (String hintLabel, int hintSunlight) = switch (kind) {
       PlantOneClickKind.water =>
-        (_t.garden_oneclick_water_ok(plan.plantIds.length), -plan.totalCost),
+        (_t.garden_oneclick_water_ok(okCount), -spentSun),
       PlantOneClickKind.fertilize =>
-        (_t.garden_oneclick_fertilize_ok(plan.plantIds.length), -plan.totalCost),
+        (_t.garden_oneclick_fertilize_ok(okCount), -spentSun),
       PlantOneClickKind.care =>
-        (_t.garden_oneclick_care_ok(plan.actionCount), careEarned),
+        (_t.garden_oneclick_care_ok(okCount), earnedSun),
     };
     _showBatchHint(hintLabel, hintSunlight);
     // 一键护理 = 除草 / 除虫合集，成功时**整批只播一次**，且按**实际护理内容**选音效
@@ -2689,13 +2956,16 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
               onClearPest: () => _clearPest(null, i, weed: false),
               weedFading: _isFading(potIndex: i, weed: true),
               pestFading: _isFading(potIndex: i, weed: false),
-              perk: _perk,
+              // 空盆的 perk 只用于除草 / 除虫奖励 tooltip（`garden_pot.dart`），
+              // 故叠**劳动券**（与实发同源）。
+              perk: _perkFor(GuardActionKind.labor),
             )
           : GardenPot(
               key: _potKey(i),
               plant: occupant,
               species: _speciesOf(occupant),
-              perk: _perk,
+              // 同左：`GardenPot.perk` 只喂 tooltip 的除草 / 除虫奖励。
+              perk: _perkFor(GuardActionKind.labor),
               onTap: () => _openCareSheet(occupant.id, i),
               onClearWeed: () => _clearPest(occupant.id, i, weed: true),
               onClearPest: () => _clearPest(occupant.id, i, weed: false),
@@ -2910,6 +3180,13 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     ref.listen(economyRevisionProvider, (_, __) {
       if (mounted) _reload(silent: true);
     });
+    // 🔴 守卫存档改写（发券 / 清档 / 造贼 / 领取）**不写账本** ⇒ 经济修订号不动，
+    // 必须有独立通道驱动花园页重读今日券快照，否则左上角胶囊停在旧值（玄参 ③）。
+    // 与 `economyRevisionProvider` 一样只是「重读触发」，券仍由 `_reload` 里的
+    // `guardVoucherProvider.currentBuff()` 从存档读，chip 与价格同源。
+    ref.listen(guardBuffRevisionProvider, (_, __) {
+      if (mounted) _reload(silent: true);
+    });
     // 🔴 A3 §13.1：今日天气**在 build 顶层** watch 一次（页面唯一读钟入口）。
     //    绝不写进下面 `LayoutBuilder` 的 builder 回调 —— 那等于在**布局期**注册监听
     //    （Riverpod 的 `debugDoingBuild` 断言不允许），闭包里用外层捕获的这个变量。
@@ -2975,6 +3252,12 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             // A3：今日条幅三态（极端日徽章 / 温和日 none）——2026-11-07 起渲染在
             // 右上角**图标状态灯**（GardenWeatherBadge）。
             final WeatherBannerState banner = _resolveBanner(today);
+            // 今日券快照（本次 build 只读一次字段）+ 是否展示胶囊：券不可用 /
+            // 加载中 / 无道具档 ⇒ 不占位（零回归）。
+            final GuardBuffState? guardBuff = _guardBuff;
+            final bool showGuardBuffChip = !_loading &&
+                guardBuff != null &&
+                GuardVoucherKind.of(guardBuff.kind) != null;
             // 明日日型（天气对话框「明天 · …」预告行用）：`WeatherSystem.ofDay`
             // 是**纯函数**（零 IO / 零读钟 / 自带缓存），日期取自快照 `observedAt`
             // 而非 `DateTime.now()` —— 页面守卫（A2-1 / A3 §13）纪律不变。
@@ -3050,6 +3333,18 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                 // 停靠条，本浮层回归「只有 chips」的最简结构（位置逐位不变）。
                 // 本 `Positioned.top` 比「视觉顶」高 6pt、chips 额外 `Padding(top: 6)`
                 // ⇒ chips 的视觉位置逐位不变（y=12，A2 基线）。
+                //
+                // 第四批 A：本浮层的 child 由 `Row` 变成 `Column`（资源 chips 行 + 今日券
+                // 胶囊）。**三条约束**（改结构前务必读）：
+                //  ① 首子仍是原 `Padding(top: 6)` ⇒ chips 行的视觉顶**逐像素不变**
+                //     （`weather_a3_banner_ui_test` 的 V6/V7/V7-standalone 断言
+                //     `chips.top == 12` / `top - bodyTop == 60`）；
+                //  ② **不新增 Stack 子节点** ⇒ 不触发根 Stack 按 index 复用的问题
+                //     （见下方 C82 注释）；
+                //  ③ 自动跟随 `embedded ? 12 : 60` 的偏移，/garden 独立路由下不会压到
+                //     shell AppBar 的阳光胶囊。
+                // 🔴 **绝不**放进 `_buildGardenBody` 的 Column：那会改 `firstRowTop` ⇒
+                //    `weather_a3_banner_ui_test` 的 V8（网格几何两天气逐位相同）必红。
                 if (_error == null)
                   Positioned(
                     left: 12,
@@ -3058,48 +3353,57 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                     // 2026-11-06（玄参拍板）：天气预告从顶部**整体撤除** —— 极端日
                     // 条幅与温和日天气胶囊都迁到左下角停靠条（GardenWeatherDock），
                     // 顶部只保留 chips 行，位置原样：视觉顶 = 浮层 top + `Padding(top: 6)`
-                    // = y=12（A2 基线逐位不变）。仍是**根 Stack 浮层**，不进
-                    // `_buildGardenBody` 的 Column（否则 `firstRowTop` 变 →
-                    // `gardenGridVisibleHeight` 矮屏断言必红；变异点 M-A3-5）。
-                    child: Row(
+                    // = y=12（A2 基线逐位不变）。
+                    child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        // 既有资源 chips（三个 chip 的构造参数 / 样式 / 顺序**逐字不动**）。
-                        // 🔴 `Padding(top: 6)`：抵消本行整体上移的 6pt ⇒ chips
-                        //    视觉顶恒 y=12（顶部条幅撤除后恒定，不再分态）。
-                        if (!_loading)
-                          Padding(
-                            padding:
-                                const EdgeInsets.only(top: kHitPadVertical),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                _FragmentEntry(
-                                  balance: _fragmentBalance,
-                                  onTap: _openFragmentSheet,
-                                ),
-                                const SizedBox(width: 8),
-                                // 种子计数（2026-10-05 玄参「碎片右边并列显示普通/精英种子个数」）：
-                                // 分档种子素材图 + ×N；素材缺失回退 🌰。2026-10-06：点击也打开
-                                // 「碎片与种子」说明卡（玄参「点击种子就不会弹出来，都需要弹出」）。
-                                _SeedCountChip(
-                                  count: _commonSeedCount,
-                                  asset: 'assets/rewards/seed_common.png',
-                                  onTap: _openFragmentSheet,
-                                ),
-                                const SizedBox(width: 6),
-                                _SeedCountChip(
-                                  count: _premiumSeedCount,
-                                  asset: 'assets/rewards/seed_premium.png',
-                                  onTap: _openFragmentSheet,
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          // 加载中占位（零宽、不可见；保留原结构，chips 出现时不跳位）。
-                          const SizedBox.shrink(),
+                        // 🔴 `Padding(top: 6)` 从「chips 行内」提到「行外」：
+                        //    chips 视觉顶仍 = 浮层 top(6) + 6 = 12，被测断言不受影响。
+                        Padding(
+                          padding: const EdgeInsets.only(top: kHitPadVertical),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              // 既有资源 chips（三个 chip 的构造参数 / 样式 /
+                              // 顺序**逐字不动**）。
+                              if (!_loading)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    _FragmentEntry(
+                                      balance: _fragmentBalance,
+                                      onTap: _openFragmentSheet,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    // 种子计数（2026-10-05 玄参「碎片右边并列显示普通/精英种子个数」）：
+                                    // 分档种子素材图 + ×N；素材缺失回退 🌰。2026-10-06：点击也打开
+                                    // 「碎片与种子」说明卡（玄参「点击种子就不会弹出来，都需要弹出」）。
+                                    _SeedCountChip(
+                                      count: _commonSeedCount,
+                                      asset: 'assets/rewards/seed_common.png',
+                                      onTap: _openFragmentSheet,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _SeedCountChip(
+                                      count: _premiumSeedCount,
+                                      asset: 'assets/rewards/seed_premium.png',
+                                      onTap: _openFragmentSheet,
+                                    ),
+                                  ],
+                                )
+                              else
+                                // 加载中占位（零宽、不可见；保留原结构，chips 出现时不跳位）。
+                                const SizedBox.shrink(),
+                            ],
+                          ),
+                        ),
+                        // 今日券胶囊（额度用完也显示，只是不再减免）。
+                        if (showGuardBuffChip) ...<Widget>[
+                          const SizedBox(height: 8),
+                          GuardBuffChip(buff: guardBuff),
+                        ],
                       ],
                     ),
                   ),

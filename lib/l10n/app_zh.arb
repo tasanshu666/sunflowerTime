@@ -562,6 +562,20 @@
       }
     }
   },
+  "garden_water_note_range": "将对 {count} 盆植物各浇 1 次水（每盆 {low}~{high} ☀）",
+  "@garden_water_note_range": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "low": {
+        "type": "int"
+      },
+      "high": {
+        "type": "int"
+      }
+    }
+  },
   "garden_fertilize_note": "将对 {count} 盆植物各施 1 次肥（每盆 {cost} ☀）",
   "@garden_fertilize_note": {
     "placeholders": {
@@ -569,6 +583,20 @@
         "type": "int"
       },
       "cost": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_fertilize_note_range": "将对 {count} 盆植物各施 1 次肥（每盆 {low}~{high} ☀）",
+  "@garden_fertilize_note_range": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "low": {
+        "type": "int"
+      },
+      "high": {
         "type": "int"
       }
     }
@@ -584,11 +612,23 @@
   },
   "garden_care_note": "奖励照常发放：除草 +{weed} ☀ / 除虫 +{pest} ☀",
   "@garden_care_note": {
+    "description": "已被 garden_care_note_total 取代（券额度会在批量中途用尽，单次奖励会多报）。保留 key 不删，避免牵动生成物。",
     "placeholders": {
       "weed": {
         "type": "int"
       },
       "pest": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_care_note_total": "共清理 {count} 处，奖励合计 +{total} ☀",
+  "@garden_care_note_total": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
         "type": "int"
       }
     }
@@ -620,6 +660,12 @@
       }
     }
   },
+  "garden_guard_buff_water": "今日浇水 −1 ☀",
+  "garden_guard_buff_labor": "今日除草除虫 +1 ☀",
+  "garden_guard_buff_fertilize": "今日施肥 −2 ☀",
+  "garden_guard_buff_free_water": "今日 1 盆浇水免费",
+  "garden_guard_buff_free_fertilize": "今日 1 盆施肥免费",
+  "garden_guard_buff_exhausted": "已用完",
   "garden_pick_plant_title": "选择要种的植物",
   "garden_cost_free": "免费",
   "garden_cost_seed": "种子",
@@ -2376,6 +2422,9 @@
   "child_hist_ref_parent_gift": "家长赠予",
   "child_hist_ref_debug_grant": "调试发放",
   "child_hist_ref_focus_level_up": "专注升级",
+  "child_hist_ref_guard_pay": "请守卫出手",
+  "child_hist_ref_guard_win": "赶跑偷菜贼",
+  "child_hist_ref_guard_stolen": "被偷菜贼偷走",
   "child_eyecare_seg_default": "跟着动画一起做，保护眼睛",
   "shared_perk_name_eye_care": "护眼",
   "shared_perk_name_water": "浇水",
@@ -2718,5 +2767,140 @@
   "garden_care_water_disabled_light_rain": "今天只有小雨，浇一次就够啦～",
   "garden_care_water_disabled_quota": "今天已经浇够啦，明天再来～",
   "garden_care_fertilize_disabled_quota": "今天已经施过肥啦，明天再来～",
-  "garden_batch_none_water_rainstorm": "雨已经把花浇过啦，今天不用一键浇水"
+  "garden_batch_none_water_rainstorm": "雨已经把花浇过啦，今天不用一键浇水",
+  "guard_thief_name_sun_rat": "馋光鼠",
+  "@guard_thief_name_sun_rat": {
+      "description": "花园守卫：偷菜贼「馋光鼠」的展示名（ARB 唯一来源，domain 层零 CJK）"
+  },
+  "guard_thief_name_leaf_bug": "啃叶虫",
+  "@guard_thief_name_leaf_bug": {
+      "description": "花园守卫：偷菜贼「啃叶虫」的展示名"
+  },
+  "guard_thief_name_sneak_thief": "顺手贼",
+  "@guard_thief_name_sneak_thief": {
+      "description": "花园守卫：偷菜贼「顺手贼」的展示名"
+  },
+  "guard_drop_name_water_voucher": "浇水券",
+  "@guard_drop_name_water_voucher": {
+      "description": "花园守卫：掉落「浇水券」的展示名"
+  },
+  "guard_drop_name_labor_voucher": "劳动券",
+  "@guard_drop_name_labor_voucher": {
+      "description": "花园守卫：掉落「劳动券」的展示名"
+  },
+  "guard_drop_name_fertilize_voucher": "施肥券",
+  "@guard_drop_name_fertilize_voucher": {
+      "description": "花园守卫：掉落「施肥券」的展示名"
+  },
+  "guard_drop_name_free_water": "免费浇水券",
+  "@guard_drop_name_free_water": {
+      "description": "花园守卫：掉落「免费浇水券」（单株单次）的展示名"
+  },
+  "guard_drop_name_free_fertilize": "免费施肥券",
+  "@guard_drop_name_free_fertilize": {
+      "description": "花园守卫：掉落「免费施肥券」（单株单次，最稀有）的展示名"
+  },
+  "guard_pill_pending": "偷菜贼来了，现在赶跑它吧",
+  "@guard_pill_pending": {
+      "description": "今日页守卫胶囊：待处理态（无能量、余额够 ⇒ 需先弹确认卡）"
+  },
+  "guard_pill_pending_free": "用专注能量赶跑它（免费）",
+  "@guard_pill_pending_free": {
+      "description": "今日页守卫胶囊：待处理态（有专注能量 ⇒ 点击直接开战、免费）"
+  },
+  "guard_pill_fighting": "守卫正在赶走它…",
+  "@guard_pill_fighting": {
+      "description": "今日页守卫胶囊：战斗中（不可点）"
+  },
+  "guard_pill_claimed": "今天的菜守住了",
+  "@guard_pill_claimed": {
+      "description": "今日页守卫胶囊：今天已守住（不可点）"
+  },
+  "guard_pill_no_balance": "还差 {n} 阳光",
+  "@guard_pill_no_balance": {
+      "placeholders": {
+          "n": {
+              "type": "int"
+          }
+      },
+      "description": "今日页守卫胶囊：余额不足提示（n = 还差多少阳光）。本批未上屏，第四批调试面板用"
+  },
+  "guard_pill_free_ride": "阿葵自己顶班，今天不用管",
+  "@guard_pill_free_ride": {
+      "description": "今日页守卫胶囊：阿葵顶班（无能量且余额 < kGuardFreeRideBalance，当天免罚、不可点）"
+  },
+  "guard_battle_skip": "跳过",
+  "@guard_battle_skip": {
+      "description": "战斗界面：跳过按钮（kGuardBattleSkipDelayMs 后才出现）"
+  },
+  "guard_result_title": "赶走了{thief}",
+  "@guard_result_title": {
+      "placeholders": {
+          "thief": {
+              "type": "String"
+          }
+      },
+      "description": "结算卡标题：赶走了{thief}（thief = guard_thief_name_* 的译文）"
+  },
+  "guard_result_gain": "拿回 {sun} 阳光",
+  "@guard_result_gain": {
+      "placeholders": {
+          "sun": {
+              "type": "int"
+          }
+      },
+      "description": "结算卡：必得阳光到账（sun = 本次 winSun）"
+  },
+  "guard_result_drop": "还捡到 {drop}",
+  "@guard_result_drop": {
+      "placeholders": {
+          "drop": {
+              "type": "String"
+          }
+      },
+      "description": "结算卡：有掉落时的券名（drop = guard_drop_name_* 的译文）"
+  },
+  "guard_result_nothing": "这次什么都没捡到，但菜保住了",
+  "@guard_result_nothing": {
+      "description": "结算卡：掉落档为 none 时的说明（保底阳光照给）"
+  },
+  "guard_result_compare": "花了 {cost} 阳光，拿回 {gain} 阳光，券还能省 {saving} 阳光",
+  "@guard_result_compare": {
+      "placeholders": {
+          "cost": {
+              "type": "int"
+          },
+          "gain": {
+              "type": "int"
+          },
+          "saving": {
+              "type": "int"
+          }
+      },
+      "description": "结算卡比较说明（R2 缓解：把「花 5 拿回 2」讲清楚）。cost = 实际花费、gain = 拿回、saving = 券面值可再省"
+  },
+  "guard_confirm_pay_title": "要花 {cost} 阳光请阿葵出手吗？",
+  "@guard_confirm_pay_title": {
+      "placeholders": {
+          "cost": {
+              "type": "int"
+          }
+      },
+      "description": "付费确认卡标题（cost = kGuardPayCost，不写字面量 5 以免与常量脱钩）"
+  },
+  "guard_confirm_pay_later": "今天不赶了",
+  "@guard_confirm_pay_later": {
+      "description": "付费确认卡：拒绝按钮（不扣钱、状态不变）"
+  },
+  "guard_stolen_today": "昨晚被偷走了 {n} 点成长",
+  "@guard_stolen_today": {
+      "placeholders": {
+          "n": {
+              "type": "int"
+          }
+      },
+      "description": "结算/过期提示：昨晚被偷走了多少成长。本批未上屏，第四批阳光记录页用"
+  },
+  "guard_result_collect": "收下",
+  "@guard_result_collect": {"description": "结算卡：收下按钮（🔴 claim() 在这里触发，不在战斗开始时 —— 观看/跳过不改变奖励，但发放必须落在「领取」动作上且只落一次）"}
 }

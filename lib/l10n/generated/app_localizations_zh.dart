@@ -678,8 +678,18 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String garden_water_note_range(int count, int low, int high) {
+    return '将对 $count 盆植物各浇 1 次水（每盆 $low~$high ☀）';
+  }
+
+  @override
   String garden_fertilize_note(int count, int cost) {
     return '将对 $count 盆植物各施 1 次肥（每盆 $cost ☀）';
+  }
+
+  @override
+  String garden_fertilize_note_range(int count, int low, int high) {
+    return '将对 $count 盆植物各施 1 次肥（每盆 $low~$high ☀）';
   }
 
   @override
@@ -693,6 +703,11 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String garden_care_note(int weed, int pest) {
     return '奖励照常发放：除草 +$weed ☀ / 除虫 +$pest ☀';
+  }
+
+  @override
+  String garden_care_note_total(int count, int total) {
+    return '共清理 $count 处，奖励合计 +$total ☀';
   }
 
   @override
@@ -718,6 +733,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String garden_oneclick_care_ok(int count) {
     return '一键护理成功 ×$count';
   }
+
+  @override
+  String get garden_guard_buff_water => '今日浇水 −1 ☀';
+
+  @override
+  String get garden_guard_buff_labor => '今日除草除虫 +1 ☀';
+
+  @override
+  String get garden_guard_buff_fertilize => '今日施肥 −2 ☀';
+
+  @override
+  String get garden_guard_buff_free_water => '今日 1 盆浇水免费';
+
+  @override
+  String get garden_guard_buff_free_fertilize => '今日 1 盆施肥免费';
+
+  @override
+  String get garden_guard_buff_exhausted => '已用完';
 
   @override
   String get garden_pick_plant_title => '选择要种的植物';
@@ -2967,6 +3000,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_hist_ref_focus_level_up => '专注升级';
 
   @override
+  String get child_hist_ref_guard_pay => '请守卫出手';
+
+  @override
+  String get child_hist_ref_guard_win => '赶跑偷菜贼';
+
+  @override
+  String get child_hist_ref_guard_stolen => '被偷菜贼偷走';
+
+  @override
   String get child_eyecare_seg_default => '跟着动画一起做，保护眼睛';
 
   @override
@@ -3426,4 +3468,90 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get garden_batch_none_water_rainstorm => '雨已经把花浇过啦，今天不用一键浇水';
+
+  @override
+  String get guard_thief_name_sun_rat => '馋光鼠';
+
+  @override
+  String get guard_thief_name_leaf_bug => '啃叶虫';
+
+  @override
+  String get guard_thief_name_sneak_thief => '顺手贼';
+
+  @override
+  String get guard_drop_name_water_voucher => '浇水券';
+
+  @override
+  String get guard_drop_name_labor_voucher => '劳动券';
+
+  @override
+  String get guard_drop_name_fertilize_voucher => '施肥券';
+
+  @override
+  String get guard_drop_name_free_water => '免费浇水券';
+
+  @override
+  String get guard_drop_name_free_fertilize => '免费施肥券';
+
+  @override
+  String get guard_pill_pending => '偷菜贼来了，现在赶跑它吧';
+
+  @override
+  String get guard_pill_pending_free => '用专注能量赶跑它（免费）';
+
+  @override
+  String get guard_pill_fighting => '守卫正在赶走它…';
+
+  @override
+  String get guard_pill_claimed => '今天的菜守住了';
+
+  @override
+  String guard_pill_no_balance(int n) {
+    return '还差 $n 阳光';
+  }
+
+  @override
+  String get guard_pill_free_ride => '阿葵自己顶班，今天不用管';
+
+  @override
+  String get guard_battle_skip => '跳过';
+
+  @override
+  String guard_result_title(String thief) {
+    return '赶走了$thief';
+  }
+
+  @override
+  String guard_result_gain(int sun) {
+    return '拿回 $sun 阳光';
+  }
+
+  @override
+  String guard_result_drop(String drop) {
+    return '还捡到 $drop';
+  }
+
+  @override
+  String get guard_result_nothing => '这次什么都没捡到，但菜保住了';
+
+  @override
+  String guard_result_compare(int cost, int gain, int saving) {
+    return '花了 $cost 阳光，拿回 $gain 阳光，券还能省 $saving 阳光';
+  }
+
+  @override
+  String guard_confirm_pay_title(int cost) {
+    return '要花 $cost 阳光请阿葵出手吗？';
+  }
+
+  @override
+  String get guard_confirm_pay_later => '今天不赶了';
+
+  @override
+  String guard_stolen_today(int n) {
+    return '昨晚被偷走了 $n 点成长';
+  }
+
+  @override
+  String get guard_result_collect => '收下';
 }

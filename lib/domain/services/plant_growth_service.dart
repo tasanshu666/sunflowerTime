@@ -39,6 +39,7 @@ import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
 import 'package:sunflower_time/domain/services/entitlement_service.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
+import 'package:sunflower_time/domain/services/guard_math.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/domain/services/weather_growth_math.dart';
 import 'package:sunflower_time/domain/services/weather_system.dart';
@@ -1812,6 +1813,53 @@ class PlantGrowthService {
         a: (cost - balance).ceil(),
       );
     }
+  }
+
+  /// 花园守卫「偷成长」的**唯一落地口**（PRD §3.5 约束 A / B）。
+  ///
+  /// [lossByPlantId] = `plantId -> 应扣的 pp`（`0.03` = 3 个百分点），由
+  /// `GuardService` 在 `resolve()` 时算好、`expire()` 时交过来。本方法负责**落地**：
+  ///
+  ///  · 🔴 **逐株重新读最新的 `plants` 行**再扣 —— 绝不用调用方传进来的旧快照。
+  ///    `resolve()` 可能发生在几小时前（早 7 点看胶囊、次日 0 点才结算），期间孩子
+  ///    浇过水 / 施过肥 / 阶段前进过；拿旧快照写回会把这段时间的成长整段抹掉。
+  ///  · 扣减本身走纯函数 [applyGrowthTheft]：阶段不回退、单株单日封顶
+  ///    [kGuardGrowthStealPerPlantDailyCap]、**开花株免疫**、死株跳过、脏入参不扣 ——
+  ///    本方法**不再**重复任何一条判断（重复判断 = 两套口径，迟早分叉）。
+  ///  · 只 `savePlant`；**不动** [Plant.stageStartedAt]、**不动** [Plant.stage]、
+  ///    不写账本、不发任何奖励。
+  ///
+  /// 🔴 **本方法不读时钟**：签名里没有 `now`，因为它一个时间字段都不写 ——
+  /// 早先版本留过一个「以防万一」的 `now` 形参，会让后来的人误以为这里读了时钟
+  /// （进而以为「传错 now 会算错账」）。签名只表达真实需求。
+  ///
+  /// 结算时刻只影响账本行的 `dayKey`（那是 [GuardService] 里 `_settleSunLoss` /
+  /// `_grantWinIfAbsent` 写的），**不影响成长扣减量** —— 扣多少只由
+  /// [lossByPlantId] 与 [applyGrowthTheft] 的封顶决定。
+  ///
+  /// 返回**实际被扣到成长的株数**（开花株 / 死株 / 已删除株 / 脏入参都跳过、不计数）。
+  /// 调用方（[GuardService.expire]）拿它写 `growthTargets`：账本说 2 条、实际只扣 1 株时
+  /// 对外计数必须是 1（仅日志/埋点字段，无经济影响）。
+  Future<int> raidGrowth({
+    required Map<String, double> lossByPlantId,
+  }) async {
+    if (lossByPlantId.isEmpty) return 0;
+    int affected = 0;
+    for (final MapEntry<String, double> entry in lossByPlantId.entries) {
+      // ① 重新读最新行（不存在 = 已被铲除 / 已清行 → 跳过）。
+      final Plant? fresh = await _plants.plant(entry.key);
+      if (fresh == null) continue;
+
+      // ② 纯函数扣减（开花株 / 死株 / 脏入参会原样返回同一个实例）。
+      final Plant updated = applyGrowthTheft(fresh, entry.value);
+      if (identical(updated, fresh)) continue;
+      if (updated.growthProgress == fresh.growthProgress) continue;
+
+      // ③ 只存这一株（其余字段逐字节不变）。
+      await _plants.savePlant(updated);
+      affected++;
+    }
+    return affected;
   }
 
   /// 枯萎后靠养护恢复（2026-09-23 替代原付费救回）。

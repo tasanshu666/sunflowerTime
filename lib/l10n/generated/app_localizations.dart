@@ -1244,11 +1244,23 @@ abstract class AppLocalizations {
   /// **'将对 {count} 盆植物各浇 1 次水（每盆 {cost} ☀）'**
   String garden_water_note(int count, int cost);
 
+  /// No description provided for @garden_water_note_range.
+  ///
+  /// In zh, this message translates to:
+  /// **'将对 {count} 盆植物各浇 1 次水（每盆 {low}~{high} ☀）'**
+  String garden_water_note_range(int count, int low, int high);
+
   /// No description provided for @garden_fertilize_note.
   ///
   /// In zh, this message translates to:
   /// **'将对 {count} 盆植物各施 1 次肥（每盆 {cost} ☀）'**
   String garden_fertilize_note(int count, int cost);
+
+  /// No description provided for @garden_fertilize_note_range.
+  ///
+  /// In zh, this message translates to:
+  /// **'将对 {count} 盆植物各施 1 次肥（每盆 {low}~{high} ☀）'**
+  String garden_fertilize_note_range(int count, int low, int high);
 
   /// No description provided for @garden_row_cleanup.
   ///
@@ -1262,11 +1274,17 @@ abstract class AppLocalizations {
   /// **'{count} 处'**
   String garden_cleanup_count(int count);
 
-  /// No description provided for @garden_care_note.
+  /// 已被 garden_care_note_total 取代（券额度会在批量中途用尽，单次奖励会多报）。保留 key 不删，避免牵动生成物。
   ///
   /// In zh, this message translates to:
   /// **'奖励照常发放：除草 +{weed} ☀ / 除虫 +{pest} ☀'**
   String garden_care_note(int weed, int pest);
+
+  /// No description provided for @garden_care_note_total.
+  ///
+  /// In zh, this message translates to:
+  /// **'共清理 {count} 处，奖励合计 +{total} ☀'**
+  String garden_care_note_total(int count, int total);
 
   /// No description provided for @garden_oneclick_water_title.
   ///
@@ -1303,6 +1321,42 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'一键护理成功 ×{count}'**
   String garden_oneclick_care_ok(int count);
+
+  /// No description provided for @garden_guard_buff_water.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日浇水 −1 ☀'**
+  String get garden_guard_buff_water;
+
+  /// No description provided for @garden_guard_buff_labor.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日除草除虫 +1 ☀'**
+  String get garden_guard_buff_labor;
+
+  /// No description provided for @garden_guard_buff_fertilize.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日施肥 −2 ☀'**
+  String get garden_guard_buff_fertilize;
+
+  /// No description provided for @garden_guard_buff_free_water.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日 1 盆浇水免费'**
+  String get garden_guard_buff_free_water;
+
+  /// No description provided for @garden_guard_buff_free_fertilize.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日 1 盆施肥免费'**
+  String get garden_guard_buff_free_fertilize;
+
+  /// No description provided for @garden_guard_buff_exhausted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已用完'**
+  String get garden_guard_buff_exhausted;
 
   /// No description provided for @garden_pick_plant_title.
   ///
@@ -5111,6 +5165,24 @@ abstract class AppLocalizations {
   /// **'专注升级'**
   String get child_hist_ref_focus_level_up;
 
+  /// No description provided for @child_hist_ref_guard_pay.
+  ///
+  /// In zh, this message translates to:
+  /// **'请守卫出手'**
+  String get child_hist_ref_guard_pay;
+
+  /// No description provided for @child_hist_ref_guard_win.
+  ///
+  /// In zh, this message translates to:
+  /// **'赶跑偷菜贼'**
+  String get child_hist_ref_guard_win;
+
+  /// No description provided for @child_hist_ref_guard_stolen.
+  ///
+  /// In zh, this message translates to:
+  /// **'被偷菜贼偷走'**
+  String get child_hist_ref_guard_stolen;
+
   /// No description provided for @child_eyecare_seg_default.
   ///
   /// In zh, this message translates to:
@@ -5986,6 +6058,150 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'雨已经把花浇过啦，今天不用一键浇水'**
   String get garden_batch_none_water_rainstorm;
+
+  /// 花园守卫：偷菜贼「馋光鼠」的展示名（ARB 唯一来源，domain 层零 CJK）
+  ///
+  /// In zh, this message translates to:
+  /// **'馋光鼠'**
+  String get guard_thief_name_sun_rat;
+
+  /// 花园守卫：偷菜贼「啃叶虫」的展示名
+  ///
+  /// In zh, this message translates to:
+  /// **'啃叶虫'**
+  String get guard_thief_name_leaf_bug;
+
+  /// 花园守卫：偷菜贼「顺手贼」的展示名
+  ///
+  /// In zh, this message translates to:
+  /// **'顺手贼'**
+  String get guard_thief_name_sneak_thief;
+
+  /// 花园守卫：掉落「浇水券」的展示名
+  ///
+  /// In zh, this message translates to:
+  /// **'浇水券'**
+  String get guard_drop_name_water_voucher;
+
+  /// 花园守卫：掉落「劳动券」的展示名
+  ///
+  /// In zh, this message translates to:
+  /// **'劳动券'**
+  String get guard_drop_name_labor_voucher;
+
+  /// 花园守卫：掉落「施肥券」的展示名
+  ///
+  /// In zh, this message translates to:
+  /// **'施肥券'**
+  String get guard_drop_name_fertilize_voucher;
+
+  /// 花园守卫：掉落「免费浇水券」（单株单次）的展示名
+  ///
+  /// In zh, this message translates to:
+  /// **'免费浇水券'**
+  String get guard_drop_name_free_water;
+
+  /// 花园守卫：掉落「免费施肥券」（单株单次，最稀有）的展示名
+  ///
+  /// In zh, this message translates to:
+  /// **'免费施肥券'**
+  String get guard_drop_name_free_fertilize;
+
+  /// 今日页守卫胶囊：待处理态（无能量、余额够 ⇒ 需先弹确认卡）
+  ///
+  /// In zh, this message translates to:
+  /// **'偷菜贼来了，现在赶跑它吧'**
+  String get guard_pill_pending;
+
+  /// 今日页守卫胶囊：待处理态（有专注能量 ⇒ 点击直接开战、免费）
+  ///
+  /// In zh, this message translates to:
+  /// **'用专注能量赶跑它（免费）'**
+  String get guard_pill_pending_free;
+
+  /// 今日页守卫胶囊：战斗中（不可点）
+  ///
+  /// In zh, this message translates to:
+  /// **'守卫正在赶走它…'**
+  String get guard_pill_fighting;
+
+  /// 今日页守卫胶囊：今天已守住（不可点）
+  ///
+  /// In zh, this message translates to:
+  /// **'今天的菜守住了'**
+  String get guard_pill_claimed;
+
+  /// 今日页守卫胶囊：余额不足提示（n = 还差多少阳光）。本批未上屏，第四批调试面板用
+  ///
+  /// In zh, this message translates to:
+  /// **'还差 {n} 阳光'**
+  String guard_pill_no_balance(int n);
+
+  /// 今日页守卫胶囊：阿葵顶班（无能量且余额 < kGuardFreeRideBalance，当天免罚、不可点）
+  ///
+  /// In zh, this message translates to:
+  /// **'阿葵自己顶班，今天不用管'**
+  String get guard_pill_free_ride;
+
+  /// 战斗界面：跳过按钮（kGuardBattleSkipDelayMs 后才出现）
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过'**
+  String get guard_battle_skip;
+
+  /// 结算卡标题：赶走了{thief}（thief = guard_thief_name_* 的译文）
+  ///
+  /// In zh, this message translates to:
+  /// **'赶走了{thief}'**
+  String guard_result_title(String thief);
+
+  /// 结算卡：必得阳光到账（sun = 本次 winSun）
+  ///
+  /// In zh, this message translates to:
+  /// **'拿回 {sun} 阳光'**
+  String guard_result_gain(int sun);
+
+  /// 结算卡：有掉落时的券名（drop = guard_drop_name_* 的译文）
+  ///
+  /// In zh, this message translates to:
+  /// **'还捡到 {drop}'**
+  String guard_result_drop(String drop);
+
+  /// 结算卡：掉落档为 none 时的说明（保底阳光照给）
+  ///
+  /// In zh, this message translates to:
+  /// **'这次什么都没捡到，但菜保住了'**
+  String get guard_result_nothing;
+
+  /// 结算卡比较说明（R2 缓解：把「花 5 拿回 2」讲清楚）。cost = 实际花费、gain = 拿回、saving = 券面值可再省
+  ///
+  /// In zh, this message translates to:
+  /// **'花了 {cost} 阳光，拿回 {gain} 阳光，券还能省 {saving} 阳光'**
+  String guard_result_compare(int cost, int gain, int saving);
+
+  /// 付费确认卡标题（cost = kGuardPayCost，不写字面量 5 以免与常量脱钩）
+  ///
+  /// In zh, this message translates to:
+  /// **'要花 {cost} 阳光请阿葵出手吗？'**
+  String guard_confirm_pay_title(int cost);
+
+  /// 付费确认卡：拒绝按钮（不扣钱、状态不变）
+  ///
+  /// In zh, this message translates to:
+  /// **'今天不赶了'**
+  String get guard_confirm_pay_later;
+
+  /// 结算/过期提示：昨晚被偷走了多少成长。本批未上屏，第四批阳光记录页用
+  ///
+  /// In zh, this message translates to:
+  /// **'昨晚被偷走了 {n} 点成长'**
+  String guard_stolen_today(int n);
+
+  /// 结算卡：收下按钮（🔴 claim() 在这里触发，不在战斗开始时 —— 观看/跳过不改变奖励，但发放必须落在「领取」动作上且只落一次）
+  ///
+  /// In zh, this message translates to:
+  /// **'收下'**
+  String get guard_result_collect;
 }
 
 class _AppLocalizationsDelegate

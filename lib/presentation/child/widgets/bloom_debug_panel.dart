@@ -40,6 +40,7 @@ import 'package:sunflower_time/core/di/today_weather.dart'
     show debugWeatherOverrideProvider, todayWeatherProvider;
 import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/guard_drop.dart';
 import 'package:sunflower_time/domain/entities/pending_bloom_reward.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
@@ -49,9 +50,11 @@ import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart'
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/pot_disturbance_repository.dart';
 import 'package:sunflower_time/domain/services/empty_pot_service.dart';
+import 'package:sunflower_time/domain/services/guard_service.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/domain/services/weather_system.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dart'
     show weatherArtOf, weatherNameOf;
@@ -93,9 +96,11 @@ class BloomDebugEntry extends StatelessWidget {
 /// 打开「花期调试」面板（bottom sheet）。
 ///
 /// [onChanged] 在每次动作后回调（花园页据此静默刷新气泡 / 进度 / 余额展示）。
+/// 🔴 改成可 await 的 `Future<void> Function()`：面板会等花园页快照刷新完成才
+/// 收尾，避免 fire-and-forget 产生两个并发 `_reload`、旧代次覆盖新代次（玄参 ③）。
 Future<void> showBloomDebugPanel(
   BuildContext context, {
-  VoidCallback? onChanged,
+  Future<void> Function()? onChanged,
   void Function(GrowTransition transition, String speciesDir)? onPreviewGrowth,
 }) {
   // 面板高度取自**调用方**（花园页）的 MediaQuery（可靠）；面板自身不再依赖
@@ -128,8 +133,8 @@ class BloomDebugSheet extends ConsumerStatefulWidget {
   /// 面板内容高度（由 [showBloomDebugPanel] 依调用方屏幕算出）。
   final double maxHeight;
 
-  /// 动作完成后的回调（花园页据此刷新）。
-  final VoidCallback? onChanged;
+  /// 动作完成后的回调（花园页据此刷新；🔴 可 await，[ _run ] 会等它完成）。
+  final Future<void> Function()? onChanged;
 
   /// 分段成长**演出预览**回调（玄参 2026-10-13）：由花园页真正播该段过渡的
   /// 成长演出 + 该物种音效（口径 C59）；本面板不复制播放/资产逻辑。
@@ -294,7 +299,15 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
       if (mounted) setState(() => _busy = false);
     }
     await _refresh();
-    widget.onChanged?.call();
+    // 🔴 必须 await：让按钮动作结束时花园页快照已是最新，杜绝 fire-and-forget
+    // 造成的两个并发 `_reload`（旧代次结果会覆盖新代次，玄参真机 ③）。
+    await widget.onChanged?.call();
+    // 统一在 `_run` 之后 bump：4 个 `*ForDebug` 动作（造贼 / 清能量 / 发券 /
+    // 清存档）都会写守卫存档，花园页 `ref.listen` 后据此重读券快照。
+    // 与 `onChanged` 双保险：前者保证「动作收尾时已刷新」，后者保证「存档被
+    // 改写」这一事实对**任何**入口（今日页 claim / 未来新入口）都可靠可见。
+    if (!mounted) return;
+    ref.read(guardBuffRevisionProvider.notifier).state++;
   }
 
   /// 写入目标植物字段（走仓储，落库后由 [PlantGrowthService.tickAll] 结算）。
@@ -527,6 +540,45 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
         }
       });
 
+  // ── 花园守卫调试动作（第四批 B）───────────────────────────────────────────
+  //
+  // 全部走 [GuardService] 的 `*ForDebug` 接缝（`GuardStateStore` 只由领域服务
+  // 调用，页面**不得**直写存档）。写完由 [_run] 统一 `_refresh` + `onChanged`
+  // ⇒ 花园页 `_reload` ⇒ 价格与 buff chip 刷新。
+
+  /// 守卫领域服务（唯一允许写守卫存档的方法集合）。
+  GuardService get _guardSvc => ref.read(guardServiceProvider);
+
+  /// 造贼：[drop] 非 null 时同时让今天的掉落档带上那张券。
+  Future<void> _forceThief({GuardDropKind? drop}) => _run(() async {
+        await _guardSvc.forceThiefForDebug(drop: drop);
+        _resetTodayPill();
+      });
+
+  /// 用光今日能量（`energyAvailable()` 之后为 0）。
+  Future<void> _exhaustEnergy() => _run(() async {
+        await _guardSvc.exhaustEnergyForDebug();
+      });
+
+  /// 直接发一张今日券。
+  Future<void> _grantGuardVoucher(GuardDropKind kind) => _run(() async {
+        await _guardSvc.grantVoucherForDebug(kind);
+      });
+
+  /// 清空今日守卫存档。
+  Future<void> _resetGuard() => _run(() async {
+        await _guardSvc.resetForDebug();
+        _resetTodayPill();
+      });
+
+  /// 把今日页的胶囊快照重置为「没有守卫」。
+  ///
+  /// 🔴 [guardTodayProvider] **只有** `ChildTodayPage` 会写：造贼 / 清档之后若不
+  /// 主动重置，切回今日页仍是旧快照（该有的贼不显示 / 清掉的贼还在）。
+  void _resetTodayPill() {
+    ref.read(guardTodayProvider.notifier).state = const GuardTodayView.absent();
+  }
+
   /// 花期剩余文案（不在花期显示「—」）。
   String _bloomRemaining(Plant p) {
     if (p.status != PlantStatus.bloomed || p.bloomedAt == null) return '—';
@@ -616,6 +668,9 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
               _emptyPotSection(),
               const SizedBox(height: 12),
               _weatherSection(),
+              const SizedBox(height: 12),
+              // 第四批 B：守卫调试（同样必须留在列表最末尾，见 [_guardSection] 注释）。
+              _guardSection(),
             ]
             else ...<Widget>[
               // ── 植物选择 ──────────────────────────────────────────────
@@ -789,6 +844,9 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
               _emptyPotSection(),
               const SizedBox(height: 12),
               _weatherSection(),
+              const SizedBox(height: 12),
+              // 第四批 B：守卫调试（同样必须留在列表最末尾，见 [_guardSection] 注释）。
+              _guardSection(),
             ],
           ],
         ),
@@ -970,6 +1028,90 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
                     ref.read(debugWeatherOverrideProvider.notifier).state =
                         null,
                 child: const Text('跟随真实日期'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 花园守卫调试区块（第四批 B）。
+  ///
+  /// 四组按钮，全部走 [GuardService] 的 `*ForDebug` 接缝：
+  ///  · 造贼 ×2（默认 / 带免费浇水券）→ [GuardService.forceThiefForDebug]；
+  ///  · 用光今日能量 → [GuardService.exhaustEnergyForDebug]；
+  ///  · 发券 ×3（免费浇水 / 劳动 / 施肥）→ [GuardService.grantVoucherForDebug]；
+  ///  · 清空今日守卫存档 → [GuardService.resetForDebug]。
+  ///
+  /// 🔴 造贼 / 清档之后必须调 [_resetTodayPill]：今日页的胶囊快照只有
+  /// `ChildTodayPage` 会写，不主动重置就会「切回今日页还是旧值」。
+  ///
+  /// 🔴 位置纪律：本区块追加在 [_weatherSection] **之后**（列表最末尾），
+  /// 理由与空盆区块逐字相同 —— 见 `_emptyPotSection()` 上方的注释：
+  /// 插到前面会把 4 个存量用例在 360×780 下「不滚动就 `find.text`」的断言
+  /// 顶出 `ListView` 的懒构建窗口（`cacheExtent` 250）。
+  Widget _guardSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF8ED),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFBFE0B8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            '花园守卫',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '造贼 / 清能量 / 发券 / 清存档（不写账本；清完会把今日页胶囊重置）',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              FilledButton.tonal(
+                onPressed: _busy ? null : () => _forceThief(),
+                child: const Text('刷新出偷菜贼'),
+              ),
+              FilledButton.tonal(
+                onPressed: _busy
+                    ? null
+                    : () => _forceThief(drop: GuardDropKind.freeWater),
+                child: const Text('刷新出偷菜贼（带免费浇水券）'),
+              ),
+              FilledButton.tonal(
+                onPressed: _busy ? null : _exhaustEnergy,
+                child: const Text('用光今日能量'),
+              ),
+              FilledButton.tonal(
+                onPressed: _busy
+                    ? null
+                    : () => _grantGuardVoucher(GuardDropKind.freeWater),
+                child: const Text('发免费浇水券'),
+              ),
+              FilledButton.tonal(
+                onPressed: _busy
+                    ? null
+                    : () => _grantGuardVoucher(GuardDropKind.laborVoucher),
+                child: const Text('发劳动券'),
+              ),
+              FilledButton.tonal(
+                onPressed: _busy
+                    ? null
+                    : () => _grantGuardVoucher(GuardDropKind.fertilizeVoucher),
+                child: const Text('发施肥券'),
+              ),
+              FilledButton.tonal(
+                onPressed: _busy ? null : _resetGuard,
+                child: const Text('清空今日守卫存档'),
               ),
             ],
           ),

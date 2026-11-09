@@ -16,9 +16,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/guard_day_state.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
+import 'package:sunflower_time/domain/services/guard_voucher.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
@@ -102,6 +104,10 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
   /// C77 · 当前称号专属属性（铲除返还额展示与扣费**同源**；未就绪回退 [PlantPerk.none]）。
   PlantPerk _perk = PlantPerk.none;
 
+  /// 花园守卫「今日券」快照（第四批 A）：与花园页的 `_guardBuff` 是**两个独立快照**
+  /// （养护卡按株读取，生命周期与页面刷新解耦）。`null` = 没券 / 读不到。
+  GuardBuffState? _guardBuff;
+
   @override
   void initState() {
     super.initState();
@@ -117,10 +123,58 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
     }
   }
 
+  /// 券减免叠在称号 perk 上（同步纯函数）：水价 / 肥价**各算各的**。
+  ///
+  /// 🔴 不能只算一个再共用：`PlantPerk.add` 是全字段相加，浇水券叠上去会顺手
+  /// 把肥价也改掉（反之亦然）。[plantId] 必须传（免费券只对单株生效）。
+  /// 「动作 → 券种类」（含免费券换名）单点在 [guardVoucherKindForAction]，
+  /// 养护卡与花园页**都只调它**（两份映射分叉 = 「展示便宜、实扣全额」）。
+  PlantPerk _perkWithVoucher(GuardActionKind action, String plantId) {
+    final GuardBuffState? buff = _guardBuff;
+    if (buff == null) return _perk; // 没券 / 读不到 ⇒ 零 provider 访问
+    return ref.read(guardVoucherProvider).overlayFor(
+          buff,
+          _perk,
+          kind: guardVoucherKindForAction(action, activeDrop: buff.kind),
+          plantId: plantId,
+        );
+  }
+
+  /// 动作**成功后**核销一次券额度（失败不核销）。
+  ///
+  /// 🔴 内部自带 try/catch：核销读失败绝不能让「浇水已成功」变成一条错误提示。
+  Future<void> _recordVoucherConsumed(
+    GuardActionKind action,
+    String plantId,
+  ) async {
+    final GuardBuffState? buff = _guardBuff;
+    if (buff == null) return;
+    try {
+      await ref.read(guardVoucherProvider).recordConsumed(
+            kind: guardVoucherKindForAction(action, activeDrop: buff.kind),
+            plantId: plantId,
+          );
+    } catch (e) {
+      debugPrint('[Guard] 养护卡券核销失败（忽略，动作已完成）：$e');
+    }
+  }
+
   /// 读取该株植物 + 物种 + 今日养护额度（三者都从仓储取最新值）。
   Future<void> _load() async {
     try {
       _perk = await _readPerk();
+      // 今日券快照：🔴 **独立 try/catch + 有界超时**（宿主未 override
+      // `sharedPreferencesProvider` 时 `guardVoucherProvider` 直接抛
+      // `UnimplementedError`，裸放会被外层 catch 打成整卡错误态）。
+      try {
+        _guardBuff = await ref
+            .read(guardVoucherProvider)
+            .currentBuff()
+            .timeout(kGuardVoucherReadTimeout);
+      } catch (e) {
+        _guardBuff = null;
+        debugPrint('[Guard] 养护卡今日券不可用，按「无券」处理：$e');
+      }
       final PlantRepository repo = ref.read(plantRepositoryProvider);
       final Plant? p = await repo.plant(widget.plantId);
       if (p != null) {
@@ -282,6 +336,11 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
     } else {
       final Plant plant = _plant!;
       final PlantSpecies species = _species!;
+      // 卡片上「水价 / 肥价」两条各自叠自己的券（见 [PlantCard.perkWater]）。
+      final PlantPerk perkWater =
+          _perkWithVoucher(GuardActionKind.water, plant.id);
+      final PlantPerk perkFertilize =
+          _perkWithVoucher(GuardActionKind.fertilize, plant.id);
       body = Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
         child: PlantCard(
@@ -289,16 +348,31 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
           species: species,
           quota: _quota,
           perk: _perk,
+          perkWater: perkWater,
+          perkFertilize: perkFertilize,
           onWater: () => _run(
-            () => ref
-                .read(plantGrowthServiceProvider)
-                .water(plant.id, DateTime.now(), perk: _perk),
+            () async {
+              // 🔴 展示（perkWater）与扣费（perk: perkWater）必须**同一个**变量。
+              await ref.read(plantGrowthServiceProvider).water(
+                    plant.id,
+                    DateTime.now(),
+                    perk: perkWater,
+                  );
+              // 成功之后立刻核销（同一 try 块；核销自带 catch，不反噬动作）。
+              await _recordVoucherConsumed(GuardActionKind.water, plant.id);
+            },
             effect: CareEffectType.water,
           ),
           onFertilize: () => _run(
-            () => ref
-                .read(plantGrowthServiceProvider)
-                .fertilize(plant.id, DateTime.now(), perk: _perk),
+            () async {
+              await ref.read(plantGrowthServiceProvider).fertilize(
+                    plant.id,
+                    DateTime.now(),
+                    perk: perkFertilize,
+                  );
+              await _recordVoucherConsumed(
+                  GuardActionKind.fertilize, plant.id);
+            },
             effect: CareEffectType.fertilize,
           ),
           onClear: () => _run(

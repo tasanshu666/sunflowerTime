@@ -24,6 +24,12 @@
 /// 二者组合才说明测量链是通的；③ 再断言关键文案仍在树里、渲染盒非零且在屏内，
 /// 防「靠隐藏/删掉内容」过关。
 ///
+/// 🔴 **本用例③的判据是「可达」，不是「零滚动」**：第三批（花园守卫）在今日页
+/// 列表第 0 项插入了守卫胶囊（44 + 10 = 54pt）后，320×568 + 1.3 倍字号下视口
+/// 只剩 ≈108pt，三张统计卡**必然**要滚动才看得全。故本用例对「今日专注」「今日成长」
+/// 两张卡都采取「先 `drag` 滚进视野、再断言」的口径 —— 判的是**内容没被删/没被裁**，
+/// 不是「一屏放得下」。反过来写「今日页零滚动」会在任何一次布局微调时假红。
+///
 /// ⚠️ `textScaler` 必须从 `MaterialApp.builder` 注入（F126 探针踩过的坑）：
 /// 包在 `home` 上的 MediaQuery 覆盖不到 Dialog 路由 / 覆盖层，量到的约束与线上不一致。
 library shell_narrow_large_text_test;
@@ -196,7 +202,27 @@ void main() {
 
     // 1) 三张状态卡的标签仍在（没有被整体隐藏 / 挪走）。
     expect(find.text('今日获取阳光'), findsOneWidget);
-    expect(find.text('今日专注'), findsOneWidget);
+
+    // 🔴 第三批（花园守卫）起，今日页 `ListView` 的**第 0 项**多了一条守卫胶囊
+    // （`kGuardPillHeight` 44 + `kGuardPillGap` 10 = 54pt，插在三张统计卡之前）。
+    // 本用例的视口只有 ≈108pt（320×568 + 1.3 倍字号 + 外壳底栏），54pt 足以把
+    // 「今日专注」卡**推出绘制区**。而 `find.text` 默认 `skipOffstage: true`，
+    // `SliverMultiBoxAdaptorElement.debugVisitOnstageChildren` 只上报**在绘制区内**
+    // 的子项 —— 于是「滚出视口」与「被删掉」在 finder 上表现相同。
+    // ⇒ 与下面第三张卡同口径：**先滚进视野再断言**（内容可达即达标，不回退为
+    //   「今日页零滚动」这种会随布局微调变红的断言）。
+    final Finder todayList = find.descendant(
+      of: find.byType(ChildTodayPage),
+      matching: find.byType(ListView),
+    );
+    expect(todayList, findsOneWidget, reason: '今日页必须有一条可滚动的状态卡列表');
+    for (int i = 0; i < 6; i++) {
+      if (find.text('今日专注').evaluate().isNotEmpty) break;
+      await tester.drag(todayList, const Offset(0, -60));
+      await tester.pump();
+    }
+    expect(find.text('今日专注'), findsOneWidget,
+        reason: '「今日专注」卡必须可通过滚动触达（胶囊占位只改变滚动量，不删内容）');
 
     // 2) 主数值与单位文案仍在树里且没被压成零宽（1.3 倍字号下值 + 单位必须让位收缩
     //    而不是撑破父级；`Flexible` 收缩后文本**数据**不变，故此处找得到）。
@@ -211,12 +237,7 @@ void main() {
 
     // 3) 第三张卡（「今日成长」全完成态 = 最宽内容：`1 / 1` + `全部完成 🌻`）在
     //    1.3 倍字号下落到首屏之外 → 滚进视野后再量一次，确保最宽那张卡也不溢出。
-    final Finder todayList = find.descendant(
-      of: find.byType(ChildTodayPage),
-      matching: find.byType(ListView),
-    );
-    expect(todayList, findsOneWidget, reason: '今日页必须有一条可滚动的状态卡列表');
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 6; i++) {
       if (find.text('今日成长').evaluate().isNotEmpty) break;
       await tester.drag(todayList, const Offset(0, -80));
       await tester.pump();

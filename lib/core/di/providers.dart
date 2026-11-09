@@ -16,6 +16,7 @@ import 'package:sunflower_time/l10n/generated/app_localizations.dart'
     show lookupAppLocalizations;
 import 'package:sunflower_time/data/local/database/app_database.dart';
 import 'package:sunflower_time/data/local/focus_level_prefs_store.dart';
+import 'package:sunflower_time/data/local/guard_state_prefs_store.dart';
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/weekly_pool_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/reward_local_repository.dart';
@@ -47,8 +48,11 @@ import 'package:sunflower_time/domain/repositories/task_repository.dart';
 import 'package:sunflower_time/domain/repositories/eye_care_log_repository.dart';
 import 'package:sunflower_time/domain/repositories/child_profile_repository.dart';
 import 'package:sunflower_time/domain/repositories/focus_level_store.dart';
+import 'package:sunflower_time/domain/repositories/guard_state_store.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
+import 'package:sunflower_time/domain/services/guard_service.dart';
+import 'package:sunflower_time/domain/services/guard_voucher.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
@@ -361,6 +365,52 @@ final plantGrowthServiceProvider = Provider<PlantGrowthService>(
     entitlement: ref.watch(entitlementServiceProvider),
     onEconomyChanged: () =>
         ref.read(economyRevisionProvider.notifier).state++,
+  ),
+);
+
+// ── 花园守卫 · 向日葵守卫者（第二批：存储层 + 领域服务层）─────────────────
+//
+// 🔴 三条惰性铁律（同 [focusLevelStoreProvider] / 付费墙阶段既有纪律）：
+//   1. Provider 函数体只在**首次 read** 时执行，此处仅「登记如何构造」；
+//   2. 不在 build 路径同步 await 任何 prefs / DB（本段全部是同步 `Provider`，
+//      构造出来的服务也只在被调用时才去读 prefs / 账本）；
+//   3. `sharedPreferencesProvider` 必须在 main 中 override —— 惰性才能保证
+//      未初始化时不会提前读它。
+//
+// 第二批**只注册服务，不接线任何 UI**（今日页 / 花园页的胶囊与 buff chip 是第三批）。
+
+/// 守卫当日状态存储（`SharedPreferences`，键 = `guard_day_state_v2_<childId>`）。
+///
+/// 🔴 必须带 childId 后缀：prefs 是设备级、守卫数据是 childId 级，
+/// 不带后缀会让「A 的小偷出现在 B 的今日页、A 的浇水券被 B 用掉」。
+final guardStateStoreProvider = Provider<GuardStateStore>(
+  (ref) => GuardStatePrefsStore(ref.watch(sharedPreferencesProvider)),
+);
+
+/// 今日券服务（**券的唯一生效口**：券 → `PlantPerk` 的减免只经这里产出）。
+///
+/// 页面**禁止**内联 `-1` / 「归零」；免费券在批量动作下由本服务自动降级为
+/// 「不减免」（[GuardVoucherService.overlayFor]），绝不整批免费。
+final guardVoucherProvider = Provider<GuardVoucherService>(
+  (ref) => GuardVoucherService(
+    store: ref.watch(guardStateStoreProvider),
+    childId: () => ref.read(accountServiceProvider).childId,
+  ),
+);
+
+/// 守卫编排服务（能量派生 / 结算 / 领取 / 跨天过期）。
+///
+/// 依赖全部是**接口**或已有服务：账本、专注、植物仓储 + [PlantGrowthService]
+/// （成长扣减的唯一落地口 `raidGrowth`）。本服务是**唯一**允许写守卫账本的
+/// 方法集合（`guard_pay` / `guard_win` / `guard_stolen` 三种 refType）。
+final guardServiceProvider = Provider<GuardService>(
+  (ref) => GuardService(
+    store: ref.watch(guardStateStoreProvider),
+    ledger: ref.watch(sunlightRepositoryProvider),
+    focus: ref.watch(focusRepositoryProvider),
+    plants: ref.watch(plantRepositoryProvider),
+    growth: ref.watch(plantGrowthServiceProvider),
+    childId: () => ref.read(accountServiceProvider).childId,
   ),
 );
 

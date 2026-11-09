@@ -109,6 +109,15 @@ String refLabelOf(String? refType, AppLocalizations t) {
       return t.garden_shelter_wind;
     case kWeatherShelterRefTypeWarm:
       return t.garden_shelter_warm;
+    // 花园守卫（第四批 A）：三条守护账本行此前落到 default → 孩子端三条「其他 ±N ☀」。
+    // refType 值冻结在 `prd_params.dart`（`kGuardPayRefType` / `kGuardWinRefType` /
+    // `kGuardStolenRefType`），必须在此同步映射（既有铁律）。
+    case kGuardPayRefType:
+      return t.child_hist_ref_guard_pay;
+    case kGuardWinRefType:
+      return t.child_hist_ref_guard_win;
+    case kGuardStolenRefType:
+      return t.child_hist_ref_guard_stolen;
     default:
       // 未知 refType 安全兜底（与原 `?? hist_other` 同语义）。
       return t.hist_other;

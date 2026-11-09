@@ -695,8 +695,18 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String garden_water_note_range(int count, int low, int high) {
+    return 'Watering $count plants once each ($low~$high ☀ per plant)';
+  }
+
+  @override
   String garden_fertilize_note(int count, int cost) {
     return 'Fertilize each of $count plants once ($cost ☀ each)';
+  }
+
+  @override
+  String garden_fertilize_note_range(int count, int low, int high) {
+    return 'Fertilizing $count plants once each ($low~$high ☀ per plant)';
   }
 
   @override
@@ -710,6 +720,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String garden_care_note(int weed, int pest) {
     return 'Rewards as usual: weeds +$weed ☀ / pests +$pest ☀';
+  }
+
+  @override
+  String garden_care_note_total(int count, int total) {
+    return '$count spots cleared, +$total ☀ total';
   }
 
   @override
@@ -735,6 +750,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String garden_oneclick_care_ok(int count) {
     return 'Cared ×$count';
   }
+
+  @override
+  String get garden_guard_buff_water => 'Water −1 ☀ today';
+
+  @override
+  String get garden_guard_buff_labor => 'Weed/Bug +1 ☀ today';
+
+  @override
+  String get garden_guard_buff_fertilize => 'Fertilize −2 ☀ today';
+
+  @override
+  String get garden_guard_buff_free_water => 'One free watering today';
+
+  @override
+  String get garden_guard_buff_free_fertilize => 'One free fertilize today';
+
+  @override
+  String get garden_guard_buff_exhausted => 'Used up';
 
   @override
   String get garden_pick_plant_title => 'Choose a plant';
@@ -3042,6 +3075,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_hist_ref_focus_level_up => 'Focus level up';
 
   @override
+  String get child_hist_ref_guard_pay => 'Guard hired';
+
+  @override
+  String get child_hist_ref_guard_win => 'Thief chased off';
+
+  @override
+  String get child_hist_ref_guard_stolen => 'Stolen by thief';
+
+  @override
   String get child_eyecare_seg_default =>
       'Follow the animation to protect your eyes';
 
@@ -3548,4 +3590,92 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get garden_batch_none_water_rainstorm =>
       'The rain already watered your plants — no one-click watering today';
+
+  @override
+  String get guard_thief_name_sun_rat => 'Greedy Sun Mouse';
+
+  @override
+  String get guard_thief_name_leaf_bug => 'Leaf Muncher';
+
+  @override
+  String get guard_thief_name_sneak_thief => 'Sneaky Thief';
+
+  @override
+  String get guard_drop_name_water_voucher => 'Water Voucher';
+
+  @override
+  String get guard_drop_name_labor_voucher => 'Chore Voucher';
+
+  @override
+  String get guard_drop_name_fertilize_voucher => 'Fertilizer Voucher';
+
+  @override
+  String get guard_drop_name_free_water => 'Free Water Voucher';
+
+  @override
+  String get guard_drop_name_free_fertilize => 'Free Fertilizer Voucher';
+
+  @override
+  String get guard_pill_pending => 'A veggie thief is here — chase it away!';
+
+  @override
+  String get guard_pill_pending_free =>
+      'Chase it away with focus energy (free)';
+
+  @override
+  String get guard_pill_fighting => 'Your guard is chasing it away…';
+
+  @override
+  String get guard_pill_claimed => 'Today\'s veggies are safe';
+
+  @override
+  String guard_pill_no_balance(int n) {
+    return '$n more sunlight needed';
+  }
+
+  @override
+  String get guard_pill_free_ride => 'Sunny is covering today — nothing to do';
+
+  @override
+  String get guard_battle_skip => 'Skip';
+
+  @override
+  String guard_result_title(String thief) {
+    return 'Chased away the $thief';
+  }
+
+  @override
+  String guard_result_gain(int sun) {
+    return 'Got back $sun sunlight';
+  }
+
+  @override
+  String guard_result_drop(String drop) {
+    return 'Also found a $drop';
+  }
+
+  @override
+  String get guard_result_nothing =>
+      'Nothing found this time, but the veggies are safe';
+
+  @override
+  String guard_result_compare(int cost, int gain, int saving) {
+    return 'Spent $cost sunlight, got back $gain, and the voucher saves $saving more';
+  }
+
+  @override
+  String guard_confirm_pay_title(int cost) {
+    return 'Spend $cost sunlight to send Sunny?';
+  }
+
+  @override
+  String get guard_confirm_pay_later => 'Not today';
+
+  @override
+  String guard_stolen_today(int n) {
+    return '$n points of growth were stolen last night';
+  }
+
+  @override
+  String get guard_result_collect => 'Collect';
 }

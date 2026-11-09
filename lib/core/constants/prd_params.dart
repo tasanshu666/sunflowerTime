@@ -2244,3 +2244,262 @@ const int kWeatherShelterPrice = 10;
 /// 两件事」（§5.2 建议取 B 的原话）。
 const double kWeatherPenaltyPerMissingItem = 0.01;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 花园守卫 · 向日葵守卫者 · 打偷菜贼
+// 真源：`docs/花园守卫_向日葵守卫者_增量PRD_v2.md` §6（玄参 2026-11-08 拍板 v2）。
+//
+// 🔴 单点收口：本段之外不得出现任何同义字面量。
+// 🔴 所有概率 / 区间 / 封顶值都在本段具名，纯函数里**不许**写魔法数字。
+// 🔴 三个 refType 字符串一经写入即冻结（append-only 对账源）。
+// 🔴 本段**只加不改**：不触碰任何既有常量（kTodayCardTopRatio / kPlantWaterCost /
+//    kValidFocusMinutes / kCompletionRateThreshold … 全部原样）。
+// ───────────────────────────────────────────────────────────────────────────
+
+// ── 触发 / 频次 ──────────────────────────────────────────────────────────
+
+/// 每日小偷只数（恒 1；0 点生成，次日 0 点过期）。单位：只/天。
+///
+/// 全园无存活株时**不生成**（胶囊零占位），故本值只是「有存活株时的上限」。
+const int kGuardThiefPerDay = 1;
+
+/// 确定性随机盐（seed = dayKey + childId + 本值 [+ 通道后缀]）。
+///
+/// 单位：无语义。🔴 **跨版本不得改动**：改掉会让「同一历史日」的掉落结果不可
+/// 重放（调试面板的「强制出顺手贼」也就失去意义）。
+const String kGuardDaySaltV2 = '|guard|v2';
+
+/// 不处理时的结算窗口上限（天）。单位：天。
+///
+/// =1 ⇒ 离线一周回来也只罚 1 天，**绝不叠加**（PRD §3.6 / 验收 A8）。
+const int kGuardSettleMaxDays = 1;
+
+// ── 成本 ─────────────────────────────────────────────────────────────────
+
+/// 完成 1 次「有效专注」获得的能量。单位：点。
+///
+/// 「有效」的判定单点 = `domain/services/focus_validity.dart`（PRD §3.3）。
+const int kGuardEnergyPerFocus = 1;
+
+/// 每日能量上限。单位：点/天。
+///
+/// 理由（决策 D4）：1 只贼只需 1 点 → 留 1 点冗余，跨天时序 / 专注记录晚落盘时
+/// 不会把孩子逼到「被迫花 5☀」。**冗余保留，不给出第 2 点的出口**。
+const int kGuardEnergyDailyMax = 2;
+
+/// 无能量时的支付价。单位：☀/次。玄参定 5（= 一次浇水）。
+const int kGuardPayCost = 5;
+
+/// 免罚线：无能量 **且** 余额 < 本值 → 当天不结算损失（决策 D3）。
+///
+/// 单位：☀。理由：刚花 300☀ 种下植株后余额常低于 5，此时再罚 = 落井下石。
+const int kGuardFreeRideBalance = 5;
+
+// ── 小偷（3 种）──────────────────────────────────────────────────────────
+
+/// 小偷权重（顺序 = 馋光鼠 / 啃叶虫 / 顺手贼），合计必须 = 1.0。
+///
+/// 单位：概率。0.45 / 0.45 / 0.10：顺手贼 10% ≈ 每 10 天 1 次，够稀有到
+/// 「遇到会截图」，又不至于一个月见不到。
+const List<double> kGuardThiefWeights = <double>[0.45, 0.45, 0.10];
+
+/// 偷阳光区间下限。单位：☀。（馋光鼠 / 顺手贼共用）
+const int kGuardSunStealMin = 1;
+
+/// 偷阳光区间上限。单位：☀。均值 2 = 一顿浇水的 40%，疼但不疼死。
+const int kGuardSunStealMax = 3;
+
+/// 偷成长区间下限。单位：进度比例（0.01 = 1 个百分点 pp）。
+///
+/// 啃叶虫与顺手贼**共用**此下限（两者都是「1~N%」口径）。
+const double kGuardGrowthStealMinPct = 0.01;
+
+/// 啃叶虫 偷成长区间上限。单位：pp。常见档取轻档：1~3% = 1/10 ~ 3/10 个成长日。
+const double kGuardGrowthStealMaxPct = 0.03;
+
+/// 顺手贼 偷成长区间上限。单位：pp。稀有档取重档：最多半天成长。
+///
+/// 若上线后觉得太疼，**第一个动作**是把本值改到 0.03（顺手贼退化为
+/// 「重一点的啃叶虫」），不动结构。
+const double kGuardSlyGrowthStealMaxPct = 0.05;
+
+/// 🔴 硬约束：每株每天累计被偷上限。单位：pp。
+///
+/// 不因多天未登录叠加（[kGuardSettleMaxDays]=1 保证只结算 1 天）。
+/// `applyGrowthTheft` 用它钳制传入的 pp，**不可删**（PRD §3.5 约束 A）。
+const double kGuardGrowthStealPerPlantDailyCap = 0.05;
+
+// ── 掉落：第一步（必得阳光）───────────────────────────────────────────────
+
+/// 必得阳光区间下限。单位：☀。均值 2。
+const int kGuardWinSunMin = 1;
+
+/// 必得阳光区间上限。单位：☀。
+const int kGuardWinSunMax = 3;
+
+/// 无道具档的保底阳光（= 区间上限）。单位：☀。
+///
+/// 理由（决策 D2 / PRD §3.7 硬约束 B）：18% 空手档对孩子是强负体验；取上限 3
+/// 仍在 [1,3] 内，不越界。E[W] 由 2.00 抬到 2.18，付费路径最坏损失 −4 → −2。
+const int kGuardWinSunNoItem = 3;
+
+// ── 掉落：第二步（一次掷骰，合计必须 = 1.0）──────────────────────────────
+
+/// 浇水券概率。今日每盆每次浇水 −1（与称号减免**相加**），当日累计封顶见下。
+const double kGuardDropWaterVoucherRate = 0.35;
+
+/// 劳动券概率。今日每次除草/除虫 +1（加在称号加成**之后**），累计封顶见下。
+const double kGuardDropLaborVoucherRate = 0.20;
+
+/// 施肥券概率。今日**每次**施肥 −2 ☀（与称号减免相加）。
+const double kGuardDropFertilizerVoucherRate = 0.15;
+
+/// 免费浇水券概率。🔴 仅单盆、仅一次（绝不整批）。
+const double kGuardDropFreeWaterRate = 0.08;
+
+/// 免费施肥券概率。🔴 仅单盆、仅一次（最稀有）。
+const double kGuardDropFreeFertilizerRate = 0.04;
+
+/// 无道具概率（只拿 [kGuardWinSunNoItem] 保底阳光）。= 1 − 以上五项。
+const double kGuardDropNothingRate = 0.18;
+
+// ── 券的生效上限（🔴 防「一键批量 + 称号」放大，不得删）───────────────────
+
+/// 浇水券每次浇水每盆减免。单位：☀。
+const int kGuardWaterVoucherSave = 1;
+
+/// 🔴 浇水券当日累计节省上限。单位：☀/天。
+///
+/// 理由：12 盆 × 3 次 = 36 次；不封顶则一次券省 36（面值 5~6 的 6 倍）。
+const int kGuardWaterVoucherMaxSaves = 6;
+
+/// 施肥券减免额（今日**每次**施肥都 −2 ☀）。单位：☀。
+const int kGuardFertilizerVoucherSave = 2;
+
+/// 施肥券当日可用次数上界 = 最大盆位数（每盆每天限施 1 次，见
+/// [kPlantFertilizeMaxPerDay]）⇒ 一天最多 12 次、净省最多 24 ☀。
+/// 语义是「今日每次施肥都 −2」，不是「首次」；本常量只是账本的记账上界，
+/// 真实游戏里 4 盆（默认容量）只会用到 4 次。
+const int kGuardFertilizerVoucherQuota = kGardenPotCapacityMax;
+
+/// 劳动券每次清理追加阳光。单位：☀/次。
+const int kGuardLaborVoucherBonus = 1;
+
+/// 🔴 劳动券当日累计追加上限。单位：☀/天。
+///
+/// 理由：12 盆满园理论追加 4.8+3.6 = 8.4；不封顶是面值 2~3 的 3 倍。
+const int kGuardLaborVoucherCap = 4;
+
+// ── 掉落面值（经济测算与结算卡显示的唯一来源）───────────────────────────
+//
+// 口径：面值 = 「这张券在正常情况下能省多少 ☀」，**不是**发放的实际金额。
+// PRD §5.1 的 E[D] = 3.525 由本段的 min/max 中点乘以概率得出（单测钉死）。
+
+/// 浇水券面值下限。单位：☀。典型 5 盆 × 1☀ = 5（PRD §3.7 表「5~6」）。
+const double kGuardFaceValueWaterVoucherMin = 5;
+
+/// 浇水券面值上限。单位：☀。
+///
+/// 与当日累计封顶同值：再多的盆也只省到 [kGuardWaterVoucherMaxSaves]。
+/// （`1.0 *` 是为了把 int 常量提成 double 常量 —— `const double x = intConst`
+/// 在 Dart 里不合法，`.toDouble()` 也不是常量表达式。）
+const double kGuardFaceValueWaterVoucherMax = 1.0 * kGuardWaterVoucherMaxSaves;
+
+/// 劳动券面值下限。单位：☀。典型 2 次清理 × 1☀ = 2（PRD §3.7 表「2~3」）。
+const double kGuardFaceValueLaborVoucherMin = 2;
+
+/// 劳动券面值上限。单位：☀。注意 12 盆满园理论追加 8.4，真正的硬护栏是
+/// [kGuardLaborVoucherCap]=4；本值只描述「典型面值」。
+const double kGuardFaceValueLaborVoucherMax = 3;
+
+/// 施肥券面值（**单次**减免额；结算卡 perk 读不到时的回退口径）。单位：☀。
+/// 当日最多可用 [kGuardFertilizerVoucherQuota] 次，但面值仍指一次施肥的减免。
+const double kGuardFaceValueFertilizerVoucher = 1.0 * kGuardFertilizerVoucherSave;
+
+/// 免费浇水券面值。单位：☀。= 一盆一次浇水的标价（称号减免前）。
+const double kGuardFaceValueFreeWater = 1.0 * kPlantWaterCost;
+
+/// 免费施肥券面值。单位：☀。= 一盆一次施肥的标价（称号减免前）。
+const double kGuardFaceValueFreeFertilize = 1.0 * kPlantFertilizeCost;
+
+/// 无道具档面值。单位：☀。（档位存在但面值为 0，保底阳光另计）
+const double kGuardFaceValueNothing = 0;
+
+// ── 战斗（P0 = 占位 emoji demo）──────────────────────────────────────────
+
+/// 战斗总时长。单位：ms。玄参要求 ~10 秒（不是 3 秒）。
+///
+/// 🔴 这是本玩法**唯一**的屏幕占用，不得上调（会破坏「不盯屏」原则）。
+const int kGuardBattleMs = 10000;
+
+/// 「跳过」按钮延迟出现时长。单位：ms。防误触（一进来就点掉看不到画面）。
+const int kGuardBattleSkipDelayMs = 600;
+
+/// 跳过后直接落到结算卡的过渡时长。单位：ms。
+const int kGuardBattleToResultMs = 200;
+
+// ── 账本 refType（🔴 字符串一经写入即冻结；须同步补 refLabelOf）──────────
+//
+// 类型（SunlightType）复既有枚举值，**不新增枚举值**：
+//   · 收入两条走 `SunlightType.earn`；
+//   · 支出两条走 `SunlightType.plant`（与种植/养护同源，可追溯）。
+
+/// 付费赶走（支出）。
+const String kGuardPayRefType = 'guard_pay';
+
+/// 赶走的必得阳光（收入）。
+const String kGuardWinRefType = 'guard_win';
+
+/// 未处理被偷的阳光（支出）。
+const String kGuardStolenRefType = 'guard_stolen';
+
+/// 账本 refId（按园记账，不按株）。冻结。
+const String kGuardRefId = 'garden';
+
+/// 读「今日券」的**有界超时**（花园页 / 养护卡）。
+///
+/// 与 `kGuardTodayReadTimeout`（`guard_today_state.dart`，600ms）同量级：
+/// 券链是 1 次 prefs 读，600ms 只为兜住冷启动抖动。
+/// 超时 / 异常 ⇒ 页面视同「今天没有券」（价格原样），**绝不阻塞花园页**：
+/// 守卫状态在未 override `sharedPreferencesProvider` 的 widget 宿主里会直接
+/// `UnimplementedError`，裸 await 会把它打成整页错误页。
+const Duration kGuardVoucherReadTimeout = Duration(milliseconds: 600);
+
+// ── 存储键 ───────────────────────────────────────────────────────────────
+
+/// 当日状态 JSON 的 prefs 键**前缀**（实际键 = 前缀 + childId）。
+///
+/// 🔴 必须带 childId 后缀：`SharedPreferences` 是**设备级**，而专注/植物数据是
+/// childId 级；不带后缀会让「A 的小偷出现在 B 的今日页」。
+const String kGuardDayStatePrefPrefix = 'guard_day_state_v2_';
+
+// ── 埋点事件名（复用 `TrackingRepository.track`，`TrackingType.metric`）──
+
+/// 小偷生成。
+const String kGuardTrackSpawn = 'guard_spawn';
+
+/// 成本判定（free / paid / short）。
+const String kGuardTrackResolve = 'guard_resolve';
+
+/// 领取。
+const String kGuardTrackClaim = 'guard_claim';
+
+/// 未处理被偷。
+const String kGuardTrackStolen = 'guard_stolen';
+
+/// 🔴 券核销（算 η 的唯一依据）。
+const String kGuardTrackVoucherUsed = 'guard_voucher_used';
+
+/// 跳过战斗。
+const String kGuardTrackSkip = 'guard_battle_skip';
+
+// ── UI 几何（今日页胶囊，PRD §8.1）────────────────────────────────────────
+
+/// 胶囊高度。单位：pt。= 44 触控下限，且比 64pt 状态卡矮 ⇒ 视觉上是「提示条」。
+const double kGuardPillHeight = 44;
+
+/// 胶囊与下方第一张状态卡的间距。单位：pt。
+const double kGuardPillGap = 10;
+
+/// 胶囊圆角半径。单位：pt（= 高度一半 ⇒ 真胶囊形）。
+const double kGuardPillRadius = 22;
+

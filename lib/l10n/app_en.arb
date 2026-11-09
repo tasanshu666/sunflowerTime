@@ -562,6 +562,20 @@
       }
     }
   },
+  "garden_water_note_range": "Watering {count} plants once each ({low}~{high} ☀ per plant)",
+  "@garden_water_note_range": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "low": {
+        "type": "int"
+      },
+      "high": {
+        "type": "int"
+      }
+    }
+  },
   "garden_fertilize_note": "Fertilize each of {count} plants once ({cost} ☀ each)",
   "@garden_fertilize_note": {
     "placeholders": {
@@ -569,6 +583,20 @@
         "type": "int"
       },
       "cost": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_fertilize_note_range": "Fertilizing {count} plants once each ({low}~{high} ☀ per plant)",
+  "@garden_fertilize_note_range": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "low": {
+        "type": "int"
+      },
+      "high": {
         "type": "int"
       }
     }
@@ -584,11 +612,23 @@
   },
   "garden_care_note": "Rewards as usual: weeds +{weed} ☀ / pests +{pest} ☀",
   "@garden_care_note": {
+    "description": "Superseded by garden_care_note_total (voucher quota can run out mid-batch, so per-action rewards overstate). Key kept to avoid touching generated code.",
     "placeholders": {
       "weed": {
         "type": "int"
       },
       "pest": {
+        "type": "int"
+      }
+    }
+  },
+  "garden_care_note_total": "{count} spots cleared, +{total} ☀ total",
+  "@garden_care_note_total": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
         "type": "int"
       }
     }
@@ -620,6 +660,12 @@
       }
     }
   },
+  "garden_guard_buff_water": "Water −1 ☀ today",
+  "garden_guard_buff_labor": "Weed/Bug +1 ☀ today",
+  "garden_guard_buff_fertilize": "Fertilize −2 ☀ today",
+  "garden_guard_buff_free_water": "One free watering today",
+  "garden_guard_buff_free_fertilize": "One free fertilize today",
+  "garden_guard_buff_exhausted": "Used up",
   "garden_pick_plant_title": "Choose a plant",
   "garden_cost_free": "Free",
   "garden_cost_seed": "Seed",
@@ -2376,6 +2422,9 @@
   "child_hist_ref_parent_gift": "Parent gift",
   "child_hist_ref_debug_grant": "Debug grant",
   "child_hist_ref_focus_level_up": "Focus level up",
+  "child_hist_ref_guard_pay": "Guard hired",
+  "child_hist_ref_guard_win": "Thief chased off",
+  "child_hist_ref_guard_stolen": "Stolen by thief",
   "child_eyecare_seg_default": "Follow the animation to protect your eyes",
   "shared_perk_name_eye_care": "Eye care",
   "shared_perk_name_water": "Watering",
@@ -2592,5 +2641,29 @@
   "garden_care_water_disabled_light_rain": "It's just a light drizzle today — one watering is enough",
   "garden_care_water_disabled_quota": "Watered enough today — come back tomorrow",
   "garden_care_fertilize_disabled_quota": "Fertilized enough today — come back tomorrow",
-  "garden_batch_none_water_rainstorm": "The rain already watered your plants — no one-click watering today"
+  "garden_batch_none_water_rainstorm": "The rain already watered your plants — no one-click watering today",
+  "guard_thief_name_sun_rat": "Greedy Sun Mouse",
+  "guard_thief_name_leaf_bug": "Leaf Muncher",
+  "guard_thief_name_sneak_thief": "Sneaky Thief",
+  "guard_drop_name_water_voucher": "Water Voucher",
+  "guard_drop_name_labor_voucher": "Chore Voucher",
+  "guard_drop_name_fertilize_voucher": "Fertilizer Voucher",
+  "guard_drop_name_free_water": "Free Water Voucher",
+  "guard_drop_name_free_fertilize": "Free Fertilizer Voucher",
+  "guard_pill_pending": "A veggie thief is here — chase it away!",
+  "guard_pill_pending_free": "Chase it away with focus energy (free)",
+  "guard_pill_fighting": "Your guard is chasing it away…",
+  "guard_pill_claimed": "Today's veggies are safe",
+  "guard_pill_no_balance": "{n} more sunlight needed",
+  "guard_pill_free_ride": "Sunny is covering today — nothing to do",
+  "guard_battle_skip": "Skip",
+  "guard_result_title": "Chased away the {thief}",
+  "guard_result_gain": "Got back {sun} sunlight",
+  "guard_result_drop": "Also found a {drop}",
+  "guard_result_nothing": "Nothing found this time, but the veggies are safe",
+  "guard_result_compare": "Spent {cost} sunlight, got back {gain}, and the voucher saves {saving} more",
+  "guard_confirm_pay_title": "Spend {cost} sunlight to send Sunny?",
+  "guard_confirm_pay_later": "Not today",
+  "guard_stolen_today": "{n} points of growth were stolen last night",
+  "guard_result_collect": "Collect"
 }

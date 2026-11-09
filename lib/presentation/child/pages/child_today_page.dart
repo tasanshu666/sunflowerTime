@@ -31,14 +31,22 @@ import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
+import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
+import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_battle_overlay.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_pill.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_result_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/sun_burst.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
+import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
+import 'package:sunflower_time/domain/services/guard_service.dart';
+import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/presentation/child/widgets/focus_level_badge.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/level_up_fx_overlay.dart';
@@ -145,6 +153,14 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   /// 爆发兜底定时器（`onComplete` 未触发也要清走，防浮层滞留挡视线）。
   Timer? _sunBurstTimer;
 
+  /// 守卫链路的**重入令牌**：`_reload` 会被多个入口触发（initState / 切 tab /
+  /// 经济修订号变化 / 战斗收尾），叠加时只允许**最后发出**的那次结果落库，
+  /// 否则「旧快照后到」会把刚领完的 `claimed` 覆回 `pending`。
+  int _guardRefreshToken = 0;
+
+  /// 守卫交互在飞闸门（防「连点胶囊」叠出两个战斗浮层）。
+  bool _guardBusy = false;
+
   /// 点阳光胶囊 → 播一次「阳光四散」。
   ///
   /// **连点策略：先撤旧的、再插新的**（绝不叠两层）。相反做法（忽略新点击）
@@ -245,6 +261,154 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
       // 今日卡属概览，任一查询失败不阻塞（保留上次值）。
       if (mounted) setState(() => _loading = false);
     }
+    // ── 花园守卫（第三批）────────────────────────────────────────────────
+    // 🔴 刻意放在主查询**之后**：胶囊是「附加信息」，主数据先上屏；链路失败 /
+    //    超时 ⇒ 视同没有守卫（零占位），绝不让它把今日页变成转圈。
+    if (mounted) await _refreshGuard();
+  }
+
+  // ── 花园守卫 · 向日葵守卫者（第三批）────────────────────────────────────
+
+  /// 刷新今日守卫视图（`expire() → resolve() → energyAvailable()`）。
+  ///
+  /// 🔴 **顺序不可换**：`resolve()` 有一道闸门 —— 昨天还有未结算存档时它会
+  /// **拒绝覆盖**并返回 `needsExpire == true`。若先 `resolve` 后 `expire`，
+  /// 昨天的 `sunStolen` / `growthStolen` 会被今天的状态永久盖掉（对账缺口，
+  /// 被偷了却没扣）。故本方法**永远**先 `expire()`。
+  ///
+  /// 🔴 **整条链有界超时**（[kGuardTodayReadTimeout]）：纯 widget 宿主里某些
+  /// 查询会 `await` 永不返回（不是抛错），一旦卡住 `_loading` 就永远为 true、
+  /// 今日页只剩转圈。超时 / 异常 ⇒ [GuardTodayView.absent]。
+  Future<void> _refreshGuard() async {
+    final int token = ++_guardRefreshToken;
+    GuardTodayView view;
+    try {
+      view = await _loadGuardView().timeout(kGuardTodayReadTimeout);
+    } catch (e) {
+      // 守卫数据不可用是**正常降级**（旧库、权限、超时、首装竞态），
+      // 记一行日志即可，绝不冒泡到今日页。
+      debugPrint('[Guard] 今日守卫链路不可用，按「没有守卫」处理：$e');
+      view = const GuardTodayView.absent();
+    }
+    if (!mounted || token != _guardRefreshToken) return;
+    ref.read(guardTodayProvider.notifier).state = view;
+  }
+
+  /// 真正的守卫读链路（无自捕获：超时/异常由 [_refreshGuard] 统一兜住）。
+  Future<GuardTodayView> _loadGuardView() async {
+    // service 在第一个 await 之前取好 —— 之后不再碰 `ref`（页面已卸载也安全）。
+    final GuardService service = ref.read(guardServiceProvider);
+    await service.expire();
+    final GuardResolveResult resolved = await service.resolve();
+    // ③ 剩余能量：成本模式（免费 / 付费 / 免罚）的输入。`resolve()` 内部也读过
+    //    一次，这里按接线契约**显式**再读，使「expire → resolve → energyAvailable」
+    //    三连在源码上可逐行审计（也保证胶囊用的是**最新**能量）。
+    final int energy = await service.energyAvailable();
+
+    // F4：结算卡「券还能省 N」要按**实际称号单价**算（免费券随称号减免变小）。
+    // 🔴 独立 try/catch 降级为 [PlantPerk.none]：读称号失败 **不能** 连累胶囊消失
+    //    （本方法外层的 catch 会把整条链路判成 absent）。
+    PlantPerk perk = PlantPerk.none;
+    try {
+      perk = await ref.read(currentPlantPerkProvider.future);
+    } catch (e) {
+      debugPrint('[Guard] 读称号属性失败，券节省按无称号算：$e');
+    }
+
+    // `fromResolve` 已处理两条降级：needsExpire（昨天欠结算）/ 今天无贼 ⇒ absent。
+    final GuardTodayView base =
+        GuardTodayView.fromResolve(resolved, perk: perk);
+    if (!base.isVisible) return base;
+    return base.copyWith(
+      mode: guardPillModeOf(base.state, energy, base.balance),
+      energyAvailable: energy,
+    );
+  }
+
+  /// 点胶囊：按胶囊态决定「直接开战」还是「先弹确认卡」，然后
+  /// 战斗浮层 → 结算卡（`claim()` 在结算卡的「收下」里，不在这里）。
+  Future<void> _onGuardPillTap() async {
+    if (_guardBusy || !mounted) return;
+    final GuardTodayView view = ref.read(guardTodayProvider);
+    final GuardThiefKind? thief = view.thief;
+    final AppLocalizations? t = _l10n;
+    if (!view.isActionable || thief == null || t == null) return;
+
+    _guardBusy = true;
+    try {
+      // ① 付费路径**先弹确认卡**（PRD：孩子必须知道这一下要花 5 ☀）。
+      //    有能量的免费路径**不弹**（直接开战）—— 不花钱的动作不需要二次确认。
+      if (view.needsPayConfirm) {
+        final bool? confirmed = await showChildConfirmCard(
+          context: context,
+          title: t.guard_confirm_pay_title(kGuardPayCost),
+          confirmLabel: t.shared_ok,
+          // 🔴 必须显式传：弹窗上下文在页级 L10nScope 之外，靠默认值会回落中文。
+          cancelLabel: t.guard_confirm_pay_later,
+        );
+        if (confirmed != true || !mounted) return;
+      }
+
+      // ② 落盘「已进战斗」：孩子看完动画后强杀进程 / 闪退 / 没电，次日
+      //    `expire()` 会走 `fighting` 分支（**补发**必得阳光、**不结算**损失），
+      //    而不是把他当「压根没管」照罚。必须发生在**开战之前**，否则杀进程的
+      //    窗口期就落回 `pending`。
+      //    🔴 只经领域服务写存储（`GuardStateStore` 文档：页面不得直接写）。
+      //    写失败不阻断战斗 —— 最坏退回 `pending`（= 不标记的既有行为）。
+      try {
+        await ref.read(guardServiceProvider).markFighting();
+      } catch (e) {
+        debugPrint('[Guard] 标记「战斗中」失败（不阻断战斗）：$e');
+      }
+      if (!mounted) return;
+      ref.read(guardTodayProvider.notifier).state =
+          view.copyWith(mode: GuardPillMode.fighting);
+
+      // ③ 战斗浮层（**纯回放**：落骰在 `resolve()` 时已定死、已落盘；
+      //    本步不写账本、不发奖励，故「跳过」与「看完」拿到逐位相同的结果）。
+      final bool skipped = await showGuardBattle(
+        context,
+        thief: thief,
+        l10n: t,
+      );
+      if (skipped) {
+        // 只用于埋点口径（`kGuardTrackSkip`）；🔴 不影响奖励内容。
+        debugPrint('[Guard] 孩子跳过了战斗动画（奖励口径不变）');
+      }
+      if (!mounted) return;
+
+      // ④ 结算卡：「收下」才 `claim()`（唯一记账入口，领域层自带三层幂等）。
+      final GuardClaimOutcome? outcome = await showGuardResultCard(
+        context,
+        // 用进入战斗前的快照：`claim()` 的奖品由 `resolve()` 定死，与动画无关。
+        view: view,
+        l10n: t,
+        onCollect: () => ref.read(guardServiceProvider).claim(),
+      );
+      if (outcome == null) return;
+      ref.read(guardTodayProvider.notifier).state =
+          GuardTodayView.fromClaim(outcome, perk: view.perk);
+      if (outcome.ok) {
+        // 既有跨页刷新总线（花园页 / 我的页 / 今日阳光卡都在听）。
+        ref.read(economyRevisionProvider.notifier).state++;
+        // 🆕 claim() 同时改写了守卫存档（落当日 buff 券）⇒ 通知花园页重读
+        // 券快照，让左上角胶囊与「今天便宜一点」的价格同步（玄参真机 ③）。
+        ref.read(guardBuffRevisionProvider.notifier).state++;
+        // 诊断日志（玄参 2026-11-09 晚：真机「收下后回花园无券」仍复现一次，
+        // 全链路测试均绿 ⇒ 需真机日志分辨「bump 是否到达」）：
+        debugPrint('[Guard] claim ok: drop=${outcome.drop.name} '
+            'buff=${outcome.buff?.kind.name ?? 'null'} → bump economy+guardBuff');
+      } else {
+        debugPrint('[Guard] claim 失败: ${outcome.failure}（不 bump）');
+      }
+    } catch (e) {
+      // 战斗 / 领取异常不弹错误框：孩子已经看完动画，最坏结果是「明天再来」。
+      debugPrint('[Guard] 战斗或领取失败：$e');
+    } finally {
+      _guardBusy = false;
+      // 无论成功、失败还是中途退出，都以存储为事实源校正一次胶囊态。
+      if (mounted) await _refreshGuard();
+    }
   }
 
   // ── C74 · 专注等级结算 + 升级演出（只在今日页；§5.24.3 / §5.24.6）────────
@@ -340,6 +504,11 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
       if (mounted) _reload();
     });
 
+    // 🔴 守卫当日状态**必须 watch**（不是 read）：`_entTier` 用 read 导致
+    // 「买了会员界面不刷新」的教训。胶囊 / 第四批的 buff chip / 调试面板
+    // 全部 watch 这同一个实例，任一处写完另一处自动刷新。
+    final GuardTodayView guardView = ref.watch(guardTodayProvider);
+
     // C44 验收反馈（玄参 2026-10-09，参照期望图重排）：
     // ①上半场景（向日葵+积木插画）完整露出，卡片从 [kTodayCardTopRatio] 屏高开始
     //   （0.42 → C65 0.37 → C67 **0.40**）；
@@ -355,7 +524,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
               // 存入 [_l10n]，供下方 [_buildLayout]（State 方法，用的 State 上下文
               // 在 scope 之外）取用。
               _l10n = AppLocalizations.of(context);
-              return _buildLayout(box: c.biggest);
+              return _buildLayout(box: c.biggest, guard: guardView);
             },
           );
 
@@ -410,7 +579,18 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   }
 
   /// 布局：`Stack[ 场景留白 + 卡片滚动区 + 钉底按钮 , 悬浮阳光气泡 ]`。
-  Widget _buildLayout({required Size box}) {
+  ///
+  /// [guard] = 今日守卫快照（第三批）。`GuardPillMode.absent` 时**零占位**：
+  /// 连空 `SizedBox` 都不插，`ListView` 的子项与无守卫时逐项相同。
+  ///
+  /// ⚠️ **已知且接受的代价**：胶囊占了 `kGuardPillHeight + kGuardPillGap` = 54pt，
+  /// 小屏 / 大字号下三张统计卡需要向下滚一点才能全部看见。实测（RenderBox）：
+  ///  · 390×844 外壳宿主：列表内容高度 +54pt ⇒ `maxScrollExtent` 由 **0 → 30.1pt**；
+  ///  · 320×554 + 1.3 倍字号：`maxScrollExtent` **268.4pt**，第三张卡需滚 208.3pt。
+  /// 故本页**不**承诺「今日页零滚动」；「胶囊存在时三张卡仍可通过滚动触达」由
+  /// `test/child/shell_narrow_large_text_test.dart` 与
+  /// `test/guard/guard_pill_test.dart` 两处护栏覆盖。
+  Widget _buildLayout({required Size box, required GuardTodayView guard}) {
     final double screenH = MediaQuery.sizeOf(context).height;
     final double screenW = MediaQuery.sizeOf(context).width;
     // F142：平板内容整体下移（随屏宽，手机恒 0，见 [tabletContentDownshiftOf]）。
@@ -449,6 +629,13 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 children: <Widget>[
+                  // ── 花园守卫胶囊（第三批）────────────────────────────────
+                  // 第 0 项：三张统计卡之前。`absent` ⇒ 一项都不插（零占位）。
+                  // 宽度由 ListView 撑满（屏宽 − 32）；高度见 `GuardPill`。
+                  if (guard.isVisible) ...<Widget>[
+                    GuardPill(view: guard, onTap: _onGuardPillTap),
+                    const SizedBox(height: kGuardPillGap),
+                  ],
                   _StatCard(
                     icon: Icons.trending_up,
                     // C48：玄参 2026-10-10 —— 三卡图标用 UI 素材。

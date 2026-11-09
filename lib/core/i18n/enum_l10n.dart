@@ -7,13 +7,16 @@
 ///  · [taskCategoryLabel] / [rewardContentCategoryLabel]：分类分区头（成长页 / 商店页）；
 ///  · [taskSubjectLabel]：科目名（**复用**既有 `parent_task_edit_subject_*` key，
 ///    零新增键，与家长端编辑器同源，不会出现两套译名）；
-///  · [taskDisplaySubject]：科目展示名（自定义科目取用户输入原文，空则「自定义」）。
+///  · [taskDisplaySubject]：科目展示名（自定义科目取用户输入原文，空则「自定义」）；
+///  · [guardThiefName] / [guardDropName]：花园守卫的贼名 / 券名（第三批新增）。
 ///
 /// 🔴 纪律：枚举的 `icon`（emoji）留在 domain —— 它不是文案（各语言一致），
 /// 迁移只针对**可翻译字符串**。
 library enum_l10n;
 
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/guard_drop.dart';
+import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
@@ -85,4 +88,45 @@ String taskDisplaySubject(Task task, AppLocalizations t) {
     return name.isEmpty ? t.child_entry_custom : name;
   }
   return taskSubjectLabel(task.subject, t);
+}
+
+/// 花园守卫 · 偷菜贼的展示名（馋光鼠 / 啃叶虫 / 顺手贼）。
+///
+/// 🔴 **中文名必须在这里取，绝不出现在 `lib/domain/**`**：
+/// `guard_thief.dart` 只用稳定 ASCII [GuardThiefSpec.id] 与 [GuardThiefSpec.emoji]
+/// （emoji 是符号不是文案），中文由本函数按当前 locale 给
+/// —— `test/i18n/no_han_in_domain_test.dart` 钉死 domain 层零 CJK。
+///
+/// `switch` 覆盖全部枚举值（新增贼种时编译器在此报错，不留静默兜底）。
+String guardThiefName(GuardThiefKind kind, AppLocalizations t) {
+  switch (kind) {
+    case GuardThiefKind.sunRat:
+      return t.guard_thief_name_sun_rat;
+    case GuardThiefKind.leafBug:
+      return t.guard_thief_name_leaf_bug;
+    case GuardThiefKind.sneakThief:
+      return t.guard_thief_name_sneak_thief;
+  }
+}
+
+/// 花园守卫 · 掉落券的展示名（浇水券 / 劳动券 / 施肥券 / 免费浇水券 / 免费施肥券）。
+///
+/// 「无道具档」（[GuardDropKind.none]）**没有名字**：它是一条「今天没有券」的
+/// 数据，任何展示位都该走 `guard_result_nothing` 这类文案，而不是给它编一个名字
+/// —— 故本函数对 `none` 返回**空串**，调用方应先判 [GuardDropKindX.hasVoucher]。
+String guardDropName(GuardDropKind kind, AppLocalizations t) {
+  switch (kind) {
+    case GuardDropKind.waterVoucher:
+      return t.guard_drop_name_water_voucher;
+    case GuardDropKind.laborVoucher:
+      return t.guard_drop_name_labor_voucher;
+    case GuardDropKind.fertilizeVoucher:
+      return t.guard_drop_name_fertilize_voucher;
+    case GuardDropKind.freeWater:
+      return t.guard_drop_name_free_water;
+    case GuardDropKind.freeFertilize:
+      return t.guard_drop_name_free_fertilize;
+    case GuardDropKind.none:
+      return '';
+  }
 }

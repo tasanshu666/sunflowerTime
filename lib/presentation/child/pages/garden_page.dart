@@ -2055,6 +2055,9 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       _showBatchHint(_t.garden_batch_none_collect, 0, showSunlight: false);
       return;
     }
+    // 与单株路径 [_onCollectIconsTap] 同一声音 [AudioCue.collectReward]，**整批只播一次**
+    // （不按条数循环，否则 N 条叠成噪音）；空态已在上方早退，故此处必有一次真实收集。
+    AudioService.instance.playSfx(AudioCue.collectReward);
     await _collectRewards(all);
   }
 

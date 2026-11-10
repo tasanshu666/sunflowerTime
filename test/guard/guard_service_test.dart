@@ -22,6 +22,8 @@ library guard_service_test;
 
 import 'package:test/test.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart'
+    show kGuardWinSunNoItem;
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -1017,7 +1019,7 @@ void main() {
       expect(ctx.state.hasThief, isTrue);
     });
 
-    test('成长损失按「贼的命中范围」落盘：顺手贼全株 / 啃叶虫只 1 株', () async {      // 覆盖全部存活株：用「每株都真的出现在 growthStolen 里」的方式验证，
+    test('成长损失按「贼的命中范围」落盘：贪婪鼬全株 / 食叶虫只 1 株', () async {      // 覆盖全部存活株：用「每株都真的出现在 growthStolen 里」的方式验证，
       // 不依赖今天恰好掷到哪只贼（确定性派生对固定 dayKey 是常数）。
       final _Ctx ctx = _make(
         balance: 100,
@@ -1036,11 +1038,11 @@ void main() {
       if (!thief.stealsGrowth) {
         expect(loss, isEmpty, reason: '馋光鼠不偷成长');
       } else if (thief.spec.hitsEveryPlant) {
-        expect(loss.length, 4, reason: '顺手贼：全部存活株各一份');
+        expect(loss.length, 4, reason: '贪婪鼬：全部存活株各一份');
         expect(loss.containsKey('p4'), isTrue,
             reason: '开花株也在列表里（免疫由纯函数负责，不在服务层复判）');
       } else {
-        expect(loss.length, 1, reason: '啃叶虫：只挑 1 株');
+        expect(loss.length, 1, reason: '食叶虫：只挑 1 株');
         expect(loss.containsKey('p4'), isFalse, reason: '开花株免疫，不会被挑中');
       }
     });
@@ -1132,19 +1134,20 @@ void main() {
       expect(ctx.state.buff!.quota, 6, reason: 'buff 落盘');
     });
 
-    test('无道具档 ⇒ winSun 取保底 3（落盘缺省时兜底）', () async {
+    test('无道具档 ⇒ winSun 取保底（= kGuardWinSunNoItem；B5b 起区间上限 5）', () async {
       final _Ctx ctx = _make(
         balance: 100,
         plants: <Plant>[_plant('p1')],
         validSessionsToday: 1,
       );
-      // winSun 缺省 0（模拟脏存档）→ claim 兜底发 3，绝不发 0。
+      // winSun 缺省 0（模拟脏存档）→ claim 兜底发 NoItem（D2：取区间上限），
+      // 绝不发 0。🔴 B5b：win 区间 1~3 → 3~5 ⇒ 保底 3 → 5（区间上限同源）。
       await ctx.store.write(_childId, _pendingState(winSun: 0));
 
       final GuardClaimOutcome out = await ctx.guard.claim();
 
-      expect(out.winSun, 3);
-      expect(ctx.balance, 103);
+      expect(out.winSun, kGuardWinSunNoItem);
+      expect(ctx.balance, 100.0 + kGuardWinSunNoItem);
       expect(out.buff, isNull);
     });
   });
@@ -1173,6 +1176,43 @@ void main() {
       expect(s.dropKind, GuardDropKind.freeWater);
       expect(s.winSun, 3);
       expect(ctx.ledger.entries, isEmpty, reason: '调试接缝绝不写账本');
+    });
+
+    test("D1′ forceThiefForDebug 缺省 drop：保留今天的掉落档，不再擦成 none（B12）",
+        () async {
+      final _Ctx ctx = _make(plants: <Plant>[_plant('p1')]);
+      // 今天的存档带自然摇到的券档（模拟 resolve 写入的 dropKind）。
+      await ctx.store.write(
+        _childId,
+        _pendingState(
+          dayKey: _today,
+          drop: GuardDropKind.waterVoucher,
+          buff: guardBuffFor(GuardDropKind.waterVoucher),
+        ),
+      );
+
+      // 调试重置不带 drop —— 旧口径会覆盖成 none（玄参「每场都没掉落」的根因）。
+      await ctx.guard.forceThiefForDebug(thief: GuardThiefKind.sneakThief);
+
+      final GuardDayState s = await ctx.guard.todayState();
+      expect(s.dropKind, GuardDropKind.waterVoucher,
+          reason: '调试重置只重摆怪，不许擦掉今天自然摇到的券');
+      expect(s.buff, isNotNull, reason: '券档在，buff 必须同步在（不然券用不了）');
+      expect(s.thiefKind, GuardThiefKind.sneakThief);
+    });
+
+    test("D1″ forceThiefForDebug 当天无存档：drop 走 GuardDropKind.roll（与 resolve 同源）",
+        () async {
+      final _Ctx ctx = _make(plants: <Plant>[_plant('p1')]);
+
+      await ctx.guard.forceThiefForDebug(thief: GuardThiefKind.sneakThief);
+
+      final GuardDayState s = await ctx.guard.todayState();
+      expect(
+        s.dropKind,
+        GuardDropKind.roll(dayKey: _today, childId: _childId),
+        reason: '无存档时的缺省档必须与 resolve 同一确定性通道，不许写死 none',
+      );
     });
 
     test('D2 exhaustEnergyForDebug：有 1 次有效专注时能量从 1 归 0', () async {
@@ -1222,6 +1262,130 @@ void main() {
       expect(s.status, GuardDayStatus.none);
       expect(s.dropKind, GuardDropKind.none);
       expect(ctx.store.clearCount, 1);
+    });
+  });
+
+  // ────────────────── B1：recordBattleTheft（守卫战 v2 唯一新增落账口）──────────────────
+  //
+  // 真源：`docs/花园守卫_守卫战玩法_增量设计_v1.md` §5.2 / §5.3 / §8.4。
+  // 期望值全部字面量：封顶 3、id = 'guard_stolen_c1_2026-11-09'。
+  group('B1 recordBattleTheft：结束时一次写 / 封顶 / 互斥 / 零成长扣减', () {
+    test('E1 封顶：被偷合计 7 → 落账恰 3、恰 1 行、id 冻结格式', () async {
+      final _Ctx ctx = _make(balance: 100);
+
+      final int charged = await ctx.guard.recordBattleTheft(stolenSun: 7);
+
+      expect(charged, 3, reason: 'min(7, kGuardStealDailyCap=3, 余额 100) = 3');
+      expect(ctx.ledger.countOf('guard_stolen'), 1);
+      final SunlightEntry entry = ctx.ledger.entries.single;
+      expect(entry.id, 'guard_stolen_c1_2026-11-09');
+      expect(entry.refType, 'guard_stolen');
+      expect(entry.refId, 'garden');
+      expect(entry.dayKey, '2026-11-09');
+      expect(entry.net, -3.0);
+      expect(ctx.balance, 97.0);
+    });
+
+    test('E2 幂等：重复调用第二次返回 0、仍只 1 行、余额不变', () async {
+      final _Ctx ctx = _make(balance: 100);
+      expect(await ctx.guard.recordBattleTheft(stolenSun: 2), 2);
+
+      expect(await ctx.guard.recordBattleTheft(stolenSun: 2), 0);
+      expect(await ctx.guard.recordBattleTheft(stolenSun: 3), 0);
+
+      expect(ctx.ledger.countOf('guard_stolen'), 1);
+      expect(ctx.balance, 98.0);
+    });
+
+    test('E3 互斥去重（核心探针）：同日已有 guard_stolen 行 → 空操作不双扣', () async {
+      final _Ctx ctx = _make(balance: 100);
+      // 模拟「当日已有 guard_stolen 行」：expire 半截时序 / 战斗已写过。
+      // 直接种一行同 id 账本记录（主键 + 读判定双通道都会命中）。
+      await ctx.ledger.append(SunlightEntry(
+        id: 'guard_stolen_c1_2026-11-09',
+        ts: _now(),
+        type: SunlightType.plant,
+        gross: -2,
+        net: -2,
+        balanceAfter: 98,
+        refType: 'guard_stolen',
+        refId: 'garden',
+        dayKey: '2026-11-09',
+      ));
+
+      final int charged = await ctx.guard.recordBattleTheft(stolenSun: 3);
+
+      expect(charged, 0, reason: '账本读判定命中 ⇒ 空操作');
+      expect(ctx.ledger.countOf('guard_stolen'), 1, reason: '仍是最初那一行');
+      expect(ctx.balance, 98.0);
+    });
+
+    test('E4 反向互斥：今天战斗偷过 → 明天 expire 的 pending 结算不再扣阳光', () async {
+      final _Ctx ctx = _make(
+        balance: 100,
+        plants: <Plant>[_plant('p1')],
+      );
+      await ctx.store.write(
+        _childId,
+        _pendingState(sunStolen: 2, growthStolen: <String, double>{'p1': 0.02}),
+      );
+      expect(await ctx.guard.recordBattleTheft(stolenSun: 3), 3);
+
+      // 次日 expire：fighting 分支不触发（存档是 pending）→ 走扣阳光 + 扣成长；
+      // 但 _settleSunLoss 的同名读判定命中今日战斗偷窃行 ⇒ 阳光零扣。
+      final GuardService guardNextDay = _guardAt(ctx, _nowNextDay);
+      final GuardExpireOutcome outcome = await guardNextDay.expire();
+
+      expect(outcome.settled, isTrue);
+      expect(outcome.stolenSun, 0, reason: '同 id 互斥：战斗偷过，expire 绝不双扣');
+      expect(outcome.growthTargets, 1, reason: '互斥只管阳光；成长照常结算');
+      expect(ctx.ledger.countOf('guard_stolen'), 1);
+    });
+
+    test('E5 余额钳制：余额 2 被偷 3 → 扣 2，不产生负余额（D6）', () async {
+      final _Ctx ctx = _make(balance: 2);
+
+      final int charged = await ctx.guard.recordBattleTheft(stolenSun: 3);
+
+      expect(charged, 2);
+      expect(ctx.balance, 0.0);
+      expect(ctx.ledger.entries.single.net, -2.0);
+    });
+
+    test('E6 脏入参：stolenSun ≤ 0 → 空操作返回 0、零写库', () async {
+      final _Ctx ctx = _make(balance: 100);
+
+      expect(await ctx.guard.recordBattleTheft(stolenSun: 0), 0);
+      expect(await ctx.guard.recordBattleTheft(stolenSun: -3), 0);
+
+      expect(ctx.ledger.countOf('guard_stolen'), 0);
+    });
+
+    test('E7 零成长扣减：recordBattleTheft 后植物成长值逐位不变', () async {
+      final _Ctx ctx = _make(
+        balance: 100,
+        plants: <Plant>[_plant('p1', progress: 0.5), _plant('p2', progress: 0.7)],
+      );
+
+      await ctx.guard.recordBattleTheft(stolenSun: 3);
+
+      // 玄参裁定：怪物到门口只偷阳光。两株的成长进度必须逐位不变。
+      expect((await ctx.plants.plant('p1'))!.growthProgress, 0.5);
+      expect((await ctx.plants.plant('p2'))!.growthProgress, 0.7);
+    });
+
+    test('E8 Abandoned 零写库：进战斗后进程被杀（无任何收尾调用）→ 账本零行', () async {
+      final _Ctx ctx = _make(balance: 100, plants: <Plant>[_plant('p1')]);
+      await ctx.guard.resolve();
+      await ctx.guard.markFighting();
+      expect(ctx.state.status, GuardDayStatus.fighting);
+
+      // 模拟杀进程：到此为止，没有任何 recordBattleTheft / claim 调用。
+      // 战斗态只在内存（模拟器对象被丢弃），落账口根本没被触发。
+      expect(ctx.ledger.countOf('guard_stolen'), 0);
+      expect(ctx.ledger.countOf('guard_win'), 0);
+      expect(ctx.ledger.countOf('guard_pay'), 0);
+      expect(ctx.ledger.entries, isEmpty);
     });
   });
 }

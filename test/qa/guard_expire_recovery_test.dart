@@ -14,6 +14,7 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart' show kGuardWinSunNoItem;
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/guard_day_state.dart';
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
@@ -457,7 +458,7 @@ void main() {
       expect(await env.ledger.balance(), 103.0);
     });
 
-    test('winSun=0 的存档 ⇒ 补发 kGuardWinSunNoItem（3）而不是 0', () async {
+    test('winSun=0 的存档 ⇒ 补发 kGuardWinSunNoItem（B5b 起 = 区间上限 5）而不是 0', () async {
       final GuardProbeEnv env = await GuardProbeEnv.create(clock: _today);
       addTearDown(env.close);
       await env.seedPlant('p1');
@@ -469,8 +470,8 @@ void main() {
 
       final GuardExpireOutcome out = await env.guard.expire();
 
-      expect(out.grantedWinSun, 3);
-      expect(await env.ledger.balance(), 103.0);
+      expect(out.grantedWinSun, kGuardWinSunNoItem);
+      expect(await env.ledger.balance(), 100.0 + kGuardWinSunNoItem);
     });
 
     test('不发 buff：fighting 过期后存档清空，券已过期', () async {

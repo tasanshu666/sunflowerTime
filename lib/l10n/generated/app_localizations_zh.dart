@@ -3473,10 +3473,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guard_thief_name_sun_rat => '馋光鼠';
 
   @override
-  String get guard_thief_name_leaf_bug => '啃叶虫';
+  String get guard_thief_name_leaf_bug => '食叶虫';
 
   @override
-  String get guard_thief_name_sneak_thief => '顺手贼';
+  String get guard_thief_name_sneak_thief => '贪婪鼬';
 
   @override
   String get guard_drop_name_water_voucher => '浇水券';
@@ -3511,7 +3511,40 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get guard_pill_free_ride => '阿葵自己顶班，今天不用管';
+  String get guard_pill_free_ride => '小小葵自己顶班，今天不用管';
+
+  @override
+  String get guard_scene_start => '开始守卫';
+
+  @override
+  String get guard_scene_done => '已完成守卫';
+
+  @override
+  String get guard_scene_continue => '继续守卫';
+
+  @override
+  String get guard_tutorial_title => '守卫怎么玩？';
+
+  @override
+  String get guard_tutorial_body =>
+      '认真专注满 15 分钟，就能攒 1 个能量点，一天最多攒 2 个。有能量点，向日葵战士就能免费出击，帮你赶跑偷菜的怪物！';
+
+  @override
+  String guard_tutorial_paid_hint(int cost) {
+    return '没有能量点也可以花 $cost 个阳光请战士帮忙哦。';
+  }
+
+  @override
+  String get guard_tutorial_ok => '知道了';
+
+  @override
+  String get guard_energy_bubble => '专注满 15 分钟 = 1 个能量点，每天最多 2 个';
+
+  @override
+  String get guard_battle_victory_banner => '怪物全赶跑了！';
+
+  @override
+  String get guard_battle_retreat_banner => '时间到，剩下的怪物撤退了';
 
   @override
   String get guard_battle_skip => '跳过';
@@ -3524,6 +3557,11 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String guard_result_gain(int sun) {
     return '拿回 $sun 阳光';
+  }
+
+  @override
+  String guard_result_stolen(int sun) {
+    return '被偷菜贼偷走 $sun 阳光';
   }
 
   @override
@@ -3541,7 +3579,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String guard_confirm_pay_title(int cost) {
-    return '要花 $cost 阳光请阿葵出手吗？';
+    return '要花费 $cost 阳光，请小小葵战士帮忙吗？';
   }
 
   @override

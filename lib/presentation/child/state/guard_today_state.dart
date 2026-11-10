@@ -59,7 +59,7 @@ enum GuardPillMode {
   pendingPaid,
 
   /// 免罚档（`GuardDayStatus.short` 或「无能量且余额 < [kGuardFreeRideBalance]」）：
-  /// 当天阿葵自己顶班，胶囊不可点。
+  /// 当天小小葵自己顶班，胶囊不可点。
   freeRide,
 
   /// 战斗中（动画回放期）：不可点。
@@ -216,6 +216,15 @@ class GuardTodayView {
 
   /// 今天来的贼（`absent` 时为 `null`）。
   GuardThiefKind? get thief => state.thiefKind;
+
+  /// 是否需要先看教学浮层（守卫战 v2 · B2）。
+  ///
+  /// ⚠️ **B7 起本 getter 不再驱动弹层**（玄参真机：「每天都要再看一遍」）。
+  /// 教学改由**设备级 prefs** `kGuardTutorialSeenPrefKey` 判（永久一次），
+  /// 见 `child_today_page.dart` 的 `_tutorialSeenInPrefs()`。
+  /// 保留本 getter 只为「当日存档里那个字段还读得到」的向后兼容 ——
+  /// `GuardDayState.tutorialSeen` 字段本身按裁定**保留不删**。
+  bool get needsTutorial => !state.tutorialSeen;
 
   /// 今天的掉落档（`absent` 时 = [GuardDropKind.none]）。
   GuardDropKind get dropKind => state.dropKind;

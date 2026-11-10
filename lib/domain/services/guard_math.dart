@@ -31,7 +31,7 @@ import 'package:sunflower_time/domain/services/plant_perk.dart';
 // ── 确定性通道名（🔴 一经写入即冻结）────────────────────────────────────
 //
 // 通道（channel）是**域隔离**手段：同一 `dayKey + childId` 下，五个通道的均匀值
-// 必须互不相关。否则「来的是顺手贼」会与「掉落档」绑死（抽到顺手贼必定出免费
+// 必须互不相关。否则「来的是贪婪鼬」会与「掉落档」绑死（抽到贪婪鼬必定出免费
 // 施肥券），单测的分布检验会立刻暴露这种相关性。
 // 注意 `thief` / `drop` 两个通道分别定义在 guard_thief.dart / guard_drop.dart
 // （谁拥有枚举谁定义通道），本文件只定义「贼的取值」相关的三个通道。
@@ -42,7 +42,7 @@ const String _channelSun = 'sun';
 /// 通道：偷成长的百分点。
 const String _channelGrowth = 'growth';
 
-/// 通道：必得阳光（1~3）。
+/// 通道：必得阳光（3~5；B5b 玄参拍板，原 1~3）。
 const String _channelWinSun = 'win';
 
 /// 一次派生的**完整结果**（不可变）。
@@ -59,13 +59,13 @@ class GuardRoll {
   /// [applyGrowthTheft] 去和 [kGuardGrowthStealPerPlantDailyCap] 比较。
   final double growthLossPercent;
 
-  /// 被偷走的阳光，单位 ☀。`0` = 这只贼不偷阳光（啃叶虫）。
+  /// 被偷走的阳光，单位 ☀。`0` = 这只贼不偷阳光（食叶虫）。
   final int sunLoss;
 
   /// 掉落档。
   final GuardDropKind drop;
 
-  /// 必得阳光（1~3；无道具档固定 [kGuardWinSunNoItem] = 3）。
+  /// 必得阳光（3~5；B5b 起无道具档固定 [kGuardWinSunNoItem] = 区间上限 5）。
   final int winSun;
 
   const GuardRoll({
@@ -76,10 +76,10 @@ class GuardRoll {
     required this.winSun,
   });
 
-  /// 今天会不会掉成长（顺手贼 / 啃叶虫）。
+  /// 今天会不会掉成长（贪婪鼬 / 食叶虫）。
   bool get stealsGrowth => growthLossPercent > 0;
 
-  /// 今天会不会掉阳光（馋光鼠 / 顺手贼）。
+  /// 今天会不会掉阳光（馋光鼠 / 贪婪鼬）。
   bool get stealsSun => sunLoss > 0;
 
   @override
@@ -111,7 +111,7 @@ class GuardRoll {
 ///  · 偷阳光：只有 `stealsSun` 的贼才掷，落在 `[kGuardSunStealMin, kGuardSunStealMax]`
 ///    的**闭区间整数**（1/2/3 各 1/3）；
 ///  · 偷成长：只有 `stealsGrowth` 的贼才掷，落在
-///    `[growthStealMinPct, growthStealMaxPct)` 的连续值（啃叶虫 1~3%、顺手贼 1~5%）；
+///    `[growthStealMinPct, growthStealMaxPct)` 的连续值（食叶虫 1~3%、贪婪鼬 1~5%）；
 ///  · 掉落按 6 档概率落桶；**无道具档的必得阳光固定取上限**（决策 D2 / R1）。
 GuardRoll deriveGuardRoll({
   required String dayKey,
@@ -133,7 +133,7 @@ GuardRoll deriveGuardRoll({
     );
   }
 
-  // 偷成长：每株的 pp（顺手贼「全园每株各一份」，啃叶虫「只挑 1 株」——
+  // 偷成长：每株的 pp（贪婪鼬「全园每株各一份」，食叶虫「只挑 1 株」——
   // 「挑哪一株」需要存活株列表 + 仓储，属于第二批的领域服务，不在纯函数里）。
   double growthLoss = 0;
   if (spec.stealsGrowth) {
@@ -145,6 +145,8 @@ GuardRoll deriveGuardRoll({
   }
 
   // 必得阳光：无道具档取上限（R1），否则在 [kGuardWinSunMin, kGuardWinSunMax] 落整数。
+  // 🔴 B5b：区间 1~3 → 3~5（玄参拍板），`_intInRange` 对任意档数本就均匀
+  // （span = 5 档各 1/5），win 通道名 'win' 不变 —— 冻结通道表仅注释更新。
   final int winSun = drop.hasVoucher
       ? _intInRange(
           _uniform(dayKey: dayKey, childId: childId, channel: _channelWinSun),

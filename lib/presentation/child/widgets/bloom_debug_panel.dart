@@ -50,12 +50,16 @@ import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart'
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/pot_disturbance_repository.dart';
 import 'package:sunflower_time/domain/services/empty_pot_service.dart';
+import 'package:sunflower_time/domain/services/guard_battle_sim.dart'
+    show GuardBattleMonsterKind, GuardBattleScript;
 import 'package:sunflower_time/domain/services/guard_service.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 import 'package:sunflower_time/domain/services/weather_system.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/presentation/child/state/guard_debug_script.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_debug_labels.dart';
 import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dart'
     show weatherArtOf, weatherNameOf;
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
@@ -174,6 +178,14 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
   /// 各空盆的当日干扰物状态（做「当前状态」回显，方便对照浮标）。
   Map<int, PotDisturbance> _potStates = <int, PotDisturbance>{};
 
+  /// 守卫调试区「上次操作」回执（玄参真机：「点了没有任何响应」）。
+  ///
+  /// 🔴 为什么不用 [ScaffoldMessenger] 单通道：面板是 bottom sheet，`SnackBar`
+  /// 落在**屏幕**底部、常被 sheet 自身盖住（真机尤其），所以回执必须写在
+  /// **面板内**（就在按钮下方，手指落点旁边）；`_busy` 闸门与 `finally`
+  /// 里的 `setState` 保证回执在动作**收尾后**才落到树上。
+  String _guardFeedback = '';
+
   @override
   void initState() {
     super.initState();
@@ -285,6 +297,23 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  /// 守卫调试按钮统一入口：动作 + **面板内可见回执**（玄参真机「点了没反应」）。
+  ///
+  /// 为什么包一层而不是塞进 [_run]：`_run` 是所有区块（开花 / 天气 / 空盆 /
+  /// 守卫）共用的枢纽，给它加「回执文案」参数会波及 4 个区块的调用点；
+  /// 回执只有守卫区块需要，就地包一层 = 零回归。
+  ///
+  /// 🔴 顺序：先 `await action()`（其内部 `_run` 已做 busy 闸门 / 异常提示 /
+  /// 刷新 / 通知花园页），收尾再写回执 —— 反序会让「失败」也显示「已生效」。
+  Future<void> _guardTap(
+    String feedback,
+    Future<void> Function() action,
+  ) async {
+    await action();
+    if (!mounted) return;
+    setState(() => _guardFeedback = feedback);
   }
 
   /// 包裹一次调试动作：busy 闸门 → 动作 → 异常提示 → 刷新 → 通知花园页。
@@ -570,6 +599,74 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
         await _guardSvc.resetForDebug();
         _resetTodayPill();
       });
+
+  // ── 守卫战 v2 · 强制剧本（B5a，仅 debug）────────────────────────────────
+  //
+  // 为什么走「显式覆盖」而不是搜 seed：`deriveGuardBattleScript` 的 kind_<i>
+  // 通道在同一 seed 内强相关（B3 实测 200 seed 无三怪混编），搜不出确定性阵容。
+  // 覆盖只影响**战斗剧本**（怪数 / 种类 / 偷取值），派生函数零改动 —— 详见
+  // `guard_debug_script.dart` 文件头。
+
+  /// 强制剧本：写覆盖 + 造贼 + 重置今日页胶囊（收尾照抄 [_forceThief]）。
+  ///
+  /// 必须造贼：覆盖只定「怎么打」，今日得先**有贼**才打得起来
+  /// （`forceThiefForDebug` 写今日存档 = pending）。
+  ///
+  /// 🔴 回执（玄参「点了没有任何响应」）：动作收尾后写「已生效 → 当前模式
+  /// ＋ 下一步怎么看见」——「强制」的真实副作用是**退回待机**（`forceThief`
+  /// 把状态覆写回 pending），用户若只看战局会以为「战局被打断了、按钮没用」，
+  /// 回执必须把这句说出来。
+  Future<void> _forceBattleScript({
+    required int count,
+    List<GuardBattleMonsterKind>? kinds,
+    bool highTheft = false,
+  }) async {
+    // 先建剧本（纯函数、零随机）：回执文案要用它的实际阵容，不能凭入参再拼一遍。
+    final GuardBattleScript script = buildGuardBattleScriptForDebug(
+      monsterCount: count,
+      kinds: kinds,
+      highTheft: highTheft,
+    );
+    await _run(() async {
+      // 🔴 B10 顺序修正：**先造贼、再改覆盖**。
+      // 今日页在 IndexedStack 里保活并 `ref.listen` 覆盖变化 ⇒
+      // 覆盖一写就会立刻 `_refreshGuard()` 重读存档。反序（旧实现）在两者
+      // 之间插了一帧「存档里还没有贼」的窗口 —— B10 给 `forceThiefForDebug`
+      // 加了一次账本读（派生场次序号），这个窗口被拉长成必然事件，玄参那条
+      // 「面板强制后切回今日页卡片不出现」会稳定复现。先写存档 = 窗口消失。
+      await _guardSvc.forceThiefForDebug();
+      ref.read(debugGuardBattleScriptOverrideProvider.notifier).state = script;
+      _resetTodayPill();
+    });
+    if (!mounted) return;
+    setState(() {
+      _guardFeedback = '已生效 → ${debugGuardModeLabel(script)}'
+          '（今日页已重新出贼，点「开始守卫」即按此阵容开战）';
+    });
+  }
+
+  /// 恢复随机剧本：清覆盖（下次战斗回到真实 seed 派生）。
+  ///
+  /// 🔴 关键修复（玄参真机第二轮报「仍然失效」）：**无覆盖时点它是空操作**
+  /// （清 null → null，provider 没变化 ⇒ 面板 / 今日页都不重建 ⇒ 零反馈）。
+  /// 现在无覆盖时只写回执「当前已是随机剧本」、**不动任何状态**；
+  /// 有覆盖时才真正清覆盖 + 重置胶囊。按钮本身在无覆盖时已置灰
+  /// （`onPressed: null`），这里是**双保险**（键盘 / 语义树等旁路仍可能触发）。
+  Future<void> _followRealScript() async {
+    final bool hadOverride =
+        ref.read(debugGuardBattleScriptOverrideProvider) != null;
+    await _run(() async {
+      if (!hadOverride) return; // 空操作：不写状态、不重置胶囊（避免假响应）
+      ref.read(debugGuardBattleScriptOverrideProvider.notifier).state = null;
+      _resetTodayPill();
+    });
+    if (!mounted) return;
+    setState(() {
+      _guardFeedback = hadOverride
+          ? '已恢复随机剧本（覆盖已清除 → ${debugGuardModeLabel(null)}）'
+          : '当前已是随机剧本（没有覆盖需要恢复）';
+    });
+  }
 
   /// 把今日页的胶囊快照重置为「没有守卫」。
   ///
@@ -1036,13 +1133,17 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
     );
   }
 
-  /// 花园守卫调试区块（第四批 B）。
+  /// 花园守卫调试区块（第四批 B；B5a 追加「强制剧本」按钮组）。
   ///
   /// 四组按钮，全部走 [GuardService] 的 `*ForDebug` 接缝：
   ///  · 造贼 ×2（默认 / 带免费浇水券）→ [GuardService.forceThiefForDebug]；
   ///  · 用光今日能量 → [GuardService.exhaustEnergyForDebug]；
   ///  · 发券 ×3（免费浇水 / 劳动 / 施肥）→ [GuardService.grantVoucherForDebug]；
-  ///  · 清空今日守卫存档 → [GuardService.resetForDebug]。
+  ///  · 清空今日守卫存档 → [GuardService.resetForDebug]；
+  ///  · 强制剧本 ×4 + 恢复随机（B5a）→ 写
+  ///    [debugGuardBattleScriptOverrideProvider]（**仅影响战斗剧本**，
+  ///    冻结的派生函数零改动；混编阵容走显式覆盖 —— kind 通道同 seed
+  ///    强相关、搜不出，见 B3 报告）。
   ///
   /// 🔴 造贼 / 清档之后必须调 [_resetTodayPill]：今日页的胶囊快照只有
   /// `ChildTodayPage` 会写，不主动重置就会「切回今日页还是旧值」。
@@ -1050,8 +1151,15 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
   /// 🔴 位置纪律：本区块追加在 [_weatherSection] **之后**（列表最末尾），
   /// 理由与空盆区块逐字相同 —— 见 `_emptyPotSection()` 上方的注释：
   /// 插到前面会把 4 个存量用例在 360×780 下「不滚动就 `find.text`」的断言
-  /// 顶出 `ListView` 的懒构建窗口（`cacheExtent` 250）。
+  /// 顶出 `ListView` 的懒构建窗口（`cacheExtent` 250）。B5a 的按钮**追加在
+  /// 本区块 Wrap 的末尾**，既有按钮的列表 offset 逐像素不变（零回归）。
   Widget _guardSection() {
+    // B5a：剧本覆盖生效态回显（对齐天气区块的「当前生效」口径）。
+    final GuardBattleScript? scriptOverride =
+        ref.watch(debugGuardBattleScriptOverrideProvider);
+    // 「恢复随机」在无覆盖时**不可点**（灰掉）：null → null 是空操作，
+    // 可点但无反应正是玄参连着两轮报「失效」的根因。
+    final bool canFollowReal = scriptOverride != null;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -1072,49 +1180,147 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
             '造贼 / 清能量 / 发券 / 清存档（不写账本；清完会把今日页胶囊重置）',
             style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
+          const SizedBox(height: 6),
+          // ── 当前模式常显行（B5b+ 玄参真机：必须能一眼看出「现在到底是什么」）──
+          // 直接从 provider 派生 ⇒ 任何一处写覆盖之后本行**当帧**就变（无需刷新）。
+          Text(
+            debugGuardModeLabel(scriptOverride),
+            key: const ValueKey<String>(kDebugGuardModeTextKey),
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: canFollowReal
+                  ? const Color(0xFF8A5A00)
+                  : const Color(0xFF2E7D32),
+            ),
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: <Widget>[
               FilledButton.tonal(
-                onPressed: _busy ? null : () => _forceThief(),
+                onPressed: _busy
+                    ? null
+                    : () => _guardTap(
+                          '已刷新出偷菜贼 → 切回今日页即可看到场景卡',
+                          _forceThief,
+                        ),
                 child: const Text('刷新出偷菜贼'),
               ),
               FilledButton.tonal(
                 onPressed: _busy
                     ? null
-                    : () => _forceThief(drop: GuardDropKind.freeWater),
+                    : () => _guardTap(
+                          '已刷新出偷菜贼（带免费浇水券）→ 切回今日页可见',
+                          () => _forceThief(drop: GuardDropKind.freeWater),
+                        ),
                 child: const Text('刷新出偷菜贼（带免费浇水券）'),
               ),
               FilledButton.tonal(
-                onPressed: _busy ? null : _exhaustEnergy,
+                onPressed: _busy
+                    ? null
+                    : () => _guardTap('今日能量已用光（场景卡两个能量点全灭）', _exhaustEnergy),
                 child: const Text('用光今日能量'),
               ),
               FilledButton.tonal(
                 onPressed: _busy
                     ? null
-                    : () => _grantGuardVoucher(GuardDropKind.freeWater),
+                    : () => _guardTap(
+                          '已发 1 张免费浇水券',
+                          () => _grantGuardVoucher(GuardDropKind.freeWater),
+                        ),
                 child: const Text('发免费浇水券'),
               ),
               FilledButton.tonal(
                 onPressed: _busy
                     ? null
-                    : () => _grantGuardVoucher(GuardDropKind.laborVoucher),
+                    : () => _guardTap(
+                          '已发 1 张劳动券',
+                          () => _grantGuardVoucher(GuardDropKind.laborVoucher),
+                        ),
                 child: const Text('发劳动券'),
               ),
               FilledButton.tonal(
                 onPressed: _busy
                     ? null
-                    : () => _grantGuardVoucher(GuardDropKind.fertilizeVoucher),
+                    : () => _guardTap(
+                          '已发 1 张施肥券',
+                          () => _grantGuardVoucher(GuardDropKind.fertilizeVoucher),
+                        ),
                 child: const Text('发施肥券'),
               ),
               FilledButton.tonal(
-                onPressed: _busy ? null : _resetGuard,
+                onPressed: _busy
+                    ? null
+                    : () => _guardTap('今日守卫存档已清空（今日页场景卡消失）', _resetGuard),
                 child: const Text('清空今日守卫存档'),
+              ),
+              // ── B5a · 强制剧本（守卫战 v2；追加在区块末尾）──────────────
+              FilledButton.tonal(
+                key: const ValueKey<String>(kDebugGuardScriptKeyCount3),
+                onPressed: _busy ? null : () => _forceBattleScript(count: 3),
+                child: const Text('强制 3 只怪'),
+              ),
+              FilledButton.tonal(
+                key: const ValueKey<String>(kDebugGuardScriptKeyCount5),
+                onPressed: _busy ? null : () => _forceBattleScript(count: 5),
+                child: const Text('强制 5 只怪'),
+              ),
+              FilledButton.tonal(
+                key: const ValueKey<String>(kDebugGuardScriptKeyMixed),
+                onPressed: _busy
+                    ? null
+                    : () => _forceBattleScript(
+                          count: 3,
+                          kinds: const <GuardBattleMonsterKind>[
+                            GuardBattleMonsterKind.m1,
+                            GuardBattleMonsterKind.m2,
+                            GuardBattleMonsterKind.m3,
+                          ],
+                        ),
+                child: const Text('强制三怪混编'),
+              ),
+              FilledButton.tonal(
+                key: const ValueKey<String>(kDebugGuardScriptKeyTheft),
+                onPressed:
+                    _busy ? null : () => _forceBattleScript(count: 3, highTheft: true),
+                child: const Text('强制高偷窃战局'),
+              ),
+              // 「恢复随机」：无覆盖 ⇒ `onPressed: null`（灰掉）；有覆盖 ⇒ 亮起 + 高亮。
+              // 语义方向（玄参第二轮）：**亮 = 可点**（有东西可恢复），灰 = 无事可做。
+              FilledButton.tonal(
+                key: const ValueKey<String>(kDebugGuardScriptKeyFollow),
+                style: canFollowReal
+                    ? FilledButton.styleFrom(
+                        backgroundColor:
+                            Theme.of(context).colorScheme.primaryContainer,
+                      )
+                    : null,
+                onPressed: (_busy || !canFollowReal) ? null : _followRealScript,
+                child: const Text('恢复随机剧本'),
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Text(
+            '剧本覆盖：${scriptOverride == null ? '跟随真实派生（同日同孩逐位相同）' : '${scriptOverride.monsters.length} 只怪 · 显式覆盖中（只影响战斗，不改派生函数）'}',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          // ── 上次操作回执（就在按钮正下方 = 手指落点旁边；玄参「点了没反应」）──
+          if (_guardFeedback.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              '✓ $_guardFeedback',
+              key: const ValueKey<String>(kDebugGuardFeedbackTextKey),
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+          ],
         ],
       ),
     );

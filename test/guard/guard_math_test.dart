@@ -13,6 +13,8 @@
 library guard_math_test;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart'
+    show kGuardWinSunNoItem;
 import 'package:sunflower_time/core/utils/stable_hash.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
@@ -164,13 +166,13 @@ void main() {
           reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs PRD 45%');
     });
 
-    test('啃叶虫 ≈ 45%', () {
+    test('食叶虫 ≈ 45%', () {
       final double actual = thiefHits[GuardThiefKind.leafBug]! / sampleCount;
       expect((actual - 0.45).abs(), lessThan(tolerance),
           reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs PRD 45%');
     });
 
-    test('顺手贼 ≈ 10%', () {
+    test('贪婪鼬 ≈ 10%', () {
       final double actual = thiefHits[GuardThiefKind.sneakThief]! / sampleCount;
       expect((actual - 0.10).abs(), lessThan(tolerance),
           reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs PRD 10%');
@@ -237,8 +239,8 @@ void main() {
     });
 
     test(
-        '不偷成长的贼 → growthLossPercent 恒 0；啃叶虫落在 1%~3%；'
-        '顺手贼落在 1%~5%', () {
+        '不偷成长的贼 → growthLossPercent 恒 0；食叶虫落在 1%~3%；'
+        '贪婪鼬落在 1%~5%', () {
       for (final String day in _dayKeys(DateTime(2026, 5, 1), 800)) {
         final GuardRoll roll = deriveGuardRoll(dayKey: day, childId: 'child-a');
         if (!roll.thief.stealsGrowth) {
@@ -254,26 +256,26 @@ void main() {
       }
     });
 
-    test('无道具档 → 必得阳光固定 3（R1 保底取上限）', () {
+    test('无道具档 → 必得阳光固定取区间上限（R1；B5b 区间 3~5 ⇒ 5）', () {
       int checked = 0;
       for (final String day in _dayKeys(DateTime(2026, 1, 1), 2000)) {
         final GuardRoll roll = deriveGuardRoll(dayKey: day, childId: 'child-a');
         if (roll.drop != GuardDropKind.none) continue;
         checked++;
-        expect(roll.winSun, 3, reason: day);
+        expect(roll.winSun, kGuardWinSunNoItem, reason: day);
       }
       expect(checked, greaterThan(0), reason: '2000 天里必须出现过无道具档');
     });
 
-    test('有券档 → 必得阳光落在 1..3', () {
+    test('有券档 → 必得阳光落在 3..5（B5b 玄参拍板，原 1..3）', () {
       for (final String day in _dayKeys(DateTime(2026, 1, 1), 2000)) {
         final GuardRoll roll = deriveGuardRoll(dayKey: day, childId: 'child-a');
         if (roll.drop == GuardDropKind.none) continue;
-        expect(roll.winSun, inInclusiveRange(1, 3), reason: day);
+        expect(roll.winSun, inInclusiveRange(3, 5), reason: day);
       }
     });
 
-    test('顺手贼命中全园；啃叶虫只挑 1 株；馋光鼠不碰植物', () {
+    test('贪婪鼬命中全园；食叶虫只挑 1 株；馋光鼠不碰植物', () {
       expect(GuardThiefKind.sneakThief.spec.hitsEveryPlant, isTrue);
       expect(GuardThiefKind.leafBug.spec.hitsEveryPlant, isFalse);
       expect(GuardThiefKind.leafBug.spec.targetsSingleRandomPlant, isTrue);

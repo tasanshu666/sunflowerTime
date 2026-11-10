@@ -55,7 +55,7 @@ import 'package:sunflower_time/domain/services/guard_math.dart';
 import 'package:sunflower_time/domain/services/guard_voucher.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
 
-/// 确定性通道名：啃叶虫「今天挑哪一株」。
+/// 确定性通道名：食叶虫「今天挑哪一株」。
 ///
 /// 🔴 **一经写入即冻结**：改了它等于让历史每一天「被咬的是哪一盆」全部重掷
 /// （与 `thief` / `drop` / `sun` / `growth` / `win` 五个通道隔离，互不相关）。
@@ -413,6 +413,8 @@ class GuardService {
       dropKind: roll.drop,
       sunStolen: waived ? 0 : roll.sunLoss,
       growthStolen: growthLoss,
+      // 🔴 B10/B4：当日场次序号（第 1 场 = 0）在**生成状态时**定死。
+      battleAttempt: await _nextBattleAttempt(today),
     );
     await _store.write(childId, next);
 
@@ -470,6 +472,33 @@ class GuardService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
+  // 三″、教学标记（守卫战 v2 · B2 新增；「教学浮层只播一次」的持久化口）
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// 把「教学浮层已经看过」落盘（[GuardDayState.tutorialSeen] = true）。
+  ///
+  /// 与 [markFighting] 同一套纪律：
+  ///  · 只经领域服务写存储（页面不得直写 prefs）；
+  ///  · 存档不是**今天**的 → 空操作（绝不改写昨天的存档）；
+  ///  · 已看过（`tutorialSeen == true`）→ 空操作（幂等，重复调用零写入）；
+  ///  · 写失败一律吞掉：教学看不成最坏结果是「明天再看一次」，不该拦战斗。
+  ///
+  /// 次日 `resolve()` 生成新存档时 `tutorialSeen` 回到缺省 false ⇒ 教学
+  /// 「每天至多一次」的口径由存档的生命周期天然保证，零新增状态。
+  Future<void> markTutorialSeen({DateTime? now}) async {
+    final String today = dayKey(now ?? _clock());
+    final String childId = _childId();
+    final GuardDayState state = await _store.read(childId);
+    if (state.dayKey != today) return;
+    if (state.tutorialSeen) return;
+    try {
+      await _store.write(childId, state.copyWith(tutorialSeen: true));
+    } catch (_) {
+      // 写失败 = 标记没落上；下一次进战斗会再看一次教学，无经济影响。
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
   // 四、领取（🔴 唯一允许写账本的方法）
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -505,15 +534,22 @@ class GuardService {
     // ② 幂等（状态层）：今天已经领过 → 原样回放，不动钱。
     if (state.isClaimed) return _claimReplay(state, energy: energy, balance: balance);
 
-    // ③ 幂等（账本层，事实源）：今天已有 guard_win 行 ⇒ 视为已领取。
+    // ③ 幂等（账本层，事实源）：本场已有 guard_win 行 ⇒ 视为已领取。
     //    修「账本写成功、prefs 写失败」（或状态被外部清掉）的半截状态：
     //    宁可少发一次，也绝不重复发。
+    //
+    // 🔴 B10/B4：判据从「当日有任何 guard_win 行」收窄为「**本场**已有 guard_win
+    //    行」= `当日行数 > 本场序号`。生产路径（一天一场、`battleAttempt == 0`）
+    //    与旧判据逐位等价 ⇒ **幂等一格没松**；只有「同日第二场」（调试重置后
+    //    再打）才允许第二次记账，否则玄参报的「第二次花 5 阳光不扣」永远修不掉。
+    final int attempt = state.battleAttempt;
+    final String suffix = _attemptSuffixOf(attempt);
     final int winRows = await _ledger.countByRefTypeAndRefIdOnDay(
       kGuardWinRefType,
       kGuardRefId,
       today,
     );
-    if (winRows > 0) {
+    if (winRows > attempt) {
       final GuardDayState repaired = state.copyWith(status: GuardDayStatus.claimed);
       await _store.write(childId, repaired);
       return _claimReplay(repaired, energy: energy, balance: balance);
@@ -550,7 +586,8 @@ class GuardService {
       // 余额钳制：扣到 0 为止，绝不出现负余额（PRD 决策 D6）。
       final double charge = math.min(kGuardPayCost.toDouble(), balance);
       await _appendLedger(SunlightEntry(
-        id: 'guard_pay_${childId}_$today',
+        // 🔴 B10/B4：id 追加场次后缀（第 1 场无后缀 ⇒ 与历史逐位相同）。
+        id: 'guard_pay_${childId}_$today$suffix',
         ts: at,
         type: SunlightType.plant,
         gross: -charge,
@@ -568,7 +605,8 @@ class GuardService {
         state.winSun > 0 ? state.winSun : kGuardWinSunNoItem;
     final double beforeWin = await _ledger.balance();
     await _appendLedger(SunlightEntry(
-      id: 'guard_win_${childId}_$today',
+      // 🔴 B10/B4：同 `guard_pay`，第 1 场 id 与历史逐位相同。
+      id: 'guard_win_${childId}_$today$suffix',
       ts: at,
       type: SunlightType.earn,
       gross: winSun.toDouble(),
@@ -605,6 +643,71 @@ class GuardService {
       balance: await _ledger.balance(),
       state: next,
     );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 四′、战斗偷窃落账（守卫战 v2 新增 · 领域层唯一新增公开方法）
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// 【守卫战 v2 新增，唯一】战斗结束时**一次性**落账本场被偷的阳光。
+  ///
+  /// 真源：`docs/花园守卫_守卫战玩法_增量设计_v1.md` §5.2 / §5.3（裁决 B）。
+  ///
+  /// ## 为什么是「结束时一次写」而不是「每偷一只写一次」
+  /// 战斗态**不落盘**是红线：被偷额只在 `guard_battle_sim.dart` 的内存里累计，
+  /// 打完一整场（全灭 / 到点）才由表现层带着合计调本方法 —— 同日最多 1 行
+  /// `guard_stolen`，中途强杀 = 半场作废、从 0 重跑（方向偏向孩子）。
+  ///
+  /// ## 互斥去重（与 `expire` 的 `_settleSunLoss` 自动互斥）
+  /// 账本 id 复用既有冻结格式 `guard_stolen_<childId>_<dayKey>`，且写入前先
+  /// `countByRefTypeAndRefIdOnDay` 读判定 —— 同日已有 `guard_stolen` 行
+  /// （本方法写过 / expire 半截时序写过）⇒ **空操作**，绝不双扣。反向同理：
+  /// 战斗偷过之后再跨天 `expire`，`_settleSunLoss` 的同名读判定挡住重复扣。
+  ///
+  /// ## 钳制（双保险，绝不产生负余额）
+  /// `min(本场合计, kGuardStealDailyCap=3, 当前余额)`；余额不足 1 ☀ 不写 0 元行。
+  ///
+  /// ## 🔴 零成长扣减
+  /// 守卫战 v2 玄参裁定：怪物到门口**只偷阳光**。本方法不碰
+  /// [PlantGrowthService] / `plant.progress`，`applyGrowthTheft` 语义原样。
+  ///
+  /// [stolenSun] = 战斗层累计的本场实际被偷合计（模拟器 `stolenSun`，已按
+  /// 封顶逐怪裁过；这里再钳一次封顶是防表现层直传脏值的双保险）。
+  /// 返回实际落账额（0 = 没偷 / 已写过 / 余额不足）。
+  Future<int> recordBattleTheft({required int stolenSun, DateTime? now}) async {
+    final DateTime at = now ?? _clock();
+    final String childId = _childId();
+    final String today = dayKey(at);
+    if (stolenSun <= 0) return 0;
+    // ① 互斥去重（账本读判定，事实源）：同日已有 guard_stolen 行 ⇒ 空操作。
+    final int existing = await _ledger.countByRefTypeAndRefIdOnDay(
+      kGuardStolenRefType,
+      kGuardRefId,
+      today,
+    );
+    if (existing > 0) return 0;
+    // ② 余额钳制：余额 0 扣不出东西，绝不产生负余额（PRD 决策 D6）。
+    final double balance = await _ledger.balance();
+    if (balance <= 0) return 0;
+    // ③ 封顶钳制：先钳全场封顶，再钳余额。
+    final int capped =
+        stolenSun > kGuardStealDailyCap ? kGuardStealDailyCap : stolenSun;
+    final double charge = math.min(capped.toDouble(), balance);
+    final int charged = charge.toInt();
+    if (charged <= 0) return 0; // 余额不足 1 ☀：按 0 处理，不写 0 元账本行
+    final double net = -charge;
+    final bool written = await _appendLedger(SunlightEntry(
+      id: 'guard_stolen_${childId}_$today',
+      ts: at,
+      type: SunlightType.plant,
+      gross: net,
+      net: net,
+      balanceAfter: balance - charge,
+      refType: kGuardStolenRefType,
+      refId: kGuardRefId,
+      dayKey: today,
+    ));
+    return written ? charged : 0;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -658,6 +761,8 @@ class GuardService {
         dayKeyValue: expiredDay,
         winSun: stored.winSun,
         at: at,
+        // 🔴 B10/B4：补发也要用**那一场**的 id（同日第二场不能撞第一场的行）。
+        attempt: stored.battleAttempt,
       );
     } else {
       stolenSun = await _settleSunLoss(
@@ -722,7 +827,29 @@ class GuardService {
     DateTime? now,
   }) async {
     final String today = dayKey(now ?? _clock());
-    final GuardDropKind dropKind = drop ?? GuardDropKind.none;
+    // 🔴 B12 修复（玄参第七轮：「每次战斗完都没有增益 buff 卡片掉落」）：
+    // 旧实现 `drop ?? none` —— 调试重置会把**今天自然摇到的掉落档覆盖成
+    // 「无道具」**，之后每一场的结算卡都显示「什么都没捡到」。修法 =
+    // 未显式指定时**保留今天应有的掉落档**：
+    //  · 当天已有**非空白**存档（status != none，即 resolve 已落过账）⇒
+    //    原样保留其 dropKind / buff（重置只重摆怪，不擦券）；
+    //  · 当天无存档 **或存档是空白态（empty，status == none）** ⇒ 走
+    //    [GuardDropKind.roll]（与 [resolve] 同源、同 seed）。🔴 空白态也必须
+    //    走 roll：真仓储「无存档 / 存档损坏」返回的是 `empty(今天)`，
+    //    dayKey 恰好等于今天 —— 只比 dayKey 会把「今天还没 resolve 过」误判成
+    //    「已存档」，从而拿到 empty 默认的 none（D1″ 回归测试钉死）。
+    // 显式传 [drop] 仍可覆盖（调试面板「发券」走 [grantVoucherForDebug]）。
+    final String childId = _childId();
+    final GuardDayState stored = await _store.read(childId);
+    final GuardDropKind dropKind;
+    if (drop != null) {
+      dropKind = drop;
+    } else if (stored.dayKey == today &&
+        stored.status != GuardDayStatus.none) {
+      dropKind = stored.dropKind;
+    } else {
+      dropKind = GuardDropKind.roll(dayKey: today, childId: childId);
+    }
     final GuardDayState next = GuardDayState(
       dayKey: today,
       status: GuardDayStatus.pending,
@@ -730,6 +857,10 @@ class GuardService {
       winSun: winSun ?? kGuardWinSunMin,
       dropKind: dropKind,
       buff: guardBuffFor(dropKind),
+      // 🔴 B10/B4：调试造贼 =「新的一场」。场次序号从账本当日 `guard_win` 行数
+      // 派生 ⇒ 重置后再打一场，`guard_pay` / `guard_win` 的 id 自带 `_a1` 后缀，
+      // 不会再被第一场的行去重掉（玄参「第二次花 5 阳光不扣」）。
+      battleAttempt: await _nextBattleAttempt(today),
     );
     try {
       await _store.write(_childId(), next);
@@ -856,8 +987,8 @@ class GuardService {
 
   /// 今日成长损失（`plantId -> pp`）。
   ///
-  /// · 顺手贼（`hitsEveryPlant`）→ 全部存活株各一份（开花株免疫，由纯函数跳过）；
-  /// · 啃叶虫（`targetsSingleRandomPlant`）→ **确定性挑 1 株**（禁 `Random`：
+  /// · 贪婪鼬（`hitsEveryPlant`）→ 全部存活株各一份（开花株免疫，由纯函数跳过）；
+  /// · 食叶虫（`targetsSingleRandomPlant`）→ **确定性挑 1 株**（禁 `Random`：
   ///   存活株 id 升序后按 `kGuardChannelTargetPlant` 通道哈希落桶）；
   /// · 馋光鼠（不偷成长）→ 空。
   Map<String, double> _growthLossOf(
@@ -891,8 +1022,37 @@ class GuardService {
     return <String, double>{ids[index]: roll.growthLossPercent};
   }
 
-  /// 写一行账本（**幂等**）：主键冲突 = 同一天已经写过这一行 ⇒ 视为已写过。
+  /// 账本 id 的**场次后缀**（B10/B4）：第 1 场（`attempt <= 0`）返回空串。
   ///
+  /// 🔴 生产路径一天一场 ⇒ 恒为空串 ⇒ `guard_pay_<child>_<day>` /
+  /// `guard_win_<child>_<day>` 与历史 id **逐位相同**（老账本零影响、老测试零改动）。
+  /// 只有同日第二场起追加 `_a1` / `_a2` …，让「同一天第二次付费 / 到账」能落成
+  /// 独立一行而不是被主键去重静默丢弃。
+  static String _attemptSuffixOf(int attempt) => attempt > 0 ? '_a$attempt' : '';
+
+  /// 当日**新场次的序号** = 当日已完成的 `guard_win` 行数（每场恰好一行）。
+  ///
+  /// 只在 `resolve()` / `forceThiefForDebug()` **生成当日状态时**调用一次，
+  /// 随后冻结在 [GuardDayState.battleAttempt] 里 —— 领取过程中不再重算，
+  /// 否则「第一场写成功、prefs 写失败再重试」会把重试当成新场次重复扣钱。
+  ///
+  /// 🔴 读账本失败一律退化为 **0**（= 第 1 场）：这是「账本抖动 / 测试假仓储
+  /// 没实现该查询」时的安全方向 —— 退化成旧行为（一天一场），绝不会让
+  /// `resolve()` / 调试接缝因为一个统计量而抛异常。
+  Future<int> _nextBattleAttempt(String today) async {
+    try {
+      final int done = await _ledger.countByRefTypeAndRefIdOnDay(
+        kGuardWinRefType,
+        kGuardRefId,
+        today,
+      );
+      return done > 0 ? done : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// 写一行账本（**幂等**）：主键冲突 = 同一天已经写过这一行 ⇒ 视为已写过。
   /// DAO 是 `insert`（`InsertMode.insert`），重复主键会抛 —— 捕获它就把
   /// 「重复点击 / 重放」变成了天然幂等，无需额外锁或去重表。
   /// 其余异常同样吞掉：账本写失败时**不能**让孩子卡在「点了没反应」，
@@ -943,12 +1103,16 @@ class GuardService {
     return charged;
   }
 
-  /// 「进了战斗但没点收下」的补发：同一天只发一次（确定性 id + 账本读判定）。
+  /// 「进了战斗但没点收下」的补发：同一天同一场只发一次（确定性 id + 账本读判定）。
+  ///
+  /// 🔴 B10/B4：[attempt] 是那一场的序号 —— 判据收窄为「当日行数 > 本场序号」，
+  /// id 按 [_attemptSuffixOf] 追加后缀（第 1 场无后缀，与历史逐位相同）。
   Future<int> _grantWinIfAbsent({
     required String childId,
     required String dayKeyValue,
     required int winSun,
     required DateTime at,
+    int attempt = 0,
   }) async {
     final int amount = winSun > 0 ? winSun : kGuardWinSunNoItem;
     final int existing = await _ledger.countByRefTypeAndRefIdOnDay(
@@ -956,10 +1120,10 @@ class GuardService {
       kGuardRefId,
       dayKeyValue,
     );
-    if (existing > 0) return 0;
+    if (existing > attempt) return 0;
     final double balance = await _ledger.balance();
     final bool written = await _appendLedger(SunlightEntry(
-      id: 'guard_win_${childId}_$dayKeyValue',
+      id: 'guard_win_${childId}_$dayKeyValue${_attemptSuffixOf(attempt)}',
       ts: at,
       type: SunlightType.earn,
       gross: amount.toDouble(),

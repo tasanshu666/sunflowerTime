@@ -3,7 +3,7 @@
 /// ① `test/i18n/no_han_in_domain_test.dart` 已单独跑（7 例全绿），本文件不重复；
 /// ② 中英 ARB **键集合完全一致**：不用 Python，直接在本测试里读两份 ARB 逐键比对
 ///    （含「守卫相关键在英文里不得出现汉字」）；
-/// ③ 战斗浮层 en + 1.3 倍字号不 overflow（结算卡见 V5-2）。
+/// ③ L4 战斗层 en + 1.3 倍字号不 overflow（结算卡见 V5-2）。
 library;
 
 import 'dart:convert';
@@ -13,9 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
-import 'package:sunflower_time/presentation/child/widgets/guard_battle_overlay.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart';
 
 Map<String, Object?> _readArb(String path) {
   final String raw = File(path).readAsStringSync();
@@ -76,13 +75,12 @@ void main() {
     });
   });
 
-  group('V7-3 战斗浮层 en + 1.3×', () {
-    testWidgets('320 宽槽位不 overflow', (WidgetTester tester) async {
-      final AppLocalizations en = await AppLocalizations.delegate.load(
-        const Locale('en'),
-      );
-
-      for (final GuardThiefKind thief in GuardThiefKind.values) {
+  group('V7-3 L4 战斗层 en + 1.3×（B3 迁移：原夹具为 GuardBattleOverlay）', () {
+    testWidgets('288×140 卡内槽位不 overflow', (WidgetTester tester) async {
+      // 三个固定 seed（代替旧版的 3 种贼循环）：剧本阵容不同 ⇒ 横幅 / 怪物
+      // 渲染分支都被走到；seed 不含当日日期 ⇒ 判定逐日稳定。
+      const List<String> childIds = <String>['seed-0', 'seed-1', 'seed-2'];
+      for (final String childId in childIds) {
         await tester.pumpWidget(
           MediaQuery(
             data: const MediaQueryData(
@@ -101,10 +99,16 @@ void main() {
                 textDirection: TextDirection.ltr,
                 child: MaterialApp(
                   home: Scaffold(
-                    body: SizedBox(
-                      width: 320,
-                      height: 568,
-                      child: GuardBattleOverlay(thief: thief, l10n: en),
+                    body: Center(
+                      child: SizedBox(
+                        width: 288,
+                        height: 140,
+                        child: GuardBattleField(
+                          dayKey: '2026-01-01',
+                          childId: childId,
+                          handle: GuardBattleHandle(),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -112,9 +116,9 @@ void main() {
             ),
           ),
         );
-        // 推过 600ms：跳过按钮出现后仍不溢出。
-        await tester.pump(const Duration(milliseconds: 700));
-        expect(tester.takeException(), isNull, reason: '${thief.id} 战斗浮层溢出');
+        // 推进 2s：首怪已在车道上行走（剧本出怪表首项 = 0ms）。
+        await tester.pump(const Duration(seconds: 2));
+        expect(tester.takeException(), isNull, reason: '$childId 战斗层溢出');
       }
     });
   });

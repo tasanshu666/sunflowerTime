@@ -2265,7 +2265,7 @@ const int kGuardThiefPerDay = 1;
 /// 确定性随机盐（seed = dayKey + childId + 本值 [+ 通道后缀]）。
 ///
 /// 单位：无语义。🔴 **跨版本不得改动**：改掉会让「同一历史日」的掉落结果不可
-/// 重放（调试面板的「强制出顺手贼」也就失去意义）。
+/// 重放（调试面板的「强制出贪婪鼬」也就失去意义）。
 const String kGuardDaySaltV2 = '|guard|v2';
 
 /// 不处理时的结算窗口上限（天）。单位：天。
@@ -2296,13 +2296,13 @@ const int kGuardFreeRideBalance = 5;
 
 // ── 小偷（3 种）──────────────────────────────────────────────────────────
 
-/// 小偷权重（顺序 = 馋光鼠 / 啃叶虫 / 顺手贼），合计必须 = 1.0。
+/// 小偷权重（顺序 = 馋光鼠 / 食叶虫 / 贪婪鼬），合计必须 = 1.0。
 ///
-/// 单位：概率。0.45 / 0.45 / 0.10：顺手贼 10% ≈ 每 10 天 1 次，够稀有到
+/// 单位：概率。0.45 / 0.45 / 0.10：贪婪鼬 10% ≈ 每 10 天 1 次，够稀有到
 /// 「遇到会截图」，又不至于一个月见不到。
 const List<double> kGuardThiefWeights = <double>[0.45, 0.45, 0.10];
 
-/// 偷阳光区间下限。单位：☀。（馋光鼠 / 顺手贼共用）
+/// 偷阳光区间下限。单位：☀。（馋光鼠 / 贪婪鼬共用）
 const int kGuardSunStealMin = 1;
 
 /// 偷阳光区间上限。单位：☀。均值 2 = 一顿浇水的 40%，疼但不疼死。
@@ -2310,16 +2310,16 @@ const int kGuardSunStealMax = 3;
 
 /// 偷成长区间下限。单位：进度比例（0.01 = 1 个百分点 pp）。
 ///
-/// 啃叶虫与顺手贼**共用**此下限（两者都是「1~N%」口径）。
+/// 食叶虫与贪婪鼬**共用**此下限（两者都是「1~N%」口径）。
 const double kGuardGrowthStealMinPct = 0.01;
 
-/// 啃叶虫 偷成长区间上限。单位：pp。常见档取轻档：1~3% = 1/10 ~ 3/10 个成长日。
+/// 食叶虫 偷成长区间上限。单位：pp。常见档取轻档：1~3% = 1/10 ~ 3/10 个成长日。
 const double kGuardGrowthStealMaxPct = 0.03;
 
-/// 顺手贼 偷成长区间上限。单位：pp。稀有档取重档：最多半天成长。
+/// 贪婪鼬 偷成长区间上限。单位：pp。稀有档取重档：最多半天成长。
 ///
-/// 若上线后觉得太疼，**第一个动作**是把本值改到 0.03（顺手贼退化为
-/// 「重一点的啃叶虫」），不动结构。
+/// 若上线后觉得太疼，**第一个动作**是把本值改到 0.03（贪婪鼬退化为
+/// 「重一点的食叶虫」），不动结构。
 const double kGuardSlyGrowthStealMaxPct = 0.05;
 
 /// 🔴 硬约束：每株每天累计被偷上限。单位：pp。
@@ -2330,17 +2330,24 @@ const double kGuardGrowthStealPerPlantDailyCap = 0.05;
 
 // ── 掉落：第一步（必得阳光）───────────────────────────────────────────────
 
-/// 必得阳光区间下限。单位：☀。均值 2。
-const int kGuardWinSunMin = 1;
+/// 必得阳光区间下限。单位：☀。均值 4。
+///
+/// 🔴 B5b（2026-11-10 玄参拍板）：胜利奖励 1~3 → **3~5** —— 被偷仍 1~3（封顶
+/// [kGuardStealDailyCap] = 3）⇒ 净额 ∈ [0, +4]，QA 抓的「最坏净得 −2」根治，
+/// 无需结算保底逻辑。
+const int kGuardWinSunMin = 3;
 
 /// 必得阳光区间上限。单位：☀。
-const int kGuardWinSunMax = 3;
+const int kGuardWinSunMax = 5;
 
-/// 无道具档的保底阳光（= 区间上限）。单位：☀。
+/// 无道具档的保底阳光（= **区间上限** [kGuardWinSunMax]）。单位：☀。
 ///
-/// 理由（决策 D2 / PRD §3.7 硬约束 B）：18% 空手档对孩子是强负体验；取上限 3
-/// 仍在 [1,3] 内，不越界。E[W] 由 2.00 抬到 2.18，付费路径最坏损失 −4 → −2。
-const int kGuardWinSunNoItem = 3;
+/// 🔴 语义裁定（B5b 核对 `guard_math.dart` 实际用法后确认）：本值**同源
+/// [kGuardWinSunMax]**、与 [kGuardWinSunMin] 无关 —— 决策 D2 / PRD §3.7 硬约束 B
+/// 的口径是「18% 空手档取**区间上限**补偿强负体验」，不是「取下限」。故 win 区间
+/// 1~3 → 3~5 后本值同步 3 → 5（`deriveGuardRoll` 的无道具分支原样取它）。
+/// 写成派生引用 = 将来再调区间时本值自动跟随，D2 语义永不脱钩。
+const int kGuardWinSunNoItem = kGuardWinSunMax;
 
 // ── 掉落：第二步（一次掷骰，合计必须 = 1.0）──────────────────────────────
 
@@ -2472,6 +2479,17 @@ const Duration kGuardVoucherReadTimeout = Duration(milliseconds: 600);
 /// childId 级；不带后缀会让「A 的小偷出现在 B 的今日页」。
 const String kGuardDayStatePrefPrefix = 'guard_day_state_v2_';
 
+/// 「守卫战教学浮层已看过」的 prefs 键（B7：教学从「每天一次」改为**永久一次**）。
+///
+/// 🔴 为什么不再用 `GuardDayState.tutorialSeen`：那个字段活在**当日存档**里，
+/// 跨天由 `resolve()` 生成新存档时回到 false ⇒ 玄参真机「每天都要再看一遍教学」。
+/// 教学讲的是「这游戏怎么玩」，是一辈子一次的知识 ⇒ 落在**设备级 prefs** 上，
+/// 与日期 / 存档生命周期彻底解耦。
+///
+/// ⚠️ 没有 childId 后缀：教学是**设备**级知识（同一台设备上换个孩子不需要重讲）。
+/// 字段 `GuardDayState.tutorialSeen` 保留（老存档向后兼容），但**不再驱动弹层**。
+const String kGuardTutorialSeenPrefKey = 'guard_tutorial_seen_v1';
+
 // ── 埋点事件名（复用 `TrackingRepository.track`，`TrackingType.metric`）──
 
 /// 小偷生成。
@@ -2502,4 +2520,378 @@ const double kGuardPillGap = 10;
 
 /// 胶囊圆角半径。单位：pt（= 高度一半 ⇒ 真胶囊形）。
 const double kGuardPillRadius = 22;
+
+// ── 守卫战 v2（卡片内 30s 手动守卫战）────────────────────────────────────
+//
+// 真源：`docs/花园守卫_守卫战玩法_增量设计_v1.md` §4.2 参数表。
+// 🔴 每一项都是「设计文档 §4 建议值，PRD 标注为玄参可调参项」：调参只改这里的
+// 数字、不改结构（`guard_battle_sim.dart` / `guard_service.dart` 零 diff）。
+// 🔴 本段为**纯追加**：不改上方任何既有常量；`kGuardBattleSalt` 是与
+// [kGuardDaySaltV2] 平行的新盐，只新增不改旧盐 ⇒ `deriveGuardRoll` 的五个
+// 冻结通道零扰动。
+
+/// 战斗窗口时长。单位：ms。从第一只怪入场（t=0）计时；到点剩余怪撤退，
+/// 已执行的偷窃不回滚（设计文档 §4.3 待确认⑤ 推荐项）。
+const int kGuardBattleWindowMs = 30000;
+
+/// 出怪时刻表。单位：ms。怪数取前 N 项（N ∈ [kGuardMonsterCountMin,
+/// kGuardMonsterCountMax]），第 0 只 t=0 入场，间隔 6s。
+const List<int> kGuardSpawnOffsetsMs = <int>[0, 6000, 12000, 18000, 24000];
+
+/// 战士攻击静态的切换时长。单位：ms（B5b 素材接线：开火瞬间切攻击图，
+/// 到点回待机循环帧；纯演出时长，不进 sim 时间轴、不影响确定性）。
+const int kGuardSoldierAttackFlashMs = 300;
+
+/// 守卫序列帧的单帧时长。单位：ms（B5b：待机 19 帧 ≈ 1.9s/圈、m1 7 帧
+/// 0.7s/圈；帧数由 AssetManifest 实测 ⇒ 换帧数不改本常量）。
+const int kGuardAnimFrameMs = 100;
+
+/// 「MISS」打击反馈的存活时长。单位：ms（B8：玄参「闪避没表现」）。
+///
+/// 上浮 + 淡出共用这一条时长：`t ∈ [0,1]` 期间 y 上浮 18pt、opacity 1 → 0。
+/// 纯演出，**不进 sim 时间轴**（由战斗层自己的 ticker 驱动）⇒ 不影响确定性。
+const int kGuardMissFxMs = 600;
+
+/// 怪物数量下限（PRD：3~5 只；通道 `count` 落桶）。
+const int kGuardMonsterCountMin = 3;
+
+/// 怪物数量上限。
+const int kGuardMonsterCountMax = 5;
+
+/// m1（棕怪）行走速度。单位：pt/s。卡内可行程 ~330pt ⇒ 走完全程 ~25.4s。
+const double kGuardMonsterSpeedM1 = 13;
+
+/// m2（绿怪）行走速度。单位：pt/s。⇒ ~22.0s。
+const double kGuardMonsterSpeedM2 = 15;
+
+/// m3（灰紫怪）行走速度。单位：pt/s。⇒ ~19.4s；确保「什么都不做」的孩子
+/// 也会被偷（负反馈存在），但认真打必然全灭。
+const double kGuardMonsterSpeedM3 = 17;
+
+/// m1 闪避概率。闪避 = 白打一发（有跳跃演出）；命中概率 = 1 − p。
+const double kGuardDodgeProbM1 = 0.15;
+
+/// m2 闪避概率。
+const double kGuardDodgeProbM2 = 0.25;
+
+/// m3 闪避概率。
+const double kGuardDodgeProbM3 = 0.35;
+
+/// 子弹命中半径。单位：pt。自瞄前提下这是**容错圈**，不是瞄准难度。
+const double kGuardBulletHitRadius = 28;
+
+/// 子弹飞行速度。单位：pt/s。飞完 ~330pt 约 1.1s，节奏不拖。
+const double kGuardBulletSpeed = 300;
+
+/// 开火冷却。单位：ms。防连点误触 + 防可刷性（主理人建议口径）。
+///
+/// ## B8 手感 v2：400 → **300**（数据来自 `test/qa/guard_battle_balance_probe_test.dart`）
+/// 最坏阵容 = 5×m3 / HP 5 / 闪避 35%（`kGuardSpawnOffsetsMs` 前 5 项出场）。
+/// 100 个 seed（`childId` = `seed-0..99`）测下来：
+/// ```text
+/// 冷却 400ms ⇒ 100/100 victory，最坏收场 29395ms（余量只剩 605ms）
+/// 冷却 300ms ⇒ 100/100 victory，最坏收场 28263ms（余量 1737ms）  ← 采用
+/// ```
+/// 🔴 治本的是另一件事：**闪避哈希连号不独立**（详见
+/// `guard_battle_sim.dart` 的 `_dodgeUniform`）。修 bug **之前**同样配置只有
+/// 73/100 victory —— 也就是说「打不完」的锅不该由 HP 背。冷却 300ms 是修完
+/// 之后的第二层保险，同时让「每只至少 3 发」的节奏更跟手（3.3 发/秒）。
+/// 完整 TTK 表见设计文档 §6.3。
+const int kGuardFireCooldownMs = 300;
+
+/// m1 击杀所需命中数（无血条：受击闪白，累计命中即灭，待确认④ 推荐项）。
+///
+/// ## B8 手感 v2（玄参 2026-11-10 第三轮真机：「一下死太无聊」）
+/// 1/2/3 → **3/4/5**。三档仍然递增（m1 最快、m3 最肉），但每只怪至少要吃
+/// 3 发 ⇒ 开火有节奏、受击闪白与 MISS 演出才有存在感。
+/// 🔴 平衡自检数据（100 seed，实测单怪最坏 TTK / 含闪避）：
+/// ```text
+///        HP3    HP4    HP5
+///  m1    1728   2302   2589  ms
+///  m2    2007   2577   2862  ms
+///  m3    2848   3131   3414  ms
+/// ```
+/// 最坏阵容 5×m3（HP5 / 闪避 35%）100/100 在 30s 内清完（最坏 28263ms）。
+/// 见设计文档 §6.3「战斗手感 v2」TTK 表与 `test/qa/guard_battle_balance_probe_test.dart`。
+const int kGuardMonsterHitsM1 = 3;
+
+/// m2 击杀所需命中数。
+const int kGuardMonsterHitsM2 = 4;
+
+/// m3 击杀所需命中数。
+const int kGuardMonsterHitsM3 = 5;
+
+/// 各怪**视觉面积系数**（乘在等面积基线 44² = 1936 pt² 上）。
+///
+/// ## 🔴 B11（玄参第六轮）：馋光鼠「还有点大」⇒ m1 = **0.80**
+/// B10/C3 把三怪改成等面积 1936pt²（m1 49.41×39.18 / m2 44×44 / m3 60.93×31.77）。
+/// 玄参这轮只对 m1 提了一条：「馋光鼠还有点大」。故不给公式加参数以外的分支，
+/// 而是开一张**每档面积系数**表 —— 面积 = `1936 × 系数`，再按素材比例反解：
+///
+/// | 怪 | 系数 | 面积 | 反解宽 × 高（390 屏） |
+/// |---|---|---|---|
+/// | m1 馋光鼠 | **0.80** | **1548.8** | **44.19 × 35.04** |
+/// | m2 食叶虫 | 1.00 | 1936.0 | 44.00 × 44.00（与 B10 逐位相同） |
+/// | m3 贪婪鼬 | 1.00 | 1936.0 | 60.93 × 31.77（与 B10 逐位相同） |
+///
+/// 🔴 **本表是唯一旋钮**：玄参按单只怪微调只改这里的系数，**不许再改
+/// `monsterHeightOf` 的公式**（改公式 = 三只怪一起动，正是他不想的）。
+/// 缺省（未列出的 kind）按 1.0。
+const Map<String, double> kGuardMonsterAreaFactorByKind = <String, double>{
+  'm1': 0.80,
+  'm2': 1.0,
+  'm3': 1.0,
+};
+
+/// 每怪偷取值下限（通道 `steal_<i>` 派生，闭区间整数）。
+const int kGuardStealMin = 1;
+
+/// 每怪偷取值上限。
+const int kGuardStealMax = 3;
+
+/// 全场偷窃合计封顶。单位：☀。逐怪取 `min(seed 值, 剩余额度)`，超出额度的怪
+/// 到门口只演出退场、偷 0；`recordBattleTheft` 落账时再钳一次（双保险）。
+const int kGuardStealDailyCap = 3;
+
+/// 守卫战 v2 战斗盐（🔴 上线即冻结）。与 [kGuardDaySaltV2] 平行：
+/// 战斗剧本 / 闪避判定的全部通道都走本盐，与 v1 经济派生域隔离。
+const String kGuardBattleSalt = '|guard|battle|v1';
+
+// ── 守卫战 v2 · 场景卡 UI 几何（B2；设计文档 §6.1）────────────────────────
+
+/// 场景卡高度。单位：pt。
+///
+/// ## 演进（玄参真机三轮裁定）
+/// * B6 布局 v2：`120~160 取中` = **140**（当时卡内还有顶部条 + 能量点行）；
+/// * B7 布局 v3：卡内做减法（删状态条幅 / 卡内开火钮）腾出纵向空间，
+///   房子 64 → 88、战士 36 → 72、小怪 24 → 44 ⇒ 卡高 **160**（§6.2 布局 v3）；
+/// * B8 布局 v4：玄参「160 上方大片空白」⇒ 卡高**降到房顶高度** = **108**
+///   （§6.3 布局 v4）。推导（v4 几何，见 `guard_card_layout.dart`）：
+///   ```text
+///   卡高 108 = padBottom 10 + 房子 88 + 顶部留给能量点 10
+///   房子顶 y = 10；能量点 18pt 放在 y 4..22 ⇒
+///     dot.top 4 ≥ 0 ✔ ；dot.bottom 22 ≤ 房子顶 10 + 直径 18 = 28 ✔
+///   ```
+///   108 是「能量点能放在菜园栅栏上方、且不越出房顶一个直径」的**最小可行值**
+///   （再小 dot.top 就会 < 0，能量点被卡顶裁掉）。
+/// * B10 布局 v6：`padTop` 10 → **14**（玄参第五轮「房子被削顶」的治本项之二：
+///   房子上方要留出真实呼吸位，卡顶不再压着屋顶）⇒ 卡高自动变 **112**。
+///   同步改了今日页的上移实现（`Transform` → 缩 `sceneGap`，见 [kGuardCardLift]）。
+///
+/// 🔴 这是**跨屏宽恒定**的高度（窄卡只按 [kGuardNarrowCardScale] 缩卡内元素，
+/// 卡本身高度不变 —— 今日页 ListView 的滚动预算才稳）；也不随字号缩放
+/// （文案已全部退出卡面，只剩 `Semantics.label`）。玄参真机验收时可一常量调优
+/// （§9.1-R3）。
+///
+/// ## 🔴 B8 复核：**派生值，不是自由常量**
+/// 玄参第三轮之后主理人复核口径：「卡高 = padTop + 房子 + padBottom，禁止再出现
+/// 『卡高 160 但房子顶在 62』这种两套账」。故本常量改为三个**几何来源常量**的
+/// 求和（[kGuardCardPadTop] + [kGuardCardHouseHeight] + [kGuardCardPadBottom]）：
+/// 改房子高度或改留白，卡高**自动**跟着走，没人能再手写一个对不上的数。
+/// 求和结果 B10 起为 **112**（= 14 + 88 + 10；B8/B9 的 108 已作废）。
+const double kGuardSceneCardHeight = kGuardCardPadTop +
+    kGuardCardHouseHeight +
+    kGuardCardPadBottom; // = 14 + 88 + 10 = 112
+
+/// 卡顶留白（能量点与卡顶之间的呼吸位）。单位：pt。
+///
+/// 🔴 与 [kGuardSceneEnergyDotTop] 及 `GuardCardLayout.energyDotSize` 三者联动：
+/// `dot.bottom = 14 + 14 = 28`，房子顶 = 本值 **14** ⇒ 点顶边与房顶线齐平。
+///
+/// ## 🔴 B10（玄参第五轮「房子被削顶」）10 → **14**
+/// B9 用 `Transform.translate(0, -16)` 把卡往上挪，`Transform` **不消耗布局空间**
+/// ⇒ 卡的顶边被 ListView 视口直接裁掉（房子屋顶被削 + 能量点顶边消失）。
+/// B10 删掉 `Transform`，改「把滚动区整体上移」（今日页缩 `sceneGap`），卡顶从此
+/// **正好落在视口顶边**、整张卡合法可见；同时本值 10 → 14，房子与卡顶之间多留
+/// 4pt 真实呼吸位（玄参「显示区域要往上增大」），卡高 108 → **112**。
+///
+/// ⚠️ 连带口径变更（已上会）：卡高 +4 与滚动区上移 16 相互抵消后，**下方三张
+/// 统计卡整体上移 12pt** —— B9 的「统计卡零位移」要求自 B10 起**作废**。
+const double kGuardCardPadTop = 14;
+
+/// 卡底留白（房子 / 战士 / 开始钮共同基线之下的草坪厚度）。单位：pt。
+const double kGuardCardPadBottom = 10;
+
+/// 场景卡里房子的渲染高度。单位：pt（跨屏宽恒定，窄卡按等比缩）。
+///
+/// 🔴 B7 布局 v3 起 64 → 88，v4 不动。布局类的 `houseHeight` 直接引用本值，
+/// 房子宽度由素材宽高比推导（88 × 1.7746 ≈ 156.17pt）。
+const double kGuardCardHouseHeight = 88;
+
+/// 能量点距卡顶的距离。单位：pt。
+///
+/// ## 🔴 B8.1 修正：由 4 改 **= [kGuardCardPadTop]（10）**
+/// 玄参原话：「能量点显示在家园花园的上方，**不好超出房子的高度**」。
+/// 旧值 4 让 18pt 圆点占 `y ∈ [4, 22]`，而房子图顶边在 `y = 10`
+/// ⇒ 有 6pt（三分之一）飘在房子图**上方**压着卡顶空带，正是他要修的现象。
+/// 改成 10 后点占 `y ∈ [10, 28]`：**点顶边与房顶线逐位齐平、零像素出界**。
+///
+/// 🔴 判据也随之更正（旧注释写的「`22 ≤ 10 + 18`（不越出房顶一个直径）」是个
+/// 自造判据，玄参没这么说）：真正的判据是 **`dot.top ≥ houseRect.top`**。
+/// 那 10pt 空带从此只当归一化呼吸位，不再往里塞东西。
+const double kGuardSceneEnergyDotTop = kGuardCardPadTop;
+
+/// 能量点锚点的**横向微调位**。单位：pt（正 = 右，负 = 左；默认 0）。
+///
+/// ## 🔴 B10（丙2）：为什么需要这个旋钮
+/// 玄参第五轮要求能量点「锚在整个**花园建筑的视觉中心**」而不是 `houseRect` 的
+/// 几何中心。当前实现一律等于 `houseRect.center.dx`（390 屏 = **78.08**），
+/// 但玄参按截图量出两圆心中点 ≈ **66~68** —— 差约 10pt。这 10pt 的来源有两类：
+///  ① `house.webp` 素材实体在画布内**左右透明边不等**（视觉中心 ≠ 几何中心）；
+///  ② 截图量取误差 / 与上一版 18pt 圆点的混淆。
+/// 故把「锚点」抽成本常量：改一个数字即可整体左右挪点，**不动** `houseRect`、
+/// 不动房子位置、不动跑道几何（`channelLeft` 与能量点完全无关）。
+///
+/// 🔴 默认 0 = 与 B9 逐位一致（`houseRect.center.dx`）。B10 实测见
+/// `test/guard/guard_scene_card_layout_v6_test.dart` ②（dump 六值 + 断言
+/// `dot 中点 == houseRect.center.dx + kGuardEnergyDotAnchorDx`）。
+///
+/// ## 🔴 B11（玄参第六轮）：0 → **20**（`+20`，向右）
+/// B10 交付后玄参复核，仍要「整组点再往右让一点」（他看图是**偏左**的：点压着
+/// 屋子左半边，右侧空出一块）。B10 我按几何 + PIL 视觉中心（78.08 / 78.48，差
+/// 0.39pt）判定锚点无误 —— 那是**几何正确性**的结论；本轮这是**美学位移**，
+/// 由玄参拍板，故用本旋钮而不是再动 `houseRect` / 跑道。
+/// 生效值：`houseRect.center.dx + 20` = **98.08**（390 屏，两点圆心的中点）。
+/// 直径 14 / 间距 6 / 顶边 14 不变（本轮锁定）。
+const double kGuardEnergyDotAnchorDx = 20;
+
+/// 场景卡整体上移量。单位：pt（B9/C5 引入，B10 换了实现）。
+///
+/// 玄参第四轮：「卡顶边和上方插画里那道半圆弧之间还有约 16pt 空隙」。
+///
+/// ## 🔴 B10：**删掉 `Transform`，改缩滚动区间的留白**
+/// B9 的实现是 `Transform.translate(offset: Offset(0, -16))` —— `Transform` **不
+/// 消耗布局空间**，卡在 ListView 里仍占 108pt，可它被画到了视口之外 ⇒ ListView
+/// 的 `ClipRect` 直接把卡顶（房子屋顶 + 能量点顶弧）裁掉。玄参第五轮报的
+/// 「房子被削顶」就是这个（`guard_scene_card_visible_test` 的硬断言因此必须
+/// `getRect(cardKey).top >= viewportTop`）。
+///
+/// B10 改为：今日页把**滚动区整体上移**本值 ——
+/// `SizedBox(height: sceneGap - (guard.isVisible ? kGuardCardLift : 0))`。
+/// 视口顶边随之上移 16pt，而卡仍在视口内的 y=0 处 ⇒ **卡顶 = 视口顶边**
+/// （差值 0，整张卡合法可见），视觉上卡顶同样比 B8 高 16pt。
+///
+/// ⚠️ 连带：卡高 108 → [kGuardSceneCardHeight] = 112（padTop 10 → 14），
+/// 上移 16 − 卡高 +4 = **统计卡整体上移 12pt** —— B9「统计卡零位移」作废。
+///
+/// ## 🔴 B11（玄参第六轮）：16 → **26**
+/// 玄参：「卡还可以再往上一点」⇒ 再来 10pt。机制**不变**（仍是缩 `sceneGap`，
+/// 绝不回到 `Transform` —— 那是 B10 削顶的根因）。连带：
+/// * 统计卡再上移 10pt（相对 B9 基线累计 **22pt**）；
+/// * 卡顶仍然 **== 视口顶边**（不裁剪这条硬断言不变）；
+/// * 卡顶 → 屋顶仍 14（[kGuardCardPadTop] 本轮锁定不动）。
+const double kGuardCardLift = 26;
+
+/// 战士三态素材的 **alpha 加权质心 x**（归一化：0 = 素材画布左缘、1 = 右缘）。
+///
+/// ## 🔴 B11/C4：为什么需要这张表（玄参「攻击时人往左挪了」）
+/// 三种状态是**各自裁到自己的实体框**的：攻击帧的实体框里除了身体还有**挥出去的
+/// 兵器**（512 宽 vs 待机 362 宽，宽 41%）。`BoxFit.fitHeight` 再把这幅图**居中**
+/// 放进绘制框时，身体就被推离中轴 —— 居中永远对不齐，因为**身体在两幅画布里的
+/// 位置本来就不同**（配准差在素材里，不在定位公式里）。
+///
+/// 量出来的差（`tools/measure_soldier_centroid.py`，`alpha > 128` + alpha 加权）：
+///
+/// | 状态 | 画布 | 质心 px | **归一化 fx** | 512 参考 | 宽高比 |
+/// |---|---|---|---|---|---|
+/// | idle（19 帧平均） | 362×372 | 201.23 | **0.5559** | 284.61 | 0.9731 |
+/// | attack | 512×349 | 225.27 | **0.4400** | 225.27 | 1.4670 |
+/// | win | 512×429 | 238.61 | **0.4660** | 238.61 | 1.1935 |
+///
+/// 按「实体框居中」渲染时身体相对绘制框中轴的偏移 = `(fx − 0.5) × 绘制宽`：
+/// idle **+3.70pt** / attack **−5.99pt** / win **−2.76pt** ⇒ 攻击时身体比待机
+/// **左移 9.69pt**（= 玄参看到的「往左挪了一点」）。
+///
+/// ## 用法（唯一消费点）
+/// `GuardCardLayout.soldierStateAlignShiftX(state, paintHeight)` 把质心推到绘制框
+/// 中轴（= `soldierRect.center.dx`）；三态必然共用同一条竖线，兵器怎么挥都不影响。
+///
+/// 🔴 **换素材（改名 / 重导 / 重裁）必须**：重跑 `tools/measure_soldier_centroid.py`
+/// → 更新本表 → 重跑 `test/guard/guard_soldier_state_align_test.dart`
+/// （该测试会在 Dart 侧独立重算质心并与本表比对，常量过期即红）。
+const Map<String, double> kGuardSoldierStateCentroidX = <String, double>{
+  /// 待机（`soldier_idle/frame001..019`，19 帧质心的算术平均）。
+  'idle': 0.5559,
+
+  /// 站立静态（`soldier_stand.webp`；B12 新增 —— 战斗中的「端枪站立」专用图，
+  /// 玄参：「攻击情况下站立动作用单独的那张站立待机图，不要动作帧里的图」）。
+  'stand': 0.5262,
+
+  /// 攻击（`soldier_attack.webp`）。
+  'attack': 0.4400,
+
+  /// 胜利（`soldier_win.webp`）。
+  'win': 0.4660,
+};
+
+/// 战士三态素材画布的**宽高比**（`w / h`，裁边后画布）。
+///
+/// 用途：`BoxFit.fitHeight` 下「绘制宽 = 绘制高 × 本值」——质心对齐的位移量
+/// 必须乘以**绘制宽**才是 pt。🔴 与素材绑定（换图要同步改；`qa/guard_asset_solid_ratio_test`
+/// ⑤ 与 `guard_soldier_state_align_test` ② 都会钉）。
+const Map<String, double> kGuardSoldierStateAspectRatios = <String, double>{
+  'idle': 362 / 372, // 0.9731
+  'stand': 512 / 487, // 1.0513（B12 新增）
+  'attack': 512 / 349, // 1.4670
+  'win': 512 / 429, // 1.1935
+};
+
+/// 终局横幅的停留时长（无死亡演出时的 `onFinished` 延迟）。单位：ms。
+///
+/// 玄参：Victory / Retreat 横幅先上屏，让孩子看清再切结算卡。
+/// 🔴 B10/D1：若终局由「最后一只怪被打死」触发，则改按 [kGuardDeathFleeMs]
+/// （800ms）延迟 —— 让逃跑演出**播完**才交回页面（ticker 必须活到那一刻，
+/// 否则演出会冻在第 0 帧）；到点撤退 / 中止没有死亡演出 ⇒ 本值 900ms 不变。
+const int kGuardEndBannerDwellMs = 900;
+
+// ── D1 死亡逃跑演出（B9；纯渲染层，sim 零字段）────────────────────────────
+
+/// 怪被击灭后「转身逃跑 + 淡出」的总时长。单位：ms（到点从树上摘掉）。
+///
+/// 🔴 纯演出：sim 的 `dead` 相位与冻结坐标**一个字节不动**，
+/// 本段动画只是渲染层按 `deathT` 推出来的，同 seed 必然逐位一致。
+const int kGuardDeathFleeMs = 800;
+
+/// 死亡态水平翻转后向右逃跑的水平位移。单位：pt（在 [kGuardDeathFleeRunMs] 内线性）。
+const double kGuardDeathFleePt = 60;
+
+/// 逃跑位移的线性时长。单位：ms（比 [kGuardDeathFleeMs] 短 100ms ⇒ 末段原地淡出）。
+const int kGuardDeathFleeRunMs = 700;
+
+/// 死亡后开始淡出的延迟。单位：ms（前 200ms 保持不透明，能看清「转身」）。
+const int kGuardDeathFadeStartMs = 200;
+
+/// 小怪换道（lane shift）的单次过渡时长。单位：ms（玄参要求 300~500ms 平滑插值）。
+///
+/// 🔴 纯**轨迹插值**时长，不参与任何事件调度 ⇒ 不引入时钟、不影响确定性：
+/// 换道计划在剧本派生时按 [kGuardBattleSalt] 的哈希通道一次性算好，
+/// `_monsterYAt(t)` 仍是 `t` 的纯函数（同一 seed 逐位可重放）。
+const int kGuardLaneShiftMs = 400;
+
+/// 每只怪的换道次数下限（玄参「行进中做 1~2 次换道」）。
+const int kGuardLaneShiftCountMin = 1;
+
+/// 每只怪的换道次数上限。
+const int kGuardLaneShiftCountMax = 2;
+
+/// 第 1 次换道发生的「行程进度」区间（相对该怪从出场到门口的时长）。
+const double kGuardLaneShiftFirstFracMin = 0.25;
+
+/// 第 1 次换道进度上限。
+const double kGuardLaneShiftFirstFracMax = 0.45;
+
+/// 第 2 次换道进度下限（与第 1 次拉开距离，避免两次插值叠在一起）。
+const double kGuardLaneShiftSecondFracMin = 0.55;
+
+/// 第 2 次换道进度上限。
+const double kGuardLaneShiftSecondFracMax = 0.80;
+
+/// 场景卡圆角半径。单位：pt（与三张状态卡同底色系的卡形）。
+const double kGuardSceneCardRadius = 20;
+
+/// 能量点直径。单位：pt（点亮 = 金色实心 / 未点亮 = 灰色描边；PRD §5）。
+const double kGuardSceneEnergyDotSize = 28;
+
+/// 开火大圆钮直径。单位：pt（战斗态 L3；B2 占位、B3 接线 400ms 冷却）。
+const double kGuardSceneFireButtonSize = 64;
 

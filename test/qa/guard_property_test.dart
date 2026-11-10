@@ -8,14 +8,16 @@
 ///  1. 同输入同输出（200 组 × 2 次调用逐字段相等）；
 ///  2. 贼分布 ≈ 45% / 45% / 10%，偏差 < 0.05；
 ///  3. 掉落 6 档概率和 == 1.0（字面量断言）+ 实测分布偏差 < 0.05；
-///  4. 成长偷取比例 ∈ [1%, 5%]；啃叶虫 ∈ [1%, 3%)；馋光鼠恒 0；
-///  5. 偷阳光 ∈ {0, 1, 2, 3}；馋光鼠/顺手贼恒 > 0，啃叶虫恒 0；
+///  4. 成长偷取比例 ∈ [1%, 5%]；食叶虫 ∈ [1%, 3%)；馋光鼠恒 0；
+///  5. 偷阳光 ∈ {0, 1, 2, 3}；馋光鼠/贪婪鼬恒 > 0，食叶虫恒 0；
 ///  6. 必得阳光：无道具档恒 3，有券档 ∈ [1, 3]；
 ///  7. 同日同 child 反复 `resolve()` 幂等（状态/账本/成长三重不动）。
 library;
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart'
+    show kGuardWinSunMax, kGuardWinSunMin, kGuardWinSunNoItem;
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/guard_day_state.dart';
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
@@ -185,7 +187,7 @@ void main() {
       expect(sunRatTurns, greaterThan(0));
     });
 
-    test('啃叶虫：growth ∈ [1%, 3%)、sun == 0', () {
+    test('食叶虫：growth ∈ [1%, 3%)、sun == 0', () {
       int turns = 0;
       for (final ({String dayKey, String childId}) s in _samples()) {
         final GuardRoll r =
@@ -200,7 +202,7 @@ void main() {
       expect(turns, greaterThan(0));
     });
 
-    test('顺手贼：growth ∈ [1%, 5%)、sun ∈ [1,3]', () {
+    test('贪婪鼬：growth ∈ [1%, 5%)、sun ∈ [1,3]', () {
       int turns = 0;
       for (final ({String dayKey, String childId}) s in _samples()) {
         final GuardRoll r =
@@ -230,27 +232,29 @@ void main() {
   // V8-5 必得阳光
   // ══════════════════════════════════════════════════════════════════════
   group('V8-5 必得阳光', () {
-    test('无道具档恒 3；有券档 ∈ [1, 3]', () {
+    test('无道具档恒 5；有券档 ∈ [3, 5]', () {
       for (final ({String dayKey, String childId}) s in _samples()) {
         final GuardRoll r =
             deriveGuardRoll(dayKey: s.dayKey, childId: s.childId);
         if (!r.drop.hasVoucher) {
-          expect(r.winSun, 3,
-              reason: '${s.dayKey}: 无道具档取上限（决策 D2/R1）');
+          expect(r.winSun, kGuardWinSunNoItem,
+              reason: '${s.dayKey}: 无道具档取区间上限（决策 D2/R1；'
+                  'B5b 区间 3~5 ⇒ 上限 5）');
         } else {
-          expect(r.winSun, inInclusiveRange(1, 3));
+          expect(r.winSun, inInclusiveRange(kGuardWinSunMin, kGuardWinSunMax));
         }
       }
     });
 
-    test('3 档 winSun 在有券的日子里都出现过（不是常量）', () {
+    test('5 档 winSun 在有券的日子里都出现过（不是常量）', () {
       final Set<int> seen = <int>{};
       for (final ({String dayKey, String childId}) s in _samples()) {
         final GuardRoll r =
             deriveGuardRoll(dayKey: s.dayKey, childId: s.childId);
         if (r.drop.hasVoucher) seen.add(r.winSun);
       }
-      expect(seen, <int>{1, 2, 3});
+      expect(seen, <int>{3, 4, 5},
+          reason: '🔴 B5b：win 区间扩到 5 档（3~5）后 5 档均匀映射，各档都必须出现');
     });
   });
 

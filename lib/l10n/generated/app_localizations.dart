@@ -6065,16 +6065,16 @@ abstract class AppLocalizations {
   /// **'馋光鼠'**
   String get guard_thief_name_sun_rat;
 
-  /// 花园守卫：偷菜贼「啃叶虫」的展示名
+  /// 花园守卫：偷菜贼「食叶虫」的展示名
   ///
   /// In zh, this message translates to:
-  /// **'啃叶虫'**
+  /// **'食叶虫'**
   String get guard_thief_name_leaf_bug;
 
-  /// 花园守卫：偷菜贼「顺手贼」的展示名
+  /// 花园守卫：偷菜贼「贪婪鼬」的展示名
   ///
   /// In zh, this message translates to:
-  /// **'顺手贼'**
+  /// **'贪婪鼬'**
   String get guard_thief_name_sneak_thief;
 
   /// 花园守卫：掉落「浇水券」的展示名
@@ -6137,11 +6137,71 @@ abstract class AppLocalizations {
   /// **'还差 {n} 阳光'**
   String guard_pill_no_balance(int n);
 
-  /// 今日页守卫胶囊：阿葵顶班（无能量且余额 < kGuardFreeRideBalance，当天免罚、不可点）
+  /// 今日页守卫胶囊：小小葵顶班（无能量且余额 < kGuardFreeRideBalance，当天免罚、不可点）
   ///
   /// In zh, this message translates to:
-  /// **'阿葵自己顶班，今天不用管'**
+  /// **'小小葵自己顶班，今天不用管'**
   String get guard_pill_free_ride;
+
+  /// 守卫战 v2 场景卡 L3：待处理态的主按钮（pendingFree / pendingPaid 两态共用；付费确认卡由页面负责）
+  ///
+  /// In zh, this message translates to:
+  /// **'开始守卫'**
+  String get guard_scene_start;
+
+  /// 守卫战 v2 场景卡 L3：claimed（战斗胜利且奖励已收下）态右簇徽标的读屏文案（B12；徽标本体是对勾图标，无上屏文本）
+  ///
+  /// In zh, this message translates to:
+  /// **'已完成守卫'**
+  String get guard_scene_done;
+
+  /// 守卫战 v2 场景卡 L3：战斗中（fighting）态的占位按钮文案（B2 渲染、B3 接战斗层；强杀重进 = 同 seed 重跑）
+  ///
+  /// In zh, this message translates to:
+  /// **'继续守卫'**
+  String get guard_scene_continue;
+
+  /// 守卫战 v2 教学浮层 A：标题（每天首次进战斗前展示一次）
+  ///
+  /// In zh, this message translates to:
+  /// **'守卫怎么玩？'**
+  String get guard_tutorial_title;
+
+  /// 守卫战 v2 教学浮层 A：主文案（PRD §6 玄参已写好的口径，逐字使用）
+  ///
+  /// In zh, this message translates to:
+  /// **'认真专注满 15 分钟，就能攒 1 个能量点，一天最多攒 2 个。有能量点，向日葵战士就能免费出击，帮你赶跑偷菜的怪物！'**
+  String get guard_tutorial_body;
+
+  /// 守卫战 v2 教学浮层 A：次文案（cost = kGuardPayCost，不从文案里写死 5）
+  ///
+  /// In zh, this message translates to:
+  /// **'没有能量点也可以花 {cost} 个阳光请战士帮忙哦。'**
+  String guard_tutorial_paid_hint(int cost);
+
+  /// 守卫战 v2 教学浮层 A：确认按钮（点击后关闭并标记 tutorialSeen）
+  ///
+  /// In zh, this message translates to:
+  /// **'知道了'**
+  String get guard_tutorial_ok;
+
+  /// 守卫战 v2 教学气泡 C：点按能量点弹出（可反复重看；PRD §6 玄参已写好的口径）
+  ///
+  /// In zh, this message translates to:
+  /// **'专注满 15 分钟 = 1 个能量点，每天最多 2 个'**
+  String get guard_energy_bubble;
+
+  /// 守卫战 v2 L4 战斗层：Victory（已出场怪全灭、提前收场）横幅
+  ///
+  /// In zh, this message translates to:
+  /// **'怪物全赶跑了！'**
+  String get guard_battle_victory_banner;
+
+  /// 守卫战 v2 L4 战斗层：Retreat（30s 窗口到点）横幅；已偷不回滚
+  ///
+  /// In zh, this message translates to:
+  /// **'时间到，剩下的怪物撤退了'**
+  String get guard_battle_retreat_banner;
 
   /// 战斗界面：跳过按钮（kGuardBattleSkipDelayMs 后才出现）
   ///
@@ -6161,6 +6221,12 @@ abstract class AppLocalizations {
   /// **'拿回 {sun} 阳光'**
   String guard_result_gain(int sun);
 
+  /// 结算卡（守卫战 v2 B4）：本场被偷的阳光（sun = recordBattleTheft 的账本实扣额；0 时整行不渲染，卡面 N 恒 == 账本 guard_stolen 行）
+  ///
+  /// In zh, this message translates to:
+  /// **'被偷菜贼偷走 {sun} 阳光'**
+  String guard_result_stolen(int sun);
+
   /// 结算卡：有掉落时的券名（drop = guard_drop_name_* 的译文）
   ///
   /// In zh, this message translates to:
@@ -6179,10 +6245,10 @@ abstract class AppLocalizations {
   /// **'花了 {cost} 阳光，拿回 {gain} 阳光，券还能省 {saving} 阳光'**
   String guard_result_compare(int cost, int gain, int saving);
 
-  /// 付费确认卡标题（cost = kGuardPayCost，不写字面量 5 以免与常量脱钩）
+  /// 付费确认卡标题（cost = kGuardPayCost，不写字面量 5 以免与常量脱钩；B9 玄参指定改为「要花费 {cost} 阳光，请小小葵战士帮忙吗？」）
   ///
   /// In zh, this message translates to:
-  /// **'要花 {cost} 阳光请阿葵出手吗？'**
+  /// **'要花费 {cost} 阳光，请小小葵战士帮忙吗？'**
   String guard_confirm_pay_title(int cost);
 
   /// 付费确认卡：拒绝按钮（不扣钱、状态不变）

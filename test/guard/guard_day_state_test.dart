@@ -217,4 +217,63 @@ void main() {
       expect(decoded.growthStolen, isEmpty);
     });
   });
+
+  group('B1 tutorialSeen（守卫战 v2 · 教学浮层只播一次的持久化标记）', () {
+    test('缺省 false：空状态 / 构造不传 / copyWith 不传都保持 false', () {
+      expect(GuardDayState.empty('2026-11-08').tutorialSeen, isFalse);
+      const GuardDayState state = GuardDayState(
+        dayKey: '2026-11-08',
+        status: GuardDayStatus.pending,
+      );
+      expect(state.tutorialSeen, isFalse);
+      expect(state.copyWith().tutorialSeen, isFalse);
+    });
+
+    test('copyWith(true) 置位；再 copyWith 不传保持 true', () {
+      const GuardDayState base = GuardDayState(
+        dayKey: '2026-11-08',
+        status: GuardDayStatus.pending,
+      );
+      expect(base.copyWith(tutorialSeen: true).tutorialSeen, isTrue);
+      expect(
+        base.copyWith(tutorialSeen: true).copyWith().tutorialSeen,
+        isTrue,
+        reason: '已看过的标记不会被无关 copyWith 冲掉',
+      );
+    });
+
+    test('JSON 往返：true 编码后再解码仍 true；参与 == 与 hashCode', () {
+      const GuardDayState seen = GuardDayState(
+        dayKey: '2026-11-08',
+        status: GuardDayStatus.pending,
+        tutorialSeen: true,
+      );
+      final GuardDayState decoded = GuardDayState.fromJson(
+        jsonDecode(jsonEncode(seen.toJson())) as Map<String, Object?>,
+        fallbackDayKey: '2026-01-01',
+      );
+      expect(decoded.tutorialSeen, isTrue);
+      expect(decoded, seen);
+      expect(decoded.hashCode, seen.hashCode);
+      expect(seen, isNot(seen.copyWith(tutorialSeen: false)));
+    });
+
+    test('向后兼容：老存档 JSON 无 tutorialSeen 键 → 兜底 false，不抛异常', () {
+      final GuardDayState decoded = GuardDayState.fromJson(
+        <String, Object?>{
+          'dayKey': '2026-11-08',
+          'status': 'pending',
+          'thiefKind': 'sun_rat',
+        },
+        fallbackDayKey: '2026-01-01',
+      );
+      expect(decoded.tutorialSeen, isFalse);
+      // 脏值（非 bool）也兜底 false，绝不为 true。
+      final GuardDayState dirty = GuardDayState.fromJson(
+        <String, Object?>{'dayKey': '2026-11-08', 'tutorialSeen': 'yes'},
+        fallbackDayKey: '2026-01-01',
+      );
+      expect(dirty.tutorialSeen, isFalse);
+    });
+  });
 }

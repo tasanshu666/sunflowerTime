@@ -1,15 +1,18 @@
-/// 花园守卫 · **调试面板**回归测试（第四批 B）。
+/// 花园守卫 · **调试面板**回归测试（第四批 B；B5a 追加强制剧本按钮组）。
 ///
-/// 真源：`docs/花园守卫_向日葵守卫者_增量PRD_v2.md` + 第四批 B 施工图纸。
+/// 真源：`docs/花园守卫_向日葵守卫者_增量PRD_v2.md` + 第四批 B 施工图纸 +
+/// 守卫战设计文档 §7-B5（调试行）。
 ///
-/// ## 本文件钉死的 5 条
+/// ## 本文件钉死的条目
 ///  1. 面板末尾有「花园守卫」分组与 7 个按钮（**先滚动再断言**：区块在列表最末尾，
 ///     写「不滚动就能找到」会随面板增高变红）；
 ///  2. 点「刷新出偷菜贼」⇒ 领域 `todayState().status == pending`，`onChanged` 被回调；
 ///  3. 点「用光今日能量」⇒ `energyAvailable() == 0`；
 ///  4. 点「清空今日守卫存档」⇒ `todayState()` 空白 **且** `guardTodayProvider` 被
 ///     重置（用 `.isVisible == false` 这种语义判断，不断言具体枚举值）；
-///  5. 360×780 打开面板并滚到底不 overflow（防新块做成横向撑破的布局）。
+///  5. 360×780 打开面板并滚到底不 overflow（防新块做成横向撑破的布局）；
+///  6. （B5a）强制剧本按钮组渲染 + provider 覆盖写入 / 清空（战斗行为级断言在
+///     `guard_debug_script_test.dart`，本文件只管面板自身）。
 ///
 /// 🔴 纪律：期望值写**字面量**；断言一律走「滚动后」的 `find.text`。
 library guard_debug_panel_test;
@@ -18,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
@@ -39,8 +43,10 @@ import 'package:sunflower_time/domain/repositories/pot_disturbance_repository.da
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
+import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
 import 'package:sunflower_time/domain/services/guard_service.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
+import 'package:sunflower_time/presentation/child/state/guard_debug_script.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart';
 
@@ -445,8 +451,12 @@ void main() {
     });
 
     await tester.tap(find.text('刷新出偷菜贼'));
-    final bool written = await _pumpUntil(tester, () => h.store.state != null);
-    expect(written, isTrue, reason: '点按钮后应写入今日存档');
+    // 🔴 B10：`forceThiefForDebug` 现在多读一次账本（派生当日场次序号）⇒
+    // 存档写入与「_run 收尾的 onChanged」之间多一个微任务。判据改成
+    // 「存档已落 + 回调已到」两个都满足，不再只看写入时刻。
+    final bool written = await _pumpUntil(
+        tester, () => h.store.state != null && changed >= 1);
+    expect(written, isTrue, reason: '点按钮后应写入今日存档并回调花园页');
 
     final GuardDayState s = await h.guard.todayState();
     expect(s.hasThief, isTrue);
@@ -531,5 +541,174 @@ void main() {
 
     expect(find.text('清空今日守卫存档'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // B5a · 强制剧本按钮组（战斗行为级断言在 guard_debug_script_test.dart）
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// 滚到「强制剧本」按钮组（在「清空今日守卫存档」之后）。
+  // 命名说明：main 内的**局部函数**不能带 `_` 前缀（lint
+  // no_leading_underscores_for_local_identifiers），与顶层/成员函数约定不同。
+  Future<void> scrollToScriptButtons(WidgetTester tester) async {
+    await tester.scrollUntilVisible(
+      find.text('强制 3 只怪'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump();
+  }
+
+  testWidgets('6) 强制剧本按钮组 5 个 + 生效回显（滚动后可见）',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final _Harness h = _Harness();
+    final ProviderContainer c = h.container();
+    await _openPanel(tester, c);
+    await scrollToScriptButtons(tester);
+
+    expect(find.text('强制 3 只怪'), findsOneWidget);
+    expect(find.text('强制 5 只怪'), findsOneWidget);
+    expect(find.text('强制三怪混编'), findsOneWidget);
+    expect(find.text('强制高偷窃战局'), findsOneWidget);
+    expect(find.text('恢复随机剧本'), findsOneWidget);
+    expect(find.textContaining('跟随真实派生'), findsOneWidget,
+        reason: '无覆盖时回显必须是「跟随真实派生」');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('6a) 点「强制 5 只怪」⇒ 覆盖写入（5 只）+ 造贼 pending + 回显切换',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final _Harness h = _Harness();
+    final ProviderContainer c = h.container();
+    await _openPanel(tester, c);
+    await scrollToScriptButtons(tester);
+
+    expect(c.read(debugGuardBattleScriptOverrideProvider), isNull,
+        reason: '前置：默认无覆盖');
+
+    await tester.tap(find.byKey(const ValueKey<String>(kDebugGuardScriptKeyCount5)));
+    final bool written = await _pumpUntil(
+      tester,
+      () => c.read(debugGuardBattleScriptOverrideProvider) != null,
+    );
+    expect(written, isTrue, reason: '点按钮后必须写 debugGuardBattleScriptOverrideProvider');
+
+    final GuardBattleScript? s =
+        c.read(debugGuardBattleScriptOverrideProvider);
+    expect(s!.monsters.length, 5, reason: '🔴 覆盖剧本必须恰 5 只怪');
+
+    // 照抄相邻「刷新出偷菜贼」的收尾：必须顺手造贼（否则覆盖了也打不起来）。
+    final GuardDayState st = await h.guard.todayState();
+    expect(st.hasThief, isTrue, reason: '强制剧本必须同时造出今日贼（pending）');
+    expect(st.status, GuardDayStatus.pending);
+
+    // 回显切换（面板自身 watch provider ⇒ 自动刷新）。
+    await _pumpUntil(
+      tester,
+      () => find.textContaining('显式覆盖中').evaluate().isNotEmpty,
+    );
+    expect(find.textContaining('跟随真实派生'), findsNothing);
+  });
+
+  testWidgets('6b) 点「强制三怪混编」⇒ 覆盖 kinds 恰为 [m1, m2, m3]',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final _Harness h = _Harness();
+    final ProviderContainer c = h.container();
+    await _openPanel(tester, c);
+    await scrollToScriptButtons(tester);
+
+    await tester.tap(
+        find.byKey(const ValueKey<String>(kDebugGuardScriptKeyMixed)));
+    final bool written = await _pumpUntil(
+      tester,
+      () => c.read(debugGuardBattleScriptOverrideProvider) != null,
+    );
+    expect(written, isTrue);
+
+    final GuardBattleScript? s =
+        c.read(debugGuardBattleScriptOverrideProvider);
+    expect(
+      [for (final m in s!.monsters) m.kind],
+      <GuardBattleMonsterKind>[
+        GuardBattleMonsterKind.m1,
+        GuardBattleMonsterKind.m2,
+        GuardBattleMonsterKind.m3,
+      ],
+      reason: '🔴 混编必须走显式覆盖（kind 通道同 seed 强相关，搜不出 —— B3 报告）',
+    );
+  });
+
+  testWidgets('6c) 点「强制高偷窃战局」⇒ 覆盖全 m1 且 steal 全 3',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final _Harness h = _Harness();
+    final ProviderContainer c = h.container();
+    await _openPanel(tester, c);
+    await scrollToScriptButtons(tester);
+
+    await tester.tap(
+        find.byKey(const ValueKey<String>(kDebugGuardScriptKeyTheft)));
+    final bool written = await _pumpUntil(
+      tester,
+      () => c.read(debugGuardBattleScriptOverrideProvider) != null,
+    );
+    expect(written, isTrue);
+
+    final GuardBattleScript? s =
+        c.read(debugGuardBattleScriptOverrideProvider);
+    for (final GuardBattleMonsterSpec m in s!.monsters) {
+      expect(m.kind, GuardBattleMonsterKind.m1, reason: '全 m1 ⇒ 必有怪到门口');
+      expect(m.steal, kGuardStealMax, reason: '偷取顶格（封顶展示素材）');
+    }
+  });
+
+  testWidgets('6d) 点「恢复随机剧本」⇒ 覆盖清空（provider 回 null）',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final _Harness h = _Harness();
+    final ProviderContainer c = h.container();
+    await _openPanel(tester, c);
+    await scrollToScriptButtons(tester);
+
+    // 先造一个覆盖（前置条件）。
+    await tester.tap(find.byKey(const ValueKey<String>(kDebugGuardScriptKeyCount3)));
+    final bool written = await _pumpUntil(
+      tester,
+      () => c.read(debugGuardBattleScriptOverrideProvider) != null,
+    );
+    expect(written, isTrue, reason: '前置：覆盖已写入');
+
+    // 「恢复随机剧本」在区块更下方 ⇒ 再滚。
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey<String>(kDebugGuardScriptKeyFollow)),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump();
+    await tester.tap(
+        find.byKey(const ValueKey<String>(kDebugGuardScriptKeyFollow)));
+    final bool cleared = await _pumpUntil(
+      tester,
+      () => c.read(debugGuardBattleScriptOverrideProvider) == null,
+    );
+    expect(cleared, isTrue, reason: '🔴 恢复随机 ⇒ 覆盖必须清空');
   });
 }

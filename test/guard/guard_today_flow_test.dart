@@ -1,17 +1,24 @@
-/// 第三批 · 今日页守卫胶囊 / 战斗 / 结算的**行为与布局护栏**。
+/// 守卫战 v2 · 今日页守卫**场景卡**与进战流程的**行为与布局护栏**。
 ///
-/// 真源：`docs/花园守卫_向日葵守卫者_增量PRD_v2.md` §4 / §8.1 / §8.2 / §8.3。
+/// 沿革：第三批 `guard_pill_test.dart` → B2 场景卡迁移 → **B3 改名本文件**
+/// （v1 胶囊本体与战斗浮层已退役；战斗流程用例迁往 `guard_battle_field_test.dart`）。
+/// 真源：`docs/花园守卫_向日葵守卫者_增量PRD_v2.md` §4 / §8.1 / §8.2 / §8.3；
+/// 守卫战 v2 设计文档 §7-B2/B3。
 ///
-/// ## 覆盖的 7 条（逐条对应交付要求）
+/// ## 覆盖（迁移对照见交付报告）
 /// | # | 断言 | 用例 |
 /// |---|---|---|
-/// | 1 | `absent` 零占位（第一张卡顶 == 列表顶 + 卡片内边距，无 44+10 空隙） | ① |
-/// | 2 | 5 种状态的文案与可点性 | ② |
-/// | 3 | 有能量时文案是「免费」且点击**不弹确认卡** | ③ |
+/// | 1 | `absent` 零占位（第一张卡顶 == 列表顶 + 卡片内边距，无 140+10 空隙） | ① |
+/// | 2 | 5 种状态的文案与可点性（场景卡：可点 = 「开始守卫」钮在树且回调触发） | ② |
+/// | 3 | 有能量时文案是「免费」且点击**不弹确认卡**、L4 战斗层直接上屏 | ③ |
 /// | 4 | 无能量时点击**先弹确认卡**，「今天不赶了」→ 不扣钱、状态不变 | ④ |
-/// | 5 | 320×554 + 1.3 字号下胶囊不溢出（宽度 = 屏宽 − 32 = 288） | ⑤ |
-/// | 6 | 战斗 10 秒后自动进结算；点「跳过」立即进结算 | ⑥⑦ |
-/// | 7 | `claim` 只落一次账（跳过 / 看完两条路径各只有 1 条 `guard_win`） | ⑥⑦ |
+/// | 5 | 320×554 + 1.3 字号下场景卡不溢出（宽度 = 屏宽 − 32 = 288） | ⑤ |
+/// | 8 | 无掉落档结算卡不写「券还能省 0 阳光」 | ⑧ |
+/// | 9 | 「券还能省 N」= 真实节省量（F4 / G2） | ⑨ |
+///
+/// （旧 ⑥⑦「跳过 / 看完 10 秒进结算」随战斗浮层退役；等价经济断言——
+/// 「claim 只落一次账 / 付费恰好扣一次」——迁往 `guard_battle_field_test.dart`
+/// 的全流程用例，断言对象换成卡内战斗与 30s 窗口，覆盖不降。）
 ///
 /// ## 为什么用真仓储 + 内存库（而不是假服务）
 /// 守卫链路是 `expire() → resolve() → energyAvailable()` 三连，且 `resolve()` 有
@@ -24,7 +31,7 @@
 /// ## 🔴 绝不 `pumpAndSettle`
 /// 今日页阳光气泡是 12 秒**无限循环**动画（`_drift.repeat()`），
 /// `pumpAndSettle` 会永不返回。全文件用定长 `pump(Duration)` 推进。
-library guard_pill_test;
+library guard_today_flow_test;
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -54,9 +61,10 @@ import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
-import 'package:sunflower_time/presentation/child/widgets/guard_battle_overlay.dart';
-import 'package:sunflower_time/presentation/child/widgets/guard_pill.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_result_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_tutorial_sheet.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // 夹具
@@ -124,10 +132,17 @@ Future<void> _seedPlant(_Env env, {String id = 'plant_1'}) async {
 /// 记一次**有效专注**（`plannedMin == 0` + `actualFocusMin ≥ 15` ⇒ 有效 ⇒ +1 能量）。
 Future<void> _seedValidFocus(_Env env, {String id = 'f_1'}) async {
   final DateTime now = DateTime.now();
+  // 🔴 午夜安全：sessionsOfDay 按 start 归日，`now − 20min` 在午夜后 20 分钟
+  // 内属于昨天 ⇒ 能量 0 ⇒ 免罚档（详见 guard_battle_field_test 同名注释）。
+  final DateTime todayStart = DateTime(now.year, now.month, now.day);
+  final DateTime rawStart = now.subtract(const Duration(minutes: 20));
+  final DateTime start = rawStart.isBefore(todayStart)
+      ? todayStart.add(const Duration(seconds: 1))
+      : rawStart;
   await FocusLocalRepository(env.database, account: env.account).saveSession(
     FocusSession(
       id: id,
-      start: now.subtract(const Duration(minutes: 20)),
+      start: start,
       end: now,
       plannedMin: 0,
       actualFocusMin: 20,
@@ -211,26 +226,48 @@ Future<void> _pumpUntil(
   expect(finder, findsOneWidget, reason: '等待超时：目标 widget 一直没出现');
 }
 
-/// 让**路由过渡**跑完（战斗浮层 `pop` 与结算卡 `push` 会在同一帧存在：
-/// `showGeneralDialog` 的 pop future 在 pop 当帧即完成，不等退场动画 ——
-/// 故「结算卡已出现」不等于「战斗浮层已消失」）。
+/// 让**路由过渡**跑完（结算卡 push / 教学浮层开关的过渡各 ~200ms）。
 Future<void> _settleRoute(WidgetTester tester) async {
   for (int i = 0; i < 6; i++) {
     await tester.pump(const Duration(milliseconds: 100));
   }
 }
 
+/// 越过 B2 教学浮层。
+///
+/// 🔴 B7：教学改成**永久一次**（设备级 prefs `guard_tutorial_seen_v1`），
+/// 同一 env 内第二次点卡不会再弹 ⇒ 这里必须「弹了才点」；无条件等它会挂到超时。
+Future<void> _passTutorial(WidgetTester tester) async {
+  for (int i = 0; i < 30; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+    if (find.byKey(kGuardTutorialOkKey).evaluate().isNotEmpty) break;
+  }
+  if (find.byKey(kGuardTutorialOkKey).evaluate().isEmpty) return;
+  await _settleRoute(tester);
+  await tester.tap(find.byKey(kGuardTutorialOkKey));
+  await _settleRoute(tester);
+}
+
+/// 读场景卡的状态语义标签（B7：卡内零文本，状态只经 `Semantics.label` 出口）。
+String _cardLabel(WidgetTester tester) =>
+    tester
+        .widget<Semantics>(find.byKey(GuardSceneCard.statusSemanticsKey))
+        .properties
+        .label ??
+    '';
+
 /// 今日页第一张状态卡**标签**顶边相对列表顶边的偏移（渲染盒实测）。
 ///
 /// 绝对值的 3pt 来自 `_StatCard` 的 1px 描边 + 行盒上行留白 —— 本文件不依赖这个
-/// 绝对值，而是比较「有胶囊 / 无胶囊」两种布局的**差值**（必须恰好 54pt）。
+/// 绝对值，而是比较「有场景卡 / 无场景卡」两种布局的**差值**（B2 起必须恰好
+/// 140 + 10 = 150pt；B2 前 v1 胶囊时代是 44 + 10 = 54pt）。
 double _firstCardOffset(WidgetTester tester) {
   final Rect listRect = tester.getRect(find.byType(ListView));
   final Rect labelRect = tester.getRect(find.text('今日获取阳光'));
   return labelRect.top - listRect.top;
 }
 
-/// 直接构造一份胶囊快照（用于纯 widget 用例，不碰任何服务）。
+/// 直接构造一份守卫快照（用于纯 widget 用例，不碰任何服务）。
 GuardTodayView _view(
   GuardPillMode mode, {
   GuardThiefKind thief = GuardThiefKind.sunRat,
@@ -259,11 +296,14 @@ GuardTodayView _view(
   );
 }
 
-/// 把 [GuardPill] 单独挂在 288pt 宽的槽位里（= 320 屏 − 左右 16）。
-Future<void> _pumpPill(
+/// 把 [GuardSceneCard] 单独挂在 [width] 宽的槽位里（= 320 屏 − 左右 16）。
+///
+/// （B3 迁移注：原 `_pumpPill` 的夹具对象由 GuardPill 换成 GuardSceneCard；
+/// dayKey/childId 用字面量 —— widget 级用例不消费战局结果，只验布局与交互。）
+Future<void> _pumpCard(
   WidgetTester tester,
   GuardTodayView view, {
-  VoidCallback? onTap,
+  VoidCallback? onStart,
   double width = 288,
   double textScale = 1.0,
 }) async {
@@ -278,13 +318,18 @@ Future<void> _pumpPill(
         body: Center(
           child: SizedBox(
             width: width,
-            child: GuardPill(view: view, onTap: onTap),
+            child: GuardSceneCard(
+              view: view,
+              dayKey: '2026-01-01',
+              childId: 'seed-0',
+              onStart: onStart,
+            ),
           ),
         ),
       ),
     ),
   );
-  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 50));
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -293,61 +338,90 @@ Future<void> _pumpPill(
 
 void _groupAbsent() {
   group('① absent 零占位', () {
-    testWidgets('全园无存活株 ⇒ 不渲染胶囊；种上植物后胶囊出现，第一张卡**恰好**下移 54pt',
+    testWidgets('全园无存活株 ⇒ 不渲染场景卡；种上植物后卡片出现，第一张卡**恰好**下移 122pt',
         (WidgetTester tester) async {
       final _Env env = await _makeEnv(); // 先刻意不种植物
       final ProviderContainer container = await _pumpToday(tester, env);
 
       // ── 前：absent ────────────────────────────────────────────────
-      expect(find.byKey(GuardPill.pillKey), findsNothing,
+      expect(find.byKey(GuardSceneCard.cardKey), findsNothing,
           reason: 'absent 必须**完全不渲染**（不是透明 / 零宽）');
-      final double offsetWithoutPill = _firstCardOffset(tester);
+      final double offsetWithoutCard = _firstCardOffset(tester);
 
       // ── 后：种一株（= 有存活株 ⇒ resolve 生成小偷），触发一次刷新 ──
       await _seedPlant(env);
       container.read(economyRevisionProvider.notifier).state++;
-      await _pumpUntil(tester, find.byKey(GuardPill.pillKey));
+      await _pumpUntil(tester, find.byKey(GuardSceneCard.cardKey));
       await _settleRoute(tester);
 
-      expect(find.byKey(GuardPill.pillKey), findsOneWidget,
-          reason: '有存活株时 resolve() 必然生成小偷 ⇒ 胶囊必须渲染');
-      final double offsetWithPill = _firstCardOffset(tester);
+      expect(find.byKey(GuardSceneCard.cardKey), findsOneWidget,
+          reason: '有存活株时 resolve() 必然生成小偷 ⇒ 场景卡必须渲染');
+      final double offsetWithCard = _firstCardOffset(tester);
 
-      // 🔴 零占位的判据：偏移量的**差值恰好等于胶囊占位高度**，
-      //    也就是说 absent 时没有留下任何空档（插空 `SizedBox` 会让差值 < 54）。
-      expect(offsetWithPill - offsetWithoutPill,
-          closeTo(kGuardPillHeight + kGuardPillGap, 0.5),
-          reason: '胶囊占位必须恰好 = kGuardPillHeight(44) + kGuardPillGap(10)');
+      // 🔴 B10/B1：**卡上不再包 `Transform`**（B9 的做法会被 ListView 视口裁掉
+      // ⇒ 玄参报的「房子被削顶」）。上移改成「缩上方 sceneGap」⇒ 视口顶边自己
+      // 上移 16pt，卡在视口内的偏移恒为 0。
+      // 注：祖先链上仍有页面级 Transform（底图 / 气泡），故判据是「**没有任何
+      // 祖先把卡纵向位移**」，而不是「一个 Transform 都没有」。
+      for (final Transform tf in tester.widgetList<Transform>(
+        find.ancestor(
+          of: find.byKey(GuardSceneCard.cardKey),
+          matching: find.byType(Transform),
+        ),
+      )) {
+        expect(tf.transform.getTranslation().y, closeTo(0, 0.01),
+            reason: '🔴 B10/B1：卡的祖先不许把它纵向位移（B9 的 −16 是削顶根因）');
+      }
+      final Rect listRect = tester.getRect(find.byType(ListView));
+      expect(
+          tester.getRect(find.byKey(GuardSceneCard.cardKey)).top - listRect.top,
+          closeTo(0, 0.5),
+          reason: '🔴 B10/B1：卡顶 == 列表顶（整张卡合法可见，零裁剪）');
+
+      // 🔴 零占位的判据：偏移量的**差值恰好等于场景卡占位高度**，
+      //    也就是说 absent 时没有留下任何空档。
+      // B10：卡高 112 + 间距 10 = **122**（偏移量相对列表顶量，故上移量不参与）。
+      expect(offsetWithCard - offsetWithoutCard,
+          closeTo(kGuardSceneCardHeight + kGuardPillGap, 0.5),
+          reason: '场景卡占位必须恰好 = kGuardSceneCardHeight(112) + '
+              'kGuardPillGap(10) = 122pt');
     });
 
-    testWidgets('胶囊矩形：紧贴列表顶、宽度 = 屏宽 − 32',
+    testWidgets('场景卡矩形：卡顶 == 列表顶（零裁剪）、宽度 = 屏宽、高度 = 112',
         (WidgetTester tester) async {
       final _Env env = await _makeEnv();
       await _seedPlant(env);
       await _pumpToday(tester, env);
 
       final Rect listRect = tester.getRect(find.byType(ListView));
-      final Rect pillRect = tester.getRect(find.byKey(GuardPill.pillKey));
-      expect(pillRect.top, closeTo(listRect.top, 0.5));
-      expect(pillRect.left, closeTo(listRect.left + 16, 0.5));
-      expect(pillRect.width, closeTo(listRect.width - 32, 0.5));
-      expect(pillRect.height, greaterThanOrEqualTo(44.0 - 0.5),
-          reason: '胶囊不得低于 44pt 触控下限');
+      final Rect cardRect = tester.getRect(find.byKey(GuardSceneCard.cardKey));
+      // 🔴 B10/B1：卡顶必须**不高于**列表顶（否则被 ClipRect 裁掉屋顶）。
+      expect(cardRect.top, greaterThanOrEqualTo(listRect.top - 0.01),
+          reason: '🔴 卡顶 ≥ 视口顶边（这条是 B10 的硬断言：卡不许被裁剪）');
+      expect(cardRect.top, closeTo(listRect.top, 0.5),
+          reason: '🔴 卡顶 == 列表顶（上移量已由 sceneGap 让出）');
+      // B8/A4：卡改成**满宽贴边**（OverflowBox 抵掉 ListView 的 16pt 内边距）。
+      expect(cardRect.left, closeTo(listRect.left, 0.5),
+          reason: '🔴 草地条贴到屏幕左边');
+      expect(cardRect.width, closeTo(listRect.width, 0.5),
+          reason: '🔴 卡宽 = 屏宽（不再 − 32）');
+      expect(cardRect.height, closeTo(kGuardSceneCardHeight, 0.5),
+          reason: '场景卡高度恒 112pt（不随字号缩放）');
     });
   });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// ② 五种状态的文案与可点性
+// ② 五种状态的文案与可点性（B3 迁移：夹具 GuardPill → GuardSceneCard）
 // ═══════════════════════════════════════════════════════════════════════
 
 void _groupModes() {
-  group('② 五种状态的文案与可点性', () {
-    /// 逐态：文案、是否可点（点击回调是否被触发）、尾标。
+  group('② 五种状态的文案与可点性（场景卡）', () {
+    /// 逐态：文案、是否可点（可点 = 「开始守卫」钮在树且回调被触发）。
     final Map<GuardPillMode, String> labels = <GuardPillMode, String>{
       GuardPillMode.pendingFree: '用专注能量赶跑它（免费）',
       GuardPillMode.pendingPaid: '偷菜贼来了，现在赶跑它吧',
-      GuardPillMode.freeRide: '阿葵自己顶班，今天不用管',
+      GuardPillMode.freeRide: '小小葵自己顶班，今天不用管',
       GuardPillMode.fighting: '守卫正在赶走它…',
       GuardPillMode.claimed: '今天的菜守住了',
     };
@@ -360,15 +434,24 @@ void _groupModes() {
       testWidgets('${mode.name} → 「${entry.value}」· ${tappable ? '可点' : '不可点'}',
           (WidgetTester tester) async {
         int taps = 0;
-        await _pumpPill(tester, _view(mode), onTap: () => taps++);
+        await _pumpCard(tester, _view(mode), onStart: () => taps++);
 
-        expect(find.text(entry.value), findsOneWidget);
-        await tester.tap(find.byKey(GuardPill.pillKey));
-        await tester.pump();
-
+        expect(_cardLabel(tester), contains(entry.value),
+            reason: '${mode.name} 的状态文案必须活在卡的 Semantics.label 上（卡内零文本）');
         if (tappable) {
+          expect(find.byKey(GuardSceneCard.startButtonKey), findsOneWidget,
+              reason: '${mode.name} 必须渲染「开始守卫」钮');
+          await tester.tap(find.byKey(GuardSceneCard.startButtonKey));
+          await tester.pump();
           expect(taps, 1, reason: '${mode.name} 必须可点');
         } else {
+          // 等价断言（旧：整条胶囊不可点）：非可点态**没有**开始钮，
+          // 点卡面其它位置也不触发回调。
+          expect(find.byKey(GuardSceneCard.startButtonKey), findsNothing,
+              reason: '${mode.name} 不得渲染「开始守卫」钮');
+          await tester.tap(find.byKey(GuardSceneCard.cardKey),
+              warnIfMissed: false);
+          await tester.pump();
           expect(taps, 0, reason: '${mode.name} 必须不可点');
         }
       });
@@ -376,20 +459,17 @@ void _groupModes() {
 
     testWidgets('pendingPaid 尾标显示 −5 ☀（数字来自 kGuardPayCost）',
         (WidgetTester tester) async {
-      await _pumpPill(tester, _view(GuardPillMode.pendingPaid),
-          onTap: () {});
-      expect(find.byKey(GuardPill.trailingKey), findsOneWidget);
-      expect(find.text('−$kGuardPayCost ☀'), findsOneWidget);
+      await _pumpCard(tester, _view(GuardPillMode.pendingPaid), onStart: () {});
+      expect(_cardLabel(tester), contains('−$kGuardPayCost ☀'));
     });
 
     testWidgets('pendingFree 没有尾标（文案已说明免费，不重复报 0 ☀）',
         (WidgetTester tester) async {
-      await _pumpPill(tester, _view(GuardPillMode.pendingFree),
-          onTap: () {});
-      expect(find.byKey(GuardPill.trailingKey), findsNothing);
+      await _pumpCard(tester, _view(GuardPillMode.pendingFree), onStart: () {});
+      expect(_cardLabel(tester), isNot(contains('−$kGuardPayCost ☀')));
     });
 
-    test('guardPillModeOf：resolve 的三种成本模式映射到正确的胶囊态', () {
+    test('guardPillModeOf：resolve 的三种成本模式映射到正确的卡态', () {
       const String today = '2026-01-01';
       GuardDayState pendingState() => const GuardDayState(
             dayKey: today,
@@ -436,31 +516,32 @@ void _groupModes() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// ③ 有能量 → 免费文案 + 点击不弹确认卡
+// ③ 有能量 → 免费文案 + 点击不弹确认卡 + L4 战斗层直接上屏
 // ═══════════════════════════════════════════════════════════════════════
 
 void _groupFreePath() {
   group('③ 有能量：文案是「免费」且点击不弹确认卡', () {
-    testWidgets('有 1 次有效专注 ⇒ 胶囊写「免费」，点击直接进战斗',
+    testWidgets('有 1 次有效专注 ⇒ 卡写「免费」，点击直接进战斗（L4 上屏）',
         (WidgetTester tester) async {
       final _Env env = await _makeEnv();
       await _seedPlant(env);
       await _seedValidFocus(env);
       await _pumpToday(tester, env);
 
-      expect(find.text('用专注能量赶跑它（免费）'), findsOneWidget);
-      expect(find.byKey(GuardPill.trailingKey), findsNothing,
+      expect(_cardLabel(tester), contains('用专注能量赶跑它（免费）'));
+      expect(_cardLabel(tester), isNot(contains('−$kGuardPayCost ☀')),
           reason: '免费路径不该显示 −5 ☀');
 
-      await tester.tap(find.byKey(GuardPill.pillKey));
+      // B2/B3：点的是场景卡「开始守卫」；fresh 环境先过教学浮层。
+      await tester.tap(find.byKey(GuardSceneCard.startButtonKey));
+      await _passTutorial(tester);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
 
       // 🔴 关键断言：免费路径**不得**弹确认卡。
-      expect(find.text('要花 $kGuardPayCost 阳光请阿葵出手吗？'), findsNothing,
-          reason: '有能量时点胶囊必须直接开战，不弹确认卡');
-      expect(find.byKey(GuardBattleOverlay.overlayKey), findsOneWidget,
-          reason: '点击后应直接上战斗界面');
+      expect(find.text('要花费 $kGuardPayCost 阳光，请小小葵战士帮忙吗？'), findsNothing,
+          reason: '有能量时点卡必须直接开战，不弹确认卡');
+      expect(find.byKey(GuardBattleField.fieldKey), findsOneWidget,
+          reason: '点击后 L4 战斗层应直接上屏（卡内战斗，v1 浮层已退役）');
     });
   });
 }
@@ -471,7 +552,7 @@ void _groupFreePath() {
 
 void _groupPaidConfirm() {
   group('④ 无能量但余额够：先弹确认卡，「今天不赶了」零副作用', () {
-    testWidgets('点胶囊 → 弹确认卡；点「今天不赶了」→ 不扣钱、不战斗、存档不变',
+    testWidgets('点卡 → 弹确认卡；点「今天不赶了」→ 不扣钱、不战斗、存档不变',
         (WidgetTester tester) async {
       final _Env env = await _makeEnv();
       await _seedPlant(env);
@@ -479,35 +560,39 @@ void _groupPaidConfirm() {
       await _pumpToday(tester, env);
 
       // 无能量 + 余额 100 ⇒ 付费待办态。
-      expect(find.text('偷菜贼来了，现在赶跑它吧'), findsOneWidget);
+      expect(_cardLabel(tester), contains('偷菜贼来了，现在赶跑它吧'));
       final GuardDayState before = await env.guardState();
       expect(before.status, GuardDayStatus.pending);
       final String today = dayKey(DateTime.now());
 
-      await tester.tap(find.byKey(GuardPill.pillKey));
+      // B2/B3：点的是场景卡「开始守卫」；fresh 环境先过教学浮层。
+      await tester.tap(find.byKey(GuardSceneCard.startButtonKey));
+      await _passTutorial(tester);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
 
-      expect(find.text('要花 $kGuardPayCost 阳光请阿葵出手吗？'), findsOneWidget,
-          reason: '无能量时点胶囊必须先弹确认卡');
+      expect(find.text('要花费 $kGuardPayCost 阳光，请小小葵战士帮忙吗？'), findsOneWidget,
+          reason: '无能量时点卡必须先弹确认卡');
       expect(find.text('今天不赶了'), findsOneWidget);
-      expect(find.byKey(GuardBattleOverlay.overlayKey), findsNothing,
+      expect(find.byKey(GuardBattleField.fieldKey), findsNothing,
           reason: '确认之前不得开战');
 
       await tester.tap(find.text('今天不赶了'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 250));
 
-      expect(find.byKey(GuardBattleOverlay.overlayKey), findsNothing);
-      expect(find.text('偷菜贼来了，现在赶跑它吧'), findsOneWidget,
-          reason: '取消后胶囊必须回到待处理态（状态不变）');
+      expect(find.byKey(GuardBattleField.fieldKey), findsNothing);
+      expect(_cardLabel(tester), contains('偷菜贼来了，现在赶跑它吧'),
+          reason: '取消后卡必须回到待处理态（状态不变）');
 
       // 零副作用三连：余额未动、账本无 guard_pay、存档未被改写。
       expect(await env.ledger.balance(), closeTo(100, 1e-9));
       expect(await env.ledgerRowsOnDay(kGuardPayRefType, today), 0);
       expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 0);
       final GuardDayState after = await env.guardState();
-      expect(after, before, reason: '🔴 取消必须一个字都不写');
+      // B2 唯一允许的差异 = tutorialSeen（点卡即算教过，与是否开战无关）；
+      // 其余字段（status / paidSun / winSun / dropKind…）必须一个字都不写。
+      expect(after, before.copyWith(tutorialSeen: true),
+          reason: '🔴 取消必须零经济副作用（教学标记除外）');
       expect(after.status, GuardDayStatus.pending);
       expect(after.paidSun, 0);
     });
@@ -515,12 +600,12 @@ void _groupPaidConfirm() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// ⑤ 320×554 + 1.3 字号不溢出
+// ⑤ 320×554 + 1.3 字号不溢出（B3 迁移：夹具 GuardPill → GuardSceneCard）
 // ═══════════════════════════════════════════════════════════════════════
 
 void _groupOverflow() {
-  group('⑤ 320×554 + 1.3 字号：胶囊不溢出', () {
-    testWidgets('最长的两种文案（免费 / 阿葵顶班）都不溢出，宽度仍 = 屏宽 − 32',
+  group('⑤ 320×554 + 1.3 字号：场景卡不溢出', () {
+    testWidgets('5 种状态都不溢出，宽度仍 = 屏宽 − 32',
         (WidgetTester tester) async {
       for (final GuardPillMode mode in <GuardPillMode>[
         GuardPillMode.pendingFree,
@@ -529,22 +614,24 @@ void _groupOverflow() {
         GuardPillMode.fighting,
         GuardPillMode.claimed,
       ]) {
-        await _pumpPill(
+        await _pumpCard(
           tester,
           _view(mode),
-          onTap: () {},
+          onStart: () {},
           width: 320 - 32,
           textScale: 1.3,
         );
+        // fighting 态多推一帧（L4 战斗层的 ticker 跑起来后再查溢出）。
+        await tester.pump(const Duration(milliseconds: 100));
         expect(tester.takeException(), isNull,
             reason: '${mode.name} 在 320 屏 + 1.3 字号下不得溢出（F127 教训）');
-        final Rect rect = tester.getRect(find.byKey(GuardPill.pillKey));
+        final Rect rect = tester.getRect(find.byKey(GuardSceneCard.cardKey));
         expect(rect.width, closeTo(288, 0.5),
-            reason: '胶囊宽度必须撑满可用宽（320 − 32 = 288），不能被文字顶宽');
+            reason: '卡宽必须撑满可用宽（320 − 32 = 288），不能被文字顶宽');
       }
     });
 
-    testWidgets('今日页整页 320×554 + 1.3 字号：胶囊上屏且无 RenderFlex 溢出',
+    testWidgets('今日页整页 320×554 + 1.3 字号：场景卡上屏且无 RenderFlex 溢出',
         (WidgetTester tester) async {
       final _Env env = await _makeEnv();
       await _seedPlant(env);
@@ -552,147 +639,15 @@ void _groupOverflow() {
       await _pumpToday(tester, env,
           screen: const Size(320, 554), textScale: 1.3);
 
-      expect(find.byKey(GuardPill.pillKey), findsOneWidget);
+      expect(find.byKey(GuardSceneCard.cardKey), findsOneWidget);
       final Rect listRect = tester.getRect(find.byType(ListView));
-      final Rect pillRect = tester.getRect(find.byKey(GuardPill.pillKey));
-      expect(pillRect.width, closeTo(listRect.width - 32, 0.5));
+      final Rect cardRect = tester.getRect(find.byKey(GuardSceneCard.cardKey));
+      expect(cardRect.width, closeTo(listRect.width, 0.5),
+          reason: '🔴 满宽贴边（卡宽 = 屏宽 320，不再 − 32）');
+      expect(cardRect.height, closeTo(kGuardSceneCardHeight, 0.5),
+          reason: '320 屏下场景卡高度仍恒 108pt');
       expect(tester.takeException(), isNull,
           reason: '320×554 + 1.3 字号下整页不得出现 RenderFlex 溢出');
-    });
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// ⑥⑦ 战斗 → 结算（看完 / 跳过）+ claim 只落一次账
-// ═══════════════════════════════════════════════════════════════════════
-
-void _groupBattleAndClaim() {
-  group('⑥⑦ 战斗 → 结算卡 → 收下（claim 只落一次账）', () {
-    testWidgets('跳过：600ms 后才有「跳过」按钮，点了立即进结算；收下只发一次奖',
-        (WidgetTester tester) async {
-      final _Env env = await _makeEnv();
-      await _seedPlant(env);
-      await _seedValidFocus(env); // 有能量 ⇒ 免费路径，不弹确认卡
-      await _pumpToday(tester, env);
-
-      await tester.tap(find.byKey(GuardPill.pillKey));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
-
-      expect(find.byKey(GuardBattleOverlay.overlayKey), findsOneWidget);
-      // 防误触：一进来**没有**跳过按钮。
-      expect(find.byKey(GuardBattleOverlay.skipButtonKey), findsNothing,
-          reason: '$kGuardBattleSkipDelayMs ms 之前不得出现「跳过」');
-
-      // 越过 kGuardBattleSkipDelayMs → 按钮出现。
-      await tester.pump(const Duration(milliseconds: kGuardBattleSkipDelayMs));
-      expect(find.byKey(GuardBattleOverlay.skipButtonKey), findsOneWidget);
-
-      // 跳过 ⇒ 立刻进结算（不必等满 10 秒）。
-      await tester.tap(find.byKey(GuardBattleOverlay.skipButtonKey));
-      await _pumpUntil(tester, find.byKey(GuardResultCard.cardKey));
-      await _settleRoute(tester);
-
-      expect(find.byKey(GuardBattleOverlay.overlayKey), findsNothing);
-      // 结算卡内容：标题 + 必得阳光 + 比较说明（R2 缓解，必须有）。
-      expect(find.textContaining('赶走了'), findsOneWidget);
-      final int winSun = (await env.guardState()).winSun;
-      expect(find.text('拿回 $winSun 阳光'), findsOneWidget,
-          reason: '必得阳光行必须是「拿回 N 阳光」（与存档里的 winSun 一致）');
-      expect(find.textContaining('券还能省'), findsOneWidget,
-          reason: '🔴 比较说明是 R2 缓解，必须有');
-
-      final String today = dayKey(DateTime.now());
-      // 战斗阶段**不**发奖：跳到结算卡时账本还没有 guard_win。
-      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 0,
-          reason: '🔴 奖励只在「收下」时发放，跳过动画本身不发奖');
-
-      await tester.tap(find.byKey(GuardResultCard.collectButtonKey));
-      await _pumpUntil(tester, find.byType(ChildTodayPage));
-      for (int i = 0; i < 20; i++) {
-        await tester.pump(const Duration(milliseconds: 100));
-      }
-
-      // 🔴 claim 只落一次账。
-      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 1,
-          reason: '必得阳光必须恰好入账一次');
-      expect(await env.ledgerRowsOnDay(kGuardPayRefType, today), 0,
-          reason: '有能量路径不得扣阳光');
-      final GuardDayState state = await env.guardState();
-      expect(state.status, GuardDayStatus.claimed);
-      expect(state.energyUsed, 1);
-
-      // 已领取 ⇒ 胶囊切到「今天的菜守住了」，且不可再点。
-      expect(find.text('今天的菜守住了'), findsOneWidget);
-    });
-
-    testWidgets('看完 10 秒：自动进结算；收下同样只发一次奖（与跳过的结果逐位相同）',
-        (WidgetTester tester) async {
-      final _Env env = await _makeEnv();
-      await _seedPlant(env);
-      await _seedValidFocus(env);
-      await _pumpToday(tester, env);
-
-      await tester.tap(find.byKey(GuardPill.pillKey));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
-      expect(find.byKey(GuardBattleOverlay.overlayKey), findsOneWidget);
-
-      // 一次推进整段战斗时长：控制器到 1.0 ⇒ completed ⇒ 自动 pop ⇒ 进结算卡。
-      await tester.pump(const Duration(milliseconds: kGuardBattleMs + 400));
-      await _pumpUntil(tester, find.byKey(GuardResultCard.cardKey));
-      await _settleRoute(tester);
-
-      expect(find.byKey(GuardBattleOverlay.overlayKey), findsNothing,
-          reason: '播完必须自动进结算（无需点任何按钮）');
-
-      final String today = dayKey(DateTime.now());
-      await tester.tap(find.byKey(GuardResultCard.collectButtonKey));
-      for (int i = 0; i < 24; i++) {
-        await tester.pump(const Duration(milliseconds: 100));
-      }
-
-      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 1,
-          reason: '看完路径同样恰好入账一次');
-      final GuardDayState state = await env.guardState();
-      expect(state.status, GuardDayStatus.claimed);
-    });
-
-    testWidgets('付费路径：确认后扣 5 ☀ 一次、发奖一次，且比较说明写「花了 5 阳光」',
-        (WidgetTester tester) async {
-      final _Env env = await _makeEnv();
-      await _seedPlant(env);
-      await _seedBalance(env, 100);
-      await _pumpToday(tester, env);
-
-      await tester.tap(find.byKey(GuardPill.pillKey));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
-      await tester.tap(find.text('确定')); // 确认卡的主按钮（shared_ok）
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
-      expect(find.byKey(GuardBattleOverlay.overlayKey), findsOneWidget);
-
-      await tester.pump(const Duration(milliseconds: kGuardBattleMs + 400));
-      await _pumpUntil(tester, find.byKey(GuardResultCard.cardKey));
-      await _settleRoute(tester);
-
-      expect(find.textContaining('花了 $kGuardPayCost 阳光'), findsOneWidget,
-          reason: '付费路径的比较说明必须点明「花了 5 阳光」');
-
-      final String today = dayKey(DateTime.now());
-      await tester.tap(find.byKey(GuardResultCard.collectButtonKey));
-      for (int i = 0; i < 24; i++) {
-        await tester.pump(const Duration(milliseconds: 100));
-      }
-
-      expect(await env.ledgerRowsOnDay(kGuardPayRefType, today), 1,
-          reason: '付费必须恰好扣一次');
-      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 1,
-          reason: '必得阳光必须恰好发一次');
-      final GuardDayState state = await env.guardState();
-      expect(state.paidSun, 5);
-      expect(state.status, GuardDayStatus.claimed);
     });
   });
 }
@@ -847,7 +802,6 @@ void main() {
   _groupFreePath();
   _groupPaidConfirm();
   _groupOverflow();
-  _groupBattleAndClaim();
   _groupNoDrop();
   _groupVoucherSaving();
 }

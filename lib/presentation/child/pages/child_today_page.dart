@@ -31,12 +31,21 @@ import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
+import 'package:sunflower_time/presentation/child/state/guard_debug_script.dart'
+    show debugGuardBattleScriptOverrideProvider;
+import 'package:sunflower_time/domain/services/guard_battle_sim.dart'
+    show GuardBattleScript;
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
-import 'package:sunflower_time/presentation/child/widgets/guard_battle_overlay.dart';
-import 'package:sunflower_time/presentation/child/widgets/guard_pill.dart';
+// B3（守卫战 v2）：战斗浮层（guard_battle_overlay.dart）已退役 —— 战斗本体
+// 在场景卡 L4（guard_battle_field.dart）跑；v1 胶囊（guard_pill.dart）同批删除，
+// 模式判定函数本就驻在 guard_today_state.dart（落点未变）。
+import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart'
+    show GuardBattleHandle;
 import 'package:sunflower_time/presentation/child/widgets/guard_result_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_tutorial_sheet.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/sun_burst.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
@@ -160,6 +169,42 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
 
   /// 守卫交互在飞闸门（防「连点胶囊」叠出两个战斗浮层）。
   bool _guardBusy = false;
+
+  /// 进入战斗前的守卫快照（结算卡入参；`_onGuardCardTap` 存、
+  /// `_onBattleFinished` 用完即清 —— v1 用局部变量承载，B3 战斗改在卡内跑，
+  /// 终局跨方法回调，故升为字段）。
+  GuardTodayView? _battleView;
+
+  /// 开火手柄（B7）：**页面**持有 —— 开火入口是页面右上的阳光胶囊，
+  /// 它在场景卡之外，经 `GuardSceneCard(battleHandle: …)` 下发到 L4 战斗层。
+  /// 战斗层未挂载 / 已收场时 `fire()` 是 no-op（手柄自带闸门）。
+  final GuardBattleHandle _guardBattleHandle = GuardBattleHandle();
+
+  /// 教学浮层是否**已经看过**（B7：prefs 永久一次，不再按天重置）。
+  ///
+  /// 🔴 读失败（prefs 宿主不可用 / 未 override）⇒ 当作**没看过**：
+  /// 宁可多讲一遍，也不能因为存储异常让孩子看不到规则；且绝不阻断开战。
+  bool _tutorialSeenInPrefs() {
+    try {
+      return ref.read(sharedPreferencesProvider)
+              .getBool(kGuardTutorialSeenPrefKey) ??
+          false;
+    } catch (e) {
+      debugPrint('[Guard] 读「教学已看」失败（按未看过处理）：$e');
+      return false;
+    }
+  }
+
+  /// 标记教学已看（失败一律吞掉：最坏下次再讲一遍，绝不阻断开战）。
+  Future<void> _markTutorialSeenInPrefs() async {
+    try {
+      await ref
+          .read(sharedPreferencesProvider)
+          .setBool(kGuardTutorialSeenPrefKey, true);
+    } catch (e) {
+      debugPrint('[Guard] 标记「教学已看」失败（不阻断）：$e');
+    }
+  }
 
   /// 点阳光胶囊 → 播一次「阳光四散」。
   ///
@@ -325,9 +370,11 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
     );
   }
 
-  /// 点胶囊：按胶囊态决定「直接开战」还是「先弹确认卡」，然后
-  /// 战斗浮层 → 结算卡（`claim()` 在结算卡的「收下」里，不在这里）。
-  Future<void> _onGuardPillTap() async {
+  /// 点场景卡「开始守卫」：教学闸门（首次）→ 确认卡（付费）→ 落盘「已进战斗」
+  /// → 场景卡切入战斗态。战斗本体在**卡内 L4**跑（`GuardBattleField`，ticker
+  /// 喂 sim）；终局（Victory / Retreat）由 [GuardSceneCard.onBattleFinished]
+  /// 回调 [_onBattleFinished] 接结算卡 —— v1 的战斗浮层（dialog）已随 B3 退役。
+  Future<void> _onGuardCardTap() async {
     if (_guardBusy || !mounted) return;
     final GuardTodayView view = ref.read(guardTodayProvider);
     final GuardThiefKind? thief = view.thief;
@@ -336,6 +383,27 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
 
     _guardBusy = true;
     try {
+      // ⓪ 教学浮层（B2 新增，PRD §6「A 为主」）：**一辈子只讲一次**。
+      //
+      // 🔴 B7 修复（玄参真机：「每天都要再看一遍」）：判据从当日存档的
+      //    `GuardDayState.tutorialSeen`（跨天被新存档重置）改为**设备级 prefs**
+      //    [kGuardTutorialSeenPrefKey]。浮层只做展示；prefs 读不到 ⇒ 当作没看过
+      //    （宁可多讲一遍也不让孩子看不到规则），写失败吞掉 ⇒ 绝不阻断开战。
+      if (!_tutorialSeenInPrefs()) {
+        await showGuardTutorialSheet(context: context, l10n: t);
+        if (!mounted) return;
+        await _markTutorialSeenInPrefs();
+        if (!mounted) return;
+        // 兼容保留：当日存档里的 `tutorialSeen` 照旧打上（老存档 / 老逻辑的
+        // 向后兼容），但它**已不驱动弹层**。写失败同样不阻断。
+        try {
+          await ref.read(guardServiceProvider).markTutorialSeen();
+        } catch (e) {
+          debugPrint('[Guard] 标记「教学已看」（存档）失败（不阻断）：$e');
+        }
+        if (!mounted) return;
+      }
+
       // ① 付费路径**先弹确认卡**（PRD：孩子必须知道这一下要花 5 ☀）。
       //    有能量的免费路径**不弹**（直接开战）—— 不花钱的动作不需要二次确认。
       if (view.needsPayConfirm) {
@@ -349,10 +417,11 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         if (confirmed != true || !mounted) return;
       }
 
-      // ② 落盘「已进战斗」：孩子看完动画后强杀进程 / 闪退 / 没电，次日
+      // ② 落盘「已进战斗」：孩子看完战斗后强杀进程 / 闪退 / 没电，次日
       //    `expire()` 会走 `fighting` 分支（**补发**必得阳光、**不结算**损失），
-      //    而不是把他当「压根没管」照罚。必须发生在**开战之前**，否则杀进程的
-      //    窗口期就落回 `pending`。
+      //    而不是把他当「压根没管」照罚。必须发生在**开战之前**（B3 复核：
+      //    仍在 provider 切 fighting（= 卡挂 L4 战斗层）之前一步，语义保位），
+      //    否则杀进程的窗口期就落回 `pending`。
       //    🔴 只经领域服务写存储（`GuardStateStore` 文档：页面不得直接写）。
       //    写失败不阻断战斗 —— 最坏退回 `pending`（= 不标记的既有行为）。
       try {
@@ -361,28 +430,64 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         debugPrint('[Guard] 标记「战斗中」失败（不阻断战斗）：$e');
       }
       if (!mounted) return;
+      // 结算卡用**进入战斗前的快照**：`claim()` 的奖品由 `resolve()` 定死，
+      // 与战局输赢无关（v1 ④ 同口径，搬到终局回调里用）。
+      _battleView = view;
+      // 切 fighting ⇒ 卡挂 L4 战斗层（sim 零落盘：战局进度只活在 widget 树里，
+      // 强杀 / 重挂 = 战局重开，账本零新增行；落账只发生在打完之后的 claim）。
       ref.read(guardTodayProvider.notifier).state =
           view.copyWith(mode: GuardPillMode.fighting);
+      debugPrint('[Guard] 战斗开始（卡内 L4）：seed=$thief '
+          'day=${view.state.dayKey}');
+    } catch (e) {
+      // 确认 / 标记异常不弹错误框：最坏结果是「明天再来」。
+      debugPrint('[Guard] 进入战斗失败：$e');
+      _battleView = null;
+    } finally {
+      _guardBusy = false;
+    }
+  }
 
-      // ③ 战斗浮层（**纯回放**：落骰在 `resolve()` 时已定死、已落盘；
-      //    本步不写账本、不发奖励，故「跳过」与「看完」拿到逐位相同的结果）。
-      final bool skipped = await showGuardBattle(
-        context,
-        thief: thief,
-        l10n: t,
-      );
-      if (skipped) {
-        // 只用于埋点口径（`kGuardTrackSkip`）；🔴 不影响奖励内容。
-        debugPrint('[Guard] 孩子跳过了战斗动画（奖励口径不变）');
+  /// L4 战斗层终局回调（Victory / Retreat 各一次）：先落账「被偷」（B4 新增），
+  /// 再接**既有**结算卡流 —— v1 `_onGuardCardTap` 的 ④ 段原样保留，claim 语义 /
+  /// 幂等 / 账本口径一行不动。
+  ///
+  /// [battleStolenSun] = sim 终局报告的实际被偷合计（含 30s 到点时刻的钳制值；
+  /// 取数链路：sim 报告 → 本方法 → 结算卡）。
+  Future<void> _onBattleFinished(int battleStolenSun) async {
+    if (_guardBusy || !mounted) return;
+    final GuardTodayView? view = _battleView;
+    final AppLocalizations? t = _l10n;
+    if (view == null || t == null) return; // 防御：无快照（理论不可达）
+    _guardBusy = true;
+    try {
+      // ③½ 落账「被偷」（B4，§5.3 裁决 B「结束时一次写」）：战斗态零落盘，
+      //    被偷额只活在 sim 内存里，打完这一场才由本处**一次**写入 —— 同日
+      //    至多 1 行 `guard_stolen`（领域层自带读判定互斥，防与 expire 半截
+      //    时序双扣）。
+      //    🔴 失败不阻断结算卡：存储异常吞掉 + `[Guard]` 日志（与守卫链的
+      //    独立 try/catch 同范式）—— 绝不让「被偷没记上」导致孩子多看一张卡
+      //    或多扣一次。落账失败 ⇒ 实扣 0 ⇒ 结算卡**不渲染**被偷行（卡面 N
+      //    恒 == 账本行，见 [showGuardResultCard] 的 stolenSun 契约）。
+      int stolenCharged = 0;
+      try {
+        stolenCharged = await ref
+            .read(guardServiceProvider)
+            .recordBattleTheft(stolenSun: battleStolenSun);
+        debugPrint('[Guard] 战斗被偷落账: sim=$battleStolenSun → '
+            '实扣=$stolenCharged');
+      } catch (e) {
+        debugPrint('[Guard] 落账「被偷」失败（不阻断结算卡）：$e');
       }
       if (!mounted) return;
-
       // ④ 结算卡：「收下」才 `claim()`（唯一记账入口，领域层自带三层幂等）。
+      //    stolenSun 传**账本实扣额**（recordBattleTheft 返回值），不传 sim
+      //    原始值 —— 余额不足 / 已写过时实扣 < sim 值，卡面必须与账本一致。
       final GuardClaimOutcome? outcome = await showGuardResultCard(
         context,
-        // 用进入战斗前的快照：`claim()` 的奖品由 `resolve()` 定死，与动画无关。
         view: view,
         l10n: t,
+        stolenSun: stolenCharged,
         onCollect: () => ref.read(guardServiceProvider).claim(),
       );
       if (outcome == null) return;
@@ -402,11 +507,12 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         debugPrint('[Guard] claim 失败: ${outcome.failure}（不 bump）');
       }
     } catch (e) {
-      // 战斗 / 领取异常不弹错误框：孩子已经看完动画，最坏结果是「明天再来」。
-      debugPrint('[Guard] 战斗或领取失败：$e');
+      // 领取异常不弹错误框：孩子已经看完战斗，最坏结果是「明天再来」。
+      debugPrint('[Guard] 结算或领取失败：$e');
     } finally {
       _guardBusy = false;
-      // 无论成功、失败还是中途退出，都以存储为事实源校正一次胶囊态。
+      _battleView = null;
+      // 无论成功、失败还是中途退出，都以存储为事实源校正一次卡态。
       if (mounted) await _refreshGuard();
     }
   }
@@ -508,6 +614,17 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
     // 「买了会员界面不刷新」的教训。胶囊 / 第四批的 buff chip / 调试面板
     // 全部 watch 这同一个实例，任一处写完另一处自动刷新。
     final GuardTodayView guardView = ref.watch(guardTodayProvider);
+
+    // 🔴 E2（玄参真机报「调试面板点强制剧本没响应」的另一半）：调试「强制
+    // 剧本」按钮在**花园页**面板里，而本页在 IndexedStack 后台保活 —— 面板
+    // 写的是 store，本页的 [guardTodayProvider] 快照只有 `_refreshGuard` 才
+    // 会更新 ⇒ 不 listen 就永远不重读，卡片停在旧态（待机时甚至不出卡）。
+    // 覆盖变化 ⇒ 立即重读守卫状态。release 该 provider 恒 null、永不变化
+    // ⇒ 本 listen 零生产影响。
+    ref.listen<GuardBattleScript?>(
+      debugGuardBattleScriptOverrideProvider,
+      (_, GuardBattleScript? __) => _refreshGuard(),
+    );
 
     // C44 验收反馈（玄参 2026-10-09，参照期望图重排）：
     // ①上半场景（向日葵+积木插画）完整露出，卡片从 [kTodayCardTopRatio] 屏高开始
@@ -623,17 +740,66 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         Column(
           children: <Widget>[
             // 场景区：只占位不渲染内容，露出背景插画。
-            SizedBox(height: sceneGap),
+            //
+            // 🔴 B10/B1：场景卡「整体上移」不再用 `Transform`，而是把**滚动区
+            // 整体上移** [kGuardCardLift]（16pt）。原因：`Transform` 不消耗布局
+            // 空间 ⇒ 卡的绘制矩形被顶到 ListView 视口之外，被 `ClipRect` 直接
+            // 裁掉 —— 玄参第五轮报的「房子被削顶」就是这个。缩留白之后
+            // 视口顶边随之上移 16pt，卡仍在视口内 y=0 ⇒ **卡顶 == 视口顶边**，
+            // 整张卡合法可见（`guard_scene_card_visible_test` 硬断言）。
+            // 钳 ≥ 0：极矮屏 / 平板下移叠加时不允许出现负高度。
+            SizedBox(
+              height: math.max(
+                sceneGap - (guard.isVisible ? kGuardCardLift : 0),
+                0,
+              ),
+            ),
             // 中间：状态卡 + 引导文案，唯一可滚动区域。
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 children: <Widget>[
-                  // ── 花园守卫胶囊（第三批）────────────────────────────────
+                  // ── 花园守卫场景卡（守卫战 v2 · B2）──────────────────────
                   // 第 0 项：三张统计卡之前。`absent` ⇒ 一项都不插（零占位）。
-                  // 宽度由 ListView 撑满（屏宽 − 32）；高度见 `GuardPill`。
+                  // 高度恒 kGuardSceneCardHeight（B10 布局 v6 = **112**，
+                  // = padTop 14 + 房子 88 + padBottom 10；不随字号缩放，
+                  // F127 抗溢出口径）。宽度见下方 OverflowBox（满宽贴边）。
                   if (guard.isVisible) ...<Widget>[
-                    GuardPill(view: guard, onTap: _onGuardPillTap),
+                    // 🔴 B8/A4：场景卡**满宽贴边** —— ListView 有 16pt 横向
+                    // 内边距，但玄参要「草地条横向铺到屏幕边」（去框之后卡不再
+                    // 有圆角容器，边到边才不显得被切）。做法：给卡套一层
+                    // OverflowBox，把宽度撑到 screenW、左右各溢出 16pt ——
+                    // 溢出量仍在视口内，ListView 的裁剪不会真的切掉内容。
+                    // ⚠️ 高度必须是**紧约束**（ListView 子项高度无界，
+                    // OverflowBox 自己按 incoming constraints 定尺寸）。
+                    // 🔴 B10/B1：**不再包 Transform**（B9 的上移改成缩上面的
+                    // `sceneGap`，见那里的注释）—— 卡在视口内从 y=0 开始画，
+                    // 顶边不会被 ListView 裁掉。
+                    SizedBox(
+                      height: kGuardSceneCardHeight,
+                      child: OverflowBox(
+                        minWidth: screenW,
+                        maxWidth: screenW,
+                        child: GuardSceneCard(
+                          view: guard,
+                          // sim seed 入参：战局剧本 = f(dayKey, childId)，
+                          // 与守卫存档 / 奖励口径同源（同日同孩逐位相同）。
+                          dayKey: dayKey(DateTime.now()),
+                          childId: ref.read(accountServiceProvider).childId,
+                          onStart: _onGuardCardTap,
+                          onBattleFinished: _onBattleFinished,
+                          // B7：开火手柄由页面持有（阳光胶囊在卡外，见 build 的
+                          // `_FloatingSunBubble` 挂载点）。
+                          battleHandle: _guardBattleHandle,
+                          // B5a 调试剧本覆盖：仅 kDebugMode 的调试面板会写入该
+                          // provider（release 恒 null ⇒ 走真实 seed 派生，零感知）。
+                          debugScriptOverride:
+                              ref.watch(debugGuardBattleScriptOverrideProvider),
+                        ),
+                      ),
+                    ),
+                    // 卡后间距：**保持 kGuardPillGap(10)**。上移 16 已经落在
+                    // 上方 sceneGap 里了，这里再扣就会把统计卡多顶上去 10pt。
                     const SizedBox(height: kGuardPillGap),
                   ],
                   _StatCard(
@@ -722,6 +888,12 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
             capsuleKey: ChildTodayPage.sunBubbleKey,
             balance: _balance,
             drift: _drift,
+            // 🔴 B7（玄参裁定）：守卫战进行中 ⇒ 胶囊**停止漂浮**（位置钉死），
+            // 并临时变成「开火按钮」：点它 = 让小小葵打一枪（走页面持有的
+            // GuardBattleHandle，400ms 冷却 / 终局禁用语义全部不变）。
+            // 非战斗态 ⇒ 恢复原漂浮轨迹 + 「阳光四散」纯视觉特效（F170）。
+            firing: guard.mode == GuardPillMode.fighting,
+            onFire: () => _guardBattleHandle.fire(),
             // F170：点击 → 阳光四散（纯视觉，见 [_fireSunBurst]）。
             onBurst: _fireSunBurst,
           ),
@@ -786,6 +958,12 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
 /// 点击 → ① 数字轻弹一下（220ms，1.0→1.16→1.0，即时触觉反馈）；
 /// ② 上报**爆发圆心（全局坐标）**给页面，由页面插根 Overlay 播 [SunBurst]。
 /// 组件自身**不碰经济**（无奖励、无账本），只负责「点我 → 给坐标」。
+///
+/// 🔴 **B7（玄参 2026-11-10）——守卫战期间变身开火键**：守卫战进行中
+/// （[firing] = true）胶囊 ①**停止漂浮**（位置钉死：开火要瞄一个不动的目标）；
+/// ②点击改为**开火**（`onFire` → `GuardBattleHandle.fire()`，400ms 冷却 /
+/// 终局禁用语义全在领域层，胶囊只递「按」）；③不再播四散（战斗信号优先）。
+/// 战斗结束后自动恢复原漂浮轨迹 + 四散特效 —— 两条路径互斥、零状态残留。
 class _FloatingSunBubble extends StatefulWidget {
   final double balance;
   final Animation<double> drift;
@@ -794,14 +972,25 @@ class _FloatingSunBubble extends StatefulWidget {
   final Key? capsuleKey;
 
   /// 点击胶囊 → 回调**爆发圆心全局坐标**（页面据此插根 Overlay）。
-  /// 为 null 时胶囊不可点（保留旧的纯展示语义，供只做度量的测试使用）。
+  /// 为 null 时该形态不可点（保留旧的纯展示语义，供只做度量的测试使用）。
   final ValueChanged<Offset>? onBurst;
+
+  /// 🔴 B7：守卫战进行中 = true ——
+  ///  · **停止漂浮**（`Transform.translate` 归零，位置钉死，连测逐位相同）；
+  ///  · 点击改为**开火**（走 [onFire]，不再播「阳光四散」—— 战斗中的每一次
+  ///    点击都该有战局意义，四散特效会盖住信号弹）。
+  final bool firing;
+
+  /// 战斗态点击 → 开火（页面传 `() => handle.fire()`）。
+  final VoidCallback? onFire;
 
   const _FloatingSunBubble({
     required this.balance,
     required this.drift,
     this.capsuleKey,
     this.onBurst,
+    this.firing = false,
+    this.onFire,
   });
 
   @override
@@ -839,7 +1028,14 @@ class _FloatingSunBubbleState extends State<_FloatingSunBubble>
 
   void _handleTap() {
     // 数字轻弹：连点直接从头重播（`forward(from:0)` 幂等，不叠加控制器）。
+    // 战斗中同样轻弹 —— 这是「点到了」的即时反馈（开火是否被冷却拦下由 sim
+    // 决定，反馈不带战局含义）。
     _pop.forward(from: 0);
+    // 🔴 B7：战斗中点击 = 开火（不播四散，站位也不动）。
+    if (widget.firing) {
+      widget.onFire?.call();
+      return;
+    }
     final ValueChanged<Offset>? onBurst = widget.onBurst;
     if (onBurst == null) return;
     // 用**自身 RenderObject** 的全局矩形换算圆心：外层 `Transform.translate`
@@ -848,6 +1044,10 @@ class _FloatingSunBubbleState extends State<_FloatingSunBubble>
     if (rb == null || !rb.attached || !rb.hasSize) return;
     onBurst(rb.localToGlobal(rb.size.center(Offset.zero)));
   }
+
+  /// 胶囊是否可点（两种形态各有入口；都为 null ⇒ 纯展示，供度量测试用）。
+  bool get _tappable =>
+      widget.firing ? widget.onFire != null : widget.onBurst != null;
 
   @override
   Widget build(BuildContext context) {
@@ -872,14 +1072,17 @@ class _FloatingSunBubbleState extends State<_FloatingSunBubble>
         final double dy = math.cos(2 * t) * 12.2 +
             math.sin(4 * t) * 4.9 +
             math.cos(6 * t) * 2.4;
-        return Transform.translate(offset: Offset(dx, dy), child: child);
+        // 🔴 B7：战斗中（[firing]）**钉死位置** —— 开火要打的是「那个不动的
+        // 目标」，飘着点会让孩子瞄错、也让「连测 3 帧矩形逐位相同」不成立。
+        final Offset offset = widget.firing ? Offset.zero : Offset(dx, dy);
+        return Transform.translate(offset: offset, child: child);
       },
       // GestureDetector 包在胶囊**外层**：命中区 = 胶囊矩形本身（不透明白底），
-      // 不需要额外放大 —— 胶囊已有 44pt 高，满足触控下限。
+      // 不需要额外放大 —— 胶囊已有 44pt 高，满足触控下限（C67 放大后 46pt）。
       child: GestureDetector(
         // `opaque`：让空白内边距也算命中，避免「点在胶囊里却没反应」。
         behavior: HitTestBehavior.opaque,
-        onTap: widget.onBurst == null ? null : _handleTap,
+        onTap: _tappable ? _handleTap : null,
         child: Container(
           key: widget.capsuleKey,
           // C67：胶囊整体放大（见类文档的尺寸表）。
@@ -887,12 +1090,24 @@ class _FloatingSunBubbleState extends State<_FloatingSunBubble>
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.92),
             borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: const Color(0x33E8A600)),
-            boxShadow: const <BoxShadow>[
-              BoxShadow(
+            // 🔴 B7：战斗态把描边提成实金 + 加一圈金色柔光 —— 这是「现在点它
+            // 有用」的唯一视觉提示（不新增文案、不改尺寸：描边宽度恒 1，
+            // 故胶囊矩形逐位不变）。
+            border: Border.all(
+              color: widget.firing
+                  ? const Color(0xFFE8A600)
+                  : const Color(0x33E8A600),
+            ),
+            boxShadow: <BoxShadow>[
+              const BoxShadow(
                   color: Color(0x33000000),
                   blurRadius: 10,
                   offset: Offset(0, 4)),
+              if (widget.firing)
+                const BoxShadow(
+                    color: Color(0x66E8A600),
+                    blurRadius: 14,
+                    spreadRadius: 1),
             ],
           ),
           child: Row(

@@ -193,6 +193,29 @@ class GuardDayState {
   /// 当前 buff（`null` = 没有券 / 券已过期）。
   final GuardBuffState? buff;
 
+  /// 教学浮层（「15 分钟 = 1 能量点」）是否已看过（守卫战 v2 · B1 追加）。
+  ///
+  /// 只播一次的持久化标记：`fromJson` 缺字段兜底 `false`，老存档向后兼容
+  /// （老用户首次进战斗前会看到一次教学，之后不再弹）。
+  final bool tutorialSeen;
+
+  /// 当日**场次序号**（0 = 今天的第 1 场；B10/B4 追加）。单位：次。
+  ///
+  /// ## 🔴 为什么需要它（玄参第五轮「第二次花 5 阳光不扣」）
+  /// 账本的 `guard_pay` / `guard_win` id 是 `guard_pay_<child>_<dayKey>` —— 每天
+  /// **一行**。生产口径下一天只有一个贼、只领一次，这没问题；但调试重置后同一
+  /// 天会打第二场，第二次领取要么被账本主键去重丢掉、要么被「今天已有
+  /// `guard_win` 行 ⇒ 视为已领取」的幂等网挡住 ⇒ **花了钱不扣、赢了不发**。
+  ///
+  /// 本字段把「第几场」写进状态（幂等键不再只有 dayKey）：
+  ///  · 每次 `resolve()` / `forceThiefForDebug()` 生成当日状态时，从账本
+  ///    **当日 `guard_win` 行数**派生（每个完成的场次恰好一行）；
+  ///  · id 只在 `battleAttempt > 0` 时追加 `_a<attempt>` 后缀 ⇒
+  ///    **第 1 场（生产路径）的账本 id 与历史逐位相同，老数据零影响**；
+  ///  · 账本层幂等网的判据变成「当日 `guard_win` 行数 > 本场序号」——
+  ///    同一场内重复领取仍然只记一次钱（同 id 主键冲突），生产幂等**一格没松**。
+  final int battleAttempt;
+
   const GuardDayState({
     required this.dayKey,
     required this.status,
@@ -204,6 +227,8 @@ class GuardDayState {
     this.sunStolen = 0,
     this.growthStolen = const <String, double>{},
     this.buff,
+    this.tutorialSeen = false,
+    this.battleAttempt = 0,
   });
 
   /// 一天的空白起点（`dayKey` 变化时用它重置）。
@@ -238,6 +263,8 @@ class GuardDayState {
     Map<String, double>? growthStolen,
     GuardBuffState? buff,
     bool clearBuff = false,
+    bool? tutorialSeen,
+    int? battleAttempt,
   }) {
     return GuardDayState(
       dayKey: dayKey ?? this.dayKey,
@@ -250,6 +277,8 @@ class GuardDayState {
       sunStolen: sunStolen ?? this.sunStolen,
       growthStolen: growthStolen ?? this.growthStolen,
       buff: clearBuff ? null : (buff ?? this.buff),
+      tutorialSeen: tutorialSeen ?? this.tutorialSeen,
+      battleAttempt: battleAttempt ?? this.battleAttempt,
     );
   }
 
@@ -266,6 +295,8 @@ class GuardDayState {
       'sunStolen': sunStolen,
       'growthStolen': Map<String, double>.from(growthStolen),
       'buff': buff?.toJson(),
+      'tutorialSeen': tutorialSeen,
+      'battleAttempt': battleAttempt,
     };
   }
 
@@ -292,6 +323,10 @@ class GuardDayState {
       buff: rawBuff is Map
           ? GuardBuffState.fromJson(Map<String, Object?>.from(rawBuff))
           : null,
+      // 缺字段兜底 false：老存档（无 tutorialSeen 键）向后兼容。
+      tutorialSeen: json['tutorialSeen'] == true,
+      // 缺字段兜底 0：老存档（无 battleAttempt 键）= 当天第 1 场，账本 id 无后缀。
+      battleAttempt: _intOf(json['battleAttempt']),
     );
   }
 
@@ -307,7 +342,9 @@ class GuardDayState {
         other.winSun != winSun ||
         other.dropKind != dropKind ||
         other.sunStolen != sunStolen ||
-        other.buff != buff) {
+        other.buff != buff ||
+        other.tutorialSeen != tutorialSeen ||
+        other.battleAttempt != battleAttempt) {
       return false;
     }
     if (other.growthStolen.length != growthStolen.length) return false;
@@ -328,6 +365,8 @@ class GuardDayState {
         dropKind,
         sunStolen,
         buff,
+        tutorialSeen,
+        battleAttempt,
         Object.hashAllUnordered(
           growthStolen.entries
               .map((MapEntry<String, double> e) => Object.hash(e.key, e.value)),
@@ -338,7 +377,8 @@ class GuardDayState {
   String toString() => 'GuardDayState($dayKey, ${status.id}, '
       'thief=${thiefKind?.id}, energyUsed=$energyUsed, paidSun=$paidSun, '
       'winSun=$winSun, drop=${dropKind.id}, sunStolen=$sunStolen, '
-      'growthStolen=$growthStolen, buff=$buff)';
+      'growthStolen=$growthStolen, buff=$buff, tutorialSeen=$tutorialSeen, '
+      'attempt=$battleAttempt)';
 }
 
 /// JSON 里的 int 字段（`num` / `String` / 缺失都兜底为 0）。

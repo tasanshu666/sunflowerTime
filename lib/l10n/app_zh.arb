@@ -2772,13 +2772,13 @@
   "@guard_thief_name_sun_rat": {
       "description": "花园守卫：偷菜贼「馋光鼠」的展示名（ARB 唯一来源，domain 层零 CJK）"
   },
-  "guard_thief_name_leaf_bug": "啃叶虫",
+  "guard_thief_name_leaf_bug": "食叶虫",
   "@guard_thief_name_leaf_bug": {
-      "description": "花园守卫：偷菜贼「啃叶虫」的展示名"
+      "description": "花园守卫：偷菜贼「食叶虫」的展示名"
   },
-  "guard_thief_name_sneak_thief": "顺手贼",
+  "guard_thief_name_sneak_thief": "贪婪鼬",
   "@guard_thief_name_sneak_thief": {
-      "description": "花园守卫：偷菜贼「顺手贼」的展示名"
+      "description": "花园守卫：偷菜贼「贪婪鼬」的展示名"
   },
   "guard_drop_name_water_voucher": "浇水券",
   "@guard_drop_name_water_voucher": {
@@ -2825,9 +2825,54 @@
       },
       "description": "今日页守卫胶囊：余额不足提示（n = 还差多少阳光）。本批未上屏，第四批调试面板用"
   },
-  "guard_pill_free_ride": "阿葵自己顶班，今天不用管",
+  "guard_pill_free_ride": "小小葵自己顶班，今天不用管",
   "@guard_pill_free_ride": {
-      "description": "今日页守卫胶囊：阿葵顶班（无能量且余额 < kGuardFreeRideBalance，当天免罚、不可点）"
+      "description": "今日页守卫胶囊：小小葵顶班（无能量且余额 < kGuardFreeRideBalance，当天免罚、不可点）"
+  },
+  "guard_scene_start": "开始守卫",
+  "@guard_scene_start": {
+      "description": "守卫战 v2 场景卡 L3：待处理态的主按钮（pendingFree / pendingPaid 两态共用；付费确认卡由页面负责）"
+  },
+  "guard_scene_done": "已完成守卫",
+  "@guard_scene_done": {
+      "description": "守卫战 v2 场景卡 L3：claimed（战斗胜利且奖励已收下）态右簇徽标的读屏文案（B12；徽标本体是对勾图标，无上屏文本）"
+  },
+  "guard_scene_continue": "继续守卫",
+  "@guard_scene_continue": {
+      "description": "守卫战 v2 场景卡 L3：战斗中（fighting）态的占位按钮文案（B2 渲染、B3 接战斗层；强杀重进 = 同 seed 重跑）"
+  },
+  "guard_tutorial_title": "守卫怎么玩？",
+  "@guard_tutorial_title": {
+      "description": "守卫战 v2 教学浮层 A：标题（每天首次进战斗前展示一次）"
+  },
+  "guard_tutorial_body": "认真专注满 15 分钟，就能攒 1 个能量点，一天最多攒 2 个。有能量点，向日葵战士就能免费出击，帮你赶跑偷菜的怪物！",
+  "@guard_tutorial_body": {
+      "description": "守卫战 v2 教学浮层 A：主文案（PRD §6 玄参已写好的口径，逐字使用）"
+  },
+  "guard_tutorial_paid_hint": "没有能量点也可以花 {cost} 个阳光请战士帮忙哦。",
+  "@guard_tutorial_paid_hint": {
+      "placeholders": {
+          "cost": {
+              "type": "int"
+          }
+      },
+      "description": "守卫战 v2 教学浮层 A：次文案（cost = kGuardPayCost，不从文案里写死 5）"
+  },
+  "guard_tutorial_ok": "知道了",
+  "@guard_tutorial_ok": {
+      "description": "守卫战 v2 教学浮层 A：确认按钮（点击后关闭并标记 tutorialSeen）"
+  },
+  "guard_energy_bubble": "专注满 15 分钟 = 1 个能量点，每天最多 2 个",
+  "@guard_energy_bubble": {
+      "description": "守卫战 v2 教学气泡 C：点按能量点弹出（可反复重看；PRD §6 玄参已写好的口径）"
+  },
+  "guard_battle_victory_banner": "怪物全赶跑了！",
+  "@guard_battle_victory_banner": {
+      "description": "守卫战 v2 L4 战斗层：Victory（已出场怪全灭、提前收场）横幅"
+  },
+  "guard_battle_retreat_banner": "时间到，剩下的怪物撤退了",
+  "@guard_battle_retreat_banner": {
+      "description": "守卫战 v2 L4 战斗层：Retreat（30s 窗口到点）横幅；已偷不回滚"
   },
   "guard_battle_skip": "跳过",
   "@guard_battle_skip": {
@@ -2850,6 +2895,15 @@
           }
       },
       "description": "结算卡：必得阳光到账（sun = 本次 winSun）"
+  },
+  "guard_result_stolen": "被偷菜贼偷走 {sun} 阳光",
+  "@guard_result_stolen": {
+      "placeholders": {
+          "sun": {
+              "type": "int"
+          }
+      },
+      "description": "结算卡（守卫战 v2 B4）：本场被偷的阳光（sun = recordBattleTheft 的账本实扣额；0 时整行不渲染，卡面 N 恒 == 账本 guard_stolen 行）"
   },
   "guard_result_drop": "还捡到 {drop}",
   "@guard_result_drop": {
@@ -2879,14 +2933,14 @@
       },
       "description": "结算卡比较说明（R2 缓解：把「花 5 拿回 2」讲清楚）。cost = 实际花费、gain = 拿回、saving = 券面值可再省"
   },
-  "guard_confirm_pay_title": "要花 {cost} 阳光请阿葵出手吗？",
+  "guard_confirm_pay_title": "要花费 {cost} 阳光，请小小葵战士帮忙吗？",
   "@guard_confirm_pay_title": {
       "placeholders": {
           "cost": {
               "type": "int"
           }
       },
-      "description": "付费确认卡标题（cost = kGuardPayCost，不写字面量 5 以免与常量脱钩）"
+      "description": "付费确认卡标题（cost = kGuardPayCost，不写字面量 5 以免与常量脱钩；B9 玄参指定改为「要花费 {cost} 阳光，请小小葵战士帮忙吗？」）"
   },
   "guard_confirm_pay_later": "今天不赶了",
   "@guard_confirm_pay_later": {

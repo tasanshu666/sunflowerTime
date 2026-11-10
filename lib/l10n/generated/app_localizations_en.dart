@@ -3595,10 +3595,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get guard_thief_name_sun_rat => 'Greedy Sun Mouse';
 
   @override
-  String get guard_thief_name_leaf_bug => 'Leaf Muncher';
+  String get guard_thief_name_leaf_bug => 'Leaf Eater';
 
   @override
-  String get guard_thief_name_sneak_thief => 'Sneaky Thief';
+  String get guard_thief_name_sneak_thief => 'Greedy Weasel';
 
   @override
   String get guard_drop_name_water_voucher => 'Water Voucher';
@@ -3634,7 +3634,41 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get guard_pill_free_ride => 'Sunny is covering today — nothing to do';
+  String get guard_pill_free_ride => 'Sunnie is covering today — nothing to do';
+
+  @override
+  String get guard_scene_start => 'Start guard';
+
+  @override
+  String get guard_scene_done => 'Guard done';
+
+  @override
+  String get guard_scene_continue => 'Resume guard';
+
+  @override
+  String get guard_tutorial_title => 'How does guarding work?';
+
+  @override
+  String get guard_tutorial_body =>
+      'Focus for 15 minutes to earn 1 energy point — up to 2 a day. With energy, your sunflower warrior charges out for free and chases the veggie thieves away!';
+
+  @override
+  String guard_tutorial_paid_hint(int cost) {
+    return 'No energy? You can still pay $cost sunlight to send the warrior out.';
+  }
+
+  @override
+  String get guard_tutorial_ok => 'Got it';
+
+  @override
+  String get guard_energy_bubble =>
+      '15 min of focus = 1 energy point, up to 2 a day';
+
+  @override
+  String get guard_battle_victory_banner => 'All monsters chased away!';
+
+  @override
+  String get guard_battle_retreat_banner => 'Time\'s up — the rest retreated';
 
   @override
   String get guard_battle_skip => 'Skip';
@@ -3647,6 +3681,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String guard_result_gain(int sun) {
     return 'Got back $sun sunlight';
+  }
+
+  @override
+  String guard_result_stolen(int sun) {
+    return 'The thief stole $sun sunlight';
   }
 
   @override
@@ -3665,7 +3704,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String guard_confirm_pay_title(int cost) {
-    return 'Spend $cost sunlight to send Sunny?';
+    return 'Spend $cost sunlight so Sunnie the little warrior can help?';
   }
 
   @override

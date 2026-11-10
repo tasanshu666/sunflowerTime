@@ -19,7 +19,7 @@
 /// ## 比较说明（R2 缓解，**有券时必须有**）
 /// 孩子最容易困惑的是「**花了 5 阳光，怎么只拿回 2 阳光？**」。
 /// 光看「拿回 2」会得出「亏了」的错误结论；实际账是：
-/// `−5（请阿葵）+ 2（必得）+ 券面值（今天养护能省）`。
+/// `−5（请小小葵）+ 2（必得）+ 券面值（今天养护能省）`。
 /// 故**有券时**固定输出一行 [AppLocalizations.guard_result_compare]，
 /// 把三个数摆在明面上 —— 这不是可选装饰，是 PRD 风险登记 R2 的缓解措施。
 ///
@@ -45,6 +45,7 @@ import 'package:sunflower_time/domain/entities/guard_drop.dart' show GuardDropKi
 import 'package:sunflower_time/domain/services/guard_service.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_art.dart';
 
 /// 弹出结算卡，并在孩子点「收下」时**执行 [onCollect]**（= `GuardService.claim`）。
 ///
@@ -59,11 +60,19 @@ import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 ///
 /// [onCollect] 由调用方注入而不是本文件 import `GuardService`：结算卡只管
 /// 「什么时候发」，不关心「怎么发」；`claim()` 的幂等与账本口径全部留在领域层。
+///
+/// ## 被偷行（B4，守卫战 v2 §5.3 裁决 B）
+/// [stolenSun] = 本场**账本实扣额**（`recordBattleTheft` 的返回值，不是 sim
+/// 原始值 —— 余额钳制 / 互斥去重都可能让实扣 < sim 值）。契约：**卡面 N 恒
+/// == 账本 `guard_stolen` 行**。`stolenSun <= 0` 时**整行不渲染**（「偷走 0
+/// 阳光」与「券还能省 0 阳光」同罪 —— QA 抓过的句式，绝不出现）；
+/// 超时 / 降级路径不传即缺省 0，行为与 v1 逐位一致。
 Future<GuardClaimOutcome?> showGuardResultCard(
   BuildContext context, {
   required GuardTodayView view,
   required AppLocalizations l10n,
   required Future<GuardClaimOutcome> Function() onCollect,
+  int stolenSun = 0,
 }) {
   return showGeneralDialog<GuardClaimOutcome>(
     context: context,
@@ -78,7 +87,12 @@ Future<GuardClaimOutcome?> showGuardResultCard(
         // 领取语义由它触发（PRD：孩子的动作才是记账触发点）。
         PopScope(
       canPop: false,
-      child: GuardResultCard(view: view, l10n: l10n, onCollect: onCollect),
+      child: GuardResultCard(
+        view: view,
+        l10n: l10n,
+        onCollect: onCollect,
+        stolenSun: stolenSun,
+      ),
     ),
   );
 }
@@ -91,6 +105,9 @@ class GuardResultCard extends StatefulWidget {
   /// 「收下」按钮 Key（测试据此点击；也据此断言「只发一次」）。
   static const Key collectButtonKey = Key('guardResultCollect');
 
+  /// 胜利战士立绘（B12 新增；玄参「结算卡没有用向日葵胜利的图片」）。
+  static const Key winArtKey = Key('guardResultWinArt');
+
   /// 战果快照（贼 / 必得阳光 / 掉落档 / 成本）。
   final GuardTodayView view;
 
@@ -100,11 +117,15 @@ class GuardResultCard extends StatefulWidget {
   /// 点「收下」时执行的动作（= `GuardService.claim`）。
   final Future<GuardClaimOutcome> Function() onCollect;
 
+  /// 本场账本实扣的被偷额（☀；<= 0 时不渲染被偷行 —— 见文件头契约）。
+  final int stolenSun;
+
   const GuardResultCard({
     super.key,
     required this.view,
     required this.l10n,
     required this.onCollect,
+    this.stolenSun = 0,
   });
 
   @override
@@ -174,9 +195,15 @@ class _GuardResultCardState extends State<GuardResultCard> {
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: ListView(
+              // 🔴 B12：`Column` → `shrinkWrap` ListView。B12 给卡面补了
+              // 88pt 胜利立绘 + 12pt 间距后，「320×568 + en + 1.3×」最坏
+              // 组合（QA V5-2）底部溢出 26px —— Column 装不下就是硬溢出；
+              // shrinkWrap ListView 在内容 ≤ 可用高时**贴内容高**（与原
+              // Column 逐位一致），装不下时变成**内部滚动**，永不 overflow
+              // （与 _ResultLine 的 F127「必须可收缩」同一教训，纵向版）。
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
               children: <Widget>[
                 // ① 标题：赶走了馋光鼠
                 Text(
@@ -188,7 +215,14 @@ class _GuardResultCardState extends State<GuardResultCard> {
                     color: Color(0xFF6B4A00),
                   ),
                 ),
-                const SizedBox(height: 16),
+                // ①′ 胜利战士立绘（B12）：玄参第七轮「战斗胜利之后，弹出来的
+                // 卡片，没有使用向日葵胜利的图片」⇒ 补 `soldier_win.webp`。
+                SizedBox(
+                  key: GuardResultCard.winArtKey,
+                  height: 88,
+                  child: GuardArt.soldierWin(),
+                ),
+                const SizedBox(height: 12),
                 // ② 收获：拿回 2 阳光 ＋ 掉落 / 无掉落
                 _ResultLine(
                   icon: Icons.wb_sunny,
@@ -196,6 +230,16 @@ class _GuardResultCardState extends State<GuardResultCard> {
                   text: t.guard_result_gain(view.winSun),
                   emphasize: true,
                 ),
+                // ②′ 被偷行（B4）：本场有怪到门口且账本实扣 > 0 才渲染。
+                //    🔴 0 不渲染（「偷走 0 阳光」= QA 抓过的「省 0 阳光」同罪）。
+                if (widget.stolenSun > 0) ...<Widget>[
+                  const SizedBox(height: 8),
+                  _ResultLine(
+                    icon: Icons.directions_run,
+                    color: const Color(0xFFB3261E),
+                    text: t.guard_result_stolen(widget.stolenSun),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 _ResultLine(
                   icon: hasVoucher ? Icons.confirmation_num : Icons.check_circle,

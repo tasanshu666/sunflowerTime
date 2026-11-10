@@ -61,7 +61,7 @@ void main() {
   // V1-1 付费赶贼：余额必须恰好 100 − 5 + winSun，账本恰好 2 行
   // ════════════════════════════════════════════════════════════════════
   group('V1-1 付费赶贼：余额 = 100 − 5 + winSun，账本恰好 2 行', () {
-    for (final int winSun in <int>[1, 2, 3]) {
+    for (final int winSun in <int>[3, 4, 5]) {
       test('winSun=$winSun ⇒ 余额 ${100 - 5 + winSun}、2 行（−5 / +$winSun）', () async {
         final GuardProbeEnv env = await GuardProbeEnv.create(clock: _day);
         addTearDown(env.close);

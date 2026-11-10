@@ -201,15 +201,12 @@ void main() {
     expect(tester.takeException(), isNull);
 
     // 1) 三张状态卡的标签仍在（没有被整体隐藏 / 挪走）。
-    expect(find.text('今日获取阳光'), findsOneWidget);
-
-    // 🔴 第三批（花园守卫）起，今日页 `ListView` 的**第 0 项**多了一条守卫胶囊
-    // （`kGuardPillHeight` 44 + `kGuardPillGap` 10 = 54pt，插在三张统计卡之前）。
-    // 本用例的视口只有 ≈108pt（320×568 + 1.3 倍字号 + 外壳底栏），54pt 足以把
-    // 「今日专注」卡**推出绘制区**。而 `find.text` 默认 `skipOffstage: true`，
-    // `SliverMultiBoxAdaptorElement.debugVisitOnstageChildren` 只上报**在绘制区内**
-    // 的子项 —— 于是「滚出视口」与「被删掉」在 finder 上表现相同。
-    // ⇒ 与下面第三张卡同口径：**先滚进视野再断言**（内容可达即达标，不回退为
+    //
+    // 🔴 守卫战 v2 · B2 起，今日页 `ListView` 第 0 项由 54pt 胶囊换成 **150pt
+    // 场景卡**（`kGuardSceneCardHeight` 140 + `kGuardPillGap` 10），本用例的
+    // 视口只有 ≈108pt ⇒ 第一张统计卡的标签也被推出绘制区（`find.text` 默认
+    // `skipOffstage: true`，「滚出视口」与「被删掉」在 finder 上表现相同）。
+    // ⇒ 三张卡统一同口径：**先滚进视野再断言**（内容可达即达标，不回退为
     //   「今日页零滚动」这种会随布局微调变红的断言）。
     final Finder todayList = find.descendant(
       of: find.byType(ChildTodayPage),
@@ -217,12 +214,22 @@ void main() {
     );
     expect(todayList, findsOneWidget, reason: '今日页必须有一条可滚动的状态卡列表');
     for (int i = 0; i < 6; i++) {
+      if (find.text('今日获取阳光').evaluate().isNotEmpty) break;
+      await tester.drag(todayList, const Offset(0, -60));
+      await tester.pump();
+    }
+    expect(find.text('今日获取阳光'), findsOneWidget,
+        reason: '「今日获取阳光」卡必须可通过滚动触达（场景卡占位只改变滚动量，不删内容）');
+
+    // 🔴 第三批（花园守卫）起，第 0 项守卫占位只改变滚动量（B2 后 = 150pt）。
+    // 「今日专注」卡同样先滚进视野再断言。
+    for (int i = 0; i < 6; i++) {
       if (find.text('今日专注').evaluate().isNotEmpty) break;
       await tester.drag(todayList, const Offset(0, -60));
       await tester.pump();
     }
     expect(find.text('今日专注'), findsOneWidget,
-        reason: '「今日专注」卡必须可通过滚动触达（胶囊占位只改变滚动量，不删内容）');
+        reason: '「今日专注」卡必须可通过滚动触达（场景卡占位只改变滚动量，不删内容）');
 
     // 2) 主数值与单位文案仍在树里且没被压成零宽（1.3 倍字号下值 + 单位必须让位收缩
     //    而不是撑破父级；`Flexible` 收缩后文本**数据**不变，故此处找得到）。

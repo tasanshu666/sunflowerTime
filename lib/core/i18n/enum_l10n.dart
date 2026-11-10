@@ -90,7 +90,7 @@ String taskDisplaySubject(Task task, AppLocalizations t) {
   return taskSubjectLabel(task.subject, t);
 }
 
-/// 花园守卫 · 偷菜贼的展示名（馋光鼠 / 啃叶虫 / 顺手贼）。
+/// 花园守卫 · 偷菜贼的展示名（馋光鼠 / 食叶虫 / 贪婪鼬）。
 ///
 /// 🔴 **中文名必须在这里取，绝不出现在 `lib/domain/**`**：
 /// `guard_thief.dart` 只用稳定 ASCII [GuardThiefSpec.id] 与 [GuardThiefSpec.emoji]

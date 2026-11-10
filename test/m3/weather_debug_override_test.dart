@@ -611,12 +611,17 @@ void main() {
       isTrue,
       reason: '面板本体应加载完成',
     );
-    for (int i = 0; i < 6; i++) {
-      await tester.drag(find.byType(ListView).first, const Offset(0, -600));
-      await tester.pump(const Duration(milliseconds: 100));
-    }
+    // 🔴 B5a 修正：守卫区块（列表最末尾）加高后，固定 6×-600 拖动的总行程
+    // 会越过天气区块，把日型钮顶出视口（tap 报「Offset 越界」）。改为
+    // **事件驱动滚动**（滚到 drought 钮可见为止）—— 与懒构建 ListView 的
+    // 测试纪律一致（同 guard_debug_script_test 的 scrollUntilVisible 口径）。
     final Finder droughtBtn =
         find.byKey(const ValueKey<String>('debug_weather_kind_drought'));
+    await tester.scrollUntilVisible(
+      droughtBtn,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     final bool sectionReady = await _pumpUntil(
       tester,
       () => droughtBtn.evaluate().isNotEmpty,
@@ -640,9 +645,12 @@ void main() {
     expect(container.read(debugWeatherOverrideProvider), WeatherKind.drought,
         reason: '点 drought 钮 ⇒ override = drought');
 
-    // 点复位钮 → 回 null（跟随真实日期）。
-    await tester.drag(find.byType(ListView).first, const Offset(0, -600));
-    await tester.pump(const Duration(milliseconds: 100));
+    // 点复位钮 → 回 null（跟随真实日期）。同样事件驱动滚动到可见（理由同上）。
+    await tester.scrollUntilVisible(
+      find.text('跟随真实日期'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('跟随真实日期'));
     await tester.pump();
     expect(container.read(debugWeatherOverrideProvider), isNull,

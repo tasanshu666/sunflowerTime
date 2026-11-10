@@ -283,6 +283,7 @@ class FrameSequencePlayer extends StatefulWidget {
     this.holdLastFrame = false,
     this.playToken,
     this.onComplete,
+    this.fit = BoxFit.contain,
   });
 
   /// 帧asset 路径列表（顺序即播放顺序）。
@@ -312,6 +313,14 @@ class FrameSequencePlayer extends StatefulWidget {
 
   /// 整段（播放 + 渐隐）结束回调，供调用方移除本组件（循环模式不触发）。
   final VoidCallback? onComplete;
+
+  /// 帧图的绘制方式。默认 [BoxFit.contain]（帧画布是方形，居中铺满）。
+  ///
+  /// 🔴 B9：守卫战战士用 **[BoxFit.fitHeight]** —— 素材按实体裁边后长宽比各异
+  /// （待机 0.97 / 攻击 1.47），`contain` 会让攻击帧缩到 53pt（一开火就变小）；
+  /// `fitHeight` 保证「高度恒定、宽度按素材比例横向溢出」，溢出由父层
+  /// （`Clip.none` 的 Stack）自然画出。
+  final BoxFit fit;
 
   @override
   State<FrameSequencePlayer> createState() => _FrameSequencePlayerState();
@@ -494,7 +503,7 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
               opacity: opacity,
               child: Image.asset(
                 widget.frames[idx],
-                fit: BoxFit.contain,
+                fit: widget.fit,
                 // ⚠️ 2026-09-29 玄参实测「一闪一闪」：换帧时旧图被立即丢弃、新图异步
                 // 解码 → 白屏闪烁。保留旧帧直到新帧就绪（另见滑动窗口预热）。
                 gaplessPlayback: true,

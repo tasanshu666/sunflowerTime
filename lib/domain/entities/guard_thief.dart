@@ -8,7 +8,7 @@
 ///  · **禁止 `Random`**：派生走 `core/utils/stable_hash.dart` 的确定性哈希
 ///    （`dayKey + childId + kGuardDaySaltV2 + 通道`）；
 ///  · **零 CJK 字面量**：`test/i18n/no_han_in_domain_test.dart` 钉死
-///    「`lib/domain/**` 注释外零 CJK」。三种贼的中文名（馋光鼠 / 啃叶虫 / 顺手贼）
+///    「`lib/domain/**` 注释外零 CJK」。三种贼的中文名（馋光鼠 / 食叶虫 / 贪婪鼬）
 ///    与所有上屏文案**留到第二批进 ARB**，本文件只提供稳定 ASCII [GuardThiefSpec.id]
 ///    与 [GuardThiefSpec.emoji]（emoji 是符号，与 `TaskCategoryX.icon` 同理；
 ///    中文名绝不写成 Dart 字符串常量）。
@@ -30,10 +30,10 @@ enum GuardThiefKind {
   /// 馋光鼠：只扣阳光余额 1~3 ☀，**不碰植物**。常见（权重 0.45）。
   sunRat,
 
-  /// 啃叶虫：只偷成长 1~3%（**随机 1 株**存活株），不碰阳光。常见（权重 0.45）。
+  /// 食叶虫：只偷成长 1~3%（**随机 1 株**存活株），不碰阳光。常见（权重 0.45）。
   leafBug,
 
-  /// 顺手贼：偷阳光 1~3 ☀ **且** **全部存活株**各 −1~5% 成长。稀有（权重 0.10）。
+  /// 贪婪鼬：偷阳光 1~3 ☀ **且** **全部存活株**各 −1~5% 成长。稀有（权重 0.10）。
   sneakThief;
 
   /// 今天的贼是谁 —— **确定性派生**（禁 `Random`）。
@@ -88,7 +88,7 @@ class GuardThiefSpec {
   ///  · 偷成长但只命中随机 1 株（[targetsSingleRandomPlant] = true）。
   final bool hitsEveryPlant;
 
-  /// 是否「只随机命中 1 株存活株」（啃叶虫）。
+  /// 是否「只随机命中 1 株存活株」（食叶虫）。
   final bool targetsSingleRandomPlant;
 
   const GuardThiefSpec({

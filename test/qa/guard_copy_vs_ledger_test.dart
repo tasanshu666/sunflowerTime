@@ -17,6 +17,7 @@
 ///  · 阳光流水页三条 `guard_*` 来源标签。
 library;
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/domain/entities/guard_day_state.dart';
@@ -34,6 +35,7 @@ import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 import 'package:sunflower_time/presentation/child/pages/child_sunlight_history_page.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_buff_chip.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_result_card.dart';
 
 import 'guard_probe_support.dart';
 
@@ -688,6 +690,67 @@ void main() {
         ),
         10.0,
       );
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // V3-8 结算卡被偷行（守卫战 v2 B4）：卡面 N == recordBattleTheft 实扣
+  // ══════════════════════════════════════════════════════════════════════
+  group('V3-8 结算卡「被偷菜贼偷走 N 阳光」vs 账本实扣', () {
+    final AppLocalizations zh = AppLocalizationsZh();
+    final AppLocalizations en = AppLocalizationsEn();
+
+    /// 待机态战报快照（贼 / 必得 / 成本都在，stolenSun 走独立入参）。
+    GuardTodayView viewForCard() => const GuardTodayView(
+          mode: GuardPillMode.pendingPaid,
+          state: GuardDayState(
+            dayKey: '2026-11-09',
+            status: GuardDayStatus.pending,
+            thiefKind: GuardThiefKind.sunRat,
+            winSun: 2,
+          ),
+          energyAvailable: 0,
+          balance: 100,
+        );
+
+    Future<void> pumpCard(
+      WidgetTester tester, {
+      required int stolenSun,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GuardResultCard(
+              view: viewForCard(),
+              l10n: zh,
+              // 只验渲染，绝不点「收下」⇒ onCollect 永不被调。
+              onCollect: () async => throw StateError('本用例不点收下'),
+              stolenSun: stolenSun,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    test('文案模板（zh/en 成对）：N 进句式，与流水页「被偷菜贼偷走」同语根', () {
+      expect(zh.guard_result_stolen(2), '被偷菜贼偷走 2 阳光');
+      expect(en.guard_result_stolen(2), 'The thief stole 2 sunlight');
+    });
+
+    testWidgets('有被偷（实扣 2）⇒ 卡面渲染「被偷菜贼偷走 2 阳光」', (tester) async {
+      await pumpCard(tester, stolenSun: 2);
+      expect(find.text('被偷菜贼偷走 2 阳光'), findsOneWidget,
+          reason: '🟢 卡面 2 == recordBattleTheft 实扣 2（页面只传账本返回值）');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('实扣 0 ⇒ 整行不渲染（🔴「偷走 0 阳光」=「省 0 阳光」同罪）',
+        (tester) async {
+      await pumpCard(tester, stolenSun: 0);
+      expect(find.textContaining('偷走'), findsNothing,
+          reason: '🔴 0 时被偷行绝不渲染');
+      expect(tester.takeException(), isNull);
     });
   });
 }

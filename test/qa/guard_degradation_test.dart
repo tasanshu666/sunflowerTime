@@ -21,7 +21,9 @@ import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/domain/services/guard_service.dart';
 import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
-import 'package:sunflower_time/presentation/child/widgets/guard_pill.dart';
+// B2：页面第 0 项已换场景卡，页面级存在性断言跟着换 key
+// （胶囊本体 guard_pill.dart 仍保留作其他 QA 夹具，本文件不再用它）。
+import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart';
 
 import 'guard_probe_support.dart';
 
@@ -95,7 +97,7 @@ void main() {
 
       expect(tester.takeException(), isNull,
           reason: '🔴 prefs 不可用必须是正常降级，不能把异常抛到 UI');
-      expect(find.byKey(GuardPill.pillKey), findsNothing,
+      expect(find.byKey(GuardSceneCard.cardKey), findsNothing,
           reason: '守卫读链路不可用 ⇒ 视同没有守卫');
       expect(container.read(guardTodayProvider).mode, GuardPillMode.absent);
       expect(find.text('今日获取阳光'), findsOneWidget);
@@ -111,7 +113,7 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(container.read(guardTodayProvider).isVisible, isTrue,
           reason: '有存活株 ⇒ resolve 必生成小偷');
-      expect(find.byKey(GuardPill.pillKey), findsOneWidget);
+      expect(find.byKey(GuardSceneCard.cardKey), findsOneWidget);
     });
   });
 
@@ -138,7 +140,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(container.read(guardTodayProvider).mode, GuardPillMode.absent);
-      expect(find.byKey(GuardPill.pillKey), findsNothing,
+      expect(find.byKey(GuardSceneCard.cardKey), findsNothing,
           reason: '🔴 链路卡住时绝不能把今日页拖成转圈 / 白屏');
       expect(find.text('今日获取阳光'), findsOneWidget);
     });

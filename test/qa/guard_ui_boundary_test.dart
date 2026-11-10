@@ -1,12 +1,17 @@
 /// 花园守卫独立验收 · **V5 UI 边界**
 ///
 /// 覆盖：
-///  ① 今日页胶囊 `absent` 零占位（第一张卡位移差**恰好** 54pt = 44 + 10）；
-///  ② 320×568 + en + 1.3 倍字号：胶囊 / 券 chip / 结算卡三处无 RenderFlex overflow；
+///  ① 今日页场景卡 `absent` 零占位（第一张卡位移差**恰好** 118pt = 108 + 10；
+///     B8 布局 v4 把卡高从 160 降到 108 ⇒ 位移差 170 → 118，判据不变）；
+///     v1 胶囊时代是 54pt，见 git 历史）；
+///  ② 320×568 + en + 1.3 倍字号：场景卡 / 券 chip / 结算卡三处无 RenderFlex overflow；
 ///  ③ buff chip 文案不含 `×`（已在 V3-5 钉过，这里补一条渲染后的整棵树断言）；
-///  ④ 平板（1032 宽 = iPad 13″ ⇒ uiScale 1.6）：胶囊 / chip 按比例放大后不溢出；
-///  ⑤ 胶囊 5 状态可点性：只有 `pendingFree` / `pendingPaid` 可点。
+///  ④ 平板（1032 宽 = iPad 13″ ⇒ uiScale 1.6）：场景卡 / chip 按比例放大后不溢出；
+///  ⑤ 卡 5 状态可点性：只有 `pendingFree` / `pendingPaid` 可点。
 ///
+/// 🔴 B3 迁移注：②④⑤ 的夹具原直 pump `GuardPill`（胶囊本体已随战斗浮层一起
+///    退役），现改 pump `GuardSceneCard`（dayKey/childId 用字面量）—— 断言对象
+///    换了、判据等价（溢出 / 宽度 / 可点性），覆盖不降。
 /// 🔴 不用 `pumpAndSettle`（今日页阳光气泡是 12 秒无限循环动画）。
 library;
 
@@ -24,8 +29,8 @@ import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_buff_chip.dart';
-import 'package:sunflower_time/presentation/child/widgets/guard_pill.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_result_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 
 import 'guard_probe_support.dart';
@@ -89,20 +94,26 @@ Widget _shell(
   );
 }
 
-Future<void> _pumpPill(
+/// 把 [GuardSceneCard] 单独挂在槽位里（B3 迁移：原夹具为 GuardPill）。
+Future<void> _pumpCard(
   WidgetTester tester,
   GuardTodayView view, {
   double width = 288,
   double textScale = 1.0,
   bool english = false,
-  VoidCallback? onTap,
+  VoidCallback? onStart,
 }) async {
   await tester.pumpWidget(
     _shell(
       Center(
         child: SizedBox(
           width: width,
-          child: GuardPill(view: view, onTap: onTap),
+          child: GuardSceneCard(
+            view: view,
+            dayKey: '2026-01-01',
+            childId: 'seed-0',
+            onStart: onStart,
+          ),
         ),
       ),
       textScale: textScale,
@@ -154,35 +165,44 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════
   // V5-1 absent 零占位
   // ══════════════════════════════════════════════════════════════════════
-  group('V5-1 absent 零占位', () {
-    testWidgets('无贼 ⇒ 不渲染胶囊；有贼后第一张卡**恰好**下移 54pt',
+  group('V5-1 absent 零占位（B2 场景卡）', () {
+    testWidgets('无贼 ⇒ 不渲染场景卡；有贼后第一张卡**恰好**下移 122pt',
         (WidgetTester tester) async {
       final GuardProbeEnv env = await GuardProbeEnv.create();
       addTearDown(env.close);
 
       final ProviderContainer container = await _pumpToday(tester, env);
-      expect(find.byKey(GuardPill.pillKey), findsNothing);
+      expect(find.byKey(GuardSceneCard.cardKey), findsNothing);
       final double before = _firstCardOffset(tester);
 
       // 种一株 + 触发一次刷新（页面监听 economyRevisionProvider）。
       await env.seedPlant('plant_1', now: DateTime.now());
       container.read(economyRevisionProvider.notifier).state++;
       for (int i = 0; i < 40; i++) {
-        if (find.byKey(GuardPill.pillKey).evaluate().isNotEmpty) break;
+        if (find.byKey(GuardSceneCard.cardKey).evaluate().isNotEmpty) break;
         await tester.pump(const Duration(milliseconds: 100));
       }
-      expect(find.byKey(GuardPill.pillKey), findsOneWidget);
+      expect(find.byKey(GuardSceneCard.cardKey), findsOneWidget);
 
       final double after = _firstCardOffset(tester);
-      expect(after - before, closeTo(54.0, 0.01),
-          reason: '🔴 差 1pt 都算布局回归：kGuardPillHeight(44) + kGuardPillGap(10)');
+      expect(after - before, closeTo(122.0, 0.01),
+          reason: '🔴 差 1pt 都算布局回归：kGuardSceneCardHeight(112，B10 布局 v6 '
+              '= padTop 14 + 房子 88 + padBottom 10) + kGuardPillGap(10)');
       expect(container.read(guardTodayProvider).isVisible, isTrue);
     });
 
-    test('两个布局常量的字面量就是 44 / 10', () {
+    test('场景卡布局常量字面量：112 / 20 / 28 / 64；胶囊占位仍是 44 / 10', () {
+      // 字面量防悄悄漂移（B10 布局 v6：卡高 = padTop 14 + 房子 88 + 底衬 10
+      // = **112**；能量点 28 常量仍在 prd_params 里（v1 素材位约定不变），卡内
+      // 实际用的是 `GuardCardLayout.energyDotSize` = 14）。
+      expect(kGuardSceneCardHeight, 112.0);
+      expect(kGuardSceneCardRadius, 20.0);
+      expect(kGuardSceneEnergyDotSize, 28.0);
+      expect(kGuardSceneFireButtonSize, 64.0);
+      expect(kGuardSceneCardHeight + kGuardPillGap, 122.0);
+      // v1 胶囊常量不动（B3 退役前夹具仍依赖）。
       expect(kGuardPillHeight, 44.0);
       expect(kGuardPillGap, 10.0);
-      expect(kGuardPillHeight + kGuardPillGap, 54.0);
     });
   });
 
@@ -190,7 +210,7 @@ void main() {
   // V5-2 320×568 + en + 1.3 倍字号
   // ══════════════════════════════════════════════════════════════════════
   group('V5-2 最坏组合：320×568 + en + 1.3×', () {
-    testWidgets('胶囊（5 态）不 overflow', (WidgetTester tester) async {
+    testWidgets('场景卡（5 态）不 overflow', (WidgetTester tester) async {
       for (final GuardPillMode mode in <GuardPillMode>[
         GuardPillMode.pendingFree,
         GuardPillMode.pendingPaid,
@@ -198,13 +218,15 @@ void main() {
         GuardPillMode.fighting,
         GuardPillMode.claimed,
       ]) {
-        await _pumpPill(
+        await _pumpCard(
           tester,
           _view(mode, energy: 2, balance: 100),
           width: 288,
           textScale: 1.3,
           english: true,
         );
+        // fighting 态多推一帧：L4 战斗层 ticker 跑起来（怪在车道上）后再查。
+        await tester.pump(const Duration(milliseconds: 100));
         expect(tester.takeException(), isNull, reason: '$mode 在 en+1.3 下溢出');
       }
     });
@@ -284,23 +306,15 @@ void main() {
       expect(tabletUiScaleFor(390), 1.0);
     });
 
-    testWidgets('胶囊在平板宽度 + en + 1.6 倍字号下不溢出',
+    testWidgets('场景卡在平板宽度 + en + 1.6 倍字号下不溢出',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        _shell(
-          Center(
-            child: SizedBox(
-              width: 1032 - 32,
-              child: GuardPill(
-                view: _view(GuardPillMode.pendingPaid, balance: 100),
-                onTap: () {},
-              ),
-            ),
-          ),
-          screen: const Size(1032, 1366),
-          textScale: 1.6,
-          english: true,
-        ),
+      await _pumpCard(
+        tester,
+        _view(GuardPillMode.pendingPaid, balance: 100),
+        width: 1032 - 32,
+        textScale: 1.6,
+        english: true,
+        onStart: () {},
       );
       await tester.pump(const Duration(milliseconds: 50));
       expect(tester.takeException(), isNull);
@@ -339,9 +353,9 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════
-  // V5-5 五态可点性
+  // V5-5 五态可点性（B3 迁移：可点 = 「开始守卫」钮在树且回调触发）
   // ══════════════════════════════════════════════════════════════════════
-  group('V5-5 胶囊可点性', () {
+  group('V5-5 卡可点性', () {
     testWidgets('只有 pendingFree / pendingPaid 可点', (WidgetTester tester) async {
       final Map<GuardPillMode, bool> expected = <GuardPillMode, bool>{
         GuardPillMode.pendingFree: true,
@@ -352,13 +366,23 @@ void main() {
       };
       for (final MapEntry<GuardPillMode, bool> e in expected.entries) {
         int taps = 0;
-        await _pumpPill(
+        await _pumpCard(
           tester,
           _view(e.key, energy: 2, balance: 100),
-          onTap: () => taps++,
+          onStart: () => taps++,
         );
-        await tester.tap(find.byKey(GuardPill.pillKey), warnIfMissed: false);
-        await tester.pump(const Duration(milliseconds: 50));
+        if (e.value) {
+          expect(find.byKey(GuardSceneCard.startButtonKey), findsOneWidget,
+              reason: '${e.key} 必须渲染「开始守卫」钮');
+          await tester.tap(find.byKey(GuardSceneCard.startButtonKey));
+          await tester.pump(const Duration(milliseconds: 50));
+        } else {
+          expect(find.byKey(GuardSceneCard.startButtonKey), findsNothing,
+              reason: '${e.key} 不得渲染「开始守卫」钮');
+          await tester.tap(find.byKey(GuardSceneCard.cardKey),
+              warnIfMissed: false);
+          await tester.pump(const Duration(milliseconds: 50));
+        }
         expect(taps, e.value ? 1 : 0, reason: '${e.key} 可点性错误');
         expect(_view(e.key, energy: 2, balance: 100).isActionable, e.value);
       }

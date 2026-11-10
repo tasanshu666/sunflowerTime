@@ -97,6 +97,21 @@ flutter:
     # （均带 `errorBuilder` 回退 Material 图标 ⇒ 素材缺失也不空白）。
     # ⚠️ 同上面的老坑：**目录声明不递归**，这一行漏了 = 13 枚图静默不进包。
     - assets/weather/
+    # 守卫战素材（B5b，2026-11-10 玄参第一批交付；管线 tools/convert_guard_b5b.py，
+    # PNG → WebP q95，总包 2.61MB ≤ 8MB 预算）。命名见美术规范 v1：
+    #  · soldier_idle/  向日葵战士待机 19 帧 512²（L3 右侧待机循环，缺帧回退金色块）
+    #  · monster_m1/    馋光鼠进攻 7 帧（m1 行走循环）
+    #  · monster_m2/    食叶虫进攻 7 帧（B9/D2 接入）
+    #  · monster_m3/    顺手贼进攻 7 帧（B9/D2 接入）
+    #  · soldier_attack / soldier_win  静态（开火瞬间 300ms 切换 / 胜利横幅）
+    #  · house.webp     场景卡 L1 底图（1984×1118 原尺寸；浇水变体本批不接，留待后批）
+    # ⚠️ 目录声明**不递归**：5 行都要在，漏一行 = 对应素材静默不进包（errorBuilder
+    # 回退占位色块，表现为「画面不换图」，与 fx/ 2026-09-28 翻车同坑）。
+    - assets/guard/
+    - assets/guard/soldier_idle/
+    - assets/guard/monster_m1/
+    - assets/guard/monster_m2/
+    - assets/guard/monster_m3/
     # 序列帧资源（2026-09-28）：成长过渡帧 grow/、浇水·施肥效果层帧 care/。
     # ⚠️ 目录声明**不递归**，必须把**叶子目录**逐个列全（漏一行 = 帧不进包 =
     # Image.asset errorBuilder 静默吞 → 只剩音效没有动画，2026-09-28 实证翻车）；

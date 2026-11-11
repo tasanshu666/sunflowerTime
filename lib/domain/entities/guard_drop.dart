@@ -81,6 +81,10 @@ enum GuardDropKind {
   /// 🔴 B13.5：第二张券（「10% 概率掉 2 张**不同的**」的唯一实现口）。
   ///
   /// * 仅当**首张已掉券**时调用（首张 = none ⇒ 本函数不该被调）；
+  /// * 🔴 **调用方必须已判完整版档**：本函数只负责「掷」，**不含档位判定** ——
+  ///   唯一的 gate 在 `guard_math.deriveGuardRoll`（`isPremium && drop != none`），
+  ///   Guard-B13.10 玄参裁定「双倍掉落券对免费档不生效」。任何新调用点
+  ///   **必须**先自己确认是完整版档，否则就是绕过付费墙；
   /// * 10% 闸门走独立通道 [kGuardChannelDropBonusGate]（与首张通道互不影响）；
   /// 第二张从「除首张外的 4 种券」里**等概率**挑（通道
   /// [kGuardChannelDropBonusPick]）；确定性派生，禁 `Random`。

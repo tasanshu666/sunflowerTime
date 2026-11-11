@@ -98,7 +98,14 @@ class GuardResolveResult {
 
   /// 完整落骰结果（`null` = 没有贼）。
   ///
-  /// 战斗动画只**回放**这里的内容 ⇒ 「跳过」与「看完」拿到的奖励逐位相同。
+  /// 🔴 **本字段不驱动战斗动画**：战斗剧本由 `deriveGuardBattleScript`
+  /// （dayKey + childId 独立派生）生成，动画层**不读** `roll`。
+  /// 不进动画不影响公平性——奖励在 `resolve()` 落盘、`claim()` 按落盘结果
+  /// 发放，「跳过」与「看完」拿到的奖励逐位相同（PRD §7.3 第一条红线）。
+  ///
+  /// ⚠️ 玄参 2026-11-11 裁定：**「战斗回放」功能不做**。`roll` 保留为
+  /// 观测/测试用途（幂等回放一致性、派生正确性），不要把它当成动画数据源；
+  /// 将来若要做回放，必须先重新评估该字段的语义与档位口径。
   final GuardRoll? roll;
 
   /// 已落盘（或读回）的当日状态。
@@ -398,7 +405,14 @@ class GuardService {
         cost: _costModeOf(stored, energy, balance),
         thief: stored.thiefKind,
         roll: stored.hasThief
-            ? deriveGuardRoll(dayKey: today, childId: childId)
+            // 🔴 Guard-B13.10：回放也必须带档位 —— 缺 `isPremium` 时
+            // `deriveGuardRoll` 走免费表，完整版用户回放会拿到「免费档」的掉落
+            // （drop / bonusDrop 都可能与实际落盘的 state 不一致）。
+            ? deriveGuardRoll(
+                dayKey: today,
+                childId: childId,
+                isPremium: _premium,
+              )
             : null,
         state: stored,
         energyAvailable: energy,

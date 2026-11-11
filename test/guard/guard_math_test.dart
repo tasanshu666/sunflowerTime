@@ -8,6 +8,8 @@
 /// ## 覆盖清单
 ///  · 确定性：同 seed 100 次逐位一致（防偷偷用 `Random`）；跨 childId / 跨天不同；
 ///  · 分布：10000 天，3 种贼 + 6 档掉落与 PRD 表误差 < ±1.5 个百分点；
+///  · 🔴 双券 gate（Guard-B13.10）：**完整版专属** —— 免费档 10000 天恒 0 张第二券，
+///    完整版券日 ≈10%，且「档位是唯一判据」由跨档对照用例钉死；
 ///  · 成长扣减：3% / 5% 封顶 / 不为负 / **开花株免疫** / **阶段不回退** / 死株跳过；
 ///  · 券节省：5 种券各算对；浇水 / 劳动券当日不限次（B13.4）；免费券只算单株。
 library guard_math_test;
@@ -315,8 +317,12 @@ void main() {
     });
   });
 
-  // 🔴 B13.5 双券语义：免费档同样有 10% 第二张（对主理人口径的解读见方案 §）。
-  group('双券 bonusDrop（免费档 10000 天）', () {
+  // 🔴 Guard-B13.10（玄参 2026-11-11 裁定：「双倍掉落券，对免费档不生效」）：
+  //    **本组口径已语义反转** —— 原口径是「免费档券日同样 10% 双券」，
+  //    现口径是「双券 = **完整版专属**，免费档 10000 天恒 0 张第二券」。
+  //    期望值一律写字面量（0 / 0.50 / 0.10），绝不用 `kGuardDropDualChance` 去乘
+  //    ——否则实现把 gate 写反了，测试会跟着一起变绿。
+  group('双券 bonusDrop（免费档 10000 天 · 完整版专属）', () {
     const int sampleCount = 10000;
     late Map<GuardDropKind, int> dropHits;
     late Map<GuardDropKind, int> bonusHits;
@@ -330,35 +336,114 @@ void main() {
       };
       final List<String> days = _dayKeys(DateTime(2026, 2, 1), sampleCount);
       for (final String day in days) {
-        final GuardRoll roll =
-            deriveGuardRoll(dayKey: day, childId: 'child-bonus');
+        // isPremium 缺省 = false，显式写出来，防将来默认值被改。
+        final GuardRoll roll = deriveGuardRoll(
+          dayKey: day,
+          childId: 'child-bonus',
+          isPremium: false,
+        );
         dropHits[roll.drop] = dropHits[roll.drop]! + 1;
         bonusHits[roll.bonusDrop] = bonusHits[roll.bonusDrop]! + 1;
       }
     });
 
-    test('券日双券率 ≈ 10%（与付费档同口径）', () {
+    test('第二张券恒为 none（10000 天 0 次 · 免费档永不出双券）', () {
       int bonusDays = 0;
       for (final MapEntry<GuardDropKind, int> e in bonusHits.entries) {
         if (e.key != GuardDropKind.none) bonusDays += e.value;
       }
-      final int voucherDays = sampleCount - dropHits[GuardDropKind.none]!;
-      expect(voucherDays, greaterThan(0));
-      final double actual = bonusDays / voucherDays;
-      expect((actual - 0.10).abs(), lessThan(0.02),
-          reason: '券日实测双券率 ${(actual * 100).toStringAsFixed(2)}% vs 10%'
-              '（券日基数大，用更紧的 2pp 容差）');
+      expect(bonusDays, 0,
+          reason: '实测出现 $bonusDays 天第二张券 vs 期望 **0**'
+              '（双倍掉落券是完整版专属，玄参 2026-11-11 裁定）');
+      // 显式再钉一次「全落 none」：防有人把 bonusHits 统计口径改坏。
+      expect(bonusHits[GuardDropKind.none], sampleCount);
     });
 
-    test('第二张券种类恒 ≠ 主券（同一天逐日对拍）', () {
+    test('免费档仍有首张券（≈50% 券日 —— 不是「免费档永远无券」）', () {
+      final int voucherDays = sampleCount - dropHits[GuardDropKind.none]!;
+      final double actual = voucherDays / sampleCount;
+      // 期望值 0.50 是 B13.5 免费表的字面量（无道具 50%）。
+      expect((actual - 0.50).abs(), lessThan(0.02),
+          reason: '实测券日 ${(actual * 100).toStringAsFixed(2)}% vs 50%');
+      expect(voucherDays, greaterThan(0), reason: '券日必须可达（否则本组假绿）');
+    });
+
+    test('券日也不出第二张（逐日对拍：drop != none ⇒ bonus == none）', () {
+      int voucherDays = 0;
       final List<String> days = _dayKeys(DateTime(2026, 2, 1), sampleCount);
       for (final String day in days) {
-        final GuardRoll roll =
-            deriveGuardRoll(dayKey: day, childId: 'child-bonus');
-        if (!roll.drop.hasVoucher) {
-          expect(roll.bonusDrop, GuardDropKind.none, reason: day);
-        } else if (roll.bonusDrop != GuardDropKind.none) {
+        final GuardRoll roll = deriveGuardRoll(
+          dayKey: day,
+          childId: 'child-bonus',
+          isPremium: false,
+        );
+        if (roll.drop.hasVoucher) voucherDays++;
+        expect(roll.bonusDrop, GuardDropKind.none,
+            reason: '$day：免费档不允许第二张券（主券 ${roll.drop.id}）');
+      }
+      expect(voucherDays, greaterThan(0), reason: '10000 天里必须有券日');
+    });
+  });
+
+  // ── 跨档对照（🔴 防「改坏成永远 none」的假绿）─────────────────────────────
+  //
+  // 同一 (dayKey, childId) 只差 `isPremium`：免费档恒 none、完整版 ≈10%。
+  // 两条分支都必须**可达** —— 只测免费档恒 0 的话，「把 rollBonus 整个注释掉」
+  // 也能全绿；本组是唯一能抓到这种坏法的用例。
+  group('跨档对照 · 档位是第二张券的唯一判据', () {
+    const int sampleCount = 10000;
+
+    test('同一 dayKey+childId：isPremium:false ⇒ bonus 恒 none；'
+        'isPremium:true ⇒ 券日约 10%', () {
+      int freeBonusDays = 0;
+      int premiumVoucherDays = 0;
+      int premiumBonusDays = 0;
+      final List<String> days = _dayKeys(DateTime(2026, 3, 1), sampleCount);
+      for (final String day in days) {
+        final GuardRoll free = deriveGuardRoll(
+          dayKey: day,
+          childId: 'child-cross-tier',
+          isPremium: false,
+        );
+        final GuardRoll premium = deriveGuardRoll(
+          dayKey: day,
+          childId: 'child-cross-tier',
+          isPremium: true,
+        );
+        // 免费档：恒无第二张（无论首张有没有券）。
+        if (free.bonusDrop != GuardDropKind.none) freeBonusDays++;
+        expect(free.bonusDrop, GuardDropKind.none,
+            reason: '$day 免费档出现第二张券 ${free.bonusDrop.id}');
+        // 完整版：首张必掉券（none 概率 = 0），第二张 ≈10% 且恒不同种。
+        expect(premium.drop, isNot(GuardDropKind.none),
+            reason: '$day 完整版首张必掉券');
+        premiumVoucherDays++;
+        if (premium.bonusDrop != GuardDropKind.none) {
+          premiumBonusDays++;
+          expect(premium.bonusDrop, isNot(premium.drop),
+              reason: '$day 第二张必须与首张不同种');
+        }
+      }
+      expect(freeBonusDays, 0, reason: '免费档 10000 天 0 张第二券');
+      expect(premiumVoucherDays, sampleCount);
+      expect(premiumBonusDays, greaterThan(0),
+          reason: '完整版分支必须可达（否则 gate 被改坏成永远 none）');
+      final double actual = premiumBonusDays / premiumVoucherDays;
+      expect((actual - 0.10).abs(), lessThan(0.02),
+          reason: '完整版券日实测双券率 ${(actual * 100).toStringAsFixed(2)}% vs 10%');
+    });
+
+    test('第二张券种类恒 ≠ 主券（完整版逐日对拍）', () {
+      final List<String> days = _dayKeys(DateTime(2026, 4, 1), 2000);
+      for (final String day in days) {
+        final GuardRoll roll = deriveGuardRoll(
+          dayKey: day,
+          childId: 'child-cross-tier',
+          isPremium: true,
+        );
+        if (roll.bonusDrop != GuardDropKind.none) {
           expect(roll.bonusDrop, isNot(roll.drop), reason: day);
+          expect(roll.bonusDrop.hasVoucher, isTrue, reason: '$day 第二张必须是券档');
         }
       }
     });

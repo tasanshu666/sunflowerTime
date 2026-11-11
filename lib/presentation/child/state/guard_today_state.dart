@@ -245,7 +245,8 @@ class GuardTodayView {
 
   /// 今天的**第二张**掉落档（B13.5 双券；`none` = 没有第二张）。
   ///
-  /// 仅主券是券档时才有机会非 `none`（`rollBonus` 的闸门语义），
+  /// 两个条件同时成立才可能非 `none`：**完整版档**（免费档恒 `none`，
+  /// Guard-B13.10 玄参裁定）且主券是券档（`deriveGuardRoll` 的 gate 语义），
   /// 结果卡用它渲染第二张券卡。
   GuardDropKind get bonusDropKind => state.bonusDropKind;
 

@@ -24,6 +24,7 @@ import 'package:test/test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart'
     show kGuardWinSunNoItem;
+import 'package:sunflower_time/core/utils/datetime_ext.dart' show dayKey;
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -979,6 +980,97 @@ void main() {
       expect(second.drop, first.drop);
       expect(ctx.state, afterFirst, reason: '状态逐字段不变');
       expect(ctx.ledger.entries, isEmpty);
+    });
+
+    // ─────────── R1（Guard-B13.10）：幂等回放必须透传权益档位 ───────────
+    //
+    // 🔴 本用例的存在理由（零覆盖缺陷回填）：本组上面那条「不重掷」只断言
+    // `state.dropKind`，**从不读 `roll`**；于是「幂等回放分支漏传 `isPremium`」
+    // 这个 bug 完全隐形 —— 把它改回 `deriveGuardRoll(dayKey:, childId:)`，
+    // 全量 4572 条测试仍然全绿，而完整版用户在**第二次进今日页**时会拿到
+    // 「免费档」的落骰（drop 有 50% 变成 none、bonusDrop 恒 none），与已落盘的
+    // `state` 对不上（结算卡显示的券 ≠ 实际发放的券）。
+    //
+    // 本用例的判据是 `roll` 与 `state` 的**同源性** + 首回放/次回放的**逐字段
+    // 相等**，所以「回放漏传档位」这条改回去必红。
+    test('守护 resolve 幂等回放必须透传档位（Guard-B13.10）；改回漏传 isPremium 本条必红',
+        () async {
+      // ① 动态挑一个「完整版档真的掉出第二张券」的 dayKey。
+      //    免费档恒无第二张券 ⇒ 若不挑日子，回放漏传档位时 `bonusDrop` 两边
+      //    都是 none，用例会假绿。派生是纯函数（同一 `dayKey + childId + 档位`
+      //    恒得同一结果）⇒ 从 2026-11-09 起逐日递增，取第一个命中即用；
+      //    **不硬编码日期**（硬编码会让「换一天就悄悄不覆盖 bonusDrop」）。
+      DateTime? candidateDay;
+      for (int i = 0; i < 3650; i++) {
+        final DateTime candidate = DateTime(2026, 11, 9).add(Duration(days: i));
+        final GuardRoll probe = deriveGuardRoll(
+          dayKey: dayKey(candidate),
+          childId: _childId,
+          isPremium: true,
+        );
+        if (probe.bonusDrop != GuardDropKind.none) {
+          candidateDay = candidate;
+          break;
+        }
+      }
+      expect(candidateDay, isNotNull,
+          reason: '10 年内必然存在「完整版档掉两张券」的一天（挑不到 ⇒ 派生坏了）');
+      final DateTime chosenDay = candidateDay!;
+      final DateTime at =
+          DateTime(chosenDay.year, chosenDay.month, chosenDay.day, 10, 30);
+      final String thatDay = dayKey(at);
+
+      // ② 完整版档的 service（复用同一套内存仓储，只换时钟 + 档位）。
+      final _Ctx ctx = _make(
+        balance: 100,
+        plants: <Plant>[_plant('p1')],
+        isPremium: true,
+      );
+      await ctx.store.write(_childId, GuardDayState.empty(thatDay));
+      final GuardService guard = GuardService(
+        store: ctx.store,
+        ledger: ctx.ledger,
+        focus: ctx.focus,
+        plants: ctx.plants,
+        growth: ctx.growth,
+        childId: () => _childId,
+        clock: () => at,
+        isPremium: () => true,
+      );
+
+      final GuardResolveResult first = await guard.resolve();
+      final GuardResolveResult second = await guard.resolve();
+
+      expect(first.roll, isNotNull, reason: '有存活株 ⇒ 当天必有落骰结果');
+      expect(second.roll, isNotNull, reason: '回放分支必须给出落骰结果');
+      expect(second.state, first.state, reason: '回放不重写状态');
+      expect(ctx.ledger.entries, isEmpty, reason: 'resolve 全程零账本写入');
+
+      // ③ 回放的 roll 必须与落盘的 state **同源** —— 这就是「档位被透传」的
+      //    可观测面：漏传 `isPremium` 时 roll 走免费表，两行立刻打架。
+      expect(second.roll!.drop, second.state.dropKind,
+          reason: '🔴 回放的 drop 必须等于落盘的 dropKind');
+      expect(second.roll!.bonusDrop, second.state.bonusDropKind,
+          reason: '🔴 回放的 bonusDrop 必须等于落盘的 bonusDropKind');
+      // 字面量语义（不引用 kGuardDropDualChance 反算期望）：
+      // 完整版档「无道具率 = 0」⇒ 首张必是券；本用例又专挑「掉两张」的那天。
+      expect(second.roll!.drop, isNot(GuardDropKind.none),
+          reason: '完整版档不存在「无道具」日');
+      expect(second.roll!.bonusDrop, isNot(GuardDropKind.none),
+          reason: '本用例专挑的就是「掉 2 张券」的那一天');
+
+      // ④ 「同一天重复 resolve 不重掷」的**逐字段**口径。
+      //    ⚠️ `GuardRoll.operator==` / `hashCode` **都不含 bonusDrop**，
+      //    所以绝不能只写 `expect(second.roll, first.roll)` —— 那会掩盖
+      //    「第二张券被重掷 / 丢失」这一类回归。下面六个字段一个不落全列。
+      expect(second.roll!.thief, first.roll!.thief, reason: '同一只贼');
+      expect(second.roll!.growthLossPercent, first.roll!.growthLossPercent,
+          reason: '偷多少成长（未取整，逐位相同）');
+      expect(second.roll!.sunLoss, first.roll!.sunLoss, reason: '偷多少阳光');
+      expect(second.roll!.drop, first.roll!.drop, reason: '首张券');
+      expect(second.roll!.bonusDrop, first.roll!.bonusDrop,
+          reason: '🔴 第二张券（operator== 不覆盖，必须单独断）');
+      expect(second.roll!.winSun, first.roll!.winSun, reason: '必得阳光');
     });
 
     test('付费档：resolve 标 pending + 记录将被偷的金额，但不扣', () async {

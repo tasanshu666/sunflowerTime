@@ -411,6 +411,11 @@ final guardServiceProvider = Provider<GuardService>(
     plants: ref.watch(plantRepositoryProvider),
     growth: ref.watch(plantGrowthServiceProvider),
     childId: () => ref.read(accountServiceProvider).childId,
+    // 🔴 B13.5 付费掉落：掉落档位按权益分层（免费 50% 无券 / 付费 100% 出券）。
+    // 读 `entitlementProvider`（UI 门控唯一来源，默认 free；调试「会员模式」
+    // 开关也写它 ⇒ Debug 下可直接预览付费掉率）。read 不 watch：权益变化
+    // 不重建服务，下次 resolve 自然取新值。
+    isPremium: () => ref.read(entitlementProvider).isPremium,
   ),
 );
 

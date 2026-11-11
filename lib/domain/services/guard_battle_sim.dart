@@ -29,7 +29,8 @@
 /// | channel | 派生量 |
 /// |---|---|
 /// | `count` | 怪数 ∈ [kGuardMonsterCountMin, kGuardMonsterCountMax] |
-/// | `kind_<i>` | 第 i 怪种类 ∈ {m1, m2, m3}（等概率三桶） |
+/// | `kind_<i>` | 🔴 **B13 退役**：怪种改对齐当日贼种（`thief` 通道，见
+///     `deriveGuardBattleScript`）。通道名按冻结纪律保留，不再消费。 |
 /// | `offset_<i>` | 第 i 怪的纵向入场通道 ∈ [0,1) → 行走基准线 laneY |
 /// | `wobble_amp_<i>` | 纵向摆动振幅（pt） |
 /// | `wobble_freq_<i>` | 纵向摆动频率（Hz） |
@@ -63,6 +64,7 @@ import 'dart:math' as math;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/stable_hash.dart';
+import 'package:sunflower_time/domain/entities/guard_thief.dart';
 
 // ── 冻结通道名（🔴 一经写入即冻结，见文件头通道表）─────────────────────────
 
@@ -70,6 +72,10 @@ import 'package:sunflower_time/core/utils/stable_hash.dart';
 const String kGuardBattleChannelCount = 'count';
 
 /// 通道前缀：第 i 怪种类（实际通道 = `kind_<i>`）。
+///
+/// 🔴 **B13 退役**（不再消费）：怪种改对齐当日贼种 —— 独立怪种通道会让
+/// 「结算卡说赶走了食叶虫、场上跑的却是馋光鼠」（玄参 B13）。常量按冻结
+/// 纪律保留（历史金测 / 归档文档仍引用这个名字）。
 const String kGuardBattleChannelKind = 'kind';
 
 /// 通道前缀：第 i 怪纵向入场通道（实际通道 = `offset_<i>`）。
@@ -469,10 +475,14 @@ GuardBattleScript deriveGuardBattleScript({
   );
 
   final List<GuardBattleMonsterSpec> monsters = <GuardBattleMonsterSpec>[];
+  // 🔴 B13（玄参：「小怪物出现的是馋光鼠，结算卡片弹的却是赶走了食叶虫——
+  // 说法不匹配」）：怪种不再逐怪走独立的 `kind_<i>` 通道，而是**对齐当日贼种**
+  // （[GuardThiefKind.roll]，与 resolve / 胶囊文案 / 结算卡标题同源同 seed）——
+  // 「今天来的是馋光鼠，出场的就全是馋光鼠」。`kind_<i>` 通道退役
+  // （通道名按冻结纪律保留在表里，不再消费）；映射见 [_kindOfThief]。
+  final GuardBattleMonsterKind kind =
+      _kindOfThief(GuardThiefKind.roll(dayKey: dayKey, childId: childId));
   for (int i = 0; i < count; i++) {
-    final double uKind = _uniform(
-        dayKey: dayKey, childId: childId, channel: '${kGuardBattleChannelKind}_$i');
-    final GuardBattleMonsterKind kind = _kindOf(uKind);
     // 出场时刻：出怪时刻表取前 N 项（防御分支：表短于 N 时按 6s 间隔顺延）。
     final int spawnMs = i < kGuardSpawnOffsetsMs.length
         ? kGuardSpawnOffsetsMs[i]
@@ -1411,11 +1421,19 @@ int _intInRange(double u, int min, int max) {
   return value;
 }
 
-/// 把 `u ∈ [0,1)` 等概率落桶到三档怪。
-GuardBattleMonsterKind _kindOf(double u) {
-  if (u < 1.0 / 3.0) return GuardBattleMonsterKind.m1;
-  if (u < 2.0 / 3.0) return GuardBattleMonsterKind.m2;
-  return GuardBattleMonsterKind.m3;
+/// 把当日贼种映射到战斗怪种（B13：怪种 = 贼种，见 [deriveGuardBattleScript]）。
+///
+/// m1 = 馋光鼠（sunRat）/ m2 = 食叶虫（leafBug）/ m3 = 贪婪鼬（sneakThief），
+/// 与素材目录（`monster_m1/m2/m3`）及 `guardThiefName` 的命名一一对应。
+GuardBattleMonsterKind _kindOfThief(GuardThiefKind thief) {
+  switch (thief) {
+    case GuardThiefKind.sunRat:
+      return GuardBattleMonsterKind.m1;
+    case GuardThiefKind.leafBug:
+      return GuardBattleMonsterKind.m2;
+    case GuardThiefKind.sneakThief:
+      return GuardBattleMonsterKind.m3;
+  }
 }
 
 /// 快照数值口径：位置取 2 位小数（金测「逐字符相同」的确定性格式）。

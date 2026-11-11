@@ -58,6 +58,8 @@ import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_art.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart';
+import 'package:sunflower_time/domain/services/guard_battle_sim.dart'
+    show deriveGuardBattleScript;
 import 'package:sunflower_time/presentation/child/widgets/guard_card_layout.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_tutorial_sheet.dart';
@@ -483,7 +485,7 @@ void main() {
 
   // ── ⑦ 尺寸字面量 + 窄卡 0.85 + 通道实测 ────────────────────────────────
   group('⑦ 尺寸与通道验收', () {
-    testWidgets('房子 88 / 战士 68 / 怪 44（字面量，B10）；390 与 1024 逐位相等',
+    testWidgets('房子 88 / 战士 64 / 怪 44（字面量，B13）；390 与 1024 逐位相等',
         (WidgetTester tester) async {
       await _pumpCard(tester,
           cardWidth: 390, screenWidth: 390, mode: GuardPillMode.fighting);
@@ -497,14 +499,22 @@ void main() {
           reason: '🔴 房子高 = 88（玄参字面量）');
       expect(houseSmall.width, closeTo(156, 1.0),
           reason: '🔴 房子宽 ≈ 156（88 × 1.7746，contain 不裁切）');
-      expect(soldierSmall.width, closeTo(68, 0.01),
-          reason: '🔴 B10/C1：战士边长 = 68（裁边后标称=视觉）');
-      // 🔴 B10/C3：三怪改**等面积**（1936pt²），元组宽高按素材比例反解 ⇒
-      // 默认 m1（馋光鼠 512×406，B11 面积系数 0.80）= 44.19 × 35.04。
-      expect(monsterSmall.width, closeTo(44.19, 0.01),
-          reason: '🔴 m1 宽 = 44.19（等面积 1548.8 反解，B11 系数 0.80）');
-      expect(monsterSmall.height, closeTo(35.04, 0.01),
-          reason: '🔴 m1 高 = 35.04（等面积 1548.8 反解）');
+      expect(soldierSmall.width, closeTo(60, 0.01),
+          reason: '🔴 B13.2：战士边长 = 60（真机复验 64 → 60）');
+      // 🔴 B13：战斗怪种类**跟当日小偷走**（_kindOfThief）—— 本夹具
+      // dayKey '2026-11-10' / 'seed-0' 的战局种类由脚本派生，宽高按该种反解。
+      final String kindId = deriveGuardBattleScript(
+              dayKey: '2026-11-10', childId: 'seed-0')
+          .monsters
+          .first
+          .kind
+          .id;
+      expect(monsterSmall.width,
+          closeTo(const GuardCardLayout(390).monsterWidthOf(kindId), 0.01),
+          reason: '🔴 m 宽 = 等面积反解（B13 种类跟当日小偷：$kindId）');
+      expect(monsterSmall.height,
+          closeTo(const GuardCardLayout(390).monsterHeightOf(kindId), 0.01),
+          reason: '🔴 m 高 = 等面积反解（$kindId）');
 
       await _pumpCard(tester,
           cardWidth: 1024, screenWidth: 1024, mode: GuardPillMode.fighting);
@@ -521,21 +531,27 @@ void main() {
         (WidgetTester tester) async {
       await _pumpCard(tester,
           cardWidth: 320, screenWidth: 320, mode: GuardPillMode.fighting);
+      final String kindId = deriveGuardBattleScript(
+              dayKey: '2026-11-10', childId: 'seed-0')
+          .monsters
+          .first
+          .kind
+          .id;
       expect(tester.getSize(find.byKey(GuardSceneCard.houseKey)).height,
           closeTo(88 * 0.85, 0.05),
           reason: '🔴 窄卡：房子 88 × 0.85 = 74.8');
       expect(tester.getSize(find.byKey(GuardSceneCard.soldierKey)).width,
-          closeTo(68 * 0.85, 0.05),
-          reason: '🔴 窄卡：战士 68 × 0.85 = 57.8');
+          closeTo(60 * 0.85, 0.05),
+          reason: '🔴 窄卡：战士 60 × 0.85 = 51.0');
       expect(tester.getSize(find.byKey(GuardBattleField.monsterKey(0))).width,
-          closeTo(44.19 * 0.85, 0.05),
-          reason: '🔴 窄卡：m1 宽 44.19 × 0.85 = 37.56');
+          closeTo(const GuardCardLayout(320).monsterWidthOf(kindId), 0.05),
+          reason: '🔴 窄卡：m 宽 × 0.85（$kindId）');
       expect(tester.getRect(find.byKey(GuardSceneCard.cardKey)).height,
           closeTo(kGuardSceneCardHeight, 0.5),
           reason: '🔴 卡高**不缩**（跨屏宽恒定 112，滚动预算才稳）');
     });
 
-    test('通道实测：390 卡 109.84pt / 320 卡 81.86pt / 1024 卡 743.84pt', () {
+    test('通道实测：390 卡 117.84pt / 320 卡 88.66pt / 1024 卡 751.84pt', () {
       const GuardCardLayout wide = GuardCardLayout(390);
       const GuardCardLayout narrow = GuardCardLayout(320);
       const GuardCardLayout tablet = GuardCardLayout(1024);
@@ -543,12 +559,12 @@ void main() {
       expect(narrow.scale, kGuardNarrowCardScale, reason: '320 卡进 0.85 缩放');
       // 🔴 钉**实测值**（±0.5pt），不写宽泛阈值：
       //   B9/C3 把通道左端从「战士右缘」左移到「战士右缘 − 半个怪」
-      //   （怪半个身子压住战士才停）；B10/C1 战士 78→68 ⇒ 390 屏跑道 109.84pt。
-      expect(wide.channelWidth, closeTo(109.84, 0.5),
+      //   （怪半个身子压住战士才停）；B13.2 战士 64→60 ⇒ 390 屏跑道 117.84pt。
+      expect(wide.channelWidth, closeTo(117.84, 0.5),
           reason: '🔴 实测 ${wide.channelWidth}');
-      expect(narrow.channelWidth, closeTo(81.86, 0.5),
+      expect(narrow.channelWidth, closeTo(88.66, 0.5),
           reason: '🔴 实测 ${narrow.channelWidth}（玄参验收线 55 ⇒ 达标）');
-      expect(tablet.channelWidth, closeTo(743.84, 0.5),
+      expect(tablet.channelWidth, closeTo(751.84, 0.5),
           reason: '🔴 iPad 只拉长通道');
       // 兜底下限：通道至少容得下一只怪（44pt），否则演出必崩。
       expect(wide.channelWidth, greaterThanOrEqualTo(44));
@@ -582,9 +598,9 @@ void main() {
       await _settleRoute(tester);
       expect(find.byKey(kGuardTutorialSheetKey), findsNothing,
           reason: '🔴 B7：教学一辈子只讲一次（旧实现按天重置 ⇒ 这里会再弹）');
-      expect(find.text('要花费 $kGuardPayCost 阳光，请小小葵战士帮忙吗？'),
+      expect(find.text('要花费 $kGuardPayCost 阳光，\n进行花园守卫吗？'),
           findsOneWidget,
-          reason: '跳过教学后必须直接落到确认卡（B9/E：玄参指定新文案）');
+          reason: '跳过教学后必须直接落到确认卡（B13：玄参指定新文案；B13.2 分两段）');
     });
   });
 

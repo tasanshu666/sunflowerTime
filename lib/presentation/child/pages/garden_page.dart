@@ -249,18 +249,35 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// C77 · 当前称号专属属性（随 [_reload] 刷新；未就绪时 [PlantPerk.none] = 无加成）。
   PlantPerk _perk = PlantPerk.none;
 
-  /// 花园守卫「今日券」快照（随 [_reload] 刷新）。
+  /// 花园守卫「今日券」快照（随 [_reload] 刷新；B13.5 起**最多两张**）。
   ///
-  /// `null` = 今天没券 / 读不到（含 prefs 不可用：纯 widget 宿主常见）。
+  /// 空 = 今天没券 / 读不到（含 prefs 不可用：纯 widget 宿主常见）。
   /// 🔴 只读不写：本页**不**调 `GuardService.expire()` / `resolve()`（那两个会写存档、
   /// 甚至真扣钱），券的减免一律经 [GuardVoucherService.overlayFor] 折算。
-  GuardBuffState? _guardBuff;
+  /// 🔴 双券（主券 + 第二张）种类恒不同 —— 按动作取券走 [_buffForAction]，
+  ///    **不许**直接取 `_guardBuffs.first`。
+  List<GuardBuffState> _guardBuffs = const <GuardBuffState>[];
+
+  /// 今天与 [action] 同种的那张券（0~2 张里**至多一张**匹配；B13.5）。
+  ///
+  /// 匹配判据复用 [guardVoucherKindForAction]：用每张券自己的 `kind` 当
+  /// `activeDrop` 反问「这个动作在这张券面前是什么券种」，答案等于券本身
+  /// 的券种 ⇒ 匹配（免费券换名、劳动券恒定都自然覆盖）。
+  GuardBuffState? _buffForAction(GuardActionKind action) {
+    for (final GuardBuffState buff in _guardBuffs) {
+      if (guardVoucherKindForAction(action, activeDrop: buff.kind) ==
+          GuardVoucherKind.of(buff.kind)) {
+        return buff;
+      }
+    }
+    return null;
+  }
 
   /// [_reload] 的代次号：每次调用自增；旧代次的异步结果**不许**覆盖新状态。
   ///
   /// 背景（玄参真机 ③）：调试面板 `onChanged` 曾是 fire-and-forget，快速连点会
   /// 产生两个并发 `_reload`，后启动的先完成、旧代次最后落地 ⇒ 左上角胶囊停在
-  /// 上一次的券。有了代次保护，只有最新一次 `_reload` 能写 [_guardBuff] /
+  /// 上一次的券。有了代次保护，只有最新一次 `_reload` 能写 [_guardBuffs] /
   /// `setState`。
   int _reloadGeneration = 0;
 
@@ -542,7 +559,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// · 教学页 `garden_help_sheet.dart` 刻意用**基础常量**、不走本函数 —— 它的口径是
   ///   「浇水 {waterCost} ☀/次**起**」＝最低价，券只会更便宜，不算错。
   PlantPerk _perkFor(GuardActionKind action, {String? plantId}) {
-    final GuardBuffState? buff = _guardBuff;
+    final GuardBuffState? buff = _buffForAction(action);
     if (buff == null) return _perk;
     return ref.read(guardVoucherProvider).overlayFor(
           buff,
@@ -574,7 +591,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     GuardActionKind action, {
     required String? plantId,
   }) async {
-    final GuardBuffState? buff = _guardBuff;
+    final GuardBuffState? buff = _buffForAction(action);
     if (buff == null) return; // 今天没券 / 券不可用
     try {
       await ref.read(guardVoucherProvider).recordConsumed(
@@ -650,24 +667,24 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       //    接住 → **整页错误页**（`empty_pot_ui_test` / `plant_care_sheet_perk_test`
       //    等大量宿主都没 override prefs）。
       // 降级方向安全：券不可用 ⇒ 价格原样（称号 perk 照常），只少一层减免。
-      GuardBuffState? nextBuff;
+      // 🔴 B13.5：读「全部当日券」（0~2 张，主券 + 第二张）。
+      List<GuardBuffState> nextBuffs = const <GuardBuffState>[];
       try {
-        nextBuff = await ref
+        nextBuffs = await ref
             .read(guardVoucherProvider)
-            .currentBuff()
+            .currentBuffs()
             .timeout(kGuardVoucherReadTimeout);
       } catch (e) {
         debugPrint('[Guard] 今日券不可用，按「无券」处理：$e');
       }
       // 🔴 代次保护 ①：旧代次的异步结果不许覆盖新代次已写入的券快照。
       if (gen != _reloadGeneration) return;
-      _guardBuff = nextBuff;
+      _guardBuffs = nextBuffs;
       // 诊断日志（玄参 2026-11-09 晚：与今日页 claim 的 bump 日志配对 ——
       // 「claim 日志有、本日志却是 null」⇒ 通知通道断；「本日志有券、屏上无 chip」
       // ⇒ 渲染层问题。kDebugOnly，release 无输出）。
       debugPrint('[Guard] garden reload gen=$gen '
-          'buff=${nextBuff?.kind.name ?? 'null'} '
-          'used=${nextBuff?.used}');
+          'buffs=${nextBuffs.map((GuardBuffState b) => b.kind.name).join('|')}');
       _capacity = settings.gardenPotCapacity;
       // ── F155-B（玄参 2026-10-27 拍板）：空花盆也会长杂草 / 害虫 ─────────────
       // 每次刷新顺带跑一次「空盆每日 roll」（幂等：同日重复刷新不重 roll），
@@ -2265,7 +2282,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     // · 券服务只在「今天确实有券」时才取：未 override `sharedPreferencesProvider`
     //   的宿主里 `guardVoucherProvider` 会直接抛 `UnimplementedError`。
     GuardVoucherService? guardVouchers;
-    if (_guardBuff != null) {
+    if (_guardBuffs.isNotEmpty) {
       try {
         guardVouchers = ref.read(guardVoucherProvider);
       } catch (e) {
@@ -2276,21 +2293,21 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     final int seqCount = kind == PlantOneClickKind.care
         ? plan.careTargets.length
         : plan.plantIds.length;
-    final GuardVoucherKind seqKind = switch (kind) {
-      PlantOneClickKind.water => guardVoucherKindForAction(
-          GuardActionKind.water,
-          activeDrop: _guardBuff?.kind,
-        ),
-      PlantOneClickKind.fertilize => guardVoucherKindForAction(
-          GuardActionKind.fertilize,
-          activeDrop: _guardBuff?.kind,
-        ),
-      PlantOneClickKind.care => GuardVoucherKind.labor,
+    // 🔴 B13.5 双券：按动作取**匹配那张**（主券 / 第二张都可能），不许取 first。
+    final GuardActionKind seqAction = switch (kind) {
+      PlantOneClickKind.water => GuardActionKind.water,
+      PlantOneClickKind.fertilize => GuardActionKind.fertilize,
+      PlantOneClickKind.care => GuardActionKind.labor,
     };
+    final GuardBuffState? seqBuff = _buffForAction(seqAction);
+    final GuardVoucherKind seqKind = guardVoucherKindForAction(
+      seqAction,
+      activeDrop: seqBuff?.kind,
+    );
     final List<PlantPerk> seq = guardVouchers == null
         ? List<PlantPerk>.filled(seqCount, _perk)
         : guardVouchers.overlaySequenceFor(
-            _guardBuff,
+            seqBuff,
             _perk,
             kind: seqKind,
             count: seqCount,
@@ -3254,10 +3271,14 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             final WeatherBannerState banner = _resolveBanner(today);
             // 今日券快照（本次 build 只读一次字段）+ 是否展示胶囊：券不可用 /
             // 加载中 / 无道具档 ⇒ 不占位（零回归）。
-            final GuardBuffState? guardBuff = _guardBuff;
-            final bool showGuardBuffChip = !_loading &&
-                guardBuff != null &&
-                GuardVoucherKind.of(guardBuff.kind) != null;
+            // 今日券快照（本次 build 只读一次字段）+ 是否展示胶囊：券不可用 /
+            // 加载中 / 无道具档 ⇒ 不占位（零回归）。
+            // 🔴 B13.5：0~2 张（主券 + 第二张），逐张过滤出合法券种。
+            final List<GuardBuffState> guardBuffs = _guardBuffs
+                .where((GuardBuffState b) => GuardVoucherKind.of(b.kind) != null)
+                .toList(growable: false);
+            final bool showGuardBuffChip =
+                !_loading && guardBuffs.isNotEmpty;
             // 明日日型（天气对话框「明天 · …」预告行用）：`WeatherSystem.ofDay`
             // 是**纯函数**（零 IO / 零读钟 / 自带缓存），日期取自快照 `observedAt`
             // 而非 `DateTime.now()` —— 页面守卫（A2-1 / A3 §13）纪律不变。
@@ -3399,11 +3420,13 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                             ],
                           ),
                         ),
-                        // 今日券胶囊（额度用完也显示，只是不再减免）。
-                        if (showGuardBuffChip) ...<Widget>[
-                          const SizedBox(height: 8),
-                          GuardBuffChip(buff: guardBuff),
-                        ],
+                        // 今日券胶囊（额度用完也显示，只是不再减免；B13.5 起
+                        // 最多两张，逐张各占一行）。
+                        if (showGuardBuffChip)
+                          for (final GuardBuffState buff in guardBuffs) ...<Widget>[
+                            const SizedBox(height: 8),
+                            GuardBuffChip(buff: buff),
+                          ],
                       ],
                     ),
                   ),

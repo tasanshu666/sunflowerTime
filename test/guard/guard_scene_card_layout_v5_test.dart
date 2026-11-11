@@ -5,14 +5,14 @@
 ///
 /// ## 🔴 本文件的数字属于**哪一版**
 /// B9（玄参第四轮）建立了本文件，B10（第五轮）改了其中四个数并**同步更新了断言**：
-/// | 项 | B9 | **B10** |
-/// |---|---|---|
-/// | 战士边长 | 78 | **68** |
-/// | 战士绘制框 | 130 | **113.33**（= 68 × 5/3，派生） |
-/// | 能量点直径 / 间隙 | 18 / 8 | **14 / 6** |
-/// | 卡顶留白 padTop | 10 | **14**（卡高 108 → 112） |
-/// | 390 屏跑道 | 99.83 | **109.83** |
-/// | 三怪口径 | 高度齐平 44 | **等面积**（B10 1936pt²；B11 起 m1 × 0.80） |
+/// | 项 | B9 | B10 | **B13.2** |
+/// |---|---|---|---|
+/// | 战士边长 | 78 | 68 | **60**（64 试值 → 真机复验再 −4） |
+/// | 战士绘制框 | 130 | 113.33 | **100**（= 60 × 5/3，派生） |
+/// | 能量点直径 / 间隙 | 18 / 8 | **14 / 6** | 不动 |
+/// | 卡顶留白 padTop | 10 | **14**（卡高 108 → 112） | 不动 |
+/// | 390 屏跑道 | 99.83 | 109.83 | **117.84** |
+/// | 三怪口径 | 高度齐平 44 | **等面积**（B10 1936pt²；B11 起 m1 × 0.80） | 不动 |
 ///
 /// B10 的**新增**验收（卡不被 ListView 裁剪 / 能量点锚点六值 dump / 三怪等面积）
 /// 在 `guard_scene_card_layout_v6_test.dart`；本文件继续守「几何来源一致 +
@@ -21,10 +21,10 @@
 /// ## 覆盖
 /// | # | 断言 |
 /// |---|---|
-/// | ① | 战士 **68** 正方形、底边踩基线；窄卡 57.8 |
-/// | ② | 三态 `BoxFit.fitHeight` + 绘制框 113.33 宽（横向溢出**不裁**、不缩） |
+/// | ① | 战士 **60** 正方形、底边踩基线；窄卡 51.0 |
+/// | ② | 三态 `BoxFit.fitHeight` + 绘制框 100 宽（横向溢出**不裁**、不缩） |
 /// | ③ | 栅栏间隙 2（窄卡 1.7） |
-/// | ④ | `channelLeft = soldierRect.right − monsterExtent/2`；390 屏跑道 **109.83** |
+/// | ④ | `channelLeft = soldierRect.right − monsterExtent/2`；390 屏跑道 **117.84** |
 /// | ⑤ | 能量点两点整体锚**花园中轴**；直径 14、gap 6、顶边 14 |
 /// | ⑥ | `kGuardCardLift == 16`、卡高 **112**、卡后间距仍是 10 |
 /// | ⑦ | 三怪**等面积**（B11 系数：m1 0.80 ⇒ 44.19×35.04 / m2 44×44 / m3 60.93×31.77） |
@@ -174,51 +174,51 @@ Future<void> _pumpThreeMonsterField(WidgetTester tester) async {
 }
 
 void main() {
-  // ── ① 战士 68 正方形 ──────────────────────────────────────────────────
-  group('① 战士 68（裁边后标称 = 视觉；B10/C1）', () {
-    testWidgets('390 卡：soldierRect 正方形 68×68，底边踩房子基线',
+  // ── ① 战士 60 正方形 ──────────────────────────────────────────────────
+  group('① 战士 60（裁边后标称 = 视觉；B13.2 试值 64 → 60）', () {
+    testWidgets('390 卡：soldierRect 正方形 60×60，底边踩房子基线',
         (WidgetTester tester) async {
       await _pumpCard(tester, cardWidth: 390);
       final Rect house = tester.getRect(find.byKey(GuardSceneCard.houseKey));
       final Rect soldier =
           tester.getRect(find.byKey(GuardSceneCard.soldierKey));
 
-      // 字面量 68（不引用常量 —— 常量被改本断言必须红）。
-      expect(soldier.width, closeTo(68, 0.01),
-          reason: '🔴 B10/C1：战士边长 78 → 68（玄参第五轮「还是太大」）');
-      expect(soldier.height, closeTo(68, 0.01),
+      // 字面量 60（不引用常量 —— 常量被改本断言必须红）。
+      expect(soldier.width, closeTo(60, 0.01),
+          reason: '🔴 B13.2：战士 64 → 60（玄参真机复验）');
+      expect(soldier.height, closeTo(60, 0.01),
           reason: '🔴 正方形：跑道按它算，不许被攻击帧的长兵器拖累');
       expect(soldier.bottom, closeTo(house.bottom, 0.01),
           reason: '🔴 脚底踩同一条基线（站在草地上，不是浮空）');
-      // 顶部不越出卡：68 高 + padBottom 10 ≤ 卡高 112。
+      // 顶部不越出卡：60 高 + padBottom 10 ≤ 卡高 112。
       expect(soldier.height,
           lessThanOrEqualTo(kGuardSceneCardHeight - kGuardCardPadBottom));
     });
 
-    testWidgets('320 卡（≤380）：68 × 0.85 = 57.8（卡高仍 112）',
+    testWidgets('320 卡（≤380）：60 × 0.85 = 51.0（卡高仍 112）',
         (WidgetTester tester) async {
       await _pumpCard(tester, cardWidth: 320, screenWidth: 320);
       final Rect soldier =
           tester.getRect(find.byKey(GuardSceneCard.soldierKey));
-      expect(soldier.width, closeTo(57.8, 0.05),
-          reason: '🔴 窄卡等比缩：68 × 0.85');
-      expect(soldier.height, closeTo(57.8, 0.05));
+      expect(soldier.width, closeTo(51.0, 0.05),
+          reason: '🔴 窄卡等比缩：60 × 0.85');
+      expect(soldier.height, closeTo(51.0, 0.05));
       expect(tester.getRect(find.byKey(GuardSceneCard.cardKey)).height,
           closeTo(112, 0.5),
           reason: '🔴 窄卡只缩元素不缩卡高');
     });
 
-    test('纯值类口径：soldierHeight 68 / soldierHouseGap 2 / 绘制框 113.33', () {
-      expect(GuardCardLayout.soldierHeight, 68);
-      expect(GuardCardLayout.soldierSize, 68, reason: '正方形（旧名合并）');
+    test('纯值类口径：soldierHeight 60 / soldierHouseGap 2 / 绘制框 100', () {
+      expect(GuardCardLayout.soldierHeight, 60);
+      expect(GuardCardLayout.soldierSize, 60, reason: '正方形（旧名合并）');
       expect(GuardCardLayout.soldierHouseGap, 2,
           reason: '🔴 裁边后 2pt 才是肉眼 2pt（旧 6pt 肉眼是 23pt）');
-      // 绘制框 = 68 × 5/3 = 113.33 > 攻击帧需要的 99.76（512×349 按高 68 缩放）。
-      expect(GuardCardLayout.soldierOverflowWidth, closeTo(113.33, 0.01));
+      // 绘制框 = 60 × 5/3 = 100 > 攻击帧需要的 88.02（512×349 按高 60 缩放）。
+      expect(GuardCardLayout.soldierOverflowWidth, closeTo(100, 0.01));
       expect(const GuardCardLayout(390).soldierDrawWidth,
-          closeTo(113.33, 0.01));
-      expect(const GuardCardLayout(320).soldierDrawWidth, closeTo(96.33, 0.01));
-      const double attackWidth = 68 * 512 / 349;
+          closeTo(100, 0.01));
+      expect(const GuardCardLayout(320).soldierDrawWidth, closeTo(85, 0.01));
+      const double attackWidth = 60 * 512 / 349;
       expect(attackWidth, lessThan(GuardCardLayout.soldierOverflowWidth),
           reason: '🔴 攻击帧宽 ${attackWidth.toStringAsFixed(2)} 必须落在绘制框内');
     });
@@ -226,7 +226,7 @@ void main() {
 
   // ── ② fitHeight + 横向溢出放行 ────────────────────────────────────────
   group('② 三态 fitHeight（禁止 contain）', () {
-    testWidgets('待机帧按 fitHeight 绘制，绘制框 113.33×68（宽比 68 大 ⇒ 溢出放行）',
+    testWidgets('待机帧按 fitHeight 绘制，绘制框 100×60（宽比 60 大 ⇒ 溢出放行）',
         (WidgetTester tester) async {
       await _pumpCard(tester, cardWidth: 390);
 
@@ -234,10 +234,10 @@ void main() {
         of: find.byKey(GuardSceneCard.soldierKey),
         matching: find.byType(FrameSequencePlayer),
       ));
-      expect(draw.width, closeTo(113.33, 0.5),
-          reason: '🔴 绘制框 113.33 宽（比布局框 68 宽 ⇒ 攻击帧长兵器不被裁）');
-      expect(draw.height, closeTo(68, 0.5),
-          reason: '🔴 高度恒定 68（三态都一样高，绝不会一开火就变小）');
+      expect(draw.width, closeTo(100, 0.5),
+          reason: '🔴 绘制框 100 宽（比布局框 60 宽 ⇒ 攻击帧长兵器不被裁）');
+      expect(draw.height, closeTo(60, 0.5),
+          reason: '🔴 高度恒定 60（三态都一样高，绝不会一开火就变小）');
 
       final Iterable<Image> images = tester.widgetList<Image>(find.descendant(
         of: find.byKey(GuardSceneCard.soldierKey),
@@ -250,13 +250,13 @@ void main() {
       }
     });
 
-    testWidgets('布局框仍是 68（溢出不放宽跑道）', (WidgetTester tester) async {
+    testWidgets('布局框仍是 60（溢出不放宽跑道）', (WidgetTester tester) async {
       await _pumpCard(tester, cardWidth: 390);
       const GuardCardLayout l = GuardCardLayout(390);
-      expect(l.soldierRect.width, closeTo(68, 0.001),
-          reason: '🔴 溢出只影响绘制，soldierRect 仍是正方形 68');
+      expect(l.soldierRect.width, closeTo(60, 0.001),
+          reason: '🔴 溢出只影响绘制，soldierRect 仍是正方形 60');
       expect(tester.getSize(find.byKey(GuardSceneCard.soldierKey)).width,
-          closeTo(68, 0.01));
+          closeTo(60, 0.01));
     });
   });
 
@@ -283,19 +283,19 @@ void main() {
 
   // ── ④ 通道左端 = 战士右缘 − 半个怪 ────────────────────────────────────
   group('④ 跑道（怪半个身子压住战士才停）', () {
-    test('390 卡：channelRight 314 / 战士右缘 226.17 / 跑道 109.83', () {
+    test('390 卡：channelRight 314 / 战士右缘 218.16 / 跑道 117.84', () {
       const GuardCardLayout l = GuardCardLayout(390);
       // 玄参验收口径（字面量，不引用常量反算）：
       //   channelRight = 390 − 8 − 64 − 4 = 314
-      //   soldierRect.right = 156.17 + 2 + 68 = 226.17
-      //   跑道 = 314 − (226.17 − 22) = 109.83
+      //   soldierRect.right = 156.16 + 2 + 60 = 218.16（B13.2：战士 64 → 60）
+      //   跑道 = 314 − (218.16 − 22) = 117.84
       expect(l.houseRect.right, closeTo(156.17, 0.05));
-      expect(l.soldierRect.right, closeTo(226.17, 0.05));
+      expect(l.soldierRect.right, closeTo(218.16, 0.05));
       expect(l.rightClusterRect.left, closeTo(318, 0.01));
       expect(l.channelRight, closeTo(314, 0.01));
-      expect(l.channelLeft, closeTo(204.17, 0.05));
-      expect(l.channelWidth, closeTo(109.83, 0.05),
-          reason: '🔴 B10/C1 验收线（±1）：实测 ${l.channelWidth}');
+      expect(l.channelLeft, closeTo(196.16, 0.05));
+      expect(l.channelWidth, closeTo(117.84, 0.05),
+          reason: '🔴 B13.2 验收线（±1）：实测 ${l.channelWidth}');
       // 语义：停下时怪压住战士半个身位（= monsterExtent / 2 = 22）。
       expect(l.soldierRect.right - l.channelLeft, closeTo(22, 0.001),
           reason: '🔴 C 方案：怪走到门口时半个身子压在战士身上');
@@ -310,10 +310,10 @@ void main() {
     });
 
     test('通道随屏宽单调、窄卡留够一只怪', () {
-      expect(const GuardCardLayout(320).channelWidth, closeTo(81.86, 0.6));
-      expect(const GuardCardLayout(360).channelWidth, closeTo(121.86, 0.6));
-      expect(const GuardCardLayout(375).channelWidth, closeTo(136.86, 0.6));
-      expect(const GuardCardLayout(1024).channelWidth, closeTo(743.84, 0.6));
+      expect(const GuardCardLayout(320).channelWidth, closeTo(88.66, 0.6));
+      expect(const GuardCardLayout(360).channelWidth, closeTo(128.66, 0.6));
+      expect(const GuardCardLayout(375).channelWidth, closeTo(143.66, 0.6));
+      expect(const GuardCardLayout(1024).channelWidth, closeTo(751.84, 0.6));
       for (final double w in <double>[320, 360, 375, 390, 1024]) {
         expect(GuardCardLayout(w).channelWidth,
             greaterThanOrEqualTo(GuardCardLayout(w).monsterExtent),

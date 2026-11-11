@@ -660,8 +660,11 @@ void main() {
           reason: '全灭战局被偷合计 0 ⇒ 被偷行也必须是 0 行（B4 落账口径）');
 
       final int winSun = (await env.guardState()).winSun;
-      expect(find.text('拿回 $winSun 阳光'), findsOneWidget,
-          reason: '结果卡入参 view 不变：必得阳光口径与 v1 逐位一致');
+      // 🔴 B13：奖励改为**游戏道具卡**（阳光卡 + 券卡），不再有「拿回 N 阳光」文案行。
+      expect(find.byKey(GuardResultCard.sunRewardKey), findsOneWidget,
+          reason: 'B13 奖励卡区：阳光卡必须在');
+      expect(find.text('+$winSun'), findsOneWidget,
+          reason: '阳光卡数值 == 必得阳光口径（入参 view 不变）');
 
       await tester.tap(find.byKey(GuardResultCard.collectButtonKey));
       await _pumpUntil(tester, find.byType(ChildTodayPage));
@@ -796,9 +799,14 @@ void main() {
       // 结算卡内容与 v1 同口径（入参 view 不变）。
       expect(find.textContaining('赶走了'), findsOneWidget);
       final int winSun = (await env.guardState()).winSun;
-      expect(find.text('拿回 $winSun 阳光'), findsOneWidget);
-      expect(find.textContaining('券还能省'), findsOneWidget,
-          reason: '🔴 比较说明是 R2 缓解，必须有');
+      // 🔴 B13：奖励卡区（阳光卡 + 券卡；[_findVoucherChild] 保证本局有券）。
+      expect(find.byKey(GuardResultCard.sunRewardKey), findsOneWidget);
+      expect(find.text('+$winSun'), findsOneWidget,
+          reason: '阳光卡数值 == 必得阳光口径');
+      expect(find.byKey(GuardResultCard.voucherRewardKey), findsOneWidget,
+          reason: '券档 ⇒ 券卡必须在（占位票券图标 + 券名）');
+      expect(find.text('恭喜获得稀有奖励！'), findsOneWidget,
+          reason: '🔴 B13.2 玄参裁定：有券 ⇒ 稀有奖励文案（旧算账行已退役）');
 
       final String today = dayKey(DateTime.now());
       await tester.tap(find.byKey(GuardResultCard.collectButtonKey));
@@ -835,8 +843,8 @@ void main() {
       await _pumpUntil(tester, find.byKey(GuardResultCard.cardKey));
       await _settleRoute(tester);
 
-      expect(find.textContaining('花了 $kGuardPayCost 阳光'), findsOneWidget,
-          reason: '付费路径的比较说明必须点明「花了 5 阳光」');
+      // 🔴 B13.2 玄参裁定：结算卡不再算账 —— 有券直接写稀有奖励文案。
+      expect(find.text('恭喜获得稀有奖励！'), findsOneWidget);
 
       final String today = dayKey(DateTime.now());
       await tester.tap(find.byKey(GuardResultCard.collectButtonKey));

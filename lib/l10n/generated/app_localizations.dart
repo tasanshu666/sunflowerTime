@@ -6149,10 +6149,10 @@ abstract class AppLocalizations {
   /// **'开始守卫'**
   String get guard_scene_start;
 
-  /// 守卫战 v2 场景卡 L3：claimed（战斗胜利且奖励已收下）态右簇徽标的读屏文案（B12；徽标本体是对勾图标，无上屏文本）
+  /// 守卫战 v2 场景卡 L3：claimed（战斗胜利且奖励已收下）态右簇徽标文本（B13：旗子下面这行字，玄参指定「成功守卫」）
   ///
   /// In zh, this message translates to:
-  /// **'已完成守卫'**
+  /// **'成功守卫'**
   String get guard_scene_done;
 
   /// 守卫战 v2 场景卡 L3：战斗中（fighting）态的占位按钮文案（B2 渲染、B3 接战斗层；强杀重进 = 同 seed 重跑）
@@ -6233,22 +6233,214 @@ abstract class AppLocalizations {
   /// **'还捡到 {drop}'**
   String guard_result_drop(String drop);
 
-  /// 结算卡：掉落档为 none 时的说明（保底阳光照给）
+  /// 结算卡：掉落档为 none 时的说明（保底阳光照给；B13.2 玄参：「没有掉落就随便写一些」——沿用本句）
   ///
   /// In zh, this message translates to:
   /// **'这次什么都没捡到，但菜保住了'**
   String get guard_result_nothing;
 
-  /// 结算卡比较说明（R2 缓解：把「花 5 拿回 2」讲清楚）。cost = 实际花费、gain = 拿回、saving = 券面值可再省
+  /// 结算卡：有 buff 增益券时的奖励说明（B13.2 玄参拍板：不再算账——旧「花了 N 阳光拿回 N 阳光券还能省 N 阳光」比较行于本轮移除，guard_result_compare 同步退役）
   ///
   /// In zh, this message translates to:
-  /// **'花了 {cost} 阳光，拿回 {gain} 阳光，券还能省 {saving} 阳光'**
-  String guard_result_compare(int cost, int gain, int saving);
+  /// **'恭喜获得稀有奖励！'**
+  String get guard_result_rare;
 
-  /// 付费确认卡标题（cost = kGuardPayCost，不写字面量 5 以免与常量脱钩；B9 玄参指定改为「要花费 {cost} 阳光，请小小葵战士帮忙吗？」）
+  /// 结算卡（B13）：奖励卡区的分组标题（下面是阳光卡 + 券卡）
   ///
   /// In zh, this message translates to:
-  /// **'要花费 {cost} 阳光，请小小葵战士帮忙吗？'**
+  /// **'战斗奖励'**
+  String get guard_result_rewards;
+
+  /// 结算卡（B13）：阳光奖励卡的名称行（数量用 +N 显示在图下）
+  ///
+  /// In zh, this message translates to:
+  /// **'阳光'**
+  String get guard_result_reward_sun;
+
+  /// 守卫战 v2（B13）：点场景卡左侧房子打开玩法说明弹窗的读屏文案
+  ///
+  /// In zh, this message translates to:
+  /// **'查看玩法说明'**
+  String get guard_intro_open;
+
+  /// 守卫战 v2（B13）：玩法说明弹窗标题
+  ///
+  /// In zh, this message translates to:
+  /// **'花园守卫怎么玩'**
+  String get guard_intro_title;
+
+  /// 守卫战 v2（B13）：玩法说明弹窗「怎么打」小节标题
+  ///
+  /// In zh, this message translates to:
+  /// **'怎么打'**
+  String get guard_intro_howto_title;
+
+  /// 守卫战 v2（B13.5）：玩法说明弹窗「怎么打」正文（🔴 玄参：必须写明「点阳光胶囊帮战士发射子弹」，否则用户以为是自动攻击）
+  ///
+  /// In zh, this message translates to:
+  /// **'点「开始守卫」派出向日葵战士，再点击右上方的阳光胶囊，帮战士发射阳光子弹，在小怪碰到菜之前把它们全部打跑！'**
+  String get guard_intro_howto_body;
+
+  /// 守卫战 v2（B13.3）：玩法说明弹窗「能量点是什么」小节标题
+  ///
+  /// In zh, this message translates to:
+  /// **'能量点是什么'**
+  String get guard_intro_energy_title;
+
+  /// 守卫战 v2（B13.4）：能量点来源（🔴 15 分钟 = 1 个、一天最多 2 个，与 PRD §6 教学口径一致；「专注越足越多」不符实际已删）+ 没有能量点怎么办
+  ///
+  /// In zh, this message translates to:
+  /// **'能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，一天最多 2 个。没有能量点也能守卫——花 5 阳光请战士出战就行。'**
+  String get guard_intro_energy_body;
+
+  /// 守卫战 v2（B13）：玩法说明弹窗奖励小节标题
+  ///
+  /// In zh, this message translates to:
+  /// **'打赢有什么'**
+  String get guard_intro_reward_title;
+
+  /// 守卫战 v2（B13.3）：奖励正文，强调随机掉落道具券及其用途
+  ///
+  /// In zh, this message translates to:
+  /// **'赶走小怪能拿到阳光奖励；运气好的话，还会随机掉落花园道具券（浇水券、施肥券……），帮你把花园护理得更好。'**
+  String get guard_intro_reward_body;
+
+  /// 守卫战 v2（B13.3）：玩法说明弹窗「今天不打会怎样」小节标题
+  ///
+  /// In zh, this message translates to:
+  /// **'今天不打会怎样'**
+  String get guard_intro_risk_title;
+
+  /// 守卫战 v2（B13.3）：不打守卫的后果（次日结算真的扣）
+  ///
+  /// In zh, this message translates to:
+  /// **'小怪会一直往菜地逼近。今天不打的话，被偷走的阳光和成长进度，第二天打开花园时就会真的扣掉——所以每天都要记得回来守卫哦！'**
+  String get guard_intro_risk_body;
+
+  /// 守卫战 v2（B13.4）：次日结算报告弹窗标题（昨天 pending 没打 ⇒ expire() 静默扣了阳光/成长后，首次刷新今日页时弹出告知）
+  ///
+  /// In zh, this message translates to:
+  /// **'昨晚小怪来过了'**
+  String get guard_settle_title;
+
+  /// 结算报告：被偷阳光一行（n = sunStolen，intPlaces）
+  ///
+  /// In zh, this message translates to:
+  /// **'小怪偷走了 {n} 阳光。'**
+  String guard_settle_body_sun(int n);
+
+  /// 结算报告：成长被偷一行（n = 实际被扣到的株数 growthTargets）
+  ///
+  /// In zh, this message translates to:
+  /// **'{n} 棵植物的成长被偷吃了一些。'**
+  String guard_settle_body_growth(int n);
+
+  /// 结算报告：fighting 补发分支（打赢但没收奖励 ⇒ expire 补发 winSun）
+  ///
+  /// In zh, this message translates to:
+  /// **'你昨天打赢了小怪——已经帮你把 {n} 阳光奖励收进账啦。'**
+  String guard_settle_body_win(int n);
+
+  /// 结算报告：结尾引导语
+  ///
+  /// In zh, this message translates to:
+  /// **'今天记得回来守卫菜园哦！'**
+  String get guard_settle_foot;
+
+  /// 结算报告：确认按钮
+  ///
+  /// In zh, this message translates to:
+  /// **'知道了'**
+  String get guard_settle_ok;
+
+  /// 守卫战 v2（B13.5）：buff 券卡名（GuardBuffChip 卡面图上方/下方的券名）
+  ///
+  /// In zh, this message translates to:
+  /// **'浇水卡券'**
+  String get guard_voucher_name_water;
+
+  /// B13.5：buff 券卡名
+  ///
+  /// In zh, this message translates to:
+  /// **'劳动卡券'**
+  String get guard_voucher_name_labor;
+
+  /// B13.5：buff 券卡名
+  ///
+  /// In zh, this message translates to:
+  /// **'施肥卡券'**
+  String get guard_voucher_name_fertilize;
+
+  /// B13.5：buff 券卡名（无专属美术，复用浇水卡面）
+  ///
+  /// In zh, this message translates to:
+  /// **'免费浇水卡券'**
+  String get guard_voucher_name_free_water;
+
+  /// B13.5：buff 券卡名（无专属美术，复用施肥卡面）
+  ///
+  /// In zh, this message translates to:
+  /// **'免费施肥卡券'**
+  String get guard_voucher_name_free_fertilize;
+
+  /// 守卫战 v2（B13.5）：buff 券增益描述（玄参：「下面写清楚 buff 增益，如今日浇水可减少1阳光消耗」，中英可切换）
+  ///
+  /// In zh, this message translates to:
+  /// **'今日浇水每次可减少 1 阳光消耗'**
+  String get guard_voucher_desc_water;
+
+  /// B13.5：buff 券增益描述
+  ///
+  /// In zh, this message translates to:
+  /// **'今日除草除虫每次可多赚 1 阳光'**
+  String get guard_voucher_desc_labor;
+
+  /// B13.5：buff 券增益描述
+  ///
+  /// In zh, this message translates to:
+  /// **'今日施肥每次可减少 2 阳光消耗'**
+  String get guard_voucher_desc_fertilize;
+
+  /// B13.5：buff 券增益描述（单株单次）
+  ///
+  /// In zh, this message translates to:
+  /// **'今日任选一盆，浇水一次完全免费'**
+  String get guard_voucher_desc_free_water;
+
+  /// B13.5：buff 券增益描述（单株单次）
+  ///
+  /// In zh, this message translates to:
+  /// **'今日任选一盆，施肥一次完全免费'**
+  String get guard_voucher_desc_free_fertilize;
+
+  /// 守卫战 v2（B13）：怪物图鉴卡未解锁态（还没在战斗里遇到过 ⇒ 剪影 + 本文案，名字不显示）
+  ///
+  /// In zh, this message translates to:
+  /// **'还没遇到过'**
+  String get guard_intro_locked;
+
+  /// 守卫战 v2（B13.3 玄参：「要说清楚」——在哪、偷什么、后果）
+  ///
+  /// In zh, this message translates to:
+  /// **'凑到阳光边上把阳光偷走，不会碰菜——跑得慢，先拿它练手。'**
+  String get guard_intro_desc_sunrat;
+
+  /// 守卫战 v2（B13.3 玄参原话口径：「趴在植物上会偷吃植物的成长进度」）
+  ///
+  /// In zh, this message translates to:
+  /// **'趴在植物上，会偷偷吃掉植物的成长进度，让菜长得变慢。'**
+  String get guard_intro_desc_leafbug;
+
+  /// 守卫战 v2（B13.3 玄参：「依此类推，要说清楚」）
+  ///
+  /// In zh, this message translates to:
+  /// **'阳光和植物的成长进度它都偷，最贪心——看到它要优先赶走！'**
+  String get guard_intro_desc_sneakthief;
+
+  /// 付费确认卡标题（cost = kGuardPayCost，不写字面量 5 以免与常量脱钩；B13 玄参指定「要花费 {cost} 阳光，进行花园守卫吗？」；B13.2 玄参指定分上下两段（\n），不要让尾字单独占一行）
+  ///
+  /// In zh, this message translates to:
+  /// **'要花费 {cost} 阳光，\n进行花园守卫吗？'**
   String guard_confirm_pay_title(int cost);
 
   /// 付费确认卡：拒绝按钮（不扣钱、状态不变）

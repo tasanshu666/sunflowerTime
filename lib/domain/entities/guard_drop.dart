@@ -19,6 +19,13 @@ import 'package:sunflower_time/core/utils/stable_hash.dart';
 /// 🔴 **一经写入即冻结**：改了它等于让历史每一天的掉落全部重掷。
 const String kGuardChannelDrop = 'drop';
 
+/// 🔴 B13.5 新增：第二张券的 **10% 闸门**通道（与首张 [kGuardChannelDrop]
+/// 平行、互不影响；新通道不重掷历史任何一天）。
+const String kGuardChannelDropBonusGate = 'drop_bonus_gate';
+
+/// 🔴 B13.5 新增：第二张券「挑哪种」通道（从除首张外的券里等概率挑）。
+const String kGuardChannelDropBonusPick = 'drop_bonus_pick';
+
 /// 掉落档（一次掷骰命中且仅命中其中一档）。
 ///
 /// 顺序 = 概率表的顺序（与 [GuardDropKind.values] 下标一致），**不要重排**：
@@ -41,24 +48,68 @@ enum GuardDropKind {
   /// 免费施肥券（4%）：🔴 **任选一盆、仅一次**免费（最稀有）。
   freeFertilize,
 
-  /// 无道具（18%）：只拿保底阳光 [kGuardWinSunNoItem]，不出现空槽。
+  /// 无道具（旧表 18%）：只拿保底阳光 [kGuardWinSunNoItem]，不出现空槽。
+  ///
+  /// 🔴 B13.5：roll 已改**分档表**（免费 none=50% / 付费 none=0，
+  /// 见 `kGuardDropRatesFree` / `kGuardDropRatesPremium`）；本档旧 18% 只是
+  /// PRD §3.7 历史经济测算口径（spec.rate 仍保留供 E[D] 旧账引用）。
   none;
 
   /// 今天的掉落是哪一档 —— **确定性派生**（禁 `Random`）。
   ///
-  /// seed = `dayKey|childId<kGuardDaySaltV2>|[kGuardChannelDrop]`，按
-  /// [kGuardDropWaterVoucherRate] 起的累计概率落桶。
-  static GuardDropKind roll({required String dayKey, required String childId}) {
+  /// seed = `dayKey|childId<kGuardDaySaltV2>|[kGuardChannelDrop]`，按分档表
+  /// （[kGuardDropRatesFree] / [kGuardDropRatesPremium]）累计概率落桶。
+  ///
+  /// 🔴 B13.5（玄参拍板）：掉落率**按权益档位分表** —— 免费 none=50%、
+  /// 付费必掉券。`isPremium` 缺省 false（免费表）= 一切旧调用点安全默认。
+  static GuardDropKind roll({
+    required String dayKey,
+    required String childId,
+    bool isPremium = false,
+  }) {
     final double u = deterministicUniform(
       dayKey: dayKey,
       childId: childId,
       salt: kGuardDaySaltV2,
       channel: kGuardChannelDrop,
     );
-    final List<double> rates = <double>[
-      for (final GuardDropKind kind in GuardDropKind.values) kind.spec.rate,
-    ];
+    final List<double> rates =
+        isPremium ? kGuardDropRatesPremium : kGuardDropRatesFree;
     return GuardDropKind.values[bucketOfUniform(u, rates)];
+  }
+
+  /// 🔴 B13.5：第二张券（「10% 概率掉 2 张**不同的**」的唯一实现口）。
+  ///
+  /// * 仅当**首张已掉券**时调用（首张 = none ⇒ 本函数不该被调）；
+  /// * 10% 闸门走独立通道 [kGuardChannelDropBonusGate]（与首张通道互不影响）；
+  /// 第二张从「除首张外的 4 种券」里**等概率**挑（通道
+  /// [kGuardChannelDropBonusPick]）；确定性派生，禁 `Random`。
+  static GuardDropKind? rollBonus({
+    required String dayKey,
+    required String childId,
+    required GuardDropKind exclude,
+  }) {
+    final double gate = deterministicUniform(
+      dayKey: dayKey,
+      childId: childId,
+      salt: kGuardDaySaltV2,
+      channel: kGuardChannelDropBonusGate,
+    );
+    if (gate >= kGuardDropDualChance) return null;
+    final double pick = deterministicUniform(
+      dayKey: dayKey,
+      childId: childId,
+      salt: kGuardDaySaltV2,
+      channel: kGuardChannelDropBonusPick,
+    );
+    // 🔴 B13.5 玄参原话「掉落 2 张**不同的** buff 卡券」：候选必须排除
+    //    首张 [exclude]（QA 逐日对拍抓过 rollBonus 抽出与主券同种的回归）。
+    final List<GuardDropKind> candidates = GuardDropKind.values
+        .where((GuardDropKind k) =>
+            k != GuardDropKind.none && k != exclude)
+        .toList();
+    // 等概率：4 个候选均分 [0,1)。
+    return candidates[(pick * candidates.length).floor().clamp(0, candidates.length - 1)];
   }
 }
 

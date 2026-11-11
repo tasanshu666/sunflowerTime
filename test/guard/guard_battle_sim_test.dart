@@ -342,17 +342,19 @@ void main() {
   });
 
   group('G6 到点撤退 + 已偷保留 + 封顶', () {
-    test('空 fireTimeline：30s 到点 retreat、被偷恰 2（c1 seed 钉死的字面量）、之后快照冻结', () {
+    test('空 fireTimeline：30s 到点 retreat、被偷恰 3（c1 seed 钉死的字面量）、之后快照冻结', () {
       final List<GuardBattleSnapshot> snaps = _runBattle(
           _dayKey, _childId, <int>[], <int>[10000, 20000, 29999, 30000, 30001]);
       final GuardBattleSnapshot atEnd = snaps[3];
       expect(atEnd.phaseId, 'retreat');
       expect(atEnd.endReasonId, 'window_expired');
-      // c1 的剧本 = 4 只 m1（13pt/s）：第 0 只 spawn 0、25.4s 到门口得手
-      // （偷 2，封顶额度 3 用剩 1）；其余三只 spawn 6/12/18s、31.4s+ 才到门口
-      // ⇒ 30s 到点撤退、偷 0。被偷合计钉死 = 2。
-      expect(atEnd.stolenSun, 2);
-      expect(atEnd.stealCapLeft, 1);
+      // c1 的剧本 = 4 只 m3（17pt/s；🔴 B13 起战斗怪种类跟当日小偷走：
+      // _kindOfThief(sneakThief) = m3）：第 0 只 spawn 0、~19.4s 到门口得手
+      // （偷 2，封顶额度 3 用剩 1）；第 1 只 spawn 6s、~25.4s 到门口再偷 1
+      // ⇒ **触顶钳在 3**；后两只 spawn 12/18s、31.4s+ 才到门口 ⇒ 30s 到点
+      // 撤退、偷 0。被偷合计钉死 = 3。
+      expect(atEnd.stolenSun, 3);
+      expect(atEnd.stealCapLeft, 0);
       int sumStolen = 0;
       for (final GuardBattleMonsterSnapshot m in atEnd.monsters) {
         sumStolen += m.stolen;

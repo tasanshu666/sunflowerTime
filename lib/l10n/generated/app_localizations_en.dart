@@ -3640,7 +3640,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get guard_scene_start => 'Start guard';
 
   @override
-  String get guard_scene_done => 'Guard done';
+  String get guard_scene_done => 'Guard won';
 
   @override
   String get guard_scene_continue => 'Resume guard';
@@ -3698,13 +3698,124 @@ class AppLocalizationsEn extends AppLocalizations {
       'Nothing found this time, but the veggies are safe';
 
   @override
-  String guard_result_compare(int cost, int gain, int saving) {
-    return 'Spent $cost sunlight, got back $gain, and the voucher saves $saving more';
+  String get guard_result_rare => 'You got a rare reward!';
+
+  @override
+  String get guard_result_rewards => 'Battle rewards';
+
+  @override
+  String get guard_result_reward_sun => 'Sunlight';
+
+  @override
+  String get guard_intro_open => 'How to play';
+
+  @override
+  String get guard_intro_title => 'Garden Guard — How to Play';
+
+  @override
+  String get guard_intro_howto_title => 'How to fight';
+
+  @override
+  String get guard_intro_howto_body =>
+      'Tap Start Guard to send out the sunflower soldier, then tap the sunlight bubble at the top right to help it fire sun bullets — drive every monster away before it reaches the veggies!';
+
+  @override
+  String get guard_intro_energy_title => 'What are energy beans?';
+
+  @override
+  String get guard_intro_energy_body =>
+      'Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 2 a day. No energy beans? You can still guard: spend 5 sunlight to send the soldier out.';
+
+  @override
+  String get guard_intro_reward_title => 'What you earn';
+
+  @override
+  String get guard_intro_reward_body =>
+      'Drive the monsters away to earn sunlight — and with a bit of luck, garden vouchers drop at random (watering vouchers, fertilizer vouchers…), helping you care for your garden even better.';
+
+  @override
+  String get guard_intro_risk_title => 'What if I skip today?';
+
+  @override
+  String get guard_intro_risk_body =>
+      'The monsters keep creeping toward the veggies. If you don\'t guard today, the sunlight and growth they stole will really be deducted the next time you open the garden — so come back and guard every day!';
+
+  @override
+  String get guard_settle_title => 'Monsters visited last night';
+
+  @override
+  String guard_settle_body_sun(int n) {
+    return 'The monsters stole $n sunlight.';
   }
 
   @override
+  String guard_settle_body_growth(int n) {
+    return '$n plants had their growth nibbled.';
+  }
+
+  @override
+  String guard_settle_body_win(int n) {
+    return 'You beat the monsters yesterday — we\'ve collected the $n sunlight reward for you.';
+  }
+
+  @override
+  String get guard_settle_foot => 'Come back and guard the garden today!';
+
+  @override
+  String get guard_settle_ok => 'Got it';
+
+  @override
+  String get guard_voucher_name_water => 'Watering Voucher';
+
+  @override
+  String get guard_voucher_name_labor => 'Work Voucher';
+
+  @override
+  String get guard_voucher_name_fertilize => 'Fertilizer Voucher';
+
+  @override
+  String get guard_voucher_name_free_water => 'Free Watering Voucher';
+
+  @override
+  String get guard_voucher_name_free_fertilize => 'Free Fertilizer Voucher';
+
+  @override
+  String get guard_voucher_desc_water =>
+      'Each watering costs 1 less sunlight today';
+
+  @override
+  String get guard_voucher_desc_labor =>
+      'Each cleanup earns 1 extra sunlight today';
+
+  @override
+  String get guard_voucher_desc_fertilize =>
+      'Each fertilizing costs 2 less sunlight today';
+
+  @override
+  String get guard_voucher_desc_free_water =>
+      'Pick one plant today — watering it is free';
+
+  @override
+  String get guard_voucher_desc_free_fertilize =>
+      'Pick one plant today — fertilizing it is free';
+
+  @override
+  String get guard_intro_locked => 'Not met yet';
+
+  @override
+  String get guard_intro_desc_sunrat =>
+      'Steals sunlight only, never touches the veggies.';
+
+  @override
+  String get guard_intro_desc_leafbug => 'Munches growth from one plant.';
+
+  @override
+  String get guard_intro_desc_sneakthief =>
+      'Steals both sunlight and growth — the fiercest!';
+
+  @override
   String guard_confirm_pay_title(int cost) {
-    return 'Spend $cost sunlight so Sunnie the little warrior can help?';
+    return 'Spend $cost sunlight to start the garden guard?';
   }
 
   @override

@@ -17,7 +17,7 @@
 /// |---|---|
 /// | ① | **卡不被视口裁剪**：卡顶 ≥ 视口顶边；卡顶到屋顶 == `kGuardCardPadTop`(14)；房子四边全在卡内 |
 /// | ② | 六值 dump（真机尺寸夹具）：`MediaQuery.width` / `cardWidth` / `scale` / `houseRect` / `energyDotRect` / `soldierRect` |
-/// | ③ | C1 战士 68：正方形、底边踩房子基线、与房子间隙 2、绘制框 113.33 |
+/// | ③ | C1 战士 60：正方形、底边踩房子基线、与房子间隙 2、绘制框 100 |
 /// | ④ | C2 能量点 14 / 6：两点组合以花园中轴居中；锚点常量默认 0（十点差异的说明见下） |
 /// | ⑤ | 三个 y：卡顶 / 屋顶 / 统计卡 —— 供交付报告直接抄 |
 ///
@@ -306,16 +306,17 @@ void main() {
           reason: '点组合右端 = 78.08 + 20 + 17');
       expect(soldier.left, closeTo(158.16, 0.5),
           reason: '战士左 = 房子右 + 2');
-      expect(soldier.right, closeTo(226.16, 0.5));
-      expect(soldier.top - card.top, closeTo(34, 0.5), reason: '战士顶 = 102 − 68');
+      expect(soldier.right, closeTo(218.16, 0.5),
+          reason: '🔴 B13.2：战士右缘 = 158.16 + 60 = 218.16');
+      expect(soldier.top - card.top, closeTo(42, 0.5), reason: '战士顶 = 102 − 60');
       expect(soldier.bottom - card.top, closeTo(102, 0.5),
           reason: '战士底 == 房子基线');
     });
   });
 
-  // ── ③ C1 战士 68 ─────────────────────────────────────────────────────
-  group('③ C1 战士 68（真机尺寸夹具）', () {
-    testWidgets('正方形 68×68、底边踩房子基线、间隙 2、绘制框 113.33',
+  // ── ③ C1 战士 60 ─────────────────────────────────────────────────────
+  group('③ C1 战士 60（真机尺寸夹具；B13.2 试值 64 → 60）', () {
+    testWidgets('正方形 60×60、底边踩房子基线、间隙 2、绘制框 100',
         (WidgetTester tester) async {
       final _Env env = await _makeEnv();
       await _seedPlant(env);
@@ -326,8 +327,8 @@ void main() {
       final Rect soldier =
           tester.getRect(find.byKey(GuardSceneCard.soldierKey));
 
-      expect(soldier.width, closeTo(68, 0.5), reason: '🔴 战士边长 68');
-      expect(soldier.height, closeTo(68, 0.5), reason: '🔴 正方形（攻击帧不拖累跑道）');
+      expect(soldier.width, closeTo(60, 0.5), reason: '🔴 战士边长 60（B13.2）');
+      expect(soldier.height, closeTo(60, 0.5), reason: '🔴 正方形（攻击帧不拖累跑道）');
       expect(soldier.bottom, closeTo(house.bottom, 0.5),
           reason: '脚底踩同一条基线');
       expect(soldier.left - house.right, closeTo(2, 0.5),
@@ -337,9 +338,9 @@ void main() {
         of: find.byKey(GuardSceneCard.soldierKey),
         matching: find.byType(FrameSequencePlayer),
       ));
-      expect(draw.width, closeTo(113.33, 0.5),
-          reason: '🔴 绘制框 = 68 × 5/3（横向溢出放行，攻击帧不被裁）');
-      expect(draw.height, closeTo(68, 0.5), reason: '绘制高度 = 战士 68');
+      expect(draw.width, closeTo(100, 0.5),
+          reason: '🔴 绘制框 = 60 × 5/3（横向溢出放行，攻击帧不被裁）');
+      expect(draw.height, closeTo(60, 0.5), reason: '绘制高度 = 战士 60');
     });
   });
 

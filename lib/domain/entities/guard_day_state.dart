@@ -74,9 +74,11 @@ GuardDayStatus guardDayStatusFromId(String? id) {
 
 /// 当日 buff（= 那张券的「额度 / 已用」账）。
 ///
-/// 与 [GuardDropKind] 的关系：`kind` 决定「这张券怎么用」，[quota] 是**当日硬上限**
-/// （浇水券 6 ☀ / 劳动券 4 ☀ / 施肥券 1 次 / 免费券 1 次），[used] 是已核销的量。
-/// 🔴 超额由本实体的 [remaining] 钳制，页面**不得**自行 `-1`。
+/// 与 [GuardDropKind] 的关系：`kind` 决定「这张券怎么用」，[quota] 是**记账字段**
+/// （浇水券 6 / 劳动券 4 / 施肥券次数 / 免费券 1 次）。🔴 B13.4：浇水 / 劳动券
+/// 已改**当日不限次**（减免不看额度，见 `GuardVoucherKind.isUnlimitedDaily`），
+/// 这两类的 `quota` 仅作存量存档兼容；施肥 / 免费券仍「用完即止」。
+/// 页面**不得**自行 `-1`。
 class GuardBuffState {
   /// 券的种类。
   final GuardDropKind kind;
@@ -193,6 +195,19 @@ class GuardDayState {
   /// 当前 buff（`null` = 没有券 / 券已过期）。
   final GuardBuffState? buff;
 
+  /// 🔴 B13.5：第二张券的掉落档（`none` = 今天没有第二张）。
+  ///
+  /// 「10% 概率掉 2 张不同的券」（玄参拍板）的存储字段：与 [dropKind] 同一
+  /// 次 resolve 落盘、同一张「券卡」在结算卡展示；JSON **缺字段兜底 none**
+  /// ⇒ 老存档向后兼容，线名复用 [GuardDropKind.id]（无新线名）。
+  final GuardDropKind bonusDropKind;
+
+  /// 🔴 B13.5：第二张券的额度账（`null` = 没有第二张 / 未领取）。
+  ///
+  /// 生效规则与 [buff] 完全一致：`GuardVoucherService` 按**券种匹配**取用
+  /// （浇水动作只吃浇水券那张，两张券互不干扰、可同时生效）。
+  final GuardBuffState? bonusBuff;
+
   /// 教学浮层（「15 分钟 = 1 能量点」）是否已看过（守卫战 v2 · B1 追加）。
   ///
   /// 只播一次的持久化标记：`fromJson` 缺字段兜底 `false`，老存档向后兼容
@@ -224,9 +239,11 @@ class GuardDayState {
     this.paidSun = 0,
     this.winSun = 0,
     this.dropKind = GuardDropKind.none,
+    this.bonusDropKind = GuardDropKind.none,
     this.sunStolen = 0,
     this.growthStolen = const <String, double>{},
     this.buff,
+    this.bonusBuff,
     this.tutorialSeen = false,
     this.battleAttempt = 0,
   });
@@ -259,10 +276,13 @@ class GuardDayState {
     int? paidSun,
     int? winSun,
     GuardDropKind? dropKind,
+    GuardDropKind? bonusDropKind,
     int? sunStolen,
     Map<String, double>? growthStolen,
     GuardBuffState? buff,
     bool clearBuff = false,
+    GuardBuffState? bonusBuff,
+    bool clearBonusBuff = false,
     bool? tutorialSeen,
     int? battleAttempt,
   }) {
@@ -274,9 +294,11 @@ class GuardDayState {
       paidSun: paidSun ?? this.paidSun,
       winSun: winSun ?? this.winSun,
       dropKind: dropKind ?? this.dropKind,
+      bonusDropKind: bonusDropKind ?? this.bonusDropKind,
       sunStolen: sunStolen ?? this.sunStolen,
       growthStolen: growthStolen ?? this.growthStolen,
       buff: clearBuff ? null : (buff ?? this.buff),
+      bonusBuff: clearBonusBuff ? null : (bonusBuff ?? this.bonusBuff),
       tutorialSeen: tutorialSeen ?? this.tutorialSeen,
       battleAttempt: battleAttempt ?? this.battleAttempt,
     );
@@ -292,9 +314,11 @@ class GuardDayState {
       'paidSun': paidSun,
       'winSun': winSun,
       'dropKind': dropKind.id,
+      'bonusDropKind': bonusDropKind.id,
       'sunStolen': sunStolen,
       'growthStolen': Map<String, double>.from(growthStolen),
       'buff': buff?.toJson(),
+      'bonusBuff': bonusBuff?.toJson(),
       'tutorialSeen': tutorialSeen,
       'battleAttempt': battleAttempt,
     };
@@ -318,10 +342,16 @@ class GuardDayState {
       paidSun: _intOf(json['paidSun']),
       winSun: _intOf(json['winSun']),
       dropKind: guardDropKindFromId(json['dropKind'] as String?),
+      // 🔴 B13.5：缺字段兜底 none / null —— 老存档（无 bonus 键）向后兼容。
+      bonusDropKind: guardDropKindFromId(json['bonusDropKind'] as String?),
       sunStolen: _intOf(json['sunStolen']),
       growthStolen: _doubleMapOf(json['growthStolen']),
       buff: rawBuff is Map
           ? GuardBuffState.fromJson(Map<String, Object?>.from(rawBuff))
+          : null,
+      bonusBuff: json['bonusBuff'] is Map
+          ? GuardBuffState.fromJson(
+              Map<String, Object?>.from(json['bonusBuff'] as Map))
           : null,
       // 缺字段兜底 false：老存档（无 tutorialSeen 键）向后兼容。
       tutorialSeen: json['tutorialSeen'] == true,
@@ -341,8 +371,10 @@ class GuardDayState {
         other.paidSun != paidSun ||
         other.winSun != winSun ||
         other.dropKind != dropKind ||
+        other.bonusDropKind != bonusDropKind ||
         other.sunStolen != sunStolen ||
         other.buff != buff ||
+        other.bonusBuff != bonusBuff ||
         other.tutorialSeen != tutorialSeen ||
         other.battleAttempt != battleAttempt) {
       return false;
@@ -363,8 +395,10 @@ class GuardDayState {
         paidSun,
         winSun,
         dropKind,
+        bonusDropKind,
         sunStolen,
         buff,
+        bonusBuff,
         tutorialSeen,
         battleAttempt,
         Object.hashAllUnordered(
@@ -376,8 +410,9 @@ class GuardDayState {
   @override
   String toString() => 'GuardDayState($dayKey, ${status.id}, '
       'thief=${thiefKind?.id}, energyUsed=$energyUsed, paidSun=$paidSun, '
-      'winSun=$winSun, drop=${dropKind.id}, sunStolen=$sunStolen, '
-      'growthStolen=$growthStolen, buff=$buff, tutorialSeen=$tutorialSeen, '
+      'winSun=$winSun, drop=${dropKind.id}, bonusDrop=${bonusDropKind.id}, '
+      'sunStolen=$sunStolen, growthStolen=$growthStolen, buff=$buff, '
+      'bonusBuff=$bonusBuff, tutorialSeen=$tutorialSeen, '
       'attempt=$battleAttempt)';
 }
 

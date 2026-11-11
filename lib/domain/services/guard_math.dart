@@ -65,6 +65,9 @@ class GuardRoll {
   /// 掉落档。
   final GuardDropKind drop;
 
+  /// 🔴 B13.5：第二张券（`none` = 今天没有；「10% 掉 2 张不同的」）。
+  final GuardDropKind bonusDrop;
+
   /// 必得阳光（3~5；B5b 起无道具档固定 [kGuardWinSunNoItem] = 区间上限 5）。
   final int winSun;
 
@@ -73,6 +76,7 @@ class GuardRoll {
     required this.growthLossPercent,
     required this.sunLoss,
     required this.drop,
+    this.bonusDrop = GuardDropKind.none,
     required this.winSun,
   });
 
@@ -116,11 +120,24 @@ class GuardRoll {
 GuardRoll deriveGuardRoll({
   required String dayKey,
   required String childId,
+  bool isPremium = false,
 }) {
   final GuardThiefKind thief =
       GuardThiefKind.roll(dayKey: dayKey, childId: childId);
-  final GuardDropKind drop =
-      GuardDropKind.roll(dayKey: dayKey, childId: childId);
+  // 🔴 B13.5：掉落分档（免费 none=50% / 付费必掉券）+ 10% 第二张券。
+  final GuardDropKind drop = GuardDropKind.roll(
+    dayKey: dayKey,
+    childId: childId,
+    isPremium: isPremium,
+  );
+  final GuardDropKind bonusDrop = drop == GuardDropKind.none
+      ? GuardDropKind.none
+      : (GuardDropKind.rollBonus(
+          dayKey: dayKey,
+          childId: childId,
+          exclude: drop,
+        ) ??
+        GuardDropKind.none);
   final GuardThiefSpec spec = thief.spec;
 
   // 偷阳光：不看余额、不封顶（余额钳到 0 是「扣账」那一层的责任，见 PRD 决策 D6）。
@@ -160,6 +177,7 @@ GuardRoll deriveGuardRoll({
     growthLossPercent: growthLoss,
     sunLoss: sunLoss,
     drop: drop,
+    bonusDrop: bonusDrop,
     winSun: winSun,
   );
 }
@@ -224,8 +242,8 @@ Plant applyGrowthTheft(Plant plant, double pp) {
 ///
 /// | 券 | 口径 | 与称号叠加 |
 /// |---|---|---|
-/// | [GuardDropKind.waterVoucher] | 每盆每次 −[kGuardWaterVoucherSave]，按 [potCount] 盆累加，**封顶 [kGuardWaterVoucherMaxSaves]** | 相加（故本函数不重复算称号） |
-/// | [GuardDropKind.laborVoucher] | 每次清理 +[kGuardLaborVoucherBonus]，按 [cleanCount] 次累加，**封顶 [kGuardLaborVoucherCap]** | 加在称号之后（同上） |
+/// | [GuardDropKind.waterVoucher] | 每盆每次 −[kGuardWaterVoucherSave]，按 [potCount] 盆累加，**当日不限次**（B13.4，原 6 ☀ 封顶废除） | 相加（故本函数不重复算称号） |
+/// | [GuardDropKind.laborVoucher] | 每次清理 +[kGuardLaborVoucherBonus]，按 [cleanCount] 次累加，**当日不限次**（B13.4，原 4 ☀ 封顶废除） | 加在称号之后（同上） |
 /// | [GuardDropKind.fertilizeVoucher] | 今日**每次**施肥 −[kGuardFertilizerVoucherSave]，按 [potCount] 累加、**封顶 [kGuardFertilizerVoucherQuota]** | 相加 |
 /// | [GuardDropKind.freeWater] | **只算 1 盆**（[potCount] 无效），省 = 该盆实际水价 [waterCostOf] | 归零（故随称号减免而变小） |
 /// | [GuardDropKind.freeFertilize] | **只算 1 盆**（[potCount] 无效），省 = 该盆实际肥价 [fertilizeCostOf] | 归零 |
@@ -258,17 +276,14 @@ double voucherSavingOf(
   switch (kind) {
     case GuardDropKind.waterVoucher:
       {
-        final int raw = pots * kGuardWaterVoucherSave;
-        return (raw > kGuardWaterVoucherMaxSaves
-                ? kGuardWaterVoucherMaxSaves
-                : raw)
-            .toDouble();
+        // 🔴 B13.4：当日不限次（玄参拍板），原「封顶 kGuardWaterVoucherMaxSaves」
+        // 的钳制删除 —— 真机实测浇 6 次后价格跳回原价就是旧封顶所致。
+        return (pots * kGuardWaterVoucherSave).toDouble();
       }
     case GuardDropKind.laborVoucher:
       {
-        final int raw = cleans * kGuardLaborVoucherBonus;
-        return (raw > kGuardLaborVoucherCap ? kGuardLaborVoucherCap : raw)
-            .toDouble();
+        // 🔴 B13.4：当日不限次，原「封顶 kGuardLaborVoucherCap」删除。
+        return (cleans * kGuardLaborVoucherBonus).toDouble();
       }
     case GuardDropKind.fertilizeVoucher:
       // 今日**每次**施肥都 −[kGuardFertilizerVoucherSave] ☀：按本次盆数累加，

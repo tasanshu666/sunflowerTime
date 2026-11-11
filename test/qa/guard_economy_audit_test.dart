@@ -261,10 +261,10 @@ void main() {
   });
 
   // ════════════════════════════════════════════════════════════════════
-  // V1-4 浇水券封顶：12 盆 × 3 次 = 36 次，总减免恰好 6（花费 174）
+  // V1-4 浇水券（🔴 B13.4 当日不限次）：12 盆 × 3 次 = 36 次全部 −1（花费 144）
   // ════════════════════════════════════════════════════════════════════
-  group('V1-4 浇水券日封顶 6 ☀（不是 36 ☀）', () {
-    test('12 盆 × 3 次：每盆 5 / 4，总花费 174、第 7 次起回原价 5', () async {
+  group('V1-4 浇水券当日不限次（B13.4，原 6 ☀ 封顶废除）', () {
+    test('12 盆 × 3 次：每盆恒 4，总花费 144', () async {
       final DateTime day = _waterFriendlyDay();
       final DateTime base = DateTime(day.year, day.month, day.day, 8, 0);
       final GuardProbeEnv env =
@@ -312,18 +312,15 @@ void main() {
       }
 
       expect(prices.length, 36);
-      expect(prices.sublist(0, 6), <int>[4, 4, 4, 4, 4, 4],
-          reason: '前 6 次各减 1 ☀');
-      expect(prices.sublist(6), List<int>.filled(30, 5),
-          reason: '🔴 第 7 次浇水开始就是原价 5（封顶后不得再减）');
-      expect(prices.fold<int>(0, (int a, int b) => a + b), 174,
-          reason: '🔴 36×5 − 6 = 174，不是 36×4 = 144');
-      expect(prices.fold<int>(0, (int a, int b) => a + b), isNot(144));
+      expect(prices, List<int>.filled(36, 4),
+          reason: '🔴 B13.4：36 次全部 −1（旧「第 7 次回原价」废除）');
+      expect(prices.fold<int>(0, (int a, int b) => a + b), 144,
+          reason: '🔴 36×4 = 144（旧封顶口径 174 废除）');
 
       final int spent = (await env.rowsOf('plant_water'))
           .map((SunlightEntry e) => (-e.net).round())
           .fold<int>(0, (int a, int b) => a + b);
-      expect(spent, 174, reason: '🔴 账本实扣总和必须与上面的价格序列一致');
+      expect(spent, 144, reason: '🔴 账本实扣总和必须与上面的价格序列一致');
       expect((await env.rowsOf('plant_water')).length, 36);
     });
   });
@@ -423,10 +420,10 @@ void main() {
   });
 
   // ════════════════════════════════════════════════════════════════════
-  // V1-6 劳动券封顶 4：10 次清理 ⇒ 总加成恰好 4
+  // V1-6 劳动券（🔴 B13.4 当日不限次）：10 次清理次次 +1（总 20）
   // ════════════════════════════════════════════════════════════════════
-  group('V1-6 劳动券日封顶 4 ☀', () {
-    test('10 次除草：单次奖励 [2,2,2,2,1,...]、总奖励 14（基础 10 + 券 4）', () async {
+  group('V1-6 劳动券当日不限次（B13.4，原 4 ☀ 封顶废除）', () {
+    test('10 次除草：单次奖励恒 2、总奖励 20（基础 10 + 券 10）', () async {
       final GuardProbeEnv env = await GuardProbeEnv.create(clock: _day);
       addTearDown(env.close);
       await env.seedBalance(100);
@@ -464,17 +461,17 @@ void main() {
         rewards.add(reward);
       }
 
-      expect(rewards, <int>[2, 2, 2, 2, 1, 1, 1, 1, 1, 1],
-          reason: '🔴 前 4 次 +2，第 5 次起回基础 +1');
-      expect(rewards.fold<int>(0, (int a, int b) => a + b), 14,
-          reason: '10 次基础 10 + 券加成 4 = 14');
-      expect(rewards.fold<int>(0, (int a, int b) => a + b) - 10, 4,
-          reason: '🔴 券的总加成恰好 4（不是 8.4 / 10）');
+      expect(rewards, List<int>.filled(10, 2),
+          reason: '🔴 B13.4：10 次全部 +1（旧「第 5 次起回基础」废除）');
+      expect(rewards.fold<int>(0, (int a, int b) => a + b), 20,
+          reason: '10 次基础 10 + 券加成 10 = 20');
+      expect(rewards.fold<int>(0, (int a, int b) => a + b) - 10, 10,
+          reason: '🔴 券的总加成 = 10（不限次；旧封顶 4 废除）');
 
       final List<int> ledgerAmounts = (await env.rowsOf('plant_weed'))
           .map((SunlightEntry e) => e.net.round())
           .toList();
-      expect(ledgerAmounts.fold<int>(0, (int a, int b) => a + b), 14,
+      expect(ledgerAmounts.fold<int>(0, (int a, int b) => a + b), 20,
           reason: '🔴 账本实发必须与上面 10 次的奖励序列逐项一致');
     });
   });
@@ -503,7 +500,7 @@ void main() {
       expect(claimed, 9.0);
     });
 
-    test('浇水券 12 盆：面值函数 6 == 实际 12 盆的省钱 6', () async {
+    test('浇水券 12 盆（B13.4 不限次）：面值函数 12 == 实际 12 盆的省钱 12', () async {
       final GuardProbeEnv env = await GuardProbeEnv.create(clock: _day);
       addTearDown(env.close);
       await env.seedBalance(1000);
@@ -544,14 +541,14 @@ void main() {
           voucherSavingOf(GuardDropKind.waterVoucher, potCount: 12);
       expect(12 * 5 - spent, claimed.toInt(),
           reason: '结算卡/说明上写的「还能省 N」必须等于实际省下的 ☀');
-      expect(claimed, 6.0);
+      expect(claimed, 12.0, reason: '🔴 B13.4：12 盆 × 1 ☀ = 12（不限次）');
     });
 
-    test('劳动券 10 次：面值函数 4 == 实际 10 次的加成 4', () {
-      expect(voucherSavingOf(GuardDropKind.laborVoucher, cleanCount: 10), 4.0);
-      // 与 V1-6 的实测序列对照：前 4 次 +1 加成、第 5 次起 0。
-      final List<int> bonus = <int>[1, 1, 1, 1, 0, 0, 0, 0, 0, 0];
-      expect(bonus.fold<int>(0, (int a, int b) => a + b), 4);
+    test('劳动券 10 次（B13.4 不限次）：面值函数 10 == 实际 10 次的加成 10', () {
+      expect(voucherSavingOf(GuardDropKind.laborVoucher, cleanCount: 10), 10.0);
+      // 与 V1-6 的实测序列对照：10 次全部 +1 加成（不限次）。
+      final List<int> bonus = List<int>.filled(10, 1);
+      expect(bonus.fold<int>(0, (int a, int b) => a + b), 10);
       expect(voucherSavingOf(GuardDropKind.laborVoucher, cleanCount: 10),
           bonus.fold<int>(0, (int a, int b) => a + b).toDouble());
     });

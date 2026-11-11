@@ -39,6 +39,9 @@ import 'package:sunflower_time/presentation/child/widgets/guard_result_card.dart
 
 import 'guard_probe_support.dart';
 
+/// 汉字判定（与 `guard_i18n_audit_test` 同口径：en 文案不得含汉字）。
+final RegExp _han = RegExp(r'[\u4e00-\u9fff]');
+
 /// 找一个「普通日」（`waterQuota >= 3`），保证 12 盆各能浇一次。
 DateTime _waterFriendlyDay() {
   DateTime d = DateTime(2026, 3, 1, 10, 30);
@@ -82,7 +85,7 @@ void main() {
   // V3-1 一键浇水确认卡 vs 账本
   // ══════════════════════════════════════════════════════════════════════
   group('V3-1 一键浇水确认卡「−合计 ☀」vs 实扣', () {
-    test('浇水券剩 6 + 12 盆：卡面 54 == 实扣 54（逐盆序列）', () async {
+    test('浇水券 + 12 盆（B13.4 不限次）：卡面 48 == 实扣 48（逐盆序列）', () async {
       final DateTime day = _waterFriendlyDay();
       final GuardProbeEnv env = await GuardProbeEnv.create(clock: () => day);
       addTearDown(env.close);
@@ -118,7 +121,7 @@ void main() {
 
       expect(plan.plantIds.length, 12);
       expect(plan.totalCost, 48, reason: '旧口径「券后单价 × 盆数」仍在服务里（页面不再使用）');
-      expect(cardTotal, 54, reason: '卡面合计 = 前 6 盆 4 + 后 6 盆 5');
+      expect(cardTotal, 48, reason: '🔴 B13.4 不限次：12 盆全部 4（旧 54 废除）');
 
       // ② 实际执行：逐盆核销（与 garden_page.dart 的 seq 执行同构）。
       double spent = 0;
@@ -133,16 +136,16 @@ void main() {
         );
       }
 
-      expect(spent, 54.0, reason: '前 6 盆 4 + 后 6 盆 5 = 54');
-      expect(await _sumPlantWater(env), 54.0, reason: '账本实扣 54');
+      expect(spent, 48.0, reason: '12 盆全 4 = 48');
+      expect(await _sumPlantWater(env), 48.0, reason: '账本实扣 48');
 
       // ③ 等式护栏：确认卡数字 == 实扣之和。
       expect(cardTotal, spent.toInt(),
-          reason: '🟢 确认卡 54 == 实扣 54（F2 后三处同源）');
+          reason: '🟢 确认卡 48 == 实扣 48（F2 后三处同源）');
       expect(spent.toInt() - cardTotal, 0);
     });
 
-    test('🔴 阳光闸门用逐盆合计价：余额 50 < 54 ⇒ 整体拦截，一盆都不执行',
+    test('🔴 阳光闸门用逐盆合计价：余额 40 < 48 ⇒ 整体拦截，一盆都不执行',
         () async {
       final DateTime day = _waterFriendlyDay();
       final GuardProbeEnv env = await GuardProbeEnv.create(clock: () => day);
@@ -150,7 +153,7 @@ void main() {
       for (int i = 0; i < 12; i++) {
         await env.seedPlant('p$i', potIndex: i, progress: 0.5);
       }
-      await env.seedBalance(50);
+      await env.seedBalance(40);
       await _giveVoucher(env, kind: GuardDropKind.waterVoucher, quota: 6);
 
       final GuardBuffState? buff = await env.vouchers.currentBuff();
@@ -176,9 +179,9 @@ void main() {
       );
 
       // 与 garden_page.dart 的闸门同构：`_balance < plannedCost` ⇒ 直接 return。
-      expect(plannedCost, 54);
+      expect(plannedCost, 48, reason: 'B13.4 不限次：12 盆全 4 = 48');
       final double balance = await env.ledger.balance();
-      expect(balance < plannedCost, isTrue, reason: '50 < 54 ⇒ 必须整体拦截');
+      expect(balance < plannedCost, isTrue, reason: '40 < 48 ⇒ 必须整体拦截');
 
       int okCount = 0;
       if (balance >= plannedCost) {
@@ -193,7 +196,7 @@ void main() {
       }
 
       expect(okCount, 0, reason: '🟢 闸门不通过时一盆都不执行');
-      expect(await env.ledger.balance(), 50.0, reason: '分毫不扣');
+      expect(await env.ledger.balance(), 40.0, reason: '分毫不扣');
       expect(await _sumPlantWater(env), 0.0, reason: '账本无 plant_water 行');
     });
 
@@ -279,7 +282,7 @@ void main() {
   // V3-2 一键护理确认卡 note vs 账本入账
   // ══════════════════════════════════════════════════════════════════════
   group('V3-2 一键护理「合计 +N」vs 实到', () {
-    test('劳动券 4 + 10 处杂草：note 合计 +14 == 实到 14', () async {
+    test('劳动券 + 10 处杂草（B13.4 不限次）：note 合计 +20 == 实到 20', () async {
       final DateTime day = _waterFriendlyDay();
       final GuardProbeEnv env = await GuardProbeEnv.create(clock: () => day);
       addTearDown(env.close);
@@ -309,12 +312,12 @@ void main() {
         plannedEarn +=
             (target.weed ? weedRewardOf(seq[i]) : pestRewardOf(seq[i])).toInt();
       }
-      expect(plannedEarn, 14, reason: '2×4 + 1×6');
+      expect(plannedEarn, 20, reason: '🔴 B13.4 不限次：10 处全部 2×1（旧 2×4+1×6 废除）');
       // ARB 上屏口径（zh）：共清理 {count} 处，奖励合计 +{total} ☀。
       expect(
         AppLocalizationsZh().garden_care_note_total(plan.careTargets.length,
             plannedEarn),
-        '共清理 10 处，奖励合计 +14 ☀',
+        '共清理 10 处，奖励合计 +20 ☀',
       );
 
       // 实际执行（与 garden_page.dart 的 seq 执行同构）。
@@ -338,12 +341,13 @@ void main() {
         sequence.add(reward);
       }
 
-      expect(sequence, <int>[2, 2, 2, 2, 1, 1, 1, 1, 1, 1]);
-      expect(earned, 14);
-      expect(await _sumWeed(env), 14, reason: '账本 plant_weed 合计 14');
+      expect(sequence, List<int>.filled(10, 2),
+          reason: '🔴 B13.4 不限次：次次 +1');
+      expect(earned, 20);
+      expect(await _sumWeed(env), 20, reason: '账本 plant_weed 合计 20');
 
       // 🟢 等式护栏：care note 合计 == 实到之和。
-      expect(plannedEarn, earned, reason: '🟢 note 合计 14 == 实到 14');
+      expect(plannedEarn, earned, reason: '🟢 note 合计 20 == 实到 20');
     });
   });
 
@@ -351,7 +355,7 @@ void main() {
   // V3-3 单株浇水 / 施肥：按钮价 == 实扣
   // ══════════════════════════════════════════════════════════════════════
   group('V3-3 养护卡按钮价 vs 实扣（同一 perk 变量）', () {
-    test('浇水券剩 1 + 单株 ⇒ 按钮 4、账本 −4、额度归零', () async {
+    test('浇水券 + 单株 ⇒ 按钮 4、账本 −4（🔴 B13.4：额度字段不再记账）', () async {
       final DateTime day = _waterFriendlyDay();
       final GuardProbeEnv env = await GuardProbeEnv.create(clock: () => day);
       addTearDown(env.close);
@@ -384,7 +388,9 @@ void main() {
       expect(rows, hasLength(1));
       expect(-rows.single.net, buttonPrice.toDouble());
       expect(rows.single.net, -4.0);
-      expect((await env.vouchers.currentBuff())!.remaining, 0);
+      // 🔴 B13.4：浇水券当日不限次 ⇒ recordConsumed 空操作、不写库，
+      // 额度字段停在初始值（旧口径「额度归零」废除）。
+      expect((await env.vouchers.currentBuff())!.remaining, 1);
     });
 
     test('免费浇水券 + 单株 ⇒ 按钮 0、账本 0 元行、额度归零', () async {
@@ -490,89 +496,75 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════
   // V3-5 buff chip 剩余额度 vs 存档
   // ══════════════════════════════════════════════════════════════════════
-  group('V3-5 buff chip 剩余额度 vs 存档 remaining', () {
+  group('V3-5 buff 券卡文案（B13.5：卡面图 + 券名 + 增益描述）', () {
     final AppLocalizations zh = AppLocalizationsZh();
     final AppLocalizations en = AppLocalizationsEn();
 
-    test('浇水券也不含「剩 N」（玄参 2026-11-09：与劳动券同口径，只显示 buff）', () {
-      const GuardBuffState buff = GuardBuffState(
-        kind: GuardDropKind.waterVoucher,
-        quota: 6,
-        used: 2, // remaining = 4
-      );
-      final String label = GuardBuffChip.labelOf(buff, zh);
-      expect(label, '今日浇水 −1 ☀', reason: '只显示 buff 本身：$label');
-      expect(label.contains('剩'), isFalse, reason: label);
-      expect(label.contains('4'), isFalse,
-          reason: '剩余额度不上屏（仍记账，只影响确认卡价格）：$label');
-      final String exhausted = GuardBuffChip.labelOf(
-        const GuardBuffState(
-            kind: GuardDropKind.waterVoucher, quota: 6, used: 6),
-        zh,
-      );
-      expect(exhausted, '今日浇水 −1 ☀ · 已用完', reason: exhausted);
+    test('五种券的 zh 券名逐个对字面量（B13.5 新口径）', () {
+      expect(GuardBuffChip.nameOf(GuardDropKind.waterVoucher, zh), '浇水卡券');
+      expect(GuardBuffChip.nameOf(GuardDropKind.laborVoucher, zh), '劳动卡券');
+      expect(GuardBuffChip.nameOf(GuardDropKind.fertilizeVoucher, zh), '施肥卡券');
+      expect(GuardBuffChip.nameOf(GuardDropKind.freeWater, zh), '免费浇水卡券');
+      expect(GuardBuffChip.nameOf(GuardDropKind.freeFertilize, zh), '免费施肥卡券');
     });
 
-    test('用完 ⇒ chip 仍在屏上但带「已用完」（劳动券不再显示剩余量）', () {
-      const GuardBuffState buff = GuardBuffState(
-        kind: GuardDropKind.laborVoucher,
-        quota: 4,
-        used: 4,
-      );
-      final String label = GuardBuffChip.labelOf(buff, zh);
-      expect(label, isNotEmpty);
-      expect(label.contains('已用完'), isTrue, reason: label);
-      expect(label.contains('剩'), isFalse,
-          reason: '劳动券只显示 buff +「已用完」，不再显示剩余额度：$label');
+    test('五种券的 zh 增益描述逐个对字面量（玄参：「写清楚 buff 增益」）', () {
+      expect(GuardBuffChip.descOf(GuardDropKind.waterVoucher, zh),
+          '今日浇水每次可减少 1 阳光消耗');
+      expect(GuardBuffChip.descOf(GuardDropKind.laborVoucher, zh),
+          '今日除草除虫每次可多赚 1 阳光');
+      expect(GuardBuffChip.descOf(GuardDropKind.fertilizeVoucher, zh),
+          '今日施肥每次可减少 2 阳光消耗');
+      expect(GuardBuffChip.descOf(GuardDropKind.freeWater, zh),
+          '今日任选一盆，浇水一次完全免费');
+      expect(GuardBuffChip.descOf(GuardDropKind.freeFertilize, zh),
+          '今日任选一盆，施肥一次完全免费');
     });
 
-    test('劳动券：labelOf 不含「剩」、不等于旧「· 剩 4」、用完仍含「已用完」', () {
-      const GuardBuffState buff = GuardBuffState(
-        kind: GuardDropKind.laborVoucher,
-        quota: 4,
-        used: 0, // remaining = 4
-      );
-      final String label = GuardBuffChip.labelOf(buff, zh);
-      expect(label.contains('剩'), isFalse, reason: '劳动券只显示 buff：$label');
-      expect(label, isNot('今日除草除虫 +1 ☀ · 剩 4'),
-          reason: '不得回退成带「剩 N」的旧文案：$label');
-      expect(label, '今日除草除虫 +1 ☀', reason: '新文案不带参数');
-      final String exhausted = GuardBuffChip.labelOf(
-        const GuardBuffState(
-            kind: GuardDropKind.laborVoucher, quota: 4, used: 4),
-        zh,
-      );
-      expect(exhausted.contains('已用完'), isTrue,
-          reason: '额度用完仍追加「已用完」：$exhausted');
-    });
-
-    test('中英文案都不含 `×` 字符（资源 chips 行的定位口径）', () {
-      for (final GuardDropKind kind in <GuardDropKind>[
-        GuardDropKind.waterVoucher,
-        GuardDropKind.laborVoucher,
-        GuardDropKind.fertilizeVoucher,
-        GuardDropKind.freeWater,
-        GuardDropKind.freeFertilize,
-      ]) {
-        final GuardBuffState buff = GuardBuffState(kind: kind, quota: 3, used: 1);
-        expect(GuardBuffChip.labelOf(buff, zh).contains('×'), isFalse);
-        expect(GuardBuffChip.labelOf(buff, en).contains('×'), isFalse);
+    test('券名 / 描述不含「剩 N」、不含 `×`、en 不含汉字（中英可切换口径）', () {
+      for (final GuardDropKind kind in GuardDropKind.values) {
+        if (GuardVoucherKind.of(kind) == null) continue;
+        final String name = GuardBuffChip.nameOf(kind, zh);
+        final String desc = GuardBuffChip.descOf(kind, zh);
+        expect(name.contains('剩'), isFalse, reason: name);
+        expect(desc.contains('剩'), isFalse, reason: desc);
+        expect(name.contains('×'), isFalse, reason: name);
+        expect(desc.contains('×'), isFalse, reason: desc);
+        expect(_han.hasMatch(GuardBuffChip.nameOf(kind, en)), isFalse,
+            reason: GuardBuffChip.nameOf(kind, en));
+        expect(_han.hasMatch(GuardBuffChip.descOf(kind, en)), isFalse,
+            reason: GuardBuffChip.descOf(kind, en));
       }
     });
 
-    test('施肥券 / 免费券没有「剩 N」概念（不显示剩余额度）', () {
-      final String f = GuardBuffChip.labelOf(
-        const GuardBuffState(kind: GuardDropKind.fertilizeVoucher, quota: 12),
-        zh,
+    test('🔴 B13.4：浇水 / 劳动券（不限次）永不追加「已用完」（存量 used==quota 只是旧记账）', () {
+      const GuardBuffState usedUp =
+          GuardBuffState(kind: GuardDropKind.waterVoucher, quota: 6, used: 6);
+      expect(
+        GuardBuffChip.descLineOf(GuardDropKind.waterVoucher, usedUp, zh),
+        '今日浇水每次可减少 1 阳光消耗',
       );
-      final String fw = GuardBuffChip.labelOf(
-        const GuardBuffState(kind: GuardDropKind.freeWater, quota: 1),
-        zh,
+      const GuardBuffState laborUsedUp =
+          GuardBuffState(kind: GuardDropKind.laborVoucher, quota: 4, used: 4);
+      expect(
+        GuardBuffChip.descLineOf(GuardDropKind.laborVoucher, laborUsedUp, zh),
+        '今日除草除虫每次可多赚 1 阳光',
       );
-      expect(f.contains('剩'), isFalse,
-          reason: '施肥券是「今日每次施肥 −2 ☀」，不显示剩余额度：$f');
-      expect(fw.contains('剩'), isFalse, reason: fw);
-      expect(fw.contains('盆'), isTrue, reason: '免费券文案应说明「1 盆」：$fw');
+    });
+
+    test('施肥 / 免费券（次数券）用完 ⇒ 描述追加「· 已用完」', () {
+      const GuardBuffState usedUp =
+          GuardBuffState(kind: GuardDropKind.fertilizeVoucher, quota: 12, used: 12);
+      expect(
+        GuardBuffChip.descLineOf(GuardDropKind.fertilizeVoucher, usedUp, zh),
+        '今日施肥每次可减少 2 阳光消耗 · 已用完',
+      );
+      const GuardBuffState freeUsedUp =
+          GuardBuffState(kind: GuardDropKind.freeWater, quota: 1, used: 1);
+      expect(
+        GuardBuffChip.descLineOf(GuardDropKind.freeWater, freeUsedUp, en),
+        'Pick one plant today — watering it is free · Used up',
+      );
     });
   });
 
@@ -750,6 +742,77 @@ void main() {
       await pumpCard(tester, stolenSun: 0);
       expect(find.textContaining('偷走'), findsNothing,
           reason: '🔴 0 时被偷行绝不渲染');
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // V3-9 B13.5 双券：结算卡奖励区渲染主券 + 第二张
+  // ══════════════════════════════════════════════════════════════════════
+  group('V3-9 B13.5 双券：结算卡第二张券卡', () {
+    final AppLocalizations zh = AppLocalizationsZh();
+
+    Future<void> pumpView(
+      WidgetTester tester, {
+      required GuardDayState state,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GuardResultCard(
+              view: GuardTodayView(
+                mode: GuardPillMode.pendingPaid,
+                state: state,
+                energyAvailable: 0,
+                balance: 100,
+              ),
+              l10n: zh,
+              onCollect: () async => throw StateError('本用例不点收下'),
+              stolenSun: 0,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('双券日 ⇒ 主券卡 + 第二张券卡都渲染，券名各就各位', (tester) async {
+      await pumpView(
+        tester,
+        state: const GuardDayState(
+          dayKey: '2026-11-11',
+          status: GuardDayStatus.pending,
+          thiefKind: GuardThiefKind.sunRat,
+          winSun: 2,
+          dropKind: GuardDropKind.waterVoucher,
+          bonusDropKind: GuardDropKind.laborVoucher,
+        ),
+      );
+      expect(find.byKey(GuardResultCard.voucherRewardKey), findsOneWidget,
+          reason: '主券卡在');
+      expect(find.byKey(GuardResultCard.bonusVoucherRewardKey), findsOneWidget,
+          reason: '🔴 B13.5 第二张券卡在');
+      // 券名走 guardDropName（guard_drop_name_* 旧键：浇水券 / 劳动券），
+      // 与 buff 卡片的 guard_voucher_name_*（浇水卡券）是两套线，别混。
+      expect(find.text('浇水券'), findsOneWidget);
+      expect(find.text('劳动券'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('单券日（无第二张）⇒ 第二张卡不渲染（防误画空卡）', (tester) async {
+      await pumpView(
+        tester,
+        state: const GuardDayState(
+          dayKey: '2026-11-11',
+          status: GuardDayStatus.pending,
+          thiefKind: GuardThiefKind.sunRat,
+          winSun: 2,
+          dropKind: GuardDropKind.waterVoucher,
+        ),
+      );
+      expect(find.byKey(GuardResultCard.voucherRewardKey), findsOneWidget);
+      expect(find.byKey(GuardResultCard.bonusVoucherRewardKey), findsNothing,
+          reason: 'bonusDropKind == none ⇒ 第二张卡绝不出现');
       expect(tester.takeException(), isNull);
     });
   });

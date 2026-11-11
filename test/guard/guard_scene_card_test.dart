@@ -381,7 +381,7 @@ void main() {
           reason: '🔴 B7：关闭浮层即写设备级 prefs（$kGuardTutorialSeenPrefKey）');
       expect((await env.guardState()).tutorialSeen, isTrue,
           reason: '兼容口径：当日存档标记照旧打上（但它已不驱动弹层）');
-      expect(find.text('要花费 $kGuardPayCost 阳光，请小小葵战士帮忙吗？'), findsOneWidget,
+      expect(find.text('要花费 $kGuardPayCost 阳光，\n进行花园守卫吗？'), findsOneWidget,
           reason: '教学关闭后必须无缝接原 v1 流程（此处 = 付费确认卡）');
     });
 
@@ -412,7 +412,7 @@ void main() {
 
       expect(find.byKey(kGuardTutorialSheetKey), findsNothing,
           reason: '🔴 B7 修复：教学的判据是 prefs（永久），不再吃「每日重置」的存档字段');
-      expect(find.text('要花费 $kGuardPayCost 阳光，请小小葵战士帮忙吗？'), findsOneWidget,
+      expect(find.text('要花费 $kGuardPayCost 阳光，\n进行花园守卫吗？'), findsOneWidget,
           reason: '教学被跳过 ⇒ 直接落到确认卡');
     });
   });

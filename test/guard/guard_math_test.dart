@@ -9,7 +9,7 @@
 ///  · 确定性：同 seed 100 次逐位一致（防偷偷用 `Random`）；跨 childId / 跨天不同；
 ///  · 分布：10000 天，3 种贼 + 6 档掉落与 PRD 表误差 < ±1.5 个百分点；
 ///  · 成长扣减：3% / 5% 封顶 / 不为负 / **开花株免疫** / **阶段不回退** / 死株跳过；
-///  · 券节省：5 种券各算对；浇水券按盆累加但封顶 6；免费券只算单株。
+///  · 券节省：5 种券各算对；浇水 / 劳动券当日不限次（B13.4）；免费券只算单株。
 library guard_math_test;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -137,7 +137,9 @@ void main() {
   });
 
   // ─────────────────────────── 概率分布 ───────────────────────────
-  group('概率分布（10000 天，误差 < ±1.5 个百分点）', () {
+  // 🔴 B13.5（玄参拍板）：掉落按权益分层 —— 免费表 none=50%、付费表 none=0%。
+  //    旧 PRD §3.7 表 [35/20/15/8/4/18] 已退役为历史测算口径（spec.rate）。
+  group('概率分布 · 免费档（10000 天，误差 < ±1.5 个百分点）', () {
     const int sampleCount = 10000;
     const double tolerance = 0.015;
 
@@ -178,42 +180,42 @@ void main() {
           reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs PRD 10%');
     });
 
-    test('浇水券 ≈ 35%', () {
+    test('浇水券 ≈ 21%', () {
       final double actual = dropHits[GuardDropKind.waterVoucher]! / sampleCount;
-      expect((actual - 0.35).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs PRD 35%');
+      expect((actual - 0.21).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 21%');
     });
 
-    test('劳动券 ≈ 20%', () {
+    test('劳动券 ≈ 12%', () {
       final double actual = dropHits[GuardDropKind.laborVoucher]! / sampleCount;
-      expect((actual - 0.20).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs PRD 20%');
+      expect((actual - 0.12).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 12%');
     });
 
-    test('施肥券 ≈ 15%', () {
+    test('施肥券 ≈ 9%', () {
       final double actual =
           dropHits[GuardDropKind.fertilizeVoucher]! / sampleCount;
-      expect((actual - 0.15).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs PRD 15%');
+      expect((actual - 0.09).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 9%');
     });
 
-    test('免费浇水券 ≈ 8%', () {
+    test('免费浇水券 ≈ 5%', () {
       final double actual = dropHits[GuardDropKind.freeWater]! / sampleCount;
-      expect((actual - 0.08).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs PRD 8%');
+      expect((actual - 0.05).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 5%');
     });
 
-    test('免费施肥券 ≈ 4%', () {
+    test('免费施肥券 ≈ 3%', () {
       final double actual =
           dropHits[GuardDropKind.freeFertilize]! / sampleCount;
-      expect((actual - 0.04).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs PRD 4%');
+      expect((actual - 0.03).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 3%');
     });
 
-    test('无道具 ≈ 18%', () {
+    test('无道具 ≈ 50%', () {
       final double actual = dropHits[GuardDropKind.none]! / sampleCount;
-      expect((actual - 0.18).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs PRD 18%');
+      expect((actual - 0.50).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 50%');
     });
 
     test('六档合计 = 10000（没有漏统计的档）', () {
@@ -222,6 +224,143 @@ void main() {
         total += v;
       }
       expect(total, sampleCount);
+    });
+  });
+
+  // 🔴 B13.5 付费档：none=0%（必出券），其余按付费表。
+  group('概率分布 · 付费档（10000 天，误差 < ±1.5 个百分点）', () {
+    const int sampleCount = 10000;
+    const double tolerance = 0.015;
+
+    late Map<GuardDropKind, int> dropHits;
+    late Map<GuardDropKind, int> bonusHits;
+
+    setUpAll(() {
+      dropHits = <GuardDropKind, int>{
+        for (final GuardDropKind k in GuardDropKind.values) k: 0,
+      };
+      bonusHits = <GuardDropKind, int>{
+        for (final GuardDropKind k in GuardDropKind.values) k: 0,
+      };
+      final List<String> days = _dayKeys(DateTime(2026, 1, 1), sampleCount);
+      for (final String day in days) {
+        final GuardRoll roll = deriveGuardRoll(
+          dayKey: day,
+          childId: 'child-dist-premium',
+          isPremium: true,
+        );
+        dropHits[roll.drop] = dropHits[roll.drop]! + 1;
+        bonusHits[roll.bonusDrop] = bonusHits[roll.bonusDrop]! + 1;
+      }
+    });
+
+    test('无道具 = 0%（付费必出券）', () {
+      expect(dropHits[GuardDropKind.none], 0,
+          reason: '付费档 none 概率 = 0.0，10000 天一次都不该出现');
+    });
+
+    test('浇水券 ≈ 43%', () {
+      final double actual = dropHits[GuardDropKind.waterVoucher]! / sampleCount;
+      expect((actual - 0.43).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 付费表 43%');
+    });
+
+    test('劳动券 ≈ 24%', () {
+      final double actual = dropHits[GuardDropKind.laborVoucher]! / sampleCount;
+      expect((actual - 0.24).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 付费表 24%');
+    });
+
+    test('施肥券 ≈ 18%', () {
+      final double actual =
+          dropHits[GuardDropKind.fertilizeVoucher]! / sampleCount;
+      expect((actual - 0.18).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 付费表 18%');
+    });
+
+    test('免费浇水券 ≈ 10%', () {
+      final double actual = dropHits[GuardDropKind.freeWater]! / sampleCount;
+      expect((actual - 0.10).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 付费表 10%');
+    });
+
+    test('免费施肥券 ≈ 5%', () {
+      final double actual =
+          dropHits[GuardDropKind.freeFertilize]! / sampleCount;
+      expect((actual - 0.05).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 付费表 5%');
+    });
+
+    test('第二张券：只在券日出现，出现率 ≈ 10%，且种类恒 ≠ 主券', () {
+      int voucherDays = 0;
+      int bonusDays = 0;
+      for (final GuardDropKind k in dropHits.keys) {
+        voucherDays += dropHits[k]!;
+      }
+      voucherDays -= dropHits[GuardDropKind.none]!;
+      for (final GuardDropKind k in bonusHits.keys) {
+        if (k == GuardDropKind.none) continue;
+        bonusDays += bonusHits[k]!;
+      }
+      expect(voucherDays, sampleCount,
+          reason: '付费档每天都是券日（none=0）');
+      final double actual = bonusDays / sampleCount;
+      expect((actual - 0.10).abs(), lessThan(tolerance),
+          reason: '实测双券率 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 10%');
+      // 第二张必须落在「其余 4 个券种」里（rollBonus 排除主券与 none）。
+      for (final GuardDropKind k in bonusHits.keys) {
+        if (k == GuardDropKind.none) continue;
+        expect(k.hasVoucher, isTrue, reason: '${k.id} 必须是券档');
+      }
+    });
+  });
+
+  // 🔴 B13.5 双券语义：免费档同样有 10% 第二张（对主理人口径的解读见方案 §）。
+  group('双券 bonusDrop（免费档 10000 天）', () {
+    const int sampleCount = 10000;
+    late Map<GuardDropKind, int> dropHits;
+    late Map<GuardDropKind, int> bonusHits;
+
+    setUpAll(() {
+      dropHits = <GuardDropKind, int>{
+        for (final GuardDropKind k in GuardDropKind.values) k: 0,
+      };
+      bonusHits = <GuardDropKind, int>{
+        for (final GuardDropKind k in GuardDropKind.values) k: 0,
+      };
+      final List<String> days = _dayKeys(DateTime(2026, 2, 1), sampleCount);
+      for (final String day in days) {
+        final GuardRoll roll =
+            deriveGuardRoll(dayKey: day, childId: 'child-bonus');
+        dropHits[roll.drop] = dropHits[roll.drop]! + 1;
+        bonusHits[roll.bonusDrop] = bonusHits[roll.bonusDrop]! + 1;
+      }
+    });
+
+    test('券日双券率 ≈ 10%（与付费档同口径）', () {
+      int bonusDays = 0;
+      for (final MapEntry<GuardDropKind, int> e in bonusHits.entries) {
+        if (e.key != GuardDropKind.none) bonusDays += e.value;
+      }
+      final int voucherDays = sampleCount - dropHits[GuardDropKind.none]!;
+      expect(voucherDays, greaterThan(0));
+      final double actual = bonusDays / voucherDays;
+      expect((actual - 0.10).abs(), lessThan(0.02),
+          reason: '券日实测双券率 ${(actual * 100).toStringAsFixed(2)}% vs 10%'
+              '（券日基数大，用更紧的 2pp 容差）');
+    });
+
+    test('第二张券种类恒 ≠ 主券（同一天逐日对拍）', () {
+      final List<String> days = _dayKeys(DateTime(2026, 2, 1), sampleCount);
+      for (final String day in days) {
+        final GuardRoll roll =
+            deriveGuardRoll(dayKey: day, childId: 'child-bonus');
+        if (!roll.drop.hasVoucher) {
+          expect(roll.bonusDrop, GuardDropKind.none, reason: day);
+        } else if (roll.bonusDrop != GuardDropKind.none) {
+          expect(roll.bonusDrop, isNot(roll.drop), reason: day);
+        }
+      }
     });
   });
 
@@ -447,7 +586,7 @@ void main() {
 
   // ─────────────────────── 券的实际节省额 ───────────────────────
   group('voucherSavingOf：5 种券各算对', () {
-    test('浇水券：按盆累加、封顶 6', () {
+    test('浇水券：按盆累加、当日不限次（B13.4，原封顶 6 废除）', () {
       expect(voucherSavingOf(GuardDropKind.waterVoucher), 1.0);
       expect(
         voucherSavingOf(GuardDropKind.waterVoucher, potCount: 1),
@@ -467,16 +606,17 @@ void main() {
       );
       expect(
         voucherSavingOf(GuardDropKind.waterVoucher, potCount: 7),
-        6.0,
+        7.0,
+        reason: 'B13.4：当日不限次，第 7 盆仍 −1（旧封顶 6 废除）',
       );
       expect(
         voucherSavingOf(GuardDropKind.waterVoucher, potCount: 12),
-        6.0,
-        reason: 'A11：12 盆 × 3 次理论省 36，封顶后只能省 6',
+        12.0,
+        reason: 'B13.4：12 盆 × 1 ☀ = 12，不再钳到 6',
       );
     });
 
-    test('劳动券：按清理动作次数累加、封顶 4', () {
+    test('劳动券：按清理动作次数累加、当日不限次（B13.4，原封顶 4 废除）', () {
       expect(voucherSavingOf(GuardDropKind.laborVoucher), 1.0);
       expect(
         voucherSavingOf(GuardDropKind.laborVoucher, cleanCount: 3),
@@ -488,8 +628,8 @@ void main() {
       );
       expect(
         voucherSavingOf(GuardDropKind.laborVoucher, cleanCount: 12),
-        4.0,
-        reason: 'A12：12 盆满园理论追加 8.4，封顶后只能追加 4',
+        12.0,
+        reason: 'B13.4：12 次清理 × 1 ☀ = 12，不再钳到 4',
       );
     });
 

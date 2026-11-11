@@ -125,9 +125,13 @@ void main() {
 
   // ══════════════════════════════════════════════════════════════════════
   // V8-3 掉落 6 档
+  // 🔴 B13.5（玄参拍板）：经验分布对拍**免费表字面量** [0.21, 0.12, 0.09,
+  //    0.05, 0.03, 0.50]（none 50%）。旧 PRD §3.7 表 [0.35, 0.20, 0.15,
+  //    0.08, 0.04, 0.18] 已退役 —— `GuardDropKind.rate` 字段只作历史测算
+  //    口径保留，实测不再对拍它。
   // ══════════════════════════════════════════════════════════════════════
   group('V8-3 掉落 6 档概率和 == 1.0', () {
-    test('字面量 [0.35, 0.20, 0.15, 0.08, 0.04, 0.18]', () {
+    test('字面量 [0.35, 0.20, 0.15, 0.08, 0.04, 0.18]（⚠️ 历史口径，仅锁 spec.rate 不回归）', () {
       final List<double> rates = GuardDropKind.values
           .map((GuardDropKind k) => k.rate)
           .toList();
@@ -136,7 +140,21 @@ void main() {
           closeTo(1.0, 1e-12));
     });
 
-    test('200 组实测分布偏差 < 0.05，且 6 档全部出现过', () {
+    test('B13.5 免费表字面量和 == 1.0：[0.21, 0.12, 0.09, 0.05, 0.03, 0.50]', () {
+      const List<double> freeTable = <double>[
+        0.21, 0.12, 0.09, 0.05, 0.03, 0.50,
+      ];
+      expect(freeTable.fold<double>(0, (double a, double b) => a + b),
+          closeTo(1.0, 1e-12));
+    });
+
+    test('200 组实测分布偏差 < 0.05（对拍 B13.5 免费表字面量），且 6 档全部出现过', () {
+      // 🔴 期望值是**字面量**（与 GuardDropKind.values 同序：
+      //    water / labor / fertilize / freeWater / freeFertilize / none），
+      //    不 import 实现表 —— 实现改错、期望不跟（本文件头铁律）。
+      const List<double> freeTable = <double>[
+        0.21, 0.12, 0.09, 0.05, 0.03, 0.50,
+      ];
       final Map<GuardDropKind, int> counts = <GuardDropKind, int>{
         for (final GuardDropKind k in GuardDropKind.values) k: 0,
       };
@@ -147,10 +165,12 @@ void main() {
         counts[k] = counts[k]! + 1;
       }
       final double n = samples.length.toDouble();
-      for (final GuardDropKind k in GuardDropKind.values) {
+      final List<GuardDropKind> order = GuardDropKind.values.toList();
+      for (int i = 0; i < order.length; i++) {
+        final GuardDropKind k = order[i];
         final double actual = counts[k]! / n;
-        expect((actual - k.rate).abs(), lessThan(0.05),
-            reason: '${k.id} 实测 $actual，期望 ${k.rate}');
+        expect((actual - freeTable[i]).abs(), lessThan(0.05),
+            reason: '${k.id} 实测 $actual，期望（免费表）${freeTable[i]}');
         expect(counts[k], greaterThan(0), reason: '${k.id} 一次都没出现');
       }
     });

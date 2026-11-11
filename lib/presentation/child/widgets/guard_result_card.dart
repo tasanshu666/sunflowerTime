@@ -16,12 +16,12 @@
 /// `guard_service.dart` 文件头）：本卡即使被重复点也只发一次 —— 且按钮在
 /// in-flight 期间置灰，正常路径根本点不了第二次。
 ///
-/// ## 比较说明（R2 缓解，**有券时必须有**）
-/// 孩子最容易困惑的是「**花了 5 阳光，怎么只拿回 2 阳光？**」。
-/// 光看「拿回 2」会得出「亏了」的错误结论；实际账是：
-/// `−5（请小小葵）+ 2（必得）+ 券面值（今天养护能省）`。
-/// 故**有券时**固定输出一行 [AppLocalizations.guard_result_compare]，
-/// 把三个数摆在明面上 —— 这不是可选装饰，是 PRD 风险登记 R2 的缓解措施。
+/// ## 奖励说明行（B13.2 玄参裁定：**不再算账**）
+/// 旧版有券时固定输出「花了 N 阳光，拿回 N 阳光，券还能省 N 阳光」
+/// （R2 缓解，把账摆在明面上）。玄参 2026-11-11 真机复验拍板：
+/// **算账行移除**，有 buff 增益券时直接写 [AppLocalizations.guard_result_rare]
+/// （「恭喜获得稀有奖励！」）；无掉落档沿用 [AppLocalizations.guard_result_nothing]
+/// （「这次什么都没捡到，但菜保住了」）。`guard_result_compare` 同步退役。
 ///
 /// ## 🔴 无掉落档（18%）**整行不渲染**（第三批收口修正的真 bug）
 /// 无道具档的券面值是 0，若照常套模板会渲染出
@@ -108,6 +108,15 @@ class GuardResultCard extends StatefulWidget {
   /// 胜利战士立绘（B12 新增；玄参「结算卡没有用向日葵胜利的图片」）。
   static const Key winArtKey = Key('guardResultWinArt');
 
+  /// 阳光奖励卡（B13：奖励卡区左卡，`assets/rewards/sunlight.png`）。
+  static const Key sunRewardKey = Key('guardResultSunReward');
+
+  /// 道具券奖励卡（B13：奖励卡区右卡，占位素材 —— 等玄参美术）。
+  static const Key voucherRewardKey = Key('guardResultVoucherReward');
+
+  /// 第二张券卡（B13.5 双券：10% 概率掉第二张不同券）。
+  static const Key bonusVoucherRewardKey = Key('guardResultBonusVoucherReward');
+
   /// 战果快照（贼 / 必得阳光 / 掉落档 / 成本）。
   final GuardTodayView view;
 
@@ -173,7 +182,9 @@ class _GuardResultCardState extends State<GuardResultCard> {
     final GuardTodayView view = widget.view;
     final String thiefName =
         view.thief == null ? '' : guardThiefName(view.thief!, t);
-    final bool hasVoucher = view.dropKind.hasVoucher;
+    // 🔴 B13.5：主券**或**第二张券任一有券即视为「有稀有奖励」（说明框配色）。
+    final bool hasVoucher =
+        view.dropKind.hasVoucher || view.bonusDropKind.hasVoucher;
 
     return Center(
       child: Material(
@@ -223,60 +234,186 @@ class _GuardResultCardState extends State<GuardResultCard> {
                   child: GuardArt.soldierWin(),
                 ),
                 const SizedBox(height: 12),
-                // ② 收获：拿回 2 阳光 ＋ 掉落 / 无掉落
-                _ResultLine(
-                  icon: Icons.wb_sunny,
-                  color: const Color(0xFFE8890C),
-                  text: t.guard_result_gain(view.winSun),
-                  emphasize: true,
+                // ② 奖励卡区（🔴 B13 玄参：「拿回了 5 阳光，这应该是打怪掉落
+                // 的奖励，应该是奖励获得 5 阳光和浇水券……做成卡片的形式展示，
+                // buff 卡片后期提供美术素材，先用占位符；阳光奖励用已有 UI 素材」）
+                Text(
+                  t.guard_result_rewards,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF8A5A00),
+                  ),
                 ),
-                // ②′ 被偷行（B4）：本场有怪到门口且账本实扣 > 0 才渲染。
+                const SizedBox(height: 8),
+                // 🔴 B13.1：`stretch` 在 shrinkWrap ListView 里会拿到**无界纵向
+                // 约束**（Row 的 cross 轴 = 纵向）⇒「BoxConstraints forces an
+                // infinite height」硬崩（本轮 31 连爆的根因）。套 `IntrinsicHeight`
+                // 把高度钉到子卡 intrinsic 高，两张奖励卡仍然等高。
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                    // 阳光奖励卡（已有 UI 素材 sunlight.png）。
+                    Expanded(
+                      child: Container(
+                        key: GuardResultCard.sunRewardKey,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF6DE),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: const Color(0xFFE8A600), width: 1.5),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Image.asset(
+                              'assets/rewards/sunlight.png',
+                              height: 44,
+                              fit: BoxFit.contain,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '+${view.winSun}',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                height: 1.1,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFB37400),
+                              ),
+                            ),
+                            Text(
+                              t.guard_result_reward_sun,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                height: 1.2,
+                                color: Color(0xFF8A7A66),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // 道具券卡（🔴 占位：Material 图标 + 色块，等玄参美术素材）。
+                    if (view.dropKind.hasVoucher) ...<Widget>[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Container(
+                          key: GuardResultCard.voucherRewardKey,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE7F3EF),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: const Color(0xFF3D8B7D), width: 1.5),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: <Widget>[
+                              const Icon(
+                                Icons.confirmation_num_outlined,
+                                size: 44,
+                                color: Color(0xFF3D8B7D),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                guardDropName(view.dropKind, t),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF2E6B60),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    // 🔴 B13.5 第二张券卡（10% 双券掉落）：与主券卡同款式，
+                    //    种类恒与主券不同（rollBonus 排除首张）。
+                    if (view.bonusDropKind.hasVoucher) ...<Widget>[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Container(
+                          key: GuardResultCard.bonusVoucherRewardKey,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE7F3EF),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: const Color(0xFF3D8B7D), width: 1.5),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: <Widget>[
+                              const Icon(
+                                Icons.confirmation_num_outlined,
+                                size: 44,
+                                color: Color(0xFF3D8B7D),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                guardDropName(view.bonusDropKind, t),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF2E6B60),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                  ),
+                ),
+                // ②″ 被偷行（B4）：本场有怪到门口且账本实扣 > 0 才渲染。
                 //    🔴 0 不渲染（「偷走 0 阳光」= QA 抓过的「省 0 阳光」同罪）。
                 if (widget.stolenSun > 0) ...<Widget>[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   _ResultLine(
                     icon: Icons.directions_run,
                     color: const Color(0xFFB3261E),
                     text: t.guard_result_stolen(widget.stolenSun),
                   ),
                 ],
-                const SizedBox(height: 8),
-                _ResultLine(
-                  icon: hasVoucher ? Icons.confirmation_num : Icons.check_circle,
-                  color: hasVoucher
-                      ? const Color(0xFF3D8B7D)
-                      : const Color(0xFF73A45C),
-                  text: hasVoucher
-                      ? t.guard_result_drop(guardDropName(view.dropKind, t))
-                      : t.guard_result_nothing,
-                ),
-                // ③ 比较说明（R2 缓解）：**只有今天真有券时才渲染**。
-                //    🔴 无掉落档整行不渲染 —— 否则会写出「券还能省 0 阳光」，
-                //    读起来是「我白打了」（第三批收口修正）。
-                if (hasVoucher) ...<Widget>[
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3D6),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      t.guard_result_compare(
-                        view.payCost,
-                        view.winSun,
-                        view.voucherSaving,
-                      ),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        height: 1.4,
-                        color: Color(0xFF8A5A00),
-                      ),
+                // ③ 奖励说明（B13.2 玄参裁定，不算账）：
+                //    有 buff 增益券 ⇒「恭喜获得稀有奖励！」；
+                //    无掉落档 ⇒「这次什么都没捡到，但菜保住了」。
+                //    🔴 旧「花了/拿回/券还能省」数字比较行已退役
+                //    （「省 0 阳光」同罪句式的土壤一并铲除）。
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: hasVoucher
+                        ? const Color(0xFFFFF3D6)
+                        : const Color(0xFFF6F1E7),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    hasVoucher ? t.guard_result_rare : t.guard_result_nothing,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      fontWeight: hasVoucher ? FontWeight.w700 : FontWeight.w400,
+                      color: hasVoucher
+                          ? const Color(0xFF8A5A00)
+                          : const Color(0xFF8A7A66),
                     ),
                   ),
-                ],
+                ),
                 if (_error != null) ...<Widget>[
                   const SizedBox(height: 10),
                   Text(
@@ -330,13 +467,11 @@ class _ResultLine extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String text;
-  final bool emphasize;
 
   const _ResultLine({
     required this.icon,
     required this.color,
     required this.text,
-    this.emphasize = false,
   });
 
   @override
@@ -352,10 +487,10 @@ class _ResultLine extends StatelessWidget {
             text,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: emphasize ? 16 : 13,
-              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
-              color: emphasize ? const Color(0xFF4A3410) : const Color(0xFF8A7A66),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF8A7A66),
             ),
           ),
         ),

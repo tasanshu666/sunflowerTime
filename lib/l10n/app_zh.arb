@@ -2833,9 +2833,9 @@
   "@guard_scene_start": {
       "description": "守卫战 v2 场景卡 L3：待处理态的主按钮（pendingFree / pendingPaid 两态共用；付费确认卡由页面负责）"
   },
-  "guard_scene_done": "已完成守卫",
+  "guard_scene_done": "成功守卫",
   "@guard_scene_done": {
-      "description": "守卫战 v2 场景卡 L3：claimed（战斗胜利且奖励已收下）态右簇徽标的读屏文案（B12；徽标本体是对勾图标，无上屏文本）"
+      "description": "守卫战 v2 场景卡 L3：claimed（战斗胜利且奖励已收下）态右簇徽标文本（B13：旗子下面这行字，玄参指定「成功守卫」）"
   },
   "guard_scene_continue": "继续守卫",
   "@guard_scene_continue": {
@@ -2916,31 +2916,163 @@
   },
   "guard_result_nothing": "这次什么都没捡到，但菜保住了",
   "@guard_result_nothing": {
-      "description": "结算卡：掉落档为 none 时的说明（保底阳光照给）"
+      "description": "结算卡：掉落档为 none 时的说明（保底阳光照给；B13.2 玄参：「没有掉落就随便写一些」——沿用本句）"
   },
-  "guard_result_compare": "花了 {cost} 阳光，拿回 {gain} 阳光，券还能省 {saving} 阳光",
-  "@guard_result_compare": {
+  "guard_result_rare": "恭喜获得稀有奖励！",
+  "@guard_result_rare": {
+      "description": "结算卡：有 buff 增益券时的奖励说明（B13.2 玄参拍板：不再算账——旧「花了 N 阳光拿回 N 阳光券还能省 N 阳光」比较行于本轮移除，guard_result_compare 同步退役）"
+  },
+  "guard_result_rewards": "战斗奖励",
+  "@guard_result_rewards": {
+      "description": "结算卡（B13）：奖励卡区的分组标题（下面是阳光卡 + 券卡）"
+  },
+  "guard_result_reward_sun": "阳光",
+  "@guard_result_reward_sun": {
+      "description": "结算卡（B13）：阳光奖励卡的名称行（数量用 +N 显示在图下）"
+  },
+  "guard_intro_open": "查看玩法说明",
+  "@guard_intro_open": {
+      "description": "守卫战 v2（B13）：点场景卡左侧房子打开玩法说明弹窗的读屏文案"
+  },
+  "guard_intro_title": "花园守卫怎么玩",
+  "@guard_intro_title": {
+      "description": "守卫战 v2（B13）：玩法说明弹窗标题"
+  },
+  "guard_intro_howto_title": "怎么打",
+  "@guard_intro_howto_title": {
+      "description": "守卫战 v2（B13）：玩法说明弹窗「怎么打」小节标题"
+  },
+  "guard_intro_howto_body": "点「开始守卫」派出向日葵战士，再点击右上方的阳光胶囊，帮战士发射阳光子弹，在小怪碰到菜之前把它们全部打跑！",
+  "@guard_intro_howto_body": {
+      "description": "守卫战 v2（B13.5）：玩法说明弹窗「怎么打」正文（🔴 玄参：必须写明「点阳光胶囊帮战士发射子弹」，否则用户以为是自动攻击）"
+  },
+  "guard_intro_energy_title": "能量点是什么",
+  "@guard_intro_energy_title": {
+      "description": "守卫战 v2（B13.3）：玩法说明弹窗「能量点是什么」小节标题"
+  },
+  "guard_intro_energy_body": "能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，一天最多 2 个。没有能量点也能守卫——花 5 阳光请战士出战就行。",
+  "@guard_intro_energy_body": {
+      "description": "守卫战 v2（B13.4）：能量点来源（🔴 15 分钟 = 1 个、一天最多 2 个，与 PRD §6 教学口径一致；「专注越足越多」不符实际已删）+ 没有能量点怎么办"
+  },
+  "guard_intro_reward_title": "打赢有什么",
+  "@guard_intro_reward_title": {
+      "description": "守卫战 v2（B13）：玩法说明弹窗奖励小节标题"
+  },
+  "guard_intro_reward_body": "赶走小怪能拿到阳光奖励；运气好的话，还会随机掉落花园道具券（浇水券、施肥券……），帮你把花园护理得更好。",
+  "@guard_intro_reward_body": {
+      "description": "守卫战 v2（B13.3）：奖励正文，强调随机掉落道具券及其用途"
+  },
+  "guard_intro_risk_title": "今天不打会怎样",
+  "@guard_intro_risk_title": {
+      "description": "守卫战 v2（B13.3）：玩法说明弹窗「今天不打会怎样」小节标题"
+  },
+  "guard_intro_risk_body": "小怪会一直往菜地逼近。今天不打的话，被偷走的阳光和成长进度，第二天打开花园时就会真的扣掉——所以每天都要记得回来守卫哦！",
+  "@guard_intro_risk_body": {
+      "description": "守卫战 v2（B13.3）：不打守卫的后果（次日结算真的扣）"
+  },
+  "guard_settle_title": "昨晚小怪来过了",
+  "@guard_settle_title": {
+      "description": "守卫战 v2（B13.4）：次日结算报告弹窗标题（昨天 pending 没打 ⇒ expire() 静默扣了阳光/成长后，首次刷新今日页时弹出告知）"
+  },
+  "guard_settle_body_sun": "小怪偷走了 {n} 阳光。",
+  "@guard_settle_body_sun": {
       "placeholders": {
-          "cost": {
-              "type": "int"
-          },
-          "gain": {
-              "type": "int"
-          },
-          "saving": {
+          "n": {
               "type": "int"
           }
       },
-      "description": "结算卡比较说明（R2 缓解：把「花 5 拿回 2」讲清楚）。cost = 实际花费、gain = 拿回、saving = 券面值可再省"
+      "description": "结算报告：被偷阳光一行（n = sunStolen，intPlaces）"
   },
-  "guard_confirm_pay_title": "要花费 {cost} 阳光，请小小葵战士帮忙吗？",
+  "guard_settle_body_growth": "{n} 棵植物的成长被偷吃了一些。",
+  "@guard_settle_body_growth": {
+      "placeholders": {
+          "n": {
+              "type": "int"
+          }
+      },
+      "description": "结算报告：成长被偷一行（n = 实际被扣到的株数 growthTargets）"
+  },
+  "guard_settle_body_win": "你昨天打赢了小怪——已经帮你把 {n} 阳光奖励收进账啦。",
+  "@guard_settle_body_win": {
+      "placeholders": {
+          "n": {
+              "type": "int"
+          }
+      },
+      "description": "结算报告：fighting 补发分支（打赢但没收奖励 ⇒ expire 补发 winSun）"
+  },
+  "guard_settle_foot": "今天记得回来守卫菜园哦！",
+  "@guard_settle_foot": {
+      "description": "结算报告：结尾引导语"
+  },
+  "guard_settle_ok": "知道了",
+  "@guard_settle_ok": {
+      "description": "结算报告：确认按钮"
+  },
+  "guard_voucher_name_water": "浇水卡券",
+  "@guard_voucher_name_water": {
+      "description": "守卫战 v2（B13.5）：buff 券卡名（GuardBuffChip 卡面图上方/下方的券名）"
+  },
+  "guard_voucher_name_labor": "劳动卡券",
+  "@guard_voucher_name_labor": {
+      "description": "B13.5：buff 券卡名"
+  },
+  "guard_voucher_name_fertilize": "施肥卡券",
+  "@guard_voucher_name_fertilize": {
+      "description": "B13.5：buff 券卡名"
+  },
+  "guard_voucher_name_free_water": "免费浇水卡券",
+  "@guard_voucher_name_free_water": {
+      "description": "B13.5：buff 券卡名（无专属美术，复用浇水卡面）"
+  },
+  "guard_voucher_name_free_fertilize": "免费施肥卡券",
+  "@guard_voucher_name_free_fertilize": {
+      "description": "B13.5：buff 券卡名（无专属美术，复用施肥卡面）"
+  },
+  "guard_voucher_desc_water": "今日浇水每次可减少 1 阳光消耗",
+  "@guard_voucher_desc_water": {
+      "description": "守卫战 v2（B13.5）：buff 券增益描述（玄参：「下面写清楚 buff 增益，如今日浇水可减少1阳光消耗」，中英可切换）"
+  },
+  "guard_voucher_desc_labor": "今日除草除虫每次可多赚 1 阳光",
+  "@guard_voucher_desc_labor": {
+      "description": "B13.5：buff 券增益描述"
+  },
+  "guard_voucher_desc_fertilize": "今日施肥每次可减少 2 阳光消耗",
+  "@guard_voucher_desc_fertilize": {
+      "description": "B13.5：buff 券增益描述"
+  },
+  "guard_voucher_desc_free_water": "今日任选一盆，浇水一次完全免费",
+  "@guard_voucher_desc_free_water": {
+      "description": "B13.5：buff 券增益描述（单株单次）"
+  },
+  "guard_voucher_desc_free_fertilize": "今日任选一盆，施肥一次完全免费",
+  "@guard_voucher_desc_free_fertilize": {
+      "description": "B13.5：buff 券增益描述（单株单次）"
+  },
+  "guard_intro_locked": "还没遇到过",
+  "@guard_intro_locked": {
+      "description": "守卫战 v2（B13）：怪物图鉴卡未解锁态（还没在战斗里遇到过 ⇒ 剪影 + 本文案，名字不显示）"
+  },
+  "guard_intro_desc_sunrat": "凑到阳光边上把阳光偷走，不会碰菜——跑得慢，先拿它练手。",
+  "@guard_intro_desc_sunrat": {
+      "description": "守卫战 v2（B13.3 玄参：「要说清楚」——在哪、偷什么、后果）"
+  },
+  "guard_intro_desc_leafbug": "趴在植物上，会偷偷吃掉植物的成长进度，让菜长得变慢。",
+  "@guard_intro_desc_leafbug": {
+      "description": "守卫战 v2（B13.3 玄参原话口径：「趴在植物上会偷吃植物的成长进度」）"
+  },
+  "guard_intro_desc_sneakthief": "阳光和植物的成长进度它都偷，最贪心——看到它要优先赶走！",
+  "@guard_intro_desc_sneakthief": {
+      "description": "守卫战 v2（B13.3 玄参：「依此类推，要说清楚」）"
+  },
+  "guard_confirm_pay_title": "要花费 {cost} 阳光，\n进行花园守卫吗？",
   "@guard_confirm_pay_title": {
       "placeholders": {
           "cost": {
               "type": "int"
           }
       },
-      "description": "付费确认卡标题（cost = kGuardPayCost，不写字面量 5 以免与常量脱钩；B9 玄参指定改为「要花费 {cost} 阳光，请小小葵战士帮忙吗？」）"
+      "description": "付费确认卡标题（cost = kGuardPayCost，不写字面量 5 以免与常量脱钩；B13 玄参指定「要花费 {cost} 阳光，进行花园守卫吗？」；B13.2 玄参指定分上下两段（\\n），不要让尾字单独占一行）"
   },
   "guard_confirm_pay_later": "今天不赶了",
   "@guard_confirm_pay_later": {

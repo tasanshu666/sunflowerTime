@@ -36,6 +36,7 @@ library guard_art;
 import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/domain/entities/guard_drop.dart';
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_card_layout.dart'
@@ -74,6 +75,25 @@ abstract final class _GuardAssetPaths {
 
   /// m3（贪婪鼬）进攻序列帧目录（7 帧；B9 接入）。
   static const String monsterM3Dir = 'assets/guard/monster_m3';
+
+  /// 「开始战斗」图标（🔴 B13.5：玄参 11:42 交付新版「开始战斗UI.jpg」
+  /// —— 红底圆角方 + 双太阳矛，256²，圆角遮罩抠掉 jpg 四角黑底；
+  /// 旧「金徽」版已覆盖）。
+  static const String startButton = 'assets/guard/start_button.webp';
+
+  /// 守卫成功旗帜动画帧目录（B13.3；10 帧 160²，循环播放）。
+  static const String claimFlagDir = 'assets/guard/claim_flag';
+
+  /// buff 券卡面（🔴 B13.5：玄参交付 3 种券美术，360×507，无字 ——
+  /// 名字 / 增益描述由 `GuardBuffChip` 用 ARB 文字叠，方便中英切换）。
+  /// 施肥券美术**自带烤字**（zh「通用花肥」/ en 版），按语言二选一；
+  /// 免费浇水 / 免费施肥券没有专属美术 ⇒ 复用浇水 / 施肥卡面。
+  static const String voucherWater = 'assets/guard/buff_voucher/water.webp';
+  static const String voucherLabor = 'assets/guard/buff_voucher/labor.webp';
+  static const String voucherFertilizeZh =
+      'assets/guard/buff_voucher/fertilize_zh.webp';
+  static const String voucherFertilizeEn =
+      'assets/guard/buff_voucher/fertilize_en.webp';
 }
 
 /// 素材位取值函数集（纯静态，无状态；全部返回**新** widget）。
@@ -312,6 +332,64 @@ class GuardArt {
         fit: fit,
         errorBuilder: (_, __, ___) =>
             ColoredBox(color: fallbackColor, child: const SizedBox.expand()),
+      ),
+    );
+  }
+
+  /// 素材位：**「开始战斗」金徽图标**（B13.3，玄参交付）。
+  ///
+  /// 场景卡右簇开始钮整体替换：素材自带金色圆角框底（256×252），原「橙色圆 +
+  /// play 箭头」退役。contain 在 64pt 槽位完整可见；缺失回退 = 金色圆块
+  /// （调用方已包 Semantics，按钮语义不依赖图）。
+  static Widget startButton() {
+    return _staticAsset(_GuardAssetPaths.startButton, _soldierGold);
+  }
+
+  /// 素材位：**守卫成功旗帜动画**（B13.3，玄参交付 10 帧 160²）。
+  ///
+  /// claimed 徽章占位旗（Material `flag_rounded`）替换为真实帧动画，循环播放；
+  /// 帧数由 AssetManifest 实测（玄参补帧/删帧零代码改动）；缺失回退金色块
+  /// （徽章上还有「成功守卫」文字兜底语义）。
+  static Widget claimFlag() {
+    return const _GuardSequence(
+      dir: _GuardAssetPaths.claimFlagDir,
+      fallbackColor: _soldierGold,
+      animate: true,
+      fit: BoxFit.contain,
+    );
+  }
+
+  /// buff 券卡面路径（🔴 B13.5）。
+  ///
+  /// * 浇水 / 劳动美术**无烤字**（名字 / 描述由 `GuardBuffChip` 叠 ARB 文字）；
+  /// * 施肥美术自带烤字（zh「通用花肥」/ en 版）⇒ 按语言二选一；
+  /// * 免费浇水 / 免费施肥没有专属美术 ⇒ 复用浇水 / 施肥卡面（券名与描述
+  ///   仍用自己的 ARB 文案，卡面相同但文字不同，不混淆）。
+  static String voucherArtPath(GuardDropKind kind, {required bool isZh}) {
+    switch (kind) {
+      case GuardDropKind.waterVoucher:
+      case GuardDropKind.freeWater:
+        return _GuardAssetPaths.voucherWater;
+      case GuardDropKind.laborVoucher:
+        return _GuardAssetPaths.voucherLabor;
+      case GuardDropKind.fertilizeVoucher:
+      case GuardDropKind.freeFertilize:
+        return isZh
+            ? _GuardAssetPaths.voucherFertilizeZh
+            : _GuardAssetPaths.voucherFertilizeEn;
+      case GuardDropKind.none:
+        return _GuardAssetPaths.voucherWater; // 不可达（chip 不渲染 none）
+    }
+  }
+
+  /// buff 券卡面图（缺失回退 = 金色块，不 crash）。
+  static Widget voucherCard(GuardDropKind kind, {required bool isZh}) {
+    return Image.asset(
+      voucherArtPath(kind, isZh: isZh),
+      fit: BoxFit.fitWidth,
+      errorBuilder: (_, __, ___) => const AspectRatio(
+        aspectRatio: 360 / 507,
+        child: ColoredBox(color: _soldierGold),
       ),
     );
   }

@@ -538,7 +538,7 @@ void _groupFreePath() {
       await tester.pump();
 
       // 🔴 关键断言：免费路径**不得**弹确认卡。
-      expect(find.text('要花费 $kGuardPayCost 阳光，请小小葵战士帮忙吗？'), findsNothing,
+      expect(find.text('要花费 $kGuardPayCost 阳光，\n进行花园守卫吗？'), findsNothing,
           reason: '有能量时点卡必须直接开战，不弹确认卡');
       expect(find.byKey(GuardBattleField.fieldKey), findsOneWidget,
           reason: '点击后 L4 战斗层应直接上屏（卡内战斗，v1 浮层已退役）');
@@ -570,7 +570,7 @@ void _groupPaidConfirm() {
       await _passTutorial(tester);
       await tester.pump();
 
-      expect(find.text('要花费 $kGuardPayCost 阳光，请小小葵战士帮忙吗？'), findsOneWidget,
+      expect(find.text('要花费 $kGuardPayCost 阳光，\n进行花园守卫吗？'), findsOneWidget,
           reason: '无能量时点卡必须先弹确认卡');
       expect(find.text('今天不赶了'), findsOneWidget);
       expect(find.byKey(GuardBattleField.fieldKey), findsNothing,
@@ -691,15 +691,17 @@ void _groupNoDrop() {
           .where((String s) => s.contains('省') && s.contains('阳光'))
           .toList();
 
-      // ── 对照组：今天有券（laborVoucher）⇒ 比较说明必须渲染 ──────────
+      // ── 对照组：今天有券（laborVoucher）⇒ 稀有奖励说明渲染 ────────────
       await _pumpResultCard(
         tester,
         _view(GuardPillMode.pendingPaid, drop: GuardDropKind.laborVoucher),
         t,
       );
-      expect(find.textContaining('券还能省'), findsOneWidget,
-          reason: '🔴 有券时必须给比较说明（R2 缓解）');
-      expect(saveLines(), hasLength(1));
+      // 🔴 B13.2 玄参裁定：不再算账 —— 有券直接写「恭喜获得稀有奖励！」。
+      expect(find.text('恭喜获得稀有奖励！'), findsOneWidget,
+          reason: '🔴 有 buff 增益券 ⇒ 稀有奖励文案（旧算账行已退役）');
+      expect(saveLines(), isEmpty,
+          reason: 'B13.2 起全卡不再出现「省 … 阳光」数字句式');
 
       // ── 实验组：无掉落档 ⇒ 整行不渲染，不许出现任何数字兜底 ─────────
       await _pumpResultCard(
@@ -716,9 +718,10 @@ void _groupNoDrop() {
       // 🔴 真 bug 的判据：不能出现「券还能省 0 阳光」这类数字句式。
       expect(saveLines(), isEmpty,
           reason: '无掉落档不得出现「省 … 阳光」：${saveLines()}');
-      expect(find.textContaining('券还能省'), findsNothing);
+      expect(find.textContaining('省'), findsNothing,
+          reason: 'B13.2 起算账行退役，任何档都不出现「省」字句');
       expect(find.textContaining('花了'), findsNothing,
-          reason: '无券档整行不渲染（连「花了 5 阳光」也不留半句）');
+          reason: '无券档连「花了 5 阳光」也不留半句');
     });
   });
 }

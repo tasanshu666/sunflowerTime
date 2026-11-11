@@ -29,8 +29,8 @@
 /// |---|---|
 /// | ① | 常量表 == 本文件**独立重算**的质心（Dart 侧再实现一遍 alpha 加权，±0.005） |
 /// | ② | 🔴 三态**渲染后**的质心 x 互相差 ≤ **1.0pt**，且都落在绘制框中轴 ±1.0 |
-/// | ③ | 待机**渲染高度仍是 68.0**（玄参「68 刚好」⇒ 改定位不许把身体改小） |
-/// | ④ | 三态位移量写死（−3.70 / +5.99 / +2.76，±0.05） |
+/// | ③ | 待机**渲染高度仍是 60.0**（B13.2 试值 64 → 60；改定位不许把身体改小） |
+/// | ④ | 三态位移量写死（−3.26 / +5.28 / +2.43，±0.05） |
 /// | ⑤ | 素材画布尺寸与常量表绑定（**换图必红**，见文件尾的换素材流程） |
 ///
 /// ## 🔴 换素材流程（改名 / 重导 / 重裁都要走一遍）
@@ -313,81 +313,81 @@ void main() {
     });
   });
 
-  group('③ 待机渲染高度仍是 68（改定位不许把身体改小）', () {
-    testWidgets('绘制高 68、绘制宽 66.17（fitHeight 保持素材比例）',
+  group('③ 待机渲染高度仍是 60（B13.2 试值 64 → 60；改定位不许把身体改小）', () {
+    testWidgets('绘制高 60、绘制宽 100（fitHeight 保持素材比例）',
         (WidgetTester tester) async {
       await _pumpSoldier(tester);
       final Rect host = tester.getRect(find.byKey(_kHost));
-      expect(host.height, closeTo(68, 0.5),
-          reason: '🔴 B10/C1 的 68 是玄参认可的尺寸，本轮不许动');
-      expect(host.width, closeTo(113.33, 0.5), reason: '绘制框宽 = 68 × 5/3');
+      expect(host.height, closeTo(60, 0.5),
+          reason: '🔴 B13.2 试值 60（玄参真机复验），本轮不许动');
+      expect(host.width, closeTo(100, 0.5), reason: '绘制框宽 = 60 × 5/3');
 
       final Size player = tester.getSize(find.descendant(
         of: find.byKey(_kHost),
         matching: find.byType(FrameSequencePlayer),
       ));
-      // 🔴 播放器铺满绘制框（113.33 × 68）；`BoxFit.fitHeight` 决定**画面**高度
+      // 🔴 播放器铺满绘制框（100 × 60）；`BoxFit.fitHeight` 决定**画面**高度
       // 就是框高（绘制宽由素材比例派生，见下一个纯值类用例）。
-      expect(player.height, closeTo(68, 0.5),
-          reason: '🔴 fitHeight ⇒ 画面高度 == 框高 == 68（待机身体视觉高不变）');
-      expect(player.width, closeTo(113.33, 0.5),
-          reason: '播放器铺满绘制框（画面宽 66.17 居中落在框内）');
+      expect(player.height, closeTo(60, 0.5),
+          reason: '🔴 fitHeight ⇒ 画面高度 == 框高 == 60（待机身体视觉高不变）');
+      expect(player.width, closeTo(100, 0.5),
+          reason: '播放器铺满绘制框（画面宽 58.39 居中落在框内）');
     });
 
-    test('纯值类：三态绘制宽 = 68 × 素材比例', () {
-      expect(GuardCardLayout.soldierStatePaintWidth('idle', 68),
-          closeTo(66.17, 0.01));
-      expect(GuardCardLayout.soldierStatePaintWidth('attack', 68),
-          closeTo(99.76, 0.01));
-      expect(GuardCardLayout.soldierStatePaintWidth('win', 68),
-          closeTo(81.16, 0.01));
-      // 攻击帧 99.76 必须仍落在绘制框 113.33 内（含 +5.99 的配准位移）。
-      expect(GuardCardLayout.soldierStatePaintWidth('attack', 68) + 5.99,
+    test('纯值类：三态绘制宽 = 60 × 素材比例', () {
+      expect(GuardCardLayout.soldierStatePaintWidth('idle', 60),
+          closeTo(58.39, 0.01));
+      expect(GuardCardLayout.soldierStatePaintWidth('attack', 60),
+          closeTo(88.02, 0.01));
+      expect(GuardCardLayout.soldierStatePaintWidth('win', 60),
+          closeTo(71.61, 0.01));
+      // 攻击帧 88.02 必须仍落在绘制框 100 内（含 +5.28 的配准位移）。
+      expect(GuardCardLayout.soldierStatePaintWidth('attack', 60) + 5.28,
           lessThan(GuardCardLayout.soldierOverflowWidth));
     });
   });
 
   group('④ 三态位移量写死（负 = 向左）', () {
-    testWidgets('idle −3.70 / attack +5.99 / win +2.76（±0.05）',
+    testWidgets('idle −3.26 / attack +5.28 / win +2.43（±0.05）',
         (WidgetTester tester) async {
       await _pumpSoldier(tester);
-      expect(_shiftOf(tester, 'idle'), closeTo(-3.70, 0.05),
-          reason: '🔴 idle 质心在 0.5559 ⇒ 身体偏右 3.70，往左拉回');
+      expect(_shiftOf(tester, 'idle'), closeTo(-3.26, 0.05),
+          reason: '🔴 idle 质心在 0.5559 ⇒ 身体偏右 3.26（B13.2 绘制高 60），往左拉回');
 
       await _pumpSoldier(tester, attack: true);
-      expect(_shiftOf(tester, 'attack'), closeTo(5.99, 0.05),
-          reason: '🔴 attack 质心 0.4400 ⇒ 身体偏左 5.99，往右推');
+      expect(_shiftOf(tester, 'attack'), closeTo(5.28, 0.05),
+          reason: '🔴 attack 质心 0.4400 ⇒ 身体偏左 5.28，往右推');
 
       await _pumpSoldier(tester, win: true);
-      expect(_shiftOf(tester, 'win'), closeTo(2.76, 0.05),
-          reason: '🔴 win 质心 0.4660 ⇒ 身体偏左 2.76');
+      expect(_shiftOf(tester, 'win'), closeTo(2.43, 0.05),
+          reason: '🔴 win 质心 0.4660 ⇒ 身体偏左 2.43');
     });
 
     test('纯值类：位移 = −(fx − 0.5) × 绘制宽', () {
       for (final String state in <String>['idle', 'attack', 'win']) {
-        final double paintW = GuardCardLayout.soldierStatePaintWidth(state, 68);
+        final double paintW = GuardCardLayout.soldierStatePaintWidth(state, 60);
         final double expected =
             -(kGuardSoldierStateCentroidX[state]! - 0.5) * paintW;
-        expect(GuardCardLayout.soldierStateAlignShiftX(state, 68),
+        expect(GuardCardLayout.soldierStateAlignShiftX(state, 60),
             closeTo(expected, 1e-9));
         // 修正前（实体框居中）身体偏移量 = +(fx − 0.5) × 绘制宽 ⇒ 与本值反号。
-        expect(GuardCardLayout.soldierStateAlignShiftX(state, 68),
+        expect(GuardCardLayout.soldierStateAlignShiftX(state, 60),
             closeTo(-(kGuardSoldierStateCentroidX[state]! - 0.5) * paintW, 1e-9));
       }
       // 修正前（实体框居中）三态身体相对框中轴的位置 = +(fx − 0.5) × 绘制宽；
-      // 攻击帧相对待机的错位量 = 两者之差 = **−9.68pt**（玄参看到的「往左挪」）。
+      // 攻击帧相对待机的错位量 = 两者之差（B13.2 绘制高 60）。
       final double beforeIdle =
           (kGuardSoldierStateCentroidX['idle']! - 0.5) *
-              GuardCardLayout.soldierStatePaintWidth('idle', 68);
+              GuardCardLayout.soldierStatePaintWidth('idle', 60);
       final double beforeAttack =
           (kGuardSoldierStateCentroidX['attack']! - 0.5) *
-              GuardCardLayout.soldierStatePaintWidth('attack', 68);
-      expect(beforeIdle, closeTo(3.70, 0.05),
-          reason: '修正前 idle 身体偏右 3.70pt');
-      expect(beforeAttack, closeTo(-5.99, 0.05),
-          reason: '修正前 attack 身体偏左 5.99pt');
-      expect((beforeAttack - beforeIdle).abs(), closeTo(9.68, 0.05),
-          reason: '🔴 修正前 attack 相对 idle 的错位量 = 9.68pt（B10 实现的偏差）');
+              GuardCardLayout.soldierStatePaintWidth('attack', 60);
+      expect(beforeIdle, closeTo(3.26, 0.05),
+          reason: '修正前 idle 身体偏右 3.26pt');
+      expect(beforeAttack, closeTo(-5.28, 0.05),
+          reason: '修正前 attack 身体偏左 5.28pt');
+      expect((beforeAttack - beforeIdle).abs(), closeTo(8.55, 0.05),
+          reason: '🔴 修正前 attack 相对 idle 的错位量（60 高口径）');
     });
   });
 

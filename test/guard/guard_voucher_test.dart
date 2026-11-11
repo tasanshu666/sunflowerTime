@@ -5,7 +5,8 @@
 /// ## 本文件钉死的 5 条红线
 ///  · **A10 免费券绝不整批**：批量（`plantId == null`）拿到的 perk **不含**免费减免
 ///    ⇒ 一键 5 盆扣 20 ☀（1 盆免 + 4 盆付），绝不是 0 ☀；
-///  · **A11 浇水券当日封顶**：12 盆 × 3 次 = 36 次浇水，总节省 = **6**，不是 36；
+///  · **A11（B13.4 改版）浇水券当日不限次**：12 盆 × 3 次 = 36 次浇水，总节省
+///    = **36**（玄参 2026-11-11 拍板废除 6 ☀ 封顶；劳动券同理、4 ☀ 封顶废除）；
 ///  · 券的减免只经本服务产出 `PlantPerk`（价格一律走 `waterCostOf` / `fertilizeCostOf`）；
 ///  · 与称号减免**相加**（5 − 1 − 1 = 3；免费券直接归零 5 − 1 − 5 → 钳到 0）；
 ///  · 额度记账走 `GuardDayState.buff`（不新建存储），用完即不再减免。
@@ -227,9 +228,9 @@ void main() {
     });
   });
 
-  // ───────────────────────── 🔴 A11：浇水券当日封顶 ─────────────────────────
-  group('🔴 A11 浇水券当日累计节省封顶', () {
-    test('12 盆 × 3 次 = 36 次浇水：总节省正好 6（封顶后不再减免）', () async {
+  // ─────────────── 🔴 A11（B13.4 改版）：浇水 / 劳动券当日不限次 ───────────────
+  group('🔴 A11（B13.4）浇水 / 劳动券当日不限次', () {
+    test('12 盆 × 3 次 = 36 次浇水：次次减免，总节省 = 36', () async {
       final _FakeStore store = _storeWithBuff(GuardDropKind.waterVoucher);
       final GuardVoucherService svc = _service(store);
 
@@ -242,7 +243,7 @@ void main() {
             kind: GuardVoucherKind.water,
             plantId: 'p$pot',
           );
-          final int price = waterCostOf(perk); // 5 或 4
+          final int price = waterCostOf(perk); // 恒 4
           savedTotal += 5 - price;
           if (price == 4) discountedApplications++;
           await svc.recordConsumed(
@@ -252,32 +253,42 @@ void main() {
         }
       }
 
-      expect(discountedApplications, 6, reason: '36 次里只有 6 次拿到减免');
-      expect(savedTotal, 6, reason: 'A11：总节省 = 6 ☀，不是 36 ☀');
-      expect(savedTotal, lessThanOrEqualTo(6));
-      expect(await svc.remainingOf(GuardVoucherKind.water), 0);
+      expect(discountedApplications, 36, reason: 'B13.4：36 次全部拿到减免');
+      expect(savedTotal, 36, reason: 'A11（B13.4）：总节省 = 36 ☀，封顶已废除');
     });
 
-    test('封顶后 perk 回到原价（券仍存在，只是 used == quota）', () async {
-      final _FakeStore store = _storeWithBuff(GuardDropKind.waterVoucher);
+    test('存量存档 used == quota ⇒ 减免仍生效（B13.4 不看额度字段）', () async {
+      // 🔴 B13.4：recordConsumed 对不限次券是空操作（没有额度可记），故直接
+      // 构造一份「旧封顶时代用完」的存量存档（used 6 / quota 6）。
+      final _FakeStore store = _FakeStore();
+      store.byChild[_childId] = const GuardDayState(
+        dayKey: _today,
+        status: GuardDayStatus.claimed,
+        thiefKind: GuardThiefKind.sunRat,
+        winSun: 2,
+        dropKind: GuardDropKind.waterVoucher,
+        buff: GuardBuffState(
+          kind: GuardDropKind.waterVoucher,
+          quota: 6,
+          used: 6,
+        ),
+      );
       final GuardVoucherService svc = _service(store);
-      for (int i = 0; i < 6; i++) {
-        await svc.recordConsumed(kind: GuardVoucherKind.water, plantId: 'p1');
-      }
       final GuardBuffState buff = (await svc.currentBuff())!;
       expect(buff.used, 6);
       expect(buff.isExhausted, isTrue);
 
+      // 🔴 B13.4：即便额度字段用尽，浇水券减免仍全天生效。
       final PlantPerk perk = await svc.overlay(
         PlantPerk.none,
         kind: GuardVoucherKind.water,
         plantId: 'p1',
       );
-      expect(perk.waterDiscount, 0);
-      expect(waterCostOf(perk), 5);
+      expect(perk.waterDiscount, 1);
+      expect(waterCostOf(perk), 4);
     });
 
-    test('劳动券按「清理动作次数」封顶 4：10 次清理只追加 4', () async {
+    test('劳动券当日不限次：10 次清理次次 +1（共 +10）', () async {
       final _FakeStore store = _storeWithBuff(GuardDropKind.laborVoucher);
       final GuardVoucherService svc = _service(store);
       double bonusTotal = 0;
@@ -290,8 +301,7 @@ void main() {
         bonusTotal += perk.weedBonus;
         await svc.recordConsumed(kind: GuardVoucherKind.labor, plantId: 'p1');
       }
-      expect(bonusTotal, 4.0, reason: 'A12：劳动券当日累计追加封顶 4 ☀');
-      expect(await svc.remainingOf(GuardVoucherKind.labor), 0);
+      expect(bonusTotal, 10.0, reason: 'A12（B13.4）：劳动券当日不限次，封顶 4 已废除');
     });
 
     test('施肥券今日每次 −2 ☀：第 1 / 2 / 3 次施肥都是 8 ☀', () async {
@@ -433,11 +443,11 @@ void main() {
     });
   });
 
-  group('overlaySequenceFor：批量逐盆减免序列（额度中途用尽 = 回原价）', () {
+  group('overlaySequenceFor：批量逐盆减免序列（B13.4 不限次券全程足额）', () {
     // 🔴 期望值全部写字面量（4/5/2/1），不用 `waterCostOf(perk)` 反推 ——
     //    否则实现把基础价改错时，测试会跟着一起错。
 
-    test('浇水券满额 6 + 12 盆 ⇒ 水价 4/4/4/4/4/4/5/5/5/5/5/5', () {
+    test('浇水券（不限次）+ 12 盆 ⇒ 水价 4×12', () {
       final GuardVoucherService svc = _service(_FakeStore());
       final List<PlantPerk> seq = svc.overlaySequenceFor(
         const GuardBuffState(kind: GuardDropKind.waterVoucher, quota: 6),
@@ -448,11 +458,12 @@ void main() {
       expect(seq, hasLength(12));
       expect(
         <int>[for (final PlantPerk p in seq) waterCostOf(p)],
-        <int>[4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5],
+        <int>[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+        reason: 'B13.4：当日不限次，12 盆全部 −1（旧封顶「第 7 盆回 5」废除）',
       );
     });
 
-    test('浇水券只剩 1 ☀ + 3 盆 ⇒ 水价 4/5/5', () {
+    test('存量存档只剩 1 ☀ 额度 + 3 盆 ⇒ 仍是 4/4/4（额度字段不挡减免）', () {
       final GuardVoucherService svc = _service(_FakeStore());
       final List<PlantPerk> seq = svc.overlaySequenceFor(
         const GuardBuffState(
@@ -466,11 +477,12 @@ void main() {
       );
       expect(
         <int>[for (final PlantPerk p in seq) waterCostOf(p)],
-        <int>[4, 5, 5],
+        <int>[4, 4, 4],
+        reason: 'B13.4：浇水券当日不限次，used/quota 仅记账',
       );
     });
 
-    test('劳动券满额 4 + 10 处 ⇒ 除草奖励 2,2,2,2,1,1,1,1,1,1', () {
+    test('劳动券（不限次）+ 10 处 ⇒ 除草奖励 2×10', () {
       final GuardVoucherService svc = _service(_FakeStore());
       final List<PlantPerk> seq = svc.overlaySequenceFor(
         const GuardBuffState(kind: GuardDropKind.laborVoucher, quota: 4),
@@ -480,7 +492,8 @@ void main() {
       );
       expect(
         <double>[for (final PlantPerk p in seq) weedRewardOf(p)],
-        <double>[2, 2, 2, 2, 1, 1, 1, 1, 1, 1],
+        <double>[2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+        reason: 'B13.4：当日不限次，10 处全部 +1',
       );
     });
 
@@ -547,6 +560,103 @@ void main() {
         ),
         GuardVoucherKind.labor,
       );
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 🔴 B13.5 双券：主券 + 第二张（10% 双券掉落）。
+  //    两张种类恒不同（rollBonus 排除首张）；减免/核销按券种各走各的槽位。
+  // ════════════════════════════════════════════════════════════════════════
+  group('B13.5 双券：currentBuffs / recordConsumed 按券种路由', () {
+    _FakeStore buildDualStore() {
+      final _FakeStore store = _FakeStore();
+      store.byChild[_childId] = GuardDayState(
+        dayKey: _today,
+        status: GuardDayStatus.claimed,
+        thiefKind: GuardThiefKind.sunRat,
+        winSun: 2,
+        dropKind: GuardDropKind.waterVoucher,
+        buff: guardBuffFor(GuardDropKind.waterVoucher),
+        bonusDropKind: GuardDropKind.fertilizeVoucher,
+        bonusBuff: guardBuffFor(GuardDropKind.fertilizeVoucher),
+      );
+      return store;
+    }
+
+    test('currentBuffs 返回 0/1/2 张（主券 + 第二张，顺序 = 主 → 副）', () async {
+      final _FakeStore empty = _FakeStore();
+      expect(await _service(empty).currentBuffs(), isEmpty,
+          reason: '今天没券 → 空表');
+
+      expect((await _service(_storeWithBuff(GuardDropKind.waterVoucher)).currentBuffs())
+          .length, 1, reason: '只有主券');
+
+      final List<GuardBuffState> two =
+          await _service(buildDualStore()).currentBuffs();
+      expect(two.length, 2);
+      expect(two[0].kind, GuardDropKind.waterVoucher, reason: '主券在前');
+      expect(two[1].kind, GuardDropKind.fertilizeVoucher, reason: '第二张在后');
+    });
+
+    test('浇水动作核销写主券槽位（buff.used +1，bonusBuff 不动）', () async {
+      // 🔴 槽位路由用**记账型券种**验证：B13.4 起浇水 / 劳动券核销是
+      //    无操作（当日不限次不记账），永远推不动 used ⇒ 改用
+      //    「施肥券主 + 免费浇水副」（两者核销都真实写 used）。
+      final _FakeStore store = _FakeStore();
+      store.byChild[_childId] = GuardDayState(
+        dayKey: _today,
+        status: GuardDayStatus.claimed,
+        thiefKind: GuardThiefKind.sunRat,
+        winSun: 2,
+        dropKind: GuardDropKind.fertilizeVoucher,
+        buff: guardBuffFor(GuardDropKind.fertilizeVoucher),
+        bonusDropKind: GuardDropKind.freeWater,
+        bonusBuff: guardBuffFor(GuardDropKind.freeWater),
+      );
+      await _service(store).recordConsumed(
+        kind: GuardVoucherKind.fertilize,
+        plantId: 'p0',
+      );
+      final GuardDayState after = store.byChild[_childId]!;
+      expect(after.buff!.used, 1, reason: '施肥核销打在主券槽位');
+      expect(after.bonusBuff!.used, 0, reason: '第二张（免费浇水）不被误核销');
+    });
+
+    test('免费浇水动作核销写第二张槽位（bonusBuff.used +1，主券不动）', () async {
+      final _FakeStore store = _FakeStore();
+      store.byChild[_childId] = GuardDayState(
+        dayKey: _today,
+        status: GuardDayStatus.claimed,
+        thiefKind: GuardThiefKind.sunRat,
+        winSun: 2,
+        dropKind: GuardDropKind.fertilizeVoucher,
+        buff: guardBuffFor(GuardDropKind.fertilizeVoucher),
+        bonusDropKind: GuardDropKind.freeWater,
+        bonusBuff: guardBuffFor(GuardDropKind.freeWater),
+      );
+      await _service(store).recordConsumed(
+        kind: GuardVoucherKind.freeWater,
+        plantId: 'p0',
+      );
+      final GuardDayState after = store.byChild[_childId]!;
+      expect(after.bonusBuff!.used, 1, reason: '免费浇水核销打在第二张槽位');
+      expect(after.buff!.used, 0, reason: '主券（施肥券）不被误核销');
+    });
+
+    test('双券叠加：浇水 −1 与施肥 −2 互不干扰（同日两种动作各自生效）', () async {
+      final GuardVoucherService service = _service(buildDualStore());
+      final PlantPerk waterPerk = await service.overlay(
+        PlantPerk.none,
+        kind: GuardVoucherKind.water,
+        plantId: 'p0',
+      );
+      expect(waterPerk.waterDiscount, 1, reason: '浇水券 −1（每盆）');
+      final PlantPerk fertPerk = await service.overlay(
+        PlantPerk.none,
+        kind: GuardVoucherKind.fertilize,
+        plantId: 'p0',
+      );
+      expect(fertPerk.fertilizeDiscount, 2, reason: '施肥券 −2（足额，不缩额）');
     });
   });
 }

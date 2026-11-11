@@ -163,7 +163,9 @@ class GuardClaimOutcome {
     required this.paidSun,
     required this.winSun,
     required this.drop,
+    this.bonusDrop = GuardDropKind.none,
     required this.buff,
+    this.bonusBuff,
     required this.energyAvailable,
     required this.balance,
     required this.state,
@@ -190,8 +192,14 @@ class GuardClaimOutcome {
   /// 今天的券档（无道具档 = [GuardDropKind.none]）。
   final GuardDropKind drop;
 
+  /// 🔴 B13.5：第二张券档（`none` = 今天没有第二张）。
+  final GuardDropKind bonusDrop;
+
   /// 今天可用的 buff（无道具档 = `null`）。
   final GuardBuffState? buff;
+
+  /// 🔴 B13.5：第二张券的 buff（没有第二张 = `null`）。
+  final GuardBuffState? bonusBuff;
 
   /// 领取后剩余能量。
   final int energyAvailable;
@@ -251,13 +259,17 @@ class GuardService {
     required PlantGrowthService growth,
     required String Function() childId,
     DateTime Function()? clock,
+    // 🔴 B13.5：权益档位取值器（付费掉落表用）。缺省恒 false（免费表）——
+    // 一切旧构造点（测试 / 调试）零改动；DI 接 entitlement（见 providers.dart）。
+    bool Function()? isPremium,
   })  : _store = store,
         _ledger = ledger,
         _focus = focus,
         _plants = plants,
         _growth = growth,
         _childId = childId,
-        _clock = clock ?? DateTime.now;
+        _clock = clock ?? DateTime.now,
+        _isPremium = isPremium;
 
   final GuardStateStore _store;
   final SunlightRepository _ledger;
@@ -266,6 +278,11 @@ class GuardService {
 
   /// 成长扣减的落地口（[PlantGrowthService.raidGrowth]，只它一家会写 `plant.progress`）。
   final PlantGrowthService _growth;
+
+  /// 🔴 B13.5：权益档位取值器（`null` = 恒免费表；DI 接 entitlement）。
+  final bool Function()? _isPremium;
+
+  bool get _premium => _isPremium?.call() ?? false;
 
   /// 当前孩子的 childId（生产接 `AccountService.childId`；测试注入常量）。
   final String Function() _childId;
@@ -388,7 +405,9 @@ class GuardService {
     }
 
     // ③ 确定性派生（禁 Random）：同一 dayKey + childId 恒得同一结果。
-    final GuardRoll roll = deriveGuardRoll(dayKey: today, childId: childId);
+    // 🔴 B13.5：掉落分档按权益档位 + 10% 第二张券。
+    final GuardRoll roll =
+        deriveGuardRoll(dayKey: today, childId: childId, isPremium: _premium);
     final bool free = energy >= kGuardEnergyPerFocus;
     final GuardCostMode cost = free
         ? GuardCostMode.free
@@ -411,6 +430,7 @@ class GuardService {
       paidSun: 0,
       winSun: roll.winSun,
       dropKind: roll.drop,
+      bonusDropKind: roll.bonusDrop,
       sunStolen: waived ? 0 : roll.sunLoss,
       growthStolen: growthLoss,
       // 🔴 B10/B4：当日场次序号（第 1 场 = 0）在**生成状态时**定死。
@@ -618,7 +638,9 @@ class GuardService {
     ));
 
     // ⑦ 落 buff（当日券的额度账；无道具档 = 没有券）。
+    // 🔴 B13.5：第二张券同步落账（bonusDropKind == none ⇒ bonusBuff = null）。
     final GuardBuffState? buff = guardBuffFor(state.dropKind);
+    final GuardBuffState? bonusBuff = guardBuffFor(state.bonusDropKind);
     final GuardDayState next = state.copyWith(
       status: GuardDayStatus.claimed,
       energyUsed: energyUsed,
@@ -626,6 +648,8 @@ class GuardService {
       winSun: winSun,
       buff: buff,
       clearBuff: buff == null,
+      bonusBuff: bonusBuff,
+      clearBonusBuff: bonusBuff == null,
     );
     await _store.write(childId, next);
 
@@ -638,7 +662,9 @@ class GuardService {
       paidSun: paidSun,
       winSun: winSun,
       drop: next.dropKind,
+      bonusDrop: next.bonusDropKind,
       buff: buff,
+      bonusBuff: bonusBuff,
       energyAvailable: energyAfter,
       balance: await _ledger.balance(),
       state: next,

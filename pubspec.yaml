@@ -105,13 +105,19 @@ flutter:
     #  · monster_m3/    顺手贼进攻 7 帧（B9/D2 接入）
     #  · soldier_attack / soldier_win  静态（开火瞬间 300ms 切换 / 胜利横幅）
     #  · house.webp     场景卡 L1 底图（1984×1118 原尺寸；浇水变体本批不接，留待后批）
-    # ⚠️ 目录声明**不递归**：5 行都要在，漏一行 = 对应素材静默不进包（errorBuilder
+    #  · start_button.webp  「开始战斗」金徽图标（B13.3，2026-11-11 玄参交付；
+    #    场景卡右簇开始钮整体替换，自带金框底）
+    #  · claim_flag/    守卫成功旗帜动画 10 帧 160²（B13.3；claimed 徽章占位旗
+    #    替换，循环播放；管线同上 PIL WebP q90）
+    # ⚠️ 目录声明**不递归**：6 行都要在，漏一行 = 对应素材静默不进包（errorBuilder
     # 回退占位色块，表现为「画面不换图」，与 fx/ 2026-09-28 翻车同坑）。
     - assets/guard/
     - assets/guard/soldier_idle/
     - assets/guard/monster_m1/
     - assets/guard/monster_m2/
     - assets/guard/monster_m3/
+    - assets/guard/claim_flag/
+    - assets/guard/buff_voucher/
     # 序列帧资源（2026-09-28）：成长过渡帧 grow/、浇水·施肥效果层帧 care/。
     # ⚠️ 目录声明**不递归**，必须把**叶子目录**逐个列全（漏一行 = 帧不进包 =
     # Image.asset errorBuilder 静默吞 → 只剩音效没有动画，2026-09-28 实证翻车）；

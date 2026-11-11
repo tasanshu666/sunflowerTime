@@ -28,13 +28,14 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/guard_debug_script.dart'
     show debugGuardBattleScriptOverrideProvider;
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart'
-    show GuardBattleScript;
+    show GuardBattleScript, GuardBattleMonsterSpec, deriveGuardBattleScript;
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
@@ -43,8 +44,11 @@ import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dar
 // 模式判定函数本就驻在 guard_today_state.dart（落点未变）。
 import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart'
     show GuardBattleHandle;
+import 'package:sunflower_time/presentation/child/widgets/guard_intro_dialog.dart'
+    show recordMetMonsterKinds;
 import 'package:sunflower_time/presentation/child/widgets/guard_result_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_settle_report_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_tutorial_sheet.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/sun_burst.dart';
@@ -327,23 +331,46 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   Future<void> _refreshGuard() async {
     final int token = ++_guardRefreshToken;
     GuardTodayView view;
+    // 🔴 B13.4：expire() 的结算结果带出来 —— 昨天没打（pending）⇒ 静默扣账后
+    // 要弹「昨晚小怪来过了」报告（玄参拍板：做弹窗、不做自动扣能量豆代打）。
+    GuardExpireOutcome? settleOutcome;
     try {
-      view = await _loadGuardView().timeout(kGuardTodayReadTimeout);
+      view = await _loadGuardView(
+        onExpired: (GuardExpireOutcome outcome) => settleOutcome = outcome,
+      ).timeout(kGuardTodayReadTimeout);
     } catch (e) {
       // 守卫数据不可用是**正常降级**（旧库、权限、超时、首装竞态），
       // 记一行日志即可，绝不冒泡到今日页。
       debugPrint('[Guard] 今日守卫链路不可用，按「没有守卫」处理：$e');
       view = const GuardTodayView.absent();
     }
-    if (!mounted || token != _guardRefreshToken) return;
-    ref.read(guardTodayProvider.notifier).state = view;
+    if (!mounted) return;
+    if (token == _guardRefreshToken) {
+      ref.read(guardTodayProvider.notifier).state = view;
+    }
+    // 次日结算报告（🔴 在 token 检查**之外**：结算只发生这一次，若本次刷新的
+    // token 已被更新的刷新顶掉、而新刷新的 expire() 只会拿到同日 none ——
+    // 错过就再也不弹。expire 幂等 ⇒ 一天最多弹一次）。
+    final GuardExpireOutcome? outcome = settleOutcome;
+    if (outcome != null && guardSettleHasNews(outcome)) {
+      // 等首帧落完：[_l10n] 在 build 里赋值，首刷可能早于它。
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      final AppLocalizations? t = _l10n;
+      if (t != null) {
+        unawaited(showGuardSettleReport(context, t, outcome));
+      }
+    }
   }
 
   /// 真正的守卫读链路（无自捕获：超时/异常由 [_refreshGuard] 统一兜住）。
-  Future<GuardTodayView> _loadGuardView() async {
+  Future<GuardTodayView> _loadGuardView({
+    void Function(GuardExpireOutcome outcome)? onExpired,
+  }) async {
     // service 在第一个 await 之前取好 —— 之后不再碰 `ref`（页面已卸载也安全）。
     final GuardService service = ref.read(guardServiceProvider);
-    await service.expire();
+    final GuardExpireOutcome expired = await service.expire();
+    onExpired?.call(expired);
     final GuardResolveResult resolved = await service.resolve();
     // ③ 剩余能量：成本模式（免费 / 付费 / 免罚）的输入。`resolve()` 内部也读过
     //    一次，这里按接线契约**显式**再读，使「expire → resolve → energyAvailable」
@@ -428,6 +455,26 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         await ref.read(guardServiceProvider).markFighting();
       } catch (e) {
         debugPrint('[Guard] 标记「战斗中」失败（不阻断战斗）：$e');
+      }
+      if (!mounted) return;
+      // 🔴 B13 图鉴解锁：这场战斗里出现的怪种记入「已遇到」（开战即解锁）。
+      // 与 L4 上屏战局**同一份剧本**（调试覆盖优先，覆盖 null = 真实 seed 派生）；
+      // 失败吞掉（图鉴少一格，绝不阻断开战）。
+      try {
+        final SharedPreferences sp = ref.read(sharedPreferencesProvider);
+        final GuardBattleScript battleScript =
+            ref.read(debugGuardBattleScriptOverrideProvider) ??
+                deriveGuardBattleScript(
+                  dayKey: dayKey(DateTime.now()),
+                  childId: ref.read(accountServiceProvider).childId,
+                );
+        await recordMetMonsterKinds(
+          battleScript.monsters
+              .map((GuardBattleMonsterSpec m) => m.kind),
+          sp,
+        );
+      } catch (e) {
+        debugPrint('[Guard] 记录图鉴解锁失败（不阻断）：$e');
       }
       if (!mounted) return;
       // 结算卡用**进入战斗前的快照**：`claim()` 的奖品由 `resolve()` 定死，

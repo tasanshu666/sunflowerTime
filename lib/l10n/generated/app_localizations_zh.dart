@@ -3517,7 +3517,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guard_scene_start => '开始守卫';
 
   @override
-  String get guard_scene_done => '已完成守卫';
+  String get guard_scene_done => '成功守卫';
 
   @override
   String get guard_scene_continue => '继续守卫';
@@ -3573,13 +3573,117 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guard_result_nothing => '这次什么都没捡到，但菜保住了';
 
   @override
-  String guard_result_compare(int cost, int gain, int saving) {
-    return '花了 $cost 阳光，拿回 $gain 阳光，券还能省 $saving 阳光';
+  String get guard_result_rare => '恭喜获得稀有奖励！';
+
+  @override
+  String get guard_result_rewards => '战斗奖励';
+
+  @override
+  String get guard_result_reward_sun => '阳光';
+
+  @override
+  String get guard_intro_open => '查看玩法说明';
+
+  @override
+  String get guard_intro_title => '花园守卫怎么玩';
+
+  @override
+  String get guard_intro_howto_title => '怎么打';
+
+  @override
+  String get guard_intro_howto_body =>
+      '点「开始守卫」派出向日葵战士，再点击右上方的阳光胶囊，帮战士发射阳光子弹，在小怪碰到菜之前把它们全部打跑！';
+
+  @override
+  String get guard_intro_energy_title => '能量点是什么';
+
+  @override
+  String get guard_intro_energy_body =>
+      '能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，一天最多 2 个。没有能量点也能守卫——花 5 阳光请战士出战就行。';
+
+  @override
+  String get guard_intro_reward_title => '打赢有什么';
+
+  @override
+  String get guard_intro_reward_body =>
+      '赶走小怪能拿到阳光奖励；运气好的话，还会随机掉落花园道具券（浇水券、施肥券……），帮你把花园护理得更好。';
+
+  @override
+  String get guard_intro_risk_title => '今天不打会怎样';
+
+  @override
+  String get guard_intro_risk_body =>
+      '小怪会一直往菜地逼近。今天不打的话，被偷走的阳光和成长进度，第二天打开花园时就会真的扣掉——所以每天都要记得回来守卫哦！';
+
+  @override
+  String get guard_settle_title => '昨晚小怪来过了';
+
+  @override
+  String guard_settle_body_sun(int n) {
+    return '小怪偷走了 $n 阳光。';
   }
 
   @override
+  String guard_settle_body_growth(int n) {
+    return '$n 棵植物的成长被偷吃了一些。';
+  }
+
+  @override
+  String guard_settle_body_win(int n) {
+    return '你昨天打赢了小怪——已经帮你把 $n 阳光奖励收进账啦。';
+  }
+
+  @override
+  String get guard_settle_foot => '今天记得回来守卫菜园哦！';
+
+  @override
+  String get guard_settle_ok => '知道了';
+
+  @override
+  String get guard_voucher_name_water => '浇水卡券';
+
+  @override
+  String get guard_voucher_name_labor => '劳动卡券';
+
+  @override
+  String get guard_voucher_name_fertilize => '施肥卡券';
+
+  @override
+  String get guard_voucher_name_free_water => '免费浇水卡券';
+
+  @override
+  String get guard_voucher_name_free_fertilize => '免费施肥卡券';
+
+  @override
+  String get guard_voucher_desc_water => '今日浇水每次可减少 1 阳光消耗';
+
+  @override
+  String get guard_voucher_desc_labor => '今日除草除虫每次可多赚 1 阳光';
+
+  @override
+  String get guard_voucher_desc_fertilize => '今日施肥每次可减少 2 阳光消耗';
+
+  @override
+  String get guard_voucher_desc_free_water => '今日任选一盆，浇水一次完全免费';
+
+  @override
+  String get guard_voucher_desc_free_fertilize => '今日任选一盆，施肥一次完全免费';
+
+  @override
+  String get guard_intro_locked => '还没遇到过';
+
+  @override
+  String get guard_intro_desc_sunrat => '凑到阳光边上把阳光偷走，不会碰菜——跑得慢，先拿它练手。';
+
+  @override
+  String get guard_intro_desc_leafbug => '趴在植物上，会偷偷吃掉植物的成长进度，让菜长得变慢。';
+
+  @override
+  String get guard_intro_desc_sneakthief => '阳光和植物的成长进度它都偷，最贪心——看到它要优先赶走！';
+
+  @override
   String guard_confirm_pay_title(int cost) {
-    return '要花费 $cost 阳光，请小小葵战士帮忙吗？';
+    return '要花费 $cost 阳光，\n进行花园守卫吗？';
   }
 
   @override

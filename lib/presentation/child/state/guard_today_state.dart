@@ -229,6 +229,12 @@ class GuardTodayView {
   /// 今天的掉落档（`absent` 时 = [GuardDropKind.none]）。
   GuardDropKind get dropKind => state.dropKind;
 
+  /// 今天的**第二张**掉落档（B13.5 双券；`none` = 没有第二张）。
+  ///
+  /// 仅主券是券档时才有机会非 `none`（`rollBonus` 的闸门语义），
+  /// 结果卡用它渲染第二张券卡。
+  GuardDropKind get bonusDropKind => state.bonusDropKind;
+
   /// 今天**将**到账的必得阳光（`claim()` 里若为 0 会兜底
   /// [kGuardWinSunNoItem]，故这里用同一口径）。
   int get winSun =>

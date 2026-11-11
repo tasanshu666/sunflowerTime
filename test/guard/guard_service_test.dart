@@ -1134,6 +1134,51 @@ void main() {
       expect(ctx.state.buff!.quota, 6, reason: 'buff 落盘');
     });
 
+    test('🔴 B13.5 双券：第二张掉落 ⇒ claim 同步发 bonusBuff 落盘', () async {
+      final _Ctx ctx = _make(
+        balance: 100,
+        plants: <Plant>[_plant('p1')],
+        validSessionsToday: 1,
+      );
+      // pending 存档由 resolve 写入：主券 water + 第二张 labor（模拟
+      // deriveGuardRoll(isPremium) 的双券输出）。
+      await ctx.store.write(
+        _childId,
+        _pendingState(winSun: 2, drop: GuardDropKind.waterVoucher).copyWith(
+          bonusDropKind: GuardDropKind.laborVoucher,
+        ),
+      );
+
+      final GuardClaimOutcome out = await ctx.guard.claim();
+
+      expect(out.drop, GuardDropKind.waterVoucher);
+      expect(out.bonusDrop, GuardDropKind.laborVoucher);
+      expect(out.bonusBuff, isNotNull);
+      expect(out.bonusBuff!.kind, GuardDropKind.laborVoucher);
+      expect(ctx.state.bonusBuff, isNotNull, reason: '第二张 buff 落盘');
+      expect(ctx.state.bonusBuff!.kind, GuardDropKind.laborVoucher);
+      expect(ctx.state.buff!.kind, GuardDropKind.waterVoucher,
+          reason: '主券槽位不受双券影响');
+    });
+
+    test('🔴 B13.5：主券档无第二张（bonusDropKind=none）⇒ 不发 bonusBuff', () async {
+      final _Ctx ctx = _make(
+        balance: 100,
+        plants: <Plant>[_plant('p1')],
+        validSessionsToday: 1,
+      );
+      await ctx.store.write(
+        _childId,
+        _pendingState(winSun: 2, drop: GuardDropKind.waterVoucher),
+      );
+
+      final GuardClaimOutcome out = await ctx.guard.claim();
+
+      expect(out.bonusDrop, GuardDropKind.none);
+      expect(out.bonusBuff, isNull);
+      expect(ctx.state.bonusBuff, isNull);
+    });
+
     test('无道具档 ⇒ winSun 取保底（= kGuardWinSunNoItem；B5b 起区间上限 5）', () async {
       final _Ctx ctx = _make(
         balance: 100,

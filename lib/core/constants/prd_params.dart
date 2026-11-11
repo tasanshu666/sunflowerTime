@@ -2369,14 +2369,51 @@ const double kGuardDropFreeFertilizerRate = 0.04;
 /// 无道具概率（只拿 [kGuardWinSunNoItem] 保底阳光）。= 1 − 以上五项。
 const double kGuardDropNothingRate = 0.18;
 
+// ── 掉落：B13.5 付费墙分档表（🔴 玄参 2026-11-11 拍板，上线即冻结）────────
+//
+// 玄参原话：「免费用户的掉券概率修改为50%，付费用户为100%，且有10%的概率，
+// 掉落2张不同的buff卡券。就这样设定吧。」
+// · 上面 6 个 kGuardDrop*Rate 旧常量**退役为「PRD §3.7 历史经济测算口径」**：
+//   面值常量与 E[D] 旧账仍引用它们，但 **roll 不再使用**（两档表在下面）；
+// · 两档表内 5 种券的**相对比例**与旧表一致（旧表 ÷ 0.82 × 档位掉券率）；
+// · 「10% 掉 2 张」的解释（本实现口径）：**只对「当天已掉券」的日子生效**，
+//   免费 / 付费都适用；第二张券从「除首张外的 4 种券」里等概率挑。
+
+/// 免费档无道具概率 = **50%**（旧 18%；玄参 B13.5）。
+const double kGuardDropNothingRateFree = 0.50;
+
+/// 付费档无道具概率 = **0**（必掉券；玄参 B13.5）。
+const double kGuardDropNothingRatePremium = 0.0;
+
+/// 已掉券的日子里，再掉一张**不同的**券的概率 = 10%（玄参 B13.5）。
+const double kGuardDropDualChance = 0.10;
+
+/// 免费档掉落表（顺序 = [GuardDropKind.values]：水 / 劳 / 施肥 / 免费水 /
+/// 免费施肥 / 无道具；合计必须 = 1.0）。
+///
+/// 21 + 12 + 9 + 5 + 3 + 50 = 100（旧表 35/20/15/8/4 按同比例缩到 50%）。
+const List<double> kGuardDropRatesFree = <double>[
+  0.21, 0.12, 0.09, 0.05, 0.03, 0.50,
+];
+
+/// 付费档掉落表（无道具 = 0 ⇒ 必掉券；43 + 24 + 18 + 10 + 5 + 0 = 100）。
+const List<double> kGuardDropRatesPremium = <double>[
+  0.43, 0.24, 0.18, 0.10, 0.05, 0.00,
+];
+
 // ── 券的生效上限（🔴 防「一键批量 + 称号」放大，不得删）───────────────────
+//
+// 🔴 B13.4（玄参 2026-11-11）：浇水券 / 劳动券已改「当日不限次」——原
+// kGuardWaterVoucherMaxSaves=6 / kGuardLaborVoucherCap=4 两条**减免钳制废除**
+// （真机实测：浇 6 次后价格从 4 跳回 5，即旧封顶用尽）。两个常量**保留**，
+// 只作存量存档 buff 记账的兼容字段（见 GuardVoucherKind.isUnlimitedDaily），
+// 任何新代码不得再用它们钳制减免。施肥券按次、免费券单株单次的口径不变。
 
 /// 浇水券每次浇水每盆减免。单位：☀。
 const int kGuardWaterVoucherSave = 1;
 
-/// 🔴 浇水券当日累计节省上限。单位：☀/天。
-///
-/// 理由：12 盆 × 3 次 = 36 次；不封顶则一次券省 36（面值 5~6 的 6 倍）。
+/// 🔴【已退役】浇水券旧版当日节省上限（仅作存量存档记账兼容，不钳制减免）。
+/// 单位：☀/天。B13.4 起浇水券当日不限次。
 const int kGuardWaterVoucherMaxSaves = 6;
 
 /// 施肥券减免额（今日**每次**施肥都 −2 ☀）。单位：☀。
@@ -2391,9 +2428,8 @@ const int kGuardFertilizerVoucherQuota = kGardenPotCapacityMax;
 /// 劳动券每次清理追加阳光。单位：☀/次。
 const int kGuardLaborVoucherBonus = 1;
 
-/// 🔴 劳动券当日累计追加上限。单位：☀/天。
-///
-/// 理由：12 盆满园理论追加 4.8+3.6 = 8.4；不封顶是面值 2~3 的 3 倍。
+/// 🔴【已退役】劳动券旧版当日追加上限（仅作存量存档记账兼容，不钳制减免）。
+/// 单位：☀/天。B13.4 起劳动券当日不限次。
 const int kGuardLaborVoucherCap = 4;
 
 // ── 掉落面值（经济测算与结算卡显示的唯一来源）───────────────────────────
@@ -2406,7 +2442,8 @@ const double kGuardFaceValueWaterVoucherMin = 5;
 
 /// 浇水券面值上限。单位：☀。
 ///
-/// 与当日累计封顶同值：再多的盆也只省到 [kGuardWaterVoucherMaxSaves]。
+/// 🔴 B13.4 起浇水券当日不限次，本值只是**典型面值口径**（沿用旧 6 ☀ 数字，
+/// 供经济测算 E[D] 单测继续成立）；不再是生效上限。
 /// （`1.0 *` 是为了把 int 常量提成 double 常量 —— `const double x = intConst`
 /// 在 Dart 里不合法，`.toDouble()` 也不是常量表达式。）
 const double kGuardFaceValueWaterVoucherMax = 1.0 * kGuardWaterVoucherMaxSaves;
@@ -2414,8 +2451,8 @@ const double kGuardFaceValueWaterVoucherMax = 1.0 * kGuardWaterVoucherMaxSaves;
 /// 劳动券面值下限。单位：☀。典型 2 次清理 × 1☀ = 2（PRD §3.7 表「2~3」）。
 const double kGuardFaceValueLaborVoucherMin = 2;
 
-/// 劳动券面值上限。单位：☀。注意 12 盆满园理论追加 8.4，真正的硬护栏是
-/// [kGuardLaborVoucherCap]=4；本值只描述「典型面值」。
+/// 劳动券面值上限。单位：☀。🔴 B13.4 起劳动券当日不限次，本值只是「典型面值」
+/// 口径（旧封顶 [kGuardLaborVoucherCap]=4 已退役）。
 const double kGuardFaceValueLaborVoucherMax = 3;
 
 /// 施肥券面值（**单次**减免额；结算卡 perk 读不到时的回退口径）。单位：☀。

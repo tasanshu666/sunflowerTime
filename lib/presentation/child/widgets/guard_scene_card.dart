@@ -60,6 +60,7 @@ import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_art.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_card_layout.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_intro_dialog.dart';
 
 /// 守卫场景卡（纯展示 + 「开始守卫」回调，**不碰任何服务 / 账本**；
 /// 教学浮层与确认卡由页面在回调里编排 —— 与 v1 胶囊同一接线形状）。
@@ -213,9 +214,19 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                 ),
 
                 // ── 房子（contain 完整可见；固定尺寸，跨屏宽逐位不变）────
+                // 🔴 B13：点房子 = 打开**玩法说明**弹窗（玄参「点击左侧的花园
+                // 在中间弹出来玩法说明介绍」）。Semantics 承担读屏入口文案。
                 Positioned.fromRect(
                   rect: layout.houseRect,
-                  child: const _HouseSlot(key: GuardSceneCard.houseKey),
+                  child: Semantics(
+                    button: true,
+                    label: t.guard_intro_open,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => showGuardIntroDialog(context, t),
+                      child: const _HouseSlot(key: GuardSceneCard.houseKey),
+                    ),
+                  ),
                 ),
 
                 // ── 能量点 ×2（B8 回归：房子右侧 / 栅栏上方，亮·灭两态）───
@@ -296,7 +307,16 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                   child: actionable
                       ? _startButton(t)
                       : (view.mode == GuardPillMode.claimed
-                          ? _claimedBadge(t)
+                          // 🔴 B13：徽章含文字（旗子 +「成功守卫」），右簇槽位是
+                          // 紧约束（窄卡内容区仅 ~30×40），文字会换行溢出 ——
+                          // 用 FittedBox(scaleDown) 让整块徽章**等比缩**进槽位，
+                          // 任何语言 / 字号 / 卡宽都不溢出（美术素材到位后整块替换）。
+                          ? Center(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: _claimedBadge(t),
+                              ),
+                            )
                           : const SizedBox.shrink()),
                 ),
               ],
@@ -344,33 +364,68 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
         onTap: widget.onStart,
         child: Container(
           key: GuardSceneCard.startButtonKey,
-          decoration: const BoxDecoration(
-            color: Color(0xFFE8A600),
-            shape: BoxShape.circle,
-          ),
-          child: const Center(
-            child: Icon(Icons.play_arrow_rounded,
-                color: Color(0xFFFFFFFF), size: 34),
+          alignment: Alignment.center,
+          // 🔴 B13.5：玄参「开始按钮改为40」+ 新素材「开始战斗UI.jpg」（红底
+          // 圆角方 + 双太阳矛）—— 素材已在 GuardArt 单点覆盖。**外层 Key 容器
+          // 仍占满槽位**：① 命中盒 ≥ 44pt 不缩；② v2 ①「按钮尺寸 ==
+          // rightClusterSize」的断言口径不变。要再调大小只动这个 40。
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: GuardArt.startButton(),
           ),
         ),
       ),
     );
   }
 
-  /// 「已完成守卫」徽标（B12 新增）：圆角方块 + 对勾图标，占满右簇槽位。
+  /// 「已完成守卫」徽标（B12 新增；B13.4 重设计）。
   /// 触发条件 = `mode == claimed`（战斗胜利且奖励已收下）。
+  ///
+  /// 🔴 **B13.4（玄参）**：去掉绿边圆角外框；旗帜放大到**与战士同尺寸**
+  /// （[GuardCardLayout.soldierHeight] = 60）；「成功守卫」文字挪到**右上角**。
+  /// 版式 = 64×64 Stack：旗帜贴左下（60×60），文字贴右上（10pt 绿字 +
+  /// 白色投影，压在草地 / 花丛上也要可读）。外层调用处的
+  /// `Center + FittedBox(scaleDown)` 保留 —— 槽位再窄也只会等比缩、不溢出。
   Widget _claimedBadge(AppLocalizations t) {
     return Semantics(
       label: t.guard_scene_done,
-      child: Container(
+      child: SizedBox(
         key: GuardSceneCard.claimedBadgeKey,
-        decoration: BoxDecoration(
-          color: const Color(0xFFEAF6E6),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF73A45C), width: 2),
-        ),
-        child: const Center(
-          child: Icon(Icons.check_rounded, color: Color(0xFF3D8B3D), size: 36),
+        width: 64,
+        height: 64,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            // 胜利旗帜（10 帧循环动画）—— 与战士同高（60），贴左下。
+            Positioned(
+              left: 0,
+              bottom: 0,
+              child: SizedBox(
+                width: GuardCardLayout.soldierHeight,
+                height: GuardCardLayout.soldierHeight,
+                child: GuardArt.claimFlag(),
+              ),
+            ),
+            // 「成功守卫」—— 右上角小标签（白投影兜可读性）。
+            Positioned(
+              top: 0,
+              right: 0,
+              child: Text(
+                t.guard_scene_done,
+                style: const TextStyle(
+                  fontSize: 10,
+                  height: 1.1,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF3D8B3D),
+                  shadows: <Shadow>[
+                    Shadow(color: Colors.white, blurRadius: 2),
+                    Shadow(color: Colors.white, blurRadius: 2, offset: Offset(0, 1)),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

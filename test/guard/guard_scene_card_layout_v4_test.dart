@@ -12,7 +12,7 @@
 /// | ③ | 能量点 ×2：**14pt（B10）**、**顶边与房顶线齐平（dot.top == 14 ≥ house.top）**；亮/灭两态 |
 /// | ④ | **无外框**：卡根不是 Container、卡内无 ClipRRect、无带 border 的 Container |
 /// | ⑤ | 素材亮度归一：idle frame001 与 attack 的平均亮度差 ≤ **5%**（字面量阈值） |
-/// | ⑥ | 通道宽度（B10/C1：战士 68）：320/360/375/390/1024 = 81.86/121.86/136.86/109.84/743.84 |
+/// | ⑥ | 通道宽度（B13.2：战士 60）：320/360/375/390/1024 = 88.66/128.66/143.66/117.84/751.84 |
 ///
 /// 🔴 全文件有界 `pump`（常驻战士帧序列 / 战斗 ticker 都在跑，绝不 `pumpAndSettle`）。
 library guard_scene_card_layout_v4_test;
@@ -361,16 +361,16 @@ void main() {
     test('320 / 360 / 375 / 390 / 1024 的通道实测值（写死，±0.6）', () {
       // 🔴 玄参 / 主理人给定的验收口径：屏越大，通道不许反而变窄。
       // 阈值 380 之前：360 屏 49.84 < 320 屏 56.36（倒挂）。
-      // 阈值 380 之后（s = 0.85 覆盖到 380）：360 ⇒ 96.36、375 ⇒ 111.36；
-      // 390 屏仍是全尺寸元素（玄参要的 88/72 大图不变）⇒ 79.83。
+      // 阈值 380 之后（s = 0.85 覆盖到 380）：360 ⇒ 128.66、375 ⇒ 143.66；
+      // 390 屏仍是全尺寸元素（玄参要的 88/72 大图不变）⇒ 117.84（B13.2 战士 60）。
       const double eps = 0.6;
-      expect(const GuardCardLayout(320).channelWidth, closeTo(81.86, eps));
-      expect(const GuardCardLayout(360).channelWidth, closeTo(121.86, eps),
+      expect(const GuardCardLayout(320).channelWidth, closeTo(88.66, eps));
+      expect(const GuardCardLayout(360).channelWidth, closeTo(128.66, eps),
           reason: '🔴 360 屏必须 ≥ 320 屏（旧阈值 340 下只有 49.84，倒挂）');
-      expect(const GuardCardLayout(375).channelWidth, closeTo(136.86, eps));
-      expect(const GuardCardLayout(390).channelWidth, closeTo(109.84, eps),
-          reason: '🔴 B10/C1 验收：390 屏 314 − (226.17 − 22) = 109.83');
-      expect(const GuardCardLayout(1024).channelWidth, closeTo(743.84, eps));
+      expect(const GuardCardLayout(375).channelWidth, closeTo(143.66, eps));
+      expect(const GuardCardLayout(390).channelWidth, closeTo(117.84, eps),
+          reason: '🔴 B13.2 验收：390 屏 314 − (218.16 − 22) = 117.84');
+      expect(const GuardCardLayout(1024).channelWidth, closeTo(751.84, eps));
 
       // 倒挂本身钉死：360 屏的通道必须**宽于** 320 屏。
       expect(const GuardCardLayout(360).channelWidth,

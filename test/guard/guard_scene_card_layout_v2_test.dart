@@ -33,6 +33,8 @@ import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart';
+import 'package:sunflower_time/domain/services/guard_battle_sim.dart'
+    show deriveGuardBattleScript;
 import 'package:sunflower_time/presentation/child/widgets/guard_card_layout.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_tutorial_sheet.dart';
@@ -182,9 +184,16 @@ void main() {
       expect(soldierWide, soldierSmall, reason: '🔴 战士尺寸必须跨屏宽逐位相等');
       expect(monsterWide, monsterSmall, reason: '🔴 小怪尺寸必须跨屏宽逐位相等');
       expect(soldierSmall.width, closeTo(GuardCardLayout.soldierSize, 0.01));
-      // 🔴 B10/C3 + B11/C5：小怪不再共用 44 方框 —— 每只按等面积反解（m1 44.19 宽）。
+      // 🔴 B13：战斗怪的种类**跟当日小偷走**（_kindOfThief）——
+      // dayKey '2026-11-10' / 'seed-0' 的战局种类由脚本派生，宽度按该种反解。
+      final String kindId = deriveGuardBattleScript(
+              dayKey: '2026-11-10', childId: 'seed-0')
+          .monsters
+          .first
+          .kind
+          .id;
       expect(monsterSmall.width,
-          closeTo(const GuardCardLayout(390).monsterWidthOf('m1'), 0.01));
+          closeTo(const GuardCardLayout(390).monsterWidthOf(kindId), 0.01));
     });
 
     testWidgets('通道宽度差 = 卡宽差（±2）', (WidgetTester tester) async {
@@ -198,8 +207,8 @@ void main() {
 
       expect(wide - small, closeTo(1024 - 390, 2.0),
           reason: '🔴 唯一随屏宽变化的是通道（宽卡只拉长战斗区）');
-      // 🔴 B10/C1：通道左端 = 战士右缘 − 半个怪 ⇒ 390 屏实测 109.84pt。
-      expect(small, closeTo(109.84, 0.6), reason: '🔴 实测 390 卡通道');
+      // 🔴 B13.2：通道左端 = 战士右缘 − 半个怪（战士 60）⇒ 390 屏实测 117.84pt。
+      expect(small, closeTo(117.84, 0.6), reason: '🔴 实测 390 卡通道');
     });
   });
 
@@ -394,9 +403,9 @@ void main() {
       const GuardCardLayout l = GuardCardLayout(360);
       // 🔴 B9/C3：360 卡落在窄卡档（阈值 380）⇒ 元素 ×0.85。
       // 右侧固定 = (8 + 64 + 4) × 0.85 = 64.6 ⇒ channelRight = 295.4；
-      // 左侧 = 房子右缘 132.74 + 间隙 1.7 + 战士 57.8 − 半个怪 18.7 = 173.54
-      // ⇒ 跑道 **121.86**（B10：战士 78 → 68，跑道再 +10）。
-      expect(l.channelWidth, closeTo(121.86, 0.05));
+      // 左侧 = 房子右缘 132.74 + 间隙 1.7 + 战士 51.0 − 半个怪 18.7 = 166.74
+      // ⇒ 跑道 **128.66**（B13.2：战士 64 → 60，跑道再 +3.4）。
+      expect(l.channelWidth, closeTo(128.66, 0.05));
       expect(l.scale, 0.85, reason: '🔴 360 ≤ 380 ⇒ 走窄卡等比缩');
       // 镜像：sim x 增大 ⇒ 屏幕 x 减小
       expect(l.mapMonsterX(0), closeTo(l.channelRight, 0.01));
@@ -404,13 +413,14 @@ void main() {
       expect(l.mapMonsterX(165), greaterThan(l.mapMonsterX(330)));
       // 🔴 B7：怪的纵向区间是**围绕战士中心**的一条窄带（2D 同平面）。
       // B8.1 起 360 是窄卡（s = 0.85）⇒ 带宽半高 8 × 0.85 = **6.8**。
-      expect(l.mapMonsterY(10), closeTo(l.soldierCenterY - 6.8, 0.01));
-      expect(l.mapMonsterY(80), closeTo(l.soldierCenterY + 6.8, 0.01));
-      // 并且在卡内、在底部倒计时细线之上。
+      // 🔴 B13.2：带**底部**有渲染安全钳（最低点 + 半个怪不压倒计时细线），
+      // 顶部照旧；判据写成护栏式（不抄实现数值）。
+      expect(l.mapMonsterY(10), closeTo(l.soldierCenterY - 6.8, 0.01),
+          reason: '🔴 带顶部照旧（钳只向下）');
       final double monsterBottom =
           l.mapMonsterY(80) + l.monsterExtent / 2;
       expect(monsterBottom, lessThanOrEqualTo(l.countdownRect.top - 1),
-          reason: '怪的最低点必须让开卡底倒计时细线');
+          reason: '🔴 B13.2 渲染安全钳：怪的最低点必须让开卡底倒计时细线');
       expect(monsterBottom, lessThanOrEqualTo(l.cardHeight),
           reason: '怪必须完整落在卡内');
     });

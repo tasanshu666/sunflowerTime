@@ -660,9 +660,9 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 2 · 浇水券剩 1 + 批量 3 盆（专抓「循环外只算一次」）
+  // 2 · 浇水券（存量存档剩 1）+ 批量 3 盆（🔴 B13.4 不限次：全程足额）
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('2 · 浇水券剩 1 + 批量 3 盆：4 / 5 / 5，合计 14',
+  testWidgets('2 · 浇水券（存量剩 1）+ 批量 3 盆：4 / 4 / 4，合计 12（B13.4）',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -687,7 +687,7 @@ void main() {
     await tester.pumpWidget(_hostGarden(
       ledger: ledger,
       plants: _MemPlantRepo(four),
-      // 浇水券：quota 6、已用 5 ⇒ 只剩 1 ☀。
+      // 浇水券：quota 6、已用 5（旧封顶时代的存量记账）——B13.4 起不挡减免。
       store: _FakeGuardStore(
         _guardDay(GuardDropKind.waterVoucher, quota: 6, used: 5),
       ),
@@ -702,16 +702,16 @@ void main() {
         .where((SunlightEntry e) => e.refId != 'p3')
         .map((SunlightEntry e) => (-e.net).round())
         .toList();
-    expect(spent, <int>[4, 5, 5],
-        reason: '第 1 盆用掉唯一 1 ☀ 减免（5→4），余下两盆必须回原价 5');
-    expect(spent.fold<int>(0, (int a, int b) => a + b), 14,
-        reason: '合计 14 —— 不是 12（循环外只算一次会得到 12）、不是 15');
+    expect(spent, <int>[4, 4, 4],
+        reason: 'B13.4：浇水券当日不限次，额度字段不挡减免（旧口径 4/5/5 废除）');
+    expect(spent.fold<int>(0, (int a, int b) => a + b), 12,
+        reason: '合计 12 —— 不是 14（旧封顶口径）、不是 15');
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 3 · 浇水券满额 6 + 批量 12 盆（减免恰好 6）
+  // 3 · 浇水券 + 批量 12 盆（🔴 B13.4 不限次：12 盆全 4）
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('3 · 浇水券满额 6 + 批量 12 盆：前 6 盆 4、后 6 盆 5，合计 54',
+  testWidgets('3 · 浇水券 + 批量 12 盆：全 4，合计 48（B13.4 不限次）',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -732,18 +732,16 @@ void main() {
 
     final List<int> spent = ledger.amountsOf(kPlantWaterRefType);
     expect(spent.length, 12, reason: '12 盆应各入账一条 plant_water');
-    expect(spent.sublist(0, 6), <int>[4, 4, 4, 4, 4, 4],
-        reason: '前 6 盆吃掉全部 6 ☀ 额度');
-    expect(spent.sublist(6), <int>[5, 5, 5, 5, 5, 5],
-        reason: '额度用尽后必须回原价（不得多省）');
-    expect(spent.fold<int>(0, (int a, int b) => a + b), 54,
-        reason: '合计 54 = 12×5 − 6：减免恰好 6 ☀');
+    expect(spent, <int>[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+        reason: 'B13.4：当日不限次，12 盆全部 −1（旧「前 6 盆 4 后 6 盆 5」废除）');
+    expect(spent.fold<int>(0, (int a, int b) => a + b), 48,
+        reason: '合计 48 = 12×5 − 12：减免 12 ☀（旧封顶 6 ☀ 废除）');
   });
 
   // ══════════════════════════════════════════════════════════════════════════
   // 3b / 3c · G1：确认卡 note 必须与合计同口径（单值 / 区间两档）
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('3b · 浇水券 6 + 12 盆：note「每盆 4~5 ☀」且合计 −54 ☀',
+  testWidgets('3b · 浇水券 + 12 盆（B13.4 不限次）：note 单值「每盆 4 ☀」且合计 −48 ☀',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -761,20 +759,20 @@ void main() {
 
     await _openOneClickCard(tester, '一键浇水');
 
-    // 字面量：前 6 盆 4 ☀、后 6 盆 5 ☀ ⇒ 区间 4~5，合计 24 + 30 = 54。
+    // 🔴 B13.4：12 盆全部 4 ☀ ⇒ 单价齐整，note 回**单值**口径（旧区间 4~5 废除）。
     expect(
-      find.text('将对 12 盆植物各浇 1 次水（每盆 4~5 ☀）'),
+      find.text('将对 12 盆植物各浇 1 次水（每盆 4 ☀）'),
       findsOneWidget,
-      reason: '单价有高有低时必须报区间，否则「每盆 4」与「合计 −54」自相矛盾',
+      reason: '不限次后每盆同价，必须报单值而不是区间',
     );
-    expect(find.text('−54 ☀'), findsOneWidget);
+    expect(find.text('−48 ☀'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byType(ChildConfirmCard),
-        matching: find.textContaining('每盆 4 ☀'),
+        matching: find.textContaining('4~5'),
       ),
       findsNothing,
-      reason: '不得残留单值口径的旧 note',
+      reason: '不得残留旧封顶时代的区间 note',
     );
 
     await tester.tap(find.text('取消'));
@@ -1186,9 +1184,10 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 14 · 额度用完：价格回原价 + chip 仍在屏上 + 含「已用完」
+  // 14 · 存量存档「额度用完」（🔴 B13.4）：浇水券不限次 ⇒ 水价仍 4，
+  //      chip 仍在屏上且**不**追加「已用完」（施肥 / 免费券才保留该口径）
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('14 · 额度用完：水价回 5，chip 仍在屏上且文案含「已用完」',
+  testWidgets('14 · 存量额度用完（B13.4 不限次）：水价仍 4，chip 在屏且不含「已用完」',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -1197,7 +1196,7 @@ void main() {
     await tester.pumpWidget(_hostGarden(
       ledger: _MemLedger(),
       plants: _MemPlantRepo(_plants(1)),
-      // quota 6、used 6 ⇒ 已用完（券仍显示，只是不再减免）。
+      // quota 6、used 6 ⇒ 旧封顶时代的「用完」记账 —— B13.4 起不影响减免。
       store: _FakeGuardStore(
         _guardDay(GuardDropKind.waterVoucher, quota: 6, used: 6),
       ),
@@ -1208,7 +1207,7 @@ void main() {
       await _pumpUntil(
           tester, () => find.byKey(GuardBuffChip.chipKey).evaluate().isNotEmpty),
       isTrue,
-      reason: '额度用完 ≠ 从来没有：chip 必须仍在屏上',
+      reason: '券仍然显示（不限次券更不会「用完消失」）',
     );
     final Iterable<Text> chipTexts = tester.widgetList<Text>(
       find.descendant(
@@ -1218,16 +1217,16 @@ void main() {
     );
     expect(
       chipTexts.map((Text t) => t.data ?? '').join(),
-      contains('已用完'),
-      reason: '用完后文案必须追加「已用完」',
+      isNot(contains('已用完')),
+      reason: '🔴 B13.4：浇水券当日不限次，「已用完」永不出现（used==quota 只是旧记账）',
     );
 
     await tester.tap(find.byType(GardenPot).first);
     expect(
-      await _pumpUntil(tester, () => find.text('5 ☀').evaluate().isNotEmpty),
+      await _pumpUntil(tester, () => find.text('4 ☀').evaluate().isNotEmpty),
       isTrue,
     );
-    expect(find.text('5 ☀'), findsOneWidget,
-        reason: '额度耗尽后价格必须回到原价 5 ☀');
+    expect(find.text('4 ☀'), findsOneWidget,
+        reason: '🔴 B13.4：即便存量记账 used==quota，水价仍是券后 4 ☀');
   });
 }

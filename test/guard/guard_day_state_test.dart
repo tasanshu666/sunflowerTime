@@ -216,6 +216,58 @@ void main() {
       );
       expect(decoded.growthStolen, isEmpty);
     });
+
+    test('🔴 B13.5 双券字段：bonusDropKind / bonusBuff 往返逐位相等', () {
+      const GuardDayState state = GuardDayState(
+        dayKey: '2026-11-11',
+        status: GuardDayStatus.claimed,
+        thiefKind: GuardThiefKind.sunRat,
+        winSun: 2,
+        dropKind: GuardDropKind.waterVoucher,
+        bonusDropKind: GuardDropKind.fertilizeVoucher,
+        buff: GuardBuffState(
+          kind: GuardDropKind.waterVoucher,
+          quota: 6,
+          used: 1,
+        ),
+        bonusBuff: GuardBuffState(
+          kind: GuardDropKind.fertilizeVoucher,
+          quota: 12,
+          used: 0,
+        ),
+      );
+
+      final String encoded = jsonEncode(state.toJson());
+      final GuardDayState decoded = GuardDayState.fromJson(
+        jsonDecode(encoded) as Map<String, Object?>,
+        fallbackDayKey: '2026-01-01',
+      );
+
+      expect(decoded, state);
+      expect(decoded.bonusDropKind, GuardDropKind.fertilizeVoucher);
+      expect(decoded.bonusBuff, state.bonusBuff);
+      // copyWith 两个方向：覆盖 + 显式清空第二张。
+      final GuardDayState cleared =
+          state.copyWith(clearBonusBuff: true, bonusDropKind: GuardDropKind.none);
+      expect(cleared.bonusBuff, isNull);
+      expect(cleared.bonusDropKind, GuardDropKind.none);
+      expect(cleared.buff, state.buff, reason: '主券不受 clearBonusBuff 影响');
+    });
+
+    test('🔴 B13.5 旧存档兼容：缺 bonus 字段 → none / null（不抛异常）', () {
+      // 模拟 B13.5 之前的存档：完全没有 bonusDropKind / bonusBuff 线。
+      final GuardDayState decoded = GuardDayState.fromJson(
+        <String, Object?>{
+          'dayKey': '2026-11-08',
+          'status': 'claimed',
+          'dropKind': 'water_voucher',
+          'buff': <String, Object?>{'kind': 'water_voucher', 'quota': 6},
+        },
+        fallbackDayKey: '2026-01-01',
+      );
+      expect(decoded.bonusDropKind, GuardDropKind.none);
+      expect(decoded.bonusBuff, isNull);
+    });
   });
 
   group('B1 tutorialSeen（守卫战 v2 · 教学浮层只播一次的持久化标记）', () {

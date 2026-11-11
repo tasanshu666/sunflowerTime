@@ -26,20 +26,21 @@
 /// 「绝不整批免费」这条因此不依赖调用方自觉，也不依赖 UI 是否记得传 plantId。
 ///
 /// ### ③ 额度记账走 `GuardDayState.buff`，不新建存储
-/// 当日额度（浇水券 6 ☀ / 劳动券 4 ☀ / 施肥券 [kGuardFertilizerVoucherQuota] 次 /
-/// 免费券 1 次）就是
+/// 当日额度（施肥券 [kGuardFertilizerVoucherQuota] 次 / 免费券 1 次）就是
 /// [GuardBuffState.quota]，已用 = [GuardBuffState.used]，一次核销 = 一个「券单位」
 /// （[voucherUnitOf]）。超额由 [GuardBuffState.consume] 钳制 ⇒ 重复核销不会把
-/// `used` 顶过 `quota` —— 这正是「当日累计封顶」的实现形态（12 盆 × 3 次 = 36 次
-/// 浇水也只能省到 [kGuardWaterVoucherMaxSaves]）。
+/// `used` 顶过 `quota`。
+///
+/// 🔴 **B13.4：浇水券 / 劳动券改「当日不限次」**（玄参拍板「-1 就该全天不限次」，
+/// 原 PRD §3.7 的 6 ☀ / 4 ☀ 封顶废除）——这两张券的减免**只看种类、不看额度**
+/// （[GuardVoucherKind.isUnlimitedDaily]），`quota` 数字仅作存量存档的记账兼容。
+/// 施肥券按次记账、免费券单株单次的口径**不变**。
 ///
 /// ## 券与掉落档的关系
 /// 掉落档 [GuardDropKind] 有 6 个值（含 `none` = 无道具），券 [GuardVoucherKind]
 /// 只有 5 个 —— 映射单点在枚举的构造参数上（[GuardVoucherKind.drop]），
 /// 反查走 [GuardVoucherKind.of]。
 library guard_voucher;
-
-import 'dart:math' as math;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
@@ -54,10 +55,10 @@ import 'package:sunflower_time/domain/services/plant_perk.dart';
 /// 而 `none` 不是券、不能减免、也不该出现在任何「用什么券」的 API 里。
 /// 映射单点 = 构造参数 [drop]，反查 = [GuardVoucherKind.of]。
 enum GuardVoucherKind {
-  /// 浇水券：今日每次浇水每盆 −1 ☀（当日累计封顶 [kGuardWaterVoucherMaxSaves]）。
+  /// 浇水券：今日每次浇水每盆 −1 ☀（**当日不限次**，B13.4）。
   water(GuardDropKind.waterVoucher),
 
-  /// 劳动券：今日每次除草 / 除虫 +1 ☀（当日累计封顶 [kGuardLaborVoucherCap]）。
+  /// 劳动券：今日每次除草 / 除虫 +1 ☀（**当日不限次**，B13.4）。
   labor(GuardDropKind.laborVoucher),
 
   /// 施肥券：今日**每次**施肥 −2 ☀（当日最多 [kGuardFertilizerVoucherQuota] 次）。
@@ -88,6 +89,15 @@ enum GuardVoucherKind {
   bool get isFree =>
       this == GuardVoucherKind.freeWater ||
       this == GuardVoucherKind.freeFertilize;
+
+  /// 是否「当日不限次」券（浇水券 / 劳动券）。
+  ///
+  /// 🔴 **B13.4（玄参 2026-11-11 拍板）**：「今日浇水减 1，浇水次数应该不受
+  /// 限制」——原 PRD §3.7 的当日累计封顶（浇水 6 ☀ / 劳动 4 ☀）**废除**：
+  /// 减免全天足额生效。[guardVoucherQuotaOf] 的数字与存档里的 `quota` 字段
+  /// **仅保留为记账**，不再钳制减免（真机实测：浇 6 次后价格从 4 跳回 5，
+  /// 就是旧封顶 6 ☀ 用尽的表现）。
+  bool get isUnlimitedDaily => this == water || this == labor;
 
   /// 是否只作用于单株单次（数据源 = [GuardDropSpec.singlePotOnly]）。
   bool get isSinglePlantOnly => drop.singlePotOnly;
@@ -149,9 +159,11 @@ GuardVoucherKind guardVoucherKindForAction(
 int guardVoucherQuotaOf(GuardDropKind kind) {
   switch (kind) {
     case GuardDropKind.waterVoucher:
-      return kGuardWaterVoucherMaxSaves; // 6 ☀/天
+      // 🔴 B13.4：只作存量存档的记账兼容，**不再钳制减免**（当日不限次）。
+      return kGuardWaterVoucherMaxSaves;
     case GuardDropKind.laborVoucher:
-      return kGuardLaborVoucherCap; // 4 ☀/天
+      // 同上（B13.4 不限次，数字仅记账）。
+      return kGuardLaborVoucherCap;
     case GuardDropKind.fertilizeVoucher:
       // 今日**每次**施肥都 −2 ☀：额度单位是「次」，上界 = 最大盆位数
       // （每盆每天限施 1 次，见 [kGuardFertilizerVoucherQuota]）。
@@ -214,6 +226,7 @@ class GuardVoucherService {
   ///
   /// ⚠️ 额度用完时**仍会返回该 buff**（`isExhausted == true`）：券在 UI 上还要
   /// 显示（只是不再减免），「用完了」与「从来没有」是两种不同的展示。
+  /// 🔴 B13.5：返回**主券**（存档 `buff` 字段）；第二张券走 [currentBuffs]。
   Future<GuardBuffState?> currentBuff({DateTime? now}) async {
     final String today = dayKey(now ?? _clock());
     final GuardDayState state = await _store.read(_childId());
@@ -221,11 +234,46 @@ class GuardVoucherService {
     return state.buff;
   }
 
+  /// 🔴 B13.5：今天**所有**仍在生效的券（主券 + 第二张，0~2 张）。
+  ///
+  /// 花园页 buff 卡列、调试面板等「逐张展示」的调用方用本方法；
+  /// 「按动作取减免」的调用方走 [overlay] / [recordConsumed]（内部按券种匹配）。
+  Future<List<GuardBuffState>> currentBuffs({DateTime? now}) async {
+    final String today = dayKey(now ?? _clock());
+    final GuardDayState state = await _store.read(_childId());
+    if (state.dayKey != today) return const <GuardBuffState>[];
+    return <GuardBuffState>[
+      if (state.buff != null) state.buff!,
+      if (state.bonusBuff != null) state.bonusBuff!,
+    ];
+  }
+
+  /// 🔴 B13.5：按**券种**从（最多两张）当日券里挑出匹配的那张。
+  ///
+  /// 「浇水动作只吃浇水券」：两张券互不干扰、可同时生效 —— 主券与第二张
+  /// 的种类天然不同（rollBonus 排除首张），故匹配结果至多一张。
+  Future<GuardBuffState?> _buffForKind(
+    GuardVoucherKind kind, {
+    DateTime? now,
+  }) async {
+    final String today = dayKey(now ?? _clock());
+    final GuardDayState state = await _store.read(_childId());
+    if (state.dayKey != today) return null; // 掉落档「当天过期」
+    final GuardBuffState? primary = state.buff;
+    if (primary != null && GuardVoucherKind.of(primary.kind) == kind) {
+      return primary;
+    }
+    final GuardBuffState? bonus = state.bonusBuff;
+    if (bonus != null && GuardVoucherKind.of(bonus.kind) == kind) {
+      return bonus;
+    }
+    return null;
+  }
+
   /// 今天这张券还剩多少额度（没有券 / 已过期 = 0）。
   Future<int> remainingOf(GuardVoucherKind kind, {DateTime? now}) async {
-    final GuardBuffState? buff = await currentBuff(now: now);
+    final GuardBuffState? buff = await _buffForKind(kind, now: now);
     if (buff == null) return 0;
-    if (GuardVoucherKind.of(buff.kind) != kind) return 0;
     return buff.remaining;
   }
 
@@ -244,22 +292,23 @@ class GuardVoucherService {
   }) {
     final PlantPerk perk = base ?? PlantPerk.none;
     if (buff == null) return perk;
-    // 额度用完 = 不再减免（券仍然显示，但价格回到原样）
-    if (!buff.hasRemaining) return perk;
     // 今天只有一张券：种类不符绝不减免（防止「拿着浇水券去免施肥费」）
     if (GuardVoucherKind.of(buff.kind) != kind) return perk;
+    // 🔴 B13.4：浇水 / 劳动券**当日不限次**（额度字段不再挡减免）；
+    // 施肥券 / 免费券维持「额度用完 = 不再减免」（券仍然显示）。
+    if (!kind.isUnlimitedDaily && !buff.hasRemaining) return perk;
 
     final bool single = plantId != null && plantId.isNotEmpty;
     switch (kind) {
       case GuardVoucherKind.water:
-        // 每盆 −1（与称号减免相加；当日累计封顶由 remaining 钳制）
-        return perk.add(PlantPerk(
-          waterDiscount: math.min(kGuardWaterVoucherSave, buff.remaining),
-        ));
+        // 每盆 −1（与称号减免相加；B13.4 起全天足额，不再按 remaining 缩减）
+        return perk.add(const PlantPerk(waterDiscount: kGuardWaterVoucherSave));
       case GuardVoucherKind.labor:
-        // 每次清理 +1（加在称号加成之后；封顶由 remaining 钳制）
-        final int bonus = math.min(kGuardLaborVoucherBonus, buff.remaining);
-        return perk.add(PlantPerk(weedBonus: bonus, pestBonus: bonus));
+        // 每次清理 +1（加在称号加成之后；B13.4 起全天足额）
+        return perk.add(const PlantPerk(
+          weedBonus: kGuardLaborVoucherBonus,
+          pestBonus: kGuardLaborVoucherBonus,
+        ));
       case GuardVoucherKind.fertilize:
         // ⚠️ 额度单位是「次」、减免额是 2 ☀ ⇒ **不按 remaining 缩额**：按
         // `min(2, remaining)` 缩额会让快用完时悄悄贬值（remaining=1 时只减 1）；
@@ -323,7 +372,8 @@ class GuardVoucherService {
     required String? plantId,
     DateTime? now,
   }) async {
-    final GuardBuffState? buff = await currentBuff(now: now);
+    // 🔴 B13.5：按券种从（最多两张）当日券里取匹配的那张。
+    final GuardBuffState? buff = await _buffForKind(kind, now: now);
     return overlayFor(buff, base, kind: kind, plantId: plantId);
   }
 
@@ -343,13 +393,29 @@ class GuardVoucherService {
     final String childId = _childId();
     final GuardDayState state = await _store.read(childId);
     if (state.dayKey != today) return; // 跨天：券已过期
-    final GuardBuffState? buff = state.buff;
-    if (buff == null || !buff.hasRemaining) return;
-    if (GuardVoucherKind.of(buff.kind) != kind) return;
+    // 🔴 B13.5：按券种找到匹配的那张（主券或第二张），记在哪张的账上要分清。
+    final GuardBuffState? primary = state.buff;
+    final bool onPrimary =
+        primary != null && GuardVoucherKind.of(primary.kind) == kind;
+    final GuardBuffState? bonus = state.bonusBuff;
+    final bool onBonus =
+        !onPrimary && bonus != null && GuardVoucherKind.of(bonus.kind) == kind;
+    if (!onPrimary && !onBonus) return;
+    final GuardBuffState buff = onPrimary ? primary : bonus!;
+    if (!buff.hasRemaining) return;
     if (kind.isSinglePlantOnly && (plantId == null || plantId.isEmpty)) return;
+
+    // 🔴 B13.4：不限次券（浇水 / 劳动）没有额度可记 —— 核销账只对
+    // 「次数券」（施肥 / 免费）有意义；也不写库（省一次 prefs 写）。
+    if (kind.isUnlimitedDaily) return;
 
     final GuardBuffState consumed = buff.consume(voucherUnitOf(kind));
     if (consumed == buff) return; // 钳制后无变化（already exhausted）→ 不写库
-    await _store.write(childId, state.copyWith(buff: consumed));
+    await _store.write(
+      childId,
+      onPrimary
+          ? state.copyWith(buff: consumed)
+          : state.copyWith(bonusBuff: consumed),
+    );
   }
 }

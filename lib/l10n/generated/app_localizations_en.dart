@@ -2532,6 +2532,32 @@ class AppLocalizationsEn extends AppLocalizations {
       'Adds monthly & yearly reports · heatmap';
 
   @override
+  String get premium_table_row_guard => 'Guard voucher drops';
+
+  @override
+  String premium_table_guard_free(int p) {
+    return '$p% chance of a voucher';
+  }
+
+  @override
+  String premium_table_guard_premium(int d) {
+    return 'Always a voucher · $d% chance of two';
+  }
+
+  @override
+  String get premium_table_row_energy => 'Guard energy beans';
+
+  @override
+  String premium_table_energy_free(int p) {
+    return '$p a day';
+  }
+
+  @override
+  String premium_table_energy_premium(int p) {
+    return '$p a day (double)';
+  }
+
+  @override
   String get premium_table_row_one_click => 'Garden one-tap care';
 
   @override
@@ -3723,8 +3749,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get guard_intro_energy_title => 'What are energy beans?';
 
   @override
-  String get guard_intro_energy_body =>
+  String get guard_intro_energy_body_free =>
+      'Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 1 a day on the free version. No energy beans? You can still guard: spend 5 sunlight to send the soldier out.';
+
+  @override
+  String get guard_intro_energy_body_premium =>
       'Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 2 a day. No energy beans? You can still guard: spend 5 sunlight to send the soldier out.';
+
+  @override
+  String get guard_energy_locked_hint =>
+      'Up to 2 energy beans a day with the full version!';
 
   @override
   String get guard_intro_reward_title => 'What you earn';
@@ -3820,6 +3854,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get guard_confirm_pay_later => 'Not today';
+
+  @override
+  String get guard_confirm_free_title =>
+      'Send out the sunflower soldier to guard the garden?';
+
+  @override
+  String get guard_voucher_short_water => 'Water';
+
+  @override
+  String get guard_voucher_short_labor => 'Weeding';
+
+  @override
+  String get guard_voucher_short_fertilize => 'Feed';
+
+  @override
+  String get guard_voucher_short_free_water => 'Free water';
+
+  @override
+  String get guard_voucher_short_free_fertilize => 'Free feed';
+
+  @override
+  String guard_chip_inline_prefix(String action) {
+    return 'Today: $action';
+  }
 
   @override
   String guard_stolen_today(int n) {

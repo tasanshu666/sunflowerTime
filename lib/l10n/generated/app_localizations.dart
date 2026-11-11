@@ -4253,6 +4253,42 @@ abstract class AppLocalizations {
   /// **'加月 / 年报告 · 热力图'**
   String get premium_table_report_premium;
 
+  /// No description provided for @premium_table_row_guard.
+  ///
+  /// In zh, this message translates to:
+  /// **'守卫战卡券掉落'**
+  String get premium_table_row_guard;
+
+  /// No description provided for @premium_table_guard_free.
+  ///
+  /// In zh, this message translates to:
+  /// **'券概率 {p}%'**
+  String premium_table_guard_free(int p);
+
+  /// No description provided for @premium_table_guard_premium.
+  ///
+  /// In zh, this message translates to:
+  /// **'必掉券 · {d}% 概率掉两张'**
+  String premium_table_guard_premium(int d);
+
+  /// No description provided for @premium_table_row_energy.
+  ///
+  /// In zh, this message translates to:
+  /// **'守卫能量点'**
+  String get premium_table_row_energy;
+
+  /// No description provided for @premium_table_energy_free.
+  ///
+  /// In zh, this message translates to:
+  /// **'每天 {p} 颗'**
+  String premium_table_energy_free(int p);
+
+  /// No description provided for @premium_table_energy_premium.
+  ///
+  /// In zh, this message translates to:
+  /// **'每天 {p} 颗（双倍）'**
+  String premium_table_energy_premium(int p);
+
   /// No description provided for @premium_table_row_one_click.
   ///
   /// In zh, this message translates to:
@@ -6287,11 +6323,23 @@ abstract class AppLocalizations {
   /// **'能量点是什么'**
   String get guard_intro_energy_title;
 
-  /// 守卫战 v2（B13.4）：能量点来源（🔴 15 分钟 = 1 个、一天最多 2 个，与 PRD §6 教学口径一致；「专注越足越多」不符实际已删）+ 没有能量点怎么办
+  /// 守卫战 v2（B13.8 档位制）：能量点正文·免费档（🔴 15 分钟 = 1 个、免费一天最多 1 个；付费档另有 body_premium）
+  ///
+  /// In zh, this message translates to:
+  /// **'能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，免费一天最多 1 个。没有能量点也能守卫——花 5 阳光请战士出战就行。'**
+  String get guard_intro_energy_body_free;
+
+  /// 守卫战 v2（B13.8 档位制）：能量点正文·完整版档（🔴 一天最多 2 个，与 kGuardEnergyDailyMaxPremium 一致）
   ///
   /// In zh, this message translates to:
   /// **'能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，一天最多 2 个。没有能量点也能守卫——花 5 阳光请战士出战就行。'**
-  String get guard_intro_energy_body;
+  String get guard_intro_energy_body_premium;
+
+  /// 守卫战 v2（B13.8 / C81）：免费档点锁标能量点弹出的提示卡正文（只提示、不跳转，孩子端无购买入口；🔴 B13.9 措辞统一「完整版」，不叫会员，锁标下的小字已删）
+  ///
+  /// In zh, this message translates to:
+  /// **'完整版每天有 2 颗能量点哦'**
+  String get guard_energy_locked_hint;
 
   /// 守卫战 v2（B13）：玩法说明弹窗奖励小节标题
   ///
@@ -6448,6 +6496,48 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'今天不赶了'**
   String get guard_confirm_pay_later;
+
+  /// 能量路径确认卡标题（B13.7 玄参：有能量也要二次确认防误操作；不花钱所以不提阳光）
+  ///
+  /// In zh, this message translates to:
+  /// **'要派出向日葵战士，\n进行花园守卫吗？'**
+  String get guard_confirm_free_title;
+
+  /// 券卡迷你角标短文案（B13.7 玄参：下面的文字缩减为「浇水 -1 阳光」，阳光用 UI 图标代替，数字由常量派生）
+  ///
+  /// In zh, this message translates to:
+  /// **'浇水'**
+  String get guard_voucher_short_water;
+
+  /// No description provided for @guard_voucher_short_labor.
+  ///
+  /// In zh, this message translates to:
+  /// **'除草'**
+  String get guard_voucher_short_labor;
+
+  /// No description provided for @guard_voucher_short_fertilize.
+  ///
+  /// In zh, this message translates to:
+  /// **'施肥'**
+  String get guard_voucher_short_fertilize;
+
+  /// No description provided for @guard_voucher_short_free_water.
+  ///
+  /// In zh, this message translates to:
+  /// **'免费浇水'**
+  String get guard_voucher_short_free_water;
+
+  /// No description provided for @guard_voucher_short_free_fertilize.
+  ///
+  /// In zh, this message translates to:
+  /// **'免费施肥'**
+  String get guard_voucher_short_free_fertilize;
+
+  /// 守卫战 v2（B13.9）：券卡横排文字前缀 —— 「今日{action}」action 为「浇水 −1」等短文案，尾部再拼阳光 UI 小图（en 用 "Today: {action}" 保语序）
+  ///
+  /// In zh, this message translates to:
+  /// **'今日{action}'**
+  String guard_chip_inline_prefix(String action);
 
   /// 结算/过期提示：昨晚被偷走了多少成长。本批未上屏，第四批阳光记录页用
   ///

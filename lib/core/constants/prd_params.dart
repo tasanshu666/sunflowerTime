@@ -2280,11 +2280,18 @@ const int kGuardSettleMaxDays = 1;
 /// 「有效」的判定单点 = `domain/services/focus_validity.dart`（PRD §3.3）。
 const int kGuardEnergyPerFocus = 1;
 
-/// 每日能量上限。单位：点/天。
+/// 每日能量上限 · **免费档**。单位：点/天。
 ///
-/// 理由（决策 D4）：1 只贼只需 1 点 → 留 1 点冗余，跨天时序 / 专注记录晚落盘时
-/// 不会把孩子逼到「被迫花 5☀」。**冗余保留，不给出第 2 点的出口**。
-const int kGuardEnergyDailyMax = 2;
+/// 🔴 B13.8（玄参拍板）：「免费用户是 1 个能量球」—— 免费档每天最多攒
+/// 1 颗；第 2 颗在 UI 上显示锁标（C81 提示卡「完整版每天有 2 颗能量点哦」，
+/// 无购买入口；B13.9 起锁标下的小字已删，措辞统一「完整版」）。
+const int kGuardEnergyDailyMaxFree = 1;
+
+/// 每日能量上限 · **完整版**。单位：点/天。
+///
+/// 原 D4 决策的「2 点冗余」口径归会员：1 只贼只需 1 点 → 留 1 点冗余，
+/// 跨天时序 / 专注记录晚落盘时不会把孩子逼到「被迫花 5☀」。
+const int kGuardEnergyDailyMaxPremium = 2;
 
 /// 无能量时的支付价。单位：☀/次。玄参定 5（= 一次浇水）。
 const int kGuardPayCost = 5;
@@ -2588,6 +2595,13 @@ const int kGuardAnimFrameMs = 100;
 /// 上浮 + 淡出共用这一条时长：`t ∈ [0,1]` 期间 y 上浮 18pt、opacity 1 → 0。
 /// 纯演出，**不进 sim 时间轴**（由战斗层自己的 ticker 驱动）⇒ 不影响确定性。
 const int kGuardMissFxMs = 600;
+
+/// 击杀掉落的「阳光精灵」VFX 存活时长。单位：ms（B13.8 玄参提案拍板）。
+///
+/// 下落 + 漂移 + 淡出共用这一条时长：`t ∈ [0,1]` 期间 y 下落、x 随机漂移、
+/// opacity 1 → 0。🔴 **纯渲染层**：随机数只允许出现在战斗 Fx 层
+/// （`math.Random()`），绝不进 sim / 领域层 —— 确定性零破口。
+const int kGuardSunDropFxMs = 700;
 
 /// 怪物数量下限（PRD：3~5 只；通道 `count` 落桶）。
 const int kGuardMonsterCountMin = 3;

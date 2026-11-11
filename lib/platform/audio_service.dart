@@ -108,6 +108,11 @@ enum AudioCue {
   ///
   /// 配 `assets/fx/levelUp/5leveUp/` 41 帧（目录名按交付原样，少一个 `l`）。
   levelUpFive,
+
+  /// 花园守卫 · **击中**小怪（`guard_hit.mp3`，2026-11-11 B13.6 玄参交付）。
+  ///
+  /// 🔴 只在子弹**真正命中**时播（sim 事件 `hit` / `kill`）；MISS（`dodge`）不播。
+  guardHit,
 }
 
 /// [AudioCue] 到 assets 音频文件路径的映射（相对工程根）。
@@ -157,6 +162,8 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/default_level_up.mp3';
       case AudioCue.levelUpFive:
         return 'assets/audio/sfx/5_level_up.mp3';
+      case AudioCue.guardHit:
+        return 'assets/audio/sfx/guard_hit.mp3';
     }
   }
 }
@@ -478,8 +485,11 @@ class AudioService {
   /// 播放一次性音效（fire-and-forget，非阻塞）。
   ///
   /// 受 [_soundOn] 保护；内部异步加载与播放，任何失败均静默忽略。
+  /// [volume] ∈ [0,1]，默认 1.0（B13.7：击中音效降到 0.25，「稍微有个声音
+  /// 能听见就行」——玄参原话）。
   /// ⚠️ 多路并发时的胜负由 [_sfxGeneration] 决定（F116：**后发起者赢**，先发起者过期即让位）。
-  void playSfx(AudioCue cue) => playSfxPaths(<String>[cue.assetPath]);
+  void playSfx(AudioCue cue, {double volume = 1.0}) =>
+      playSfxPaths(<String>[cue.assetPath], volume: volume);
 
   /// 播放一次性音效，**按 [paths] 顺序依次回退**（fire-and-forget，非阻塞）。
   ///
@@ -491,12 +501,12 @@ class AudioService {
   /// ⚠️ **F116（玄参 2026-10-13）**：SFX 只有一个共享播放器，两路请求**相距极近**地发起时
   /// （真机事故：手动结束 → 结算页 `focus_settle` 与护眼卡 `eyecare`）会互相 `stop()`。
   /// 由 [_sfxGeneration] 保证「**后发起者赢**；先发起者过期即让位，**绝不回头停别人**」。
-  void playSfxPaths(List<String> paths) {
+  void playSfxPaths(List<String> paths, {double volume = 1.0}) {
     if (!_soundOn || paths.isEmpty) return;
-    unawaited(_playSfxPaths(paths));
+    unawaited(_playSfxPaths(paths, volume: volume));
   }
 
-  Future<void> _playSfxPaths(List<String> paths) async {
+  Future<void> _playSfxPaths(List<String> paths, {double volume = 1.0}) async {
     // F116 排号：**同步**递增（先于本函数内一切 `await`）→ 后发起者号更大，天然「后到者赢」。
     final int gen = ++_sfxGeneration;
     // 本次请求是否已过期（已有更新的请求发起过）——过期一律让位，**绝不**再碰播放器。
@@ -550,6 +560,12 @@ class AudioService {
             return;
           }
           await player.seek(Duration.zero);
+          if (stale()) {
+            return;
+          }
+          // B13.7：每路 SFX 可带音量（击中音效 0.25 —— 玄参「声音有点大，
+          // 稍微有个声音能听见就行」）；播完不恢复 1.0，每次播放都显式设。
+          await player.setVolume(volume.clamp(0.0, 1.0));
           if (stale()) {
             return;
           }
@@ -699,6 +715,60 @@ class AudioService {
     } catch (_) {
       // 静默降级。
     }
+  }
+
+  // ── 花园守卫 · 战斗背景音（B13.6，玄参 2026-11-11 交付 guard_attack.mp3）──────
+
+  /// 战斗背景音播放器（**独立第四播放器**：与专注 BGM / 花园氛围音互不打断——
+  /// 战斗发生在花园 tab 内，氛围音可能同时在播；共享 SFX 播放器会被击中音效
+  /// 频繁打断，故战斗底噪必须独占通道）。
+  AudioPlayer? _battlePlayer;
+  bool _battlePlaying = false;
+  bool _battleWasPlayingBeforeBackground = false;
+
+  /// 播放战斗背景音（战斗开始时由 `GuardBattleField` 调用）。
+  ///
+  /// 🔴 B13.7（玄参重制版交付口径）：**只播放一遍**，不循环（打完自然停，
+  /// 战局收场 / dispose 也会显式停）。受「背景音乐」开关（[_bgmOn]）与后台
+  /// 挂起闸门约束，口径与 [startBgm] 一致；资源缺失 / 播放器构造失败静默降级。
+  Future<void> startGuardBattleBgm() async {
+    if (!_bgmOn || _battlePlaying || _suspendedForBackground) return;
+    final AudioPlayer? player = await _battle;
+    if (player == null) return;
+    try {
+      await player.setAsset('assets/audio/bgm/guard_attack.mp3');
+      await player.setLoopMode(LoopMode.off); // 🔴 B13.7：只播一遍
+      await player.seek(Duration.zero);
+      if (_suspendedForBackground) {
+        await player.stop(); // 加载间隙已退后台：绝不发声
+        return;
+      }
+      await player.play();
+      _battlePlaying = true;
+    } catch (_) {
+      // 资源缺失：静默降级。
+    }
+  }
+
+  /// 停止战斗背景音（战斗结束 / 战场 dispose 时调用；保留播放器便于复用）。
+  Future<void> stopGuardBattleBgm() async {
+    _battlePlaying = false;
+    _battleWasPlayingBeforeBackground = false;
+    if (_battlePlayer == null) return;
+    try {
+      await _battlePlayer!.stop();
+      await _battlePlayer!.seek(Duration.zero);
+    } catch (_) {
+      // 静默降级。
+    }
+  }
+
+  /// 战斗背景音播放器（懒加载；独立于 BGM / 氛围音 / SFX 三通道）。
+  Future<AudioPlayer?> get _battle async {
+    await _ensureAudioSessionConfigured();
+    _battlePlayer ??= _createBackground();
+    await _clearStaleAssetCacheOnce();
+    return _battlePlayer;
   }
 
   /// 纯函数：氛围音是否需要自愈续播（可单测，headless 测试无音频后端无法造真播放器）。
@@ -1200,12 +1270,14 @@ class AudioService {
       await _sfxPlayer?.dispose();
       await _bgmPlayer?.dispose();
       await _ambientPlayer?.dispose();
+      await _battlePlayer?.dispose();
     } catch (_) {
       // 静默降级。
     }
     _sfxPlayer = null;
     _bgmPlayer = null;
     _ambientPlayer = null;
+    _battlePlayer = null;
     _ambientGeneration++; // F71 v3：作废一切在途氛围音加载/启动
     _bgmPlaying = false;
     _ambientPlaying = false;
@@ -1243,12 +1315,16 @@ class AudioService {
       _sfxPlayer,
       _bgmPlayer,
       _ambientPlayer,
+      _battlePlayer,
     ]) {
       unawaited(_disposeQuietly(p));
     }
     _sfxPlayer = null;
     _bgmPlayer = null;
     _ambientPlayer = null;
+    _battlePlayer = null;
+    _battlePlaying = false;
+    _battleWasPlayingBeforeBackground = false;
     // 2) 与播放器绑定的定时器 / 订阅一并作废（否则它们仍引用旧播放器）。
     _ambientRetryTimer?.cancel();
     _ambientRetryTimer = null;
@@ -1300,8 +1376,10 @@ class AudioService {
     if (_suspendedForBackground) return;
     _suspendedForBackground = true;
     _bgmWasPlayingBeforeBackground = _bgmPlaying;
+    _battleWasPlayingBeforeBackground = _battlePlaying;
     _ambientShouldPlayBeforeBackground = _ambientShouldPlay;
     await stopBgm();
+    await stopGuardBattleBgm();
     await stopGardenAmbient(reason: 'suspend');
   }
 
@@ -1314,6 +1392,12 @@ class AudioService {
     if (_bgmWasPlayingBeforeBackground) {
       _bgmWasPlayingBeforeBackground = false;
       unawaited(startBgm());
+    }
+    if (_battleWasPlayingBeforeBackground) {
+      // 战斗若已结束，`stopGuardBattleBgm` 已清标记；标记还在 = 战场仍持着
+      // （战场 dispose 也会停），安全续播。
+      _battleWasPlayingBeforeBackground = false;
+      unawaited(startGuardBattleBgm());
     }
     if (_ambientShouldPlayBeforeBackground) {
       _ambientShouldPlayBeforeBackground = false;

@@ -520,8 +520,8 @@ void _groupModes() {
 // ═══════════════════════════════════════════════════════════════════════
 
 void _groupFreePath() {
-  group('③ 有能量：文案是「免费」且点击不弹确认卡', () {
-    testWidgets('有 1 次有效专注 ⇒ 卡写「免费」，点击直接进战斗（L4 上屏）',
+  group('③ 有能量：文案是「免费」；B13.7 起点击也弹确认卡（防误操作）', () {
+    testWidgets('有 1 次有效专注 ⇒ 卡写「免费」，点击弹免费确认卡，确认后进战斗（L4 上屏）',
         (WidgetTester tester) async {
       final _Env env = await _makeEnv();
       await _seedPlant(env);
@@ -537,11 +537,16 @@ void _groupFreePath() {
       await _passTutorial(tester);
       await tester.pump();
 
-      // 🔴 关键断言：免费路径**不得**弹确认卡。
+      // 🔴 B13.7（玄参：防误操作）：免费路径**也弹确认卡**，但不提阳光。
       expect(find.text('要花费 $kGuardPayCost 阳光，\n进行花园守卫吗？'), findsNothing,
-          reason: '有能量时点卡必须直接开战，不弹确认卡');
+          reason: '免费路径的确认卡不该出现付费标题');
+      expect(find.text('要派出向日葵战士，\n进行花园守卫吗？'), findsOneWidget,
+          reason: '免费路径弹「派出战士」确认卡');
+      await tester.tap(find.text('确定'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
       expect(find.byKey(GuardBattleField.fieldKey), findsOneWidget,
-          reason: '点击后 L4 战斗层应直接上屏（卡内战斗，v1 浮层已退役）');
+          reason: '确认后 L4 战斗层上屏（卡内战斗，v1 浮层已退役）');
     });
   });
 }

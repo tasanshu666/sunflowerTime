@@ -69,10 +69,16 @@ Set<String> _readMetMonsterIds(SharedPreferences sp) {
 /// [context] 必须在 `MaterialApp` 内（showGeneralDialog 走 navigator）；
 /// l10n 由调用方传入（与 `showGuardResultCard` 同因：弹窗上下文在页级
 /// L10nScope 之外，靠默认值会回落中文）。
+///
+/// [isPremium]（B13.8 能量档位制）：能量点小节正文按权益档位取词 ——
+/// 免费「一天最多 1 个」（[AppLocalizations.guard_intro_energy_body_free]）、
+/// 付费「一天最多 2 个」（[AppLocalizations.guard_intro_energy_body_premium]）。
+/// 缺省 false（免费档），旧调用方零改动。
 Future<void> showGuardIntroDialog(
   BuildContext context,
-  AppLocalizations l10n,
-) {
+  AppLocalizations l10n, {
+  bool isPremium = false,
+}) {
   return showGeneralDialog<void>(
     context: context,
     barrierDismissible: true,
@@ -99,7 +105,7 @@ Future<void> showGuardIntroDialog(
                   ),
                 ],
               ),
-              child: _IntroBody(l10n),
+              child: _IntroBody(l10n, isPremium: isPremium),
             ),
           ),
         ),
@@ -112,7 +118,10 @@ Future<void> showGuardIntroDialog(
 class _IntroBody extends ConsumerStatefulWidget {
   final AppLocalizations l10n;
 
-  const _IntroBody(this.l10n);
+  /// 权益档位（B13.8：能量正文免费 / 付费两套 key，见 [showGuardIntroDialog]）。
+  final bool isPremium;
+
+  const _IntroBody(this.l10n, {this.isPremium = false});
 
   @override
   ConsumerState<_IntroBody> createState() => _IntroBodyState();
@@ -150,11 +159,14 @@ class _IntroBodyState extends ConsumerState<_IntroBody> {
             style: const TextStyle(fontSize: 14, height: 1.5, color: Color(0xFF4A3410)),
           ),
           const SizedBox(height: 14),
-          // ③ 能量点是什么（B13.3：来源 + 没有能量点怎么办）
+          // ③ 能量点是什么（B13.3：来源 + 没有能量点怎么办；🔴 B13.8 档位
+          //    感知 —— 免费「一天最多 1 个」/ 付费「一天最多 2 个」两套 key）。
           _sectionTitle(t.guard_intro_energy_title),
           const SizedBox(height: 6),
           Text(
-            t.guard_intro_energy_body,
+            widget.isPremium
+                ? t.guard_intro_energy_body_premium
+                : t.guard_intro_energy_body_free,
             style: const TextStyle(fontSize: 14, height: 1.5, color: Color(0xFF4A3410)),
           ),
           const SizedBox(height: 14),

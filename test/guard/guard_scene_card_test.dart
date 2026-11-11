@@ -61,6 +61,8 @@ GuardTodayView _view(
   int energy = 0,
   double balance = 0,
   bool tutorialSeen = false,
+  // 🔴 B13.8 能量档位制：档位随快照走（GuardTodayView.isPremium）。
+  bool isPremium = false,
 }) {
   final GuardDayStatus status = switch (mode) {
     GuardPillMode.claimed => GuardDayStatus.claimed,
@@ -79,6 +81,7 @@ GuardTodayView _view(
     ),
     energyAvailable: energy,
     balance: balance,
+    isPremium: isPremium,
   );
 }
 
@@ -269,8 +272,13 @@ void main() {
   group('SC1 卡内六件事与零文本', () {
     testWidgets('待机态：草地板 / 房子 / 战士 / 开始钮 / 语义全在树，卡内零文本',
         (WidgetTester tester) async {
-      await _pumpCard(tester, _view(GuardPillMode.pendingFree, energy: 2),
-          onStart: () {});
+      // 🔴 B13.9：免费档锁标下的小字已删 —— 零文本断言回归**免费档**卡
+      //（第 2 颗只有锁标图标，无任何常驻文本）。
+      await _pumpCard(
+        tester,
+        _view(GuardPillMode.pendingFree, energy: 1),
+        onStart: () {},
+      );
 
       expect(find.byKey(GuardSceneCard.cardKey), findsOneWidget);
       // L1 草地板（占位 = 奶油绿渐变 DecoratedBox）。
@@ -350,6 +358,73 @@ void main() {
       expect(find.byKey(GuardSceneCard.startButtonKey), findsNothing);
       expect(find.text('今日获取阳光'), findsOneWidget,
           reason: '守卫缺席不得连累今日页其余内容');
+    });
+  });
+
+  // ── B13.8 能量档位制（免费 1 颗/天 · 付费 2 颗/天）──────────────────────
+  group('B13.8 能量档位制（免费锁标 / 付费照常）', () {
+    testWidgets('免费档：第 1 颗照常两态，第 2 颗恒锁标（B13.9 小字已删）',
+        (WidgetTester tester) async {
+      await _pumpCard(tester, _view(GuardPillMode.pendingFree, energy: 1));
+
+      // 第 1 颗：攒满 = 金色实心（免费档唯一可点亮的能量点）。
+      final DecoratedBox dot0 = tester.widget<DecoratedBox>(
+        find.descendant(
+          of: find.byKey(GuardSceneCard.energyDotKey(0)),
+          matching: find.byType(DecoratedBox),
+        ),
+      );
+      expect((dot0.decoration as BoxDecoration).color,
+          const Color(0xFFFFC93C), reason: '第 1 颗攒满 = 金色实心');
+
+      // 第 2 颗：锁标（免费档恒锁，cap = kGuardEnergyDailyMaxFree）；
+      // 🔴 B13.9：锁标下不再有「会员双能量」小字（已删，不许回来）。
+      expect(find.byIcon(Icons.lock_rounded), findsOneWidget,
+          reason: '免费档第 2 颗必须显示锁标');
+      expect(find.text('会员双能量'), findsNothing,
+          reason: '🔴 B13.9：小字已删，卡内零文本');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('免费档：点锁标 → 只弹提示卡（C81：无购买入口、不跳转）',
+        (WidgetTester tester) async {
+      await _pumpCard(tester, _view(GuardPillMode.pendingFree, energy: 1));
+
+      await tester.tap(find.byKey(GuardSceneCard.energyDotKey(1)));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byKey(GuardSceneCard.energyLockedHintKey), findsOneWidget,
+          reason: '锁标点按必须弹 C81 提示卡');
+      expect(find.text('完整版每天有 2 颗能量点哦'), findsOneWidget,
+          reason: '提示卡正文 = guard_energy_locked_hint（B13.9 措辞统一完整版）');
+      // 🔴 C81：无购买入口 —— 卡仍在原页（无路由跳转）。
+      expect(find.byKey(GuardSceneCard.cardKey), findsOneWidget);
+
+      await tester.tap(find.text('知道了'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byKey(GuardSceneCard.energyLockedHintKey), findsNothing,
+          reason: '「知道了」可关闭提示卡');
+    });
+
+    testWidgets('完整版档：两颗照常两态（energy 2 ⇒ 两个实心，无锁标）',
+        (WidgetTester tester) async {
+      await _pumpCard(
+        tester,
+        _view(GuardPillMode.pendingFree, energy: 2, isPremium: true),
+      );
+
+      expect(find.byIcon(Icons.lock_rounded), findsNothing,
+          reason: '完整版档不显示锁标');
+      expect(find.text('会员双能量'), findsNothing,
+          reason: '🔴 B13.9：小字已删（墓碑断言，不许回来）');
+      final DecoratedBox dot1 = tester.widget<DecoratedBox>(
+        find.descendant(
+          of: find.byKey(GuardSceneCard.energyDotKey(1)),
+          matching: find.byType(DecoratedBox),
+        ),
+      );
+      expect((dot1.decoration as BoxDecoration).color,
+          const Color(0xFFFFC93C), reason: '会员档第 2 颗可点亮（cap 2）');
     });
   });
 

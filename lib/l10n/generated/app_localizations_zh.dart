@@ -2475,6 +2475,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premium_table_report_premium => '加月 / 年报告 · 热力图';
 
   @override
+  String get premium_table_row_guard => '守卫战卡券掉落';
+
+  @override
+  String premium_table_guard_free(int p) {
+    return '券概率 $p%';
+  }
+
+  @override
+  String premium_table_guard_premium(int d) {
+    return '必掉券 · $d% 概率掉两张';
+  }
+
+  @override
+  String get premium_table_row_energy => '守卫能量点';
+
+  @override
+  String premium_table_energy_free(int p) {
+    return '每天 $p 颗';
+  }
+
+  @override
+  String premium_table_energy_premium(int p) {
+    return '每天 $p 颗（双倍）';
+  }
+
+  @override
   String get premium_table_row_one_click => '花园「一键操作」';
 
   @override
@@ -3598,8 +3624,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guard_intro_energy_title => '能量点是什么';
 
   @override
-  String get guard_intro_energy_body =>
+  String get guard_intro_energy_body_free =>
+      '能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，免费一天最多 1 个。没有能量点也能守卫——花 5 阳光请战士出战就行。';
+
+  @override
+  String get guard_intro_energy_body_premium =>
       '能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，一天最多 2 个。没有能量点也能守卫——花 5 阳光请战士出战就行。';
+
+  @override
+  String get guard_energy_locked_hint => '完整版每天有 2 颗能量点哦';
 
   @override
   String get guard_intro_reward_title => '打赢有什么';
@@ -3688,6 +3721,29 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get guard_confirm_pay_later => '今天不赶了';
+
+  @override
+  String get guard_confirm_free_title => '要派出向日葵战士，\n进行花园守卫吗？';
+
+  @override
+  String get guard_voucher_short_water => '浇水';
+
+  @override
+  String get guard_voucher_short_labor => '除草';
+
+  @override
+  String get guard_voucher_short_fertilize => '施肥';
+
+  @override
+  String get guard_voucher_short_free_water => '免费浇水';
+
+  @override
+  String get guard_voucher_short_free_fertilize => '免费施肥';
+
+  @override
+  String guard_chip_inline_prefix(String action) {
+    return '今日$action';
+  }
 
   @override
   String guard_stolen_today(int n) {

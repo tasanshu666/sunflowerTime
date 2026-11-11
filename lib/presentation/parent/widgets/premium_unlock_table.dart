@@ -11,12 +11,17 @@
 ///  · 权益标识符源码守卫无需为本文件新增白名单条目；
 ///  · 门控判定与展示解耦（对比表**不做**门控判定，只做展示）。
 ///
-/// ## 数据来源（F146 改版：7 行 3 组）
+/// ## 数据来源（F146 改版：7 行 3 组；B13.6 加守卫行 → 8 行；B13.8 加能量行 → 9 行）
 ///  · **行 1「核心体验全免费」**：静态文案（纯描述、无能力键语义，与旧 A 组同机制
 ///    —— 这些能力不在门控矩阵内）+ 核心脚注列举；
 ///  · **行 2–7**：[unlockRowsFor]（读矩阵派生，改矩阵即改表），以
 ///    [kUnlockCapacityRowCount]（= 3，**禁魔法数**）切分为
-///    「买断解锁 · 更大容量」（行 2–4）与「买断解锁 · 进阶能力」（行 5–7）两组。
+///    「买断解锁 · 更大容量」（行 2–4）与「买断解锁 · 进阶能力」（行 5–7）两组；
+///  · **行 8「守卫战卡券掉落」（B13.6）**：组件内静态行（掉落率不是门控键，
+///    数字从 `prd_params` 守卫常量派生，不写死）；
+///  · **行 9「守卫能量点」（B13.8）**：组件内静态行（能量档位不是门控键）——
+///    免费「每天 1 颗」/ 付费「每天 2 颗」，数值从
+///    [kGuardEnergyDailyMaxFree] / [kGuardEnergyDailyMaxPremium] 插值，不写死。
 ///
 /// ## 🔴 合规红线
 /// 只列**真实生效**项；未实现能力一律**不得**写进任何对外文案（Apple 3.1.1 /
@@ -25,6 +30,12 @@ library premium_unlock_table;
 
 import 'package:flutter/material.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart'
+    show
+        kGuardDropDualChance,
+        kGuardDropNothingRateFree,
+        kGuardEnergyDailyMaxFree,
+        kGuardEnergyDailyMaxPremium;
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
@@ -79,6 +90,30 @@ class PremiumUnlockTable extends StatelessWidget {
       _groupBand(t.premium_table_band_advanced, s),
       for (int i = kUnlockCapacityRowCount; i < derived.length; i++)
         ..._derivedRowWidgets(derived[i], s),
+      // 组 3 末尾追加（B13.6）：守卫战掉券行。**组件内静态行**（与行 1 同
+      // 机制）—— 掉落率不在权益矩阵（不是门控键），数字从守卫常量派生
+      // （免费 none=50% ⇒ 券概率 50%；付费 none=0 ⇒ 必掉券；双券 10%），
+      // 改常量即改表、不写死。
+      _dataRow(
+        t.premium_table_row_guard,
+        t.premium_table_guard_free(
+            ((1 - kGuardDropNothingRateFree) * 100).round()),
+        t.premium_table_guard_premium((kGuardDropDualChance * 100).round()),
+        true,
+        s,
+        premiumOk: true,
+      ),
+      // 组 3 末尾追加（B13.8）：守卫能量点行。**组件内静态行**（与守卫行同
+      // 机制）—— 能量档位不在权益矩阵（不是门控键），数字从守卫常量插值
+      // （免费 1 颗/天、付费 2 颗/天），改常量即改表、不写死。
+      _dataRow(
+        t.premium_table_row_energy,
+        t.premium_table_energy_free(kGuardEnergyDailyMaxFree),
+        t.premium_table_energy_premium(kGuardEnergyDailyMaxPremium),
+        true,
+        s,
+        premiumOk: true,
+      ),
     ];
 
     return Container(

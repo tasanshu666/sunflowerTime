@@ -2036,6 +2036,34 @@
   "premium_table_row_report": "Parent focus report",
   "premium_table_report_days": "Last 7 days",
   "premium_table_report_premium": "Adds monthly & yearly reports · heatmap",
+  "premium_table_row_guard": "Guard voucher drops",
+  "@premium_table_row_guard": {},
+  "premium_table_guard_free": "{p}% chance of a voucher",
+  "@premium_table_guard_free": {
+    "placeholders": {
+      "p": { "type": "int" }
+    }
+  },
+  "premium_table_guard_premium": "Always a voucher · {d}% chance of two",
+  "@premium_table_guard_premium": {
+    "placeholders": {
+      "d": { "type": "int" }
+    }
+  },
+  "premium_table_row_energy": "Guard energy beans",
+  "@premium_table_row_energy": {},
+  "premium_table_energy_free": "{p} a day",
+  "@premium_table_energy_free": {
+    "placeholders": {
+      "p": { "type": "int" }
+    }
+  },
+  "premium_table_energy_premium": "{p} a day (double)",
+  "@premium_table_energy_premium": {
+    "placeholders": {
+      "p": { "type": "int" }
+    }
+  },
   "premium_table_row_one_click": "Garden one-tap care",
   "premium_table_row_pots": "Pot capacity",
   "premium_table_row_templates": "Task & reward templates",
@@ -2683,7 +2711,9 @@
   "guard_intro_howto_title": "How to fight",
   "guard_intro_howto_body": "Tap Start Guard to send out the sunflower soldier, then tap the sunlight bubble at the top right to help it fire sun bullets — drive every monster away before it reaches the veggies!",
   "guard_intro_energy_title": "What are energy beans?",
-  "guard_intro_energy_body": "Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 2 a day. No energy beans? You can still guard: spend 5 sunlight to send the soldier out.",
+  "guard_intro_energy_body_free": "Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 1 a day on the free version. No energy beans? You can still guard: spend 5 sunlight to send the soldier out.",
+  "guard_intro_energy_body_premium": "Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 2 a day. No energy beans? You can still guard: spend 5 sunlight to send the soldier out.",
+  "guard_energy_locked_hint": "Up to 2 energy beans a day with the full version!",
   "guard_intro_reward_title": "What you earn",
   "guard_intro_reward_body": "Drive the monsters away to earn sunlight — and with a bit of luck, garden vouchers drop at random (watering vouchers, fertilizer vouchers…), helping you care for your garden even better.",
   "guard_intro_risk_title": "What if I skip today?",
@@ -2710,6 +2740,23 @@
   "guard_intro_desc_sneakthief": "Steals both sunlight and growth — the fiercest!",
   "guard_confirm_pay_title": "Spend {cost} sunlight to start the garden guard?",
   "guard_confirm_pay_later": "Not today",
+  "guard_confirm_free_title": "Send out the sunflower soldier to guard the garden?",
+  "@guard_confirm_free_title": {
+      "description": "Energy-path confirm card title (B13.7: confirm even on the free path to prevent mis-taps; no sunlight involved)"
+  },
+  "guard_voucher_short_water": "Water",
+  "guard_voucher_short_labor": "Weeding",
+  "guard_voucher_short_fertilize": "Feed",
+  "guard_voucher_short_free_water": "Free water",
+  "guard_voucher_short_free_fertilize": "Free feed",
+  "guard_chip_inline_prefix": "Today: {action}",
+  "@guard_chip_inline_prefix": {
+      "placeholders": {
+          "action": {
+              "type": "String"
+          }
+      }
+  },
   "guard_stolen_today": "{n} points of growth were stolen last night",
   "guard_result_collect": "Collect"
 }

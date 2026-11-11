@@ -57,6 +57,8 @@ import 'package:sunflower_time/domain/services/guard_battle_sim.dart'
     show GuardBattlePhase, GuardBattleScript, GuardBattleSnapshot;
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
+import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart'
+    show GoldNoticeItem, showGoldNoticeDialog;
 import 'package:sunflower_time/presentation/child/widgets/guard_art.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_card_layout.dart';
@@ -98,7 +100,16 @@ class GuardSceneCard extends StatefulWidget {
   ///    .properties.label`
   static const Key statusSemanticsKey = Key('guardSceneStatusSemantics');
 
+  /// 免费档「第 2 颗能量点」锁标点按弹出的**提示卡** Key（B13.8，C81 模式：
+  /// 只提示、不跳转 —— 孩子端无购买入口）。widget 测试断言用。
+  static const Key energyLockedHintKey = Key('guardEnergyLockedHint');
+
   /// 当前守卫快照（由页面 `ref.watch(guardTodayProvider)` 传入）。
+  ///
+  /// 🔴 B13.8 能量档位制：档位从 [GuardTodayView.isPremium] 读（领域层单点
+  /// 透传，表现层不摸权益 provider）。免费档（false）：第 1 颗照常（攒满 /
+  /// 未攒满态），第 2 颗恒显示**锁标**（不可点亮），点按弹 C81 提示
+  /// 卡（B13.9：锁标下的小字已删 —— 卡内回归零文本）；付费档（true）：两颗都照常。
   final GuardTodayView view;
 
   /// 「开始守卫」回调；为 null 或 [GuardTodayView.isActionable] 为 false 时不可点。
@@ -223,7 +234,11 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                     label: t.guard_intro_open,
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () => showGuardIntroDialog(context, t),
+                      onTap: () => showGuardIntroDialog(
+                        context,
+                        t,
+                        isPremium: widget.view.isPremium,
+                      ),
                       child: const _HouseSlot(key: GuardSceneCard.houseKey),
                     ),
                   ),
@@ -232,14 +247,26 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                 // ── 能量点 ×2（B8 回归：房子右侧 / 栅栏上方，亮·灭两态）───
                 // 位置由 layout 算，垂直**不越出房顶一个直径** ⇒ 不需要额外
                 // 顶部空间（这也是卡高能压到 108 的原因）。
+                // 🔴 B13.8 档位制：免费档第 2 颗恒显示**锁标**（不可点亮），
+                //    点按弹 C81 提示卡（无购买入口）；付费档两颗照常亮/灭。
+                //    🔴 B13.9：锁标下的小字已删（玄参「第二个能量锁上就可以了」）
+                //    —— 卡内回归零文本，措辞统一「完整版」口径。
                 for (int i = 0; i < 2; i++)
                   Positioned.fromRect(
                     rect: layout.energyDotRect(i),
                     child: _EnergyDot(
                       key: GuardSceneCard.energyDotKey(i),
-                      lit: i < view.energyAvailable,
+                      lit: !widget.view.isPremium
+                          ? (i == 0 && view.energyAvailable >= 1)
+                          : i < view.energyAvailable,
+                      locked: !widget.view.isPremium && i == 1,
+                      onTap: (!widget.view.isPremium && i == 1)
+                          ? () => _showEnergyLockedHint(t)
+                          : null,
                     ),
                   ),
+                // （B13.9：原「会员双能量」小字已删 —— 卡内零文本纪律恢复，
+                //    v3 零文本守卫不再豁免。）
 
                 // ── L3 战士（B7 常驻 + B8 挪到栅栏外 + B9 裁边后放大）──────
                 // 🔴 B9/C2：`soldierRect` 是 **78×78 的布局框**（跑道按它算，
@@ -324,6 +351,27 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
           },
         ),
       ),
+    );
+  }
+
+  // ── 能量档位提示卡（B13.8 / C81 模式）─────────────────────────────────
+
+  /// 免费档点锁标能量点 → 弹「完整版每天 2 颗能量点」提示卡（B13.9 措辞统一：
+  /// 项目标准口径是**完整版**，不叫会员）。
+  ///
+  /// 🔴 C81 纪律：**只提示、不跳转** —— 孩子端零购买入口（T12 源码守卫钉死，
+  /// 本文件连购买页路由字符串都不能出现）。走孩子端统一通知卡壳
+  /// `GoldNoticeDialog`（与详情卡锁标提示卡同一先例：锁标徽 + 一句正文、
+  /// 没有标题）；文案由本卡（L10nScope 之内）取好传入，`confirmLabel`
+  /// 显式传（F157 纪律）。
+  void _showEnergyLockedHint(AppLocalizations t) {
+    showGoldNoticeDialog(
+      context,
+      dialogKey: GuardSceneCard.energyLockedHintKey,
+      badgeIcon: Icons.lock,
+      items: const <GoldNoticeItem>[],
+      footerText: t.guard_energy_locked_hint,
+      confirmLabel: t.prd_level_detail_ok,
     );
   }
 
@@ -485,17 +533,32 @@ class _HouseSlot extends StatelessWidget {
 
 /// 能量点（B8 回归）：两态圆点 —— 亮 = 金色实心 + 深金描边，灭 = 空心灰环。
 ///
-/// 🔴 为什么用 `Container` 而不是 `Icon`/`Text`：卡内**零文本**的护栏要求
-/// 卡面不出现任何 `Text`（大字号撑破卡的唯一入口）；圆点是纯色块，天然免疫。
+/// 🔴 B13.8 档位制：[locked] = 免费档的第 2 颗 —— 灰环上叠**锁标**，可点
+/// （弹 C81 提示卡）；其余两态不可点。
+///
+/// 🔴 为什么圆点本体用 `Container` 而不是 `Icon`/`Text`：卡内文本护栏要求
+/// 圆点本身不出现 `Text`（大字号撑破卡的唯一入口）；锁标是图标 + 圆点是
+/// 纯色块，天然免疫（免费档小字在外层 Positioned 单独渲染）。
 class _EnergyDot extends StatelessWidget {
-  const _EnergyDot({super.key, required this.lit});
+  const _EnergyDot({
+    super.key,
+    required this.lit,
+    this.locked = false,
+    this.onTap,
+  });
 
-  /// 是否点亮（`index < view.energyAvailable`）。
+  /// 是否点亮（免费档 = 第 1 颗攒满；付费档 = `index < energyAvailable`）。
   final bool lit;
+
+  /// 锁标态（B13.8：免费档第 2 颗；灰环 + 🔒，可点）。
+  final bool locked;
+
+  /// 点按回调（仅锁标态非 null）。
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    Widget dot = DecoratedBox(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: lit ? const Color(0xFFFFC93C) : const Color(0x00000000),
@@ -509,7 +572,29 @@ class _EnergyDot extends StatelessWidget {
               ]
             : null,
       ),
+      child: locked
+          ? const Center(
+              child: Icon(
+                Icons.lock_rounded,
+                size: 9,
+                color: Color(0xFF8A7A66),
+              ),
+            )
+          : null,
     );
+    if (onTap != null) {
+      // 锁标态可点（C81 ①：只弹提示卡）；热区即整个点槽位。
+      dot = Semantics(
+        button: true,
+        enabled: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: dot,
+        ),
+      );
+    }
+    return dot;
   }
 }
 

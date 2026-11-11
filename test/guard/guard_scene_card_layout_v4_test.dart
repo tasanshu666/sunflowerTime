@@ -37,7 +37,7 @@ import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart'
 // 夹具
 // ═══════════════════════════════════════════════════════════════════════
 
-GuardTodayView _view(GuardPillMode mode, {int energy = 2}) {
+GuardTodayView _view(GuardPillMode mode, {int energy = 2, bool isPremium = false}) {
   final GuardDayStatus status = switch (mode) {
     GuardPillMode.claimed => GuardDayStatus.claimed,
     GuardPillMode.fighting => GuardDayStatus.fighting,
@@ -54,6 +54,7 @@ GuardTodayView _view(GuardPillMode mode, {int energy = 2}) {
     ),
     energyAvailable: energy,
     balance: 0,
+    isPremium: isPremium,
   );
 }
 
@@ -63,6 +64,8 @@ Future<void> _pumpCard(
   double screenWidth = 390,
   GuardPillMode mode = GuardPillMode.pendingFree,
   int energy = 2,
+  // 🔴 B13.8 能量档位制：缺省 false（免费档，第 2 颗恒锁标）。
+  bool isPremium = false,
 }) async {
   tester.view.physicalSize = Size(screenWidth, 900);
   tester.view.devicePixelRatio = 1.0;
@@ -83,7 +86,7 @@ Future<void> _pumpCard(
           child: SizedBox(
             width: cardWidth,
             child: GuardSceneCard(
-              view: _view(mode, energy: energy),
+              view: _view(mode, energy: energy, isPremium: isPremium),
               dayKey: '2026-11-10',
               childId: 'seed-0',
               onStart: () {},
@@ -273,7 +276,7 @@ void main() {
           reason: '🔴 能量点锚点是**房子中轴**，不是战士头顶');
     });
 
-    testWidgets('亮/灭两态：energyAvailable 2 ⇒ 两个实心；0 ⇒ 两个空心',
+    testWidgets('亮/灭两态（会员档）：energyAvailable 2 ⇒ 两个实心；0 ⇒ 两个空心',
         (WidgetTester tester) async {
       Color dotColor(WidgetTester t, int i) {
         final DecoratedBox box = t.widget<DecoratedBox>(
@@ -285,15 +288,17 @@ void main() {
         return (box.decoration as BoxDecoration).color!;
       }
 
-      await _pumpCard(tester, cardWidth: 390, energy: 2);
+      // 🔴 B13.8：两颗都可点亮是**会员档**口径（免费档第 2 颗恒锁标，
+      // 见 guard_scene_card_test 的 B13.8 专项组）。
+      await _pumpCard(tester, cardWidth: 390, energy: 2, isPremium: true);
       expect(dotColor(tester, 0), const Color(0xFFFFC93C), reason: '🔴 点亮 = 金色');
       expect(dotColor(tester, 1), const Color(0xFFFFC93C));
 
-      await _pumpCard(tester, cardWidth: 390, energy: 1);
+      await _pumpCard(tester, cardWidth: 390, energy: 1, isPremium: true);
       expect(dotColor(tester, 0), const Color(0xFFFFC93C), reason: '只有点 0 亮');
       expect(dotColor(tester, 1), const Color(0x00000000), reason: '点 1 灭了');
 
-      await _pumpCard(tester, cardWidth: 390, energy: 0);
+      await _pumpCard(tester, cardWidth: 390, energy: 0, isPremium: true);
       expect(dotColor(tester, 0), const Color(0x00000000));
       expect(dotColor(tester, 1), const Color(0x00000000));
     });

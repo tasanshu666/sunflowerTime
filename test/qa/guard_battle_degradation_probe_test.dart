@@ -270,6 +270,11 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       }
       await tester.tap(find.byKey(kGuardTutorialOkKey), warnIfMissed: false);
+      // 🔴 B13.7：免费路径也弹确认卡（防误操作）⇒ 点「确定」后战斗才上屏。
+      await tester.pump(const Duration(milliseconds: 100));
+      if (find.text('确定').evaluate().isNotEmpty) {
+        await tester.tap(find.text('确定'), warnIfMissed: false);
+      }
       // 🔴 markTutorialSeen 写失败被服务层吞掉 ⇒ 链路不阻断：L4 战斗层照常上屏。
       await _pumpUntil(tester, find.byKey(GuardBattleField.fieldKey));
       if (find.byKey(GuardBattleField.fieldKey).evaluate().isEmpty) {

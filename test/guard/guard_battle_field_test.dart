@@ -463,17 +463,12 @@ Future<void> _passTutorial(WidgetTester tester) async {
 /// 进战斗并推进到「L4 已挂载、ticker 从 0 起跑」的干净基线
 /// （挂载帧不推进 sim 时间 ⇒ 之后的 pump 差值 = sim 时间轴）。
 ///
-/// [paid] = 走付费路径（确认卡「确定」）；否则免费路径直达。
-Future<void> _startBattle(
-  WidgetTester tester, {
-  bool paid = false,
-}) async {
+/// 🔴 B13.7：免费路径**也弹确认卡**（玄参：防误操作）⇒ 两条路径都要点「确定」。
+Future<void> _startBattle(WidgetTester tester) async {
   await tester.tap(find.byKey(GuardSceneCard.startButtonKey));
   await _passTutorial(tester);
-  if (paid) {
-    await tester.tap(find.text('确定')); // 确认卡主按钮（shared_ok）
-    await _settleRoute(tester);
-  }
+  await tester.tap(find.text('确定')); // 确认卡主按钮（shared_ok，两路径通用）
+  await _settleRoute(tester);
   // handler 的 microtask 收尾（markFighting / provider 翻转）。
   await tester.pump(const Duration(milliseconds: 50));
   // L4 挂载帧（ticker 自本帧起，elapsed = 0）。
@@ -835,7 +830,7 @@ void main() {
       await _seedPlant(env);
       await _seedBalance(env, 100);
       await _pumpToday(tester, env);
-      await _startBattle(tester, paid: true);
+      await _startBattle(tester);
 
       await tester.pump(const Duration(seconds: 31));
       await _pumpUntil(tester, find.byKey(GuardBattleField.bannerKey));

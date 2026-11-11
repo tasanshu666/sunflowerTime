@@ -39,6 +39,9 @@
 /// `l10nOf(context)`（裸测试宿主自动回落 zh，与场景卡同口径）。
 library guard_battle_field;
 
+import 'dart:async' show unawaited;
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -49,10 +52,12 @@ import 'package:sunflower_time/core/constants/prd_params.dart'
         kGuardDeathFleePt,
         kGuardDeathFleeRunMs,
         kGuardEndBannerDwellMs,
-        kGuardMissFxMs;
+        kGuardMissFxMs,
+        kGuardSunDropFxMs;
 import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_art.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_card_layout.dart';
 
@@ -100,6 +105,13 @@ class GuardBattleField extends StatefulWidget {
   /// ⇒ 断言「死亡后 200ms 起 opacity 单调不增、800ms 时 ≈0 且节点消失」。
   static Key deathFadeKey(int monsterIndex) =>
       Key('guardBattleDeathFade$monsterIndex');
+
+  /// 第 [monsterIndex] 只怪击杀掉落的**阳光精灵** Key（B13.8）。
+  ///
+  /// 测试读法：kill 后它应在树（[kGuardSunDropFxMs] 内），之后摘除：
+  /// `find.byKey(GuardBattleField.sunDropKey(i))` 先 findsOneWidget 再 findsNothing。
+  static Key sunDropKey(int monsterIndex) =>
+      Key('guardBattleSunDrop$monsterIndex');
 
   /// 战局归属的自然日（sim seed 入参；页面传当日 `dayKey`）。
   final String dayKey;
@@ -199,6 +211,16 @@ class _GuardBattleFieldState extends State<GuardBattleField>
   /// 不清理（一场最多 5 只）；重开战局时随 [_restartBattle] 清空。
   final Map<int, int> _deaths = <int, int>{};
 
+  /// 击杀掉落的「阳光精灵」列表（B13.8：kill 事件 → 怪位置冒一颗阳光，
+  /// [kGuardSunDropFxMs] 内下落 + 漂移 + 淡出后摘除）。
+  ///
+  /// 🔴 **纯渲染层**，与 [_deaths] 同一纪律：sim / 结算 / 确定性**零感知**。
+  /// 🔴 随机漂移量的 `math.Random()` 只允许活在本 Fx 层 —— 绝不进 sim / 领域层。
+  final List<_SunDropFx> _sunDrops = <_SunDropFx>[];
+
+  /// 阳光精灵漂移量的随机源（仅 Fx 层消费；影响演出轨迹，不影响战局）。
+  final math.Random _fxRandom = math.Random();
+
   /// 终局后「死亡演出补时」的起点（原始 ticker ms；null = 不在补时期）。
   ///
   /// ## 🔴 B10/D1：为什么终局后 ticker 还得活着
@@ -229,6 +251,11 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     widget.handle._over = false;
     _ticker = createTicker(_onTick);
     _ticker.start();
+    // 🔴 B13.6（玄参交付「进攻音效」，B13.7 重制）：战斗开始 → 播放战斗
+    // 背景音（**只播一遍**，不循环）。独立战斗通道（与花园氛围音 / SFX 互
+    // 不打断）；headless 测试无声频后端 ⇒ AudioService 静默降级，零感知。
+    // 战斗结束 / dispose 由本层负责停。
+    unawaited(AudioService.instance.startGuardBattleBgm());
   }
 
   /// 按当前 widget 配置构造 sim（initState 与 [`_restartBattle`] 共用）。
@@ -285,6 +312,7 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     _pendingFires.clear();
     _misses.clear();
     _deaths.clear();
+    _sunDrops.clear();
     _endHandled = false;
     // ③ 时间锚点归零（stop→start 后 ticker 从 0 起算，见 Ticker.start）。
     _simZeroMs = 0;
@@ -306,6 +334,9 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     // 🔴 B7：开火入口已搬到卡外的阳光胶囊 —— 战斗层卸载后（如切到 claimed）
     // 手柄必须**断开**，否则一次误触会让已 dispose 的 State 收到 fire。
     widget.handle._fire = null;
+    // 🔴 B13.6：战斗层卸载（战局结束交回 / 换卡）→ 战斗背景音必须停，
+    // 否则底噪会漏到结算卡甚至花园页（BGM 泄漏 = 玄参抓过的同类问题）。
+    unawaited(AudioService.instance.stopGuardBattleBgm());
     _ticker.dispose();
     super.dispose();
   }
@@ -346,6 +377,7 @@ class _GuardBattleFieldState extends State<GuardBattleField>
         _postEndFxElapsedMs = endRaw - startRaw;
         _ticker.stop();
       }
+      _pruneSunDrops();
       if (mounted) setState(() {});
       return;
     }
@@ -357,10 +389,15 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     _snap = _sim.snapshot();
     _collectMissFx(report);
     _collectDeathFx(report);
+    _collectSunDropFx(report);
+    _playHitSfx(report);
+    _pruneSunDrops();
     widget.onSnapshot?.call(_snap);
     if (_sim.isOver && !_endHandled) {
       _endHandled = true;
       widget.handle._over = true;
+      // 🔴 B13.6：战局收场 → 战斗背景音即刻停（横幅/补时期间不再有底噪）。
+      unawaited(AudioService.instance.stopGuardBattleBgm());
       // 被偷合计在**调度时**定格（战局已冻结，之后 step 也逐位不变；
       // 显式取值避免延迟回调里再读可变字段）。
       final int stolenSun = _sim.stolenSun;
@@ -432,6 +469,25 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     }
   }
 
+  /// 把本步的 `hit` / `kill` 事件翻译成**击中音效**（B13.6 玄参交付口径：
+  /// 「击中音效只有在真正打中小怪的时候响应，miss 的时候不播放」）。
+  ///
+  /// · `hit`（命中未击灭）与 `kill`（击灭）都算「真打中」⇒ 播；
+  /// · `dodge`（闪避 = MISS）**绝不播**；
+  /// · 同一步多只怪同时被命中 ⇒ 只播一次（共享 SFX 播放器，多播也只是互掐）；
+  /// · 音频失败静默降级（AudioService 既有口径），绝不影响战局确定性 ——
+  ///   本方法**只读事件**，不碰 sim 状态。
+  void _playHitSfx(GuardBattleStepReport report) {
+    for (final GuardBattleEvent e in report.events) {
+      if (e.type == GuardBattleEventType.hit ||
+          e.type == GuardBattleEventType.kill) {
+        // B13.7：音量 0.25（玄参「声音有点大，稍微有个声音能听见就行」）。
+        AudioService.instance.playSfx(AudioCue.guardHit, volume: 0.25);
+        return;
+      }
+    }
+  }
+
   /// 把本步的 `kill` 事件记成死亡时刻（B9/D1 逃跑演出的**唯一输入**）。
   ///
   /// 用事件自带的 `tMs`（sim 时间轴，精确到毫秒）而不是「当前快照时刻」：
@@ -443,6 +499,48 @@ class _GuardBattleFieldState extends State<GuardBattleField>
       if (e.monsterIndex < 0) continue;
       _deaths.putIfAbsent(e.monsterIndex, () => e.tMs);
     }
+  }
+
+  /// 把本步的 `kill` 事件翻译成**阳光掉落 VFX**（B13.8，玄参提案拍板）。
+  ///
+  /// 与 [_collectDeathFx] 读同一批 kill 事件，但只追加渲染记录：在怪的
+  /// **当前位置**（事件只带 index 不带坐标，同 MISS 的做法取快照）冒一颗
+  /// 阳光精灵，[kGuardSunDropFxMs] 内下落 + 随机漂移 + 淡出后摘除。
+  ///
+  /// 🔴 **零确定性破口**：sim 事件流 / 结算 / seed 一个字节不动；随机量
+  /// （漂移方向）只影响演出，`math.Random()` 只活在本 Fx 层。
+  /// `putIfAbsent` 语义：同一只怪只掉一颗（重复 kill 不重复生成）。
+  void _collectSunDropFx(GuardBattleStepReport report) {
+    for (final GuardBattleEvent e in report.events) {
+      if (e.type != GuardBattleEventType.kill) continue;
+      if (e.monsterIndex < 0) continue;
+      final bool already = _sunDrops.any(
+        (_SunDropFx s) => s.monsterIndex == e.monsterIndex,
+      );
+      if (already) continue;
+      GuardBattleMonsterSnapshot? target;
+      for (final GuardBattleMonsterSnapshot m in _snap.monsters) {
+        if (m.index == e.monsterIndex) {
+          target = m;
+          break;
+        }
+      }
+      if (target == null) continue;
+      _sunDrops.add(_SunDropFx(
+        monsterIndex: e.monsterIndex,
+        startMs: e.tMs,
+        x: target.x,
+        y: target.y,
+        // 随机漂移：±12pt（仅演出；Random 只在 Fx 层，不进 sim/领域层）。
+        driftDx: _fxRandom.nextDouble() * 24 - 12,
+      ));
+    }
+  }
+
+  /// 清掉已播完（过期）的阳光精灵（与 [_misses] 同一清理口径）。
+  void _pruneSunDrops() {
+    _sunDrops.removeWhere(
+        (_SunDropFx s) => fxClockMs - s.startMs >= kGuardSunDropFxMs);
   }
 
   @override
@@ -472,6 +570,9 @@ class _GuardBattleFieldState extends State<GuardBattleField>
 
             // ── 「MISS」打击反馈（B8：闪避要有表现）────────────────────────
             for (final _MissFx miss in _misses) _missFx(layout, miss),
+
+            // ── 击杀掉落的阳光精灵（B13.8：下落 + 漂移 + 淡出，纯演出）──────
+            for (final _SunDropFx s in _sunDrops) _sunDropFx(layout, s),
 
             // ── 在飞子弹（同一把尺子 ⇒ 方向自动镜像：怪在右就往右飞）──────
             for (final GuardBattleBulletSnapshot b in _snap.bullets)
@@ -648,6 +749,44 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     );
   }
 
+  /// 单个**阳光掉落 VFX** 的渲染（B13.8：下落 + 随机漂移 + 淡出）。
+  ///
+  /// 轨迹全部由 `fxClockMs − startMs` 推导（与死亡演出同一口径，确定性友好）：
+  /// * y 随 `t` 线性**下落** 26pt；
+  /// * x 随 `t` 线性漂移（±12pt，生成时由 [_fxRandom] 抽定）；
+  /// * opacity 1 → 0；[kGuardSunDropFxMs](700ms) 到点返回零尺寸占位
+  ///   （由 [_pruneSunDrops] 在 tick 里摘除记录）。
+  ///
+  /// 素材复用既有 `assets/rewards/sunlight.png`；缺失回退零尺寸，不 crash。
+  Widget _sunDropFx(GuardCardLayout layout, _SunDropFx s) {
+    final int ageMs = fxClockMs - s.startMs;
+    if (ageMs < 0 || ageMs >= kGuardSunDropFxMs) {
+      return const SizedBox.shrink();
+    }
+    final double t =
+        (ageMs / kGuardSunDropFxMs).clamp(0.0, 1.0).toDouble();
+    const double size = 18;
+    return Positioned(
+      key: GuardBattleField.sunDropKey(s.monsterIndex),
+      left: layout.mapMonsterX(s.x) - size / 2 + s.driftDx * t,
+      top: layout.mapMonsterY(s.y) + 26 * t,
+      width: size,
+      height: size,
+      child: IgnorePointer(
+        child: Opacity(
+          opacity: (1.0 - t).clamp(0.0, 1.0),
+          child: Image.asset(
+            'assets/rewards/sunlight.png',
+            fit: BoxFit.contain,
+            errorBuilder:
+                (BuildContext context, Object error, StackTrace? stackTrace) =>
+                    const SizedBox.shrink(),
+          ),
+        ),
+      ),
+    );
+  }
+
   static GuardBattleMonsterKind _kindOf(String kindId) {
     return GuardBattleMonsterKind.values.firstWhere(
       (GuardBattleMonsterKind k) => k.id == kindId,
@@ -678,4 +817,33 @@ class _MissFx {
 
   /// 闪避发生时的 sim y（pt）。
   final double y;
+}
+
+/// 一颗正在播放的**击杀掉落阳光**精灵（[kGuardSunDropFxMs] 后摘除）。
+///
+/// 只存呈现所需的五件事：哪只怪、什么时候开始、当时它站在哪、漂移方向。
+/// 位置在 kill 发生那一刻定格 —— 演出不跟着后续帧抖动（与 [_MissFx] 同因）。
+class _SunDropFx {
+  _SunDropFx({
+    required this.monsterIndex,
+    required this.startMs,
+    required this.x,
+    required this.y,
+    required this.driftDx,
+  });
+
+  /// 怪序号（同一只怪只掉一颗；重开战局随列表清空）。
+  final int monsterIndex;
+
+  /// 开始时刻 = kill 事件的 `tMs`（战局时间轴 ms，逐位可复现）。
+  final int startMs;
+
+  /// 击杀发生时的怪 sim x（pt）。
+  final double x;
+
+  /// 击杀发生时的怪 sim y（pt）。
+  final double y;
+
+  /// 横向漂移总量（pt；生成时由 Fx 层 `math.Random()` 抽定的 ±12）。
+  final double driftDx;
 }

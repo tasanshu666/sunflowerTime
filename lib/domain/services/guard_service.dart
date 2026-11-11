@@ -83,6 +83,7 @@ class GuardResolveResult {
     required this.state,
     required this.energyAvailable,
     required this.balance,
+    this.isPremium = false,
     this.needsExpire = false,
   });
 
@@ -103,11 +104,18 @@ class GuardResolveResult {
   /// 已落盘（或读回）的当日状态。
   final GuardDayState state;
 
-  /// 本次判定时剩余能量（0..[kGuardEnergyDailyMax]）。
+  /// 本次判定时剩余能量（免费 0..[kGuardEnergyDailyMaxFree]、付费
+  /// 0..[kGuardEnergyDailyMaxPremium]）。
   final int energyAvailable;
 
   /// 本次判定时的余额。
   final double balance;
+
+  /// 本次判定时的权益档位（🔴 B13.8 能量档位制：免费 cap 1 / 会员 cap 2）。
+  ///
+  /// 由领域层单点给出（`_premium`）—— 表现层（尤其孩子端页面）**不得**直接
+  /// 摸权益 provider（权益标识符白名单守卫钉死），统一经本字段透传 UI。
+  final bool isPremium;
 
   /// 🔴 昨天还有一条**未结算**的存档：本次 `resolve()` **拒绝覆盖**它。
   ///
@@ -169,6 +177,7 @@ class GuardClaimOutcome {
     required this.energyAvailable,
     required this.balance,
     required this.state,
+    this.isPremium = false,
   });
 
   /// 是否领取成功（`alreadyClaimed` 也算「现在这张券/这份阳光已经是你的了」）。
@@ -209,6 +218,10 @@ class GuardClaimOutcome {
 
   /// 领取后的当日状态。
   final GuardDayState state;
+
+  /// 本次领取时的权益档位（🔴 B13.8：经领域层单点透传 UI，见
+  /// [GuardResolveResult.isPremium] 的说明）。
+  final bool isPremium;
 }
 
 /// [GuardService.expire] 的结果。
@@ -293,9 +306,11 @@ class GuardService {
   // 一、能量（从专注派生，零新表）
   // ═══════════════════════════════════════════════════════════════════════
 
-  /// 今天还能用几发能量（0..[kGuardEnergyDailyMax]）。
+  /// 今天还能用几发能量（免费 0..[kGuardEnergyDailyMaxFree]、
+  /// 付费 0..[kGuardEnergyDailyMaxPremium]）。
   ///
-  /// `可用 = clamp(今日有效专注次数 × kGuardEnergyPerFocus, 0, 2) − 今日已消耗`
+  /// `可用 = clamp(今日有效专注次数 × kGuardEnergyPerFocus, 0, 档位上限) − 今日已消耗`
+  ///（上限按权益档位取：免费 [kGuardEnergyDailyMaxFree] / 会员 [kGuardEnergyDailyMaxPremium]）。
   ///
   /// 🔴 「有效专注」走 `focus_validity.dart` 的单一真源（[isValidFocusSession]），
   /// **绝不**用 `sessions.length`：后者包含「点开 3 分钟就退出」的会话，
@@ -309,13 +324,18 @@ class GuardService {
     return left > 0 ? left : 0;
   }
 
+  /// 当前权益档位的每日能量上限（免费 1 / 会员 2，B13.8 档位制）。
+  int get _energyDailyCap =>
+      _premium ? kGuardEnergyDailyMaxPremium : kGuardEnergyDailyMaxFree;
+
   /// 某个自然日**赚到**的能量（不含消耗；用于 `energyAvailable` 与跨天结算）。
   Future<int> _energyEarnedOn(String dayKeyValue) async {
     final List<FocusSession> sessions =
         await _focus.sessionsOfDay(dayKeyValue);
     final int valid = validFocusSessionsOf(sessions).length;
     final int earned = valid * kGuardEnergyPerFocus;
-    return earned > kGuardEnergyDailyMax ? kGuardEnergyDailyMax : earned;
+    final int cap = _energyDailyCap;
+    return earned > cap ? cap : earned;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -364,6 +384,7 @@ class GuardService {
         state: stored,
         energyAvailable: staleEnergy,
         balance: staleBalance,
+        isPremium: _premium,
         needsExpire: true,
       );
     }
@@ -382,6 +403,7 @@ class GuardService {
         state: stored,
         energyAvailable: energy,
         balance: balance,
+        isPremium: _premium,
       );
     }
 
@@ -401,6 +423,7 @@ class GuardService {
         state: empty,
         energyAvailable: energy,
         balance: balance,
+        isPremium: _premium,
       );
     }
 
@@ -446,6 +469,7 @@ class GuardService {
       state: next,
       energyAvailable: energy,
       balance: balance,
+      isPremium: _premium,
     );
   }
 
@@ -668,6 +692,7 @@ class GuardService {
       energyAvailable: energyAfter,
       balance: await _ledger.balance(),
       state: next,
+      isPremium: _premium,
     );
   }
 
@@ -899,8 +924,9 @@ class GuardService {
   ///
   /// 🔴 **仅 kDebugMode 使用，生产路径不得调用。**
   ///
-  /// 实现口径：把「已用能量」直接设成今天**赚到的总量**（[kGuardEnergyDailyMax]
-  /// 封顶后的值），于是 `可用 = earned − used = 0`，与「连续用光两次能量」等价，
+  /// 实现口径：把「已用能量」直接设成今天**赚到的总量**（档位上限
+  /// [kGuardEnergyDailyMaxFree] / [kGuardEnergyDailyMaxPremium] 封顶后的值），
+  /// 于是 `可用 = earned − used = 0`，与「连续用光两次能量」等价，
   /// 不新增任何字段。今天的存档不存在时以空白状态为底（只写 `energyUsed`）。
   ///
   /// 不抛异常：写失败一律吞掉。
@@ -1181,6 +1207,7 @@ class GuardService {
       energyAvailable: energy,
       balance: balance,
       state: state,
+      isPremium: _premium,
     );
   }
 
@@ -1202,6 +1229,7 @@ class GuardService {
       energyAvailable: energy,
       balance: balance,
       state: state,
+      isPremium: _premium,
     );
   }
 }

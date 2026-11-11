@@ -417,14 +417,21 @@ void main() {
       expect(find.byKey(GuardSceneCard.energyDotKey(0)), findsOneWidget);
       expect(find.byKey(GuardSceneCard.energyDotKey(1)), findsOneWidget);
       // 卡内零状态文本 ⇒ 状态条幅 / −5 ☀ 尾标都无处可渲染。
+      // 🔴 B13.9：免费档锁标下的小字已删 —— 零文本豁免撤销，卡内零 Text
+      // 纪律恢复（战斗演出 MISS 只在 dodge 事件后出现 600ms）。
       expect(
-        find.descendant(
-          of: find.byKey(GuardSceneCard.cardKey),
-          matching: find.byType(Text),
-        ),
-        findsNothing,
-        reason: '🔴 状态信息只保留在 Semantics.label（战斗演出 MISS 除外，'
-            '它只在 dodge 事件后出现 600ms）',
+        tester
+            .widgetList<Text>(
+              find.descendant(
+                of: find.byKey(GuardSceneCard.cardKey),
+                matching: find.byType(Text),
+              ),
+            )
+            .map((Text t) => t.data ?? '')
+            .toSet(),
+        isEmpty,
+        reason: '🔴 状态信息只保留在 Semantics.label（B13.9 豁免撤销；'
+            '战斗演出 MISS 只在 dodge 事件后出现 600ms）',
       );
     });
   });

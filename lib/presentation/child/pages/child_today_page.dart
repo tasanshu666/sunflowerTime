@@ -431,14 +431,24 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         if (!mounted) return;
       }
 
-      // ① 付费路径**先弹确认卡**（PRD：孩子必须知道这一下要花 5 ☀）。
-      //    有能量的免费路径**不弹**（直接开战）—— 不花钱的动作不需要二次确认。
+      // ① **两条路径都先弹确认卡**（B13.7 玄参：「在有能量的情况下，点击开始
+      //    战斗按钮，也需要弹出确认卡片，防止误操作」）：
+      //    · 付费路径：标题带花费（原口径）；
+      //    · 能量路径：不提阳光（不花钱），只问「要派出战士吗」。
       if (view.needsPayConfirm) {
         final bool? confirmed = await showChildConfirmCard(
           context: context,
           title: t.guard_confirm_pay_title(kGuardPayCost),
           confirmLabel: t.shared_ok,
           // 🔴 必须显式传：弹窗上下文在页级 L10nScope 之外，靠默认值会回落中文。
+          cancelLabel: t.guard_confirm_pay_later,
+        );
+        if (confirmed != true || !mounted) return;
+      } else {
+        final bool? confirmed = await showChildConfirmCard(
+          context: context,
+          title: t.guard_confirm_free_title,
+          confirmLabel: t.shared_ok,
           cancelLabel: t.guard_confirm_pay_later,
         );
         if (confirmed != true || !mounted) return;

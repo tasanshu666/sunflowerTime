@@ -84,7 +84,7 @@ abstract final class _GuardAssetPaths {
   /// 守卫成功旗帜动画帧目录（B13.3；10 帧 160²，循环播放）。
   static const String claimFlagDir = 'assets/guard/claim_flag';
 
-  /// buff 券卡面（🔴 B13.5：玄参交付 3 种券美术，360×507，无字 ——
+  /// buff 券卡面（🔴 B13.5：玄参交付 3 种券美术，无字 ——
   /// 名字 / 增益描述由 `GuardBuffChip` 用 ARB 文字叠，方便中英切换）。
   /// 施肥券美术**自带烤字**（zh「通用花肥」/ en 版），按语言二选一；
   /// 免费浇水 / 免费施肥券没有专属美术 ⇒ 复用浇水 / 施肥卡面。
@@ -383,12 +383,15 @@ class GuardArt {
   }
 
   /// buff 券卡面图（缺失回退 = 金色块，不 crash）。
+  ///
+  /// 🔴 B13.8：素材已二次裁切（328×475 带上下空白带 → **276×294**，只剩中间
+  /// 插画），回退块比例同步改 276/294。
   static Widget voucherCard(GuardDropKind kind, {required bool isZh}) {
     return Image.asset(
       voucherArtPath(kind, isZh: isZh),
       fit: BoxFit.fitWidth,
       errorBuilder: (_, __, ___) => const AspectRatio(
-        aspectRatio: 360 / 507,
+        aspectRatio: 276 / 294,
         child: ColoredBox(color: _soldierGold),
       ),
     );

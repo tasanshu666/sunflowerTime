@@ -171,7 +171,8 @@ class GuardDayState {
   /// 当日的贼（`null` = 尚未生成 / 全园无存活株，没有贼）。
   final GuardThiefKind? thiefKind;
 
-  /// 今日已消耗的能量点数（免费路径的唯一记账，0..[kGuardEnergyDailyMax]）。
+  /// 今日已消耗的能量点数（免费路径的唯一记账，上限见
+  /// [kGuardEnergyDailyMaxFree] / [kGuardEnergyDailyMaxPremium]）。
   final int energyUsed;
 
   /// 今日已付出的阳光（付费路径；0 = 没花钱）。

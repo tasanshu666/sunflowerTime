@@ -111,7 +111,8 @@ class GuardTodayView {
   /// 当日状态（`mode == absent` 时是一条空白状态，`hasThief == false`）。
   final GuardDayState state;
 
-  /// 判定时的剩余专注能量（0..[kGuardEnergyDailyMax]）。
+  /// 判定时的剩余专注能量（免费 0..[kGuardEnergyDailyMaxFree]、
+  /// 付费 0..[kGuardEnergyDailyMaxPremium]）。
   final int energyAvailable;
 
   /// 判定时的阳光余额。
@@ -123,12 +124,20 @@ class GuardTodayView {
   /// 绝不因为读不到称号让胶囊或结算卡崩掉。
   final PlantPerk? perk;
 
+  /// 当前权益档位（🔴 B13.8 能量档位制：免费 1 颗/天 / 会员 2 颗/天）。
+  ///
+  /// 由领域层单点给出（`GuardResolveResult.isPremium` / `GuardClaimOutcome.isPremium`）
+  /// —— 表现层不得直接摸权益 provider（白名单守卫钉死）；场景卡据此把免费档
+  /// 的第 2 颗能量点画成锁标。缺省 false（免费档），旧构造点零改动。
+  final bool isPremium;
+
   const GuardTodayView({
     required this.mode,
     required this.state,
     required this.energyAvailable,
     required this.balance,
     this.perk,
+    this.isPremium = false,
   });
 
   /// 没有守卫 / 链路不可用（超时、异常、全园无存活株）：**零占位**。
@@ -137,7 +146,8 @@ class GuardTodayView {
         state = _absentState,
         energyAvailable = 0,
         balance = 0,
-        perk = null;
+        perk = null,
+        isPremium = false;
 
   /// `absent` 用的哨兵状态（`dayKey` 为空串 —— 永远不会被当成「今天」写回存储）。
   static const GuardDayState _absentState =
@@ -163,6 +173,7 @@ class GuardTodayView {
       energyAvailable: result.energyAvailable,
       balance: result.balance,
       perk: perk,
+      isPremium: result.isPremium,
     );
   }
 
@@ -184,6 +195,7 @@ class GuardTodayView {
       energyAvailable: outcome.energyAvailable,
       balance: outcome.balance,
       perk: perk,
+      isPremium: outcome.isPremium,
     );
   }
 
@@ -194,6 +206,7 @@ class GuardTodayView {
     int? energyAvailable,
     double? balance,
     PlantPerk? perk,
+    bool? isPremium,
   }) {
     return GuardTodayView(
       mode: mode ?? this.mode,
@@ -201,6 +214,7 @@ class GuardTodayView {
       energyAvailable: energyAvailable ?? this.energyAvailable,
       balance: balance ?? this.balance,
       perk: perk ?? this.perk,
+      isPremium: isPremium ?? this.isPremium,
     );
   }
 

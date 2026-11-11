@@ -748,7 +748,7 @@ void main() {
 
   // ───────────────────── T2 对比表渲染结构（widget）─────────────────────
   group('阶段5 · T2 对比表渲染结构（widget）', () {
-    testWidgets('两栏胶囊 + 三个分组带 + 7 行 3 组项目名齐全（F146 改版）',
+    testWidgets('两栏胶囊 + 三个分组带 + 9 行 3 组项目名齐全（F146 7 行 + B13.6 守卫行 + B13.8 能量行）',
         (WidgetTester tester) async {
       await _pumpTable(tester);
 
@@ -760,7 +760,8 @@ void main() {
       expect(find.text('免费就能用'), findsOneWidget);
       expect(find.text('买断解锁 · 更大容量'), findsOneWidget);
       expect(find.text('买断解锁 · 进阶能力'), findsOneWidget);
-      // 行 1（静态核心行）+ 行 2–7（派生行）项目名
+      // 行 1（静态核心行）+ 行 2–7（派生行）+ 行 8（B13.6 守卫静态行）
+      // + 行 9（B13.8 能量静态行）项目名
       for (final String label in <String>[
         '核心体验全免费',
         '花盆上限',
@@ -769,9 +770,19 @@ void main() {
         '花园「一键操作」',
         '称号属性',
         '家长专注报告',
+        '守卫战卡券掉落',
+        '守卫能量点',
       ]) {
-        expect(find.text(label), findsOneWidget, reason: '7 行缺行：$label');
+        expect(find.text(label), findsOneWidget, reason: '9 行缺行：$label');
       }
+      // B13.6 守卫行取值（字面量：免费 50% / 付费必掉 + 10% 双券 —— 对拍
+      // prd_params 常量的现网值，改常量须同步改此断言）。
+      expect(find.text('券概率 50%'), findsOneWidget);
+      expect(find.text('必掉券 · 10% 概率掉两张'), findsOneWidget);
+      // B13.8 能量行取值（字面量：免费 1 颗/天 / 付费 2 颗/天 —— 对拍
+      // kGuardEnergyDailyMaxFree / kGuardEnergyDailyMaxPremium 现网值）。
+      expect(find.text('每天 1 颗'), findsOneWidget);
+      expect(find.text('每天 2 颗（双倍）'), findsOneWidget);
       // 脚注（F146：核心脚注 + 花盆 note；「更多报告能力开发中」已随失实删除）
       expect(find.textContaining('专注番茄钟 ·'), findsOneWidget,
           reason: '行 1 核心脚注列举');

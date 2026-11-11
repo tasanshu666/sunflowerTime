@@ -326,6 +326,8 @@ _Ctx _make({
   int validSessionsToday = 0,
   int validSessionsYesterday = 0,
   int abortedSessionsToday = 0,
+  // 🔴 B13.8 能量档位制：免费 cap 1 / 付费 cap 2（缺省免费，旧用例零改动）。
+  bool isPremium = false,
 }) {
   final _FakeStore store = _FakeStore();
   final _MemLedger ledger = _MemLedger()..initial = balance;
@@ -351,6 +353,7 @@ _Ctx _make({
     growth: growth,
     childId: () => _childId,
     clock: _now,
+    isPremium: () => isPremium,
   );
   return _Ctx(
     store: store,
@@ -481,6 +484,8 @@ void main() {
         balance: 100,
         plants: <Plant>[_plant('p1')],
         validSessionsToday: 2,
+        // 🔴 B13.8：能量够 2 点是**会员档**口径（免费档 cap 1，见下方能量派生组）。
+        isPremium: true,
       );
       await ctx.store.write(_childId, _pendingState(winSun: 1));
 
@@ -1048,14 +1053,24 @@ void main() {
     });
   });
 
-  // ───────────────────────── 能量派生 ─────────────────────────
-  group('能量派生：clamp(今日有效专注次数, 0, 2) − 已消耗', () {
-    test('1 次有效专注 = 1 点；5 次也只给 2 点', () async {
+  // ───────────────────────── 能量派生（B13.8 档位制）─────────────────────────
+  group('能量派生：clamp(今日有效专注次数, 0, 档位上限) − 已消耗（免费 1 / 付费 2）', () {
+    test('免费档：1 次有效专注 = 1 点；5 次也只给 1 点（cap 1）', () async {
       final _Ctx ctx1 = _make(validSessionsToday: 1);
       expect(await ctx1.guard.energyAvailable(), 1);
 
       final _Ctx ctx5 = _make(validSessionsToday: 5);
-      expect(await ctx5.guard.energyAvailable(), 2, reason: '🔴 日上限 2');
+      expect(await ctx5.guard.energyAvailable(), 1,
+          reason: '🔴 B13.8：免费档日上限 = kGuardEnergyDailyMaxFree(1)');
+    });
+
+    test('会员档：5 次有效专注给 2 点（cap 2）', () async {
+      final _Ctx ctx2 = _make(validSessionsToday: 2, isPremium: true);
+      expect(await ctx2.guard.energyAvailable(), 2);
+
+      final _Ctx ctx5 = _make(validSessionsToday: 5, isPremium: true);
+      expect(await ctx5.guard.energyAvailable(), 2,
+          reason: '🔴 会员档日上限 = kGuardEnergyDailyMaxPremium(2)');
     });
 
     test('3 分钟就放弃的会话不算能量（不许用 sessions.length）', () async {
@@ -1063,17 +1078,17 @@ void main() {
       expect(await ctx.guard.energyAvailable(), 0);
     });
 
-    test('已消耗会扣减；全部用完 = 0', () async {
-      final _Ctx ctx = _make(validSessionsToday: 2);
+    test('已消耗会扣减；全部用完 = 0（免费档口径）', () async {
+      final _Ctx ctx = _make(validSessionsToday: 1);
       await ctx.store.write(_childId, _pendingState(energyUsed: 1));
-      expect(await ctx.guard.energyAvailable(), 1);
+      expect(await ctx.guard.energyAvailable(), 0);
 
       await ctx.store.write(_childId, _pendingState(energyUsed: 2));
       expect(await ctx.guard.energyAvailable(), 0);
     });
 
-    test('昨天的 energyUsed 不影响今天', () async {
-      final _Ctx ctx = _make(validSessionsToday: 2);
+    test('昨天的 energyUsed 不影响今天（会员档口径）', () async {
+      final _Ctx ctx = _make(validSessionsToday: 2, isPremium: true);
       await ctx.store.write(
         _childId,
         _pendingState(dayKey: _yesterday, energyUsed: 2),

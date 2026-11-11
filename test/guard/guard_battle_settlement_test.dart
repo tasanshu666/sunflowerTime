@@ -301,13 +301,12 @@ Future<void> _passTutorial(WidgetTester tester) async {
 }
 
 /// 进战斗并推进到「L4 已挂载、ticker 从 0 起跑」的干净基线。
-Future<void> _startBattle(WidgetTester tester, {bool paid = false}) async {
+Future<void> _startBattle(WidgetTester tester) async {
   await tester.tap(find.byKey(GuardSceneCard.startButtonKey));
   await _passTutorial(tester);
-  if (paid) {
-    await tester.tap(find.text('确定'));
-    await _settleRoute(tester);
-  }
+  // 🔴 B13.7：免费路径也弹确认卡（玄参：防误操作）⇒ 两条路径都点「确定」。
+  await tester.tap(find.text('确定'));
+  await _settleRoute(tester);
   await tester.pump(const Duration(milliseconds: 50));
   await tester.pump(const Duration(milliseconds: 1));
   expect(find.byKey(GuardBattleField.fieldKey), findsOneWidget,

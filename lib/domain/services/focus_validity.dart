@@ -46,7 +46,8 @@ bool isValidFocusSession(FocusSession s) {
 
 /// 一组会话里**有效**的那些（顺序原样保留，不做去重 / 排序）。
 ///
-/// 守卫玩法用它算能量：`clamp(有效次数, 0, kGuardEnergyDailyMax) − 已消耗点数`。
+/// 守卫玩法用它算能量：`clamp(有效次数, 0, 每日上限) − 已消耗点数`
+///（上限按权益档位取 `kGuardEnergyDailyMaxFree` / `kGuardEnergyDailyMaxPremium`）。
 /// 🔴 **不要**用 `sessions.length` 代替本函数：那是「今日专注 N 次」的展示口径
 /// （含 3 分钟就放弃的会话），拿它发能量等于「点开专注 3 秒退出就能刷满能量」。
 List<FocusSession> validFocusSessionsOf(Iterable<FocusSession> sessions) {

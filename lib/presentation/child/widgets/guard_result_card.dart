@@ -312,10 +312,21 @@ class _GuardResultCardState extends State<GuardResultCard> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: <Widget>[
-                              const Icon(
-                                Icons.confirmation_num_outlined,
-                                size: 44,
-                                color: Color(0xFF3D8B7D),
+                              // 🔴 B13.7（玄参：「结算页的卡券占位，还没有
+                              //   替换真实 UI 素材」）：券卡美术放大到 84 高
+                              //   （52 太小，看着还像占位图标）。B13.8 素材
+                              //   二次裁切后原比 276:294。
+                              SizedBox(
+                                height: 84,
+                                child: AspectRatio(
+                                  aspectRatio: 276 / 294,
+                                  child: GuardArt.voucherCard(
+                                    view.dropKind,
+                                    isZh: Localizations.localeOf(context)
+                                        .languageCode
+                                        .startsWith('zh'),
+                                  ),
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(
@@ -351,10 +362,19 @@ class _GuardResultCardState extends State<GuardResultCard> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: <Widget>[
-                              const Icon(
-                                Icons.confirmation_num_outlined,
-                                size: 44,
-                                color: Color(0xFF3D8B7D),
+                              // 🔴 B13.7：第二张券卡同款式（高 84；B13.8 比
+                              //    例 276/294）。
+                              SizedBox(
+                                height: 84,
+                                child: AspectRatio(
+                                  aspectRatio: 276 / 294,
+                                  child: GuardArt.voucherCard(
+                                    view.bonusDropKind,
+                                    isZh: Localizations.localeOf(context)
+                                        .languageCode
+                                        .startsWith('zh'),
+                                  ),
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(

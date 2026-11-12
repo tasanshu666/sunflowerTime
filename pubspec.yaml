@@ -109,7 +109,7 @@ flutter:
     #    场景卡右簇开始钮整体替换，自带金框底）
     #  · claim_flag/    守卫成功旗帜动画 10 帧 160²（B13.3；claimed 徽章占位旗
     #    替换，循环播放；管线同上 PIL WebP q90）
-    # ⚠️ 目录声明**不递归**：6 行都要在，漏一行 = 对应素材静默不进包（errorBuilder
+    # ⚠️ 目录声明**不递归**：下面每一行都要在，漏一行 = 对应素材静默不进包（errorBuilder
     # 回退占位色块，表现为「画面不换图」，与 fx/ 2026-09-28 翻车同坑）。
     - assets/guard/
     - assets/guard/soldier_idle/
@@ -118,6 +118,13 @@ flutter:
     - assets/guard/monster_m3/
     - assets/guard/claim_flag/
     - assets/guard/buff_voucher/
+    # 宝箱开箱序列帧（2026-11-11 玄参交付；管线 tools/convert_guard_chest.py，
+    # PNG 720² → WebP 512²，两档合计 7.73MB ≤ 8MB 预算）：
+    #  · chest_normal/   普通宝箱 30 帧 q90（1.76MB）→ 5s 开箱演出 / 静态展示帧 frame001
+    #  · chest_premium/  高级宝箱 30 帧 q80（5.97MB，自带半透明蓝水纹压不动）
+    # 帧数运行期由 `resolveFxFrames(..., fallbackCount: 30)` 实测，补删帧免改代码。
+    - assets/guard/chest_normal/
+    - assets/guard/chest_premium/
     # 序列帧资源（2026-09-28）：成长过渡帧 grow/、浇水·施肥效果层帧 care/。
     # ⚠️ 目录声明**不递归**，必须把**叶子目录**逐个列全（漏一行 = 帧不进包 =
     # Image.asset errorBuilder 静默吞 → 只剩音效没有动画，2026-09-28 实证翻车）；

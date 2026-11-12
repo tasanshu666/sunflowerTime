@@ -21,9 +21,17 @@ const String kGuardChannelDrop = 'drop';
 
 /// 🔴 B13.5 新增：第二张券的 **10% 闸门**通道（与首张 [kGuardChannelDrop]
 /// 平行、互不影响；新通道不重掷历史任何一天）。
+///
+/// 🔴 **已停止调用（Guard-B13.11 · 玄参 2026-11-11 第九轮）**：第二张券搬进
+/// 高级宝箱，改走 `kGuardChannelChestBonusGate` / `kGuardChannelChestBonusPick`。
+/// 本常量与 [kGuardChannelDropBonusPick] **保留但不再被任何代码读取** ——
+/// 删除它们会让历史 `deriveGuardRoll` 的结果不可重放（旧存档 / 旧测试对照
+/// 需要知道「当年这条通道叫什么」）。
 const String kGuardChannelDropBonusGate = 'drop_bonus_gate';
 
 /// 🔴 B13.5 新增：第二张券「挑哪种」通道（从除首张外的券里等概率挑）。
+///
+/// 🔴 **已停止调用**（理由同上，见 [kGuardChannelDropBonusGate]）。
 const String kGuardChannelDropBonusPick = 'drop_bonus_pick';
 
 /// 掉落档（一次掷骰命中且仅命中其中一档）。
@@ -78,16 +86,29 @@ enum GuardDropKind {
     return GuardDropKind.values[bucketOfUniform(u, rates)];
   }
 
-  /// 🔴 B13.5：第二张券（「10% 概率掉 2 张**不同的**」的唯一实现口）。
+  /// 🔴 B13.5：第二张券（「10% 概率掉 2 张**不同的**」的低层掷骰工具）。
+  ///
+  /// 🔴 **已停止调用（Guard-B13.11 · 玄参 2026-11-11 第九轮）**：第二张券从
+  /// 「掉落阶段」搬进「**高级宝箱**」—— 新落点是
+  /// `deriveGuardChest(...).bonusDrop`（通道 `chest_bonus_gate` /
+  /// `chest_bonus_pick`）。本方法的候选表口径（「除首张外的 4 种券等概率」）
+  /// 被 `domain/services/guard_chest.dart` 的 `_pickOtherVoucher` 原样沿用，
+  /// 但**不再有任何调用点**：保留只为「历史 `deriveGuardRoll` 可重放」与口径
+  /// 留证，别在新代码里再调。
   ///
   /// * 仅当**首张已掉券**时调用（首张 = none ⇒ 本函数不该被调）；
   /// * 🔴 **调用方必须已判完整版档**：本函数只负责「掷」，**不含档位判定** ——
-  ///   唯一的 gate 在 `guard_math.deriveGuardRoll`（`isPremium && drop != none`），
-  ///   Guard-B13.10 玄参裁定「双倍掉落券对免费档不生效」。任何新调用点
-  ///   **必须**先自己确认是完整版档，否则就是绕过付费墙；
+  ///   旧 gate 在 `guard_math.deriveGuardRoll`（Guard-B13.10 裁定「双倍掉落券
+  ///   对免费档不生效」）；任何新调用点**必须**先自己确认是完整版档；
   /// * 10% 闸门走独立通道 [kGuardChannelDropBonusGate]（与首张通道互不影响）；
   /// 第二张从「除首张外的 4 种券」里**等概率**挑（通道
   /// [kGuardChannelDropBonusPick]）；确定性派生，禁 `Random`。
+  // Deprecated message is a *code* string (not a UI copy), so it must be
+  // ASCII: `test/i18n/no_han_in_domain_test.dart` forbids CJK outside comments.
+  @Deprecated(
+    'Moved to the premium chest (Guard-B13.11): use '
+    'deriveGuardChest(...).bonusDrop instead; this method has no callers.',
+  )
   static GuardDropKind? rollBonus({
     required String dayKey,
     required String childId,

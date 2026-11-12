@@ -194,6 +194,19 @@ class PremiumQuotaGate {
   }
 }
 
+/// 结算卡「**完整版有高级宝箱**」引导行是否渲染（B13.16 2026-11-12 玄参）。
+///
+/// free 档才提示 —— premium 用户本来就能掉高级宝箱，再提示就自相矛盾。
+/// 🔴 **判定单点在本文件**（权益标识符白名单内）：调用方（今日页结算卡）
+/// 只吃 `bool`，**不许**在页面里直接摸 `entitlementProvider` /
+/// `EntitlementTier`（`entitlement_gate_guard_test` 白名单守卫会拦）。
+/// 守卫战结算卡是一次性弹层，read 快照足够（权益变更不会中途改这场战斗的档位）。
+bool showGuardPremiumHint(BuildContext context) {
+  final ProviderContainer container =
+      ProviderScope.containerOf(context, listen: false);
+  return !container.read(entitlementProvider).isPremium;
+}
+
 /// 付费引导卡片（未开通时由 [`PremiumGate`] 展示）。
 ///
 /// 暖色儿童风：白底大圆角 + 主色按钮（配色与 [`cream_card`] 同调）。

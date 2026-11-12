@@ -226,14 +226,21 @@ class GuardBuffChip extends StatelessWidget {
 
     return Material(
       key: GuardBuffChip.chipKey,
-      color: Colors.transparent,
+      // 🔴 B13.16（玄参截图反馈「开出 2 个 buff 卡后在植物上显示的有点看不清」）：
+      //    旧版 Material 透明只有投影，红色文字直接叠在植物叶片上 ⇒ 撞色看不清。
+      //    改为**实底白卡**（奶油风 0.96 白 + 10 圆角，与守卫结算卡同族）——
+      //    文字永远坐在自己的底色上，不与背景撞色。内边距 h6/v3 让白底完整包住
+      //    文字与图标；maxWidth 封顶不变（en 大字号溢出探针仍受控）。
+      color: Colors.white.withValues(alpha: 0.96),
       elevation: 2,
       shadowColor: const Color(0x40000000),
       borderRadius: BorderRadius.circular(10),
       // 🔴 B13.9：横排**无点击行为** ⇒ 整卡 IgnorePointer（放行下层手势，
       // 花盆点击测试 ⑤/⑭ 回归覆盖）。
       child: IgnorePointer(
-        child: ConstrainedBox(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: 132 * uiScaleOf(context)),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -277,6 +284,7 @@ class GuardBuffChip extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

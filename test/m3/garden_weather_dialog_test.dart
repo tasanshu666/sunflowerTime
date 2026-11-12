@@ -93,12 +93,15 @@ void main() {
           break;
       }
     }
+    // 🔴 B13.18：买棚收益行已删（收益并入正文合并句），不再传 shelterEffect。
     return GardenWeatherDialogSpec(
       kind: kind,
       name: name,
       detail: detail,
       growthHint: growthHint,
       tomorrowLabel: zh.garden_weather_dialog_tomorrow(zh.weather_breeze),
+      // B13.16：明日预告胶囊里的图标（与页面同构：build 顶层算好的明日日型）。
+      tomorrowKind: WeatherKind.breeze,
       shelterRefType: refType,
       buyLabel: refType == null
           ? null
@@ -356,6 +359,58 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    expect(tester.takeException(), isNull);
+  });
+
+  // ── B13.18（2026-11-12 玄参）：收益行退场，收益并入正文合并句 ────────────
+
+  testWidgets('B13.18 极端日 todo：正文 = 合并句（极寒逐字）+ 无收益行 + 明日胶囊带图标',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(host(WeatherKind.cold, WeatherBannerMood.todo, () {}));
+    await open(tester);
+
+    // 合并句逐字（玄参原话）：正文同时含「搭棚」动作与「受保护」收益，
+    // 与常量方向一致（期望独立于实现）。
+    expect(find.text(zh.garden_weather_guide_cold), findsOneWidget,
+        reason: '极寒正文 = 合并句「要上冻啦，搭上保温棚，植物成长进度会受到保护」');
+    // 明日预告胶囊（B13.17 重排）：图标槽位有东西（Image 或回退 Icon）。
+    final Finder pillIcon = find.descendant(
+      of: find.byKey(kGardenWeatherDialogTomorrowKey),
+      matching: find.byWidgetPredicate((Widget w) => w is Image || w is Icon),
+    );
+    expect(pillIcon, findsOneWidget,
+        reason: '明日胶囊必须带明日日型图标（素材缺失回退 Icon，不许空槽）');
+    // 明日预告在买棚按钮之前（排版顺序钉住）。
+    final Rect tomorrowRect =
+        tester.getRect(find.byKey(kGardenWeatherDialogTomorrowKey));
+    final Rect buyRect = tester.getRect(find.byKey(kShelterButtonHitKey));
+    expect(tomorrowRect.bottom, lessThanOrEqualTo(buyRect.top),
+        reason: '明日预告在买棚按钮之前');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('B13.18 温和日 / 极端日 done：无收益行（合并后恒不存在）',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    // 温和日：shelterEffect = null ⇒ 不渲染。
+    await tester.pumpWidget(host(WeatherKind.sunny, WeatherBannerMood.none, () {}));
+    await open(tester);
+    expect(find.text('garden_weather_dialog_shelter_effect'), findsNothing,
+        reason: 'B13.18 起收益行 Key 已从组件删除，恒不渲染');
+    await tester.tap(find.text(zh.garden_weather_dialog_close));
+    await tester.pumpAndSettle();
+
+    // 极端日 done：收益已兑现 ⇒ 不渲染（不对已保护用户再打广告）。
+    await tester.pumpWidget(host(WeatherKind.cold, WeatherBannerMood.done, () {}));
+    await open(tester);
+    expect(find.text('garden_weather_dialog_shelter_effect'), findsNothing,
+        reason: 'done 态收益行恒不渲染（B13.18 起 Key 已删）');
     expect(tester.takeException(), isNull);
   });
 }

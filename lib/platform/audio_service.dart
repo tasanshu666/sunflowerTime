@@ -113,6 +113,26 @@ enum AudioCue {
   ///
   /// 🔴 只在子弹**真正命中**时播（sim 事件 `hit` / `kill`）；MISS（`dodge`）不播。
   guardHit,
+
+  /// 花园守卫 · **开箱**（`guard_chest_open.mp3`，2026-11-11 玄参交付，实测
+  /// 5.198333s）。
+  ///
+  /// 与 5s 开箱动画**同时**起播（`GuardChestStage` 的 `_open()` 里），音量固定
+  /// [kGuardChestOpenVolume]（0.5，Q-04 已裁定）。音效比动画长 198ms ⇒ 结算卡
+  /// 弹出时可能还带一点余音，玄参已接受（不做 apad 截断：宁可余音，不可削掉
+  /// 尾音的「叮」）。
+  guardChestOpen,
+
+  /// 花园守卫 · 宝箱**落地**（`guard_chest_land.mp3`，2026-11-12 玄参交付）。
+  ///
+  /// 素材实测 1.358333s ⇒ 🔴 **远短于本项目 ≥3s 红线**（F77：过短 mp3 在 iOS 上
+  /// just_audio `setAsset` 抛 CoreAudio `-11849`，且被 [AudioService] 静默吞掉 →
+  /// 真机「有这个音效但听不见」）。故落盘前用 `apad=pad_dur=1.85` 补静音尾巴到
+  /// **3.208s**（内容零改动、不重采样、不淡入淡出，只有尾部多出静音）。
+  ///
+  /// 播放点：`GuardChestStage` 里 `drop → idle` 的那一刻（`kGuardChestDropMs` 到点，
+  /// 约 600ms），音量固定 [kGuardChestLandVolume]（1.0，落地不需要压低）。
+  guardChestLand,
 }
 
 /// [AudioCue] 到 assets 音频文件路径的映射（相对工程根）。
@@ -164,6 +184,10 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/5_level_up.mp3';
       case AudioCue.guardHit:
         return 'assets/audio/sfx/guard_hit.mp3';
+      case AudioCue.guardChestOpen:
+        return 'assets/audio/sfx/guard_chest_open.mp3';
+      case AudioCue.guardChestLand:
+        return 'assets/audio/sfx/guard_chest_land.mp3';
     }
   }
 }
@@ -738,6 +762,8 @@ class AudioService {
     try {
       await player.setAsset('assets/audio/bgm/guard_attack.mp3');
       await player.setLoopMode(LoopMode.off); // 🔴 B13.7：只播一遍
+      // 🔴 B13.15（玄参：跑步声太响）：0.3，见 [kGuardBattleBgmVolume]。
+      await player.setVolume(kGuardBattleBgmVolume);
       await player.seek(Duration.zero);
       if (_suspendedForBackground) {
         await player.stop(); // 加载间隙已退后台：绝不发声

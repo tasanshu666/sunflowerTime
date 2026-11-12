@@ -30,6 +30,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/domain/entities/guard_chest.dart';
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
 
 /// 调试剧本覆盖（null = 跟随真实 seed 派生）。
@@ -38,6 +39,50 @@ import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
 final StateProvider<GuardBattleScript?>
     debugGuardBattleScriptOverrideProvider =
     StateProvider<GuardBattleScript?>((Ref ref) => null);
+
+/// **宝箱档位**覆盖（null = 自动 / 跟随当日落盘档位）。
+///
+/// ## 解决什么问题
+/// 高级宝箱全局只有 **20%**（完整版档），玄参真机验收时要撞好几天才能看到
+/// 一次高级开箱动画 —— 「玄参要看效果」这件事不能靠运气。
+///
+/// ## 🔴 安全边界（只影响演出，**绝不影响经济**）
+/// 唯一读取方 = `ChildTodayPage._onBattleFinished`，取值只喂给
+/// `showGuardChestOverlay(tier: …)`（决定播**哪一档的 30 帧** + 角标）。
+/// 它**不**参与以下任何一条：
+///  · `deriveGuardChest`（档位与碎片 / 种子在 `resolve()` 时已落盘）；
+///  · `guardGrantWinSunOf`（阳光翻倍只看 `state.chestTier`）；
+///  · `claim()` 的发放（碎片 / 种子的片数只看 `state.chestFragmentQty` 等）。
+///
+/// ⇒ 覆盖成「高级」时，**动画是高级的，奖励仍是当日落盘值**（普通档就还是普通
+/// 奖励）。这是刻意的：改演出只是改观感，改奖励就是改一本已经记好的账 ——
+/// 后者要做到「安全」就必须回写存档并处理 `chestExtrasGranted` / 已领取态，
+/// 风险远大于收益（玄参要的是「看效果」，不是「多拿碎片」）。
+///
+/// ## release 安全
+/// 写入方只有调试面板（release 整块不出现）⇒ provider 恒为 null ⇒ 生产行为
+/// 逐位不变。
+final StateProvider<GuardChestTier?> debugGuardChestTierOverrideProvider =
+    StateProvider<GuardChestTier?>((Ref ref) => null);
+
+// ── 宝箱档位按钮 Key（调试面板与行为测试共用同一组常量，防字符串漂移）────────
+
+/// 「宝箱档位：自动」按钮 Key。
+const String kDebugGuardChestKeyAuto = 'debug_guard_chest_auto';
+
+/// 「宝箱档位：强制普通」按钮 Key。
+const String kDebugGuardChestKeyNormal = 'debug_guard_chest_normal';
+
+/// 「宝箱档位：强制高级」按钮 Key。
+const String kDebugGuardChestKeyPremium = 'debug_guard_chest_premium';
+
+/// 「宝箱档位生效态」常显行 Key（与剧本覆盖的常显行并列）。
+const String kDebugGuardChestModeTextKey = 'debug_guard_chest_mode_text';
+
+// 🔴 宝箱档位的「人话标签」**不**放在本文件：`test/qa/guard_battle_i18n_probe_test.dart`
+//    有一条「本文件（剥注释后）零 CJK 字面量」的 QA 护栏（调试文案也必须是 ARB 或
+//    面板内联，不能藏在 state 层）。故标签由 `bloom_debug_panel.dart` 的私有函数
+//    组装，本文件只留 provider + Key（纯 ASCII）。
 
 // ── 按钮 Key（调试面板与行为测试共用同一组常量，防字符串漂移）────────────────
 

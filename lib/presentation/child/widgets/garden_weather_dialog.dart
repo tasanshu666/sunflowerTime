@@ -145,6 +145,7 @@ class GardenWeatherDialogSpec {
     required this.growthHint,
     required this.tomorrowLabel,
     required this.closeLabel,
+    this.tomorrowKind,
     this.shelterRefType,
     this.buyLabel,
     this.done = false,
@@ -178,7 +179,16 @@ class GardenWeatherDialogSpec {
   /// 本组件零天气计算、零 l10n 解析（弹窗铁律），只渲染页面拼好的字符串。
   final String tomorrowLabel;
 
+  /// 明日日型（B13.16：明日预告胶囊里的**图标**；页面 `WeatherSystem.ofDay`
+  /// 算好传入，`null` = 只渲染文字胶囊不渲染图标 —— 兼容旧测试构造）。
+  final WeatherKind? tomorrowKind;
+
   /// 当日推荐道具 refType（极端日非 null；`null` = 温和日，无买棚按钮）。
+  ///
+  /// 🔴 B13.18（2026-11-12 玄参）：原 `shelterEffect`（买棚收益行）已整体删除 ——
+  /// 正文（guide）与收益行内容重复，收益并入正文合并句
+  /// （`garden_weather_guide_*` 极端日 4 条 =「{天气}，搭上{棚}，植物成长进度
+  /// 会受到保护」），页面不再传收益文案，ARb 4 条收益键同删。
   final String? shelterRefType;
 
   /// 买棚按钮文案（「遮阳棚 · 10 ☀」，页面拼好；极端日必填）。
@@ -385,23 +395,50 @@ Future<void> showGardenWeatherDialog({
                   ),
                 ],
               ),
-              // ── 明日预告行（第五批：ticker 撤除后「明天 · …」由对话框承接）──
-              SizedBox(height: 8 * s),
-              Text(
-                spec.tomorrowLabel,
+              // ── 明日预告胶囊（B13.16 重排版：淡奶油底胶囊 + 明日日型图标 +
+              //    深色 w700 文字；🔴 B13.17（2026-11-12 玄参）「将天气 UI 放在
+              //    天气的后面，这个胶囊放大一些」：图标改到**文字之后**，胶囊
+              //    整体放大 —— 内距 h14/v7 → h18/v9、字号 13 → 14、图标 20 → 24）──
+              SizedBox(height: 10 * s),
+              Container(
                 key: kGardenWeatherDialogTomorrowKey,
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  height: 1.0,
-                  letterSpacing: 0.25,
-                  color: kWeatherTextColor.withValues(alpha: 0.55),
+                padding: EdgeInsets.symmetric(
+                    horizontal: 18 * s, vertical: 9 * s),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5EFE2),
+                  borderRadius: BorderRadius.circular(999 * s),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        spec.tomorrowLabel,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          height: 1.0,
+                          letterSpacing: 0.25,
+                          color: kWeatherTextColor,
+                        ),
+                      ),
+                    ),
+                    if (spec.tomorrowKind != null) ...<Widget>[
+                      // 明日日型图标（B13.17：移到天气名**之后**；同一
+                      // weatherArtOf 单点映射，B13.17 放大到 24）。
+                      SizedBox(width: 8 * s),
+                      weatherArtOf(spec.tomorrowKind!, size: 24 * s),
+                    ],
+                  ],
                 ),
               ),
+              // 🔴 B13.18（2026-11-12 玄参）：「买棚收益行」整体退场 —— 正文与
+              //    收益行内容重复（玄参原话「这 2 个地方重复了啊，删除上面那一句，
+              //    合并一下」），收益并入正文合并句（guide 极端日 4 条）。
               // ── done 态额外动作提醒小字条（第九批 2026-11-07）───────────────
               // 仅 done 态 + 对应动作未完成时由页面传入（干旱=未浇水 / 暴雨=
               // 未施肥；大风/极寒无）。圆角淡底小条，底色复用日型淡色托同表

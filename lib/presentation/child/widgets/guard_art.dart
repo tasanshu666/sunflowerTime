@@ -36,6 +36,8 @@ library guard_art;
 import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/domain/entities/guard_chest.dart'
+    show GuardChestTier;
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
@@ -83,6 +85,16 @@ abstract final class _GuardAssetPaths {
 
   /// 守卫成功旗帜动画帧目录（B13.3；10 帧 160²，循环播放）。
   static const String claimFlagDir = 'assets/guard/claim_flag';
+
+  /// 普通宝箱帧目录（Guard-B13.11 T02；30 帧 512² WebP）。
+  ///
+  /// ⚠️ 目录常量本身在 `prd_params.dart`（[kGuardChestNormalDir] /
+  /// [kGuardChestPremiumDir]）—— 那里同时被资产守卫测试（`test/m3/
+  /// guard_chest_assets_guard_test.dart`）直读，单一真源不复制。
+  static const String chestNormalDir = kGuardChestNormalDir;
+
+  /// 高级宝箱帧目录。
+  static const String chestPremiumDir = kGuardChestPremiumDir;
 
   /// buff 券卡面（🔴 B13.5：玄参交付 3 种券美术，无字 ——
   /// 名字 / 增益描述由 `GuardBuffChip` 用 ARB 文字叠，方便中英切换）。
@@ -394,6 +406,54 @@ class GuardArt {
         aspectRatio: 276 / 294,
         child: ColoredBox(color: _soldierGold),
       ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 宝箱（Guard-B13.11 T03）：帧目录解析 + 静态展示帧
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// 宝箱帧目录（`GuardChestTier.normal` → 普通档 / `premium` → 高级档）。
+  ///
+  /// 纯函数，可单测；目录常量真源在 [kGuardChestNormalDir] / [kGuardChestPremiumDir]。
+  static String chestDirOf(GuardChestTier tier) => tier.isPremium
+      ? _GuardAssetPaths.chestPremiumDir
+      : _GuardAssetPaths.chestNormalDir;
+
+  /// 宝箱**静态展示帧**路径（= 各档 `frame001.webp`）。
+  ///
+  /// 🔴 为什么是 `frame001` 而不是「解析出来的第一张」：A-03 资产守卫测试钉死
+  /// 「`frame001` 必须是字典序第一张」，故静图 == 动画首帧 ⇒ 点击切入动画时
+  /// **零跳变**。写死这一条比运行时排序更早暴露漂移（排序得错也只是静默偏移）。
+  static String chestStillPath(GuardChestTier tier) =>
+      '${chestDirOf(tier)}/frame001.$kGuardChestFrameExt';
+
+  /// 宝箱帧列表（AssetManifest 实测，帧数不写死；清单不可用 ⇒ 契约推导 30 帧）。
+  ///
+  /// 与既有 `_guardFrameCache` 同一套缓存纪律：同一档只解析一次清单。
+  static Future<List<String>> chestFrames(GuardChestTier tier) {
+    final String dir = chestDirOf(tier);
+    final List<String>? cached = _guardFrameCache[dir];
+    if (cached != null) return Future<List<String>>.value(cached);
+    return resolveFxFrames(
+      dir,
+      ext: kGuardChestFrameExt,
+      fallbackCount: kGuardChestFrameCount,
+    ).then((List<String> frames) {
+      // 空列表也缓存（目录整体丢失时不必每帧重读清单）。
+      return _guardFrameCache[dir] = frames;
+    });
+  }
+
+  /// 宝箱静态图（`BoxFit.contain`；缺失回退金色块 —— 掉落中也不留空白）。
+  static Widget chestStill(GuardChestTier tier) {
+    return Image.asset(
+      chestStillPath(tier),
+      fit: BoxFit.contain,
+      // ⚠️ 必须显式传宽高（项目硬规则：loose 约束下无宽高会按原图 512² 撑爆）。
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (_, __, ___) => const ColoredBox(color: _soldierGold),
     );
   }
 }

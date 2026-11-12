@@ -1,0 +1,229 @@
+%% 花园守卫 · 宝箱与结算演出 v1 —— 类图（增量）
+%% 真源：docs/花园守卫_宝箱与结算演出_增量设计_v1.md §2 / §3 / §5
+%% NEW: = 本次新增；MOD: = 本次修改
+
+classDiagram
+    %% ───────────────────────── 领域实体 ─────────────────────────
+    class GuardChestTier {
+        <<enumeration>>
+        none
+        normal
+        premium
+        +String id
+    }
+    note for GuardChestTier "线名冻结: none / normal / premium\nnone = 无宝箱(无贼/免罚/旧存档)"
+
+    class GuardSeedKind {
+        <<enumeration>>
+        none
+        common
+        premium
+        +String id
+    }
+
+    class GuardChestRoll {
+        <<immutable>>
+        +GuardChestTier tier
+        +GuardDropKind bonusDrop
+        +int fragmentQty
+        +GuardSeedKind seedKind
+        +String? seedSpeciesId
+        +bool get hasExtras
+    }
+    note for GuardChestRoll "NEW: resolve() 一次派生、一次落盘\n禁 Random；通道 = chest_* 六个"
+
+    class GuardChestMath {
+        <<library>>
+        +String kGuardChannelChestTier$
+        +String kGuardChannelChestBonusGate$
+        +String kGuardChannelChestBonusPick$
+        +String kGuardChannelChestFragmentGate$
+        +String kGuardChannelChestSeedGate$
+        +String kGuardChannelChestSeedPick$
+        +deriveGuardChest(dayKey, childId, isPremium, drop)$ GuardChestRoll
+        +guardGrantWinSunOf(state)$ int
+    }
+
+    class GuardDayState {
+        +String dayKey
+        +GuardDayStatus status
+        +GuardThiefKind? thiefKind
+        +int winSun
+        +GuardDropKind dropKind
+        +GuardDropKind bonusDropKind
+        +GuardBuffState? buff
+        +GuardBuffState? bonusBuff
+        +int battleAttempt
+        +GuardChestTier chestTier
+        +GuardDropKind chestBonusDropKind
+        +int chestFragmentQty
+        +GuardSeedKind chestSeedKind
+        +String? chestSeedSpeciesId
+        +bool chestExtrasGranted
+        +toJson() Map
+        +fromJson(json, fallbackDayKey)$ GuardDayState
+        +copyWith(...) GuardDayState
+    }
+    note for GuardDayState "6 个加性字段；fromJson 缺字段兜底\nchestTier=none / grantQty=0 / granted=false"
+
+    class GuardRoll {
+        +GuardThiefKind thief
+        +double growthLossPercent
+        +int sunLoss
+        +GuardDropKind drop
+        +GuardDropKind bonusDrop
+        +int winSun
+    }
+    note for GuardRoll "MOD: bonusDrop 恒 none（@Deprecated）\n第二张券迁到 GuardChestRoll"
+
+    class GuardDropKind {
+        <<enumeration>>
+        waterVoucher
+        laborVoucher
+        fertilizeVoucher
+        freeWater
+        freeFertilize
+        none
+        +roll(dayKey, childId, isPremium)$
+        +rollBonus(dayKey, childId, exclude)$
+    }
+    note for GuardDropKind "顺序冻结、禁重排\nMOD: rollBonus 调用点迁至 deriveGuardChest"
+
+    %% ───────────────────────── 领域服务 ─────────────────────────
+    class GuardService {
+        -GuardStateStore _store
+        -SunlightRepository _ledger
+        -BloomRewardRepository _bloomRewards
+        -bool Function()? _isPremium
+        +resolve(now) GuardResolveResult
+        +claim(now, useEnergy) GuardClaimOutcome
+        +expire(now) GuardExpireOutcome
+        +markFighting(now)
+        +recordBattleTheft(stolenSun, now) int
+        -_grantChestExtras(state) 🆕
+    }
+    note for GuardService "唯一账本入口(claim)\nNEW: claim 顺序: 扣成本 → extras → 阳光(翻倍) → buff → 写状态"
+
+    class GuardResolveResult {
+        +GuardDayState state
+        +bool isPremium
+        +GuardChestRoll chest
+    }
+    class GuardClaimOutcome {
+        +bool ok
+        +int winSun
+        +GuardBuffState? buff
+        +GuardBuffState? bonusBuff
+        +GuardChestRoll chest
+        +GuardDayState state
+    }
+
+    %% ───────────────────────── 仓储端口 ─────────────────────────
+    class BloomRewardRepository {
+        <<interface>>
+        +premiumFragmentBalance() int
+        +setPremiumFragmentBalance(int)
+        +unlockedSpeciesIds() Set
+        +unlockSpecies(speciesId)
+    }
+    note for BloomRewardRepository "碎片/种子不走阳光账本(既有口径)\n守卫链路唯一调用者 = GuardService.claim"
+
+    class GuardStateStore {
+        <<interface>>
+        +read(childId) GuardDayState
+        +write(childId, state)
+        +clear(childId)
+    }
+
+    %% ───────────────────────── 表现层 ─────────────────────────
+    class GuardShowStage {
+        <<enumeration>>
+        card
+        battle
+        chestDrop
+        chestIdle
+        chestOpening
+        result
+        done
+    }
+    note for GuardShowStage "NEW: 纯表现层阶段，不落盘\n(不新增 GuardDayStatus)"
+
+    class GuardChestStage {
+        <<widget>>
+        +Key chestKey$
+        +Key tapHintKey$
+        +Key framePlayerKey$
+        +GuardChestTier tier
+        +show(context, l10n, tier)$ Future~bool~
+        -_open()
+        -_autoOpenTimer
+    }
+
+    class GuardResultCard {
+        +Key cardKey$
+        +Key collectButtonKey$
+        +Key sunRewardKey$
+        +Key voucherRewardKey$
+        +Key bonusVoucherRewardKey$
+        +Key fragmentRewardKey$
+        +Key seedRewardKey$
+        +GuardTodayView view
+        +onCollect()
+    }
+    note for GuardResultCard "NEW: ScaleTransition(elasticOut) 入场\n无「跳过」按钮（本来就没有）"
+
+    class GuardTodayView {
+        +GuardPillMode mode
+        +GuardDayState state
+        +bool isPremium
+        +GuardChestTier chestTier
+        +GuardDropKind chestBonusDropKind
+        +int chestFragmentQty
+        +GuardSeedKind chestSeedKind
+        +int winSunToGrant
+    }
+
+    class GuardBattleField {
+        +Key fieldKey$
+        +Key sunDropKey(index)$
+        -List~_SunDropFx~ _sunDrops
+        -math.Random _fxRandom
+        -_sunDropFx(layout, s)
+    }
+    note for GuardBattleField "MOD: 阳光精灵改为上飞 + 延迟淡出\nRandom 仍只活在本 Fx 层"
+
+    class ChildTodayPage {
+        -GuardShowStage _stage
+        -_onBattleFinished(stolenSun)
+        -_showChestStage()
+        -_showResultCard()
+    }
+
+    class AudioService {
+        <<singleton>>
+        +playSfx(cue, volume)
+        +AudioCue guardChestOpen$
+    }
+
+    %% ───────────────────────── 关系 ─────────────────────────
+    GuardChestMath ..> GuardChestRoll : 派生
+    GuardChestMath ..> GuardDropKind : 读券种
+    GuardChestRoll "*" --> "1" GuardDayState : 落盘为 6 字段
+    GuardDayState "1" --> "1" GuardChestTier
+    GuardDayState "1" --> "1" GuardSeedKind
+    GuardService ..> GuardChestMath : deriveGuardChest()
+    GuardService ..> GuardRoll : deriveGuardRoll()
+    GuardService --> GuardStateStore
+    GuardService --> BloomRewardRepository : 碎片/种子
+    GuardService ..> GuardResolveResult : 产出
+    GuardService ..> GuardClaimOutcome : 产出
+    GuardResolveResult --> GuardChestRoll
+    GuardClaimOutcome --> GuardChestRoll
+    GuardTodayView ..> GuardDayState : 只读快照
+    ChildTodayPage --> GuardShowStage : 驱动
+    ChildTodayPage ..> GuardChestStage : 展示
+    ChildTodayPage ..> GuardResultCard : 展示
+    ChildTodayPage ..> GuardBattleField : 卡内 L4
+    GuardChestStage ..> AudioService : playSfx(guardChestOpen)
+    GuardResultCard ..> GuardService : onCollect → claim()
+    ChildTodayPage ..> GuardService : resolve/claim/expire

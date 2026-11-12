@@ -23,6 +23,11 @@
 ///
 /// ## 🔴 绝不 `pumpAndSettle`
 /// 阳光气泡无限循环 + 战斗层 ticker 常驻 —— 全文件定长 `pump` 推进。
+///
+/// ## 🔴 T03 起：结算卡前多了一段**不可跳过**的宝箱演出
+/// 链路变成 `终局横幅 → 落账 → 宝箱 drop/idle → 点击开箱(5s) → 结算卡`。
+/// 六个 case 统一经 [awaitOpenChestAndResult] 走完这段（点全屏热区 + 定长 5s），
+/// 不靠 8s 自动开箱兜底 —— 否则等于「跳过孩子真实路径」，宝箱阶段的回归全漏。
 library guard_battle_settlement_test;
 
 import 'package:drift/native.dart';
@@ -50,6 +55,7 @@ import 'package:sunflower_time/domain/services/account_service.dart';
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
 import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_chest_stage.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_result_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_tutorial_sheet.dart';
@@ -313,6 +319,41 @@ Future<void> _startBattle(WidgetTester tester) async {
       reason: '开始守卫后 L4 战斗层必须在卡内上屏');
 }
 
+/// 宝箱演出 → 开箱 → 结算卡（T03 起结算卡前**必过**宝箱阶段）。
+///
+/// 🔴 为什么每个 case 都必须走这里：设计 §2.2 把「终局 → 宝箱 → 结算卡」定为
+/// **不可跳过**的演出链，结算卡不再由终局直接弹出。用例若直接等结算卡，等到的是
+/// 8s 自动开箱的兜底路径（不是孩子真实路径），且会把宝箱阶段的回归全部漏掉。
+///
+/// 点的是**全屏热区**（`tapCatcherKey`）而不是宝箱本体 —— 与真实交互一致
+/// （§7.4 热区 2：3~8 岁孩子不会精确点到箱子上）。
+Future<void> awaitOpenChestAndResult(WidgetTester tester) async {
+  await _pumpUntil(
+    tester,
+    find.byKey(GuardChestStage.stageKey),
+    reason: '🔴 终局横幅之后必须先演宝箱（宝箱与结算卡都不可跳过）',
+  );
+  // 路由过渡（kGuardBattleToResultMs=200ms）走完再点，避免点在动画位移上。
+  await tester.pump(const Duration(milliseconds: 260));
+  expect(find.byKey(GuardChestStage.chestKey), findsOneWidget,
+      reason: '宝箱落下后应以静态首帧（frame001）停在菜地里');
+  expect(find.byKey(GuardResultCard.cardKey), findsNothing,
+      reason: '🔴 宝箱没开完，结算卡不许抢跑');
+  await tester.tap(find.byKey(GuardChestStage.tapCatcherKey));
+  await tester.pump(); // 起播一帧：把 FrameSequencePlayer 挂上
+  expect(find.byKey(GuardChestStage.chestKey), findsNothing,
+      reason: '点击后静态宝箱让位给开箱动画');
+  // 5s 开箱（30 帧 × 166.7ms）—— 定长推进，绝不 pumpAndSettle。
+  await tester.pump(const Duration(milliseconds: kGuardChestOpenMs));
+  await tester.pump(const Duration(milliseconds: 50)); // completed 在到点下一帧派发
+  await _pumpUntil(
+    tester,
+    find.byKey(GuardResultCard.cardKey),
+    reason: '开箱 5s 播完后必须弹结算卡',
+  );
+  await _settleRoute(tester);
+}
+
 /// 把一场战斗从「开战」打到「结算卡上屏」，回账本日键。
 /// [fireTimeline] 非空 = 逐点经**阳光胶囊**重放（③ 全灭流）；空 = 一枪不打（①②⑤⑥）。
 Future<String> _runBattleToResultCard(
@@ -333,6 +374,10 @@ Future<String> _runBattleToResultCard(
     for (final int t in fireTimeline) {
       await tester.pump(Duration(milliseconds: t - last));
       last = t;
+      // 🔴 终局横幅一上屏就停手：时间线表是按 30s 窗口铺的，全灭战局会在中途
+      // 就收场；继续按表点下去，点到的已经是**宝箱演出的全屏热区**（overlay 在
+      // 最上层），会把宝箱提前打开 ⇒ 后面的「点宝箱开箱」步骤就落在 opening 态。
+      if (find.byKey(GuardBattleField.bannerKey).evaluate().isNotEmpty) break;
       // 🔴 B7：开火入口从「卡内大圆钮」改成「页面右上阳光胶囊」
       // （胶囊在守卫战期间冻结并接管开火，见 child_today_page）。
       await tester.tap(find.byKey(ChildTodayPage.sunBubbleKey),
@@ -340,14 +385,9 @@ Future<String> _runBattleToResultCard(
     }
   }
   await _pumpUntil(tester, find.byKey(GuardBattleField.bannerKey));
-  // 横幅 ~900ms 后交回页面：落账 + 结算卡。
+  // 横幅 ~900ms 后交回页面：落账 + 宝箱演出 + 结算卡。
   await tester.pump(const Duration(milliseconds: 1000));
-  await _pumpUntil(
-    tester,
-    find.byKey(GuardResultCard.cardKey),
-    reason: '战斗终局后结算卡必须弹出（落账失败也不得阻断）',
-  );
-  await _settleRoute(tester);
+  await awaitOpenChestAndResult(tester);
   return dayKey(DateTime.now());
 }
 

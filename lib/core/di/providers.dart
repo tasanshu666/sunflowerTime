@@ -416,6 +416,10 @@ final guardServiceProvider = Provider<GuardService>(
     // 开关也写它 ⇒ Debug 下可直接预览付费掉率）。read 不 watch：权益变化
     // 不重建服务，下次 resolve 自然取新值。
     isPremium: () => ref.read(entitlementProvider).isPremium,
+    // 🔴 Guard-B13.11：高级宝箱的碎片 / 种子发放端口（账户级藏品）。
+    // `GuardService` 是该仓储在守卫链路上的**唯一调用者**（表现层不得直摸）。
+    // 漏注入 = 高级宝箱的碎片与种子静默丢失，故 production 装配必须给出。
+    bloomRewards: ref.watch(bloomRewardRepositoryProvider),
   ),
 );
 

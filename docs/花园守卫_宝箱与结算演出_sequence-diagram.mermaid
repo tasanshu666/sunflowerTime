@@ -1,0 +1,142 @@
+%% 花园守卫 · 宝箱与结算演出 v1 —— 时序图（增量）
+%% 真源：docs/花园守卫_宝箱与结算演出_增量设计_v1.md §2 / §5 / §7
+%% 覆盖：① 进入今日页 resolve 定死宝箱 ② 战斗 → 宝箱 → 开箱 → 结算 → claim 落账
+%%       ③ 宝箱阶段强杀 App 后重进 ④ 次日 expire 补发（含翻倍）
+
+sequenceDiagram
+    autonumber
+    actor Child as 孩子
+    participant Page as ChildTodayPage
+    participant Svc as GuardService
+    participant Chest as GuardChestMath
+    participant Store as GuardStateStore<br/>(SharedPreferences)
+    participant Card as GuardSceneCard /<br/>GuardBattleField
+    participant Stage as GuardChestStage
+    participant RCard as GuardResultCard
+    participant Ledger as SunlightRepository<br/>(阳光账本)
+    participant Bloom as BloomRewardRepository<br/>(碎片/种子)
+    participant Audio as AudioService
+
+    %% ────────────────────────────────────────────────────────────
+    rect rgb(240, 248, 255)
+    note over Page,Store: ① 进入今日页：expire → resolve（宝箱一次定死落盘）
+    Page->>Svc: expire()
+    Svc->>Store: read(childId)
+    Store-->>Svc: GuardDayState(昨天)
+    Svc-->>Page: GuardExpireOutcome（昨日结算 / 补发见 ④）
+    Page->>Svc: resolve()
+    Svc->>Svc: deriveGuardRoll(dayKey, childId, isPremium)
+    Note right of Svc: drop / winSun / 被偷额<br/>（掉落表一字未改）
+    Svc->>Chest: deriveGuardChest(dayKey, childId, isPremium, drop)
+    Note right of Chest: chest_tier 通道<br/>isPremium && u<0.20 ⇒ premium<br/>（免费档恒 normal，连 bonus 都不掷）
+    Chest-->>Svc: GuardChestRoll(tier, bonusDrop,<br/>fragmentQty, seedKind, seedSpeciesId)
+    Svc->>Store: write(dayKey, status=pending,<br/>chestTier, chestBonusDropKind,<br/>chestFragmentQty, chestSeedKind,<br/>chestSeedSpeciesId, chestExtrasGranted=false)
+    Svc-->>Page: GuardResolveResult(state, chest, isPremium)
+    Page->>Page: GuardTodayView.fromResolve()<br/>mode = pendingFree / pendingPaid
+    end
+
+    %% ────────────────────────────────────────────────────────────
+    rect rgb(255, 250, 240)
+    note over Child,Card: ② 开战 → 战斗（战局零落盘，奖励已定死）
+    Child->>Page: 点「开始守卫」
+    Page->>Page: 教学浮层 / 确认卡
+    Page->>Svc: markFighting()
+    Svc->>Store: write(status=fighting)
+    Page->>Page: mode = fighting ⇒ 卡挂 L4 GuardBattleField
+    Card->>Card: Ticker → sim.step()（禁 wall-clock）
+    Note right of Card: kill 事件 ⇒ 阳光精灵**上飞 + 淡出**<br/>（26pt / 700ms，Random 只在 Fx 层）
+    Card->>Card: sim.isOver ⇒ 停 BGM<br/>横幅 900ms 或 死亡补时 800ms
+    Card-->>Page: onFinished(stolenSun)
+    Page->>Svc: recordBattleTheft(stolenSun)
+    Svc->>Ledger: append(guard_stolen_…, 钳额)
+    Ledger-->>Svc: 实扣额
+    Svc-->>Page: stolenCharged（卡面 N 恒 == 账本行）
+    end
+
+    %% ────────────────────────────────────────────────────────────
+    rect rgb(250, 240, 255)
+    note over Page,RCard: ③ 宝箱演出（不可跳过）
+    alt state.chestTier == none（旧存档 / 无贼）
+        Page->>RCard: 直接弹结算卡（旧路径，200ms 过渡）
+    else chestTier ∈ {normal, premium}
+        Page->>Stage: showGuardChestStage(tier)
+        Note right of Stage: 全屏透明 barrier + PopScope(canPop:false)<br/>无「跳过」入口
+        Stage->>Stage: chestDrop 600ms（bounceOut，静止于 frame001）
+        Stage->>Stage: chestIdle（呼吸 1.6s/圈）+ Timer(8s)
+        opt 孩子点击（宝箱或屏幕任意处）
+            Child->>Stage: tap
+        end
+        opt 8s 无操作
+            Stage->>Stage: Timer 到期 ⇒ _open()
+        end
+        Stage->>Audio: playSfx(AudioCue.guardChestOpen, volume 0.6)
+        Stage->>Stage: FrameSequencePlayer(30 帧 / 5000ms<br/>holdLastFrame=true)
+        Note right of Stage: 166.7ms/帧 ≈ 6fps<br/>音效 5.198s（尾部 198ms 溢出）
+        Stage-->>Page: onComplete()
+        Page->>Stage: pop()
+        Page->>RCard: showGuardResultCard(view, stolenSun)
+        Note right of RCard: ScaleTransition 0.62→1.0<br/>elasticOut / 420ms
+    end
+    end
+
+    %% ────────────────────────────────────────────────────────────
+    rect rgb(240, 255, 244)
+    note over Child,Bloom: ④ 点「收下」→ claim（唯一落账入口）
+    Child->>RCard: 点「收下」
+    RCard->>Svc: claim()
+    Svc->>Store: read(childId)
+    alt state.isClaimed 或 当日 guard_win 行数 > battleAttempt
+        Svc-->>RCard: 回放（alreadyClaimed=true，零记账）
+    else 正常路径
+        Svc->>Svc: 扣成本（能量 或 guard_pay）
+        opt chestTier == premium && !chestExtrasGranted
+            Svc->>Bloom: unlockedSpeciesIds()
+            Bloom-->>Svc: Set<speciesId>
+            alt 种子物种已持券
+                Svc->>Svc: fragments += 3（common）/ 5（premium）
+            else 未持券
+                Svc->>Bloom: unlockSpecies(seedSpeciesId)（幂等）
+            end
+            opt fragments > 0
+                Svc->>Bloom: premiumFragmentBalance()
+                Bloom-->>Svc: n
+                Svc->>Bloom: setPremiumFragmentBalance(n + fragments)
+            end
+        end
+        Svc->>Svc: grantSun = guardGrantWinSunOf(state)<br/>（premium ⇒ winSun × 2）
+        Svc->>Ledger: append(guard_win_…, gross = grantSun)
+        Svc->>Svc: buff = guardBuffFor(dropKind)<br/>bonusBuff = guardBuffFor(chestBonusDropKind)
+        Svc->>Store: write(status=claimed, winSun=grantSun,<br/>buff, bonusBuff, chestExtrasGranted=true)
+        Svc-->>RCard: GuardClaimOutcome(ok, winSun, chest, state)
+    end
+    RCard->>Page: pop(outcome)
+    Page->>Page: GuardTodayView.fromClaim()<br/>mode = claimed；bump economy / guardBuff 修订号
+    Page-->>Child: 卡片关闭，花园页券 + 碎片同步
+    end
+
+    %% ────────────────────────────────────────────────────────────
+    rect rgb(255, 245, 245)
+    note over Page,Store: ⑤ 宝箱阶段强杀 App 后重进（奖励不重掷、不丢）
+    Note over Page: 进程被杀时 status 仍为 fighting<br/>（宝箱态不落盘 ⇒ 本期不需要新状态）
+    Page->>Svc: resolve()
+    Svc->>Store: read(childId)
+    Store-->>Svc: state(dayKey=今天, status=fighting,<br/>chestTier=premium, winSun=4, granted=false)
+    Svc-->>Page: 回放同一份 state（不重掷）
+    Page->>Page: mode = fighting ⇒ 战斗重播 → 宝箱 → 结算卡
+    Note over Page,Bloom: 奖励仍然只发一次（claim 三层幂等）
+    end
+
+    %% ────────────────────────────────────────────────────────────
+    rect rgb(255, 252, 230)
+    note over Svc,Bloom: ⑥ 次日 expire：fighting 未收下 ⇒ 补发（🔴 阳光翻倍 + extras）
+    Svc->>Store: read(childId)
+    Store-->>Svc: 昨天 status=fighting, chestTier=premium, winSun=4
+    Svc->>Svc: guardGrantWinSunOf(state) = 8
+    Svc->>Ledger: append(guard_win_…, gross = 8)（读判定去重）
+    Ledger-->>Svc: grantedWinSun = 8（已存在 ⇒ 0）
+    opt grantedWinSun > 0（本次真的补发了阳光）
+        Svc->>Bloom: 补发碎片 / 种子（已持券 ⇒ 分解 3/5 片）
+    end
+    Svc->>Store: clear(childId)
+    Note right of Svc: 券已过期不发 buff（既有口径）<br/>阳光/碎片/种子是永久收益 ⇒ 补发
+    end

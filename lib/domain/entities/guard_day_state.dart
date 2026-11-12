@@ -23,6 +23,7 @@
 ///    即冻结 —— 换名字等于让老存档全部读不出来。
 library guard_day_state;
 
+import 'package:sunflower_time/domain/entities/guard_chest.dart';
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
 import 'package:sunflower_time/domain/entities/guard_thief.dart';
 
@@ -198,9 +199,10 @@ class GuardDayState {
 
   /// 🔴 B13.5：第二张券的掉落档（`none` = 今天没有第二张）。
   ///
-  /// 「10% 概率掉 2 张不同的券」（玄参拍板）的存储字段：与 [dropKind] 同一
-  /// 次 resolve 落盘、同一张「券卡」在结算卡展示；JSON **缺字段兜底 none**
-  /// ⇒ 老存档向后兼容，线名复用 [GuardDropKind.id]（无新线名）。
+  /// ⚠️ **Guard-B13.11 起本字段不再被掉落层写入**（`deriveGuardRoll` 恒产出
+  /// `none`）：第二张券搬进高级宝箱，真源是 [chestBonusDropKind]。
+  /// 保留本字段只为两件事：① 读得懂**升级前**写入的旧存档（当天的双券不丢）；
+  /// ② 旧测试 / 旧埋点不必改字段名。新代码请一律读 [chestBonusDropKind]。
   final GuardDropKind bonusDropKind;
 
   /// 🔴 B13.5：第二张券的额度账（`null` = 没有第二张 / 未领取）。
@@ -232,6 +234,48 @@ class GuardDayState {
   ///    同一场内重复领取仍然只记一次钱（同 id 主键冲突），生产幂等**一格没松**。
   final int battleAttempt;
 
+  // ── 高级宝箱（Guard-B13.11 · 玄参 2026-11-11）────────────────────────────
+  //
+  // 六个字段全部**加性**：`resolve()` 时一次性由 `deriveGuardChest` 定死并落盘，
+  // `claim()` 只按落盘结果发放（`expire()` 的 fighting 补发分支同源读它）。
+  // 🔴 宝箱阶段**不新增 `GuardDayStatus`**：宝箱是表现层演出阶段，加了新状态会让
+  //    「开箱时强杀 App」的孩子次日被 `expire()` 判成「没处理」而扣损失
+  //    （设计 §2.3 方案 B 被否决的理由）。
+
+  /// 本场宝箱档位（缺省 [GuardChestTier.normal]）。
+  ///
+  /// ⚠️ 缺省是 `normal` 而不是「无宝箱」：普通宝箱 = 改造前的全部内容
+  /// （必得阳光 + 主券），所以**旧存档读成 normal 一分钱都不会多发**。
+  final GuardChestTier chestTier;
+
+  /// 高级宝箱里的**第二张券**（`none` = 没有第二张）。
+  ///
+  /// 与 [bonusDropKind] 的关系：🔴 Guard-B13.11 起第二张券**只在高级宝箱里出现**，
+  /// 掉落层（[bonusDropKind]）恒 `none`。本字段才是「第二张券」的真源；
+  /// [bonusDropKind] 只为旧存档 / 旧测试保留。
+  final GuardDropKind chestBonusDropKind;
+
+  /// 高级宝箱的碎片数量（片/次；`0` = 没有碎片，正常为 1~2）。
+  final int chestFragmentQty;
+
+  /// 高级宝箱的种子档位（`none` = 没有种子）。
+  final GuardSeedKind chestSeedKind;
+
+  /// 高级宝箱种子的具体物种 id（[chestSeedKind] == none 时恒 `null`）。
+  final String? chestSeedSpeciesId;
+
+  /// 碎片 / 种子**已发放**标记（幂等键）。
+  ///
+  /// ## 🔴 为什么需要它（这是「多发一次」而不是「吞掉奖励」的唯一手段）
+  /// 碎片与种子走 `BloomRewardRepository`（账户级藏品，**不进阳光账本**），
+  /// 而阳光走账本 —— 两者跨仓储、**无事务**。`claim()` 的顺序是
+  /// 「先发碎片/种子 → 再写 `guard_win` 账本行」（设计 §5.2 ⑤ 在 ⑥ 之前）：
+  ///  · 反过来的话，账本行写成功而碎片发放前崩溃 ⇒ 重进时账本层幂等判定
+  ///    「已领取」⇒ **碎片永久丢失**，而结算卡已经承诺「获得碎片」；
+  ///  · 本顺序的最坏结果是**多发 1 片**（方向偏向孩子，玄参已接受）。
+  /// 本标记只覆盖「⑤ 与 ⑧ 之间进程被杀」这一个窗口，把重复量压到最小。
+  final bool chestExtrasGranted;
+
   const GuardDayState({
     required this.dayKey,
     required this.status,
@@ -247,6 +291,12 @@ class GuardDayState {
     this.bonusBuff,
     this.tutorialSeen = false,
     this.battleAttempt = 0,
+    this.chestTier = GuardChestTier.normal,
+    this.chestBonusDropKind = GuardDropKind.none,
+    this.chestFragmentQty = 0,
+    this.chestSeedKind = GuardSeedKind.none,
+    this.chestSeedSpeciesId,
+    this.chestExtrasGranted = false,
   });
 
   /// 一天的空白起点（`dayKey` 变化时用它重置）。
@@ -286,6 +336,13 @@ class GuardDayState {
     bool clearBonusBuff = false,
     bool? tutorialSeen,
     int? battleAttempt,
+    GuardChestTier? chestTier,
+    GuardDropKind? chestBonusDropKind,
+    int? chestFragmentQty,
+    GuardSeedKind? chestSeedKind,
+    String? chestSeedSpeciesId,
+    bool clearChestSeedSpeciesId = false,
+    bool? chestExtrasGranted,
   }) {
     return GuardDayState(
       dayKey: dayKey ?? this.dayKey,
@@ -302,6 +359,15 @@ class GuardDayState {
       bonusBuff: clearBonusBuff ? null : (bonusBuff ?? this.bonusBuff),
       tutorialSeen: tutorialSeen ?? this.tutorialSeen,
       battleAttempt: battleAttempt ?? this.battleAttempt,
+      chestTier: chestTier ?? this.chestTier,
+      chestBonusDropKind: chestBonusDropKind ?? this.chestBonusDropKind,
+      chestFragmentQty: chestFragmentQty ?? this.chestFragmentQty,
+      chestSeedKind: chestSeedKind ?? this.chestSeedKind,
+      // `chestSeedSpeciesId` 可空 ⇒ 显式开关清空（同 thiefKind / buff 的口径）。
+      chestSeedSpeciesId: clearChestSeedSpeciesId
+          ? null
+          : (chestSeedSpeciesId ?? this.chestSeedSpeciesId),
+      chestExtrasGranted: chestExtrasGranted ?? this.chestExtrasGranted,
     );
   }
 
@@ -322,6 +388,13 @@ class GuardDayState {
       'bonusBuff': bonusBuff?.toJson(),
       'tutorialSeen': tutorialSeen,
       'battleAttempt': battleAttempt,
+      // 🔴 Guard-B13.11：宝箱六字段（纯追加键；老读者忽略未知键即可）。
+      'chestTier': chestTier.id,
+      'chestBonusDropKind': chestBonusDropKind.id,
+      'chestFragmentQty': chestFragmentQty,
+      'chestSeedKind': chestSeedKind.id,
+      'chestSeedSpeciesId': chestSeedSpeciesId,
+      'chestExtrasGranted': chestExtrasGranted,
     };
   }
 
@@ -329,22 +402,39 @@ class GuardDayState {
   ///
   /// 容错口径：缺字段取默认值、未知线名兜底（状态 → none / 贼 → null /
   /// 券 → none），**绝不抛异常** —— 一份坏掉的 prefs 不该让孩子打不开今日页。
-  /// [dayKey] 缺失时用 [fallbackDayKey] 兜底（调用方传入「今天」）。
+  /// [dayKey] 缺失 / 非字符串 / 空串时用 [fallbackDayKey] 兜底（调用方传入「今天」）。
   factory GuardDayState.fromJson(
     Map<String, Object?> json, {
     required String fallbackDayKey,
   }) {
     final Object? rawBuff = json['buff'];
+    // 🔴 Guard-B13.11：种子档位与物种必须先解出来再判「不变量」（档位 none ⇒
+    //    物种强制 null），否则一份「档位 none 但物种非空」的脏存档会让
+    //    发放层把一颗不存在的种子发出去。
+    final GuardSeedKind seedKind =
+        guardSeedKindFromId(json['chestSeedKind'] as String?);
+    final Object? rawSpecies = json['chestSeedSpeciesId'];
     return GuardDayState(
-      dayKey: (json['dayKey'] as String?) ?? fallbackDayKey,
-      status: guardDayStatusFromId(json['status'] as String?),
-      thiefKind: guardThiefKindFromId(json['thiefKind'] as String?),
+      // 🔴 P2-③ 收口（与下面四个旧字段**同一口径**）：`dayKey` 原来写的是
+      //    `json['dayKey'] as String?` —— 一份 `{"dayKey": 42}` 的脏存档会抛
+      //    `TypeError`，与文件头「绝不抛异常」相悖（`GuardStatePrefsStore.read`
+      //    的 `catch(_)` 只是把白屏挡住了，契约仍不一致）。
+      //    [_stringOf] 对「非 String」与「空串」都返回 `null` ⇒ 这里继续回落
+      //    [fallbackDayKey]（调用方传「今天」）——**空串不算合法 dayKey**，
+      //    否则 `dayKey == ''` 会让「同一天 ⇒ 空操作」永远不成立。
+      dayKey: _stringOf(json['dayKey']) ?? fallbackDayKey,
+      // ⚠️ 这四个**旧**字段用 [_stringOf] 而不是 `as String?`：脏存档里可能是
+      //    数字 / 列表 / Map，硬转会抛 `TypeError`（QA 实证 `{"status": 42}` 就炸），
+      //    与文件头「绝不抛异常 —— 一份坏掉的 prefs 不该让孩子打不开今日页」相悖。
+      //    本批给 chest* 四键定下口径后，旧字段缺的只是这一步对称收口。
+      status: guardDayStatusFromId(_stringOf(json['status'])),
+      thiefKind: guardThiefKindFromId(_stringOf(json['thiefKind'])),
       energyUsed: _intOf(json['energyUsed']),
       paidSun: _intOf(json['paidSun']),
       winSun: _intOf(json['winSun']),
-      dropKind: guardDropKindFromId(json['dropKind'] as String?),
+      dropKind: guardDropKindFromId(_stringOf(json['dropKind'])),
       // 🔴 B13.5：缺字段兜底 none / null —— 老存档（无 bonus 键）向后兼容。
-      bonusDropKind: guardDropKindFromId(json['bonusDropKind'] as String?),
+      bonusDropKind: guardDropKindFromId(_stringOf(json['bonusDropKind'])),
       sunStolen: _intOf(json['sunStolen']),
       growthStolen: _doubleMapOf(json['growthStolen']),
       buff: rawBuff is Map
@@ -358,6 +448,19 @@ class GuardDayState {
       tutorialSeen: json['tutorialSeen'] == true,
       // 缺字段兜底 0：老存档（无 battleAttempt 键）= 当天第 1 场，账本 id 无后缀。
       battleAttempt: _intOf(json['battleAttempt']),
+      // 🔴 Guard-B13.11：宝箱六字段全部兜底 —— 老存档（无 chest* 键）读成
+      //    「普通宝箱、无附加项、未发放」，与改造前的经济口径逐位一致。
+      // ⚠️ 用 [_stringOf] 而不是 `as String?`：脏存档里这两个键可能是数字，
+      //    硬转会抛 `TypeError`（一个坏 prefs 不该让孩子打不开今日页）。
+      chestTier: guardChestTierFromId(_stringOf(json['chestTier'])),
+      chestBonusDropKind:
+          guardDropKindFromId(_stringOf(json['chestBonusDropKind'])),
+      chestFragmentQty: _positiveIntOf(json['chestFragmentQty']),
+      chestSeedKind: seedKind,
+      chestSeedSpeciesId: seedKind == GuardSeedKind.none
+          ? null
+          : _stringOf(rawSpecies),
+      chestExtrasGranted: json['chestExtrasGranted'] == true,
     );
   }
 
@@ -377,7 +480,13 @@ class GuardDayState {
         other.buff != buff ||
         other.bonusBuff != bonusBuff ||
         other.tutorialSeen != tutorialSeen ||
-        other.battleAttempt != battleAttempt) {
+        other.battleAttempt != battleAttempt ||
+        other.chestTier != chestTier ||
+        other.chestBonusDropKind != chestBonusDropKind ||
+        other.chestFragmentQty != chestFragmentQty ||
+        other.chestSeedKind != chestSeedKind ||
+        other.chestSeedSpeciesId != chestSeedSpeciesId ||
+        other.chestExtrasGranted != chestExtrasGranted) {
       return false;
     }
     if (other.growthStolen.length != growthStolen.length) return false;
@@ -402,6 +511,12 @@ class GuardDayState {
         bonusBuff,
         tutorialSeen,
         battleAttempt,
+        chestTier,
+        chestBonusDropKind,
+        chestFragmentQty,
+        chestSeedKind,
+        chestSeedSpeciesId,
+        chestExtrasGranted,
         Object.hashAllUnordered(
           growthStolen.entries
               .map((MapEntry<String, double> e) => Object.hash(e.key, e.value)),
@@ -414,7 +529,10 @@ class GuardDayState {
       'winSun=$winSun, drop=${dropKind.id}, bonusDrop=${bonusDropKind.id}, '
       'sunStolen=$sunStolen, growthStolen=$growthStolen, buff=$buff, '
       'bonusBuff=$bonusBuff, tutorialSeen=$tutorialSeen, '
-      'attempt=$battleAttempt)';
+      'attempt=$battleAttempt, chest=${chestTier.id}, '
+      'chestBonus=${chestBonusDropKind.id}, chestFragments=$chestFragmentQty, '
+      'chestSeed=${chestSeedKind.id}($chestSeedSpeciesId), '
+      'chestExtrasGranted=$chestExtrasGranted)';
 }
 
 /// JSON 里的 int 字段（`num` / `String` / 缺失都兜底为 0）。
@@ -423,6 +541,21 @@ int _intOf(Object? value) {
   if (value is num) return value.toInt();
   if (value is String) return int.tryParse(value) ?? 0;
   return 0;
+}
+
+/// JSON 里的**非负** int 字段（负数 / 脏值一律收敛成 0）。
+///
+/// 专用碎片数量：一个坏存档不该让发放层减片（`setPremiumFragmentBalance` 是
+/// 覆盖式写，负数会直接把账户余额扣掉）。
+int _positiveIntOf(Object? value) {
+  final int raw = _intOf(value);
+  return raw > 0 ? raw : 0;
+}
+
+/// JSON 里的字符串字段（非 `String` / 空串一律 `null`，**不抛类型异常**）。
+String? _stringOf(Object? value) {
+  if (value is String && value.isNotEmpty) return value;
+  return null;
 }
 
 /// JSON 里的 `Map<String, double>`（非 Map / 非数值项一律跳过）。

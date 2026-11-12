@@ -53,7 +53,10 @@ import 'package:sunflower_time/core/constants/prd_params.dart'
         kGuardDeathFleeRunMs,
         kGuardEndBannerDwellMs,
         kGuardMissFxMs,
-        kGuardSunDropFxMs;
+        kGuardSunDropFxMs,
+        kGuardSunRiseFadeStart,
+        kGuardSunRiseFadeStartOpacity,
+        kGuardSunRisePt;
 import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
@@ -112,6 +115,25 @@ class GuardBattleField extends StatefulWidget {
   /// `find.byKey(GuardBattleField.sunDropKey(i))` 先 findsOneWidget 再 findsNothing。
   static Key sunDropKey(int monsterIndex) =>
       Key('guardBattleSunDrop$monsterIndex');
+
+  /// 阳光精灵的不透明度曲线（纯函数，可单测）。
+  ///
+  /// 前 [kGuardSunRiseFadeStart]（60%）线性 1 → [kGuardSunRiseFadeStartOpacity]
+  /// （0.35），之后线性收到 0；`t` 越界自动钳在 [0,1]。
+  ///
+  /// 🔴 曲线挂在**公开 Widget 类**上（而不是 `_State`）的唯一原因：这是「演出
+  /// 规格」而不是「渲染细节」，页面级 / 单元测试要能直接钉住它，无需把整层战斗
+  /// 挂起来（见 `test/guard/guard_sun_drop_fx_test.dart` 的方向 + 淡出曲线用例）。
+  static double sunRiseOpacityAt(double t) {
+    final double clamped = t.clamp(0.0, 1.0);
+    if (clamped <= kGuardSunRiseFadeStart) {
+      final double p = clamped / kGuardSunRiseFadeStart;
+      return 1 - (1 - kGuardSunRiseFadeStartOpacity) * p;
+    }
+    final double p =
+        (clamped - kGuardSunRiseFadeStart) / (1 - kGuardSunRiseFadeStart);
+    return kGuardSunRiseFadeStartOpacity * (1 - p);
+  }
 
   /// 战局归属的自然日（sim seed 入参；页面传当日 `dayKey`）。
   final String dayKey;
@@ -212,7 +234,7 @@ class _GuardBattleFieldState extends State<GuardBattleField>
   final Map<int, int> _deaths = <int, int>{};
 
   /// 击杀掉落的「阳光精灵」列表（B13.8：kill 事件 → 怪位置冒一颗阳光，
-  /// [kGuardSunDropFxMs] 内下落 + 漂移 + 淡出后摘除）。
+  /// [kGuardSunDropFxMs] 内**上飞** + 漂移 + 淡出后摘除）。
   ///
   /// 🔴 **纯渲染层**，与 [_deaths] 同一纪律：sim / 结算 / 确定性**零感知**。
   /// 🔴 随机漂移量的 `math.Random()` 只允许活在本 Fx 层 —— 绝不进 sim / 领域层。
@@ -505,7 +527,7 @@ class _GuardBattleFieldState extends State<GuardBattleField>
   ///
   /// 与 [_collectDeathFx] 读同一批 kill 事件，但只追加渲染记录：在怪的
   /// **当前位置**（事件只带 index 不带坐标，同 MISS 的做法取快照）冒一颗
-  /// 阳光精灵，[kGuardSunDropFxMs] 内下落 + 随机漂移 + 淡出后摘除。
+  /// 阳光精灵，[kGuardSunDropFxMs] 内**上飞** + 随机漂移 + 淡出后摘除。
   ///
   /// 🔴 **零确定性破口**：sim 事件流 / 结算 / seed 一个字节不动；随机量
   /// （漂移方向）只影响演出，`math.Random()` 只活在本 Fx 层。
@@ -586,10 +608,15 @@ class _GuardBattleFieldState extends State<GuardBattleField>
               ),
 
             // ── 终局横幅（Victory / Retreat；约 900ms 后 onFinished 交回页面）──
+            // 🔴 B13.15（玄参：文字把向日葵战士盖住了）：从居中改贴**卡顶**，
+            //    只压场景上空，不再压战士/怪物的水平带（y 72±8）。
             if (_sim.isOver)
               Positioned.fill(
                 child: Align(
-                  child: Container(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Container(
                     key: GuardBattleField.bannerKey,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -608,6 +635,7 @@ class _GuardBattleFieldState extends State<GuardBattleField>
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF6B5A3E),
                       ),
+                    ),
                     ),
                   ),
                 ),
@@ -749,13 +777,19 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     );
   }
 
-  /// 单个**阳光掉落 VFX** 的渲染（B13.8：下落 + 随机漂移 + 淡出）。
+  /// 单个**阳光精灵** VFX 的渲染（Guard-B13.11：**上飞** + 随机漂移 + 淡出）。
   ///
   /// 轨迹全部由 `fxClockMs − startMs` 推导（与死亡演出同一口径，确定性友好）：
-  /// * y 随 `t` 线性**下落** 26pt；
+  /// * y 随 `t` 线性**上飞** [kGuardSunRisePt]（26pt，钳在场景卡内的安全高度）；
   /// * x 随 `t` 线性漂移（±12pt，生成时由 [_fxRandom] 抽定）；
-  /// * opacity 1 → 0；[kGuardSunDropFxMs](700ms) 到点返回零尺寸占位
+  /// * opacity：前 [kGuardSunRiseFadeStart]（60%）从 1 淡到
+  ///   [kGuardSunRiseFadeStartOpacity]（0.35），后 40% 加速淡出到 0 ——
+  ///   「先看到它飞起来，再淡掉」（原实现一冒头就消失，等于没演出）；
+  /// * [kGuardSunDropFxMs](700ms) 到点返回零尺寸占位
   ///   （由 [_pruneSunDrops] 在 tick 里摘除记录）。
+  ///
+  /// 🔴 为什么上飞只有 26pt：卡高 112pt、怪的水平带被 `mapMonsterY` 钳在卡底
+  /// 倒计时细线之上 —— 再高就会盖住卡顶的计时条 / 能量点（玄参红线）。
   ///
   /// 素材复用既有 `assets/rewards/sunlight.png`；缺失回退零尺寸，不 crash。
   Widget _sunDropFx(GuardCardLayout layout, _SunDropFx s) {
@@ -769,12 +803,13 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     return Positioned(
       key: GuardBattleField.sunDropKey(s.monsterIndex),
       left: layout.mapMonsterX(s.x) - size / 2 + s.driftDx * t,
-      top: layout.mapMonsterY(s.y) + 26 * t,
+      // 🔴 负号 = 向上（原实现是 `+ 26 * t`，即下落）。
+      top: layout.mapMonsterY(s.y) - kGuardSunRisePt * t,
       width: size,
       height: size,
       child: IgnorePointer(
         child: Opacity(
-          opacity: (1.0 - t).clamp(0.0, 1.0),
+          opacity: GuardBattleField.sunRiseOpacityAt(t),
           child: Image.asset(
             'assets/rewards/sunlight.png',
             fit: BoxFit.contain,
@@ -787,12 +822,14 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     );
   }
 
+  /// 阳光精灵的不透明度曲线（纯函数）—— 实现见
+  /// [GuardBattleField.sunRiseOpacityAt]（挂在公开类上以便单测直接钉住）。
+
   static GuardBattleMonsterKind _kindOf(String kindId) {
     return GuardBattleMonsterKind.values.firstWhere(
       (GuardBattleMonsterKind k) => k.id == kindId,
     );
-  }
-}
+  }}
 
 /// 一条正在播放的「MISS」反馈（[kGuardMissFxMs] 后出场）。
 ///

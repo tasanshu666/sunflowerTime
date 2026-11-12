@@ -69,11 +69,20 @@ class GuardRoll {
   /// 掉落档。
   final GuardDropKind drop;
 
-  /// 🔴 B13.5 / Guard-B13.10：第二张券（`none` = 今天没有；「10% 掉 2 张不同的」）。
+  /// 🔴 **已迁出（Guard-B13.11 · 玄参 2026-11-11 第九轮）**：第二张券从
+  /// 「掉落阶段的付费普惠加成」搬进**高级宝箱**（`GuardChestRoll.bonusDrop`）。
   ///
-  /// 🔴 **完整版专属**（玄参 2026-11-11 裁定）：「双倍掉落券对免费档不生效」——
-  /// 免费档（`isPremium == false`）的该字段**恒为** [GuardDropKind.none]。
-  /// gate 只有一个落点：本类的产出方 [deriveGuardRoll]（见该函数的注释）。
+  /// 本字段**保留但恒为** [GuardDropKind.none]：
+  ///  · 删除字段会波及既有测试 / 埋点（`GuardRoll` 已冻结为「观测/测试用」）；
+  ///  · 恒 `none` 是**语义上正确**的（掉落阶段不再产生第二张券）；
+  ///  · 消费方请改读 `GuardDayState.chestBonusDropKind`
+  ///    （或 `GuardChestRoll.bonusDrop`），不要再从这里取券。
+  // Deprecated message is a *code* string (not a UI copy), so it must be
+  // ASCII: `test/i18n/no_han_in_domain_test.dart` forbids CJK outside comments.
+  @Deprecated(
+    'Second voucher moved to the premium chest (Guard-B13.11): read '
+    'GuardChestRoll.bonusDrop / GuardDayState.chestBonusDropKind instead.',
+  )
   final GuardDropKind bonusDrop;
 
   /// 必得阳光（3~5；B5b 起无道具档固定 [kGuardWinSunNoItem] = 区间上限 5）。
@@ -125,9 +134,9 @@ class GuardRoll {
 ///  · 偷成长：只有 `stealsGrowth` 的贼才掷，落在
 ///    `[growthStealMinPct, growthStealMaxPct)` 的连续值（食叶虫 1~3%、贪婪鼬 1~5%）；
 ///  · 掉落按 6 档概率落桶；**无道具档的必得阳光固定取上限**（决策 D2 / R1）；
-///  · 第二张券（[kGuardDropDualChance] = 10%）🔴 **仅完整版档才掷**，且必须首张
-///    已掉券（`drop != none`）—— 免费档的 [GuardRoll.bonusDrop] 恒 `none`
-///    （Guard-B13.10，玄参 2026-11-11「双倍掉落券对免费档不生效」）。
+///  · 🔴 Guard-B13.11：本函数**不再**派生第二张券（[GuardRoll.bonusDrop] 恒
+///    `none`）—— 第二张券搬到高级宝箱（`deriveGuardChest` 的
+///    `chest_bonus_gate` / `chest_bonus_pick` 两条通道）。
 GuardRoll deriveGuardRoll({
   required String dayKey,
   required String childId,
@@ -135,27 +144,18 @@ GuardRoll deriveGuardRoll({
 }) {
   final GuardThiefKind thief =
       GuardThiefKind.roll(dayKey: dayKey, childId: childId);
-  // 🔴 B13.5：掉落分档（免费 none=50% / 完整版必掉券）+ 10% 第二张券。
+  // 🔴 B13.5：掉落分档（免费 none=50% / 完整版必掉券）。
   final GuardDropKind drop = GuardDropKind.roll(
     dayKey: dayKey,
     childId: childId,
     isPremium: isPremium,
   );
-  // 🔴 Guard-B13.10（玄参 2026-11-11 裁定）：「双倍掉落券」收紧为**完整版专属** ——
-  //    免费档永不出第二张。本 gate 是**唯一**的档位判据，条件两颗都必须成立：
-  //     ① `isPremium == true`（档位门槛，免费档恒 `none`，连通道都不掷）；
-  //     ② `drop != none`（首张没券 ⇒ 没有第二张；与 B13.5 原语义一致）。
-  //    注意**不要**把 gate 挪进 [GuardDropKind.rollBonus]：那个函数是纯「掷」的
-  //    低层工具，档位语义属于本函数（离档位最近的唯一入口）。
-  final GuardDropKind bonusDrop =
-      isPremium && drop != GuardDropKind.none
-          ? (GuardDropKind.rollBonus(
-              dayKey: dayKey,
-              childId: childId,
-              exclude: drop,
-            ) ??
-            GuardDropKind.none)
-          : GuardDropKind.none;
+  // 🔴 Guard-B13.11（玄参 2026-11-11 第九轮）：「10% 第二张券」**搬进高级宝箱**。
+  //    掉落层因此**不再掷** `drop_bonus_gate` / `drop_bonus_pick` 两个旧通道
+  //    （常量保留在 `guard_drop.dart`，停止调用：删除会让历史 `deriveGuardRoll`
+  //    不可重放）。`GuardRoll.bonusDrop` 保留字段但恒 `none` —— 语义上正确
+  //    （掉落阶段本来就不再产生第二张券），也不必改 `GuardRoll` 的构造面。
+  //    新落点：`deriveGuardChest(...).bonusDrop`。
   final GuardThiefSpec spec = thief.spec;
 
   // 偷阳光：不看余额、不封顶（余额钳到 0 是「扣账」那一层的责任，见 PRD 决策 D6）。
@@ -195,7 +195,6 @@ GuardRoll deriveGuardRoll({
     growthLossPercent: growthLoss,
     sunLoss: sunLoss,
     drop: drop,
-    bonusDrop: bonusDrop,
     winSun: winSun,
   );
 }

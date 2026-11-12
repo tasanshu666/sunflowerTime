@@ -38,3 +38,7 @@ assets/_originals/
 # App Store 商店截图的原始/成品目录（约 30MB PNG，仅用于上架后台上传，非源码、非资产）
 # 需要时从本地运营目录 `/Users/wangjunchao/OH_WorkSpace/码农爸爸AI养娃运营/assets/产品截图/向日葵专注` 取
 docs/商店截图/
+
+# Python 工具脚本产物（tools/*.py 运行时自动生成，可再生的中间产物，不入库）
+# 根级规则：任意子目录下的 __pycache__ 一并覆盖，以后新增的 py 脚本不必再单独登记
+__pycache__/

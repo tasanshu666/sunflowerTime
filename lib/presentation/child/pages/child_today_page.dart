@@ -22,6 +22,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sunflower_time/presentation/shared/premium_gate.dart'
+    show showGuardPremiumHint;
 import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
@@ -33,17 +35,21 @@ import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/core/utils/sunlight_display.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/guard_debug_script.dart'
-    show debugGuardBattleScriptOverrideProvider;
+    show
+        debugGuardBattleScriptOverrideProvider,
+        debugGuardChestTierOverrideProvider;
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart'
     show GuardBattleScript, GuardBattleMonsterSpec, deriveGuardBattleScript;
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_first_plant_dialog.dart';
 // B3（守卫战 v2）：战斗浮层（guard_battle_overlay.dart）已退役 —— 战斗本体
 // 在场景卡 L4（guard_battle_field.dart）跑；v1 胶囊（guard_pill.dart）同批删除，
 // 模式判定函数本就驻在 guard_today_state.dart（落点未变）。
 import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart'
     show GuardBattleHandle;
+import 'package:sunflower_time/presentation/child/widgets/guard_chest_stage.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_intro_dialog.dart'
     show recordMetMonsterKinds;
 import 'package:sunflower_time/presentation/child/widgets/guard_result_card.dart';
@@ -55,6 +61,8 @@ import 'package:sunflower_time/presentation/child/widgets/sun_burst.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
+import 'package:sunflower_time/domain/entities/guard_chest.dart'
+    show GuardChestTier;
 import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
@@ -251,6 +259,11 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   void initState() {
     super.initState();
     _reload();
+    // 🔴 B13.15：首建页也检查一次首株说明卡（切 tab 回来走
+    // `onTabRefreshRequested`；两路入口共用幂等闸 + prefs 位）。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _maybeShowFirstPlantIntro();
+    });
   }
 
   @override
@@ -266,7 +279,38 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   int? get refreshTabIndex => kChildTabIndexOfToday;
 
   @override
-  Future<void> onTabRefreshRequested() => _reload(silent: true);
+  Future<void> onTabRefreshRequested() async {
+    await _reload(silent: true);
+    // 🔴 B13.15：种下第一个植物后**回到今日页**时弹守卫说明卡（一辈子一次）。
+    // 切 tab 回来是主路径（shell 若保活 tab 页，initState 不会重跑），
+    // 故挂在 tab 刷新回调里；首建页路径由 initState 的 post-frame 兜底。
+    unawaited(_maybeShowFirstPlantIntro());
+  }
+
+  /// 首株守卫说明卡的防重入闸（弹窗是 root navigator，与页面重建无竞态，
+  /// 但「切 tab + 回前台」可能同帧双触发 ⇒ 用标志收敛到一次）。
+  bool _firstPlantIntroBusy = false;
+
+  /// B13.15：花园里有存活植物 && 「首株说明卡」未看过 ⇒ 弹卡（内部幂等：
+  /// 弹过置 prefs 位；没植物不弹不置位；任何异常吞掉不阻断页面刷新）。
+  Future<void> _maybeShowFirstPlantIntro() async {
+    if (_firstPlantIntroBusy || !mounted) return;
+    final AppLocalizations? t = _l10n;
+    if (t == null) return;
+    _firstPlantIntroBusy = true;
+    try {
+      await maybeShowGuardFirstPlantIntro(
+        context: context,
+        l10n: t,
+        sp: ref.read(sharedPreferencesProvider),
+        plants: ref.read(plantRepositoryProvider),
+      );
+    } catch (e) {
+      debugPrint('[Guard] 首株说明卡失败（不阻断）：$e');
+    } finally {
+      _firstPlantIntroBusy = false;
+    }
+  }
 
   /// [silent] = true 时不整页转圈（C68 自动刷新用）——切 tab / 回前台是高频动作，
   /// 闪一下加载圈会让孩子以为「页面重载了」。
@@ -537,15 +581,49 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         debugPrint('[Guard] 落账「被偷」失败（不阻断结算卡）：$e');
       }
       if (!mounted) return;
+      // ③¾ 宝箱演出（Guard-B13.11 T03）：战斗终局 → **宝箱** → 结算卡。
+      //
+      // 🔴 为什么宝箱在 `recordBattleTheft` **之后**：被偷要立刻落账（孩子强杀
+      //    App 也不能丢这一笔），而宝箱只是演出 —— 演出被强杀中断不影响任何账。
+      // 🔴 为什么 `status` 仍是 `fighting`：宝箱阶段**不落盘**（见
+      //    `GuardShowStage` 文档）。强杀重进 ⇒ 从战斗重播 ⇒ 奖励不重掷。
+      // 🔴 已领取态不演宝箱（`guardStageAfterBattle` 纯函数判定）：东西早就进账，
+      //    再演一遍等于承诺第二份奖励。
+      if (guardStageAfterBattle(view) == GuardShowStage.chestDrop) {
+        // 调试覆盖只换**演出档位**（玄参要看高级宝箱动画，20% 概率真机撞不到）；
+        // 奖励数值仍按当日落盘值发放 —— 见 `debugGuardChestTierOverrideProvider`
+        // 的文档（不许改已落盘的经济结果）。
+        final GuardChestTier showTier = ref.read(
+              debugGuardChestTierOverrideProvider,
+            ) ??
+            view.chestTier;
+        try {
+          await showGuardChestOverlay(
+            context,
+            tier: showTier,
+            l10n: t,
+          );
+        } catch (e) {
+          // 演出异常绝不阻断结算卡：宝箱只是表演，奖励已在 resolve 时定死。
+          debugPrint('[Guard] 宝箱演出异常（不阻断结算卡）：$e');
+        }
+        if (!mounted) return;
+      }
       // ④ 结算卡：「收下」才 `claim()`（唯一记账入口，领域层自带三层幂等）。
       //    stolenSun 传**账本实扣额**（recordBattleTheft 返回值），不传 sim
       //    原始值 —— 余额不足 / 已写过时实扣 < sim 值，卡面必须与账本一致。
+      //    showPremiumHint：free 档才提示「完整版有高级宝箱」（B13.16 玄参）；
+      //    premium 用户自己就能掉高级宝箱，提示了反而矛盾。🔴 判定走
+      //    [showGuardPremiumHint] 单点（权益标识符白名单守卫：等级纯链路文件
+      //    不许出现任何权益字面量，注释也算），只吃 bool。结算卡是一次性弹层，
+      //    read 快照足够（权益变更不会中途改这场战斗的档位）。
       final GuardClaimOutcome? outcome = await showGuardResultCard(
         context,
         view: view,
         l10n: t,
         stolenSun: stolenCharged,
         onCollect: () => ref.read(guardServiceProvider).claim(),
+        showPremiumHint: showGuardPremiumHint(context),
       );
       if (outcome == null) return;
       ref.read(guardTodayProvider.notifier).state =

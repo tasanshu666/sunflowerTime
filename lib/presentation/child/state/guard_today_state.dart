@@ -26,9 +26,12 @@ library guard_today_state;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/domain/entities/guard_chest.dart';
 import 'package:sunflower_time/domain/entities/guard_day_state.dart';
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
 import 'package:sunflower_time/domain/entities/guard_thief.dart';
+import 'package:sunflower_time/domain/services/guard_chest.dart'
+    show guardGrantWinSunOf;
 import 'package:sunflower_time/domain/services/guard_math.dart';
 import 'package:sunflower_time/domain/services/guard_service.dart';
 import 'package:sunflower_time/domain/services/guard_voucher.dart';
@@ -101,6 +104,55 @@ GuardPillMode guardPillModeOf(
       if (balance >= kGuardPayCost) return GuardPillMode.pendingPaid;
       return GuardPillMode.freeRide;
   }
+}
+
+/// 本次守卫的**演出阶段**（纯表现层，🔴 **不落盘**）。
+///
+/// 真源：`docs/花园守卫_宝箱与结算演出_增量设计_v1.md` §2.2 / §2.3。
+///
+/// ## 为什么**不**新增 `GuardDayStatus.chest`
+/// `expire()` 的分支是「`fighting` → 补发；其余 → 扣损失」。多一个 `chest` 状态
+/// 却漏改 `expire()`，孩子**在宝箱阶段强杀 App，次日就会被当「压根没管」罚**
+/// （正是 `markFighting` 当初要解决的问题）。故宝箱态只活在 widget 树里，
+/// `status` 一直是 `fighting` 直到 `claim()` 落成 `claimed`。
+///
+/// 「重进不能重新开箱刷奖励」不靠阶段落盘，而靠：① 宝箱档位与全部开箱结果在
+/// `resolve()` 时一次性写进 `GuardDayState`；② `claim()` 三层幂等；
+/// ③ 碎片 / 种子发放带 `chestExtrasGranted` 标记。
+enum GuardShowStage {
+  /// 今日页场景卡（pendingFree / pendingPaid / freeRide / claimed）。
+  card,
+
+  /// 卡内 L4 战斗层（[GuardPillMode.fighting]）。
+  battle,
+
+  /// 宝箱从屏幕上方落到中央（600ms）。
+  chestDrop,
+
+  /// 宝箱落地静止（静态首帧 + 呼吸），等待点击 / 8s 自动开。
+  chestIdle,
+
+  /// 开箱动画 5s（30 帧）+ 开箱音效。
+  chestOpening,
+
+  /// 结算卡（320ms scale-in 入场）。
+  settled,
+}
+
+/// 战斗终局（`onBattleFinished` 落账完成后）的下一阶段（**纯函数**，可单测）。
+///
+/// 唯一会「不演宝箱」的情况 = 当天**已经领取**（`status == claimed`）：此时宝箱
+/// 里的东西早就进账了，再演一遍等于对孩子承诺第二份奖励。已领取态直接进
+/// [GuardShowStage.settled]（结算卡）。
+///
+/// ⚠️ 旧存档（JSON 里没有 `chest*` 键）读出来 `chestTier == normal` ⇒ 当天
+/// **正常演一个普通宝箱**，内容与改造前逐位一致（玄参已确认接受这一天的观感
+/// 差异，见设计 §2.4 的覆写注）。
+GuardShowStage guardStageAfterBattle(GuardTodayView view) {
+  if (view.state.status == GuardDayStatus.claimed) {
+    return GuardShowStage.settled;
+  }
+  return GuardShowStage.chestDrop;
 }
 
 /// 今日守卫的一份**不可变快照**（胶囊 / buff chip / 调试面板共用的唯一实例）。
@@ -243,17 +295,55 @@ class GuardTodayView {
   /// 今天的掉落档（`absent` 时 = [GuardDropKind.none]）。
   GuardDropKind get dropKind => state.dropKind;
 
-  /// 今天的**第二张**掉落档（B13.5 双券；`none` = 没有第二张）。
+  /// 宝箱档位（演出与结算卡的**唯一**档位真源）。
   ///
-  /// 两个条件同时成立才可能非 `none`：**完整版档**（免费档恒 `none`，
-  /// Guard-B13.10 玄参裁定）且主券是券档（`deriveGuardRoll` 的 gate 语义），
-  /// 结果卡用它渲染第二张券卡。
-  GuardDropKind get bonusDropKind => state.bonusDropKind;
+  /// 🔴 表现层**不得**自己再调 `deriveGuardChest` 重算 —— 那等于开第二套经济账。
+  /// 旧存档（无 `chestTier` 键）读成 [GuardChestTier.normal]（= 改造前的全部内容）。
+  GuardChestTier get chestTier => state.chestTier;
+
+  /// 是否高级宝箱（阳光翻倍 / 附加奖励的**唯一**判据）。
+  bool get isPremiumChest => state.chestTier.isPremium;
+
+  /// 高级宝箱里的**第二张** buff 券（[GuardDropKind.none] = 没有）。
+  ///
+  /// 真源是 `state.chestBonusDropKind`；`state.bonusDropKind` 只为旧存档 /
+  /// 旧测试保留（Guard-B13.11 起掉落层恒 `none`）。
+  GuardDropKind get chestBonusDropKind => state.chestBonusDropKind;
+
+  /// 高级宝箱里的植物碎片数量（0 = 没有；否则 1~2）。
+  int get chestFragmentQty => state.chestFragmentQty;
+
+  /// 高级宝箱里的种子档位（`none` = 没有）。
+  GuardSeedKind get chestSeedKind => state.chestSeedKind;
+
+  /// 高级宝箱里那颗种子的具体物种 id（无种子 = null）。
+  String? get chestSeedSpeciesId => state.chestSeedSpeciesId;
+
+  /// 今天的**第二张**掉落档（B13.5 双券 → Guard-B13.11 移入高级宝箱）。
+  ///
+  /// 🔴 合并口径与 `GuardService.claim()` / `GuardClaimOutcome.bonusDrop`
+  /// **逐字同源**：优先 `chestBonusDropKind`（高级宝箱），否则退回旧存档的
+  /// `bonusDropKind`。结算卡的第二张券卡读本 getter ⇒ 升级当天还没领的旧存档
+  /// 「第二张券」也不会凭空消失。
+  GuardDropKind get bonusDropKind =>
+      state.chestBonusDropKind != GuardDropKind.none
+          ? state.chestBonusDropKind
+          : state.bonusDropKind;
 
   /// 今天**将**到账的必得阳光（`claim()` 里若为 0 会兜底
   /// [kGuardWinSunNoItem]，故这里用同一口径）。
+  ///
+  /// ⚠️ 这是**基础值**（`state.winSun`，不含高级宝箱翻倍）。要显示「孩子实际
+  /// 拿到多少」请用 [winSunToGrant] —— 卡面 N 必须恒等于账本 `guard_win` 行。
   int get winSun =>
       state.winSun > 0 ? state.winSun : kGuardWinSunNoItem;
+
+  /// 今天**实际到账**的必得阳光（高级宝箱 ×2）。
+  ///
+  /// 🔴 唯一派生口是领域层的 [guardGrantWinSunOf]（`claim()` / `expire()` 的
+  /// fighting 补发 / 调试接缝三处同源）—— 表现层**只读不重算**翻倍规则，
+  /// 否则「卡面写 +8、账本记 4」这类口径裂缝迟早出现。
+  int get winSunToGrant => guardGrantWinSunOf(state);
 
   /// 本次会**实际**花掉的阳光（能量路径 / 免罚档 = 0）。
   int get payCost => needsPayConfirm ? kGuardPayCost : 0;

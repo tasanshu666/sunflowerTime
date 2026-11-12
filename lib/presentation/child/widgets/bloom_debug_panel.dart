@@ -40,6 +40,8 @@ import 'package:sunflower_time/core/di/today_weather.dart'
     show debugWeatherOverrideProvider, todayWeatherProvider;
 import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/guard_chest.dart'
+    show GuardChestTier;
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
 import 'package:sunflower_time/domain/entities/pending_bloom_reward.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
@@ -668,8 +670,35 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
     });
   }
 
-  /// 把今日页的胶囊快照重置为「没有守卫」。
+  /// 宝箱档位覆盖（自动 / 普通 / 高级）。
   ///
+  /// 🔴 **只换演出，不改经济**：写入 [debugGuardChestTierOverrideProvider] 后，
+  /// 唯一消费方是 `ChildTodayPage` 的 `showGuardChestOverlay(tier: …)` ——
+  /// 决定播哪一档的 30 帧、要不要画「高级」角标。奖励（阳光 / 碎片 / 种子）
+  /// 一律由 `GuardService` 在 `resolve()` 时落盘的值发放，**一个字节都不动**。
+  /// 理由见该 provider 的文件内文档：改奖励就必须回写存档并处理
+  /// `chestExtrasGranted` / 已领取态，风险远大于「看效果」的收益。
+  ///
+  /// 为什么不需要「先造贼」：档位覆盖只影响**演出**，不读也不写存档 ——
+  /// 当天有贼就能在下一场演出里看到强制档位。
+  Future<void> _setChestTier(GuardChestTier? tier) async {
+    final GuardChestTier? before =
+        ref.read(debugGuardChestTierOverrideProvider);
+    // 先把 l10n 取到手再 await：await 之后 context 可能已失效（规范做法）。
+    final AppLocalizations t = l10nOf(context);
+    await _run(() async {
+      ref.read(debugGuardChestTierOverrideProvider.notifier).state = tier;
+    });
+    if (!mounted) return;
+    setState(() {
+      _guardFeedback = before == tier
+          ? '${_debugGuardChestTierLabel(t, tier)}（本来就是这一档）'
+          : '已生效 → ${_debugGuardChestTierLabel(t, tier)}'
+              '（下一场守卫终局即可看到该档宝箱演出）';
+    });
+  }
+
+  /// 把今日页的胶囊快照重置为「没有守卫」。  ///
   /// 🔴 [guardTodayProvider] **只有** `ChildTodayPage` 会写：造贼 / 清档之后若不
   /// 主动重置，切回今日页仍是旧快照（该有的贼不显示 / 清掉的贼还在）。
   void _resetTodayPill() {
@@ -1154,9 +1183,15 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
   /// 顶出 `ListView` 的懒构建窗口（`cacheExtent` 250）。B5a 的按钮**追加在
   /// 本区块 Wrap 的末尾**，既有按钮的列表 offset 逐像素不变（零回归）。
   Widget _guardSection() {
+    // 宝箱档位文案走 ARB（`guard_debug_chest_tier_*`）：state 层（`guard_debug_script.dart`）
+    // 有「剥注释后零 CJK」的 QA 探针，调试文案也不允许硬编码中文。
+    final AppLocalizations t = l10nOf(context);
     // B5a：剧本覆盖生效态回显（对齐天气区块的「当前生效」口径）。
     final GuardBattleScript? scriptOverride =
         ref.watch(debugGuardBattleScriptOverrideProvider);
+    // Guard-B13.11：宝箱档位覆盖（只换演出；见 [_setChestTier] 文档）。
+    final GuardChestTier? chestOverride =
+        ref.watch(debugGuardChestTierOverrideProvider);
     // 「恢复随机」在无覆盖时**不可点**（灰掉）：null → null 是空操作，
     // 可点但无反应正是玄参连着两轮报「失效」的根因。
     final bool canFollowReal = scriptOverride != null;
@@ -1300,12 +1335,49 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
                 onPressed: (_busy || !canFollowReal) ? null : _followRealScript,
                 child: const Text('恢复随机剧本'),
               ),
+              // ── Guard-B13.11 · 宝箱档位（只换演出，不碰经济；追加在区块末尾）──
+              FilledButton.tonal(
+                key: const ValueKey<String>(kDebugGuardChestKeyAuto),
+                onPressed: (_busy || chestOverride == null)
+                    ? null
+                    : () => _setChestTier(null),
+                child: const Text('宝箱档位：自动'),
+              ),
+              FilledButton.tonal(
+                key: const ValueKey<String>(kDebugGuardChestKeyNormal),
+                onPressed: (_busy || chestOverride == GuardChestTier.normal)
+                    ? null
+                    : () => _setChestTier(GuardChestTier.normal),
+                child: const Text('宝箱档位：强制普通'),
+              ),
+              FilledButton.tonal(
+                key: const ValueKey<String>(kDebugGuardChestKeyPremium),
+                onPressed: (_busy || chestOverride == GuardChestTier.premium)
+                    ? null
+                    : () => _setChestTier(GuardChestTier.premium),
+                child: const Text('宝箱档位：强制高级'),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             '剧本覆盖：${scriptOverride == null ? '跟随真实派生（同日同孩逐位相同）' : '${scriptOverride.monsters.length} 只怪 · 显式覆盖中（只影响战斗，不改派生函数）'}',
             style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 4),
+          // 宝箱档位覆盖常显行（玄参：20% 概率真机撞不到高级演出 ⇒ 必须能强制）。
+          Text(
+            _debugGuardChestTierLabel(t, chestOverride),
+            key: const ValueKey<String>(kDebugGuardChestModeTextKey),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: chestOverride != null
+                  ? FontWeight.w700
+                  : FontWeight.w400,
+              color: chestOverride != null
+                  ? const Color(0xFF8A5A00)
+                  : Colors.grey,
+            ),
           ),
           // ── 上次操作回执（就在按钮正下方 = 手指落点旁边；玄参「点了没反应」）──
           if (_guardFeedback.isNotEmpty) ...<Widget>[
@@ -1383,4 +1455,19 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
           ],
         ),
       );
+}
+
+/// 宝箱档位覆盖的「人话标签」（调试面板回执行 + 常显行共用）。
+///
+/// 🔴 文案来自 **ARB**（`guard_debug_chest_tier_auto/_normal/_premium`，zh/en 双语），
+/// 不是代码字面量：
+/// · `test/qa/guard_battle_i18n_probe_test.dart` W3-1 要求
+///   `lib/presentation/child/state/guard_debug_script.dart` **剥注释后零 CJK**
+///   （那条探针刻意不留例外 —— 例外一开就等于没守卫）；
+/// · 于是 provider/Key 留在 state 层（纯 ASCII），人话文案上移到本 widget 层并走 ARB。
+String _debugGuardChestTierLabel(AppLocalizations t, GuardChestTier? tier) {
+  if (tier == null) return t.guard_debug_chest_tier_auto;
+  return tier.isPremium
+      ? t.guard_debug_chest_tier_premium
+      : t.guard_debug_chest_tier_normal;
 }

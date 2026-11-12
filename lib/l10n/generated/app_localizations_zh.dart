@@ -3339,59 +3339,58 @@ class AppLocalizationsZh extends AppLocalizations {
   String get garden_weather_banner_done_rainstorm => '遮雨棚搭好啦 👍';
 
   @override
-  String get garden_weather_guide_sunny => '今天阳光满满！正常浇水施肥，花儿长得快~';
+  String get garden_weather_guide_sunny => '阳光满满，花儿长得快！';
 
   @override
-  String get garden_weather_guide_breeze => '微风轻轻吹，是照顾花儿的好日子~';
+  String get garden_weather_guide_breeze => '微风轻轻吹，照顾花儿的好日子~';
 
   @override
-  String get garden_weather_guide_cloudy => '多云凉凉的，花儿喝水慢一些，少浇一点哦。';
+  String get garden_weather_guide_cloudy => '凉凉的，花儿喝水慢，少浇一点哦。';
 
   @override
-  String get garden_weather_guide_overcast => '阴天到啦，花儿不怎么渴，记得少浇点水。';
+  String get garden_weather_guide_overcast => '阴天，花儿不怎么渴，少浇点水。';
 
   @override
-  String get garden_weather_guide_light_rain => '小雨会帮忙浇花，今天浇一次水就够啦。';
+  String get garden_weather_guide_light_rain => '小雨帮浇花，浇一次就够啦。';
 
   @override
-  String get garden_weather_guide_drought => '太晒太干啦！搭好遮阳棚就完成保护啦，记得给花浇浇水哦~';
+  String get garden_weather_guide_drought => '太晒太干啦，搭上遮阳棚，植物成长进度会受到保护。';
 
   @override
-  String get garden_weather_guide_wind => '风好大呀！给花搭好挡风板，就完成保护啦！';
+  String get garden_weather_guide_wind => '风好大呀，搭上挡风板，植物成长进度会受到保护。';
 
   @override
-  String get garden_weather_guide_cold => '要上冻啦！给花搭好保温棚就完成保护啦，暖暖地过冬！';
+  String get garden_weather_guide_cold => '要上冻啦，搭上保温棚，植物成长进度会受到保护。';
 
   @override
-  String get garden_weather_guide_rainstorm => '暴雨来啦！搭好遮雨棚就完成保护啦；今天雨水代劳，不用浇水哦。';
+  String get garden_weather_guide_rainstorm => '暴雨来啦，搭上遮雨棚，植物成长进度会受到保护。';
 
   @override
-  String get garden_weather_growth_sunny => '今天太阳最给力，花儿长得更快一点，浇水也更管用哦～';
+  String get garden_weather_growth_sunny => '今天花儿长得更快哦！';
 
   @override
-  String get garden_weather_growth_breeze => '微风暖暖的，花儿长得比平时快一点点～';
+  String get garden_weather_growth_breeze => '花儿长得比平时快一点点～';
 
   @override
-  String get garden_weather_growth_cloudy => '云朵挡住了一点太阳，花儿长得慢一点点。';
+  String get garden_weather_growth_cloudy => '花儿长得慢一点点。';
 
   @override
-  String get garden_weather_growth_overcast => '天阴阴的，太阳躲起来了，花儿长得慢一点点。';
+  String get garden_weather_growth_overcast => '花儿长得慢一点点。';
 
   @override
-  String get garden_weather_growth_light_rain =>
-      '小雨帮了忙，花儿长得比平时快一点点；不过今天只能浇一次水哦。';
+  String get garden_weather_growth_light_rain => '花儿长得快一点点。';
 
   @override
-  String get garden_weather_growth_drought => '太干啦，花儿几乎不长个儿；快浇浇水吧，这时候浇水最管用！';
+  String get garden_weather_growth_drought => '花儿几乎不长，浇水最管用！';
 
   @override
-  String get garden_weather_growth_wind => '风有点大，花儿长得慢一点点，搭好挡风板会更安心。';
+  String get garden_weather_growth_wind => '花儿长得慢一点点。';
 
   @override
-  String get garden_weather_growth_cold => '有点冷，花儿长得慢一些；施点肥能帮它暖暖身子。';
+  String get garden_weather_growth_cold => '有点冷，花儿长得慢一点，施肥最管用哦！';
 
   @override
-  String get garden_weather_growth_rainstorm => '雨太大啦，花儿长得慢一些；雨水替你浇了水，记得施一次肥哦。';
+  String get garden_weather_growth_rainstorm => '花儿长得慢一些，记得施肥哦。';
 
   @override
   String get garden_weather_action_drought => '植物极度口渴，记得多浇水哦';
@@ -3573,7 +3572,43 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guard_battle_retreat_banner => '时间到，剩下的怪物撤退了';
 
   @override
-  String get guard_battle_skip => '跳过';
+  String get guard_first_plant_title => '花园守卫来啦！';
+
+  @override
+  String get guard_first_plant_body =>
+      '花园里有了新的植物，听说会有小动物想来偷吃。不过别担心——向日葵战士会帮你守护花园的！';
+
+  @override
+  String get guard_chest_name_normal => '宝箱';
+
+  @override
+  String get guard_chest_name_premium => '高级宝箱';
+
+  @override
+  String get guard_chest_tap_hint => '点一下打开';
+
+  @override
+  String get guard_debug_chest_tier_auto => '宝箱档位：自动（跟随当日落盘档位）';
+
+  @override
+  String get guard_debug_chest_tier_normal => '宝箱档位：强制普通（只换演出，奖励仍按当日落盘值）';
+
+  @override
+  String get guard_debug_chest_tier_premium => '宝箱档位：强制高级（只换演出，奖励仍按当日落盘值）';
+
+  @override
+  String get guard_result_premium_chest => '高级宝箱 ×2';
+
+  @override
+  String get guard_result_reward_fragment => '植物碎片';
+
+  @override
+  String get guard_result_reward_seed => '种子';
+
+  @override
+  String guard_result_seed(String species) {
+    return '$species种子';
+  }
 
   @override
   String guard_result_title(String thief) {
@@ -3749,6 +3784,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String guard_stolen_today(int n) {
     return '昨晚被偷走了 $n 点成长';
   }
+
+  @override
+  String get guard_result_premium_hint => '开通完整版后，守卫胜利还会掉落高级宝箱，奖励更丰富哦！';
 
   @override
   String get guard_result_collect => '收下';

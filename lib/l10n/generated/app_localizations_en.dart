@@ -3437,75 +3437,73 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get garden_weather_guide_sunny =>
-      'So much sunshine today! Water and fertilize as usual — your flowers grow fast!';
+      'So much sunshine — your flowers grow fast!';
 
   @override
   String get garden_weather_guide_breeze =>
-      'A gentle breeze is blowing — a lovely day to care for your flowers!';
+      'A gentle breeze — a lovely day to care for your flowers!';
 
   @override
   String get garden_weather_guide_cloudy =>
-      'It\'s cool and cloudy — flowers drink slower, so water a little less.';
+      'Cool and cloudy — flowers drink slower, water a little less.';
 
   @override
   String get garden_weather_guide_overcast =>
-      'An overcast day! The flowers aren\'t very thirsty — remember to water less.';
+      'Overcast! The flowers aren\'t very thirsty — water less.';
 
   @override
   String get garden_weather_guide_light_rain =>
-      'The light rain helps water your flowers — one watering is enough today.';
+      'The light rain helps — one watering is enough!';
 
   @override
   String get garden_weather_guide_drought =>
-      'So hot and dry! Put up the shade awning to complete the protection — and give your flowers a drink too!';
+      'So hot and dry! Put up the shade awning — your flowers\' growth is protected.';
 
   @override
   String get garden_weather_guide_wind =>
-      'The wind is so strong! Set up the windbreak to complete the protection!';
+      'So windy! Put up the windbreak — your flowers\' growth is protected.';
 
   @override
   String get garden_weather_guide_cold =>
-      'It\'s about to freeze! Put up the warm cover to complete the protection — cozy winter!';
+      'It\'s about to freeze! Put up the warm cover — your flowers\' growth is protected.';
 
   @override
   String get garden_weather_guide_rainstorm =>
-      'A rainstorm is here! Put up the rain cover to complete the protection — the rain does the watering today, no need to water!';
+      'A rainstorm! Put up the rain cover — your flowers\' growth is protected.';
 
   @override
-  String get garden_weather_growth_sunny =>
-      'The sun is at its best today — your flowers grow a little faster, and watering helps more!';
+  String get garden_weather_growth_sunny => 'Your flowers grow faster today!';
 
   @override
   String get garden_weather_growth_breeze =>
-      'A warm little breeze — your flowers grow a tiny bit faster than usual!';
+      'Your flowers grow a tiny bit faster than usual!';
 
   @override
   String get garden_weather_growth_cloudy =>
-      'Clouds hide a bit of the sun, so your flowers grow a little slower.';
+      'Your flowers grow a little slower.';
 
   @override
   String get garden_weather_growth_overcast =>
-      'It\'s grey and the sun is hiding, so your flowers grow a little slower.';
+      'Your flowers grow a little slower.';
 
   @override
   String get garden_weather_growth_light_rain =>
-      'The light rain helps out, so your flowers grow a tiny bit faster — but you can only water once today.';
+      'Your flowers grow a tiny bit faster.';
 
   @override
   String get garden_weather_growth_drought =>
-      'It\'s so dry that your flowers hardly grow at all — water them now, watering helps the most on a day like this!';
+      'Flowers hardly grow — watering helps the most!';
 
   @override
-  String get garden_weather_growth_wind =>
-      'The wind is a bit strong, so your flowers grow a little slower — a windbreak will make them feel safer.';
+  String get garden_weather_growth_wind => 'Your flowers grow a little slower.';
 
   @override
   String get garden_weather_growth_cold =>
-      'It\'s a bit cold, so your flowers grow a little slower — a little fertilizer helps keep them warm.';
+      'A bit cold — flowers grow slower, fertilizer works best!';
 
   @override
   String get garden_weather_growth_rainstorm =>
-      'The rain is very heavy, so your flowers grow a little slower — the rain did the watering, so remember to fertilize once.';
+      'Flowers grow a little slower — remember to fertilize!';
 
   @override
   String get garden_weather_action_drought =>
@@ -3697,7 +3695,46 @@ class AppLocalizationsEn extends AppLocalizations {
   String get guard_battle_retreat_banner => 'Time\'s up — the rest retreated';
 
   @override
-  String get guard_battle_skip => 'Skip';
+  String get guard_first_plant_title => 'Your Garden Guard is here!';
+
+  @override
+  String get guard_first_plant_body =>
+      'There\'s a new plant in your garden, and little critters might sneak in to nibble it. But don\'t worry — your Sunflower Warrior will help protect your garden!';
+
+  @override
+  String get guard_chest_name_normal => 'Chest';
+
+  @override
+  String get guard_chest_name_premium => 'Premium Chest';
+
+  @override
+  String get guard_chest_tap_hint => 'Tap to open';
+
+  @override
+  String get guard_debug_chest_tier_auto =>
+      'Chest tier: auto (follows the tier stored for today)';
+
+  @override
+  String get guard_debug_chest_tier_normal =>
+      'Chest tier: force normal (visuals only; rewards unchanged)';
+
+  @override
+  String get guard_debug_chest_tier_premium =>
+      'Chest tier: force premium (visuals only; rewards unchanged)';
+
+  @override
+  String get guard_result_premium_chest => 'Premium chest ×2';
+
+  @override
+  String get guard_result_reward_fragment => 'Plant fragments';
+
+  @override
+  String get guard_result_reward_seed => 'Seed';
+
+  @override
+  String guard_result_seed(String species) {
+    return '$species seed';
+  }
 
   @override
   String guard_result_title(String thief) {
@@ -3883,6 +3920,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String guard_stolen_today(int n) {
     return '$n points of growth were stolen last night';
   }
+
+  @override
+  String get guard_result_premium_hint =>
+      'With the full version, winning a guard battle can also drop a Premium Chest — richer rewards!';
 
   @override
   String get guard_result_collect => 'Collect';

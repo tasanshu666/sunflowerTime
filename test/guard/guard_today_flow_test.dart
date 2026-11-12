@@ -15,6 +15,7 @@
 /// | 5 | 320×554 + 1.3 字号下场景卡不溢出（宽度 = 屏宽 − 32 = 288） | ⑤ |
 /// | 8 | 无掉落档结算卡不写「券还能省 0 阳光」 | ⑧ |
 /// | 9 | 「券还能省 N」= 真实节省量（F4 / G2） | ⑨ |
+/// | 10 | T03 演出链：战完 → 宝箱（不可跳过）→ 结算卡 → 收下不成「宝箱重演」；卡面阳光 == 账本 | ⑩ |
 ///
 /// （旧 ⑥⑦「跳过 / 看完 10 秒进结算」随战斗浮层退役；等价经济断言——
 /// 「claim 只落一次账 / 付费恰好扣一次」——迁往 `guard_battle_field_test.dart`
@@ -62,6 +63,7 @@ import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_chest_stage.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_result_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_tutorial_sheet.dart';
@@ -662,11 +664,14 @@ void _groupOverflow() {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// 把结算卡**单独**挂在屏幕上（不进战斗 / 不碰服务），只为看它渲染了什么文案。
+/// B13.16：可选传 `showPremiumHint` / `stolenSun`（完整版引导行的两个渲染闸门）。
 Future<void> _pumpResultCard(
   WidgetTester tester,
   GuardTodayView view,
-  AppLocalizations t,
-) async {
+  AppLocalizations t, {
+  bool showPremiumHint = false,
+  int stolenSun = 0,
+}) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
@@ -675,6 +680,8 @@ Future<void> _pumpResultCard(
           l10n: t,
           // 本用例只看静态文案，永远不点「收下」—— 点它会 pop 掉唯一的路由。
           onCollect: () => throw StateError('本用例不点「收下」'),
+          showPremiumHint: showPremiumHint,
+          stolenSun: stolenSun,
         ),
       ),
     ),
@@ -727,6 +734,51 @@ void _groupNoDrop() {
           reason: 'B13.2 起算账行退役，任何档都不出现「省」字句');
       expect(find.textContaining('花了'), findsNothing,
           reason: '无券档连「花了 5 阳光」也不留半句');
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+
+/// ⑧b 完整版引导行（B13.16 玄参）：free 档 + 打赢（未被偷）才渲染。
+void _groupPremiumHint() {
+  group('⑧b 完整版引导行：free + 打赢才渲染（B13.16）', () {
+    testWidgets('free 档 + 未被偷 ⇒ 引导行在场（文案逐字）；被偷 ⇒ 退场',
+        (WidgetTester tester) async {
+      final AppLocalizations t =
+          await AppLocalizations.delegate.load(const Locale('zh'));
+      const String hint = '开通完整版后，守卫胜利还会掉落高级宝箱，奖励更丰富哦！';
+
+      // ① free 档宿主传入 + 打赢（stolenSun = 0）⇒ 在场。
+      await _pumpResultCard(
+        tester,
+        _view(GuardPillMode.pendingPaid, drop: GuardDropKind.none, winSun: 3),
+        t,
+        showPremiumHint: true,
+      );
+      expect(find.byKey(GuardResultCard.premiumHintKey), findsOneWidget,
+          reason: 'free 档打赢 ⇒ 完整版引导行在场（B13.16 玄参）');
+      expect(find.text(hint), findsOneWidget, reason: '文案逐字（期望独立于实现）');
+
+      // ② 同卡但被偷（stolenSun > 0）⇒ 打了败仗不推销。
+      await _pumpResultCard(
+        tester,
+        _view(GuardPillMode.pendingPaid, drop: GuardDropKind.none, winSun: 0),
+        t,
+        showPremiumHint: true,
+        stolenSun: 5,
+      );
+      expect(find.byKey(GuardResultCard.premiumHintKey), findsNothing,
+          reason: '被偷（败仗）不渲染引导行');
+
+      // ③ premium 档宿主不传 ⇒ 永不渲染（他们自己就能掉高级宝箱）。
+      await _pumpResultCard(
+        tester,
+        _view(GuardPillMode.pendingPaid, drop: GuardDropKind.none, winSun: 3),
+        t,
+      );
+      expect(find.byKey(GuardResultCard.premiumHintKey), findsNothing,
+          reason: 'showPremiumHint = false（premium 档）⇒ 永不渲染');
     });
   });
 }
@@ -803,6 +855,100 @@ void _groupVoucherSaving() {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// ⑩ 端到端：战完 → 宝箱 → 结算卡（T03 演出链接线）
+// ═══════════════════════════════════════════════════════════════════════
+
+/// 结算卡阳光奖励卡上的到账额（`+N` 里的 N；找不到即 fail，不静默兜底 0）。
+int _cardSunAmount(WidgetTester tester) {
+  final Iterable<Text> texts = tester.widgetList<Text>(
+    find.descendant(
+      of: find.byKey(GuardResultCard.sunRewardKey),
+      matching: find.byType(Text),
+    ),
+  );
+  for (final Text text in texts) {
+    final String data = text.data ?? '';
+    if (data.startsWith('+')) return int.parse(data.substring(1));
+  }
+  fail('阳光奖励卡上找不到「+N」文案 —— 结算卡结构被改坏了');
+}
+
+void _groupChestFlow() {
+  group('⑩ 端到端：战完 → 宝箱（不可跳过）→ 结算卡 → 收下', () {
+    testWidgets('一枪不发推完 30s 窗口：宝箱先上屏、点开 5s 后弹结算卡，'
+        '阳光卡面 == 账本 guard_win（普通档不翻倍），收下后不再演宝箱',
+        (WidgetTester tester) async {
+      final _Env env = await _makeEnv();
+      await _seedPlant(env);
+      await _seedValidFocus(env); // 有能量 ⇒ 免费路径（不弹付费确认卡的「阳光不足」分支）
+      await _pumpToday(tester, env);
+      final String today = dayKey(DateTime.now());
+
+      // ── 进战斗 ────────────────────────────────────────────────────────
+      await tester.tap(find.byKey(GuardSceneCard.startButtonKey));
+      await _passTutorial(tester);
+      await tester.tap(find.text('确定')); // B13.7：免费路径也弹确认卡
+      await _settleRoute(tester);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(find.byKey(GuardBattleField.fieldKey), findsOneWidget);
+
+      // ── 一枪不发推完整窗（62 × 500ms，与纯 sim 同源；不 pumpAndSettle）──
+      for (int i = 0; i < 62; i++) {
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+      await _pumpUntil(tester, find.byKey(GuardBattleField.bannerKey));
+      // 横幅 ~900ms 后交回页面（落账 → 宝箱演出）。
+      await tester.pump(const Duration(milliseconds: 1000));
+
+      // ── 宝箱必须先上屏，且结算卡不许抢跑（两者都不可跳过）──────────────
+      await _pumpUntil(tester, find.byKey(GuardChestStage.stageKey));
+      await tester.pump(const Duration(milliseconds: 260)); // 路由过渡 200ms
+      expect(find.byKey(GuardChestStage.chestKey), findsOneWidget,
+          reason: '宝箱应以静态首帧停在菜地里等孩子点');
+      expect(find.byKey(GuardResultCard.cardKey), findsNothing,
+          reason: '🔴 宝箱没开完，结算卡不许出现（顺序：宝箱 → 结算卡）');
+
+      // ── 点**全屏热区**开箱 → 5s（30 帧 × 166.7ms）────────────────────
+      await tester.tap(find.byKey(GuardChestStage.tapCatcherKey));
+      await tester.pump(); // 起播一帧：把 FrameSequencePlayer 挂上
+      expect(find.byKey(GuardChestStage.chestKey), findsNothing,
+          reason: '点击后静态宝箱让位给开箱动画');
+      await tester.pump(const Duration(milliseconds: kGuardChestOpenMs));
+      await tester.pump(const Duration(milliseconds: 50)); // completed 下一帧派发
+      await _pumpUntil(tester, find.byKey(GuardResultCard.cardKey));
+      await _settleRoute(tester);
+      expect(find.byKey(GuardChestStage.stageKey), findsNothing,
+          reason: '30 帧播完 ⇒ 宝箱 overlay 必须收场，不能盖住结算卡');
+
+      // ── 卡面阳光 == 账本 guard_win（同一口径 guardGrantWinSunOf）────────
+      final int cardSun = _cardSunAmount(tester);
+      expect(cardSun, greaterThan(0),
+          reason: '有贼日必得阳光 ≥ 1（卡面不许出现 +0）');
+
+      await tester.tap(find.byKey(GuardResultCard.collectButtonKey));
+      await _pumpUntil(tester, find.byType(ChildTodayPage));
+      for (int i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      final double winNet =
+          await env.ledger.netByRefTypeOnDay(kGuardWinRefType, today);
+      expect(winNet, cardSun.toDouble(),
+          reason: '🔴 卡面 +$cardSun 恒 == 账本 guard_win $winNet'
+              '（普通档 winSun 不翻倍；高级档也走同一到账口径）');
+
+      // ── 已领取态：不再演宝箱，场景卡回到「已守住」──────────────────────
+      expect(find.byKey(GuardChestStage.stageKey), findsNothing,
+          reason: '🔴 已领取 ⇒ 不得再演宝箱（重进今日页也不演）');
+      expect(_cardLabel(tester), contains('今天的菜守住了'));
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   _groupAbsent();
@@ -811,5 +957,7 @@ void main() {
   _groupPaidConfirm();
   _groupOverflow();
   _groupNoDrop();
+  _groupPremiumHint();
   _groupVoucherSaving();
+  _groupChestFlow();
 }

@@ -121,8 +121,10 @@ void main() {
         reason: '图标高按 276:294 原比派生');
 
     final Rect rect = tester.getRect(find.byKey(GuardBuffChip.chipKey));
-    expect(rect.height, closeTo(24 * 294 / 276, 0.8),
-        reason: '卡高由图标决定（≈25.6）—— 图标缩半，不再是大竖卡');
+    // 🔴 B13.16 实底白卡：Material 内加 Padding(h6/v3) ⇒ 卡高 = 图标高 25.57
+    //    + 上下各 3 = **31.57**（旧口径 25.6 已随白卡背景退役）。
+    expect(rect.height, closeTo(24 * 294 / 276 + 6, 0.8),
+        reason: 'B13.16 白卡卡高 = 图标 25.57 + 上下 padding 3×2（图标缩半不变）');
     expect(rect.width, greaterThan(24), reason: '右侧有文字，总宽必须大于图标宽');
     expect(rect.width, lessThan(160),
         reason: '横排卡总宽 ~24 + 4 + 文字，显著小于旧竖卡时代的可伸缩上限');

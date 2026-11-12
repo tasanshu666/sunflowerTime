@@ -34,6 +34,7 @@
 /// 埋点（`kGuardTrack*`）与任何 UI 接线留到第三批；本文件只碰 prefs / 账本 / `plants`。
 library guard_service;
 
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
@@ -41,16 +42,19 @@ import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/core/utils/stable_hash.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
+import 'package:sunflower_time/domain/entities/guard_chest.dart';
 import 'package:sunflower_time/domain/entities/guard_day_state.dart';
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
 import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
+import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/guard_state_store.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/focus_validity.dart';
+import 'package:sunflower_time/domain/services/guard_chest.dart';
 import 'package:sunflower_time/domain/services/guard_math.dart';
 import 'package:sunflower_time/domain/services/guard_voucher.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
@@ -138,7 +142,16 @@ class GuardResolveResult {
   GuardDropKind get drop => state.dropKind;
 
   /// 今天的必得阳光（无贼 = 0）。
+  ///
+  /// ⚠️ 这是**基础值**（3~5）。表现层要显示的「实际到账」请读
+  /// [grantedWinSun]（高级宝箱 ×2），否则结算卡会写 +4 而账本记 +8。
   int get winSun => state.winSun;
+
+  /// 本场**实际到账**的必得阳光（高级宝箱 ×2；无贼 = 0）。
+  ///
+  /// 🔴 Guard-B13.11：唯一派生口是 `guardGrantWinSunOf`，表现层**只准读它**，
+  /// 不得自己 `× 2`（那会变成第二套经济账）。
+  int get grantedWinSun => state.hasThief ? guardGrantWinSunOf(state) : 0;
 
   /// 今天**将被**偷走的阳光（免罚档 = 0）。
   int get sunLoss => state.sunStolen;
@@ -166,6 +179,25 @@ enum GuardClaimFailure {
   ///
   /// 🔴 此时**分毫不扣、什么都不发**（`paidSun == 0`、`winSun == 0`、无 buff）。
   insufficientBalance,
+}
+
+/// [`GuardService._grantChestExtras`] 的**三态**结果（内部实现细节，不对外暴露）。
+///
+/// 为什么不能是 `bool`（P2-② 修复）：`bool` 只有「置位 / 不置位」两态，而碎片的
+/// 幂等标记 [GuardDayState.chestExtrasGranted] 表达的是「**已经发完了**」。
+/// 「端口没注入 ⇒ 发不了」与「已经发完了」在 `bool` 里挤成同一个 `true`
+/// ⇒ 标记被错误置位 ⇒ 事后补好 DI 也**永不补发**（静默丢奖励）。
+/// 三态把这三件事分开，调用方只需认 [settled] 一种才置标记。
+enum _ChestExtrasOutcome {
+  /// 本次真的发完了 / 本来就不需要发（非高级宝箱、标记已置位）⇒ **可以置标记**。
+  settled,
+
+  /// 发放端口（`BloomRewardRepository`）**未注入** ⇒ 一片都没发。
+  /// 「发不了」≠「已发完」：**绝不置标记**（否则补好 DI 后永久吞掉奖励）。
+  portMissing,
+
+  /// 仓储抖动导致**没发成** ⇒ 不置标记，留给下一次 `expire()` 重试。
+  failed,
 }
 
 /// [GuardService.claim] 的结果。
@@ -208,7 +240,10 @@ class GuardClaimOutcome {
   /// 今天的券档（无道具档 = [GuardDropKind.none]）。
   final GuardDropKind drop;
 
-  /// 🔴 B13.5：第二张券档（`none` = 今天没有第二张）。
+  /// 第二张券档（`none` = 今天没有第二张）。
+  ///
+  /// 🔴 Guard-B13.11：真源是**高级宝箱**（`state.chestBonusDropKind`）；这里
+  /// 只是把它（或旧存档的 `bonusDropKind`）原样透传给表现层。
   final GuardDropKind bonusDrop;
 
   /// 今天可用的 buff（无道具档 = `null`）。
@@ -282,11 +317,17 @@ class GuardService {
     // 🔴 B13.5：权益档位取值器（付费掉落表用）。缺省恒 false（免费表）——
     // 一切旧构造点（测试 / 调试）零改动；DI 接 entitlement（见 providers.dart）。
     bool Function()? isPremium,
+    // 🔴 Guard-B13.11：碎片 / 种子发放端口（账户级藏品，**不走阳光账本**）。
+    // 缺省 `null` = 不发放宝箱附加奖励 —— 只有「纯派生 / 记账」类老测试会走到
+    // 这个分支；生产装配（providers.dart）**必须**注入，否则高级宝箱的碎片与
+    // 种子会静默丢失（`guard_chest_grant_test.dart` 用真仓储钉死这条）。
+    BloomRewardRepository? bloomRewards,
   })  : _store = store,
         _ledger = ledger,
         _focus = focus,
         _plants = plants,
         _growth = growth,
+        _bloomRewards = bloomRewards,
         _childId = childId,
         _clock = clock ?? DateTime.now,
         _isPremium = isPremium;
@@ -298,6 +339,24 @@ class GuardService {
 
   /// 成长扣减的落地口（[PlantGrowthService.raidGrowth]，只它一家会写 `plant.progress`）。
   final PlantGrowthService _growth;
+
+  /// 🔴 Guard-B13.11：碎片 / 种子发放端口（`null` = 未注入 ⇒ 不发附加奖励）。
+  ///
+  /// 🔴 本类是该仓储在**守卫链路上的唯一调用者**：表现层（演出 / 结算卡）
+  /// **一律不得**直接摸 `BloomRewardRepository`（与「表现层不得摸权益 provider」
+  /// 同一条纪律）。
+  final BloomRewardRepository? _bloomRewards;
+
+  /// 碎片 / 种子发放端口是否已注入（**只读探针，供装配断言**）。
+  ///
+  /// 为什么需要它：`bloomRewards` 是**可选**构造参数（老测试零改动），漏注入
+  /// 不会有任何报错 —— 只见「高级宝箱承诺了碎片、余额却不动」这种静默丢失。
+  /// `guard_chest_stage_test.dart` 用它钉死「`guardServiceProvider` 真实装配
+  /// 后端口已接上」，把这类漏接线挡在编译期之后的第一步。
+  ///
+  /// ⚠️ 领域层不引 `package:meta`（本工程 domain 只依赖纯 Dart + 本项目），
+  /// 故不加 `@visibleForTesting`；生产代码不得读它（只读派生，无副作用）。
+  bool get hasBloomRewardPort => _bloomRewards != null;
 
   /// 🔴 B13.5：权益档位取值器（`null` = 恒免费表；DI 接 entitlement）。
   final bool Function()? _isPremium;
@@ -442,9 +501,19 @@ class GuardService {
     }
 
     // ③ 确定性派生（禁 Random）：同一 dayKey + childId 恒得同一结果。
-    // 🔴 B13.5：掉落分档按权益档位 + 10% 第二张券。
+    // 🔴 B13.5：掉落分档按权益档位；Guard-B13.11：第二张券不再由掉落层产生。
     final GuardRoll roll =
         deriveGuardRoll(dayKey: today, childId: childId, isPremium: _premium);
+    // 🔴 Guard-B13.11（设计 §5.1）：宝箱档位与**全部开箱内容**在这里一次性定死。
+    //    唯一派生口 = `deriveGuardChest`（纯函数，通道见 prd_params）。
+    //    ⚠️ 本结果只在 `resolve()` 里算一次并落盘：表现层与发放层一律读
+    //    `state`，**不得**自己重算（重算就是第二套经济账）。
+    final GuardChestRoll chest = deriveGuardChest(
+      dayKey: today,
+      childId: childId,
+      isPremium: _premium,
+      drop: roll.drop,
+    );
     final bool free = energy >= kGuardEnergyPerFocus;
     final GuardCostMode cost = free
         ? GuardCostMode.free
@@ -467,9 +536,18 @@ class GuardService {
       paidSun: 0,
       winSun: roll.winSun,
       dropKind: roll.drop,
-      bonusDropKind: roll.bonusDrop,
+      // 🔴 Guard-B13.11：掉落阶段不再产生第二张券（恒 none）；第二张券的真源
+      // 是下面的 `chestBonusDropKind`。
+      bonusDropKind: GuardDropKind.none,
       sunStolen: waived ? 0 : roll.sunLoss,
       growthStolen: growthLoss,
+      // 🔴 Guard-B13.11：宝箱六字段（与 winSun / dropKind 同一次 resolve 落盘）。
+      chestTier: chest.tier,
+      chestBonusDropKind: chest.bonusDrop,
+      chestFragmentQty: chest.fragmentQty,
+      chestSeedKind: chest.seedKind,
+      chestSeedSpeciesId: chest.seedSpeciesId,
+      chestExtrasGranted: false,
       // 🔴 B10/B4：当日场次序号（第 1 场 = 0）在**生成状态时**定死。
       battleAttempt: await _nextBattleAttempt(today),
     );
@@ -658,8 +736,32 @@ class GuardService {
       paidSun = charge.toInt();
     }
 
-    // ⑥ 发必得阳光（1~3；无道具档 = 3）。winSun 由 resolve 定死，这里只入账。
-    final int winSun =
+    // ⑤′ 🆕 发宝箱附加奖励（碎片 / 种子）—— 🔴 **必须在写 `guard_win` 账本行之前**。
+    //
+    //    为什么顺序不能倒（设计 §5.2）：`guard_win` 行是「已领取」的**事实源**
+    //    （上面第 ③ 步的账本层幂等网读它）。若先写账本再发碎片，中途崩溃 ⇒
+    //    重进时判「已领取」直接回放 ⇒ **碎片永久丢失**，而结算卡已经承诺
+    //    「获得碎片 1 片」。反过来（先发碎片再写账本）最坏结果是**多发 1 片**。
+    //    方向明确：**宁可多发一次，也不吞掉已承诺的奖励**（这一条针对的是
+    //    「发奖」，与 `_appendLedger`「宁可少发一次」的**扣钱/发钱**口径不冲突）。
+    //
+    //    ⚠️ 残余风险（已知、已接受，不是 bug）：无事务 ⇒ 进程恰在 ⑤′ 与 ⑧ 之间
+    //    被杀时碎片会**多发 1 片**（或种子再发一颗）；`chestExtrasGranted`
+    //    把窗口压到最小，绝对量级约 1e-6/天。方向偏向孩子。
+    //
+    //    🔴 P2-②：返回值是**三态**（见 [_ChestExtrasOutcome]），只有 `settled`
+    //    才允许置幂等标记。「端口没注入 ⇒ 一片都没发」绝不能被记成「已发完」，
+    //    否则事后补好 DI 也永不补发（静默丢奖励，QA 实证）。
+    final _ChestExtrasOutcome extras = await _grantChestExtras(state);
+
+    // ⑥ 发必得阳光（3~5；无道具档 = 5）。
+    //    🔴 Guard-B13.11：金额必须走 `guardGrantWinSunOf`（高级宝箱 ×2），
+    //    绝不能用裸 `state.winSun` —— 否则「结算卡写 +8、账本只 +4」。
+    final int winSun = guardGrantWinSunOf(state);
+    // 🔴 落盘的是**基础值**（`winSun` 字段的语义自 B13 起就是「基础 3~5」）：
+    //    翻倍只在读取侧由 `guardGrantWinSunOf` 派生 ⇒ 任何时候都不会出现
+    //    「已翻倍的值再翻一次」（设计 §2.4 / §3.4）。
+    final int baseWinSun =
         state.winSun > 0 ? state.winSun : kGuardWinSunNoItem;
     final double beforeWin = await _ledger.balance();
     await _appendLedger(SunlightEntry(
@@ -676,18 +778,30 @@ class GuardService {
     ));
 
     // ⑦ 落 buff（当日券的额度账；无道具档 = 没有券）。
-    // 🔴 B13.5：第二张券同步落账（bonusDropKind == none ⇒ bonusBuff = null）。
+    //    🔴 Guard-B13.11：第二张券改由**高级宝箱**给出（`chestBonusDropKind`）。
+    //    旧存档（升级前写入、当天还没领）的第二张券在 `bonusDropKind` 里 ——
+    //    两处取一个非 none 的，保证「升级当天不丢券」。
     final GuardBuffState? buff = guardBuffFor(state.dropKind);
-    final GuardBuffState? bonusBuff = guardBuffFor(state.bonusDropKind);
+    final GuardDropKind bonusKind =
+        state.chestBonusDropKind != GuardDropKind.none
+            ? state.chestBonusDropKind
+            : state.bonusDropKind;
+    final GuardBuffState? bonusBuff = guardBuffFor(bonusKind);
     final GuardDayState next = state.copyWith(
       status: GuardDayStatus.claimed,
       energyUsed: energyUsed,
       paidSun: paidSun,
-      winSun: winSun,
+      winSun: baseWinSun,
+      bonusDropKind: bonusKind,
       buff: buff,
       clearBuff: buff == null,
       bonusBuff: bonusBuff,
       clearBonusBuff: bonusBuff == null,
+      // ⑧ 幂等标记：本次领取已经把碎片 / 种子发过（`expire()` 据此不重发）。
+      //    🔴 只有 `settled` 才置位 —— `portMissing` / `failed` 保持原值
+      //    （「发不了 / 没发成」≠「已发完」）。
+      chestExtrasGranted: state.chestExtrasGranted ||
+          extras == _ChestExtrasOutcome.settled,
     );
     await _store.write(childId, next);
 
@@ -796,6 +910,13 @@ class GuardService {
   ///  3. 进了战斗但没点「收下」（`fighting`）→ **视为已处理**：补发必得阳光、
   ///     不结算损失（PRD §3.6：孩子的动作已完成，账不能因 UI 中断倒退）；
   ///  4. 其余（`pending`）→ 扣阳光（钳到 0）+ 扣成长（走 [PlantGrowthService.raidGrowth]）。
+  ///
+  /// ## extras（碎片 / 种子）的重跑幂等
+  /// `fighting` 分支补发 extras 之后，**先把 `chestExtrasGranted` 落到那条旧档上，
+  /// 再清档**（见 ⑨ 的长注释）⇒ 「发完 extras、清档前被杀」的重进**不会再发**，
+  /// 与 `claim()` 的幂等口径对称。残余窗口只剩「extras 已发 → 标记 write 完成」
+  /// 之间那几毫秒（两个独立存储、无事务 ⇒ 无法消除）：恰好死在那里会**多发 1 次**。
+  /// 方向偏向孩子，且在 `test/guard/guard_chest_grant_test.dart` 里写成断言。
   Future<GuardExpireOutcome> expire({DateTime? now}) async {
     final DateTime at = now ?? _clock();
     final String childId = _childId();
@@ -821,14 +942,80 @@ class GuardService {
       // 已领取 / 当天免罚 → 无损失。
     } else if (stored.status == GuardDayStatus.fighting) {
       // 已进战斗但没点「收下」→ 补发必得阳光（券已过期，不发 buff）。
+      //
+      // 🔴 Guard-B13.11【最高风险漏点】：金额必须走 `guardGrantWinSunOf`。
+      //    漏改 ⇒ 完整版孩子打到**高级宝箱**后强杀 App（不点收下），次日只补发
+      //    基础 3~5 ☀（白白少一半），而结算卡当时承诺的是翻倍值 —— 且他完全
+      //    看不见原因（设计 §5.5 / R-01）。
       grantedWinSun = await _grantWinIfAbsent(
         childId: childId,
         dayKeyValue: expiredDay,
-        winSun: stored.winSun,
+        winSun: guardGrantWinSunOf(stored),
         at: at,
         // 🔴 B10/B4：补发也要用**那一场**的 id（同日第二场不能撞第一场的行）。
         attempt: stored.battleAttempt,
       );
+      // 🆕 碎片 / 种子**与阳光同批补发**（设计 §5.5 第 2 处必改）。
+      //
+      // 为什么 extras 跟着补发，而不是像 buff 一样「过期作废」：
+      //  · 阳光与碎片/种子都是**永久账户收益**，buff 是**当日**增益 —— 既有分支
+      //    「补发阳光、不发 buff」的分界线本来就在这里；
+      //  · 若补阳光而不补碎片，「有没点收下」就变成了奖励内容的函数 ⇒ 违反
+      //    「奖励与观看/点击行为零相关」的红线（PRD §7.3）。
+      //
+      // 🔴 P2-①：这里**不再**用「本次真的写进了 `guard_win` 行」(`grantedWinSun > 0`)
+      //    当闸门 —— 那是把 `claim()` 的不变量**方向装反**了。
+      //    旧闸门的漏洞（QA-1d 实证）：进程死在「写账本行」与「发 extras」之间 ⇒
+      //    下次 `expire()` 里 `_grantWinIfAbsent` 因行已存在返回 0 ⇒ 闸门为假 ⇒
+      //    extras 整段跳过 ⇒ **碎片/种子永久丢失**（且结算卡早已承诺过）。
+      //    而 `claim()` 是反过来的（先 extras 再写账本，见 ⑤′ 的长注释）——
+      //    同一个不变量两条路径方向相反，就是缺陷本身。
+      //
+      //    修法（保留顺序 + 换闸门，不改「先写账本后发 extras」的账本层幂等网）：
+      //    幂等闸门**内移到** [_grantChestExtras] 自己身上 —— 它本来就会查
+      //    `chestTier.isPremium` 与 `chestExtrasGranted`，所以**无条件调用**它
+      //    自动满足「只有高级宝箱且标记未置位才发」。
+      //    最坏结果：极端半截态（extras 已发、进程在 `clear` 之前又死一次）
+      //    重跑时会再发一遍 —— 方向偏向孩子，
+      //    与设计 §5.2「宁可极端崩溃多发，不永久吞」一致。
+      //    ⚠️ 但**「多发 1 次」这个说法当时是错的**：不落盘标记时，重发次数
+      //    跟着崩溃次数增长（无界）。真正的收口在下面，见 🔴 P2-①（收尾）。
+      //
+      //    为什么不选「把 extras 提到 `_grantWinIfAbsent` 之前」：账本层幂等网
+      //    （`guard_win` 行）是「已补发」的事实源，把它挪到 extras 之后等于让
+      //    「重跑」在**写账本之前**就能再发一遍 —— 那是把窗口放宽，不是收窄。
+      //
+      //    🔴 P2-①（收尾，原「最坏多发 1 片」的说法**不成立**，已改正）：
+      //    原来这里只调用 `_grantChestExtras` 而**不落盘**标记 —— `expire()` 结尾
+      //    直接 `_store.clear()`，`chestExtrasGranted` 在 expire 路径上永远是 false。
+      //    于是真实保证不是「最多多发 1 次」，而是
+      //    **「每次崩溃都会多发 1 次」（次数无界）**：只要进程反复死在
+      //    「extras 已发 → clear 未完成」之间，每次重进都读到同一份 flag=false 的
+      //    旧档 ⇒ 再发一遍。测试名不能宣称代码没有的保证，所以这里把窗口收掉。
+      final _ChestExtrasOutcome extrasOutcome = await _grantChestExtras(stored);
+      // 🔴 收口：**先把「已发完」落到旧档上，再清档**（见下面 ⑨ 的长注释）。
+      if (extrasOutcome == _ChestExtrasOutcome.settled &&
+          stored.chestTier.isPremium &&
+          !stored.chestExtrasGranted) {
+        try {
+          await _store.write(
+            childId,
+            stored.copyWith(chestExtrasGranted: true),
+          );
+        } catch (_) {
+          // 标记没落盘 ≠ 奖励没发：此时行为**退化**到修复前（窗口回到
+          // 「extras → clear」），仍然只可能「多发」不可能「吞掉」—— 方向没变坏。
+          // 绝不因为一次写失败把 expire() 打成异常：那会让跨天结算整个停摆。
+          developer.log(
+            'chestExtrasGranted persist failed => crash window falls back to '
+            'the extras->clear gap (worst case: 1 duplicate grant, biased '
+            'toward the kid); dayKey=$expiredDay, '
+            'extra=$extrasOutcome',
+            name: 'GuardService',
+            level: 900, // Level.WARNING
+          );
+        }
+      }
     } else {
       stolenSun = await _settleSunLoss(
         childId: childId,
@@ -847,6 +1034,37 @@ class GuardService {
       }
     }
 
+    // ⑨ 清档（**必须在 extras 的幂等标记落盘之后**）。
+    //
+    // ## 为什么是「先 write 标记、再 clear」，而不是直接 clear
+    // `claim()` 的 extras 幂等标记存在**当日状态**里（第 ⑦ 步随状态一起落盘），
+    // 而 `expire()` 结算完就把那条状态删了 —— 标记没有「家」可落。于是修复前
+    // `expire()` 路径上的 `chestExtrasGranted` **永远是 false**，「重跑幂等」全靠
+    // 「clear 成功」这一件事。进程死在 extras 与 clear 之间时，标记仍是 false、
+    // 旧档仍在 ⇒ 下次重进**必再发一遍**；反复崩溃 ⇒ **反复发**（次数无界）。
+    //
+    // 修法就是这里上面那一步 `_store.write(... chestExtrasGranted: true)`：
+    // 把「已发完」先写成**持久事实**，再删档。于是崩溃窗口从
+    //   · 修复前：`extras → clear 完成`（一旦 clear 长期失败 = **无界重放**）
+    //   · 修复后：`extras → write 完成`（**write 一旦落盘就再也不会发**）
+    // 也就是说，最坏次数从「崩溃次数 / 清档失败次数」压到「1 次」，
+    // 与 `claim()` ⑤′→⑧ 的窗口同量级、同方向（宁可多发，不吞已承诺的奖励）。
+    //
+    // ⚠️ 残余窗口（已知、已接受，**不是**「已完全闭掉」）：进程若恰好死在
+    //    「extras 已发 → 标记 write 完成」之间（几毫秒），重进会**再发 1 次**。
+    //    这段窗口无法在无事务的 prefs 上消除 —— 除非把 extras 与标记做成同一个
+    //    原子写，而 `BloomRewardRepository` 与 `GuardStateStore` 是两个独立存储。
+    //    量级 ≈ 1e-6/天/次启动，方向偏向孩子；`test/guard/guard_chest_grant_test.dart`
+    //    把它写成了**断言**（而不是愿望）。
+    //
+    // 为什么 write 不会覆盖掉不该动的字段：写的是 `stored`（本次刚读出来的那条
+    // 旧档）经 `copyWith` 只改了这一个 bool；且此路径上 `expire()` 是唯一写者 ——
+    // `resolve()` 的 `needsExpire` 闸门（见 [needsExpire]）会在旧档未结算时**拒写**，
+    // 所以「读 → 写」之间不可能被一条新当天的存档插进来。
+    //
+    // 为什么 write 失败也要继续 clear：失败时标记没落盘 ⇒ 行为退化到修复前
+    // （只可能多发、不会吞），而**不清档**的代价大得多（`needsExpire` 会一直为真，
+    // 孩子整个玩法卡死）。两害相权，清。
     await _store.clear(childId);
     return GuardExpireOutcome(
       today: today,
@@ -1118,6 +1336,94 @@ class GuardService {
     }
   }
 
+  /// 发放**高级宝箱附加奖励**（植物碎片 / 种子）—— 本类是该仓储在守卫链路上的
+  /// **唯一调用点**。
+  ///
+  /// ## 为什么碎片/种子不进阳光账本（与「唯一落账入口」不冲突）
+  /// `plant_growth_service.dart` 的 `_grantInstantReward()` 早已立下口径：
+  /// **种子 / 碎片不走账本**。它们是账户级藏品（[BloomRewardRepository]），
+  /// 不是阳光货币。`claim()` 仍是**唯一**写 `guard_pay` / `guard_win` 的方法，
+  /// 本次没有新增任何一处账本写入（翻倍只是金额变化，行数与 id 一字不变）。
+  ///
+  /// ## 口径
+  ///  · 只有 [GuardChestTier.premium] 且有附加项时才发（普通宝箱一分不多给）；
+  ///  · [GuardDayState.chestExtrasGranted] 已置位 ⇒ 空操作（幂等）；
+  ///  · 种子：该物种**已持免费种植券**（[BloomRewardRepository.unlockedSpeciesIds]）
+  ///    ⇒ 按玄参 2026-09-29 口径**自动分解**为碎片
+  ///    （普通 [kDuplicateSeedDecomposeFragmentsCommon] /
+  ///    精英 [kDuplicateSeedDecomposeFragmentsPremium]），不重复写券；
+  ///  · 碎片：在既有余额上**只做正向加**（[BloomRewardRepository.setPremiumFragmentBalance]
+  ///    是覆盖式 upsert，所以必须先读再写）。
+  ///
+  /// ⚠️ `unlockedSpeciesIds()` 读的是**发放前**快照 ⇒「同一天既发碎片又发种子」
+  /// 不会被误判成重复；一天最多掉 1 颗种子，跨天共享同一份「已持券」集合是
+  /// 正确语义（持券 = 免费种植券，用掉就消失）。
+  ///
+  /// ## 返回值（🔴 P2-②：三态，不是 bool）
+  /// 见 [_ChestExtrasOutcome]：
+  ///  · [settled] = 本次「已发完 / 本来就不需要发」⇒ 调用方**可以**置
+  ///    [GuardDayState.chestExtrasGranted]；
+  ///  · [portMissing] = 端口未注入 ⇒ **一片都没发**，调用方**绝不能**置标记
+  ///    （「发不了」≠「已发完」，否则补好 DI 也永不补发）；
+  ///  · [failed] = 仓储抖动导致没发成 ⇒ 不置标记，留给下一次 `expire()` 重试。
+  ///
+  /// 仓储异常**一律吞掉**：碎片发不出去是「少一件藏品」，而让 `claim()` 抛异常
+  /// 会把孩子卡在「点了没反应」—— 与 `_appendLedger` 同一套取舍。
+  Future<_ChestExtrasOutcome> _grantChestExtras(GuardDayState s) async {
+    // 顺序有意：先判「本来就无需发放」（标记已置位 / 普通宝箱），再判端口 ——
+    // 否则一个「普通宝箱 + 漏接线」的装配会天天刷一条没有意义的告警日志。
+    if (s.chestExtrasGranted) return _ChestExtrasOutcome.settled;
+    if (!s.chestTier.isPremium) return _ChestExtrasOutcome.settled;
+
+    final BloomRewardRepository? repo = _bloomRewards;
+    if (repo == null) {
+      // 🔴 P2-②：口头承诺过「拿到碎片」却因为一根没接的线静默清零，
+      //    真机上一次都定位不到（只能看出「余额不动」）。这里留一行日志。
+      //
+      //    为什么用 `dart:developer` 而不是 `debugPrint`：领域层**零 flutter**
+      //    （同文件 339 行处「不引 package:meta」的理由同源；`guard_state_store.dart`
+      //    文件头也写明本层要「可纯 Dart 直跑」）。`log()` 是 SDK 里唯一不引
+      //    flutter 的日志通道，`flutter run` / DevTools 的 Logging 视图能直接看到。
+      developer.log(
+        'bloomRewards port not injected => premium chest fragments/seeds were '
+        'NOT granted '
+        '(chestFragmentQty=${s.chestFragmentQty}, '
+        'chestSeedKind=${s.chestSeedKind.id}, '
+        'chestSeedSpeciesId=${s.chestSeedSpeciesId}); '
+        'the idempotency flag stays unset, so wiring the port later can still '
+        'grant them.',
+        name: 'GuardService',
+        level: 900, // Level.WARNING
+      );
+      return _ChestExtrasOutcome.portMissing;
+    }
+
+    int fragments = s.chestFragmentQty > 0 ? s.chestFragmentQty : 0;
+    final String? species = s.chestSeedSpeciesId;
+    try {
+      if (s.chestSeedKind != GuardSeedKind.none && species != null) {
+        final Set<String> owned = await repo.unlockedSpeciesIds();
+        if (owned.contains(species)) {
+          // 重复种子 → 自动分解为碎片（玄参 2026-09-29 口径，常量复用）。
+          fragments += s.chestSeedKind == GuardSeedKind.premium
+              ? kDuplicateSeedDecomposeFragmentsPremium
+              : kDuplicateSeedDecomposeFragmentsCommon;
+        } else {
+          // 幂等（speciesId 主键冲突合并）。
+          await repo.unlockSpecies(species);
+        }
+      }
+      if (fragments > 0) {
+        final int now = await repo.premiumFragmentBalance();
+        await repo.setPremiumFragmentBalance(now + fragments);
+      }
+      return _ChestExtrasOutcome.settled;
+    } catch (_) {
+      // 仓储抖动：不置 `chestExtrasGranted`，等下一次 expire() 重试。
+      return _ChestExtrasOutcome.failed;
+    }
+  }
+
   /// 写一行账本（**幂等**）：主键冲突 = 同一天已经写过这一行 ⇒ 视为已写过。
   /// DAO 是 `insert`（`InsertMode.insert`），重复主键会抛 —— 捕获它就把
   /// 「重复点击 / 重放」变成了天然幂等，无需额外锁或去重表。
@@ -1237,8 +1543,13 @@ class GuardService {
       alreadyClaimed: true,
       usedEnergy: state.paidSun <= 0,
       paidSun: state.paidSun,
-      winSun: state.winSun,
+      // 🔴 Guard-B13.11：`state.winSun` 存的是**基础值**，实际到账额要走
+      // `guardGrantWinSunOf`（高级宝箱 ×2）—— 回放必须与账本行逐位相等。
+      winSun: guardGrantWinSunOf(state),
       drop: state.dropKind,
+      bonusDrop: state.chestBonusDropKind != GuardDropKind.none
+          ? state.chestBonusDropKind
+          : state.bonusDropKind,
       buff: state.buff,
       energyAvailable: energy,
       balance: balance,

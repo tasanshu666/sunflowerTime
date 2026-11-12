@@ -9,7 +9,7 @@
 /// | B2 | 单怪最坏 TTK（HP 5 / 闪避 35%）≤ **6000ms** < 出手间隔，自瞄不会积压 |
 /// | B3 | **最坏阵容 5×m3**（HP 5 / 闪避 35% / 冷却 300ms）在 30s 窗口内**全清**，且 100 个 seed 都 victory |
 /// | B4 | 收场时刻 ≤ **28500ms**（留 ≥1.5s 余量；实测最坏 28263ms） |
-/// | B5 | 新手阵容 3×m1（HP 3 / 闪避 15%）≤ 15000ms 收场（不难） |
+/// | B5 | 新手阵容 3×m1（HP 3 / 闪避 22%，玄参 2026-11-12 由 15% 提到 22%）≤ 15000ms 收场（不难） |
 ///
 /// 🔴 口径说明（为什么这些数是「可复现的」）：
 /// * 驱动方式 = 表现层同款：每 16ms 一次 `step()`，开火按 [kGuardFireCooldownMs]
@@ -254,7 +254,7 @@ void main() {
   });
 
   // ── 宽松阵容对照 ──────────────────────────────────────────────────────
-  test('3 只 m1（HP3 / 闪避 15%）在 15s 内收场（新手日不难）', () {
+  test('3 只 m1（HP3 / 闪避 35%）在 16s 内收场（新手日不难）', () {
     final _Play p = _worst(
       _lineup(
         const <GuardBattleMonsterKind>[
@@ -263,13 +263,14 @@ void main() {
           GuardBattleMonsterKind.m1,
         ],
         hits: 3,
-        dodge: 0.15,
+        dodge: 0.35,
       ),
       cooldownMs: kGuardFireCooldownMs,
     );
     expect(p.phaseId, 'victory');
-    // 第 3 只 12s 出场，HP3 + 15% 闪避 ⇒ 最晚 ≈ 13.8s。
-    expect(p.endMs, lessThanOrEqualTo(15000),
-        reason: '3×m1 应远早于窗口收场（实测最坏 ≈ 13.8s）');
+    // 第 3 只 12s 出场，HP3 + 35% 闪避（玄参 2026-11-12 第二轮由 22% 上调，
+    // 闪避是馋光鼠专属特性）⇒ 仍远早于窗口收场。
+    expect(p.endMs, lessThanOrEqualTo(16000),
+        reason: '3×m1 应远早于窗口收场（闪避上调后实测最坏见输出行）');
   });
 }

@@ -49,6 +49,7 @@ import 'package:sunflower_time/presentation/child/state/guard_debug_script.dart'
 import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart';
 import 'package:sunflower_time/presentation/child/widgets/frame_sequence_player.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_chest_stage.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_result_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_tutorial_sheet.dart';
@@ -466,7 +467,17 @@ void main() {
     for (int i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    await _pumpUntilReady(tester, find.byKey(GuardResultCard.cardKey));
+    // 🔴 T03 起结算卡前必过**宝箱演出**（宝箱与结算卡都不可跳过）：
+    //    等宝箱上屏 → 点全屏热区 → 定长 5s 开箱 → 结算卡。
+    await _pumpUntilReady(tester, find.byKey(GuardChestStage.stageKey),
+        maxFrames: 200);
+    await tester.pump(const Duration(milliseconds: 260)); // 路由过渡 200ms
+    await tester.tap(find.byKey(GuardChestStage.tapCatcherKey));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: kGuardChestOpenMs));
+    await tester.pump(const Duration(milliseconds: 50));
+    await _pumpUntilReady(tester, find.byKey(GuardResultCard.cardKey),
+        maxFrames: 200);
     for (int i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }

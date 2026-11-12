@@ -2669,72 +2669,72 @@
   "garden_weather_banner_done_wind": "挡风板立好了 👍",
   "garden_weather_banner_done_cold": "盖好被子啦，暖暖的 👍",
   "garden_weather_banner_done_rainstorm": "遮雨棚搭好啦 👍",
-  "garden_weather_guide_sunny": "今天阳光满满！正常浇水施肥，花儿长得快~",
+  "garden_weather_guide_sunny": "阳光满满，花儿长得快！",
   "@garden_weather_guide_sunny": {
     "description": "天气对话框孩子视角引导（第六批）。浇水额度 = kWeatherDefaultWaterQuota(3)/kWeatherDefaultFertilizeQuota(1)"
   },
-  "garden_weather_guide_breeze": "微风轻轻吹，是照顾花儿的好日子~",
-  "garden_weather_guide_cloudy": "多云凉凉的，花儿喝水慢一些，少浇一点哦。",
+  "garden_weather_guide_breeze": "微风轻轻吹，照顾花儿的好日子~",
+  "garden_weather_guide_cloudy": "凉凉的，花儿喝水慢，少浇一点哦。",
   "@garden_weather_guide_cloudy": {
     "description": "kWeatherCloudyWaterFactor(0.95) < 1 ⇒ 喝水慢，额度仍为默认 3"
   },
-  "garden_weather_guide_overcast": "阴天到啦，花儿不怎么渴，记得少浇点水。",
+  "garden_weather_guide_overcast": "阴天，花儿不怎么渴，少浇点水。",
   "@garden_weather_guide_overcast": {
     "description": "kWeatherOvercastWaterFactor(0.90) < 1 ⇒ 喝水慢，额度仍为默认 3"
   },
-  "garden_weather_guide_light_rain": "小雨会帮忙浇花，今天浇一次水就够啦。",
+  "garden_weather_guide_light_rain": "小雨帮浇花，浇一次就够啦。",
   "@garden_weather_guide_light_rain": {
     "description": "数字对应 kWeatherLightRainWaterQuota = 1（额度背景说明，不是完成条件）"
   },
-  "garden_weather_guide_drought": "太晒太干啦！搭好遮阳棚就完成保护啦，记得给花浇浇水哦~",
+  "garden_weather_guide_drought": "太晒太干啦，搭上遮阳棚，植物成长进度会受到保护。",
   "@garden_weather_guide_drought": {
-    "description": "done 判据 = 仅买棚 kWeatherShelterRefTypeShade（第八批玄参拍板「买棚即 done」，浇水门槛已删）；浇水只作背景提醒（浇水额度常量照旧）"
+    "description": "done 判据 = 仅买棚 kWeatherShelterRefTypeShade（第八批玄参拍板「买棚即 done」，浇水门槛已删）；浇水只作背景提醒（浇水额度常量照旧）。B13.18 合并句：与买棚收益行去重（收益行已删），收益并入正文"
   },
-  "garden_weather_guide_wind": "风好大呀！给花搭好挡风板，就完成保护啦！",
+  "garden_weather_guide_wind": "风好大呀，搭上挡风板，植物成长进度会受到保护。",
   "@garden_weather_guide_wind": {
-    "description": "done 判据 = 仅 kWeatherShelterRefTypeWind（买棚即 done，第八批）"
+    "description": "done 判据 = 仅 kWeatherShelterRefTypeWind（买棚即 done，第八批）。B13.18 合并句：与买棚收益行去重（收益行已删）"
   },
-  "garden_weather_guide_cold": "要上冻啦！给花搭好保温棚就完成保护啦，暖暖地过冬！",
+  "garden_weather_guide_cold": "要上冻啦，搭上保温棚，植物成长进度会受到保护。",
   "@garden_weather_guide_cold": {
-    "description": "done 判据 = 仅 kWeatherShelterRefTypeWarm（买棚即 done，第八批）"
+    "description": "done 判据 = 仅 kWeatherShelterRefTypeWarm（买棚即 done，第八批）。B13.18 合并句（玄参原话「要上冻啦，搭上保温棚，植物成长进度会受到保护」）：与买棚收益行去重（收益行已删）"
   },
-  "garden_weather_guide_rainstorm": "暴雨来啦！搭好遮雨棚就完成保护啦；今天雨水代劳，不用浇水哦。",
+  "garden_weather_guide_rainstorm": "暴雨来啦，搭上遮雨棚，植物成长进度会受到保护。",
   "@garden_weather_guide_rainstorm": {
-    "description": "数字对应 kWeatherRainstormWaterQuota = 0（不浇水的背景说明，不是完成条件）+ done 判据 = 仅 kWeatherShelterRefTypeRain（买棚即 done，第八批：施肥门槛已删）"
+    "description": "数字对应 kWeatherRainstormWaterQuota = 0（不浇水的背景说明，不是完成条件）+ done 判据 = 仅 kWeatherShelterRefTypeRain（买棚即 done，第八批：施肥门槛已删）。B13.18 合并句：与买棚收益行去重（收益行已删）；「不用浇水」由浇水额度 0 + 按钮禁用态自明，不再写进句子"
   },
-  "garden_weather_growth_sunny": "今天太阳最给力，花儿长得更快一点，浇水也更管用哦～",
+  "garden_weather_growth_sunny": "今天花儿长得更快哦！",
   "@garden_weather_growth_sunny": {
     "description": "天气对话框「今天对成长的影响」行（第十批 2026-11-08 玄参：每天浇水但进度不一样，孩子会迷茫）。🔴 只写**方向**、不写倍率；方向依据常量：g=kWeatherSunnyGrowthFactor(1.05) > 1 ⇒ 更快，w=kWeatherSunnyWaterFactor(1.10) > 1 ⇒ 浇水更管用，f=kWeatherSunnyFertilizeFactor(1.05) > 1。改乘数必同步改本句方向。"
   },
-  "garden_weather_growth_breeze": "微风暖暖的，花儿长得比平时快一点点～",
+  "garden_weather_growth_breeze": "花儿长得比平时快一点点～",
   "@garden_weather_growth_breeze": {
     "description": "g=kWeatherBreezeGrowthFactor(1.02) > 1 ⇒ 略快；w/f 均 1.00 ⇒ 浇水施肥与平时一样（不写进句子，避免误导）。"
   },
-  "garden_weather_growth_cloudy": "云朵挡住了一点太阳，花儿长得慢一点点。",
+  "garden_weather_growth_cloudy": "花儿长得慢一点点。",
   "@garden_weather_growth_cloudy": {
     "description": "g=kWeatherCloudyGrowthFactor(0.96) < 1 ⇒ 略慢（w=0.95 / f=0.98 同样 <1，方向一致）。"
   },
-  "garden_weather_growth_overcast": "天阴阴的，太阳躲起来了，花儿长得慢一点点。",
+  "garden_weather_growth_overcast": "花儿长得慢一点点。",
   "@garden_weather_growth_overcast": {
     "description": "g=kWeatherOvercastGrowthFactor(0.93) < 1 ⇒ 略慢（w=0.90 / f=0.95 同样 <1）。"
   },
-  "garden_weather_growth_light_rain": "小雨帮了忙，花儿长得比平时快一点点；不过今天只能浇一次水哦。",
+  "garden_weather_growth_light_rain": "花儿长得快一点点。",
   "@garden_weather_growth_light_rain": {
     "description": "g=kWeatherLightRainGrowthFactor(1.03) > 1 ⇒ 略快（温和 5 种里唯一「下雨还更快」的一档）；后半句对应 kWeatherLightRainWaterQuota = 1，不是完成条件。"
   },
-  "garden_weather_growth_drought": "太干啦，花儿几乎不长个儿；快浇浇水吧，这时候浇水最管用！",
+  "garden_weather_growth_drought": "花儿几乎不长，浇水最管用！",
   "@garden_weather_growth_drought": {
     "description": "g=kWeatherDroughtGrowthFactor(0.20) ⇒ 几乎停长（极端最狠的一档）；w=kWeatherDroughtWaterFactor(3.00) > 1 ⇒ 浇水是最强正反馈。两句方向必须与常量一致，不得为「好听」写反。"
   },
-  "garden_weather_growth_wind": "风有点大，花儿长得慢一点点，搭好挡风板会更安心。",
+  "garden_weather_growth_wind": "花儿长得慢一点点。",
   "@garden_weather_growth_wind": {
     "description": "g=kWeatherWindGrowthFactor(0.95) < 1 ⇒ 略慢（w=0.90 / f=0.80 同样 <1）；后半句只提「安心」，不承诺加成长。"
   },
-  "garden_weather_growth_cold": "有点冷，花儿长得慢一些；施点肥能帮它暖暖身子。",
+  "garden_weather_growth_cold": "有点冷，花儿长得慢一点，施肥最管用哦！",
   "@garden_weather_growth_cold": {
-    "description": "g=kWeatherColdGrowthFactor(0.85) < 1 ⇒ 慢；f=kWeatherColdFertilizeFactor(1.50) > 1（极端里唯一的高倍施肥）⇒ 「施肥帮它保暖」与常量方向一致；w=1.10 也 ≥1。"
+    "description": "g=kWeatherColdGrowthFactor(0.85) < 1 ⇒ 慢；f=kWeatherColdFertilizeFactor(1.50) > 1（极端里唯一的高倍施肥）⇒ 「施肥最管用」。B13.17 精简（玄参「文字太多，只写重点」）：只保 g/f 两个方向，w=1.10 略正不再写进句子（不提 ≠ 写反，方向仍一致）。"
   },
-  "garden_weather_growth_rainstorm": "雨太大啦，花儿长得慢一些；雨水替你浇了水，记得施一次肥哦。",
+  "garden_weather_growth_rainstorm": "花儿长得慢一些，记得施肥哦。",
   "@garden_weather_growth_rainstorm": {
     "description": "g=kWeatherRainstormGrowthFactor(0.80) < 1 ⇒ 慢；kWeatherRainstormWaterQuota = 0 + kWeatherRainstormWaterBonusPp(1pp) ⇒ 雨水代劳（不能说「浇水」）；f=kWeatherRainstormFertilizeFactor(0.30) 但仍要施一次肥（施肥门槛不在 done 判据里）。"
   },
@@ -2902,9 +2902,58 @@
   "@guard_battle_retreat_banner": {
       "description": "守卫战 v2 L4 战斗层：Retreat（30s 窗口到点）横幅；已偷不回滚"
   },
-  "guard_battle_skip": "跳过",
-  "@guard_battle_skip": {
-      "description": "战斗界面：跳过按钮（kGuardBattleSkipDelayMs 后才出现）"
+  "guard_first_plant_title": "花园守卫来啦！",
+  "@guard_first_plant_title": {
+      "description": "守卫战 B13.15 首株说明卡：标题（种下第一个植物后回今日页弹一次）"
+  },
+  "guard_first_plant_body": "花园里有了新的植物，听说会有小动物想来偷吃。不过别担心——向日葵战士会帮你守护花园的！",
+  "@guard_first_plant_body": {
+      "description": "守卫战 B13.15 首株说明卡：正文（按钮复用 guard_tutorial_ok「知道了」）"
+  },
+  "guard_chest_name_normal": "宝箱",
+  "@guard_chest_name_normal": {
+      "description": "宝箱演出（Guard-B13.11）：普通宝箱名（读屏 label / 结算卡角标用）"
+  },
+  "guard_chest_name_premium": "高级宝箱",
+  "@guard_chest_name_premium": {
+      "description": "宝箱演出（Guard-B13.11）：高级宝箱名（角标 + 读屏 label）"
+  },
+  "guard_chest_tap_hint": "点一下打开",
+  "@guard_chest_tap_hint": {
+      "description": "宝箱演出：宝箱下方的点击提示（无倒计时数字——8s 自动开是惊喜不是压力）；同时作为读屏 button label"
+  },
+  "guard_debug_chest_tier_auto": "宝箱档位：自动（跟随当日落盘档位）",
+  "@guard_debug_chest_tier_auto": {
+      "description": "调试面板（仅 kDebugMode）：宝箱档位覆盖 = 自动。🔴 住在 ARB 而不是代码字面量：guard_debug_script.dart 有一条「剥注释后零 CJK」的 QA 探针，调试文案也不许硬编码中文"
+  },
+  "guard_debug_chest_tier_normal": "宝箱档位：强制普通（只换演出，奖励仍按当日落盘值）",
+  "@guard_debug_chest_tier_normal": {
+      "description": "调试面板（仅 kDebugMode）：强制播普通宝箱动画（不影响任何奖励数值）"
+  },
+  "guard_debug_chest_tier_premium": "宝箱档位：强制高级（只换演出，奖励仍按当日落盘值）",
+  "@guard_debug_chest_tier_premium": {
+      "description": "调试面板（仅 kDebugMode）：强制播高级宝箱动画（不影响任何奖励数值）"
+  },
+  "guard_result_premium_chest": "高级宝箱 ×2",
+  "@guard_result_premium_chest": {
+      "description": "结算卡（Guard-B13.11）：高级宝箱专属小字——说明阳光翻倍（显示的数字已是翻倍后的到账额）"
+  },
+  "guard_result_reward_fragment": "植物碎片",
+  "@guard_result_reward_fragment": {
+      "description": "结算卡（Guard-B13.11）：碎片奖励卡名称（数量用 +N 显示在图下）"
+  },
+  "guard_result_reward_seed": "种子",
+  "@guard_result_reward_seed": {
+      "description": "结算卡（Guard-B13.11）：种子奖励卡的兜底名称（物种 id 未知时才用；正常走 guard_result_seed 拼物种名）"
+  },
+  "guard_result_seed": "{species}种子",
+  "@guard_result_seed": {
+      "placeholders": {
+          "species": {
+              "type": "String"
+          }
+      },
+      "description": "结算卡（Guard-B13.11）：种子奖励卡名称（species = shared_species_* 的物种名译文；数量用 ×1 显示）"
   },
   "guard_result_title": "赶走了{thief}",
   "@guard_result_title": {
@@ -3143,6 +3192,10 @@
           }
       },
       "description": "结算/过期提示：昨晚被偷走了多少成长。本批未上屏，第四批阳光记录页用"
+  },
+  "guard_result_premium_hint": "开通完整版后，守卫胜利还会掉落高级宝箱，奖励更丰富哦！",
+  "@guard_result_premium_hint": {
+    "description": "结算卡完整版引导行（B13.16 2026-11-12 玄参：打赢的文案里加入完整版还会有高级宝箱掉落，奖励会更丰富这类的提示语）。仅 free 档 + 打赢（未被偷）时渲染"
   },
   "guard_result_collect": "收下",
   "@guard_result_collect": {"description": "结算卡：收下按钮（🔴 claim() 在这里触发，不在战斗开始时 —— 观看/跳过不改变奖励，但发放必须落在「领取」动作上且只落一次）"}

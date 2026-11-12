@@ -1971,6 +1971,11 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       }
     }
 
+    // 🔴 B13.18（2026-11-12 玄参）：「买棚收益行」整体退场 —— 正文（guide）与
+    //    收益行内容重复（「搭好保温棚就完成保护啦」vs「搭上保温棚，进度不受损失」），
+    //    玄参裁定删收益行、收益并入正文合并句（`garden_weather_guide_*` 极端日
+    //    4 条已改「{天气}，搭上{棚}，植物成长进度会受到保护」）。
+
     showGardenWeatherDialog(
       context: context,
       onBuy: _onShelterTap,
@@ -1986,6 +1991,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         // 明日预告行（「明天 · {明日日型名}」，页面拼好传入 —— 弹窗铁律）。
         tomorrowLabel:
             t.garden_weather_dialog_tomorrow(weatherNameOf(tomorrowKind, t)),
+        // 明日日型（B13.16：预告胶囊里的图标，同一 weatherArtOf 单点映射）。
+        tomorrowKind: tomorrowKind,
         shelterRefType: refType,
         buyLabel: refType == null
             ? null
@@ -3420,13 +3427,23 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                             ],
                           ),
                         ),
-                        // 今日券胶囊（额度用完也显示，只是不再减免；B13.5 起
-                        // 最多两张，逐张各占一行）。
+                        // 今日券胶囊（额度用完也显示，只是不再减免）。🔴 B13.17
+                        // （2026-11-12 玄参截图反馈「2 张上下排列几乎完全挡住了
+                        // 植物」）：改 **横向排列**（Wrap，行内 spacing 8，放不下
+                        // 自动换行 runSpacing 8）—— 单张时与旧版位置一致（同在
+                        // chips 行下方 8pt），两张时并排一行不再竖叠挡花。
                         if (showGuardBuffChip)
-                          for (final GuardBuffState buff in guardBuffs) ...<Widget>[
-                            const SizedBox(height: 8),
-                            GuardBuffChip(buff: buff),
-                          ],
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: <Widget>[
+                                for (final GuardBuffState buff in guardBuffs)
+                                  GuardBuffChip(buff: buff),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
                   ),

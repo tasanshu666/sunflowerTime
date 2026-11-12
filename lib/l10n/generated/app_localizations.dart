@@ -5798,109 +5798,109 @@ abstract class AppLocalizations {
   /// 天气对话框孩子视角引导（第六批）。浇水额度 = kWeatherDefaultWaterQuota(3)/kWeatherDefaultFertilizeQuota(1)
   ///
   /// In zh, this message translates to:
-  /// **'今天阳光满满！正常浇水施肥，花儿长得快~'**
+  /// **'阳光满满，花儿长得快！'**
   String get garden_weather_guide_sunny;
 
   /// No description provided for @garden_weather_guide_breeze.
   ///
   /// In zh, this message translates to:
-  /// **'微风轻轻吹，是照顾花儿的好日子~'**
+  /// **'微风轻轻吹，照顾花儿的好日子~'**
   String get garden_weather_guide_breeze;
 
   /// kWeatherCloudyWaterFactor(0.95) < 1 ⇒ 喝水慢，额度仍为默认 3
   ///
   /// In zh, this message translates to:
-  /// **'多云凉凉的，花儿喝水慢一些，少浇一点哦。'**
+  /// **'凉凉的，花儿喝水慢，少浇一点哦。'**
   String get garden_weather_guide_cloudy;
 
   /// kWeatherOvercastWaterFactor(0.90) < 1 ⇒ 喝水慢，额度仍为默认 3
   ///
   /// In zh, this message translates to:
-  /// **'阴天到啦，花儿不怎么渴，记得少浇点水。'**
+  /// **'阴天，花儿不怎么渴，少浇点水。'**
   String get garden_weather_guide_overcast;
 
   /// 数字对应 kWeatherLightRainWaterQuota = 1（额度背景说明，不是完成条件）
   ///
   /// In zh, this message translates to:
-  /// **'小雨会帮忙浇花，今天浇一次水就够啦。'**
+  /// **'小雨帮浇花，浇一次就够啦。'**
   String get garden_weather_guide_light_rain;
 
-  /// done 判据 = 仅买棚 kWeatherShelterRefTypeShade（第八批玄参拍板「买棚即 done」，浇水门槛已删）；浇水只作背景提醒（浇水额度常量照旧）
+  /// done 判据 = 仅买棚 kWeatherShelterRefTypeShade（第八批玄参拍板「买棚即 done」，浇水门槛已删）；浇水只作背景提醒（浇水额度常量照旧）。B13.18 合并句：与买棚收益行去重（收益行已删），收益并入正文
   ///
   /// In zh, this message translates to:
-  /// **'太晒太干啦！搭好遮阳棚就完成保护啦，记得给花浇浇水哦~'**
+  /// **'太晒太干啦，搭上遮阳棚，植物成长进度会受到保护。'**
   String get garden_weather_guide_drought;
 
-  /// done 判据 = 仅 kWeatherShelterRefTypeWind（买棚即 done，第八批）
+  /// done 判据 = 仅 kWeatherShelterRefTypeWind（买棚即 done，第八批）。B13.18 合并句：与买棚收益行去重（收益行已删）
   ///
   /// In zh, this message translates to:
-  /// **'风好大呀！给花搭好挡风板，就完成保护啦！'**
+  /// **'风好大呀，搭上挡风板，植物成长进度会受到保护。'**
   String get garden_weather_guide_wind;
 
-  /// done 判据 = 仅 kWeatherShelterRefTypeWarm（买棚即 done，第八批）
+  /// done 判据 = 仅 kWeatherShelterRefTypeWarm（买棚即 done，第八批）。B13.18 合并句（玄参原话「要上冻啦，搭上保温棚，植物成长进度会受到保护」）：与买棚收益行去重（收益行已删）
   ///
   /// In zh, this message translates to:
-  /// **'要上冻啦！给花搭好保温棚就完成保护啦，暖暖地过冬！'**
+  /// **'要上冻啦，搭上保温棚，植物成长进度会受到保护。'**
   String get garden_weather_guide_cold;
 
-  /// 数字对应 kWeatherRainstormWaterQuota = 0（不浇水的背景说明，不是完成条件）+ done 判据 = 仅 kWeatherShelterRefTypeRain（买棚即 done，第八批：施肥门槛已删）
+  /// 数字对应 kWeatherRainstormWaterQuota = 0（不浇水的背景说明，不是完成条件）+ done 判据 = 仅 kWeatherShelterRefTypeRain（买棚即 done，第八批：施肥门槛已删）。B13.18 合并句：与买棚收益行去重（收益行已删）；「不用浇水」由浇水额度 0 + 按钮禁用态自明，不再写进句子
   ///
   /// In zh, this message translates to:
-  /// **'暴雨来啦！搭好遮雨棚就完成保护啦；今天雨水代劳，不用浇水哦。'**
+  /// **'暴雨来啦，搭上遮雨棚，植物成长进度会受到保护。'**
   String get garden_weather_guide_rainstorm;
 
   /// 天气对话框「今天对成长的影响」行（第十批 2026-11-08 玄参：每天浇水但进度不一样，孩子会迷茫）。🔴 只写**方向**、不写倍率；方向依据常量：g=kWeatherSunnyGrowthFactor(1.05) > 1 ⇒ 更快，w=kWeatherSunnyWaterFactor(1.10) > 1 ⇒ 浇水更管用，f=kWeatherSunnyFertilizeFactor(1.05) > 1。改乘数必同步改本句方向。
   ///
   /// In zh, this message translates to:
-  /// **'今天太阳最给力，花儿长得更快一点，浇水也更管用哦～'**
+  /// **'今天花儿长得更快哦！'**
   String get garden_weather_growth_sunny;
 
   /// g=kWeatherBreezeGrowthFactor(1.02) > 1 ⇒ 略快；w/f 均 1.00 ⇒ 浇水施肥与平时一样（不写进句子，避免误导）。
   ///
   /// In zh, this message translates to:
-  /// **'微风暖暖的，花儿长得比平时快一点点～'**
+  /// **'花儿长得比平时快一点点～'**
   String get garden_weather_growth_breeze;
 
   /// g=kWeatherCloudyGrowthFactor(0.96) < 1 ⇒ 略慢（w=0.95 / f=0.98 同样 <1，方向一致）。
   ///
   /// In zh, this message translates to:
-  /// **'云朵挡住了一点太阳，花儿长得慢一点点。'**
+  /// **'花儿长得慢一点点。'**
   String get garden_weather_growth_cloudy;
 
   /// g=kWeatherOvercastGrowthFactor(0.93) < 1 ⇒ 略慢（w=0.90 / f=0.95 同样 <1）。
   ///
   /// In zh, this message translates to:
-  /// **'天阴阴的，太阳躲起来了，花儿长得慢一点点。'**
+  /// **'花儿长得慢一点点。'**
   String get garden_weather_growth_overcast;
 
   /// g=kWeatherLightRainGrowthFactor(1.03) > 1 ⇒ 略快（温和 5 种里唯一「下雨还更快」的一档）；后半句对应 kWeatherLightRainWaterQuota = 1，不是完成条件。
   ///
   /// In zh, this message translates to:
-  /// **'小雨帮了忙，花儿长得比平时快一点点；不过今天只能浇一次水哦。'**
+  /// **'花儿长得快一点点。'**
   String get garden_weather_growth_light_rain;
 
   /// g=kWeatherDroughtGrowthFactor(0.20) ⇒ 几乎停长（极端最狠的一档）；w=kWeatherDroughtWaterFactor(3.00) > 1 ⇒ 浇水是最强正反馈。两句方向必须与常量一致，不得为「好听」写反。
   ///
   /// In zh, this message translates to:
-  /// **'太干啦，花儿几乎不长个儿；快浇浇水吧，这时候浇水最管用！'**
+  /// **'花儿几乎不长，浇水最管用！'**
   String get garden_weather_growth_drought;
 
   /// g=kWeatherWindGrowthFactor(0.95) < 1 ⇒ 略慢（w=0.90 / f=0.80 同样 <1）；后半句只提「安心」，不承诺加成长。
   ///
   /// In zh, this message translates to:
-  /// **'风有点大，花儿长得慢一点点，搭好挡风板会更安心。'**
+  /// **'花儿长得慢一点点。'**
   String get garden_weather_growth_wind;
 
-  /// g=kWeatherColdGrowthFactor(0.85) < 1 ⇒ 慢；f=kWeatherColdFertilizeFactor(1.50) > 1（极端里唯一的高倍施肥）⇒ 「施肥帮它保暖」与常量方向一致；w=1.10 也 ≥1。
+  /// g=kWeatherColdGrowthFactor(0.85) < 1 ⇒ 慢；f=kWeatherColdFertilizeFactor(1.50) > 1（极端里唯一的高倍施肥）⇒ 「施肥最管用」。B13.17 精简（玄参「文字太多，只写重点」）：只保 g/f 两个方向，w=1.10 略正不再写进句子（不提 ≠ 写反，方向仍一致）。
   ///
   /// In zh, this message translates to:
-  /// **'有点冷，花儿长得慢一些；施点肥能帮它暖暖身子。'**
+  /// **'有点冷，花儿长得慢一点，施肥最管用哦！'**
   String get garden_weather_growth_cold;
 
   /// g=kWeatherRainstormGrowthFactor(0.80) < 1 ⇒ 慢；kWeatherRainstormWaterQuota = 0 + kWeatherRainstormWaterBonusPp(1pp) ⇒ 雨水代劳（不能说「浇水」）；f=kWeatherRainstormFertilizeFactor(0.30) 但仍要施一次肥（施肥门槛不在 done 判据里）。
   ///
   /// In zh, this message translates to:
-  /// **'雨太大啦，花儿长得慢一些；雨水替你浇了水，记得施一次肥哦。'**
+  /// **'花儿长得慢一些，记得施肥哦。'**
   String get garden_weather_growth_rainstorm;
 
   /// 天气对话框 done 态额外动作提醒（第九批 2026-11-07 玄参原话）。仅 done 态 + 动作未完成时显示：干旱日当日浇水 ≥1 次后消失（大风/极寒买棚即全部完成，无此行）
@@ -6239,11 +6239,77 @@ abstract class AppLocalizations {
   /// **'时间到，剩下的怪物撤退了'**
   String get guard_battle_retreat_banner;
 
-  /// 战斗界面：跳过按钮（kGuardBattleSkipDelayMs 后才出现）
+  /// 守卫战 B13.15 首株说明卡：标题（种下第一个植物后回今日页弹一次）
   ///
   /// In zh, this message translates to:
-  /// **'跳过'**
-  String get guard_battle_skip;
+  /// **'花园守卫来啦！'**
+  String get guard_first_plant_title;
+
+  /// 守卫战 B13.15 首株说明卡：正文（按钮复用 guard_tutorial_ok「知道了」）
+  ///
+  /// In zh, this message translates to:
+  /// **'花园里有了新的植物，听说会有小动物想来偷吃。不过别担心——向日葵战士会帮你守护花园的！'**
+  String get guard_first_plant_body;
+
+  /// 宝箱演出（Guard-B13.11）：普通宝箱名（读屏 label / 结算卡角标用）
+  ///
+  /// In zh, this message translates to:
+  /// **'宝箱'**
+  String get guard_chest_name_normal;
+
+  /// 宝箱演出（Guard-B13.11）：高级宝箱名（角标 + 读屏 label）
+  ///
+  /// In zh, this message translates to:
+  /// **'高级宝箱'**
+  String get guard_chest_name_premium;
+
+  /// 宝箱演出：宝箱下方的点击提示（无倒计时数字——8s 自动开是惊喜不是压力）；同时作为读屏 button label
+  ///
+  /// In zh, this message translates to:
+  /// **'点一下打开'**
+  String get guard_chest_tap_hint;
+
+  /// 调试面板（仅 kDebugMode）：宝箱档位覆盖 = 自动。🔴 住在 ARB 而不是代码字面量：guard_debug_script.dart 有一条「剥注释后零 CJK」的 QA 探针，调试文案也不许硬编码中文
+  ///
+  /// In zh, this message translates to:
+  /// **'宝箱档位：自动（跟随当日落盘档位）'**
+  String get guard_debug_chest_tier_auto;
+
+  /// 调试面板（仅 kDebugMode）：强制播普通宝箱动画（不影响任何奖励数值）
+  ///
+  /// In zh, this message translates to:
+  /// **'宝箱档位：强制普通（只换演出，奖励仍按当日落盘值）'**
+  String get guard_debug_chest_tier_normal;
+
+  /// 调试面板（仅 kDebugMode）：强制播高级宝箱动画（不影响任何奖励数值）
+  ///
+  /// In zh, this message translates to:
+  /// **'宝箱档位：强制高级（只换演出，奖励仍按当日落盘值）'**
+  String get guard_debug_chest_tier_premium;
+
+  /// 结算卡（Guard-B13.11）：高级宝箱专属小字——说明阳光翻倍（显示的数字已是翻倍后的到账额）
+  ///
+  /// In zh, this message translates to:
+  /// **'高级宝箱 ×2'**
+  String get guard_result_premium_chest;
+
+  /// 结算卡（Guard-B13.11）：碎片奖励卡名称（数量用 +N 显示在图下）
+  ///
+  /// In zh, this message translates to:
+  /// **'植物碎片'**
+  String get guard_result_reward_fragment;
+
+  /// 结算卡（Guard-B13.11）：种子奖励卡的兜底名称（物种 id 未知时才用；正常走 guard_result_seed 拼物种名）
+  ///
+  /// In zh, this message translates to:
+  /// **'种子'**
+  String get guard_result_reward_seed;
+
+  /// 结算卡（Guard-B13.11）：种子奖励卡名称（species = shared_species_* 的物种名译文；数量用 ×1 显示）
+  ///
+  /// In zh, this message translates to:
+  /// **'{species}种子'**
+  String guard_result_seed(String species);
 
   /// 结算卡标题：赶走了{thief}（thief = guard_thief_name_* 的译文）
   ///
@@ -6544,6 +6610,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'昨晚被偷走了 {n} 点成长'**
   String guard_stolen_today(int n);
+
+  /// 结算卡完整版引导行（B13.16 2026-11-12 玄参：打赢的文案里加入完整版还会有高级宝箱掉落，奖励会更丰富这类的提示语）。仅 free 档 + 打赢（未被偷）时渲染
+  ///
+  /// In zh, this message translates to:
+  /// **'开通完整版后，守卫胜利还会掉落高级宝箱，奖励更丰富哦！'**
+  String get guard_result_premium_hint;
 
   /// 结算卡：收下按钮（🔴 claim() 在这里触发，不在战斗开始时 —— 观看/跳过不改变奖励，但发放必须落在「领取」动作上且只落一次）
   ///

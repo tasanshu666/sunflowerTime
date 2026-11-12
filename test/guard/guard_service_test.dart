@@ -29,6 +29,7 @@ import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_re
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
+import 'package:sunflower_time/domain/entities/guard_chest.dart';
 import 'package:sunflower_time/domain/entities/guard_day_state.dart';
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
 import 'package:sunflower_time/domain/entities/guard_thief.dart';
@@ -41,6 +42,7 @@ import 'package:sunflower_time/domain/repositories/guard_state_store.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
+import 'package:sunflower_time/domain/services/guard_chest.dart';
 import 'package:sunflower_time/domain/services/guard_math.dart';
 import 'package:sunflower_time/domain/services/guard_service.dart';
 import 'package:sunflower_time/domain/services/guard_voucher.dart';
@@ -982,39 +984,59 @@ void main() {
       expect(ctx.ledger.entries, isEmpty);
     });
 
-    // ─────────── R1（Guard-B13.10）：幂等回放必须透传权益档位 ───────────
+    // ─────── R1（Guard-B13.10 → B13.11）：幂等回放必须透传权益档位 ───────
     //
     // 🔴 本用例的存在理由（零覆盖缺陷回填）：本组上面那条「不重掷」只断言
     // `state.dropKind`，**从不读 `roll`**；于是「幂等回放分支漏传 `isPremium`」
     // 这个 bug 完全隐形 —— 把它改回 `deriveGuardRoll(dayKey:, childId:)`，
-    // 全量 4572 条测试仍然全绿，而完整版用户在**第二次进今日页**时会拿到
-    // 「免费档」的落骰（drop 有 50% 变成 none、bonusDrop 恒 none），与已落盘的
-    // `state` 对不上（结算卡显示的券 ≠ 实际发放的券）。
+    // 全量测试仍然全绿，而完整版用户在**第二次进今日页**时会拿到「免费档」的
+    // 落骰（drop 有 50% 变成 none），与已落盘的 `state` 对不上（结算卡显示的券
+    // ≠ 实际发放的券）。
     //
-    // 本用例的判据是 `roll` 与 `state` 的**同源性** + 首回放/次回放的**逐字段
-    // 相等**，所以「回放漏传档位」这条改回去必红。
+    // ## 🔴 Guard-B13.11 后的口径变化（玄参 2026-11-11 第九轮）
+    // 第二张券**搬进高级宝箱** ⇒ `roll.bonusDrop` 恒 `none`，它不再是
+    // 「回放是否透传档位」的可观测面。新的可观测面有两条，两条都必须成立：
+    //  ① `roll.drop == state.dropKind`（档位透传的直接证据，本用例挑的是
+    //     「两档 drop 不同」的那一天 ⇒ 漏传必红）；
+    //  ② `state.chest*` 由 `deriveGuardChest` 决定，且回放**不再重算**它
+    //     （设计 §3.3：宝箱字段不走回放，直接读 state —— 顺带彻底摆脱上面这个坑）。
     test('守护 resolve 幂等回放必须透传档位（Guard-B13.10）；改回漏传 isPremium 本条必红',
         () async {
-      // ① 动态挑一个「完整版档真的掉出第二张券」的 dayKey。
-      //    免费档恒无第二张券 ⇒ 若不挑日子，回放漏传档位时 `bonusDrop` 两边
-      //    都是 none，用例会假绿。派生是纯函数（同一 `dayKey + childId + 档位`
-      //    恒得同一结果）⇒ 从 2026-11-09 起逐日递增，取第一个命中即用；
-      //    **不硬编码日期**（硬编码会让「换一天就悄悄不覆盖 bonusDrop」）。
+      // ① 动态挑一个同时满足两条的 dayKey：
+      //    · 完整版档真的出**高级宝箱**（否则 chest 断言不可达）；
+      //    · 免费档与完整版档的**首张券不同**（否则漏传 isPremium 不会露馅）。
+      //    派生是纯函数 ⇒ 逐日递增取第一个命中；**不硬编码日期**。
       DateTime? candidateDay;
       for (int i = 0; i < 3650; i++) {
         final DateTime candidate = DateTime(2026, 11, 9).add(Duration(days: i));
-        final GuardRoll probe = deriveGuardRoll(
-          dayKey: dayKey(candidate),
+        final String key = dayKey(candidate);
+        final GuardChestRoll chest = deriveGuardChest(
+          dayKey: key,
           childId: _childId,
           isPremium: true,
+          drop: deriveGuardRoll(
+            dayKey: key,
+            childId: _childId,
+            isPremium: true,
+          ).drop,
         );
-        if (probe.bonusDrop != GuardDropKind.none) {
+        final GuardDropKind freeDrop = deriveGuardRoll(
+          dayKey: key,
+          childId: _childId,
+          isPremium: false,
+        ).drop;
+        final GuardDropKind paidDrop = deriveGuardRoll(
+          dayKey: key,
+          childId: _childId,
+          isPremium: true,
+        ).drop;
+        if (chest.tier == GuardChestTier.premium && freeDrop != paidDrop) {
           candidateDay = candidate;
           break;
         }
       }
       expect(candidateDay, isNotNull,
-          reason: '10 年内必然存在「完整版档掉两张券」的一天（挑不到 ⇒ 派生坏了）');
+          reason: '10 年内必然存在「高级宝箱 + 两档首张券不同」的一天（挑不到 ⇒ 派生坏了）');
       final DateTime chosenDay = candidateDay!;
       final DateTime at =
           DateTime(chosenDay.year, chosenDay.month, chosenDay.day, 10, 30);
@@ -1046,30 +1068,43 @@ void main() {
       expect(second.state, first.state, reason: '回放不重写状态');
       expect(ctx.ledger.entries, isEmpty, reason: 'resolve 全程零账本写入');
 
-      // ③ 回放的 roll 必须与落盘的 state **同源** —— 这就是「档位被透传」的
+      // ③ 落盘的宝箱字段必须与 `deriveGuardChest` **同源且一致**（不是表现层
+      //    另算一遍）。期望值直接调纯函数取，逐字段比对。
+      final GuardChestRoll expectedChest = deriveGuardChest(
+        dayKey: thatDay,
+        childId: _childId,
+        isPremium: true,
+        drop: first.state.dropKind,
+      );
+      expect(first.state.chestTier, expectedChest.tier);
+      expect(first.state.chestTier, GuardChestTier.premium,
+          reason: '🔴 本用例专挑的就是「出高级宝箱」的那一天（可达性）');
+      expect(first.state.chestBonusDropKind, expectedChest.bonusDrop);
+      expect(first.state.chestFragmentQty, expectedChest.fragmentQty);
+      expect(first.state.chestSeedKind, expectedChest.seedKind);
+      expect(first.state.chestSeedSpeciesId, expectedChest.seedSpeciesId);
+      expect(first.state.chestExtrasGranted, isFalse, reason: 'resolve 不发放');
+      // 🔴 掉落层不再产生第二张券（Guard-B13.11）。
+      expect(first.state.bonusDropKind, GuardDropKind.none,
+          reason: '🔴 第二张券只在高级宝箱里（chestBonusDropKind）');
+
+      // ④ 回放的 roll 必须与落盘的 state **同源** —— 这就是「档位被透传」的
       //    可观测面：漏传 `isPremium` 时 roll 走免费表，两行立刻打架。
       expect(second.roll!.drop, second.state.dropKind,
           reason: '🔴 回放的 drop 必须等于落盘的 dropKind');
-      expect(second.roll!.bonusDrop, second.state.bonusDropKind,
-          reason: '🔴 回放的 bonusDrop 必须等于落盘的 bonusDropKind');
-      // 字面量语义（不引用 kGuardDropDualChance 反算期望）：
-      // 完整版档「无道具率 = 0」⇒ 首张必是券；本用例又专挑「掉两张」的那天。
       expect(second.roll!.drop, isNot(GuardDropKind.none),
           reason: '完整版档不存在「无道具」日');
-      expect(second.roll!.bonusDrop, isNot(GuardDropKind.none),
-          reason: '本用例专挑的就是「掉 2 张券」的那一天');
+      expect(second.roll!.winSun, second.state.winSun,
+          reason: '🔴 回放的 winSun 必须等于落盘的基础值');
 
-      // ④ 「同一天重复 resolve 不重掷」的**逐字段**口径。
+      // ⑤ 「同一天重复 resolve 不重掷」的**逐字段**口径。
       //    ⚠️ `GuardRoll.operator==` / `hashCode` **都不含 bonusDrop**，
-      //    所以绝不能只写 `expect(second.roll, first.roll)` —— 那会掩盖
-      //    「第二张券被重掷 / 丢失」这一类回归。下面六个字段一个不落全列。
+      //    所以绝不能只写 `expect(second.roll, first.roll)`。下面逐字段全列。
       expect(second.roll!.thief, first.roll!.thief, reason: '同一只贼');
       expect(second.roll!.growthLossPercent, first.roll!.growthLossPercent,
           reason: '偷多少成长（未取整，逐位相同）');
       expect(second.roll!.sunLoss, first.roll!.sunLoss, reason: '偷多少阳光');
       expect(second.roll!.drop, first.roll!.drop, reason: '首张券');
-      expect(second.roll!.bonusDrop, first.roll!.bonusDrop,
-          reason: '🔴 第二张券（operator== 不覆盖，必须单独断）');
       expect(second.roll!.winSun, first.roll!.winSun, reason: '必得阳光');
     });
 

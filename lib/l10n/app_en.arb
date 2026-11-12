@@ -2573,48 +2573,48 @@
   "garden_weather_banner_done_wind": "Windbreak is up 👍",
   "garden_weather_banner_done_cold": "Warm cover on — nice and cozy 👍",
   "garden_weather_banner_done_rainstorm": "Rain cover is up 👍",
-  "garden_weather_guide_sunny": "So much sunshine today! Water and fertilize as usual — your flowers grow fast!",
-  "garden_weather_guide_breeze": "A gentle breeze is blowing — a lovely day to care for your flowers!",
-  "garden_weather_guide_cloudy": "It's cool and cloudy — flowers drink slower, so water a little less.",
-  "garden_weather_guide_overcast": "An overcast day! The flowers aren't very thirsty — remember to water less.",
-  "garden_weather_guide_light_rain": "The light rain helps water your flowers — one watering is enough today.",
-  "garden_weather_guide_drought": "So hot and dry! Put up the shade awning to complete the protection — and give your flowers a drink too!",
-  "garden_weather_guide_wind": "The wind is so strong! Set up the windbreak to complete the protection!",
-  "garden_weather_guide_cold": "It's about to freeze! Put up the warm cover to complete the protection — cozy winter!",
-  "garden_weather_guide_rainstorm": "A rainstorm is here! Put up the rain cover to complete the protection — the rain does the watering today, no need to water!",
-  "garden_weather_growth_sunny": "The sun is at its best today — your flowers grow a little faster, and watering helps more!",
+  "garden_weather_guide_sunny": "So much sunshine — your flowers grow fast!",
+  "garden_weather_guide_breeze": "A gentle breeze — a lovely day to care for your flowers!",
+  "garden_weather_guide_cloudy": "Cool and cloudy — flowers drink slower, water a little less.",
+  "garden_weather_guide_overcast": "Overcast! The flowers aren't very thirsty — water less.",
+  "garden_weather_guide_light_rain": "The light rain helps — one watering is enough!",
+  "garden_weather_guide_drought": "So hot and dry! Put up the shade awning — your flowers' growth is protected.",
+  "garden_weather_guide_wind": "So windy! Put up the windbreak — your flowers' growth is protected.",
+  "garden_weather_guide_cold": "It's about to freeze! Put up the warm cover — your flowers' growth is protected.",
+  "garden_weather_guide_rainstorm": "A rainstorm! Put up the rain cover — your flowers' growth is protected.",
+  "garden_weather_growth_sunny": "Your flowers grow faster today!",
   "@garden_weather_growth_sunny": {
     "description": "Weather dialog「how today's weather affects growth」line (batch 10). Direction only, never the multiplier: g=kWeatherSunnyGrowthFactor(1.05) > 1 ⇒ faster; w=kWeatherSunnyWaterFactor(1.10) > 1 ⇒ watering helps more."
   },
-  "garden_weather_growth_breeze": "A warm little breeze — your flowers grow a tiny bit faster than usual!",
+  "garden_weather_growth_breeze": "Your flowers grow a tiny bit faster than usual!",
   "@garden_weather_growth_breeze": {
     "description": "g=kWeatherBreezeGrowthFactor(1.02) > 1 ⇒ slightly faster; w/f are 1.00 ⇒ unchanged, so not mentioned."
   },
-  "garden_weather_growth_cloudy": "Clouds hide a bit of the sun, so your flowers grow a little slower.",
+  "garden_weather_growth_cloudy": "Your flowers grow a little slower.",
   "@garden_weather_growth_cloudy": {
     "description": "g=kWeatherCloudyGrowthFactor(0.96) < 1 ⇒ slightly slower (w=0.95 / f=0.98 also < 1)."
   },
-  "garden_weather_growth_overcast": "It's grey and the sun is hiding, so your flowers grow a little slower.",
+  "garden_weather_growth_overcast": "Your flowers grow a little slower.",
   "@garden_weather_growth_overcast": {
     "description": "g=kWeatherOvercastGrowthFactor(0.93) < 1 ⇒ slightly slower (w=0.90 / f=0.95 also < 1)."
   },
-  "garden_weather_growth_light_rain": "The light rain helps out, so your flowers grow a tiny bit faster — but you can only water once today.",
+  "garden_weather_growth_light_rain": "Your flowers grow a tiny bit faster.",
   "@garden_weather_growth_light_rain": {
     "description": "g=kWeatherLightRainGrowthFactor(1.03) > 1 ⇒ slightly faster; second clause matches kWeatherLightRainWaterQuota = 1 (not a completion condition)."
   },
-  "garden_weather_growth_drought": "It's so dry that your flowers hardly grow at all — water them now, watering helps the most on a day like this!",
+  "garden_weather_growth_drought": "Flowers hardly grow — watering helps the most!",
   "@garden_weather_growth_drought": {
     "description": "g=kWeatherDroughtGrowthFactor(0.20) ⇒ almost stopped; w=kWeatherDroughtWaterFactor(3.00) > 1 ⇒ watering is the strongest positive feedback. Direction must never be written backwards."
   },
-  "garden_weather_growth_wind": "The wind is a bit strong, so your flowers grow a little slower — a windbreak will make them feel safer.",
+  "garden_weather_growth_wind": "Your flowers grow a little slower.",
   "@garden_weather_growth_wind": {
     "description": "g=kWeatherWindGrowthFactor(0.95) < 1 ⇒ slightly slower (w=0.90 / f=0.80 also < 1); the windbreak clause promises comfort only, not extra growth."
   },
-  "garden_weather_growth_cold": "It's a bit cold, so your flowers grow a little slower — a little fertilizer helps keep them warm.",
+  "garden_weather_growth_cold": "A bit cold — flowers grow slower, fertilizer works best!",
   "@garden_weather_growth_cold": {
-    "description": "g=kWeatherColdGrowthFactor(0.85) < 1 ⇒ slower; f=kWeatherColdFertilizeFactor(1.50) > 1 (the only high fertilize multiplier among extremes) ⇒ 「fertilizer keeps them warm」 matches the constant."
+    "description": "g=kWeatherColdGrowthFactor(0.85) < 1 ⇒ slower; f=kWeatherColdFertilizeFactor(1.50) > 1 (the only high fertilize multiplier among extremes) ⇒ 「fertilizer works best」; w=kWeatherColdWaterFactor(1.10) > 1 ⇒ 「watering helps a bit more」. B13.16: spelled out both directions per Xuanshen's feedback."
   },
-  "garden_weather_growth_rainstorm": "The rain is very heavy, so your flowers grow a little slower — the rain did the watering, so remember to fertilize once.",
+  "garden_weather_growth_rainstorm": "Flowers grow a little slower — remember to fertilize!",
   "@garden_weather_growth_rainstorm": {
     "description": "g=kWeatherRainstormGrowthFactor(0.80) < 1 ⇒ slower; kWeatherRainstormWaterQuota = 0 + kWeatherRainstormWaterBonusPp ⇒ rain waters for you (never say 「water」); f=0.30 but still fertilize once."
   },
@@ -2697,7 +2697,18 @@
   "guard_energy_bubble": "15 min of focus = 1 energy point, up to 2 a day",
   "guard_battle_victory_banner": "All monsters chased away!",
   "guard_battle_retreat_banner": "Time's up — the rest retreated",
-  "guard_battle_skip": "Skip",
+  "guard_first_plant_title": "Your Garden Guard is here!",
+  "guard_first_plant_body": "There's a new plant in your garden, and little critters might sneak in to nibble it. But don't worry — your Sunflower Warrior will help protect your garden!",
+  "guard_chest_name_normal": "Chest",
+  "guard_chest_name_premium": "Premium Chest",
+  "guard_chest_tap_hint": "Tap to open",
+  "guard_debug_chest_tier_auto": "Chest tier: auto (follows the tier stored for today)",
+  "guard_debug_chest_tier_normal": "Chest tier: force normal (visuals only; rewards unchanged)",
+  "guard_debug_chest_tier_premium": "Chest tier: force premium (visuals only; rewards unchanged)",
+  "guard_result_premium_chest": "Premium chest ×2",
+  "guard_result_reward_fragment": "Plant fragments",
+  "guard_result_reward_seed": "Seed",
+  "guard_result_seed": "{species} seed",
   "guard_result_title": "Chased away the {thief}",
   "guard_result_gain": "Got back {sun} sunlight",
   "guard_result_stolen": "The thief stole {sun} sunlight",
@@ -2758,5 +2769,6 @@
       }
   },
   "guard_stolen_today": "{n} points of growth were stolen last night",
+  "guard_result_premium_hint": "With the full version, winning a guard battle can also drop a Premium Chest — richer rewards!",
   "guard_result_collect": "Collect"
 }

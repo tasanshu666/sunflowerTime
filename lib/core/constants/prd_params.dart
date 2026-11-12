@@ -2383,14 +2383,17 @@ const double kGuardDropNothingRate = 0.18;
 // · 上面 6 个 kGuardDrop*Rate 旧常量**退役为「PRD §3.7 历史经济测算口径」**：
 //   面值常量与 E[D] 旧账仍引用它们，但 **roll 不再使用**（两档表在下面）；
 // · 两档表内 5 种券的**相对比例**与旧表一致（旧表 ÷ 0.82 × 档位掉券率）；
-// · 「10% 掉 2 张」的解释（当前实现口径）：**只对「当天已掉券」的日子生效**，
-//   且 🔴 **仅完整版档生效**（玄参 2026-11-11 裁定：「双倍掉落券，对免费档不生效」）；
-//   免费档永不出第二张。第二张券从「除首张外的 4 种券」里等概率挑。
+// · 「10% 掉 2 张」的解释（Guard-B13.11 后的口径）：**掉落层不再产生第二张券**，
+//   10% 双券搬进「高级宝箱」（[kGuardChestBonusChance]，全局 2%/天）。
+//   本段两张表只管**首张券**的分布，一枚字节都没动；
+//   历史实现（B13.5 → Guard-B13.10「仅完整版档生效」）见
+//   `GuardDropKind.rollBonus` 的 @Deprecated 注释。
 
 /// 免费档无道具概率 = **50%**（旧 18%；玄参 B13.5）。
 ///
 /// 🔴 免费档**只掉一张**：50% 的日子无券，另 50% 掉券日掉 1 张——免费档永远不会
-/// 出现第二张券（[kGuardDropDualChance] 仅在完整版档生效，Guard-B13.10）。
+/// 出现第二张券（Guard-B13.10 裁定；Guard-B13.11 起第二张券只在高级宝箱里，
+/// 而免费档恒普通宝箱 ⇒ 免费档双券率仍是 0%）。
 const double kGuardDropNothingRateFree = 0.50;
 
 /// 完整版档无道具概率 = **0**（必掉券；玄参 B13.5）。
@@ -2398,9 +2401,11 @@ const double kGuardDropNothingRatePremium = 0.0;
 
 /// 已掉券的日子里，再掉一张**不同的**券的概率 = 10%（玄参 B13.5）。
 ///
-/// 🔴 **仅完整版档生效**（玄参 2026-11-11 裁定）：「双倍掉落券，对免费档不生效」——
-/// 免费档无论掉没掉券，第二张券恒 `none`。实现落点 = `guard_math.deriveGuardRoll`
-/// 的 `isPremium && drop != none` 双条件 gate（不是 `GuardDropKind.rollBonus` 内部）。
+/// 🔴 **Guard-B13.11 起本常量的落点变了**：10% 不再是「掉落阶段的付费普惠
+/// 加成」，而是「**高级宝箱内**的奖池」—— 实际生效常量是
+/// [kGuardChestBonusChance]，全局出现率 = 20% 高级宝箱 × 10% = **2%/天**
+/// （原 10%/天，−8pp，玄参已接受；差额由阳光翻倍 + 碎片/种子补偿）。
+/// 本常量保留只为「旧口令的对照读数」，任何新代码**不得**用它做判据。
 const double kGuardDropDualChance = 0.10;
 
 /// 免费档掉落表（顺序 = [GuardDropKind.values]：水 / 劳 / 施肥 / 免费水 /
@@ -2491,10 +2496,11 @@ const double kGuardFaceValueNothing = 0;
 /// 🔴 这是本玩法**唯一**的屏幕占用，不得上调（会破坏「不盯屏」原则）。
 const int kGuardBattleMs = 10000;
 
-/// 「跳过」按钮延迟出现时长。单位：ms。防误触（一进来就点掉看不到画面）。
-const int kGuardBattleSkipDelayMs = 600;
-
-/// 跳过后直接落到结算卡的过渡时长。单位：ms。
+/// 战斗结束 → 结算卡的过渡时长。单位：ms。
+///
+/// ⚠️ 历史名保留（原义「跳过后直接落到结算卡」）：**宝箱批次起战斗已不可跳过**
+/// （`kGuardBattleSkipDelayMs` 与本批次一并删除），本常量只剩「结算卡路由入场
+/// 过渡」这一个含义，值不变（200ms）以免旧路径观感变化。
 const int kGuardBattleToResultMs = 200;
 
 // ── 账本 refType（🔴 字符串一经写入即冻结；须同步补 refLabelOf）──────────
@@ -2543,6 +2549,16 @@ const String kGuardDayStatePrefPrefix = 'guard_day_state_v2_';
 /// 字段 `GuardDayState.tutorialSeen` 保留（老存档向后兼容），但**不再驱动弹层**。
 const String kGuardTutorialSeenPrefKey = 'guard_tutorial_seen_v1';
 
+/// 「首株植物守卫说明卡」已看过（B13.15，设备级 prefs，**一辈子一次**）。
+///
+/// 玄参 2026-11-12 第 5 条：种下第一个植物后回到今日首页，弹一张守卫玩法
+/// 简介卡（「花园有了新植物，会有小动物来偷，别担心，向日葵战士会帮你守护」）。
+/// 判据 = 花园里有存活植物 && 本键未置 ⇒ 弹卡并置位；与
+/// [kGuardTutorialSeenPrefKey] 同一 prefs 宿主（`DataManagementService.clearAll`
+/// 会一并清掉，可接受）。⚠️ 无 childId 后缀：守护概念是设备级知识。
+const String kGuardFirstPlantIntroSeenPrefKey =
+    'guard_first_plant_intro_seen_v1';
+
 // ── 埋点事件名（复用 `TrackingRepository.track`，`TrackingType.metric`）──
 
 /// 小偷生成。
@@ -2560,8 +2576,10 @@ const String kGuardTrackStolen = 'guard_stolen';
 /// 🔴 券核销（算 η 的唯一依据）。
 const String kGuardTrackVoucherUsed = 'guard_voucher_used';
 
-/// 跳过战斗。
-const String kGuardTrackSkip = 'guard_battle_skip';
+// ⚠️ 宝箱批次（Guard-B13.11）已删除 `kGuardTrackSkip`（'guard_battle_skip'）：
+//    「跳过战斗」入口随宝箱演出一起退役（宝箱阶段 + 开箱 + 结算卡全程不可跳过），
+//    埋点名与 ARB 文案 `guard_battle_skip` 同批清理 —— 留一个永远不上报的
+//    埋点名只会让后来人以为「曾经埋过、现在大概是漏埋了」。
 
 // ── UI 几何（今日页胶囊，PRD §8.1）────────────────────────────────────────
 
@@ -2607,10 +2625,27 @@ const int kGuardMissFxMs = 600;
 
 /// 击杀掉落的「阳光精灵」VFX 存活时长。单位：ms（B13.8 玄参提案拍板）。
 ///
-/// 下落 + 漂移 + 淡出共用这一条时长：`t ∈ [0,1]` 期间 y 下落、x 随机漂移、
-/// opacity 1 → 0。🔴 **纯渲染层**：随机数只允许出现在战斗 Fx 层
-/// （`math.Random()`），绝不进 sim / 领域层 —— 确定性零破口。
+/// 上飞 + 漂移 + 淡出共用这一条时长：`t ∈ [0,1]` 期间 y **上飞**、x 随机漂移、
+/// opacity 先亮着飞再加速淡出（见 [kGuardSunRisePt]）。🔴 **纯渲染层**：
+/// 随机数只允许出现在战斗 Fx 层（`math.Random()`），绝不进 sim / 领域层 ——
+/// 确定性零破口。
 const int kGuardSunDropFxMs = 700;
+
+/// 阳光精灵**上飞**的纵向行程。单位：pt（Guard-B13.11 玄参裁定：原「下落」改「上飞」）。
+///
+/// 🔴 为什么是 26 而不是更大：怪的水平带被 `mapMonsterY` 钳在场景卡**底部**的
+/// 倒计时细线之上，卡高只有 [kGuardSceneCardHeight] = 112pt —— 上飞超过 ~30pt
+/// 就会碰到卡顶的计时条 / 能量点（玄参明确「不许盖住顶部 UI」）。
+/// 真机若视觉压到房子，只调本常量（22 / 20），其余代码零改动。
+const double kGuardSunRisePt = 26;
+
+/// 阳光精灵上飞时「开始淡出」的行程比例（前 60% 亮着飞，后 40% 加速淡出）。
+///
+/// 玄参口径：「先看到它飞起来，再淡掉」—— 一冒头就消失等于没演出。
+const double kGuardSunRiseFadeStart = 0.60;
+
+/// 阳光精灵淡出起点的不透明度（到 [kGuardSunRiseFadeStart] 时衰减到这个值）。
+const double kGuardSunRiseFadeStartOpacity = 0.35;
 
 /// 怪物数量下限（PRD：3~5 只；通道 `count` 落桶）。
 const int kGuardMonsterCountMin = 3;
@@ -2628,8 +2663,15 @@ const double kGuardMonsterSpeedM2 = 15;
 /// 也会被偷（负反馈存在），但认真打必然全灭。
 const double kGuardMonsterSpeedM3 = 17;
 
-/// m1 闪避概率。闪避 = 白打一发（有跳跃演出）；命中概率 = 1 − p。
-const double kGuardDodgeProbM1 = 0.15;
+/// m1 闪避概率。闪避 = 白打一发（有 MISS 演出）；命中概率 = 1 − p。
+/// 玄参 2026-11-12 裁定（反馈第 5 条）：馋光鼠 15% 太好打，提到 22%。
+/// 玄参 2026-11-12 **第二轮**（B13.13 第 5 条）：22% 手感仍差 —— 真机 4 只馋光鼠
+/// 打了一整波零 MISS（开火冷却 300ms ⇒ 每只只挨 ~3 发，`0.78³ ≈ 47%` 的怪
+/// 一发 miss 都不出，4 只全不 miss 一点都不稀奇），提到 **35%**。
+/// 🔴 35% 超过 m2（0.25）是**有意的**：馋光鼠的物种设定就是「灵活偷光、
+/// 难打中、血最薄」（TTK 仍是三档最短），闪避是它的专属特性，不再坚持
+/// 「22/25/35 递增」的旧梯度叙事。
+const double kGuardDodgeProbM1 = 0.35;
 
 /// m2 闪避概率。
 const double kGuardDodgeProbM2 = 0.25;
@@ -2954,4 +2996,248 @@ const double kGuardSceneEnergyDotSize = 28;
 
 /// 开火大圆钮直径。单位：pt（战斗态 L3；B2 占位、B3 接线 400ms 冷却）。
 const double kGuardSceneFireButtonSize = 64;
+
+// ══════════════════════════════════════════════════════════════════════════
+// 高级宝箱（Guard-B13.11 · 宝箱与结算演出批次）
+//
+// 真源：`docs/花园守卫_宝箱与结算演出_增量设计_v1.md` §3 / §4
+// 裁定：玄参 2026-11-11（第九轮）· **三处覆写见下方逐条注释**
+//
+// 🔴 概率只在这里出现一次：领域派生（`domain/services/guard_chest.dart`）、
+//    经济测算与单测全部读本段常量，**不得各写一个字面量**（单测里的期望值
+//    例外：断言写死字面量，防「实现改错、测试跟着变绿」）。
+// ══════════════════════════════════════════════════════════════════════════
+
+/// 完整版档出现**高级宝箱**的概率（免费档恒普通宝箱，判据见
+/// `deriveGuardChest`：`isPremium && u < 本值`）。
+///
+/// 🔴 **玄参 2026-11-12 B13.14 裁定**：20% → **30%**（同批：宝箱内双券 10%→20%、
+/// 碎片 5%→10%；「必掉一张 buff 券」由「付费必掉券」（
+/// [kGuardDropNothingRatePremium] = 0）天然满足，无需新通道）。
+const double kGuardChestPremiumChance = 0.30;
+
+/// 高级宝箱内再掉**第二张 buff 券**的概率（🔴 B13.14：= 全局 30% × 20% = **6%/天**）。
+///
+/// 🔴 这是 Guard-B13.10「10% 双券」的**新落点**：掉落层（`deriveGuardRoll`）
+/// 已不再产生第二张券，双券从「付费普惠加成」变成「高级宝箱专属奖池」。
+/// 沿革：全局 10%/天（原） → 2%/天（B13.11：20% × 10%）→ **6%/天**（B13.14：
+/// 30% × 20%，玄参 2026-11-12 裁定）。
+const double kGuardChestBonusChance = 0.20;
+
+/// 高级宝箱内掉**植物碎片**的概率（🔴 B13.14：= 全局 30% × 10% = **3%/天**，
+/// 数量 1~2 各半 ⇒ E[碎片] = 0.045 片/天）。
+const double kGuardChestFragmentChance = 0.10;
+
+/// 高级宝箱内掉**植物种子**的概率（= 全局 1%/天 ≈ 100 天一颗）。
+///
+/// 🔴 **玄参 2026-11-11 覆写**：设计文档原值 1%（= 全局 0.2%/天 ≈ 500 天一颗，
+/// 孩子可能一辈子看不到），裁定改为 **5%**。改回 0.01 会让「种子」在真机上
+/// 事实上不存在。
+/// 🔴 **B13.14（2026-11-12）**：宝箱出现率 20%→30% ⇒ 全局种子率变为
+/// 30% × 5% = **1.5%/天**（≈ 67 天一颗），箱内概率 5% 不变。
+const double kGuardChestSeedChance = 0.05;
+
+/// 高级宝箱碎片数量下限（片/次）。
+const int kGuardChestFragmentQtyMin = 1;
+
+/// 高级宝箱碎片数量上限（片/次）。
+///
+/// 🔴 **玄参 2026-11-11 覆写**：设计文档原值「固定 1 片」，裁定改为
+/// **1~2 片随机（各 50%）**。数量掷骰走独立通道
+/// [kGuardChannelChestFragmentQty]（不与「5% 闸门」共用 `u`，否则
+/// 「命中日必出 2 片」）。
+const int kGuardChestFragmentQtyMax = 2;
+
+// ── 种子物种池（档位已逐条核对 `lib/data/local/plant_seed.dart` 的 `rarity:`）──
+
+/// 普通档种子池（4 种，**刻意排除 `species_sunflower` 向日葵**）。
+///
+/// 🔴 排除理由：向日葵是初始物种、人人已有 ⇒ 落到它必然触发「重复种子自动
+/// 分解」，把一颗**种子券**降级成 3 片碎片（普通物种种植价 = 10 片）。
+/// 保留它等于让「普通档 50%」里有 1/5 的份额悄悄缩水。
+const List<String> kGuardSeedSpeciesCommon = <String>[
+  'species_tomato',
+  'species_strawberry',
+  'species_rose',
+  'species_blueberry',
+];
+
+/// 精英档种子池（5 种，对应 `rarity: Rarity.rare`）。
+const List<String> kGuardSeedSpeciesPremium = <String>[
+  'species_moon_orchid',
+  'species_coral_orchid',
+  'species_jade_hydrangea',
+  'species_grape',
+  'species_lotus',
+];
+
+// ── 确定性通道名（🔴 一经写入即冻结）──────────────────────────────────────
+//
+// 与 `thief` / `drop` / `sun` / `growth` / `win` / `target_plant` 六个旧通道
+// **互不相关**；也刻意与旧的双券通道 `drop_bonus_gate` / `drop_bonus_pick`
+// 脱钩（旧通道常量保留在 `entities/guard_drop.dart`，但已停止调用 —— 删除会让
+// 历史 `deriveGuardRoll` 的结果不可重放）。
+//
+// 🔴 **冻结**：改了任何一个字符串 = 让历史每一天的宝箱档位 / 奖励内容全部重掷
+// （同一 dayKey 在不同版本上得到不同的经济结果）。只能**追加**，不能改名。
+
+/// 通道：宝箱档位（20% 高级）。
+const String kGuardChannelChestTier = 'chest_tier';
+
+/// 通道：高级宝箱内「第二张券」的 10% 闸门。
+const String kGuardChannelChestBonusGate = 'chest_bonus_gate';
+
+/// 通道：第二张券「挑哪种」（从除首张外的 4 种券里等概率挑）。
+const String kGuardChannelChestBonusPick = 'chest_bonus_pick';
+
+/// 通道：高级宝箱内「碎片」的 5% 闸门。
+const String kGuardChannelChestFragmentGate = 'chest_fragment_gate';
+
+/// 通道：碎片**数量**（[kGuardChestFragmentQtyMin] / [kGuardChestFragmentQtyMax]
+/// 各 50%）。
+///
+/// 🔴 **玄参 2026-11-11 新增通道**（设计文档原值「固定 1 片」无此通道）：
+/// 与 5% 闸门分通道 ⇒ 「命中碎片」与「命中 2 片」互不相关（复用同一个 `u`
+/// 会让命中日 100% 出 2 片）。
+const String kGuardChannelChestFragmentQty = 'chest_fragment_qty';
+
+/// 通道：高级宝箱内「种子」的 5% 闸门。
+const String kGuardChannelChestSeedGate = 'chest_seed_gate';
+
+/// 通道：种子档位（普通 / 精英各 50%）+ 具体物种（档内等概率）。
+///
+/// 一个 `u` 同时决定两件事：`u < 0.5` ⇒ 精英档；`(u × 2) 的小数部分` ⇒ 档内物种。
+/// 这样每档只需一个通道，且两者天然不相关（同一 `u` 的两段互相独立）。
+const String kGuardChannelChestSeedPick = 'chest_seed_pick';
+
+// ══════════════════════════════════════════════════════════════════════════
+// 宝箱演出（Guard-B13.11 T03 · 纯表现层：不落盘、不参与任何经济判定）
+//
+// 真源：`docs/花园守卫_宝箱与结算演出_增量设计_v1.md` §7（演出规格）
+// 本段只被 `presentation/child/widgets/guard_chest_stage.dart` 与页面阶段机消费，
+// 领域层（`domain/`）**不得** import 这些常量 —— 演出时长不构成任何经济口径。
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── 素材契约（与 `test/m3/guard_chest_assets_guard_test.dart` 的 A-01..A-07 同源）──
+
+/// 普通宝箱帧目录（30 帧 512² WebP；静态展示帧 = `frame001.webp`）。
+const String kGuardChestNormalDir = 'assets/guard/chest_normal';
+
+/// 高级宝箱帧目录（30 帧 512² WebP，体积约为普通档 3.4 倍）。
+const String kGuardChestPremiumDir = 'assets/guard/chest_premium';
+
+/// 每档帧数（`resolveFxFrames` 的 `fallbackCount`；真值由 AssetManifest 实测）。
+///
+/// ⚠️ 只用于「清单读不到」时的兜底：玄参补帧 / 删帧后**不必**改本常量。
+const int kGuardChestFrameCount = 30;
+
+/// 宝箱帧扩展名（PNG 720² → WebP 512²，管线 `tools/convert_guard_chest.py`）。
+const String kGuardChestFrameExt = 'webp';
+
+// ── 阶段时长 ──────────────────────────────────────────────────────────────
+
+/// 宝箱落下总时长。单位：ms（240ms 加速下落 + 150ms 回弹 + 收尾，§7.3）。
+const int kGuardChestDropMs = 600;
+
+/// 落下起点（相对落点的纵向位移；负值 = 在落点之上）。单位：pt。
+///
+/// 🔴 **B13.12（玄参第六轮反馈）**：宝箱不再从屏幕外掉下来，只在**场景卡内**
+/// 演出 —— 起点 = `−(边长 76 + 顶部余量 12)` = **−88**，起手瞬间箱子底边正好
+/// 压在卡顶线上（整只在卡矩形之外，被 `ClipRect` 裁掉），随即落进卡内。
+/// ⇒ 观感仍是「从天而降」，但**只落在小怪进攻的那一格**。
+const double kGuardChestCardDropStartDy =
+    -(kGuardChestCardBoxSide + kGuardChestCardTopReserve); // = -(76 + 12) = -88
+
+/// 落下段占 [kGuardChestDropMs] 的比例（0.4 × 600ms = 240ms 加速下落 / §7.3）。
+const double kGuardChestDropFallRatio = 0.40;
+
+/// 回弹段结束点占 [kGuardChestDropMs] 的比例（0.65 × 600ms = 390ms；
+/// 240ms 落定 + 150ms 回弹 = 390ms，剩下 210ms 是「回弹收尾」的可见余韵）。
+const double kGuardChestDropBounceEndRatio = 0.65;
+
+/// 落地回弹幅度。单位：pt（轻微 —— 玄参「带一点点回弹就行」）。
+const double kGuardChestDropBouncePt = 8;
+
+/// 宝箱静止期呼吸一圈的时长。单位：ms（±2pt 上下浮动 + ±1.5° 轻转，§7.4）。
+const int kGuardChestIdleBreathMs = 1600;
+
+/// 无操作自动开箱的等待时长。单位：ms（§7.4；**无倒计时数字**，是惊喜不是压力）。
+const int kGuardChestAutoOpenMs = 8000;
+
+/// 开箱动画总时长。单位：ms（30 帧摊 5000ms ⇒ 166.7ms/帧 ≈ 6fps，§7.5）。
+///
+/// 🔴 Q-03 已裁定（玄参 2026-11-11）：保持 5000ms / 30 帧。
+/// 音效实测 5.198333s ⇒ 尾部溢出 198ms（玄参已接受：卡弹出时余音未落）。
+const int kGuardChestOpenMs = 5000;
+
+/// 开箱音效音量（0~1）。
+///
+/// 🔴 Q-04 已裁定（玄参 2026-11-11）：**0.5**（设计文档原写 0.6，真机听过后
+/// 下调）。参照：`guardHit` 0.25「有点大」⇒ 开箱是主音效但不宜喧宾夺主。
+const double kGuardChestOpenVolume = 0.5;
+
+/// 宝箱**落地**音效音量（0~1）。
+///
+/// 🔴 **0.5**（2026-11-12 玄参 B13.13 第 1 批反馈第 3 条裁定：落地音也改 0.5，
+/// 与开箱音效同口径）。首版曾定 1.0，玄参真机听感偏大。
+/// [kGuardChestOpenVolume] 的 0.5 是玄参针对 5s 开箱长音效单独裁定的（怕盖住
+/// 演出），现在两个音效统一 0.5，但仍是**两个独立常量**（后续单独调不串味）。
+const double kGuardChestLandVolume = 0.5;
+
+/// 战斗背景音（`guard_attack.mp3`，B13.14 换为跑步音效 30.09s）的音量（0~1）。
+///
+/// 🔴 **0.1**（2026-11-12 玄参 B13.17 裁定「进攻的脚步声修改为 0.1，声音还是大」：
+/// 0.2 → 0.1）。沿革：B13.6 接入时未显式设音量 = 默认 1.0 → B13.15 降 0.3 →
+/// B13.16 降 0.2 → **B13.17 降 0.1**。与击中音 0.25、宝箱音 0.5 各自独立
+/// （常量互不复用）。
+const double kGuardBattleBgmVolume = 0.1;
+
+// ── 卡内落点几何（宝箱只在**场景卡**里演，B13.12 / §7.3 改口径）────────────
+//
+// ## 🔴 玄参第六轮原话（2026-11-12）
+// 「宝箱现在设计的是浮现在整个屏幕画面的最上面，我想的是只出现在**小怪进攻的
+// 位置**就可以了，不用全屏。」
+// ⇒ 「小怪进攻的位置」在几何上就是**场景卡**（[kGuardSceneCardHeight] = 112）：
+// 战斗层 `GuardBattleField` 占满整张卡面，小怪的车道 / 到门判定全在卡内。
+// 故宝箱的落点、边长、落下起点**全部按卡高 112 推导**，不再按屏幕宽高取。
+//
+// 🔴 旧的四条按屏幕口径的常量（`kGuardChestBoxWidthRatio` = 0.46 /
+// `kGuardChestBoxMaxSide` = 200 / `kGuardChestBottomRatio` = 0.22 /
+// `kGuardChestBottomMaxPt` = 320）已随本轮**删除**：全屏落点不再存在，
+// 留着只会让人以为还有第二条摆放口径。
+
+/// 宝箱静止时的方框边长。单位：pt。
+///
+/// 🔴 **66**（2026-11-12 玄参 B13.15 第 3 条裁定「有点大，缩小一些」：
+/// 76 → 66，−13%）。原值 76 曾是派生式（卡高 112 − 底部 24 − 顶部余量 12），
+/// 但三个裁定值各自独立演化后派生关系已不成立 —— 改为**写死**（K23：
+/// 「常量是定出来的」），三个尺寸不再互相绑架；顶部余量仍由
+/// [kGuardChestCardTopReserve] 单独管（回弹 8 + 呼吸 2 + 安全 2）。
+///
+/// 窄卡（卡宽 ≤ 380）随 `GuardCardLayout.scale`（0.85）等比缩到 **56.1** ——
+/// 与卡内其他元素同一口径（「只缩元素、不缩卡高」），由
+/// `GuardChestStage.boxSideOf()` 派生，**不要在这里写死第二个数**。
+const double kGuardChestCardBoxSide = 66;
+
+/// 宝箱静止时**底边距卡底**的距离。单位：pt。
+///
+/// 🔴 **16**（2026-11-12 玄参 B13.15 第 3 条裁定「位置有点高，好像没有落地」：
+/// 24 → 16，下移 8pt 更贴卡底）。底边 y = 112 − 16 = **96**，站在草地上、
+/// 「点一下打开」提示带（卡底 14pt，y ≥ 98）之上 —— 不盖字。
+const double kGuardChestCardBottomInset = 16;
+
+/// 宝箱中心相对「插旗槽位」中心的**向左偏移**。单位：pt。
+///
+/// 🔴 **15**（2026-11-12 玄参 B13.15 第 3 条裁定「位置也有点太靠右边了，
+/// 再往左挪动 15pt」）。390 卡：旗心 350 → 宝箱中心 **335**，
+/// `left = 335 − 33 = 302`（沿革：218.17 → 276 → 312 → 302）。
+const double kGuardChestCardCenterShiftPt = 15;
+
+/// 宝箱**顶边之上**预留的位移余量。单位：pt。
+///
+/// 12 = 落地回弹 8（[kGuardChestDropBouncePt]）+ idle 呼吸 2 + 2 安全
+/// ⇒ 宝箱最「跳」的那一帧仍然不出卡顶（`ClipRect` 不会切到箱子）。
+const double kGuardChestCardTopReserve = 12;
+
+
 

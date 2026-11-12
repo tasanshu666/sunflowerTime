@@ -1185,6 +1185,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profile_stat_pest => 'Pest removal';
 
   @override
+  String get profile_stat_guard => 'Guard battles';
+
+  @override
   String get hist_title => 'Sunlight History';
 
   @override

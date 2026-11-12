@@ -72,6 +72,17 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
   int _fertilizeCount = 0;
   int _weedCount = 0;
   int _pestCount = 0;
+  /// 🔴 花园守卫次数（玄参 2026-11-12 B13.18 后新需求）：打完的**场次**。
+  ///
+  /// 口径与花园统计同法 —— 账本唯一事实源：
+  /// `countByRefType(kGuardWinRefType) + countByRefType(kGuardStolenRefType)`。
+  /// 为什么不用 `guard_pay`：它只在**付费路径**写（能量路径不写）⇒ 会漏计；
+  /// 为什么不用单看 `guard_win`：被打输但有余额时只写 `guard_stolen`。
+  /// 两行相加 = 每场打完的战斗（赢领奖 / 被偷扣钱）恰好计一次；中途撤退
+  /// 不落账本行 ⇒ 不计数（撤退 = 没打完，与结算卡「撤退不推销」口径一致）。
+  /// ⚠️ 已知边界（可接受）：被打输但余额 0（一分没偷到）时不写行 ⇒ 漏计一场；
+  /// 余额 0 时贼也偷不到东西，孩子侧无感知。
+  int _guardBattles = 0;
   double _balance = 0;
   bool _loading = true;
   /// 当前页文案（build 期在 L10nScope 内赋值；异步回调经 [_t] 取，
@@ -337,6 +348,11 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
           await ledger.countByRefType(kPlantFertilizeRefType);
       final int weedCount = await ledger.countByRefType(kGardenWeedRefType);
       final int pestCount = await ledger.countByRefType(kGardenPestRefType);
+      // 花园守卫次数（玄参 2026-11-12）：口径见 [_guardBattles] 字段注释 ——
+      // guard_win + guard_stolen 两行相加 = 打完的场次。
+      final int guardWinCount = await ledger.countByRefType(kGuardWinRefType);
+      final int guardStolenCount =
+          await ledger.countByRefType(kGuardStolenRefType);
       // C90 期 2：当前孩子档案（name + 年龄段）随每次刷新重读 —— 家长改档 /
       // 切孩子后 childProfileRevisionProvider 自增 → ChildTabAutoRefresh 无条件
       // 触发本方法，展示即时跟随。
@@ -361,6 +377,7 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
         _fertilizeCount = fertilizeCount;
         _weedCount = weedCount;
         _pestCount = pestCount;
+        _guardBattles = guardWinCount + guardStolenCount;
         _balance = balance;
         _loading = false;
       });
@@ -614,9 +631,9 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
               value: _t.profile_value_times(_totalEyeCares),
               accent: const Color(0xFF2FA8B8),
             ),
-            // ── 花园统计（玄参 2026-11-01）──────────────────────────────────
-            // 与「累计成就」**分开放**：上面 6 项是专注侧指标，这 4 项是花园劳动侧
-            // 指标，混在一列孩子分不清「哪个该干什么才会涨」。
+            // ── 花园统计（玄参 2026-11-01；B13.18 后加守卫第 5 行）────────────
+            // 与「累计成就」**分开放**：上面 6 项是专注侧指标，这 5 项是花园侧
+            // 指标（浇水/施肥/除草/除虫 + 守卫），混在一列孩子分不清「哪个该干什么才会涨」。
             // 口径全部是阳光账本 countByRefType（见 state 字段注释），零 schema 变更。
             const SizedBox(height: 8),
             _SectionTitle(_t.profile_garden_stats_title),
@@ -643,7 +660,16 @@ class _ChildProfilePageState extends ConsumerState<ChildProfilePage>
               label: _t.profile_stat_pest,
               value: _t.profile_value_times(_pestCount),
               accent: const Color(0xFFD9622B),
-              // 末卡：不再留底部间距（与旧「累计护眼」同口径）。
+            ),
+            // 花园守卫次数（玄参 2026-11-12）：打完的场次 =
+            // 账本 guard_win + guard_stolen 行数（口径见 [_guardBattles] 注释）。
+            _AchievementTile(
+              icon: Icons.shield,
+              label: _t.profile_stat_guard,
+              value: _t.profile_value_times(_guardBattles),
+              // 阳光金（与守卫结算/宝箱金的暖色同族，花园统计五行内未占用）。
+              accent: const Color(0xFFD98F00),
+              // 末卡：不再留底部间距（从除虫移交接棒）。
               isLast: true,
             ),
             // ── 调试区（玄参 2026-09-24 要求加回，供调试验收）────────────────────

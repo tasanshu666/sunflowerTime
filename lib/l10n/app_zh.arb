@@ -997,6 +997,7 @@
   "profile_stat_fertilize": "施肥",
   "profile_stat_weed": "除草",
   "profile_stat_pest": "除虫",
+  "profile_stat_guard": "花园守卫",
   "hist_title": "阳光来源记录",
   "hist_empty_hint": "还没有阳光记录哦 🌻",
   "hist_balance_label": "当前拥有阳光",

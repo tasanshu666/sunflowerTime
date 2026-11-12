@@ -997,6 +997,7 @@
   "profile_stat_fertilize": "Fertilizing",
   "profile_stat_weed": "Weeding",
   "profile_stat_pest": "Pest removal",
+  "profile_stat_guard": "Guard battles",
   "hist_title": "Sunlight History",
   "hist_empty_hint": "No sunlight records yet 🌻",
   "hist_balance_label": "Current sunlight",

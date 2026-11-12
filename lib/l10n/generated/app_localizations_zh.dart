@@ -1149,6 +1149,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profile_stat_pest => '除虫';
 
   @override
+  String get profile_stat_guard => '花园守卫';
+
+  @override
   String get hist_title => '阳光来源记录';
 
   @override

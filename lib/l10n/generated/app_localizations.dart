@@ -2030,6 +2030,12 @@ abstract class AppLocalizations {
   /// **'除虫'**
   String get profile_stat_pest;
 
+  /// No description provided for @profile_stat_guard.
+  ///
+  /// In zh, this message translates to:
+  /// **'花园守卫'**
+  String get profile_stat_guard;
+
   /// No description provided for @hist_title.
   ///
   /// In zh, this message translates to:

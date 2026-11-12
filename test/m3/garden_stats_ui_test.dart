@@ -2,6 +2,8 @@
 ///
 /// 需求原话：「在孩子的我的页面里面，现在不是有一个累计成就吗？在下面新增加一个
 /// 花园统计，然后统计一下浇水、施肥、除草、除虫的次数。」
+/// B13.18 后追加（玄参 2026-11-12）：花园统计里增加一行**花园守卫次数**
+///（= 账本 guard_win + guard_stolen 行数，打完的场次）。
 ///
 /// 口径：与「累计护眼」同源同法 —— 以**阳光账本**为唯一事实源，
 /// `SunlightRepository.countByRefType(<refType>)` 全量计数，零 schema 变更。
@@ -129,8 +131,14 @@ const int kFertilize = 22;
 const int kWeed = 33;
 const int kPest = 44;
 
+/// 花园守卫（B13.18 后新需求，2026-11-12 玄参）：两行互异计数（55 / 66），
+/// 页面相加后必须显示「121 次」—— refType 写错 / 漏加一边都会对不上。
+const int kGuardWin = 55;
+const int kGuardStolen = 66;
+const int kGuardBattles = kGuardWin + kGuardStolen;
+
 Future<void> _pumpProfile(WidgetTester tester) async {
-  // 页面共 10 张成就卡 + 2 个分组标题：默认 800×600 视口会裁掉下半截，
+  // 页面共 11 张成就卡 + 2 个分组标题：默认 800×600 视口会裁掉下半截,
   // 而 `ListView` 懒加载 → 未构建的卡片 `find.text` 找不到，故给足高度。
   tester.view.physicalSize = const Size(400, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -147,6 +155,8 @@ Future<void> _pumpProfile(WidgetTester tester) async {
           kPlantFertilizeRefType: kFertilize,
           kGardenWeedRefType: kWeed,
           kGardenPestRefType: kPest,
+          kGuardWinRefType: kGuardWin,
+          kGuardStolenRefType: kGuardStolen,
           kEyeCareRefType: 7,
         }),
       ),
@@ -179,6 +189,8 @@ void main() {
       expect(find.text('施肥'), findsOneWidget);
       expect(find.text('除草'), findsOneWidget);
       expect(find.text('除虫'), findsOneWidget);
+      // 花园守卫（B13.18 后第 5 行，玄参 2026-11-12）：标签在场。
+      expect(find.text('花园守卫'), findsOneWidget);
 
       // 「花园统计」必须**排在**「累计成就」下方（同一 ListView 内的上下顺序）。
       final double achievementsY = tester.getTopLeft(find.text('累计成就')).dy;
@@ -198,6 +210,9 @@ void main() {
           reason: '施肥次数取 plant_fertilize');
       expect(find.text('$kWeed 次'), findsOneWidget, reason: '除草次数取 plant_weed');
       expect(find.text('$kPest 次'), findsOneWidget, reason: '除虫次数取 plant_pest');
+      // 花园守卫 = guard_win + guard_stolen 两行相加（55 + 66 = 121）。
+      expect(find.text('$kGuardBattles 次'), findsOneWidget,
+          reason: '守卫次数 = guard_win + guard_stolen（互异计数，漏加一边必红）');
       // 累计护眼不受影响（同一账本、不同 refType）。
       expect(find.text('7 次'), findsOneWidget);
     });
@@ -236,6 +251,7 @@ void main() {
       expect(find.text('Fertilizing'), findsOneWidget);
       expect(find.text('Weeding'), findsOneWidget);
       expect(find.text('Pest removal'), findsOneWidget);
+      expect(find.text('Guard battles'), findsOneWidget);
       expect(find.text('$kWater times'), findsOneWidget);
     });
   });

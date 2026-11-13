@@ -23,6 +23,22 @@
 /// 200ms 起 opacity 1→0，到点从树上摘掉（常量见 `kGuardDeath*`）。
 /// 纯渲染层 —— sim 的 `dead` 相位与冻结坐标**一个字节未动**（确定性零破口）。
 ///
+/// 🔴 **B13.20b 变更**（玄参 2026-11-13）：① 怪被击中（hit / kill）⇒ 本体
+/// **闪动** [kGuardHitFlashMs]（账本 [_hitFlashes]，曲线 [GuardBattleField.hitFlashAlphaAt]）；
+/// ② 子弹加**拖尾**（[kGuardBulletTrailDots] 颗渐小渐淡圆点，方向由帧间差分
+/// 推导 —— sim 快照不带速度，sim 一个字节不动）。两者皆为纯渲染层演出。
+///
+/// 🔴 **B13.20c 变更**（玄参真机反馈「方块闪烁不是怪物闪烁」）：闪动层**恒挂树**
+/// （不闪时 opacity = 1.0）——旧「有 hit 才包 Opacity」翻转树结构 ⇒ `_GuardSequence`
+/// State 销毁重建、FutureBuilder waiting 帧画出兜底色块；配合 `guard_art`
+/// 帧缓存的 `initialData` 双保险彻底消除。
+///
+/// 🔴 **B13.20d 变更**（玄参 2026-11-13：「音效、闪烁、被击退一小段距离」）：
+/// 受击**击退** [kGuardKnockbackMs]（曲线 [GuardBattleField.knockbackOffsetAt]，
+/// `sin(π·t)` 平滑往返、峰值 [kGuardKnockbackPt]）——卡片空间向右弹开再回位
+/// （远离战士方向），与闪动共用 [_hitFlashes] 账本；**仅行走中的怪**，击灭怪
+/// 转入逃跑演出不叠加。纯渲染层，sim 零改动。
+///
 /// ## 终局接线（§7-B3 裁定）
 /// Victory / Retreat 后：横幅上屏 + 停一会儿让孩子看清 → [GuardBattleHandle]
 /// 置结束、`onFinished(stolenSun)` 回调页面 → 页面先 `recordBattleTheft` 落账
@@ -48,11 +64,20 @@ import 'package:flutter/scheduler.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart'
     show
         kGuardAttackVolume,
+        kGuardBulletTrailDots,
+        kGuardBulletTrailDotOpacities,
+        kGuardBulletTrailDotScales,
+        kGuardBulletTrailGapFactor,
         kGuardDeathFadeStartMs,
         kGuardDeathFleeMs,
         kGuardDeathFleePt,
         kGuardDeathFleeRunMs,
         kGuardEndBannerDwellMs,
+        kGuardHitFlashDepth,
+        kGuardHitFlashMs,
+        kGuardHitFlashPulses,
+        kGuardKnockbackMs,
+        kGuardKnockbackPt,
         kGuardMissFxMs,
         kGuardSunDropFxMs,
         kGuardSunRiseFadeStart,
@@ -116,6 +141,47 @@ class GuardBattleField extends StatefulWidget {
   /// `find.byKey(GuardBattleField.sunDropKey(i))` 先 findsOneWidget 再 findsNothing。
   static Key sunDropKey(int monsterIndex) =>
       Key('guardBattleSunDrop$monsterIndex');
+
+  /// 第 [monsterIndex] 只怪**受击闪动层**的 Key（B13.20b）。
+  ///
+  /// 🔴 B13.20c：闪动层**恒挂树**（不闪时 opacity = 1.0），绝不应在场 / 摘场
+  /// 翻转 —— 旧「有 hit 才包 Opacity」会翻转树结构，让怪的 `_GuardSequence`
+  /// State 销毁重建、FutureBuilder waiting 帧画出兜底**色块**（玄参实机
+  /// 「看到的是方块闪烁不是怪物闪烁」）。测试读法：
+  /// `tester.widget<Opacity>(find.byKey(hitFlashKey(i))).opacity` ——
+  /// hit / kill 后 [kGuardHitFlashMs] 内 < 1.0，到期**回稳恒 1.0**。
+  static Key hitFlashKey(int monsterIndex) =>
+      Key('guardBattleHitFlash$monsterIndex');
+
+  /// 第 [index] 发子弹拖尾的第 [dot] 颗圆点 Key（B13.20b；dot 0 = 最贴子弹）。
+  static Key bulletTrailKey(int index, int dot) =>
+      Key('guardBattleBulletTrail${index}_$dot');
+
+  /// 受击闪动的怪本体不透明度（**纯函数，可单测**）。
+  ///
+  /// `t ∈ [0,1]`（受击后归一化时长）：
+  /// * 起手最深 `1 − kGuardHitFlashDepth`（0.25）—— 被打中的一瞬立刻变暗；
+  /// * 在 [kGuardHitFlashPulses]（3）个整周期内来回明暗（`cos` 波）；
+  /// * 包络 `(1 − t)` 线性回亮 ⇒ 结束时**恰好回到 1.0**（无收尾跳变）。
+  /// 越界 `t` 自动钳在 [0,1]。
+  /// 受击击退的归一化位移（**纯函数，可单测**，B13.20d）。
+  ///
+  /// `t ∈ [0,1]`（受击后归一化时长）⇒ 返回 `[0,1]` 位移比例，渲染层乘
+  /// `kGuardKnockbackPt × uiScale`：`sin(π·t)` 平滑往返 —— 前半冲出（被弹开）、
+  /// 后半回位（站稳），端点必为 0（不跳变）、峰值 1.0 恰在半程。
+  /// 越界 `t` 自动钳在 [0,1]。
+  static double knockbackOffsetAt(double t) {
+    final double clamped = t.clamp(0.0, 1.0);
+    return math.sin(math.pi * clamped);
+  }
+
+  static double hitFlashAlphaAt(double t) {
+    final double clamped = t.clamp(0.0, 1.0);
+    final double blink = 0.5 +
+        0.5 *
+            math.cos(2 * math.pi * kGuardHitFlashPulses * clamped);
+    return 1.0 - kGuardHitFlashDepth * (1.0 - clamped) * blink;
+  }
 
   /// 阳光精灵的不透明度曲线（纯函数，可单测）。
   ///
@@ -253,6 +319,26 @@ class _GuardBattleFieldState extends State<GuardBattleField>
   /// 阳光精灵漂移量的随机源（仅 Fx 层消费；影响演出轨迹，不影响战局）。
   final math.Random _fxRandom = math.Random();
 
+  /// 怪物**受击闪动**账本（B13.20b）：`怪序号 → 最近一次 hit/kill 的事件
+  /// `tMs`（战局时间轴）`。
+  ///
+  /// 🔴 与 [_deaths] 同一纪律：**纯渲染层**，sim / 结算 / 确定性零感知；
+  /// 轨迹全部由 `tMs` 推导（同 seed 两遍逐位一致）。同一只怪连续被击中 ⇒
+  /// 刷新时刻（从头再闪一轮）。最多 5 只怪，不清理也无泄漏，但 collect 时
+  /// 顺带摘过期保持账本干净。
+  final Map<int, int> _hitFlashes = <int, int>{};
+
+  /// 在飞子弹的**运动方向**账本（B13.20b 拖尾用）：`子弹序号 → ±1.0`
+  /// （+1 = 向右飞 / −1 = 向左飞）。
+  ///
+  /// 🔴 sim 快照不带速度，方向由战斗层**帧间差分**推导（`_updateBulletDirs`）：
+  /// 首帧尚无位移信息时默认 +1（怪从右端入场 ⇒ 绝大多数子弹向右飞），
+  /// 下一帧一旦有位移立即纠正。纯渲染层，sim 一个字节不动。
+  final Map<int, double> _bulletDirs = <int, double>{};
+
+  /// 各子弹上一帧的 sim x（差分的基准；与 [_bulletDirs] 同步维护）。
+  final Map<int, double> _bulletLastX = <int, double>{};
+
   /// 终局后「死亡演出补时」的起点（原始 ticker ms；null = 不在补时期）。
   ///
   /// ## 🔴 B10/D1：为什么终局后 ticker 还得活着
@@ -345,6 +431,9 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     _misses.clear();
     _deaths.clear();
     _sunDrops.clear();
+    _hitFlashes.clear();
+    _bulletDirs.clear();
+    _bulletLastX.clear();
     _endHandled = false;
     // ③ 时间锚点归零（stop→start 后 ticker 从 0 起算，见 Ticker.start）。
     _simZeroMs = 0;
@@ -426,6 +515,8 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     _collectMissFx(report);
     _collectDeathFx(report);
     _collectSunDropFx(report);
+    _collectHitFlashFx(report);
+    _updateBulletDirs();
     _playHitSfx(report);
     _pruneSunDrops();
     widget.onSnapshot?.call(_snap);
@@ -579,6 +670,53 @@ class _GuardBattleFieldState extends State<GuardBattleField>
         (_SunDropFx s) => fxClockMs - s.startMs >= kGuardSunDropFxMs);
   }
 
+  /// 把本步的 `hit` / `kill` 事件记成**受击闪动**时刻（B13.20b）。
+  ///
+  /// 与 [_collectDeathFx] 同一读法：用事件自带的 `tMs`（与帧率无关 ⇒ 同 seed
+  /// 两遍的闪动轨迹逐位相同）。`hit`（命中未灭）与 `kill`（击灭，闪动与
+  /// 逃跑演出叠加）都算「真被打中」⇒ 都闪；同一只怪连续被击中 ⇒ 刷新时刻
+  /// （从头再闪一轮，与 MISS 反馈的刷新口径一致）。顺带摘过期账本。
+  void _collectHitFlashFx(GuardBattleStepReport report) {
+    for (final GuardBattleEvent e in report.events) {
+      if (e.type != GuardBattleEventType.hit &&
+          e.type != GuardBattleEventType.kill) {
+        continue;
+      }
+      if (e.monsterIndex < 0) continue;
+      _hitFlashes[e.monsterIndex] = e.tMs;
+    }
+    _hitFlashes.removeWhere(
+        (int _, int tMs) => fxClockMs - tMs >= kGuardHitFlashMs);
+  }
+
+  /// 按帧间差分更新在飞子弹的运动方向（B13.20b 拖尾；**纯渲染层**）。
+  ///
+  /// * 首帧尚无位移信息 ⇒ 默认 +1（怪从右端入场，绝大多数子弹向右飞），
+  ///   下一帧一旦有位移立即纠正；
+  /// * 位移过零（浮点噪声）不改方向；
+  /// * 已离场子弹的方向 / 坐标记录随手清掉（防账本慢性泄漏）。
+  void _updateBulletDirs() {
+    final Map<int, double> seen = <int, double>{};
+    for (final GuardBattleBulletSnapshot b in _snap.bullets) {
+      seen[b.index] = b.x;
+      final double? prev = _bulletLastX[b.index];
+      if (prev == null) {
+        _bulletDirs.putIfAbsent(b.index, () => 1.0);
+      } else {
+        final double dx = b.x - prev;
+        if (dx > 1e-9) {
+          _bulletDirs[b.index] = 1.0;
+        } else if (dx < -1e-9) {
+          _bulletDirs[b.index] = -1.0;
+        }
+      }
+    }
+    _bulletLastX
+      ..clear()
+      ..addAll(seen);
+    _bulletDirs.removeWhere((int index, double _) => !seen.containsKey(index));
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations t = l10nOf(context);
@@ -611,7 +749,11 @@ class _GuardBattleFieldState extends State<GuardBattleField>
             for (final _SunDropFx s in _sunDrops) _sunDropFx(layout, s),
 
             // ── 在飞子弹（同一把尺子 ⇒ 方向自动镜像：怪在右就往右飞）──────
-            for (final GuardBattleBulletSnapshot b in _snap.bullets)
+            // 🔴 B13.20b：每发子弹前方本体 + 尾巴上 [kGuardBulletTrailDots]
+            //    颗渐小渐淡圆点（沿运动**反**方向排布，方向由帧间差分推导）。
+            for (final GuardBattleBulletSnapshot b in _snap.bullets) ...<Widget>[
+              for (int dot = 0; dot < kGuardBulletTrailDots; dot++)
+                _bulletTrailDot(layout, b, dot),
               Positioned(
                 key: GuardBattleField.bulletKey(b.index),
                 left: layout.mapBulletX(b.x) - layout.bulletExtent / 2,
@@ -620,6 +762,7 @@ class _GuardBattleFieldState extends State<GuardBattleField>
                 height: layout.bulletExtent,
                 child: GuardArt.bullet(),
               ),
+            ],
 
             // ── 终局横幅（Victory / Retreat；约 900ms 后 onFinished 交回页面）──
             // 🔴 B13.15（玄参：文字把向日葵战士盖住了）：从居中改贴**卡顶**，
@@ -688,9 +831,24 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     final double top = layout.mapMonsterY(m.y) - h / 2;
 
     if (!dead || deathT == null) {
+      // 🔴 B13.20d：受击**击退** —— 卡片空间向右弹开再回位（远离战士方向），
+      // 与闪动共用同一个受击时刻账本 [_hitFlashes]（`sin(π·t)` 平滑往返，
+      // 端点必为 0 ⇒ 到点后与未受击逐位相同）；再次被击中从头重弹。
+      // 纯渲染层：sim 坐标一个字节不动；击灭（kill）不击退 —— 怪已转入
+      // 逃跑演出，两层位移叠加会互相污染轨迹。
+      double knockback = 0;
+      final int? hitT = _hitFlashes[m.index];
+      if (hitT != null) {
+        final int ageMs = fxClockMs - hitT;
+        if (ageMs >= 0 && ageMs < kGuardKnockbackMs) {
+          knockback = GuardBattleField.knockbackOffsetAt(ageMs / kGuardKnockbackMs) *
+              kGuardKnockbackPt *
+              layout.uiScale;
+        }
+      }
       return Positioned(
         key: GuardBattleField.monsterKey(m.index),
-        left: baseLeft,
+        left: baseLeft + knockback,
         top: top,
         width: w,
         height: h,
@@ -742,9 +900,70 @@ class _GuardBattleFieldState extends State<GuardBattleField>
   /// 🔴 只影响绘制：`mapMonsterX` 的 simX 映射、`channelLeft` 的
   /// `monsterExtent × 0.5`（= 22pt）**一个字节没动**。
   Widget _monsterArt(GuardBattleMonsterSnapshot m) {
-    return GuardArt.monsterWalk(
+    Widget art = GuardArt.monsterWalk(
       _kindOf(m.kindId),
       (m.x / 10).floor() % 2, // 行走帧占位（真帧序列自带时间轴）
+    );
+    // 🔴 B13.20b：受击「闪动」—— 怪**本体**不透明度按 [hitFlashAlphaAt]
+    // 明暗往返（对透明背景 webp 帧最自然；白色色块盖上去会框出一块矩形痕迹）。
+    // 纯渲染层：只读 [_hitFlashes] 账本，sim / 结算 / 确定性零感知。
+    // walking 与 dead（逃跑演出）共用本入口：kill 的闪动（180ms）在逃跑
+    // 淡出（200ms 才起步）之前播完，两层 `Opacity` 嵌套相乘互不干扰。
+    //
+    // 🔴 B13.20c（玄参真机反馈「方块闪烁不是怪物闪烁」）：**恒包 Opacity**
+    // （不闪时 opacity = 1.0）—— 原实现「有 hit 才包」会在闪动开始/结束各
+    // 翻转一次树结构，`_GuardSequence` 的 State 被销毁重建，FutureBuilder 的
+    // waiting 帧画出一帧兜底色块 ⇒ 实机看到「绿方块在闪」。恒定结构 +
+    // `guard_art._sequence()` 的 initialData 双保险后彻底消除（1.0 时
+    // RenderOpacity 直通绘制，无 saveLayer 开销）。
+    double flashAlpha = 1.0;
+    final int? hitT = _hitFlashes[m.index];
+    if (hitT != null) {
+      final int ageMs = fxClockMs - hitT;
+      if (ageMs >= 0 && ageMs < kGuardHitFlashMs) {
+        flashAlpha = GuardBattleField.hitFlashAlphaAt(ageMs / kGuardHitFlashMs);
+      }
+    }
+    return Opacity(
+      key: GuardBattleField.hitFlashKey(m.index),
+      opacity: flashAlpha,
+      child: art,
+    );
+  }
+
+  /// 第 [dot] 颗**子弹拖尾**圆点（B13.20b；0 = 最贴子弹本体）。
+  ///
+  /// * 位置 = 子弹中心沿运动**反**方向偏移（方向 = [_bulletDirs] 的帧间
+  ///   差分结果，缺省 +1）。🔴 注意 `mapBulletX` 是**镜像映射**（sim 0 在右、
+  ///   330 在左）⇒ 卡片空间的运动方向 = −sim 方向，故「尾巴」在卡片空间
+  ///   取 `+ dir × distance`（sim dir=+1 ⇒ 卡片上向左飞 ⇒ 尾巴拖在右侧）；
+  /// * 间距 = `bulletExtent × kGuardBulletTrailGapFactor`；
+  /// * 尺寸 / 不透明度取常量表（越远越小越淡）；
+  /// * 纯渲染层：不参与命中判定，`IgnorePointer` 放行点击。
+  Widget _bulletTrailDot(
+    GuardCardLayout layout,
+    GuardBattleBulletSnapshot b,
+    int dot,
+  ) {
+    final double dir = _bulletDirs[b.index] ?? 1.0;
+    final double extent = layout.bulletExtent;
+    final double size = extent * kGuardBulletTrailDotScales[dot];
+    // 圆点中心到子弹中心的距离 = 子弹半宽 + 逐颗累加的间距 + 本点半径。
+    final double distance = extent / 2 +
+        (dot + 1) * extent * kGuardBulletTrailGapFactor +
+        size / 2;
+    return Positioned(
+      key: GuardBattleField.bulletTrailKey(b.index, dot),
+      left: layout.mapBulletX(b.x) + dir * distance - size / 2,
+      top: layout.mapBulletY(b.y) - size / 2,
+      width: size,
+      height: size,
+      child: IgnorePointer(
+        child: Opacity(
+          opacity: kGuardBulletTrailDotOpacities[dot],
+          child: GuardArt.bullet(),
+        ),
+      ),
     );
   }
 

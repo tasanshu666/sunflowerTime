@@ -33,7 +33,10 @@
 ///    textScaler）：双重放大会把卡片撑破。
 ///
 /// ## 展示口径
-/// · **不显示「剩 N」**（玄参 2026-11-09）；
+/// · 🔴 **B13.20a 改口径**：**免费券**在 ☀ 之后显示剩余次数 `xN`（玄参
+///   2026-11-13「今日施肥0阳光 x2，用一次变 x1，再用变 x0，一眼看出来，
+///   不需要过多的文案」）；用完态 = **x0 + 灰显**，不再追加「· 已用完」。
+///   其余券种维持「不显示剩 N」（玄参 2026-11-09）；
 /// · 🔴 B13.4：浇水 / 劳动券当日不限次 ⇒ **永不出现「已用完」**（横排同样遵守）。
 library guard_buff_chip;
 
@@ -212,8 +215,24 @@ class GuardBuffChip extends StatelessWidget {
     return !unlimited && buff.isExhausted;
   }
 
+  /// 🔴 B13.20a（玄参 2026-11-13）：**4 种免费券**在横排描述后追加剩余次数
+  /// `xN`，用一次减一：x1 → x0 一眼看出还能免几次。付费浇水 / 劳动 / 施肥券
+  /// （不限次或 −N 减免口径）与两张专注被动券**无次数概念**，不加。
+  static bool _showsRemainingCount(GuardDropKind kind) {
+    switch (GuardVoucherKind.of(kind)) {
+      case GuardVoucherKind.freeWater:
+      case GuardVoucherKind.freeFertilize:
+      case GuardVoucherKind.freeWater3:
+      case GuardVoucherKind.freeFertilize2:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   /// 增益描述行（🔴 单点：不限次券（浇水 / 劳动，B13.4）永不追加「已用完」；
-  /// 施肥 / 免费券额度用完时追加「· 已用完」）。
+  /// 施肥 / 免费券额度用完时追加「· 已用完」。B13.9 后本方法无 lib 内调用方
+  /// （横排走 [inlineTextOf]），仅测试与未来详情位复用，口径保持不变）。
   static String descLineOf(
     GuardDropKind kind,
     GuardBuffState buff,
@@ -228,7 +247,9 @@ class GuardBuffChip extends StatelessWidget {
   /// `guard_chip_inline_prefix(action: shortOf + ' ' + effectValueOf)` ——
   /// zh = 「今日浇水 −1」、en = 「Today: Watering −1」（语序由 ARB 决定）。
   ///
-  /// 已用完态在其后追加「 · 已用完」（文案单点 [descLineOf] 同源判定）。
+  /// 已用完态在其后追加「 · 已用完」（文案单点 [descLineOf] 同源判定）；
+  /// 🔴 B13.20a 起**免费券例外**：用完态由 ☀ 之后的 `x0`（[remainingSuffixOf]）
+  /// 承担，不再追加「 · 已用完」——玄参「不需要过多的文案」（灰显保留）。
   static String inlineTextOf(
     GuardDropKind kind,
     GuardBuffState buff,
@@ -237,10 +258,19 @@ class GuardBuffChip extends StatelessWidget {
     final String action =
         '${shortOf(kind, t)} ${effectValueOf(kind)}'.trim();
     String line = t.guard_chip_inline_prefix(action);
-    if (usedUpOf(kind, buff)) {
+    if (usedUpOf(kind, buff) && !_showsRemainingCount(kind)) {
       line += ' · ${t.garden_guard_buff_exhausted}';
     }
     return line;
+  }
+
+  /// 🔴 B13.20a：免费券在横排 ☀ 小图**之后**的剩余次数后缀（玄参原话
+  /// 「今日施肥0阳光 x2，用一次，就变x1，再用一次，就变成x0」）——
+  /// ASCII 小写 x + [GuardBuffState.remaining]（钳到 ≥0）。非免费券返回
+  /// 空串（无次数概念）。
+  static String remainingSuffixOf(GuardDropKind kind, GuardBuffState buff) {
+    if (!_showsRemainingCount(kind)) return '';
+    return ' x${buff.remaining}';
   }
 
   /// 尾部内联 ☀ 小图（WidgetSpan 用；素材缺失回退内置图标，不 crash）。
@@ -317,6 +347,10 @@ class GuardBuffChip extends StatelessWidget {
                               )
                             : inlineSunGlyph(),
                       ),
+                      // 🔴 B13.20a：免费券剩余次数（玄参「今日施肥0阳光 x2」）
+                      // —— ASCII 小写 x，绝不写 `×`（④ 号测试禁令）；样式
+                      // 继承根 TextSpan（用完时同步灰显）。
+                      TextSpan(text: remainingSuffixOf(kind, buff)),
                     ],
                   ),
                   maxLines: 1,

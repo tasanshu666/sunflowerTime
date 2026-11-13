@@ -258,4 +258,127 @@ void main() {
       expect(tester.takeException(), isNull, reason: '${kind.id} overflow');
     }
   });
+
+  // 🔴 B13.20a（玄参 2026-11-13）：免费券在 ☀ 之后显示剩余次数 xN（ASCII
+  // 小写 x），用一次减一；用完 = x0 + 灰显，**不再追加「· 已用完」**。
+  testWidgets('⑤ B13.20a 免费券剩余次数：x2 → x1 → x0，x0 灰显且无「已用完」',
+      (WidgetTester tester) async {
+    // 免费施肥×2 券：额度 2 → x2。
+    await _pump(
+      tester,
+      const GuardBuffChip(
+        buff: GuardBuffState(
+            kind: GuardDropKind.freeFertilize2, quota: 2, used: 0),
+      ),
+    );
+    expect(_plainTextOf(tester), contains(' x2'),
+        reason: '玄参原话「今日施肥0阳光 x2」——☀ 图标之后是 ASCII x2');
+    expect(_plainTextOf(tester), isNot(contains('已用完')));
+
+    // 用一次 → x1。
+    await _pump(
+      tester,
+      const GuardBuffChip(
+        buff: GuardBuffState(
+            kind: GuardDropKind.freeFertilize2, quota: 2, used: 1),
+      ),
+    );
+    expect(_plainTextOf(tester), contains(' x1'),
+        reason: '用一次变 x1');
+    expect(_spanOf(tester).style!.color, const Color(0xFFD93025),
+        reason: '还有额度 ⇒ 红色');
+
+    // 再用一次 → x0：灰显（第二重反馈），文案无「已用完」（x0 已表达）。
+    await _pump(
+      tester,
+      const GuardBuffChip(
+        buff: GuardBuffState(
+            kind: GuardDropKind.freeFertilize2, quota: 2, used: 2),
+      ),
+    );
+    expect(_plainTextOf(tester), contains(' x0'),
+        reason: '再用一次变 x0');
+    expect(_plainTextOf(tester), isNot(contains('已用完')),
+        reason: '🔴 免费券用完态由 x0 承担，「不需要过多的文案」');
+    expect(_spanOf(tester).style!.color, const Color(0xFF9A8F7F),
+        reason: 'x0 ⇒ 灰显（样式在根 TextSpan 上）');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('⑤b B13.20a 免费浇水券 x1 / ×3 券 x3；付费券与专注券无 xN 后缀',
+      (WidgetTester tester) async {
+    // 免费浇水券额度 1 ⇒ x1。
+    await _pump(
+      tester,
+      const GuardBuffChip(
+        buff: GuardBuffState(kind: GuardDropKind.freeWater, quota: 1, used: 0),
+      ),
+    );
+    expect(_plainTextOf(tester), contains(' x1'),
+        reason: '免费浇水券 = 今日前 1 次免费 ⇒ x1');
+
+    // ×3 券额度 3 ⇒ x3。
+    await _pump(
+      tester,
+      const GuardBuffChip(
+        buff:
+            GuardBuffState(kind: GuardDropKind.freeWater3, quota: 3, used: 0),
+      ),
+    );
+    expect(_plainTextOf(tester), contains(' x3'));
+
+    // 付费浇水券（不限次）与专注加餐券（被动券）：无 xN。
+    for (final GuardDropKind kind in <GuardDropKind>[
+      GuardDropKind.waterVoucher,
+      GuardDropKind.focusMeal,
+      GuardDropKind.focusBoost,
+    ]) {
+      await _pump(
+        tester,
+        GuardBuffChip(buff: GuardBuffState(kind: kind, quota: 1, used: 0)),
+      );
+      expect(RegExp(r' x\d').hasMatch(_plainTextOf(tester)), isFalse,
+          reason: '${kind.id} 无次数概念，不加 xN');
+      expect(tester.takeException(), isNull, reason: '${kind.id} overflow');
+    }
+  });
+
+  testWidgets('⑤c B13.20a/b 专注双券（加餐+放大）图标 = 同一张向日葵待机首帧',
+      (WidgetTester tester) async {
+    // 🔴 B13.20b（玄参 2026-11-13）：「专注放大券和专注加餐券应该是同一个图标」
+    // —— 两张券都渲染专注页待机首帧 PNG，且都不再是 buff_voucher 浇水卡面。
+    for (final GuardDropKind kind in <GuardDropKind>[
+      GuardDropKind.focusMeal,
+      GuardDropKind.focusBoost,
+    ]) {
+      await _pump(
+        tester,
+        GuardBuffChip(buff: GuardBuffState(kind: kind, quota: 1, used: 0)),
+      );
+      expect(find.descendant(
+        of: find.byKey(GuardBuffChip.chipKey),
+        matching: find.byWidgetPredicate((Widget w) =>
+            w is Image &&
+            w.image is AssetImage &&
+            (w.image as AssetImage)
+                .assetName
+                .contains('buff_voucher')),
+      ), findsNothing, reason: '${kind.id} 不再复用浇水卡面');
+      expect(
+        find.descendant(
+          of: find.byKey(GuardBuffChip.chipKey),
+          matching: find.byWidgetPredicate((Widget w) =>
+              w is Image &&
+              w.image is AssetImage &&
+              (w.image as AssetImage).assetName ==
+                  'assets/fx/focus/sunflower/idle/frame001.png'),
+        ),
+        findsOneWidget,
+        reason: '${kind.id} 图标 = 专注页向日葵待机首帧（双券同款）',
+      );
+      expect(_plainTextOf(tester), contains('今日专注'),
+          reason: '${kind.id} 文案保持简洁口径');
+      expect(tester.takeException(), isNull, reason: '${kind.id} overflow');
+    }
+  });
 }

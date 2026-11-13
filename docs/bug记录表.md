@@ -1165,3 +1165,14 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
   改概率表 = 历史重掷（玄参确认接受）。裁定表 **C118**；经济读数 E[D] 4.20 / 7.40。
 - **回归项**：B13.20 改了掉落与券语义 ⇒ **历史上掉过的券不回溯**，真机回归点见
   `docs/待测清单_2106_真机回归.md` §2b（G20-1~G20-9）。
+
+## F199 · 🔴 B13.20c 受击「方块闪烁」——闪的是兜底色块不是怪物本体（真机 · 已修复）
+
+| 项 | 内容 |
+|---|---|
+| **发现** | 2026-11-13 晚，玄参真机验收 B13.20b 受击闪动时反馈（附截图）：「怪物闪烁做的不行啊，看到的是方块闪烁不是怪物闪烁」——截图中的绿色方块 = m2 兜底色 `_m2Green`（0xFF66BB6A） |
+| **根因（两层叠加）** | ① 闪动层「有 hit 才包 Opacity」⇒ 闪动开始 / 结束各翻转一次树结构，`_GuardSequence` 的 State 被销毁重建，FutureBuilder waiting 帧（**无 initialData**）画出兜底色块——连续射击下每 0.5s「开始+结束」双重绿块闪；② 帧序列加载器自 B10/D1 起任何 State 重建（含 kill 时插入 `Transform.flip`）都会闪一帧兜底方块，被 20b 高频闪动放大暴露 |
+| **修复** | 双保险：A. `guard_art._sequence()` FutureBuilder 加 `initialData: _guardFrameCache[dir]`（帧目录缓存全局，State 重建第一帧就画真帧）；B. 闪动层**恒挂树**（不闪时 opacity = 1.0，RenderOpacity 直通绘制），树结构永不翻转 |
+| **测试** | `guard_hit_flash_and_trail_test` ① 改「恒挂树」口径（开火前层在且 = 1.0 / hit 后 < 0.9 / 180ms 后回稳恒 1.0）+ ⑦ 结构回归条目——此 bug 再犯测试当场红 |
+| **状态** | ✅ **已修复 · 玄参 2026-11-13 真机复验通过**（原话「现在好了，怪物被命中的时候闪了」）；随 B13.20a~d 批次提交 |
+| **教训** | 「条件性包一层 widget」= 翻转子树结构 ⇒ 子 State 销毁重建；凡是 FutureBuilder 驱动的素材组件，重建首帧必须有 initialData 兜住，否则 waiting 帧就是占位色块（与 F197「素材不显示」同类的静默降级家族） |

@@ -106,6 +106,15 @@ abstract final class _GuardAssetPaths {
       'assets/guard/buff_voucher/fertilize_zh.webp';
   static const String voucherFertilizeEn =
       'assets/guard/buff_voucher/fertilize_en.webp';
+
+  /// 专注双券（加餐 / 放大）共用图标（🔴 B13.20b，玄参 2026-11-13：
+  /// 「专注放大券和专注加餐券应该是同一个图标」）—— 即**专注页向日葵
+  /// 待机动画的第一帧**（`assets/fx/focus/sunflower/idle/frame001.png`，
+  /// 720×720；B13.20a 先给加餐券用了这张，本批放大券对齐同款；
+  /// 目录常量真源见 `frame_sequence_player.dart` 的 [kFocusIdleFxDir]，
+  /// 此处只引首帧文件）。
+  static const String voucherFocusIcon =
+      'assets/fx/focus/sunflower/idle/frame001.png';
 }
 
 /// 素材位取值函数集（纯静态，无状态；全部返回**新** widget）。
@@ -371,13 +380,15 @@ class GuardArt {
     );
   }
 
-  /// buff 券卡面路径（🔴 B13.5）。
+  /// buff 券卡面路径（🔴 B13.5；B13.20a/b 加专注双券共用图标）。
   ///
   /// * 浇水 / 劳动美术**无烤字**（名字 / 描述由 `GuardBuffChip` 叠 ARB 文字）；
   /// * 施肥美术自带烤字（zh「通用花肥」/ en 版）⇒ 按语言二选一；
   /// * 免费浇水 / 免费施肥（含 B13.19 的 ×3 / ×2 版）没有专属美术 ⇒ 复用
   ///   浇水 / 施肥卡面（券名与描述仍用自己的 ARB 文案，卡面相同但文字不同，
-  ///   不混淆）。
+  ///   不混淆）；
+  /// * 🔴 **专注加餐券 / 专注放大券共用同一图标** = 专注页向日葵待机首帧
+  ///   （玄参 2026-11-13 两轮拍板：20a 先给加餐券，20b 放大券对齐同款）。
   static String voucherArtPath(GuardDropKind kind, {required bool isZh}) {
     switch (kind) {
       case GuardDropKind.waterVoucher:
@@ -394,9 +405,9 @@ class GuardArt {
             : _GuardAssetPaths.voucherFertilizeEn;
       case GuardDropKind.focusMeal:
       case GuardDropKind.focusBoost:
-        // 🔴 B13.20：专注券暂无专属美术 ⇒ 复用浇水卡面兜底（券名 / 描述仍用
-        // 自己的 ARB 文案；与免费券「同卡面不同文字」同一处理方式）。
-        return _GuardAssetPaths.voucherWater;
+        // 🔴 B13.20b：专注双券共用同一图标 = 专注页向日葵待机首帧
+        // （玄参「应该是同一个图标」；券名 / 描述仍各自用 ARB 文案区分）。
+        return _GuardAssetPaths.voucherFocusIcon;
       case GuardDropKind.none:
         return _GuardAssetPaths.voucherWater; // 不可达（chip 不渲染 none）
     }
@@ -406,10 +417,16 @@ class GuardArt {
   ///
   /// 🔴 B13.8：素材已二次裁切（328×475 带上下空白带 → **276×294**，只剩中间
   /// 插画），回退块比例同步改 276/294。
+  ///
+  /// 🔴 B13.20a/b：**专注双券**图标是 **720×720 正方形**（专注待机首帧），
+  /// 在 276:294 的槽里用 `contain` 完整可见（左右仅 ~3% 留白；`fitWidth` 会
+  /// 裁掉向日葵头顶/盆底各 ~3%，不裁）。其余卡面维持 `fitWidth`（窄图铺满槽宽）。
   static Widget voucherCard(GuardDropKind kind, {required bool isZh}) {
+    final bool squareIcon =
+        kind == GuardDropKind.focusMeal || kind == GuardDropKind.focusBoost;
     return Image.asset(
       voucherArtPath(kind, isZh: isZh),
-      fit: BoxFit.fitWidth,
+      fit: squareIcon ? BoxFit.contain : BoxFit.fitWidth,
       errorBuilder: (_, __, ___) => const AspectRatio(
         aspectRatio: 276 / 294,
         child: ColoredBox(color: _soldierGold),
@@ -624,9 +641,19 @@ class _GuardSequenceState extends State<_GuardSequence> {
   }
 
   /// 帧序列本体（待机循环 / 站立定格）。
+  ///
+  /// 🔴 B13.20c（玄参 2026-11-13 真机反馈「看到的是方块闪烁不是怪物闪烁」）：
+  /// FutureBuilder 必须带 `initialData` —— 帧目录缓存（`_guardFrameCache`）是
+  /// **全局**的，任何上层把本 State 销毁重建（B13.20b 受击闪动曾用「条件包
+  /// Opacity」改树结构，开始/结束各重建一次）时，waiting 帧若无 initialData
+  /// 就会画一帧兜底色块 ⇒ 实机表现为「绿方块在闪」。带 initialData 后：
+  /// 缓存命中 ⇒ 第一帧就画真帧序列，重建零感知；首次加载（无缓存）仍走
+  /// 原兜底（仅首次，可接受）。
   Widget _sequence() {
     return FutureBuilder<List<String>>(
       future: _frames,
+      // 🔴 同步读全局缓存当 initialData：State 重建时立刻有帧可画。
+      initialData: _guardFrameCache[widget.dir],
       builder: (BuildContext context, AsyncSnapshot<List<String>> snap) {
         final bool ready = snap.hasData && snap.data!.isNotEmpty;
         if (!ready) {

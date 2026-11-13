@@ -2678,6 +2678,52 @@ const double kGuardSunRiseFadeStart = 0.60;
 /// 阳光精灵淡出起点的不透明度（到 [kGuardSunRiseFadeStart] 时衰减到这个值）。
 const double kGuardSunRiseFadeStartOpacity = 0.35;
 
+/// 怪物受击「闪动」反馈的存活时长。单位：ms（B13.20b 玄参 2026-11-13：
+/// 「子弹打到小怪物后……给小怪物也做一个闪动的效果」）。
+///
+/// 与 MISS / 阳光精灵同口径：**纯渲染层演出**，由战斗层 ticker 用事件 `tMs`
+/// 推导，不进 sim 时间轴、不影响确定性。180ms 内完成 3 次明暗（[kGuardHitFlashPulses]）。
+const int kGuardHitFlashMs = 180;
+
+/// 受击闪动的**闪烁深度**：怪本体不透明度最低压到 `1 − 0.75 = 0.25`。
+///
+/// 闪动实现 = 怪本体 `Opacity` 来回明暗（对透明背景 webp 帧最自然）；
+/// 不用白色色块盖上去（会把怪框出一块白色矩形痕迹）。
+const double kGuardHitFlashDepth = 0.75;
+
+/// 受击闪动在 [kGuardHitFlashMs] 内完成的**明暗往返次数**。
+const int kGuardHitFlashPulses = 3;
+
+/// 受击**击退**的时长（B13.20d，玄参 2026-11-13：「怪物被命中后，音效、闪烁、
+/// 被击退一小段距离」）。与闪动共用同一个受击时刻账本（hit / kill 的 `tMs`）——
+/// 再次被击中则从头重弹，与闪烁刷新同源。
+///
+/// 与闪动同口径：**纯渲染层演出**（卡片空间向右的位移，远离战士方向），
+/// 不进 sim 时间轴、不影响确定性；击灭（kill）瞬间不击退——怪转入逃跑演出。
+const int kGuardKnockbackMs = 180;
+
+/// 受击击退的**峰值位移**（卡片空间 pt，× uiScale 等比放大）。
+///
+/// 曲线 = `sin(π·t)` 平滑往返（前半冲出、后半回位），由
+/// `GuardBattleField.knockbackOffsetAt` 归一化到 [0,1]，渲染层乘本值。
+const double kGuardKnockbackPt = 10.0;
+
+/// 子弹**拖尾**的圆点数（B13.20b 玄参：「发射的子弹也做一个拖尾的效果」）。
+///
+/// 纯渲染层：拖尾 = 子弹沿运动反方向排布的渐小渐淡圆点，方向由战斗层
+/// 帧间差分推导（sim 快照不带速度，**sim 一个字节不动**）。
+const int kGuardBulletTrailDots = 3;
+
+/// 拖尾圆点相对子弹的**尺寸比例表**（index 0 = 最贴子弹；与
+/// [kGuardBulletTrailDots] 等长，越远越小）。
+const List<double> kGuardBulletTrailDotScales = <double>[0.72, 0.52, 0.36];
+
+/// 拖尾圆点的**不透明度表**（index 0 = 最贴子弹；越远越淡）。
+const List<double> kGuardBulletTrailDotOpacities = <double>[0.50, 0.32, 0.18];
+
+/// 拖尾相邻圆点中心的间距（= 子弹渲染边长的倍数；随 uiScale 自然缩放）。
+const double kGuardBulletTrailGapFactor = 0.9;
+
 /// 怪物数量下限（PRD：3~5 只；通道 `count` 落桶）。
 const int kGuardMonsterCountMin = 3;
 

@@ -25,6 +25,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart'
     show kGuardBattleWindowMs, kGuardMonsterSpeedM1;
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
+import 'package:sunflower_time/presentation/child/state/guard_debug_script.dart'
+    show buildGuardBattleScriptForDebug;
 
 const String _dayKey = '2026-11-08';
 const String _childId = 'c1';
@@ -342,18 +344,31 @@ void main() {
   });
 
   group('G6 到点撤退 + 已偷保留 + 封顶', () {
-    test('空 fireTimeline：30s 到点 retreat、被偷恰 3（c1 seed 钉死的字面量）、之后快照冻结', () {
-      final List<GuardBattleSnapshot> snaps = _runBattle(
-          _dayKey, _childId, <int>[], <int>[10000, 20000, 29999, 30000, 30001]);
+    test('空 fireTimeline：30s 到点 retreat、被偷恰 3（钉死 debug 剧本 4×m3）、之后快照冻结',
+        () {
+      // 🔴 2026-11-12 怪种改「同场交叉」（逐怪 kind_<i> 通道 + mix32）后，
+      // c1 的派生剧本不再恒为 4×m3 ⇒ 本组测的是 **sim 行为**（retreat /
+      // 封顶钳制 / 快照冻结），改用显式 debug 剧本钉输入，不再依赖派生 seed：
+      // 4×m3（17pt/s）、steal 轮转 1/2/3/1 —— 第 0 只 ~19.4s 到门偷 1、
+      // 第 1 只 ~25.4s 到门偷 2 ⇒ 触顶钳在 3；后两只 31.4s+ 才到门 ⇒
+      // 30s 到点撤退、偷 0。
+      final GuardBattleScript script = buildGuardBattleScriptForDebug(
+        monsterCount: 4,
+        kinds: List<GuardBattleMonsterKind>.filled(
+            4, GuardBattleMonsterKind.m3, growable: false),
+      );
+      final GuardBattleSim sim =
+          GuardBattleSim(script: script, dayKey: _dayKey, childId: _childId);
+      const List<int> marks = <int>[10000, 20000, 29999, 30000, 30001];
+      final List<GuardBattleSnapshot> snaps = <GuardBattleSnapshot>[];
+      for (final int mark in marks) {
+        sim.step(mark, const <int>[]);
+        snaps.add(sim.snapshot());
+      }
       final GuardBattleSnapshot atEnd = snaps[3];
       expect(atEnd.phaseId, 'retreat');
       expect(atEnd.endReasonId, 'window_expired');
-      // c1 的剧本 = 4 只 m3（17pt/s；🔴 B13 起战斗怪种类跟当日小偷走：
-      // _kindOfThief(sneakThief) = m3）：第 0 只 spawn 0、~19.4s 到门口得手
-      // （偷 2，封顶额度 3 用剩 1）；第 1 只 spawn 6s、~25.4s 到门口再偷 1
-      // ⇒ **触顶钳在 3**；后两只 spawn 12/18s、31.4s+ 才到门口 ⇒ 30s 到点
-      // 撤退、偷 0。被偷合计钉死 = 3。
-      expect(atEnd.stolenSun, 3);
+      expect(atEnd.stolenSun, 3, reason: '第 0 只偷 1 + 第 1 只偷 2 = 触顶 3');
       expect(atEnd.stealCapLeft, 0);
       int sumStolen = 0;
       for (final GuardBattleMonsterSnapshot m in atEnd.monsters) {
@@ -390,6 +405,46 @@ void main() {
           File('lib/domain/services/guard_battle_sim.dart').readAsStringSync();
       expect(src.contains('Random('), isFalse,
           reason: '全域禁用 Random；战斗「随机」只能走 stable_hash 确定性哈希');
+    });
+  });
+
+  group('G9 怪种同场交叉（2026-11-12 玄参裁定：不要按天单一）', () {
+    test('40 个 seed：≥3 只怪的剧本里「全同种」占比 < 25%（mix32 雪崩护栏）', () {
+      // 🔴 变异护栏：`kind_<i>` 相邻通道只差末字符，FNV-1a 只位移 0.39%，
+      // 不加 _mix32 终混时 u 在桶边界单调爬行 ⇒ 长 streak ⇒「全同种」剧本
+      // 占比飙升（B8 闪避连闪同款坑）。独立等概率下 3 只全同种概率 =
+      // 3×(1/3)² ≈ 33%？—— 不对：逐怪独立抽，n≥3 全同种概率 = 3×(1/3)^n，
+      // n=3 时 ≈ 11%、n=4 时 ≈ 3.7%，混合 n 后全同种占比应在 10% 上下。
+      // 阈值 25%：正常实现远低于它，去掉 mix32 的变体远高于它。
+      int sameKindScripts = 0;
+      int totalScripts = 0;
+      for (int i = 0; i < 40; i++) {
+        final GuardBattleScript script = deriveGuardBattleScript(
+          dayKey: '2027-03-01',
+          childId: 'cross-$i',
+        );
+        if (script.monsters.length < 3) continue; // 1~2 只全同种太常见，不计
+        totalScripts++;
+        final Set<GuardBattleMonsterKind> kinds =
+            script.monsters.map((GuardBattleMonsterSpec m) => m.kind).toSet();
+        if (kinds.length == 1) sameKindScripts++;
+      }
+      expect(totalScripts, greaterThan(30),
+          reason: '绝大多数 seed 怪数 ≥ 3（min=3）');
+      expect(sameKindScripts, lessThan(totalScripts ~/ 4),
+          reason: '🔴「全同种」剧本占比必须 < 25% —— '
+              '去掉 mix32 的变体在此必红（爬行 streak 把占比推过半）');
+    });
+
+    test('同 seed 重跑：逐怪 kind 逐位一致（确定性不因交叉而破坏）', () {
+      final GuardBattleScript a = deriveGuardBattleScript(
+          dayKey: '2027-03-02', childId: 'cross-det');
+      final GuardBattleScript b = deriveGuardBattleScript(
+          dayKey: '2027-03-02', childId: 'cross-det');
+      expect(
+          [for (final m in a.monsters) m.kind],
+          [for (final m in b.monsters) m.kind],
+          reason: '「继续守卫」同 seed 重跑同一份剧本的前提');
     });
   });
 }

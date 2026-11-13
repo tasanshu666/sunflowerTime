@@ -2290,15 +2290,23 @@ const int kGuardEnergyDailyMaxFree = 1;
 /// 每日能量上限 · **完整版**。单位：点/天。
 ///
 /// 原 D4 决策的「2 点冗余」口径归完整版：1 只贼只需 1 点 → 留 1 点冗余，
-/// 跨天时序 / 专注记录晚落盘时不会把孩子逼到「被迫花 5☀」。
+/// 跨天时序 / 专注记录晚落盘时不会把孩子逼到「被迫花阳光支付」。
 const int kGuardEnergyDailyMaxPremium = 2;
 
-/// 无能量时的支付价。单位：☀/次。玄参定 5（= 一次浇水）。
-const int kGuardPayCost = 5;
+/// 无能量时的支付价。单位：☀/次。
+///
+/// 🔴 2026-11-12 玄参裁定：**5 → 10**（= 两次浇水）。目的：抬高「无能量时花阳光
+/// 请战士」的代价，倒逼孩子去专注攒能量点而不是随手花阳光。所有展示文案（确认卡 /
+/// 教学提示 / 能量说明）一律吃本常量参数化，改这一处即全局同步。
+const int kGuardPayCost = 10;
 
 /// 免罚线：无能量 **且** 余额 < 本值 → 当天不结算损失（决策 D3）。
 ///
-/// 单位：☀。理由：刚花 300☀ 种下植株后余额常低于 5，此时再罚 = 落井下石。
+/// 单位：☀。理由：刚花 300☀ 种下植株后余额常偏低，此时再罚 = 落井下石。
+/// 🔴 2026-11-12 玄参裁定：**回退 10 → 5**（「付不起 10 ☀ 的孩子当天直接顶班、
+/// 不罚款，提醒他去专注就行，没必要别的动作」）。实际判定走
+/// `balance >= [kGuardPayCost]`（见 `GuardService.resolve`），本常量是 D3 的
+/// 文档口径锚点，与判定保持「付不起 = 免罚」同义。
 const int kGuardFreeRideBalance = 5;
 
 // ── 小偷（3 种）──────────────────────────────────────────────────────────
@@ -2356,71 +2364,51 @@ const int kGuardWinSunMax = 5;
 /// 写成派生引用 = 将来再调区间时本值自动跟随，D2 语义永不脱钩。
 const int kGuardWinSunNoItem = kGuardWinSunMax;
 
-// ── 掉落：第二步（一次掷骰，合计必须 = 1.0）──────────────────────────────
-
-/// 浇水券概率。今日每盆每次浇水 −1（与称号减免**相加**），当日累计封顶见下。
-const double kGuardDropWaterVoucherRate = 0.35;
-
-/// 劳动券概率。今日每次除草/除虫 +1（加在称号加成**之后**），累计封顶见下。
-const double kGuardDropLaborVoucherRate = 0.20;
-
-/// 施肥券概率。今日**每次**施肥 −2 ☀（与称号减免相加）。
-const double kGuardDropFertilizerVoucherRate = 0.15;
-
-/// 免费浇水券概率。🔴 仅单盆、仅一次（绝不整批）。
-const double kGuardDropFreeWaterRate = 0.08;
-
-/// 免费施肥券概率。🔴 仅单盆、仅一次（最稀有）。
-const double kGuardDropFreeFertilizerRate = 0.04;
-
-/// 无道具概率（只拿 [kGuardWinSunNoItem] 保底阳光）。= 1 − 以上五项。
-const double kGuardDropNothingRate = 0.18;
-
-// ── 掉落：B13.5 付费墙分档表（🔴 玄参 2026-11-11 拍板，上线即冻结）────────
+// ── 掉落：第二步（B13.20 统一券池制，🔴 玄参 2026-11-13 拍板）─────────────
 //
-// 玄参原话：「免费用户的掉券概率修改为50%，付费用户为100%，且有10%的概率，
-// 掉落2张不同的buff卡券。就这样设定吧。」
-// · 上面 6 个 kGuardDrop*Rate 旧常量**退役为「PRD §3.7 历史经济测算口径」**：
-//   面值常量与 E[D] 旧账仍引用它们，但 **roll 不再使用**（两档表在下面）；
-// · 两档表内 5 种券的**相对比例**与旧表一致（旧表 ÷ 0.82 × 档位掉券率）；
-// · 「10% 掉 2 张」的解释（Guard-B13.11 后的口径）：**掉落层不再产生第二张券**，
-//   10% 双券搬进「高级宝箱」（[kGuardChestBonusChance]，全局 2%/天）。
-//   本段两张表只管**首张券**的分布，一枚字节都没动；
-//   历史实现（B13.5 → Guard-B13.10「仅完整版档生效」）见
-//   `GuardDropKind.rollBonus` 的 @Deprecated 注释。
+// 玄参原话：「免费用户只掉落普通宝箱，概率保持不变，而付费用户可以有30%的概率
+// 掉落高级宝箱……普通宝箱里面，不包含免费券，高级宝箱里面才包含免费券」、
+// 「普通宝箱也可以统一概率，好管理好计算」。
+//
+// ## B13.20 口径（取代 B13.5 的两张 8 档概率表）
+//  · **普通宝箱**（免费档 100% / 付费档 70%）：首张券从**非免费券池**（5 种：
+//    浇水 / 劳动 / 施肥 / 专注加餐 / 专注放大）**等概率**挑；
+//    免费档先过 [kGuardDropNothingRateFree] = 30% 无道具闸门，付费档必掉券；
+//  · **高级宝箱**（付费档 30%）：首张券从**全券池**（9 种，含 4 张免费券）
+//    等概率挑 —— 免费券只在这里出现（通道 `chest_first_pick`，
+//    派生在 `domain/services/guard_chest.dart`）；
+//  · 旧的 kGuardDropRatesFree / kGuardDropRatesPremium 两张表**整表退役删除**
+//    （B13.20 改表 = 历史每天的掉落桶位重掷，玄参已确认接受）。
+//
+// 🔴 沿革：B13.5 两档表（50%/0% 保底）→ B13.19（免费保底 30%、券库 7 种）
+// → **B13.20 统一券池制（券库 9 种）**。
 
-/// 免费档无道具概率 = **50%**（旧 18%；玄参 B13.5）。
+/// 免费档无道具概率 = **30%**（B13.5 定 50%；B13.19 玄参裁定 → **30%**；
+/// B13.20 起本闸门只作用于**普通宝箱**的首张券，付费档无此闸门）。
 ///
-/// 🔴 免费档**只掉一张**：50% 的日子无券，另 50% 掉券日掉 1 张——免费档永远不会
-/// 出现第二张券（Guard-B13.10 裁定；Guard-B13.11 起第二张券只在高级宝箱里，
-/// 而免费档恒普通宝箱 ⇒ 免费档双券率仍是 0%）。
-const double kGuardDropNothingRateFree = 0.50;
+/// 🔴 免费档**只掉一张**：30% 的日子无券，另 70% 掉券日掉 1 张——免费档恒普通
+/// 宝箱、普通宝箱无双券 ⇒ 免费档双券率恒 0%（Guard-B13.10）。
+const double kGuardDropNothingRateFree = 0.30;
 
-/// 完整版档无道具概率 = **0**（必掉券；玄参 B13.5）。
+/// 完整版档无道具概率 = **0**（普通宝箱也必掉券；玄参 B13.5，B13.20 沿用）。
 const double kGuardDropNothingRatePremium = 0.0;
+
+/// 普通宝箱券池内**每张券**的中签率（免费档口径）：(1 − 0.30) ÷ 5 = **0.14**。
+///
+/// 🔴 B13.20 起 5 种非免费券**等概率**（玄参「统一概率，好管理好计算」），
+/// 旧表 22/14/11… 的相对比例废除。付费档普通宝箱无 30% 闸门，每张 = 0.20。
+const double kGuardDropRatePerVoucherFree = 0.14;
+
+/// 普通宝箱券池内**每张券**的中签率（付费档口径）：1 ÷ 5 = **0.20**（必掉券）。
+const double kGuardDropRatePerVoucherPremium = 0.20;
 
 /// 已掉券的日子里，再掉一张**不同的**券的概率 = 10%（玄参 B13.5）。
 ///
 /// 🔴 **Guard-B13.11 起本常量的落点变了**：10% 不再是「掉落阶段的付费普惠
 /// 加成」，而是「**高级宝箱内**的奖池」—— 实际生效常量是
-/// [kGuardChestBonusChance]，全局出现率 = 20% 高级宝箱 × 10% = **2%/天**
-/// （原 10%/天，−8pp，玄参已接受；差额由阳光翻倍 + 碎片/种子补偿）。
+/// [kGuardChestBonusChance]，B13.20 起全局出现率 = 30% 高级宝箱 × 20% = **6%/天**。
 /// 本常量保留只为「旧口令的对照读数」，任何新代码**不得**用它做判据。
 const double kGuardDropDualChance = 0.10;
-
-/// 免费档掉落表（顺序 = [GuardDropKind.values]：水 / 劳 / 施肥 / 免费水 /
-/// 免费施肥 / 无道具；合计必须 = 1.0）。
-///
-/// 21 + 12 + 9 + 5 + 3 + 50 = 100（旧表 35/20/15/8/4 按同比例缩到 50%）。
-/// 🔴 本表只管**首张券**；免费档**永不出第二张券**（Guard-B13.10）。
-const List<double> kGuardDropRatesFree = <double>[
-  0.21, 0.12, 0.09, 0.05, 0.03, 0.50,
-];
-
-/// 完整版档掉落表（无道具 = 0 ⇒ 必掉券；43 + 24 + 18 + 10 + 5 + 0 = 100）。
-const List<double> kGuardDropRatesPremium = <double>[
-  0.43, 0.24, 0.18, 0.10, 0.05, 0.00,
-];
 
 // ── 券的生效上限（🔴 防「一键批量 + 称号」放大，不得删）───────────────────
 //
@@ -2486,8 +2474,51 @@ const double kGuardFaceValueFreeWater = 1.0 * kPlantWaterCost;
 /// 免费施肥券面值。单位：☀。= 一盆一次施肥的标价（称号减免前）。
 const double kGuardFaceValueFreeFertilize = 1.0 * kPlantFertilizeCost;
 
+/// 免费浇水 ×3 券面值（B13.19）。单位：☀。= 3 盆各免一次浇水（3 × 一盆标价）。
+const double kGuardFaceValueFreeWater3 = 3.0 * kPlantWaterCost;
+
+/// 免费施肥 ×2 券面值（B13.19）。单位：☀。= 2 盆各免一次施肥（2 × 一盆标价）。
+const double kGuardFaceValueFreeFertilize2 = 2.0 * kPlantFertilizeCost;
+
+/// 专注加餐券面值（B13.20 新增）。单位：☀。= 达成「当日累计专注 ≥
+/// [kGuardFocusMealThresholdMin] 分钟」后一次性到账的固定阳光
+/// [kGuardFocusMealSun]（面值 = 实发，恒定值）。
+const double kGuardFaceValueFocusMeal = 1.0 * kGuardFocusMealSun;
+
+/// 专注放大券面值下限（B13.20 新增）。单位：☀。
+///
+/// 估算口径：典型单场专注 20~30 分钟 ⇒ +20% ≈ 4~6 ☀/场，一日两场取 8。
+const double kGuardFaceValueFocusBoostMin = 8;
+
+/// 专注放大券面值上限（B13.20 新增）。单位：☀。典型两场合计 +20% 上探 12。
+const double kGuardFaceValueFocusBoostMax = 12;
+
 /// 无道具档面值。单位：☀。（档位存在但面值为 0，保底阳光另计）
 const double kGuardFaceValueNothing = 0;
+
+// ── 专注加成券（B13.20 新增：专注结算接线）───────────────────────────────
+//
+// 玄参 2026-11-13 拍板：新增两种**被动**券，掉落进守卫券库、在**专注结算**
+// 时生效（不走养护减免链路）：
+//  · 专注加餐券：当日累计专注 ≥ [kGuardFocusMealThresholdMin] 分钟 ⇒ 额外
+//    +[kGuardFocusMealSun] ☀（一次性，达成瞬间自动到账 + 浮字提示）；
+//  · 专注放大券：当日每场专注结算阳光 +[kGuardFocusBoostRate]（乘算）。
+//
+// 🔴 加成阳光**不占**每日专注上限：走独立 refType
+// [kGuardFocusBonusRefType]（额度只按 `focus_session` 聚合，天然不挤占，
+// 与「成长奖励不算在内」同一条口径，玄参对齐点④确认）。
+
+/// 专注加餐券的达成门槛。单位：分钟（当日**累计**实际专注）。
+const double kGuardFocusMealThresholdMin = 15;
+
+/// 专注加餐券的到账金额。单位：☀。
+const double kGuardFocusMealSun = 10;
+
+/// 专注放大券的加成比例（乘算在本场专注阳光上）。
+const double kGuardFocusBoostRate = 0.20;
+
+/// 专注券加成的账本 refType（**独立于** `focus_session` ⇒ 不占每日专注上限）。
+const String kGuardFocusBonusRefType = 'guard_focus_bonus';
 
 // ── 战斗（P0 = 占位 emoji demo）──────────────────────────────────────────
 
@@ -2882,7 +2913,7 @@ const double kGuardEnergyDotAnchorDx = 20;
 /// * 统计卡再上移 10pt（相对 B9 基线累计 **22pt**）；
 /// * 卡顶仍然 **== 视口顶边**（不裁剪这条硬断言不变）；
 /// * 卡顶 → 屋顶仍 14（[kGuardCardPadTop] 本轮锁定不动）。
-const double kGuardCardLift = 26;
+const double kGuardCardLift = 36;
 
 /// 战士三态素材的 **alpha 加权质心 x**（归一化：0 = 素材画布左缘、1 = 右缘）。
 ///
@@ -3084,6 +3115,13 @@ const List<String> kGuardSeedSpeciesPremium = <String>[
 /// 通道：宝箱档位（20% 高级）。
 const String kGuardChannelChestTier = 'chest_tier';
 
+/// 通道：高级宝箱的**首张券**（B13.20 新增，🔴 只能追加不能改名）。
+///
+/// B13.20 起「免费券只在高级宝箱」：高级宝箱的首张券从**全券池 9 种**等概率
+/// 挑（普通宝箱池只有 5 种非免费券），复用 `drop` 通道会与普通宝箱的取值绑死，
+/// 故单开一条通道。改名字符串 = 历史高级宝箱日的首张券全部重掷。
+const String kGuardChannelChestFirstPick = 'chest_first_pick';
+
 /// 通道：高级宝箱内「第二张券」的 10% 闸门。
 const String kGuardChannelChestBonusGate = 'chest_bonus_gate';
 
@@ -3183,6 +3221,12 @@ const double kGuardChestOpenVolume = 0.5;
 /// [kGuardChestOpenVolume] 的 0.5 是玄参针对 5s 开箱长音效单独裁定的（怕盖住
 /// 演出），现在两个音效统一 0.5，但仍是**两个独立常量**（后续单独调不串味）。
 const double kGuardChestLandVolume = 0.5;
+
+/// 向日葵战士**攻击**音效（`guard_attack.mp3`，开火受理即播）的音量（0~1）。
+///
+/// 🔴 **0.35**（2026-11-12 玄参 B13.18 两轮裁定：首版 1.0「有点大」→ 0.5；
+/// 素材换成 `攻击音效02.mp3` 后再降「比现在的声音再小一些」→ 0.35）。
+const double kGuardAttackVolume = 0.35;
 
 /// 战斗背景音（`guard_attack.mp3`，B13.14 换为跑步音效 30.09s）的音量（0~1）。
 ///

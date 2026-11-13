@@ -27,6 +27,8 @@ library guard_chest_grant_test;
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart'
+    show kGuardPayCost;
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -146,7 +148,7 @@ class _MemLedger implements SunlightRepository {
       throw UnimplementedError('_MemLedger.${invocation.memberName}');
 }
 
-/// 专注仓储（一律无会话 ⇒ 能量 0 ⇒ 走「扣 5 ☀」路径，断言更直接）。
+/// 专注仓储（一律无会话 ⇒ 能量 0 ⇒ 走「扣阳光支付」路径，断言更直接）。
 class _FakeFocus implements FocusRepository {
   @override
   Future<List<FocusSession>> sessionsOfDay(String dayKey) async =>
@@ -322,12 +324,12 @@ void main() {
       final GuardClaimOutcome out = await ctx.guard.claim();
 
       expect(out.ok, isTrue);
-      // 无能量 ⇒ 扣 5 ☀；再入账 8 ☀（高级宝箱翻倍）。
-      expect(out.paidSun, 5);
+      // 无能量 ⇒ 扣 kGuardPayCost ☀；再入账 8 ☀（高级宝箱翻倍）。
+      expect(out.paidSun, kGuardPayCost);
       expect(ctx.ledger.grossOf('guard_win'), 8,
           reason: '🔴 账本 gross 必须 = 翻倍值 8（卡面 N 恒 == 账本行）');
       expect(out.winSun, 8, reason: '结算结果也必须是翻倍值');
-      expect(ctx.balance, 103, reason: '100 − 5 + 8');
+      expect(ctx.balance, 100 - kGuardPayCost + 8, reason: '100 − 10 + 8');
       // 碎片走账户余额（不进阳光账本）。
       expect(await ctx.bloom.premiumFragmentBalance(), 1);
       // 种子 ⇒ 一张免费种植券。
@@ -363,7 +365,7 @@ void main() {
 
       expect(out.winSun, 4, reason: '普通宝箱一分不多给');
       expect(ctx.ledger.grossOf('guard_win'), 4);
-      expect(ctx.balance, 99, reason: '100 − 5 + 4');
+      expect(ctx.balance, 100 - kGuardPayCost + 4, reason: '100 − 10 + 4');
       expect(await ctx.bloom.premiumFragmentBalance(), 0);
       expect(await ctx.bloom.unlockedSpeciesIds(), isEmpty);
     });
@@ -434,7 +436,7 @@ void main() {
       expect(ctx.ledger.countOf('guard_pay'), 1, reason: '🔴 只扣一次钱');
       expect(await ctx.bloom.premiumFragmentBalance(), 1, reason: '碎片只发一次');
       expect((await ctx.bloom.unlockedSpeciesIds()).length, 1);
-      expect(ctx.balance, 103, reason: '100 − 5 + 8（不重复入账）');
+      expect(ctx.balance, 100 - kGuardPayCost + 8, reason: '100 − 10 + 8（不重复入账）');
       // 回放的金额也要是翻倍值（否则卡面与账本打架）。
       expect(second.winSun, 8);
       expect(third.winSun, 8);

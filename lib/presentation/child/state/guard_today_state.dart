@@ -58,7 +58,7 @@ enum GuardPillMode {
   /// 待处理 · 有专注能量：点击**直接开战**（0 ☀，不弹确认卡）。
   pendingFree,
 
-  /// 待处理 · 无能量但余额 ≥ [kGuardPayCost]：点击**先弹确认卡**，确认后才花 5 ☀。
+  /// 待处理 · 无能量但余额 ≥ [kGuardPayCost]：点击**先弹确认卡**，确认后才扣 [kGuardPayCost] ☀。
   pendingPaid,
 
   /// 免罚档（`GuardDayStatus.short` 或「无能量且余额 < [kGuardFreeRideBalance]」）：

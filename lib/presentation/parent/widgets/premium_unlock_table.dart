@@ -32,7 +32,8 @@ import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart'
     show
-        kGuardDropDualChance,
+        kGuardChestBonusChance,
+        kGuardChestPremiumChance,
         kGuardDropNothingRateFree,
         kGuardEnergyDailyMaxFree,
         kGuardEnergyDailyMaxPremium;
@@ -92,13 +93,18 @@ class PremiumUnlockTable extends StatelessWidget {
         ..._derivedRowWidgets(derived[i], s),
       // 组 3 末尾追加（B13.6）：守卫战掉券行。**组件内静态行**（与行 1 同
       // 机制）—— 掉落率不在权益矩阵（不是门控键），数字从守卫常量派生
-      // （免费 none=50% ⇒ 券概率 50%；付费 none=0 ⇒ 必掉券；双券 10%），
-      // 改常量即改表、不写死。
+      // （🔴 B13.20 统一券池制：免费档 30% 无道具闸门 ⇒ 券概率 70%；付费档
+      // 必掉券 + 30% 概率高级宝箱（kGuardChestPremiumChance，阳光翻倍 ·
+      // 含免费券 · 箱内双券 20% = kGuardChestBonusChance），改常量即改表、
+      // 不写死。
       _dataRow(
         t.premium_table_row_guard,
         t.premium_table_guard_free(
             ((1 - kGuardDropNothingRateFree) * 100).round()),
-        t.premium_table_guard_premium((kGuardDropDualChance * 100).round()),
+        t.premium_table_guard_premium(
+          (kGuardChestPremiumChance * 100).round(),
+          (kGuardChestBonusChance * 100).round(),
+        ),
         true,
         s,
         premiumOk: true,

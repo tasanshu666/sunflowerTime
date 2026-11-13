@@ -1285,6 +1285,44 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
                         ),
                 child: const Text('发施肥券'),
               ),
+              // ── B13.19 新券发放（真机验收用）────────────────────────────
+              FilledButton.tonal(
+                onPressed: _busy
+                    ? null
+                    : () => _guardTap(
+                          '已发 1 张免费浇水券（3 次）',
+                          () => _grantGuardVoucher(GuardDropKind.freeWater3),
+                        ),
+                child: const Text('发免费浇水券(3次)'),
+              ),
+              FilledButton.tonal(
+                onPressed: _busy
+                    ? null
+                    : () => _guardTap(
+                          '已发 1 张免费施肥券（2 次）',
+                          () => _grantGuardVoucher(GuardDropKind.freeFertilize2),
+                        ),
+                child: const Text('发免费施肥券(2次)'),
+              ),
+              // ── B13.20 专注被动券发放（真机验收用）────────────────────
+              FilledButton.tonal(
+                onPressed: _busy
+                    ? null
+                    : () => _guardTap(
+                          '已发 1 张专注加餐券（当日累计专注满 15 分钟自动 +10 阳光）',
+                          () => _grantGuardVoucher(GuardDropKind.focusMeal),
+                        ),
+                child: const Text('发专注加餐券'),
+              ),
+              FilledButton.tonal(
+                onPressed: _busy
+                    ? null
+                    : () => _guardTap(
+                          '已发 1 张专注放大券（今日每场专注结算阳光 +20%）',
+                          () => _grantGuardVoucher(GuardDropKind.focusBoost),
+                        ),
+                child: const Text('发专注放大券'),
+              ),
               FilledButton.tonal(
                 onPressed: _busy
                     ? null

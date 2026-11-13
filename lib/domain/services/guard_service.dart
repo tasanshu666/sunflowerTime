@@ -535,7 +535,10 @@ class GuardService {
       energyUsed: 0,
       paidSun: 0,
       winSun: roll.winSun,
-      dropKind: roll.drop,
+      // 🔴 B13.20：首张券以**宝箱派生**为准 —— 普通宝箱日 = roll.drop 透传
+      // （含免费档 30% 无道具）；高级宝箱日 = `chest_first_pick` 通道从全券池
+      // 9 种重挑（免费券只在这里出现）。
+      dropKind: chest.firstDrop,
       // 🔴 Guard-B13.11：掉落阶段不再产生第二张券（恒 none）；第二张券的真源
       // 是下面的 `chestBonusDropKind`。
       bonusDropKind: GuardDropKind.none,

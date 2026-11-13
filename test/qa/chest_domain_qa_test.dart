@@ -588,15 +588,24 @@ void main() {
           drop: drop,
         );
         if (!r.tier.isPremium) {
-          expect(r, GuardChestRoll.empty,
-              reason: '普通宝箱必须完全为空（阳光/主券之外一分不多给）');
+          // 🔴 B13.20：普通宝箱 = 首张券透传入参 drop + 无任何附加项
+          //    （firstDrop 是「主券」本身，不算「多给」）。
+          expect(r.firstDrop, drop,
+              reason: '普通宝箱首张券必须透传 drop（B13.20 firstDrop 语义）');
+          expect(r.hasAnyExtra, isFalse,
+              reason: '普通宝箱在主券之外一分不多给');
+          expect(r.bonusDrop, GuardDropKind.none);
+          expect(r.fragmentQty, 0);
+          expect(r.seedKind, GuardSeedKind.none);
           continue;
         }
         premium++;
+        expect(r.firstDrop.hasVoucher, isTrue,
+            reason: '高级宝箱首券被全池重挑，恒为 9 种券之一（none 不在池内）');
         if (r.hasBonusDrop) {
           bonus++;
-          expect(r.bonusDrop, isNot(drop),
-              reason: '🔴 第二张券不得与首张同种（否则结算卡画两张一样的）');
+          expect(r.bonusDrop, isNot(r.firstDrop),
+              reason: '🔴 第二张券不得与首张（重挑后 ${r.firstDrop.id}）同种');
         }
       }
       expect(premium / 2000, closeTo(0.30, 0.03),

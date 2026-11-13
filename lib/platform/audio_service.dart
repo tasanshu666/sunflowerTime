@@ -123,16 +123,24 @@ enum AudioCue {
   /// 尾音的「叮」）。
   guardChestOpen,
 
-  /// 花园守卫 · 宝箱**落地**（`guard_chest_land.mp3`，2026-11-12 玄参交付）。
+  /// 花园守卫 · 宝箱**落地**（`guard_chest_land.mp3`）。
   ///
-  /// 素材实测 1.358333s ⇒ 🔴 **远短于本项目 ≥3s 红线**（F77：过短 mp3 在 iOS 上
-  /// just_audio `setAsset` 抛 CoreAudio `-11849`，且被 [AudioService] 静默吞掉 →
-  /// 真机「有这个音效但听不见」）。故落盘前用 `apad=pad_dur=1.85` 补静音尾巴到
-  /// **3.208s**（内容零改动、不重采样、不淡入淡出，只有尾部多出静音）。
+  /// 🔴 B13.18（2026-11-12 玄参）：资产**换为「宝箱金币音效.mp3」**（玄参重做，
+  /// 实测 1.0s ⇒ 🔴 短于 ≥3s 红线（F77）→ `apad=pad_dur=2.2` 补静音尾巴到
+  /// **3.2s** 后落盘；首版「宝箱落地音效.mp3」1.358s→3.208s 被整体替换）。
   ///
   /// 播放点：`GuardChestStage` 里 `drop → idle` 的那一刻（`kGuardChestDropMs` 到点，
-  /// 约 600ms），音量固定 [kGuardChestLandVolume]（1.0，落地不需要压低）。
+  /// 约 600ms），音量 [kGuardChestLandVolume]（0.5，B13.13 玄参裁定）。
   guardChestLand,
+
+  /// 花园守卫 · 向日葵战士**发动攻击**（`guard_attack.mp3`，2026-11-12 玄参交付）。
+  ///
+  /// 播放点：`GuardBattleField._fireNow()`——阳光胶囊开火**被受理**（子弹入队）
+  /// 的那一刻；MISS 不回退（打没打中都算「攻击了」）。
+  /// 🔴 B13.18 资产沿革：首版素材 0.391833s → `apad` 补到 3.211837s；
+  /// 同日玄参换 **`攻击音效02.mp3`**（实测 0.444083s → `apad=pad_dur=2.76` 补到
+  /// **3.204082s** 重落盘）。音量 [kGuardAttackVolume]（1.0 → 0.5 → 0.35 两轮下调）。
+  guardAttack,
 }
 
 /// [AudioCue] 到 assets 音频文件路径的映射（相对工程根）。
@@ -188,6 +196,8 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/guard_chest_open.mp3';
       case AudioCue.guardChestLand:
         return 'assets/audio/sfx/guard_chest_land.mp3';
+      case AudioCue.guardAttack:
+        return 'assets/audio/sfx/guard_attack.mp3';
     }
   }
 }

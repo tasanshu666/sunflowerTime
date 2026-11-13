@@ -1,14 +1,20 @@
-/// 掉落档（6 档：5 种券 + 无道具）+ **单点规格表** + 确定性派生入口。
+/// 掉落档（B13.20：9 券 + 无道具；**统一券池制**）+ **单点规格表** + 确定性派生入口。
 ///
 /// 真源：`docs/花园守卫_向日葵守卫者_增量PRD_v2.md` §3.7 / §6。
 ///
+/// ## B13.20 统一券池制（玄参 2026-11-13 拍板，取代 B13.5 两张概率表）
+///  · **普通宝箱**（免费档 100% / 付费档 70%）：首张券从 [kGuardNormalChestPool]
+///    （5 种非免费券）**等概率**挑；免费档先过 30% 无道具闸门，付费档必掉券；
+///  · **高级宝箱**（付费档 30%）：首张券从 [kGuardPremiumChestFirstPool]
+///    （9 种全池）等概率挑 —— **免费券只在这里出现**（派生在
+///    `domain/services/guard_chest.dart`，通道 `chest_first_pick`）。
+///
 /// ## 纪律
-///  · **概率与面值只在本文件出现一次**（经济测算、结算卡显示、单测全部读
-///    [GuardDropSpec]，不得各自写 `0.35` / `5.5`）；
+///  · **概率与面值只在本文件 + `prd_params.dart` 出现一次**（经济测算、结算卡
+///    显示、单测全部读 [GuardDropSpec]，不得各自写 `0.14` / `10.0`）；
 ///  · **禁止 `Random`**：派生走 `core/utils/stable_hash.dart` 的确定性哈希；
 ///  · **零 CJK 字面量**：`test/i18n/no_han_in_domain_test.dart` 钉死
-///    「`lib/domain/**` 注释外零 CJK」。券的中文名（浇水券 / 劳动券 / 施肥券 /
-///    免费浇水券 / 免费施肥券）与所有上屏文案**留到第二批进 ARB**。
+///    「`lib/domain/**` 注释外零 CJK」。券的中文名与所有上屏文案**进 ARB**。
 library guard_drop;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
@@ -36,40 +42,84 @@ const String kGuardChannelDropBonusPick = 'drop_bonus_pick';
 
 /// 掉落档（一次掷骰命中且仅命中其中一档）。
 ///
-/// 顺序 = 概率表的顺序（与 [GuardDropKind.values] 下标一致），**不要重排**：
-/// 重排会让「落桶下标」与「概率」错位，等于悄悄改掉掉落分布。
+/// 🔴 枚举**顺序 = 券池顺序**：普通宝箱券池 = 前 5 个值（非免费券）、
+/// 高级宝箱全池 = 除 [GuardDropKind.none] 外全部 —— **不要重排**，重排会让
+/// 「池内下标」错位（等于悄悄改掉掉落分布）；新券只能插在 `none` 之前的
+/// 对应分组里。
 enum GuardDropKind {
-  /// 浇水券（35%）：今日每次浇水每盆 −1 ☀，当日累计封顶
-  /// [kGuardWaterVoucherMaxSaves]。
+  /// 浇水券：今日每次浇水每盆 −1 ☀，**当日不限次**（B13.4）。
   waterVoucher,
 
-  /// 劳动券（20%）：今日每次除草/除虫 +1 ☀，当日累计封顶
-  /// [kGuardLaborVoucherCap]。
+  /// 劳动券：今日每次除草/除虫 +1 ☀，**当日不限次**（B13.4）。
   laborVoucher,
 
-  /// 施肥券（15%）：今日**每次**施肥 −[kGuardFertilizerVoucherSave] ☀。
+  /// 施肥券：今日**每次**施肥 −[kGuardFertilizerVoucherSave] ☀。
   fertilizeVoucher,
 
-  /// 免费浇水券（8%）：🔴 **任选一盆、仅一次**免费（绝不整批）。
+  /// 🔴 B13.20 新增：专注加餐券（被动券）——当日累计专注 ≥ 15 分钟 ⇒
+  /// 额外 +10 ☀（一次性，达成瞬间自动到账；生效点在
+  /// `SunlightService.settle`，不走养护减免链路）。
+  focusMeal,
+
+  /// 🔴 B13.20 新增：专注放大券（被动券）——当日**每场**专注结算阳光 +20%
+  /// （乘算；不占每日专注上限，独立 refType）。
+  focusBoost,
+
+  /// 免费浇水券（🔴 **高级宝箱限定**，B13.20）：前 **1 次**浇水免费（B13.20 起
+  /// 「前 N 次免费」语义，批量按盆计数；旧「任选一盆绝不整批」口径废除）。
   freeWater,
 
-  /// 免费施肥券（4%）：🔴 **任选一盆、仅一次**免费（最稀有）。
+  /// 免费施肥券（🔴 **高级宝箱限定**，B13.20）：前 **1 次**施肥免费。
   freeFertilize,
 
-  /// 无道具（旧表 18%）：只拿保底阳光 [kGuardWinSunNoItem]，不出现空槽。
+  /// 🔴 B13.19 新增：免费浇水 ×3 券（🔴 **高级宝箱限定**，B13.20）——当日
+  /// **前 3 次**浇水免费（按盆计数，额度记账 quota=3，见 [guardVoucherQuotaOf]）。
+  freeWater3,
+
+  /// 🔴 B13.19 新增：免费施肥 ×2 券（🔴 **高级宝箱限定**，B13.20）——当日
+  /// **前 2 次**施肥免费。
+  freeFertilize2,
+
+  /// 无道具（免费档普通宝箱 30%）：只拿保底阳光 [kGuardWinSunNoItem]，
+  /// 不出现空槽。
   ///
-  /// 🔴 B13.5：roll 已改**分档表**（免费 none=50% / 付费 none=0，
-  /// 见 `kGuardDropRatesFree` / `kGuardDropRatesPremium`）；本档旧 18% 只是
-  /// PRD §3.7 历史经济测算口径（spec.rate 仍保留供 E[D] 旧账引用）。
+  /// 🔴 B13.20：roll 改**统一券池**（30% 闸门 + 5 券等概率）；旧 8 档表只是
+  /// B13.19 历史口径（PRD §3.7 已随 B13.20 换版）。
   none;
+
+  /// 普通宝箱的首张券池（5 种**非免费**券；B13.20 统一等概率）。
+  ///
+  /// 🔴 免费券（freeWater / freeFertilize / freeWater3 / freeFertilize2）与
+  /// 专注券之外的任何新券**不得**进本池，除非玄参裁定改「免费券只在高级宝箱」
+  /// 的口径。
+  static final List<GuardDropKind> normalChestPool =
+      List<GuardDropKind>.unmodifiable(<GuardDropKind>[
+    waterVoucher,
+    laborVoucher,
+    fertilizeVoucher,
+    focusMeal,
+    focusBoost,
+  ]);
+
+  /// 高级宝箱的**首张券**全池（9 种 = 除 [GuardDropKind.none] 外全部；
+  /// 免费券只在这里出现 —— B13.20「高级宝箱才含免费券」）。
+  static final List<GuardDropKind> premiumChestFirstPool =
+      List<GuardDropKind>.unmodifiable(<GuardDropKind>[
+    ...GuardDropKind.values.where((GuardDropKind k) => k != none),
+  ]);
 
   /// 今天的掉落是哪一档 —— **确定性派生**（禁 `Random`）。
   ///
-  /// seed = `dayKey|childId<kGuardDaySaltV2>|[kGuardChannelDrop]`，按分档表
-  /// （[kGuardDropRatesFree] / [kGuardDropRatesPremium]）累计概率落桶。
+  /// seed = `dayKey|childId<kGuardDaySaltV2>|[kGuardChannelDrop]`。
   ///
-  /// 🔴 B13.5（玄参拍板）：掉落率**按权益档位分表** —— 免费 none=50%、
-  /// 付费必掉券。`isPremium` 缺省 false（免费表）= 一切旧调用点安全默认。
+  /// 🔴 B13.20 口径：本方法只派生**普通宝箱**的首张券 ——
+  ///  · 免费档：`u < kGuardDropNothingRateFree`（30%）⇒ [none]，否则从
+  ///    [normalChestPool]（5 种）等概率挑；
+  ///  · 付费档：无闸门，从 [normalChestPool] 等概率挑（70% 日子普通宝箱）；
+  ///  · 付费档命中高级宝箱（30%）时，首张券由 `deriveGuardChest` 用
+  ///    `chest_first_pick` 通道从 [premiumChestFirstPool]（9 种）**重挑并覆盖**。
+  ///
+  /// `isPremium` 缺省 false（免费口径）= 一切旧调用点安全默认。
   static GuardDropKind roll({
     required String dayKey,
     required String childId,
@@ -81,9 +131,12 @@ enum GuardDropKind {
       salt: kGuardDaySaltV2,
       channel: kGuardChannelDrop,
     );
-    final List<double> rates =
-        isPremium ? kGuardDropRatesPremium : kGuardDropRatesFree;
-    return GuardDropKind.values[bucketOfUniform(u, rates)];
+    if (!isPremium && u < kGuardDropNothingRateFree) return none;
+    final double gate = isPremium ? 0.0 : kGuardDropNothingRateFree;
+    final double span = 1.0 - gate;
+    final double t = (u - gate) / span;
+    final List<GuardDropKind> pool = normalChestPool;
+    return pool[(t * pool.length).floor().clamp(0, pool.length - 1)];
   }
 
   /// 🔴 B13.5：第二张券（「10% 概率掉 2 张**不同的**」的低层掷骰工具）。
@@ -91,7 +144,8 @@ enum GuardDropKind {
   /// 🔴 **已停止调用（Guard-B13.11 · 玄参 2026-11-11 第九轮）**：第二张券从
   /// 「掉落阶段」搬进「**高级宝箱**」—— 新落点是
   /// `deriveGuardChest(...).bonusDrop`（通道 `chest_bonus_gate` /
-  /// `chest_bonus_pick`）。本方法的候选表口径（「除首张外的 4 种券等概率」）
+  /// `chest_bonus_pick`）。本方法的候选表口径（「除首张外的券等概率」，B13.20
+  /// 起券库 9 种 ⇒ 除首张外 8 选 1）
   /// 被 `domain/services/guard_chest.dart` 的 `_pickOtherVoucher` 原样沿用，
   /// 但**不再有任何调用点**：保留只为「历史 `deriveGuardRoll` 可重放」与口径
   /// 留证，别在新代码里再调。
@@ -101,7 +155,7 @@ enum GuardDropKind {
   ///   旧 gate 在 `guard_math.deriveGuardRoll`（Guard-B13.10 裁定「双倍掉落券
   ///   对免费档不生效」）；任何新调用点**必须**先自己确认是完整版档；
   /// * 10% 闸门走独立通道 [kGuardChannelDropBonusGate]（与首张通道互不影响）；
-  /// 第二张从「除首张外的 4 种券」里**等概率**挑（通道
+  /// 第二张从「除首张外的券」里**等概率**挑（通道
   /// [kGuardChannelDropBonusPick]）；确定性派生，禁 `Random`。
   // Deprecated message is a *code* string (not a UI copy), so it must be
   // ASCII: `test/i18n/no_han_in_domain_test.dart` forbids CJK outside comments.
@@ -133,7 +187,7 @@ enum GuardDropKind {
         .where((GuardDropKind k) =>
             k != GuardDropKind.none && k != exclude)
         .toList();
-    // 等概率：4 个候选均分 [0,1)。
+    // 等概率：N 个候选（B13.20 起券库 9 种 ⇒ 除首张 8 个）均分 [0,1)。
     return candidates[(pick * candidates.length).floor().clamp(0, candidates.length - 1)];
   }
 }
@@ -146,7 +200,13 @@ class GuardDropSpec {
   /// 占位图形（emoji = 符号，不是文案）。
   final String emoji;
 
-  /// 出现概率（6 档合计必须 = 1.0）。
+  /// **免费档全口径概率**（🔴 B13.20 语义变更）：
+  ///  · 普通宝箱券池里的 5 种非免费券 = [kGuardDropRatePerVoucherFree]（0.14）；
+  ///  · 4 种免费券 = **0**（普通宝箱不掉免费券，B13.20「高级宝箱才含免费券」；
+  ///    它们在高级宝箱全池里的真实概率 = 1/9 ≈ 0.111，由派生层等概率保证，
+  ///    不在本字段重复记账）；
+  ///  · [GuardDropKind.none] = [kGuardDropNothingRateFree]（0.30）。
+  /// 合计 = 5×0.14 + 0.30 = **1.0**（免费档普通宝箱的真实分布，单测钉死）。
   final double rate;
 
   /// 面值下限。单位：☀。
@@ -155,11 +215,12 @@ class GuardDropSpec {
   /// 面值上限。单位：☀。
   final double faceValueMax;
 
-  /// 是否**只作用于单株单次**（两种「免费」券 = true）。
+  /// 是否**只作用于单株单次**（4 种「免费」券 = true）。
   ///
-  /// 🔴 这是「免费券绝不整批」的**唯一数据来源**：一键浇水 5 盆遇到免费券时，
-  /// 只允许其中 1 盆归零（扣 4×5 = 20 ☀，不是 0）。任何实现若不读本字段，
-  /// 就等于把浇水经济打穿 5 天。
+  /// 🔴 B13.20 语义变更：免费券改「当日**前 N 次**免费」——本字段的含义从
+  /// 「绝不整批」收窄为「**每次核销必须对应一次真实养护动作**」（批量按盆计数：
+  /// 一键 5 盆 + ×3 券 = 前 3 盆免费、后 2 盆收费，总免费额仍 = 券面值）。
+  /// 「额度按盆消耗」这条红线仍由本字段 + [guardVoucherQuotaOf] 共同守住。
   final bool singlePotOnly;
 
   const GuardDropSpec({
@@ -173,13 +234,12 @@ class GuardDropSpec {
 
   /// 面值（用于经济测算与结算卡显示）。
   ///
-  /// 口径 = 区间中点：PRD §5.1 的 `E[D] = 3.525 ☀` 正是用
-  /// `0.35×5.5 + 0.20×2.5 + 0.15×2 + 0.08×5 + 0.04×10` 算出来的，
+  /// 口径 = 区间中点：PRD §5.1 的 E[D] 正是用各档中点乘概率算出来的，
   /// 所以中点不是「随便取个平均」，而是那笔账的输入。
   double get faceValue => (faceValueMin + faceValueMax) / 2;
 }
 
-/// 🔑 **单点规格表**：6 档掉落的全部数值（PRD §3.7 表逐条落地）。
+/// 🔑 **单点规格表**：全部掉落的数值（PRD §3.7 表逐条落地，B13.20 起两处同源）。
 ///
 /// 数值冲突时以 `prd_params.dart` 的 `kGuard*` 常量为准，本表只做
 /// 「档位 → 常量」的绑定，不重复写数值。
@@ -189,7 +249,7 @@ final Map<GuardDropKind, GuardDropSpec> kGuardDropSpecs =
     GuardDropKind.waterVoucher: const GuardDropSpec(
       id: 'water_voucher',
       emoji: '💧',
-      rate: kGuardDropWaterVoucherRate,
+      rate: kGuardDropRatePerVoucherFree,
       faceValueMin: kGuardFaceValueWaterVoucherMin,
       faceValueMax: kGuardFaceValueWaterVoucherMax,
       singlePotOnly: false,
@@ -197,7 +257,7 @@ final Map<GuardDropKind, GuardDropSpec> kGuardDropSpecs =
     GuardDropKind.laborVoucher: const GuardDropSpec(
       id: 'labor_voucher',
       emoji: '🧹',
-      rate: kGuardDropLaborVoucherRate,
+      rate: kGuardDropRatePerVoucherFree,
       faceValueMin: kGuardFaceValueLaborVoucherMin,
       faceValueMax: kGuardFaceValueLaborVoucherMax,
       singlePotOnly: false,
@@ -205,15 +265,32 @@ final Map<GuardDropKind, GuardDropSpec> kGuardDropSpecs =
     GuardDropKind.fertilizeVoucher: const GuardDropSpec(
       id: 'fertilize_voucher',
       emoji: '🌱',
-      rate: kGuardDropFertilizerVoucherRate,
+      rate: kGuardDropRatePerVoucherFree,
       faceValueMin: kGuardFaceValueFertilizerVoucher,
       faceValueMax: kGuardFaceValueFertilizerVoucher,
+      singlePotOnly: false,
+    ),
+    GuardDropKind.focusMeal: const GuardDropSpec(
+      id: 'focus_meal',
+      emoji: '🍱',
+      rate: kGuardDropRatePerVoucherFree,
+      faceValueMin: kGuardFaceValueFocusMeal,
+      faceValueMax: kGuardFaceValueFocusMeal,
+      singlePotOnly: false,
+    ),
+    GuardDropKind.focusBoost: const GuardDropSpec(
+      id: 'focus_boost',
+      emoji: '🔭',
+      rate: kGuardDropRatePerVoucherFree,
+      faceValueMin: kGuardFaceValueFocusBoostMin,
+      faceValueMax: kGuardFaceValueFocusBoostMax,
       singlePotOnly: false,
     ),
     GuardDropKind.freeWater: const GuardDropSpec(
       id: 'free_water',
       emoji: '💦',
-      rate: kGuardDropFreeWaterRate,
+      // 🔴 B13.20：免费券不在普通宝箱券池 ⇒ 免费档全口径概率 = 0。
+      rate: 0,
       faceValueMin: kGuardFaceValueFreeWater,
       faceValueMax: kGuardFaceValueFreeWater,
       singlePotOnly: true,
@@ -221,15 +298,31 @@ final Map<GuardDropKind, GuardDropSpec> kGuardDropSpecs =
     GuardDropKind.freeFertilize: const GuardDropSpec(
       id: 'free_fertilize',
       emoji: '🌾',
-      rate: kGuardDropFreeFertilizerRate,
+      rate: 0,
       faceValueMin: kGuardFaceValueFreeFertilize,
       faceValueMax: kGuardFaceValueFreeFertilize,
+      singlePotOnly: true,
+    ),
+    GuardDropKind.freeWater3: const GuardDropSpec(
+      id: 'free_water_3',
+      emoji: '🚿',
+      rate: 0,
+      faceValueMin: kGuardFaceValueFreeWater3,
+      faceValueMax: kGuardFaceValueFreeWater3,
+      singlePotOnly: true,
+    ),
+    GuardDropKind.freeFertilize2: const GuardDropSpec(
+      id: 'free_fertilize_2',
+      emoji: '🪴',
+      rate: 0,
+      faceValueMin: kGuardFaceValueFreeFertilize2,
+      faceValueMax: kGuardFaceValueFreeFertilize2,
       singlePotOnly: true,
     ),
     GuardDropKind.none: const GuardDropSpec(
       id: 'none',
       emoji: '',
-      rate: kGuardDropNothingRate,
+      rate: kGuardDropNothingRateFree,
       faceValueMin: kGuardFaceValueNothing,
       faceValueMax: kGuardFaceValueNothing,
       singlePotOnly: false,
@@ -251,7 +344,8 @@ extension GuardDropKindX on GuardDropKind {
   /// 面值（区间中点）。单位：☀。
   double get faceValue => spec.faceValue;
 
-  /// 是否只作用于单株单次（两种「免费」券 = true）。
+  /// 是否只作用于单株单次（4 种「免费」券 = true；B13.20 起语义见
+  /// [GuardDropSpec.singlePotOnly]）。
   bool get singlePotOnly => spec.singlePotOnly;
 
   /// 是否有券可拿（false = 无道具档）。

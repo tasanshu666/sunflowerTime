@@ -3,7 +3,8 @@
 /// 真源：`docs/花园守卫_向日葵守卫者_增量PRD_v2.md` §3.7（掉落 6 档）/ §3.8（收口表）。
 ///
 /// ## 本文件钉死的 5 条红线
-///  · **A10 免费券绝不整批**：批量（`plantId == null`）拿到的 perk **不含**免费减免
+///  · **A10 免费券「前 N 次免费、批量按盆计数」**（B13.20 语义修订）：总免费额
+///    恒 = 券面值（quota × 一盆标价），批量逐盆消耗额度、绝不整批免费
 ///    ⇒ 一键 5 盆扣 20 ☀（1 盆免 + 4 盆付），绝不是 0 ☀；
 ///  · **A11（B13.4 改版）浇水券当日不限次**：12 盆 × 3 次 = 36 次浇水，总节省
 ///    = **36**（玄参 2026-11-11 拍板废除 6 ☀ 封顶；劳动券同理、4 ☀ 封顶废除）；
@@ -148,21 +149,24 @@ void main() {
     });
   });
 
-  // ───────────────────────── 🔴 A10：免费券绝不整批 ─────────────────────────
-  group('🔴 A10 免费券只能用于单株（批量一律不减免）', () {
-    test('批量（plantId == null）：返回的 perk **不含**免费减免', () async {
+  // ───────── 🔴 A10：免费券「前 N 次免费、批量按盆计数」（B13.20）─────────
+  // 🔴 B13.20（玄参 2026-11-13 拍板）：旧「任选一盆、绝不整批」口径废除。
+  //    总免费额恒 = 券面值（quota × 一盆标价）：一键 5 盆 + ×1 券 = 前 1 盆
+  //    免费、后 4 盆原价；额度按盆核销（consume 自带钳制），经济不穿帮。
+  group('🔴 A10 免费券「前 N 次免费、批量按盆计数」（B13.20）', () {
+    test('批量（plantId == null）：额度未尽 ⇒ 首盆也免费', () async {
       final GuardVoucherService svc = _service(_storeWithBuff(GuardDropKind.freeWater));
       final PlantPerk batch = await svc.overlay(
         PlantPerk.none,
         kind: GuardVoucherKind.freeWater,
         plantId: null,
       );
-      expect(batch.waterDiscount, 0, reason: '批量动作拿不到免费额度');
-      expect(batch, PlantPerk.none, reason: '与称号 perk 逐位相同');
-      expect(waterCostOf(batch), 5, reason: '批量里每一盆仍是原价 5 ☀');
+      expect(batch.waterDiscount, 5,
+          reason: 'B13.20：免费券只看额度，批量首盆同样全免');
+      expect(waterCostOf(batch), 0, reason: '批量首盆 = 0 ☀');
     });
 
-    test('单株（plantId == "p1"）：才含免费减免', () async {
+    test('单株（plantId == "p1"）：同样含免费减免', () async {
       final GuardVoucherService svc = _service(_storeWithBuff(GuardDropKind.freeWater));
       final PlantPerk single = await svc.overlay(
         PlantPerk.none,
@@ -173,38 +177,38 @@ void main() {
       expect(waterCostOf(single), 0);
     });
 
-    test('🔴 一键浇水 5 盆 + 免费券 = 扣 20 ☀（不是 0，也不是 25）', () async {
+    test('🔴 一键浇水 5 盆 + ×1 免费券 = 扣 20 ☀（不是 0，也不是 25）', () async {
       final _FakeStore store = _storeWithBuff(GuardDropKind.freeWater);
       final GuardVoucherService svc = _service(store);
 
-      // 批量调用（page 一键 5 盆）：拿到的是「无免费减免」的 perk。
-      final PlantPerk batch = await svc.overlay(
+      // 批量路径（page 一键 5 盆）：overlaySequenceFor 逐盆消耗额度副本。
+      final List<PlantPerk> seq = svc.overlaySequenceFor(
+        await svc.currentBuff(),
         PlantPerk.none,
         kind: GuardVoucherKind.freeWater,
-        plantId: null,
+        count: 5,
       );
-      // 唯一被指定的那一盆（孩子挑的第 1 盆）：拿到免费。
-      final PlantPerk freeOne = await svc.overlay(
-        PlantPerk.none,
-        kind: GuardVoucherKind.freeWater,
-        plantId: 'p1',
-      );
-
-      // 4 盆按原价 + 1 盆免费 = 20 ☀。
-      final int total = waterCostOf(batch) * 4 + waterCostOf(freeOne);
-      expect(total, 20, reason: 'A10：一键 5 盆 + 免费券 ⇒ 20 ☀');
-      expect(total, isNot(0), reason: '🔴 绝不整批免费（否则 = 省 25 ☀ = 5 天浇水预算）');
-      expect(waterCostOf(batch) * 5, 25, reason: '若误把批量 perk 用到全部 5 盆，就是原价 25');
+      final List<int> costs = <int>[for (final PlantPerk p in seq) waterCostOf(p)];
+      // 前 1 盆免费 + 后 4 盆原价 = 20 ☀。
+      expect(costs, <int>[0, 5, 5, 5, 5],
+          reason: 'B13.20：批量按盆计数，免费额度只用在前 1 盆');
+      expect(costs.fold<int>(0, (int a, int c) => a + c), 20,
+          reason: 'A10：一键 5 盆 + ×1 券 ⇒ 20 ☀（不是 0 全免、也不是 25 全价）');
     });
 
-    test('🔴 批量调用会把免费券的额度「留在账上」（recordConsumed 也拒绝核销）', () async {
+    test('🔴 批量逐盆核销合法（B13.20）：×1 券第 1 次核销后额度归零', () async {
       final _FakeStore store = _storeWithBuff(GuardDropKind.freeWater);
       final GuardVoucherService svc = _service(store);
-      await svc.overlay(PlantPerk.none, kind: GuardVoucherKind.freeWater, plantId: null);
       await svc.recordConsumed(kind: GuardVoucherKind.freeWater, plantId: null);
-      expect(store.byChild[_childId]!.buff!.used, 0, reason: '批量动作不消耗单株免费额度');
-      expect(await svc.remainingOf(GuardVoucherKind.freeWater), 1);
-      expect(store.writeCount, 0, reason: '拒绝核销时一个字都不写库');
+      expect(store.byChild[_childId]!.buff!.used, 1,
+          reason: '批量核销也按盆消耗额度（B13.20 废除批量拒绝闸门）');
+      expect(await svc.remainingOf(GuardVoucherKind.freeWater), 0);
+      // 额度用尽后再核销 = 空操作（consume 钳制，不写库、不超 quota）。
+      final int writesAfterFirst = store.writeCount;
+      await svc.recordConsumed(kind: GuardVoucherKind.freeWater, plantId: null);
+      expect(store.byChild[_childId]!.buff!.used, 1,
+          reason: '额度已尽，钳制后 used 不再 +1');
+      expect(store.writeCount, writesAfterFirst, reason: '钳制空操作一个字都不写库');
     });
 
     test('单株用完一次后，第二盆不再免费', () async {
@@ -497,7 +501,7 @@ void main() {
       );
     });
 
-    test('免费浇水券 + 5 盆 ⇒ 5 项全是原价 5（免费券在批量里不生效）', () {
+    test('免费浇水券（×1）+ 5 盆 ⇒ 前 1 盆 0、后 4 盆原价 5（B13.20 按盆计数）', () {
       final GuardVoucherService svc = _service(_FakeStore());
       final List<PlantPerk> seq = svc.overlaySequenceFor(
         const GuardBuffState(kind: GuardDropKind.freeWater, quota: 1),
@@ -507,7 +511,24 @@ void main() {
       );
       expect(
         <int>[for (final PlantPerk p in seq) waterCostOf(p)],
-        <int>[5, 5, 5, 5, 5],
+        <int>[0, 5, 5, 5, 5],
+        reason: 'B13.20：免费券批量按盆计数，总免费额 = 券面值（1 × 5 ☀）',
+      );
+    });
+
+    test('免费浇水 ×3 券 + 5 盆 ⇒ 前 3 盆 0、后 2 盆原价 5（B13.20 按盆计数）', () {
+      final GuardVoucherService svc = _service(_FakeStore());
+      final List<PlantPerk> seq = svc.overlaySequenceFor(
+        const GuardBuffState(kind: GuardDropKind.freeWater3, quota: 3),
+        null,
+        kind: GuardVoucherKind.freeWater3,
+        count: 5,
+      );
+      expect(
+        <int>[for (final PlantPerk p in seq) waterCostOf(p)],
+        <int>[0, 0, 0, 5, 5],
+        reason: 'B13.20：一键 5 盆 + ×3 券 = 前 3 盆免费、后 2 盆收费，'
+            '总免费额 = 3 × 5 ☀ = 券面值',
       );
     });
   });
@@ -657,6 +678,87 @@ void main() {
         plantId: 'p0',
       );
       expect(fertPerk.fertilizeDiscount, 2, reason: '施肥券 −2（足额，不缩额）');
+    });
+  });
+
+  // 🔴 B13.19（玄参 2026-11-12）：券库 7 种 —— 新增「免费浇水 ×3」「免费施肥 ×2」。
+  group('B13.19 新券：免费浇水（3 次）/ 免费施肥（2 次）', () {
+    test('额度：quota = 3 / 2（字面量，不从实现反推）', () {
+      expect(guardVoucherQuotaOf(GuardDropKind.freeWater3), 3);
+      expect(guardVoucherQuotaOf(GuardDropKind.freeFertilize2), 2);
+    });
+
+    test('动作映射：water 动作 × activeDrop = freeWater3 ⇒ freeWater3（施肥同理）', () {
+      expect(
+        guardVoucherKindForAction(GuardActionKind.water,
+            activeDrop: GuardDropKind.freeWater3),
+        GuardVoucherKind.freeWater3,
+      );
+      expect(
+        guardVoucherKindForAction(GuardActionKind.fertilize,
+            activeDrop: GuardDropKind.freeFertilize2),
+        GuardVoucherKind.freeFertilize2,
+      );
+      // 老口径不回归：普通浇水券仍映射 water。
+      expect(
+        guardVoucherKindForAction(GuardActionKind.water,
+            activeDrop: GuardDropKind.waterVoucher),
+        GuardVoucherKind.water,
+      );
+    });
+
+    test('单盆免费生效；批量首盆同样免费（B13.20 前 N 次免费口径）', () async {
+      final _FakeStore store = _storeWithBuff(GuardDropKind.freeWater3);
+      final GuardVoucherService service = _service(store);
+      final PlantPerk single = await service.overlay(
+        PlantPerk.none,
+        kind: GuardVoucherKind.freeWater3,
+        plantId: 'p0',
+      );
+      expect(single.waterDiscount, 5, reason: '一盆浇水标价 5 ⇒ 全免 = 折扣 5');
+      final PlantPerk batch = await service.overlay(
+        PlantPerk.none,
+        kind: GuardVoucherKind.freeWater3,
+        plantId: null,
+      );
+      expect(batch.waterDiscount, 5,
+          reason: 'B13.20：免费券只看额度，批量首盆同样全免（序列切分交给 overlaySequenceFor）');
+    });
+
+    test('核销 3 次后额度用尽 ⇒ 第 4 次不再减免', () async {
+      final _FakeStore store = _storeWithBuff(GuardDropKind.freeWater3);
+      final GuardVoucherService service = _service(store);
+      for (int i = 0; i < 3; i++) {
+        await service.recordConsumed(
+            kind: GuardVoucherKind.freeWater3, plantId: 'p$i');
+      }
+      final PlantPerk after3 = await service.overlay(
+        PlantPerk.none,
+        kind: GuardVoucherKind.freeWater3,
+        plantId: 'p9',
+      );
+      expect(after3.waterDiscount, 0, reason: '3 次用尽（quota=3）');
+    });
+
+    test('×2 施肥券：单盆免 10、用 2 次后归零', () async {
+      final _FakeStore store = _storeWithBuff(GuardDropKind.freeFertilize2);
+      final GuardVoucherService service = _service(store);
+      final PlantPerk single = await service.overlay(
+        PlantPerk.none,
+        kind: GuardVoucherKind.freeFertilize2,
+        plantId: 'p0',
+      );
+      expect(single.fertilizeDiscount, 10, reason: '一盆施肥标价 10 ⇒ 全免');
+      for (int i = 0; i < 2; i++) {
+        await service.recordConsumed(
+            kind: GuardVoucherKind.freeFertilize2, plantId: 'p$i');
+      }
+      final PlantPerk after2 = await service.overlay(
+        PlantPerk.none,
+        kind: GuardVoucherKind.freeFertilize2,
+        plantId: 'p9',
+      );
+      expect(after2.fertilizeDiscount, 0, reason: '2 次用尽（quota=2）');
     });
   });
 }

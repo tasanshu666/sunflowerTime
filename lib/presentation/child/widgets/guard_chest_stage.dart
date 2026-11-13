@@ -102,14 +102,14 @@ enum GuardChestPhase {
 /// 宝箱演出层（drop / idle / opening 三阶段 + **卡内**热区 + 8s 自动开）。
 ///
 /// 🔴 本 widget 的尺寸契约 = **一张场景卡**：宽 = 父约束的卡宽、高恒
-/// [kGuardSceneCardHeight]（112pt），并在父约束里**顶部对齐**。所有内部几何
+/// `kGuardSceneCardHeight × [GuardChestStage.uiScale]`（手机 112pt、平板
+/// 随倍率放大，iPad 13″ ≈ 179pt），并在父约束里**顶部对齐**。所有内部几何
 /// 都按这块矩形算（见 [chestRectOf]），因此它既可以塞进 `Positioned.fromRect`
-/// 的弹层里，也可以被单测直接挂在 `Scaffold.body` 里（此时它就是屏幕顶部一条
-/// 112pt 的带子）。
+/// 的弹层里，也可以被单测直接挂在 `Scaffold.body` 里。
 class GuardChestStage extends StatefulWidget {
   /// 本层根 Key（页面级测试断言「宝箱演出已上屏」+ 量「只占卡那一块」）。
   ///
-  /// 它挂在**卡矩形本体**上（宽 × 112），不是全屏 —— 这正是 B13.12 的口径。
+  /// 它挂在**卡矩形本体**上（宽 × 卡高），不是全屏 —— 这正是 B13.12 的口径。
   static const Key stageKey = Key('guardChestStage');
 
   /// **静止宝箱本体** Key（`drop` / `idle` 期的静态图）。
@@ -152,6 +152,14 @@ class GuardChestStage extends StatefulWidget {
   /// 是否启用 8s 无操作自动开箱（生产恒 true；测试可关以断言「不点就不开」）。
   final bool autoOpen;
 
+  /// 平板放大倍率（手机 1.0、iPad 11″ 1.3 / 13″ 1.6，同 `uiScaleOf`）。
+  ///
+  /// 🔴 B13.16：弹层宿主矩形是**真实量到的场景卡矩形**（iPad 上已放大到
+  /// ~179pt），而宝箱几何原先仍按手机 112pt 基准绘制 ⇒ 箱子被钉在卡的上半部
+  /// （「飘在空中」）且边长显小。所有纵向锚点 / 边长随本倍率等比后，观感与
+  /// 手机逐位同构（手机传默认 1.0，零回归）。
+  final double uiScale;
+
   const GuardChestStage({
     super.key,
     required this.tier,
@@ -159,6 +167,7 @@ class GuardChestStage extends StatefulWidget {
     required this.onOpened,
     this.playSfx,
     this.autoOpen = true,
+    this.uiScale = 1.0,
   });
 
   /// 落下阶段的纵向位移（pt）。纯函数式推导（`t ∈ [0,1]` 为
@@ -198,54 +207,56 @@ class GuardChestStage extends StatefulWidget {
 
   /// 宝箱方框边长（**卡内口径**）。单位：pt。
   ///
-  /// = [kGuardChestCardBoxSide]（66，B13.15 缩小）× `GuardCardLayout.scale`
+  /// = [kGuardChestCardBoxSide]（66，B13.15 缩小）× `GuardCardLayout.e`
   /// ⇒ 宽卡 **66** / 窄卡（卡宽 ≤ 380）×0.85 = **56.1**，与卡内其他元素
-  /// 同一缩法（「只缩元素、不缩卡高」）。
-  static double boxSideOf(double cardWidth) =>
-      kGuardChestCardBoxSide * GuardCardLayout(cardWidth).scale;
+  /// 同一缩法（「只缩元素、不缩卡高」）；平板档再乘 [uiScale]
+  /// （iPad 13″ ×1.6 = 105.6），与场景卡整体放大同比例（B13.16，玄参
+  /// 2026-11-12「iPad 上宝箱太小」）。
+  static double boxSideOf(double cardWidth, [double uiScale = 1.0]) =>
+      kGuardChestCardBoxSide * GuardCardLayout(cardWidth, uiScale).e;
 
   /// 宝箱静止时的**底边** y（卡内局部坐标）。单位：pt。
   ///
-  /// = 卡高 112 − [kGuardChestCardBottomInset] 16 = **96**（B13.15 贴地：
-  /// 原 88 太高「像没落地」）—— 草地上、卡底「点一下打开」提示带（y ≥ 98）
-  /// 之下，箱子像「蹲在花园地上」。
-  static double boxBottomOf() =>
-      kGuardSceneCardHeight - kGuardChestCardBottomInset;
+  /// = (卡高 112 − [kGuardChestCardBottomInset] 16) × [uiScale] = 手机 **96**
+  /// （B13.15 贴地）→ iPad 13″ **153.6** —— 纵向也随卡整体放大，宝箱永远
+  /// 「蹲在花园地上」而不是飘在放大后卡的上半部（B13.16）。
+  static double boxBottomOf([double uiScale = 1.0]) =>
+      (kGuardSceneCardHeight - kGuardChestCardBottomInset) * uiScale;
 
   /// 宝箱静止时的方框（**卡内局部坐标**，`+x` 右、`+y` 下）。
   ///
-  /// 横向（B13.14/B13.15）：**中心 = `rightClusterRect.center` − 15pt** =
-  /// 「插旗的位置」（战斗胜利领取后旗帜徽章所在格）再向左挪 15pt
+  /// 横向（B13.14/B13.15）：**中心 = `rightClusterRect.center` − 15pt × uiScale**
+  /// = 「插旗的位置」（战斗胜利领取后旗帜徽章所在格）再向左挪
   /// （[kGuardChestCardCenterShiftPt]，玄参裁定「太靠右了」），并钳到不出卡
-  /// （`cardWidth − side`）。390 卡实测：`Rect.fromLTWH(302, 30, 66, 66)`
+  /// （`cardWidth − side`）。390 手机卡实测：`Rect.fromLTWH(302, 30, 66, 66)`
   /// （沿革：218.17 → 276 → 312 → 302；边长 76 → 66，底边 88 → 96 贴地）。
   /// 演出期右簇槽位为空（resolved 态渲染 `SizedBox.shrink()`），盖过无冲突。
-  static Rect chestRectOf(double cardWidth) {
-    final GuardCardLayout layout = GuardCardLayout(cardWidth);
-    final double side = boxSideOf(cardWidth);
+  static Rect chestRectOf(double cardWidth, [double uiScale = 1.0]) {
+    final GuardCardLayout layout = GuardCardLayout(cardWidth, uiScale);
+    final double side = boxSideOf(cardWidth, uiScale);
     final double maxLeft = math.max(cardWidth - side, 0);
     double left = layout.rightClusterRect.center.dx -
-        kGuardChestCardCenterShiftPt -
+        kGuardChestCardCenterShiftPt * uiScale -
         side / 2;
     if (left > maxLeft) left = maxLeft;
     if (left < 0) left = 0;
-    return Rect.fromLTWH(left, boxBottomOf() - side, side, side);
+    return Rect.fromLTWH(left, boxBottomOf(uiScale) - side, side, side);
   }
 
   /// 「点一下打开」提示带（**卡内局部坐标**）。
   ///
   /// 🔴 B13.15：宝箱底边贴地（96）后卡底只剩 16pt（含草地带 10），原派生式
   /// （inset − padBottom − 2 = 4pt）装不下 10pt 文案 ⇒ 改为**固定贴卡底**：
-  /// y = 99，高 10（y ∈ [99, 109]，底距卡底 3pt），与箱底留 3pt 间隙；
-  /// 跨过倒计时细线（y=102）与草地上部 —— 观感是「插在草地上的小牌子」，
-  /// 棕色 700 字压浅绿草地可读（渲染层 FittedBox scaleDown 兜住 en 长文案）。
-  static Rect hintRectOf(double cardWidth) {
-    final Rect chest = chestRectOf(cardWidth);
+  /// 手机 y = 99、高 10（y ∈ [99, 109]，底距卡底 3pt），与箱底留 3pt 间隙；
+  /// 平板随 [uiScale] 等比（iPad 13″ y=158.4、高 16）—— 文字本身走系统
+  /// textScaler 不乘倍率，`FittedBox(scaleDown)` 兜住任何语言 / 档位不溢出。
+  static Rect hintRectOf(double cardWidth, [double uiScale = 1.0]) {
+    final Rect chest = chestRectOf(cardWidth, uiScale);
     return Rect.fromLTWH(
       chest.left,
-      kGuardSceneCardHeight - 13,
+      (kGuardSceneCardHeight - 13) * uiScale,
       chest.width,
-      10,
+      10 * uiScale,
     );
   }
 
@@ -402,18 +413,21 @@ class _GuardChestStageState extends State<GuardChestStage>
         builder: (BuildContext context, BoxConstraints constraints) {
           final double cardWidth =
               constraints.maxWidth.isFinite ? constraints.maxWidth : screenWidth;
-          final Rect chest = GuardChestStage.chestRectOf(cardWidth);
-          final Rect hint = GuardChestStage.hintRectOf(cardWidth);
+          final Rect chest =
+              GuardChestStage.chestRectOf(cardWidth, widget.uiScale);
+          final Rect hint =
+              GuardChestStage.hintRectOf(cardWidth, widget.uiScale);
           final bool opening = _phase == GuardChestPhase.opening;
 
-          // 🔴 尺寸契约：**一张场景卡**（宽 = 卡宽、高恒 112），在父约束里顶部对齐。
-          //    弹层那边用 `Positioned.fromRect(场景卡矩形)` 把它摆到卡的位置。
+          // 🔴 尺寸契约：**一张场景卡**（宽 = 卡宽、高 = 112 × uiScale），在
+          //    父约束里顶部对齐。弹层那边用 `Positioned.fromRect(场景卡矩形)`
+          //    把它摆到卡的位置（iPad 上矩形本身已放大，倍率对齐才不飘空）。
           return Align(
             alignment: Alignment.topCenter,
             child: SizedBox(
               key: GuardChestStage.stageKey,
               width: cardWidth,
-              height: kGuardSceneCardHeight,
+              height: kGuardSceneCardHeight * widget.uiScale,
               // 🔴 严格卡内：回弹 / 呼吸 / 高级档光晕任何溢出都不许画到卡外。
               child: ClipRect(
                 child: GestureDetector(
@@ -436,7 +450,9 @@ class _GuardChestStageState extends State<GuardChestStage>
                               final bool dropping =
                                   _phase == GuardChestPhase.drop;
                               final double dy = dropping
-                                  ? GuardChestStage.dropOffsetDy(_dropCtrl.value)
+                                  ? GuardChestStage.dropOffsetDy(
+                                          _dropCtrl.value) *
+                                      widget.uiScale
                                   : 0;
                               final double squash = dropping
                                   ? GuardChestStage.squashScale(_dropCtrl.value)
@@ -668,6 +684,7 @@ Future<void> showGuardChestOverlay(
   GuardChestSfxPlayer? playSfx,
   bool autoOpen = true,
   Rect? cardRect,
+  double uiScale = 1.0,
 }) {
   final Rect? rect = cardRect ?? guardSceneCardRectOf(context);
   if (rect == null) {
@@ -692,6 +709,7 @@ Future<void> showGuardChestOverlay(
           l10n: l10n,
           playSfx: playSfx,
           autoOpen: autoOpen,
+          uiScale: uiScale,
           onOpened: () {
             // 播完 → 关闭本层（页面 await 到返回后立刻弹结算卡）。
             if (Navigator.of(dialogContext).canPop()) {
@@ -713,6 +731,7 @@ class _ChestOverlayBody extends StatelessWidget {
     required this.playSfx,
     required this.autoOpen,
     required this.onOpened,
+    this.uiScale = 1.0,
   });
 
   /// 场景卡矩形（全局坐标）；null ⇒ 走 [fallbackRectOf]。
@@ -723,6 +742,9 @@ class _ChestOverlayBody extends StatelessWidget {
   final GuardChestSfxPlayer? playSfx;
   final bool autoOpen;
   final VoidCallback onOpened;
+
+  /// 平板放大倍率（与场景卡一致，见 [GuardChestStage.uiScale]）。
+  final double uiScale;
 
   /// 兜底矩形：屏幕顶部一条**卡高**的带子（**绝不铺满全屏**）。
   static Rect fallbackRectOf(Size screen) =>
@@ -743,6 +765,7 @@ class _ChestOverlayBody extends StatelessWidget {
               l10n: l10n,
               playSfx: playSfx,
               autoOpen: autoOpen,
+              uiScale: uiScale,
               onOpened: onOpened,
             ),
           ),

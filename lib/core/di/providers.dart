@@ -177,11 +177,31 @@ final weeklyPoolRepositoryProvider = Provider<WeeklyPoolRepository>(
 ///
 /// 注：专注引擎 [FocusEngine] 与在场检测 [PresenceDetector] 为**单场生命周期对象**，
 /// 由专注页在 `initState` 中按本次 planned 时长创建、`dispose` 时释放，故不在此装配。
+///
+/// 🔴 B13.20：注入守卫券服务 + childId —— 专注加成券（加餐 +10 / 放大 +20%）
+/// 在专注结算时自动生效，走独立 `guard_focus_bonus` refType，不占每日专注额度。
+///
+/// 🔴 券注入是**可选增强**，不是主链路依赖：guard 存储不可用的环境（部分测试
+/// 宿主未 override `guardStateStoreProvider` / prefs 缺失）下必须**降级为
+/// null**（= 无券、专注结算逐位旧行为），绝不能让「读券失败」把专注结算
+/// 主链路一起拖死。降级模式与 `garden_page` 的批量接线（try/catch 读
+/// `guardVoucherProvider`）同源。
 final sunlightServiceProvider = Provider<SunlightService>(
-  (ref) => SunlightService(
-    ledger: ref.watch(sunlightRepositoryProvider),
-    focus: ref.watch(focusRepositoryProvider),
-  ),
+  (ref) {
+    GuardVoucherService? guardVouchers;
+    try {
+      guardVouchers = ref.watch(guardVoucherProvider);
+    } catch (_) {
+      // 券服务建不出来（无 prefs / 无存储）⇒ 无券注入，专注结算不受影响。
+      guardVouchers = null;
+    }
+    return SunlightService(
+      ledger: ref.watch(sunlightRepositoryProvider),
+      focus: ref.watch(focusRepositoryProvider),
+      guardVouchers: guardVouchers,
+      childId: () => ref.read(accountServiceProvider).childId,
+    );
+  },
 );
 
 /// 家长 PIN 是否已设置（供路由守卫 / 家长端入口读取）。
@@ -389,8 +409,9 @@ final guardStateStoreProvider = Provider<GuardStateStore>(
 
 /// 今日券服务（**券的唯一生效口**：券 → `PlantPerk` 的减免只经这里产出）。
 ///
-/// 页面**禁止**内联 `-1` / 「归零」；免费券在批量动作下由本服务自动降级为
-/// 「不减免」（[GuardVoucherService.overlayFor]），绝不整批免费。
+/// 页面**禁止**内联 `-1` / 「归零」；🔴 B13.20：免费券改「前 N 次免费、批量按
+/// 盆计数」——批量确认卡与实扣由 [GuardVoucherService.overlaySequenceFor] /
+/// [GuardVoucherService.recordConsumed] 按额度逐盆算准，总额度仍由 quota 钳死。
 final guardVoucherProvider = Provider<GuardVoucherService>(
   (ref) => GuardVoucherService(
     store: ref.watch(guardStateStoreProvider),

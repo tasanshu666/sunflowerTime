@@ -775,10 +775,17 @@ void main() {
       ]) {
         expect(find.text(label), findsOneWidget, reason: '9 行缺行：$label');
       }
-      // B13.6 守卫行取值（字面量：免费 50% / 付费必掉 + 10% 双券 —— 对拍
-      // prd_params 常量的现网值，改常量须同步改此断言）。
-      expect(find.text('券概率 50%'), findsOneWidget);
-      expect(find.text('必掉券 · 10% 概率掉两张'), findsOneWidget);
+      // B13.6 守卫行取值（字面量：免费 70% / 付费必掉 + 30% 高级宝箱 + 20%
+      // 双券 —— 对拍 prd_params 常量的现网值（🔴 B13.20 统一券池制：
+      // 30% = kGuardChestPremiumChance、20% = kGuardChestBonusChance），
+      // 改常量须同步改此断言）。
+      expect(find.text('券概率 70%'), findsOneWidget);
+      expect(
+        find.text('必掉券 · 30% 掉高级宝箱（阳光翻倍 · 含免费券 · 双券 20%）'),
+        findsOneWidget,
+        reason: '🔴 B13.20：付费列改为「30% 高级宝箱出现率（含免费券）+ '
+            '箱内双券 20%」口径，两个数字均从常量派生',
+      );
       // B13.8 能量行取值（字面量：免费 1 颗/天 / 付费 2 颗/天 —— 对拍
       // kGuardEnergyDailyMaxFree / kGuardEnergyDailyMaxPremium 现网值）。
       expect(find.text('每天 1 颗'), findsOneWidget);

@@ -602,6 +602,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
             context,
             tier: showTier,
             l10n: t,
+            uiScale: uiScaleOf(context),
           );
         } catch (e) {
           // 演出异常绝不阻断结算卡：宝箱只是表演，奖励已在 resolve 时定死。
@@ -624,6 +625,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         stolenSun: stolenCharged,
         onCollect: () => ref.read(guardServiceProvider).claim(),
         showPremiumHint: showGuardPremiumHint(context),
+        uiScale: uiScaleOf(context),
       );
       if (outcome == null) return;
       ref.read(guardTodayProvider.notifier).state =
@@ -877,7 +879,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
             // 场景区：只占位不渲染内容，露出背景插画。
             //
             // 🔴 B10/B1：场景卡「整体上移」不再用 `Transform`，而是把**滚动区
-            // 整体上移** [kGuardCardLift]（16pt）。原因：`Transform` 不消耗布局
+            // 整体上移** [kGuardCardLift]（初值 16 → 26 → 36，机制不变）。原因：`Transform` 不消耗布局
             // 空间 ⇒ 卡的绘制矩形被顶到 ListView 视口之外，被 `ClipRect` 直接
             // 裁掉 —— 玄参第五轮报的「房子被削顶」就是这个。缩留白之后
             // 视口顶边随之上移 16pt，卡仍在视口内 y=0 ⇒ **卡顶 == 视口顶边**，
@@ -910,8 +912,10 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                     // 🔴 B10/B1：**不再包 Transform**（B9 的上移改成缩上面的
                     // `sceneGap`，见那里的注释）—— 卡在视口内从 y=0 开始画，
                     // 顶边不会被 ListView 裁掉。
+                    // 🔴 平板：外层高度同步 × [uiScaleOf]（iPad 11″ 1.3 / 13″ 1.6）
+                    // —— 卡高放大与卡内几何放大同源，避免外层 112 把放大后的卡裁掉。
                     SizedBox(
-                      height: kGuardSceneCardHeight,
+                      height: kGuardSceneCardHeight * uiScaleOf(context),
                       child: OverflowBox(
                         minWidth: screenW,
                         maxWidth: screenW,
@@ -926,6 +930,8 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                           // B7：开火手柄由页面持有（阳光胶囊在卡外，见 build 的
                           // `_FloatingSunBubble` 挂载点）。
                           battleHandle: _guardBattleHandle,
+                          // 平板放大倍率（与卡内几何同源；手机 = 1.0）。
+                          uiScale: uiScaleOf(context),
                           // B5a 调试剧本覆盖：仅 kDebugMode 的调试面板会写入该
                           // provider（release 恒 null ⇒ 走真实 seed 派生，零感知）。
                           debugScriptOverride:

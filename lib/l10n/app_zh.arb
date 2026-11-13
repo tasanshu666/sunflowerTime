@@ -206,6 +206,7 @@
   "child_settle_collected": "收集阳光",
   "child_settle_eyecare_reward": "护眼奖励",
   "child_settle_task_reward": "任务奖励",
+  "child_settle_voucher_bonus": "券加成",
   "child_settle_today_total": "今日累计",
   "child_settle_balance": "拥有阳光",
   "child_settle_too_short": "这次太短啦，向日葵没来得及收集阳光（≥5 分钟才有产出哦）",
@@ -2045,9 +2046,10 @@
       "p": { "type": "int" }
     }
   },
-  "premium_table_guard_premium": "必掉券 · {d}% 概率掉两张",
+  "premium_table_guard_premium": "必掉券 · {c}% 掉高级宝箱（阳光翻倍 · 含免费券 · 双券 {d}%）",
   "@premium_table_guard_premium": {
     "placeholders": {
+      "c": { "type": "int" },
       "d": { "type": "int" }
     }
   },
@@ -2821,6 +2823,14 @@
   "@guard_drop_name_fertilize_voucher": {
       "description": "花园守卫：掉落「施肥券」的展示名"
   },
+  "guard_drop_name_focus_meal": "专注加餐券",
+  "@guard_drop_name_focus_meal": {
+      "description": "B13.20：掉落「专注加餐券」（被动券，专注结算生效）的展示名"
+  },
+  "guard_drop_name_focus_boost": "专注放大券",
+  "@guard_drop_name_focus_boost": {
+      "description": "B13.20：掉落「专注放大券」（被动券，专注结算生效）的展示名"
+  },
   "guard_drop_name_free_water": "免费浇水券",
   "@guard_drop_name_free_water": {
       "description": "花园守卫：掉落「免费浇水券」（单株单次）的展示名"
@@ -2828,6 +2838,14 @@
   "guard_drop_name_free_fertilize": "免费施肥券",
   "@guard_drop_name_free_fertilize": {
       "description": "花园守卫：掉落「免费施肥券」（单株单次，最稀有）的展示名"
+  },
+  "guard_drop_name_free_water_3": "免费浇水券（3 次）",
+  "@guard_drop_name_free_water_3": {
+      "description": "花园守卫：掉落「免费浇水券（3 次）」（当日3次单盆免费浇水）的展示名；🔴 不用「×」号（V3-5 文案口径禁 ×）"
+  },
+  "guard_drop_name_free_fertilize_2": "免费施肥券（2 次）",
+  "@guard_drop_name_free_fertilize_2": {
+      "description": "花园守卫：掉落「免费施肥券（2 次）」（当日2次单盆免费施肥）的展示名"
   },
   "guard_pill_pending": "偷菜贼来了，现在赶跑它吧",
   "@guard_pill_pending": {
@@ -2874,7 +2892,7 @@
   "@guard_tutorial_title": {
       "description": "守卫战 v2 教学浮层 A：标题（每天首次进战斗前展示一次）"
   },
-  "guard_tutorial_body": "认真专注满 15 分钟，就能攒 1 个能量点，一天最多攒 2 个。有能量点，向日葵战士就能免费出击，帮你赶跑偷菜的怪物！",
+  "guard_tutorial_body": "认真专注满 15 分钟，就能攒 1 个能量点，一天最多攒 2 个。有能量点，向日葵战士就能免费出击，帮你赶跑偷菜的怪物！战斗中，点击屏幕上的阳光胶囊，就能帮助向日葵战士发动攻击，赶跑偷菜的怪物！",
   "@guard_tutorial_body": {
       "description": "守卫战 v2 教学浮层 A：主文案（PRD §6 玄参已写好的口径，逐字使用）"
   },
@@ -2956,14 +2974,9 @@
       },
       "description": "结算卡（Guard-B13.11）：种子奖励卡名称（species = shared_species_* 的物种名译文；数量用 ×1 显示）"
   },
-  "guard_result_title": "赶走了{thief}",
+  "guard_result_title": "花园守卫成功，赶走了贪吃的小动物",
   "@guard_result_title": {
-      "placeholders": {
-          "thief": {
-              "type": "String"
-          }
-      },
-      "description": "结算卡标题：赶走了{thief}（thief = guard_thief_name_* 的译文）"
+      "description": "结算卡标题（🔴 2026-11-12 玄参裁定：怪物同场交叉后不再指名具体怪种，改通用文案）"
   },
   "guard_result_gain": "拿回 {sun} 阳光",
   "@guard_result_gain": {
@@ -3028,11 +3041,11 @@
   "@guard_intro_energy_title": {
       "description": "守卫战 v2（B13.3）：玩法说明弹窗「能量点是什么」小节标题"
   },
-  "guard_intro_energy_body_free": "能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，免费一天最多 1 个。没有能量点也能守卫——花 5 阳光请战士出战就行。",
+  "guard_intro_energy_body_free": "能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，免费一天最多 1 个。没有能量点也能守卫——花 10 阳光请战士出战就行。",
   "@guard_intro_energy_body_free": {
       "description": "守卫战 v2（B13.8 档位制）：能量点正文·免费档（🔴 15 分钟 = 1 个、免费一天最多 1 个；付费档另有 body_premium）"
   },
-  "guard_intro_energy_body_premium": "能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，一天最多 2 个。没有能量点也能守卫——花 5 阳光请战士出战就行。",
+  "guard_intro_energy_body_premium": "能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，一天最多 2 个。没有能量点也能守卫——花 10 阳光请战士出战就行。",
   "@guard_intro_energy_body_premium": {
       "description": "守卫战 v2（B13.8 档位制）：能量点正文·完整版档（🔴 一天最多 2 个，与 kGuardEnergyDailyMaxPremium 一致）"
   },
@@ -3127,13 +3140,45 @@
   "@guard_voucher_desc_fertilize": {
       "description": "B13.5：buff 券增益描述"
   },
-  "guard_voucher_desc_free_water": "今日任选一盆，浇水一次完全免费",
+  "guard_voucher_desc_free_water": "今日第 1 次浇水完全免费",
   "@guard_voucher_desc_free_water": {
-      "description": "B13.5：buff 券增益描述（单株单次）"
+      "description": "B13.20：buff 券增益描述（「前 N 次免费」，批量按盆计数；旧「任选一盆」口径废除）"
   },
-  "guard_voucher_desc_free_fertilize": "今日任选一盆，施肥一次完全免费",
+  "guard_voucher_desc_free_fertilize": "今日第 1 次施肥完全免费",
   "@guard_voucher_desc_free_fertilize": {
-      "description": "B13.5：buff 券增益描述（单株单次）"
+      "description": "B13.20：buff 券增益描述（「前 N 次免费」）"
+  },
+  "guard_voucher_name_free_water_3": "免费浇水卡券（3 次）",
+  "@guard_voucher_name_free_water_3": {
+      "description": "B13.19：buff 券卡名（当日 3 次免费浇水；无专属美术，复用浇水卡面）；🔴 不用「×」号（V3-5 文案口径禁 ×）"
+  },
+  "guard_voucher_name_free_fertilize_2": "免费施肥卡券（2 次）",
+  "@guard_voucher_name_free_fertilize_2": {
+      "description": "B13.19：buff 券卡名（当日 2 次免费施肥；无专属美术，复用施肥卡面）"
+  },
+  "guard_voucher_desc_free_water_3": "今日前 3 次浇水完全免费",
+  "@guard_voucher_desc_free_water_3": {
+      "description": "B13.20：buff 券增益描述（「前 N 次免费」，批量按盆计数）"
+  },
+  "guard_voucher_desc_free_fertilize_2": "今日前 2 次施肥完全免费",
+  "@guard_voucher_desc_free_fertilize_2": {
+      "description": "B13.20：buff 券增益描述（「前 N 次免费」，批量按盆计数）"
+  },
+  "guard_voucher_name_focus_meal": "专注加餐卡券",
+  "@guard_voucher_name_focus_meal": {
+      "description": "B13.20：buff 券卡名（被动券：当日累计专注满 15 分钟额外 +10 阳光；无专属美术，复用浇水卡面）"
+  },
+  "guard_voucher_name_focus_boost": "专注放大卡券",
+  "@guard_voucher_name_focus_boost": {
+      "description": "B13.20：buff 券卡名（被动券：当日每场专注结算阳光 +20%）"
+  },
+  "guard_voucher_desc_focus_meal": "今日累计专注满 15 分钟，额外获得 10 阳光",
+  "@guard_voucher_desc_focus_meal": {
+      "description": "B13.20：buff 券增益描述（专注加餐，达成瞬间自动到账）"
+  },
+  "guard_voucher_desc_focus_boost": "今日每场专注结算的阳光额外加 20%",
+  "@guard_voucher_desc_focus_boost": {
+      "description": "B13.20：buff 券增益描述（专注放大，不占每日专注上限）"
   },
   "guard_intro_locked": "还没遇到过",
   "@guard_intro_locked": {
@@ -3176,6 +3221,18 @@
   "guard_voucher_short_fertilize": "施肥",
   "guard_voucher_short_free_water": "免费浇水",
   "guard_voucher_short_free_fertilize": "免费施肥",
+  "guard_voucher_short_free_water_3": "免费浇水3次",
+  "@guard_voucher_short_free_water_3": {
+      "description": "B13.19：券卡迷你角标短标题（3 次版）；🔴 不用「×」号（V3-5 文案口径禁 ×）"
+  },
+  "guard_voucher_short_free_fertilize_2": "免费施肥2次",
+  "@guard_voucher_short_free_fertilize_2": {
+      "description": "B13.19：券卡迷你角标短标题（×2 版）"
+  },
+  "guard_voucher_short_focus": "专注",
+  "@guard_voucher_short_focus": {
+      "description": "B13.20：专注加餐 / 专注放大券的短动作词（横排文字「今日专注 +10 / +20%」）"
+  },
   "guard_chip_inline_prefix": "今日{action}",
   "@guard_chip_inline_prefix": {
       "placeholders": {

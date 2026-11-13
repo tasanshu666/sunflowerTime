@@ -1,7 +1,7 @@
 /// 守卫战 v2 · **B10/B4 同日第二场必须真扣钱**（玄参第五轮）。
 ///
 /// ## 玄参原话
-/// 「在调试面板里重置之后再打一场，**第二次花 5 阳光不扣**」—— 胶囊照常弹出
+/// 「在调试面板里重置之后再打一场，**第二次花阳光不扣**」—— 胶囊照常弹出
 /// 「−5 ☀」提示，可账本一行没多、余额一分没少。
 ///
 /// ## 病理
@@ -207,7 +207,7 @@ class _MemLedger implements SunlightRepository {
   }
 }
 
-/// 专注仓储：本用例**不种任何会话** ⇒ 今日能量 = 0 ⇒ 必然走「花 5 阳光」路径。
+/// 专注仓储：本用例**不种任何会话** ⇒ 今日能量 = 0 ⇒ 必然走「花阳光支付」路径。
 class _FakeFocus implements FocusRepository {
   @override
   Future<void> saveSession(FocusSession session) async {}
@@ -332,9 +332,9 @@ _Ctx _make({double balance = 20}) {
 }
 
 void main() {
-  group('① B10/B4 同日第二场：账本多一条 −5、余额确实少 5', () {
-    test('第一场与第二场各扣一次 5 ☀，id 逐位可区分', () async {
-      final _Ctx ctx = _make(balance: 20);
+  group('① B10/B4 同日第二场：账本多一条扣费、余额确实减少', () {
+    test('第一场与第二场各扣一次 10 ☀，id 逐位可区分', () async {
+      final _Ctx ctx = _make(balance: 60);
 
       // ── 第一场（生产路径：一日一场）──────────────────────────────────
       await ctx.guard.resolve(now: _now());
@@ -343,7 +343,7 @@ void main() {
       final GuardClaimOutcome first = await ctx.guard.claim(now: _now());
       expect(first.ok, isTrue, reason: '第一场必须领取成功');
       expect(first.paidSun, kGuardPayCost,
-          reason: '无能量 + 余额充足 ⇒ 必须走付费路径扣 5 ☀');
+          reason: '无能量 + 余额充足 ⇒ 必须走付费路径扣阳光');
       final double balanceAfterFirst = ctx.balance;
 
       // 第一场的 id 必须与历史**逐位相同**（零后缀，老账本零影响）。
@@ -366,15 +366,16 @@ void main() {
       expect(second.alreadyClaimed, isFalse,
           reason: '🔴 第二场绝不能被当成「今天已经领过」回放 —— 那就是玄参看到的 bug');
       expect(second.paidSun, kGuardPayCost,
-          reason: '🔴 B4 核心：第二场必须真的扣 5 ☀');
+          reason: '🔴 B4 核心：第二场必须真的扣阳光');
 
-      // 账本：多一条 −5，且两条合计 −10。
+      // 账本：两条 −10，合计 −20（🔴 写死数字，不从实现常量反推；
+      // 2026-11-12 玄参裁定 kGuardPayCost 5 → 10，本处期望值随产品口径同步）。
       final List<SunlightEntry> pay2 = ctx.ledger.rowsOf(kGuardPayRefType);
       expect(pay2.length, 2, reason: '🔴 第二场必须在账本多落一条 guard_pay');
-      expect(pay2.first.net, -5.0, reason: '第一场：−5 ☀（写死数字，不从实现常量反推）');
-      expect(pay2.last.net, -5.0, reason: '第二场：−5 ☀');
-      expect(ctx.ledger.netOf(kGuardPayRefType), -10.0,
-          reason: '两场合计必须 −10 ☀');
+      expect(pay2.first.net, -10.0, reason: '第一场：−10 ☀（写死数字，不从实现常量反推）');
+      expect(pay2.last.net, -10.0, reason: '第二场：−10 ☀');
+      expect(ctx.ledger.netOf(kGuardPayRefType), -20.0,
+          reason: '两场合计必须 −20 ☀');
       expect(pay2.last.id, 'guard_pay_${_childId}_${_today}_a1',
           reason: '第二场 id 带场次后缀 `_a1` ⇒ 不会再被主键去重静默丢弃');
 
@@ -384,16 +385,16 @@ void main() {
       expect(ctx.ledger.rowsOf(kGuardWinRefType).last.id,
           'guard_win_${_childId}_${_today}_a1');
 
-      // 余额：第二场的扣费行上 balanceAfter 严格比第一场结束时少 5。
-      expect(pay2.last.balanceAfter, balanceAfterFirst - 5,
-          reason: '🔴 「余额少 5」的直接证据：第二行账本的 balanceAfter = 第一场余额 − 5');
+      // 余额：第二场的扣费行上 balanceAfter 严格比第一场结束时少 10。
+      expect(pay2.last.balanceAfter, balanceAfterFirst - 10,
+          reason: '🔴 「余额少 10」的直接证据：第二行账本的 balanceAfter = 第一场余额 − 10');
       expect(ctx.balance,
-          balanceAfterFirst - 5 + second.winSun.toDouble(),
-          reason: '期末余额 = 第一场余额 − 5 + 第二场必得阳光');
+          balanceAfterFirst - 10 + second.winSun.toDouble(),
+          reason: '期末余额 = 第一场余额 − 10 + 第二场必得阳光');
     });
 
     test('第三场继续加后缀（不是「只对第二次特殊处理」）', () async {
-      final _Ctx ctx = _make(balance: 20);
+      final _Ctx ctx = _make(balance: 60);
 
       await ctx.guard.resolve(now: _now());
       await ctx.guard.claim(now: _now());
@@ -404,7 +405,7 @@ void main() {
             reason: '第 ${round + 1} 场的序号必须等于当日已完成的 guard_win 行数');
         final GuardClaimOutcome out = await ctx.guard.claim(now: _now());
         expect(out.paidSun, kGuardPayCost,
-            reason: '第 ${round + 1} 场同样要真扣 5 ☀');
+            reason: '第 ${round + 1} 场同样要真扣阳光');
       }
 
       final List<String> ids = <String>[
@@ -415,7 +416,7 @@ void main() {
         'guard_pay_${_childId}_${_today}_a1',
         'guard_pay_${_childId}_${_today}_a2',
       ], reason: '三场三行，后缀按场次序号递增');
-      expect(ctx.ledger.netOf(kGuardPayRefType), -15.0);
+      expect(ctx.ledger.netOf(kGuardPayRefType), -30.0);
     });
   });
 

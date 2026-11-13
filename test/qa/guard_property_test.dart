@@ -124,36 +124,40 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════
-  // V8-3 掉落 6 档
-  // 🔴 B13.5（玄参拍板）：经验分布对拍**免费表字面量** [0.21, 0.12, 0.09,
-  //    0.05, 0.03, 0.50]（none 50%）。旧 PRD §3.7 表 [0.35, 0.20, 0.15,
-  //    0.08, 0.04, 0.18] 已退役 —— `GuardDropKind.rate` 字段只作历史测算
-  //    口径保留，实测不再对拍它。
+  // V8-3 掉落 10 档（B13.20：9 券 + none）
+  // 🔴 B13.20（玄参 2026-11-13）：**统一券池制**——spec.rate 语义 = 免费档
+  //    全口径（5 种非免费券各 14% + 4 种免费券 0% + none 30%），与
+  //    PRD §3.7 / kGuardDropRatePerVoucherFree 三处同源。
   // ══════════════════════════════════════════════════════════════════════
-  group('V8-3 掉落 6 档概率和 == 1.0', () {
-    test('字面量 [0.35, 0.20, 0.15, 0.08, 0.04, 0.18]（⚠️ 历史口径，仅锁 spec.rate 不回归）', () {
+  group('V8-3 掉落 10 档概率和 == 1.0', () {
+    test('spec.rate = B13.20 免费档全口径（三处同源，逐位一致）：[0.14×5, 0, 0, 0, 0, 0.30]', () {
       final List<double> rates = GuardDropKind.values
           .map((GuardDropKind k) => k.rate)
           .toList();
-      expect(rates, <double>[0.35, 0.20, 0.15, 0.08, 0.04, 0.18]);
+      expect(rates, <double>[
+        0.14, 0.14, 0.14, 0.14, 0.14, // 券池 5 种非免费券（water/labor/fert/meal/boost）
+        0, 0, 0, 0, // 4 种免费券：只进高级宝箱
+        0.30, // none 闸门
+      ]);
       expect(rates.fold<double>(0, (double a, double b) => a + b),
           closeTo(1.0, 1e-12));
     });
 
-    test('B13.5 免费表字面量和 == 1.0：[0.21, 0.12, 0.09, 0.05, 0.03, 0.50]', () {
+    test('B13.20 免费档字面量和 == 1.0：5×0.14 + 0.30', () {
       const List<double> freeTable = <double>[
-        0.21, 0.12, 0.09, 0.05, 0.03, 0.50,
+        0.14, 0.14, 0.14, 0.14, 0.14, 0, 0, 0, 0, 0.30,
       ];
       expect(freeTable.fold<double>(0, (double a, double b) => a + b),
           closeTo(1.0, 1e-12));
     });
 
-    test('200 组实测分布偏差 < 0.05（对拍 B13.5 免费表字面量），且 6 档全部出现过', () {
+    test('200 组实测分布偏差 < 0.05（对拍 B13.20 免费档字面量），券池 5 档全部出现过', () {
       // 🔴 期望值是**字面量**（与 GuardDropKind.values 同序：
-      //    water / labor / fertilize / freeWater / freeFertilize / none），
+      //    water / labor / fertilize / focusMeal / focusBoost /
+      //    freeWater / freeFertilize / freeWater3 / freeFertilize2 / none），
       //    不 import 实现表 —— 实现改错、期望不跟（本文件头铁律）。
       const List<double> freeTable = <double>[
-        0.21, 0.12, 0.09, 0.05, 0.03, 0.50,
+        0.14, 0.14, 0.14, 0.14, 0.14, 0, 0, 0, 0, 0.30,
       ];
       final Map<GuardDropKind, int> counts = <GuardDropKind, int>{
         for (final GuardDropKind k in GuardDropKind.values) k: 0,
@@ -170,18 +174,31 @@ void main() {
         final GuardDropKind k = order[i];
         final double actual = counts[k]! / n;
         expect((actual - freeTable[i]).abs(), lessThan(0.05),
-            reason: '${k.id} 实测 $actual，期望（免费表）${freeTable[i]}');
-        expect(counts[k], greaterThan(0), reason: '${k.id} 一次都没出现');
+            reason: '${k.id} 实测 $actual，期望（B13.20 免费档全口径）${freeTable[i]}');
+        if (freeTable[i] == 0) {
+          // 🔴 B13.20：免费券只在高级宝箱出现，掉落层 200 组实测必须 **0 次**。
+          expect(counts[k], 0, reason: '${k.id} 不该出现在掉落层（免费券只进高级宝箱）');
+        } else {
+          expect(counts[k], greaterThan(0), reason: '${k.id} 一次都没出现');
+        }
       }
     });
 
-    test('两种免费券 singlePotOnly == true，其余 == false（A10 数据源）', () {
-      expect(GuardDropKind.freeWater.singlePotOnly, isTrue);
-      expect(GuardDropKind.freeFertilize.singlePotOnly, isTrue);
+    test('四种免费券 singlePotOnly == true，其余（含专注券）== false（A10 数据源）', () {
+      for (final GuardDropKind k in <GuardDropKind>[
+        GuardDropKind.freeWater,
+        GuardDropKind.freeFertilize,
+        GuardDropKind.freeWater3,
+        GuardDropKind.freeFertilize2,
+      ]) {
+        expect(k.singlePotOnly, isTrue, reason: '${k.id} 必须是单株限定');
+      }
       for (final GuardDropKind k in <GuardDropKind>[
         GuardDropKind.waterVoucher,
         GuardDropKind.laborVoucher,
         GuardDropKind.fertilizeVoucher,
+        GuardDropKind.focusMeal,
+        GuardDropKind.focusBoost,
         GuardDropKind.none,
       ]) {
         expect(k.singlePotOnly, isFalse, reason: '${k.id} 不该是单株限定');

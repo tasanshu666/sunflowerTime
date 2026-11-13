@@ -118,10 +118,19 @@ class GuardChestRoll {
   /// 箱体档位（决定「有没有附加奖励」与「阳光是否翻倍」）。
   final GuardChestTier tier;
 
+  /// 本箱的**首张券**（🔴 B13.20 新增字段；[GuardDropKind.none] = 今天无券）。
+  ///
+  /// B13.20 起「免费券只在高级宝箱」：高级宝箱的首张券由派生层从**全券池
+  /// 9 种**等概率重挑（可能是一张免费券），普通宝箱则原样透传
+  /// `deriveGuardRoll` 的 `drop`（5 种非免费券池 / 无道具）。
+  /// `GuardService.resolve` 把本值落盘为 `GuardDayState.dropKind`。
+  final GuardDropKind firstDrop;
+
   /// 第二张 buff 券（[GuardDropKind.none] = 没有第二张）。
   ///
-  /// 🔴 恒与 [GuardDropKind.none] **不同种**（派生时从「除首张外 4 种券」里挑），
-  /// 且只有 [GuardChestTier.premium] 且当天首张已掉券时才可能非空。
+  /// 🔴 恒与首张 [GuardDropKind.none] **不同种**（派生时从「除首张外 8 种券」
+  /// 里挑，B13.20 券库 9 种），且只有 [GuardChestTier.premium] 且当天首张已掉券
+  /// 时才可能非空。
   final GuardDropKind bonusDrop;
 
   /// 碎片数量（`0` = 没有；否则 [kGuardChestFragmentQtyMin] ~
@@ -139,13 +148,14 @@ class GuardChestRoll {
 
   const GuardChestRoll({
     this.tier = GuardChestTier.normal,
+    this.firstDrop = GuardDropKind.none,
     this.bonusDrop = GuardDropKind.none,
     this.fragmentQty = 0,
     this.seedKind = GuardSeedKind.none,
     this.seedSpeciesId,
   });
 
-  /// 「什么都没有的普通宝箱」（免费档 / 未命中任何附加项的默认结果）。
+  /// 「什么都没有的普通宝箱」（免费档无道具日的默认结果）。
   static const GuardChestRoll empty = GuardChestRoll();
 
   /// 有没有碎片。
@@ -164,6 +174,7 @@ class GuardChestRoll {
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'tier': tier.id,
+      'firstDrop': firstDrop.id,
       'bonusDrop': bonusDrop.id,
       'fragmentQty': fragmentQty,
       'seedKind': seedKind.id,
@@ -171,8 +182,9 @@ class GuardChestRoll {
     };
   }
 
-  /// 反序列化（**缺字段 / 脏数据一律兜底**：`tier` → normal、`bonusDrop` → none、
-  /// `fragmentQty` → 0、`seedKind` → none、`seedSpeciesId` → null）。
+  /// 反序列化（**缺字段 / 脏数据一律兜底**：`tier` → normal、`firstDrop` /
+  /// `bonusDrop` → none、`fragmentQty` → 0、`seedKind` → none、
+  /// `seedSpeciesId` → null）。
   ///
   /// 绝不抛异常：一份坏掉的存档不该让孩子打不开今日页。
   factory GuardChestRoll.fromJson(Map<String, Object?> json) {
@@ -185,6 +197,7 @@ class GuardChestRoll {
     final GuardSeedKind kind = guardSeedKindFromId(_stringOf(json['seedKind']));
     return GuardChestRoll(
       tier: guardChestTierFromId(_stringOf(json['tier'])),
+      firstDrop: guardDropKindFromId(_stringOf(json['firstDrop'])),
       bonusDrop: guardDropKindFromId(_stringOf(json['bonusDrop'])),
       // 负数 / 脏值收敛成 0（宁可少发，也不让一个坏存档写出负片数）。
       fragmentQty: qty > 0 ? qty : 0,
@@ -198,6 +211,7 @@ class GuardChestRoll {
   /// 避免 `x ?? this.x` 那种「可空字段清不掉」的老坑，见 `Plant.kClear`）。
   GuardChestRoll copyWith({
     GuardChestTier? tier,
+    GuardDropKind? firstDrop,
     GuardDropKind? bonusDrop,
     int? fragmentQty,
     GuardSeedKind? seedKind,
@@ -206,6 +220,7 @@ class GuardChestRoll {
   }) {
     return GuardChestRoll(
       tier: tier ?? this.tier,
+      firstDrop: firstDrop ?? this.firstDrop,
       bonusDrop: bonusDrop ?? this.bonusDrop,
       fragmentQty: fragmentQty ?? this.fragmentQty,
       seedKind: seedKind ?? this.seedKind,
@@ -219,6 +234,7 @@ class GuardChestRoll {
       identical(this, other) ||
       other is GuardChestRoll &&
           other.tier == tier &&
+          other.firstDrop == firstDrop &&
           other.bonusDrop == bonusDrop &&
           other.fragmentQty == fragmentQty &&
           other.seedKind == seedKind &&
@@ -227,6 +243,7 @@ class GuardChestRoll {
   @override
   int get hashCode => Object.hash(
         tier,
+        firstDrop,
         bonusDrop,
         fragmentQty,
         seedKind,
@@ -234,7 +251,8 @@ class GuardChestRoll {
       );
 
   @override
-  String toString() => 'GuardChestRoll(${tier.id}, bonus=${bonusDrop.id}, '
+  String toString() => 'GuardChestRoll(${tier.id}, first=${firstDrop.id}, '
+      'bonus=${bonusDrop.id}, '
       'fragments=$fragmentQty, seed=${seedKind.id}, species=$seedSpeciesId)';
 }
 

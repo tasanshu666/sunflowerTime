@@ -5,7 +5,7 @@
 /// ## 本文件钉死的 10 条红线（每条都能真红：改坏实现即失败）
 /// | # | 红线 | 断言口径 |
 /// |---|---|---|
-/// | A1 | 先能量后阳光 | 有 1 点能量 ⇒ `paidSun == 0`、账本只有 1 行 `guard_win`；能量 0 才扣 5 |
+/// | A1 | 先能量后阳光 | 有 1 点能量 ⇒ `paidSun == 0`、账本只有 1 行 `guard_win`；能量 0 才扣 [kGuardPayCost] |
 /// | A2 | 余额不足不许扣钱 | 余额 3 + 无能量 ⇒ 失败、账本 0 行、余额仍 3 |
 /// | A3 | 余额钳制 | 余额 2 被偷 3 ⇒ 余额 **0**（不是 −1） |
 /// | A4 | 幂等 | 连调两次 `claim()` ⇒ 只扣一次钱、只发一次奖励 |
@@ -23,7 +23,7 @@ library guard_service_test;
 import 'package:test/test.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart'
-    show kGuardWinSunNoItem;
+    show kGuardPayCost, kGuardWinSunNoItem;
 import 'package:sunflower_time/core/utils/datetime_ext.dart' show dayKey;
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -459,7 +459,7 @@ void main() {
       expect(out.energyAvailable, 0, reason: '1 点能量已用完');
     });
 
-    test('能量为 0 时才扣 5 ☀（100 − 5 + 2 = 97）', () async {
+    test('能量为 0 时才扣阳光（100 − kGuardPayCost + 2）', () async {
       final _Ctx ctx = _make(
         balance: 100,
         plants: <Plant>[_plant('p1')],
@@ -474,15 +474,15 @@ void main() {
 
       expect(out.ok, isTrue);
       expect(out.usedEnergy, isFalse);
-      expect(out.paidSun, 5, reason: '🔴 无能量 → 5 ☀');
+      expect(out.paidSun, kGuardPayCost, reason: '🔴 无能量 → 扣 kGuardPayCost ☀');
       expect(ctx.ledger.countOf('guard_pay'), 1);
       expect(ctx.ledger.countOf('guard_win'), 1);
-      expect(ctx.balance, 97);
+      expect(ctx.balance, 100 - kGuardPayCost + 2);
       expect(ctx.state.energyUsed, 0, reason: '付费路径不消耗能量点');
-      expect(ctx.state.paidSun, 5);
+      expect(ctx.state.paidSun, kGuardPayCost);
     });
 
-    test('能量足够但 useEnergy=false ⇒ 强制付费 5 ☀', () async {
+    test('能量足够但 useEnergy=false ⇒ 强制付费 kGuardPayCost ☀', () async {
       final _Ctx ctx = _make(
         balance: 100,
         plants: <Plant>[_plant('p1')],
@@ -495,7 +495,7 @@ void main() {
       final GuardClaimOutcome out = await ctx.guard.claim(useEnergy: false);
 
       expect(out.usedEnergy, isFalse);
-      expect(out.paidSun, 5);
+      expect(out.paidSun, kGuardPayCost);
       expect(out.energyAvailable, 2, reason: '能量一点没动');
     });
   });
@@ -518,15 +518,16 @@ void main() {
       expect(ctx.state.isClaimed, isFalse, reason: '失败不改写状态');
     });
 
-    test('恰好 5 ☀：可以付（边界，扣到 0）', () async {
-      final _Ctx ctx = _make(balance: 5, plants: <Plant>[_plant('p1')]);
+    test('恰好 kGuardPayCost ☀：可以付（边界，扣到 0）', () async {
+      final _Ctx ctx = _make(
+          balance: kGuardPayCost.toDouble(), plants: <Plant>[_plant('p1')]);
       await ctx.store.write(_childId, _pendingState(winSun: 2));
 
       final GuardClaimOutcome out = await ctx.guard.claim();
 
       expect(out.ok, isTrue);
-      expect(out.paidSun, 5);
-      expect(ctx.balance, 2, reason: '5 − 5 + 2');
+      expect(out.paidSun, kGuardPayCost);
+      expect(ctx.balance, 2, reason: 'kGuardPayCost − kGuardPayCost + 2');
     });
 
     test('还没 resolve（空存档）⇒ notResolved，不扣钱', () async {
@@ -609,15 +610,15 @@ void main() {
 
   // ───────────────────────── A4：幂等 ─────────────────────────
   group('A4 幂等：重复点击只扣一次钱、只发一次奖励', () {
-    test('同一天连调 claim 两次 ⇒ 账本恒为 2 行、余额恒为 97', () async {
+    test('同一天连调 claim 两次 ⇒ 账本恒为 2 行、余额恒为 100 − kGuardPayCost + 2', () async {
       final _Ctx ctx = _make(balance: 100, plants: <Plant>[_plant('p1')]);
       await ctx.store.write(_childId, _pendingState(winSun: 2));
 
       final GuardClaimOutcome first = await ctx.guard.claim();
       expect(first.alreadyClaimed, isFalse);
-      expect(first.paidSun, 5);
+      expect(first.paidSun, kGuardPayCost);
       expect(ctx.ledger.entries.length, 2, reason: '1 行 guard_pay + 1 行 guard_win');
-      expect(ctx.balance, 97);
+      expect(ctx.balance, 100 - kGuardPayCost + 2);
 
       final GuardClaimOutcome second = await ctx.guard.claim();
 
@@ -626,7 +627,7 @@ void main() {
       expect(ctx.ledger.entries.length, 2, reason: '🔴 第二次一个字都不写');
       expect(ctx.ledger.countOf('guard_pay'), 1);
       expect(ctx.ledger.countOf('guard_win'), 1);
-      expect(ctx.balance, 97);
+      expect(ctx.balance, 100 - kGuardPayCost + 2);
     });
 
     test('状态被清回 pending（模拟 prefs 写失败）⇒ 账本读判定仍然幂等', () async {
@@ -641,7 +642,7 @@ void main() {
 
       expect(again.alreadyClaimed, isTrue);
       expect(ctx.ledger.entries.length, 2, reason: '🔴 绝不重复发');
-      expect(ctx.balance, 97);
+      expect(ctx.balance, 100 - kGuardPayCost + 2);
     });
 
     test('确定性 id：guard_pay / guard_win 的 id 带 childId + dayKey', () async {

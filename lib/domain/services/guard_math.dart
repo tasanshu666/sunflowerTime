@@ -9,7 +9,8 @@
 ///     时长零相关」）；
 ///  2. **封顶**：每株每天最多被偷 [kGuardGrowthStealPerPlantDailyCap]，否则 30 天
 ///     成株会变成 37.5 天（= 第二个成长系统）；
-///  3. **单株限制 + 累计封顶**：免费券绝不整批、浇水券/劳动券当日封顶，否则一键
+///  3. **单株限制 + 累计封顶**：免费券「前 N 次免费、批量按盆计数」（B13.20）
+///     、浇水券/劳动券当日不限次（B13.4）——总额度恒由 quota 钳死，否则一键
 ///     批量会把券放大 5~6 倍（`test/guard/guard_math_test.dart` 钉死 A10/A11/A12）。
 ///
 /// 纯函数化后这三条全部可以单测，不依赖数据库、不依赖时钟。
@@ -262,8 +263,9 @@ Plant applyGrowthTheft(Plant plant, double pp) {
 /// | [GuardDropKind.waterVoucher] | 每盆每次 −[kGuardWaterVoucherSave]，按 [potCount] 盆累加，**当日不限次**（B13.4，原 6 ☀ 封顶废除） | 相加（故本函数不重复算称号） |
 /// | [GuardDropKind.laborVoucher] | 每次清理 +[kGuardLaborVoucherBonus]，按 [cleanCount] 次累加，**当日不限次**（B13.4，原 4 ☀ 封顶废除） | 加在称号之后（同上） |
 /// | [GuardDropKind.fertilizeVoucher] | 今日**每次**施肥 −[kGuardFertilizerVoucherSave]，按 [potCount] 累加、**封顶 [kGuardFertilizerVoucherQuota]** | 相加 |
-/// | [GuardDropKind.freeWater] | **只算 1 盆**（[potCount] 无效），省 = 该盆实际水价 [waterCostOf] | 归零（故随称号减免而变小） |
-/// | [GuardDropKind.freeFertilize] | **只算 1 盆**（[potCount] 无效），省 = 该盆实际肥价 [fertilizeCostOf] | 归零 |
+/// | [GuardDropKind.freeWater] | B13.20 起「前 1 次免费」：单盆口径省 = 该盆实际水价 [waterCostOf]；批量按盆计数由调用方（`overlaySequenceFor`）算 | 归零（故随称号减免而变小） |
+/// | [GuardDropKind.freeFertilize] | 同上（肥价 [fertilizeCostOf]） | 归零 |
+/// | [GuardDropKind.focusMeal] / [GuardDropKind.focusBoost] | **被动券**：不在养护链路生效，节省额恒 0（生效点 = 专注结算） | — |
 /// | [GuardDropKind.none] | 0 | — |
 ///
 /// 🔴 **两个计数参数的语义必须分开传**（主理人裁决 6.4）：
@@ -314,6 +316,17 @@ double voucherSavingOf(
       return waterCostOf(effectivePerk).toDouble();
     case GuardDropKind.freeFertilize:
       return fertilizeCostOf(effectivePerk).toDouble();
+    case GuardDropKind.freeWater3:
+      // 🔴 B13.19/B13.20：同免费浇水券，×3 只体现在当日额度（quota=3）与
+      // 面值口径；单次节省额相同（批量按盆计数由调用方逐盆累计）。
+      return waterCostOf(effectivePerk).toDouble();
+    case GuardDropKind.freeFertilize2:
+      // 🔴 B13.19/B13.20：同免费施肥券，×2 只体现在额度（quota=2）。
+      return fertilizeCostOf(effectivePerk).toDouble();
+    case GuardDropKind.focusMeal:
+    case GuardDropKind.focusBoost:
+      // 🔴 B13.20：被动券不在养护链路生效（专注结算专用）⇒ 节省额恒 0。
+      return 0;
     case GuardDropKind.none:
       return 0;
   }

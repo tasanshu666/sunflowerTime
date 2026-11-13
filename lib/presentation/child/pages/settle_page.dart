@@ -656,6 +656,18 @@ class _SettlePageState extends ConsumerState<SettlePage>
                           ),
                         ),
                       ],
+                      // 🔴 B13.20：专注加成券（加餐 +10 / 放大 +20%）——结算页
+                      // 正式数据行（与 F98 任务奖励行同级）。持券且生效时显示
+                      // 合计到账，未持券 / 未生效不占行（保持旧布局逐位不变）。
+                      if ((settlement?.voucherBonusTotal ?? 0) > 0) ...[
+                        const SizedBox(height: 8),
+                        _StatRow(
+                          label: l10n.child_settle_voucher_bonus,
+                          value: _mask(
+                            '+${settlement!.voucherBonusTotal.round()} ☀️',
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       _StatRow(
                         label: l10n.child_settle_today_total,

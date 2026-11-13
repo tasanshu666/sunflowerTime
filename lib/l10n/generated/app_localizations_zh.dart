@@ -271,6 +271,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_settle_task_reward => '任务奖励';
 
   @override
+  String get child_settle_voucher_bonus => '券加成';
+
+  @override
   String get child_settle_today_total => '今日累计';
 
   @override
@@ -2486,8 +2489,8 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String premium_table_guard_premium(int d) {
-    return '必掉券 · $d% 概率掉两张';
+  String premium_table_guard_premium(int c, int d) {
+    return '必掉券 · $c% 掉高级宝箱（阳光翻倍 · 含免费券 · 双券 $d%）';
   }
 
   @override
@@ -3516,10 +3519,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guard_drop_name_fertilize_voucher => '施肥券';
 
   @override
+  String get guard_drop_name_focus_meal => '专注加餐券';
+
+  @override
+  String get guard_drop_name_focus_boost => '专注放大券';
+
+  @override
   String get guard_drop_name_free_water => '免费浇水券';
 
   @override
   String get guard_drop_name_free_fertilize => '免费施肥券';
+
+  @override
+  String get guard_drop_name_free_water_3 => '免费浇水券（3 次）';
+
+  @override
+  String get guard_drop_name_free_fertilize_2 => '免费施肥券（2 次）';
 
   @override
   String get guard_pill_pending => '偷菜贼来了，现在赶跑它吧';
@@ -3555,7 +3570,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get guard_tutorial_body =>
-      '认真专注满 15 分钟，就能攒 1 个能量点，一天最多攒 2 个。有能量点，向日葵战士就能免费出击，帮你赶跑偷菜的怪物！';
+      '认真专注满 15 分钟，就能攒 1 个能量点，一天最多攒 2 个。有能量点，向日葵战士就能免费出击，帮你赶跑偷菜的怪物！战斗中，点击屏幕上的阳光胶囊，就能帮助向日葵战士发动攻击，赶跑偷菜的怪物！';
 
   @override
   String guard_tutorial_paid_hint(int cost) {
@@ -3614,9 +3629,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String guard_result_title(String thief) {
-    return '赶走了$thief';
-  }
+  String get guard_result_title => '花园守卫成功，赶走了贪吃的小动物';
 
   @override
   String guard_result_gain(int sun) {
@@ -3663,11 +3676,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get guard_intro_energy_body_free =>
-      '能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，免费一天最多 1 个。没有能量点也能守卫——花 5 阳光请战士出战就行。';
+      '能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，免费一天最多 1 个。没有能量点也能守卫——花 10 阳光请战士出战就行。';
 
   @override
   String get guard_intro_energy_body_premium =>
-      '能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，一天最多 2 个。没有能量点也能守卫——花 5 阳光请战士出战就行。';
+      '能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，一天最多 2 个。没有能量点也能守卫——花 10 阳光请战士出战就行。';
 
   @override
   String get guard_energy_locked_hint => '完整版每天有 2 颗能量点哦';
@@ -3735,10 +3748,34 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guard_voucher_desc_fertilize => '今日施肥每次可减少 2 阳光消耗';
 
   @override
-  String get guard_voucher_desc_free_water => '今日任选一盆，浇水一次完全免费';
+  String get guard_voucher_desc_free_water => '今日第 1 次浇水完全免费';
 
   @override
-  String get guard_voucher_desc_free_fertilize => '今日任选一盆，施肥一次完全免费';
+  String get guard_voucher_desc_free_fertilize => '今日第 1 次施肥完全免费';
+
+  @override
+  String get guard_voucher_name_free_water_3 => '免费浇水卡券（3 次）';
+
+  @override
+  String get guard_voucher_name_free_fertilize_2 => '免费施肥卡券（2 次）';
+
+  @override
+  String get guard_voucher_desc_free_water_3 => '今日前 3 次浇水完全免费';
+
+  @override
+  String get guard_voucher_desc_free_fertilize_2 => '今日前 2 次施肥完全免费';
+
+  @override
+  String get guard_voucher_name_focus_meal => '专注加餐卡券';
+
+  @override
+  String get guard_voucher_name_focus_boost => '专注放大卡券';
+
+  @override
+  String get guard_voucher_desc_focus_meal => '今日累计专注满 15 分钟，额外获得 10 阳光';
+
+  @override
+  String get guard_voucher_desc_focus_boost => '今日每场专注结算的阳光额外加 20%';
 
   @override
   String get guard_intro_locked => '还没遇到过';
@@ -3777,6 +3814,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get guard_voucher_short_free_fertilize => '免费施肥';
+
+  @override
+  String get guard_voucher_short_free_water_3 => '免费浇水3次';
+
+  @override
+  String get guard_voucher_short_free_fertilize_2 => '免费施肥2次';
+
+  @override
+  String get guard_voucher_short_focus => '专注';
 
   @override
   String guard_chip_inline_prefix(String action) {

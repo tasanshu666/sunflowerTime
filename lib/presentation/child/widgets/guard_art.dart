@@ -375,20 +375,28 @@ class GuardArt {
   ///
   /// * 浇水 / 劳动美术**无烤字**（名字 / 描述由 `GuardBuffChip` 叠 ARB 文字）；
   /// * 施肥美术自带烤字（zh「通用花肥」/ en 版）⇒ 按语言二选一；
-  /// * 免费浇水 / 免费施肥没有专属美术 ⇒ 复用浇水 / 施肥卡面（券名与描述
-  ///   仍用自己的 ARB 文案，卡面相同但文字不同，不混淆）。
+  /// * 免费浇水 / 免费施肥（含 B13.19 的 ×3 / ×2 版）没有专属美术 ⇒ 复用
+  ///   浇水 / 施肥卡面（券名与描述仍用自己的 ARB 文案，卡面相同但文字不同，
+  ///   不混淆）。
   static String voucherArtPath(GuardDropKind kind, {required bool isZh}) {
     switch (kind) {
       case GuardDropKind.waterVoucher:
       case GuardDropKind.freeWater:
+      case GuardDropKind.freeWater3:
         return _GuardAssetPaths.voucherWater;
       case GuardDropKind.laborVoucher:
         return _GuardAssetPaths.voucherLabor;
       case GuardDropKind.fertilizeVoucher:
       case GuardDropKind.freeFertilize:
+      case GuardDropKind.freeFertilize2:
         return isZh
             ? _GuardAssetPaths.voucherFertilizeZh
             : _GuardAssetPaths.voucherFertilizeEn;
+      case GuardDropKind.focusMeal:
+      case GuardDropKind.focusBoost:
+        // 🔴 B13.20：专注券暂无专属美术 ⇒ 复用浇水卡面兜底（券名 / 描述仍用
+        // 自己的 ARB 文案；与免费券「同卡面不同文字」同一处理方式）。
+        return _GuardAssetPaths.voucherWater;
       case GuardDropKind.none:
         return _GuardAssetPaths.voucherWater; // 不可达（chip 不渲染 none）
     }

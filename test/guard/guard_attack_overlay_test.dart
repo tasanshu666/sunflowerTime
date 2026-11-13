@@ -193,6 +193,6 @@ void main() {
   test('② 常量：攻击帧时长 300ms 与 kGuardCardLift 26 互不干扰', () {
     expect(kGuardSoldierAttackFlashMs, 300);
     // 🔴 B11：卡整体再上移 10（16 → 26），与开火攻击帧时长无关。
-    expect(kGuardCardLift, 26);
+    expect(kGuardCardLift, 36);
   });
 }

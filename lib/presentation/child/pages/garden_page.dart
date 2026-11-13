@@ -569,8 +569,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         );
   }
 
-  /// 一键批量：把 [PlantOneClickKind] 映射到**动作种类**（批量一律 `plantId: null`
-  /// ⇒ 免费券由 `overlayFor` / `recordConsumed` 双重拒绝，**绝不整批免费**）。
+  /// 一键批量：把 [PlantOneClickKind] 映射到**动作种类**（🔴 B13.20：免费券改
+  /// 「前 N 次免费、批量按盆计数」——批量确认卡的逐盆减免序列由
+  /// [GuardVoucherService.overlaySequenceFor] 按额度逐盆算准，总额度仍由
+  /// quota 钳死，经济不穿帮）。
   ///
   /// 枚举新增值时本 switch 会**编译失败**（比运行期兜底更早暴露），故不写 default。
   PlantPerk _perkForOneClick(PlantOneClickKind kind) {
@@ -585,6 +587,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   }
 
   /// 动作**成功后**核销一次券额度（失败不核销 = 不白送减免）。
+  ///
+  /// 🔴 B13.20：批量路径（`plantId: null`）**逐盆核销合法**（免费券「前 N 次
+  /// 免费」按盆计数）；额度用尽 / 券种类不符由 [GuardVoucherService.recordConsumed]
+  /// 内部空操作兜底。
   ///
   /// 券不可用 / 核销读失败 ⇒ 空操作（动作已完成，绝不因此给用户报错）。
   Future<void> _recordVoucherConsumed(

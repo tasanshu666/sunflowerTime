@@ -40,7 +40,7 @@ import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/i18n/enum_l10n.dart'
-    show guardDropName, guardThiefName;
+    show guardDropName;
 import 'package:sunflower_time/core/i18n/species_l10n.dart'
     show speciesNameOrNull;
 import 'package:sunflower_time/domain/entities/guard_chest.dart'
@@ -79,6 +79,7 @@ Future<GuardClaimOutcome?> showGuardResultCard(
   required Future<GuardClaimOutcome> Function() onCollect,
   int stolenSun = 0,
   bool showPremiumHint = false,
+  double uiScale = 1.0,
 }) {
   return showGeneralDialog<GuardClaimOutcome>(
     context: context,
@@ -99,6 +100,7 @@ Future<GuardClaimOutcome?> showGuardResultCard(
         onCollect: onCollect,
         stolenSun: stolenSun,
         showPremiumHint: showPremiumHint,
+        uiScale: uiScale,
       ),
     ),
   );
@@ -163,6 +165,14 @@ class GuardResultCard extends StatefulWidget {
   /// （打赢 = 没被偷；被偷/撤退不打广告）。
   final bool showPremiumHint;
 
+  /// 平板放大倍率（手机 1.0、iPad 11″ 1.3 / 13″ 1.6，同 `uiScaleOf`）。
+  ///
+  /// 🔴 B13.16（玄参 2026-11-12 iPad 截图反馈「结算卡狭长、没适应平板」）：
+  /// 卡宽上限 340 与立绘 / 奖励图高度（88 / 84 / 44）都是手机常量 ⇒ iPad 上
+  /// 卡是 340 宽的窄长条。本倍率作用于**几何**（卡宽上限、立绘 / 图标高度），
+  /// 文字仍走系统 textScaler 不乘（防双乘）；手机默认 1.0 逐位零回归。
+  final double uiScale;
+
   const GuardResultCard({
     super.key,
     required this.view,
@@ -170,6 +180,7 @@ class GuardResultCard extends StatefulWidget {
     required this.onCollect,
     this.stolenSun = 0,
     this.showPremiumHint = false,
+    this.uiScale = 1.0,
   });
 
   @override
@@ -256,8 +267,8 @@ class _GuardResultCardState extends State<GuardResultCard>
   Widget build(BuildContext context) {
     final AppLocalizations t = widget.l10n;
     final GuardTodayView view = widget.view;
-    final String thiefName =
-        view.thief == null ? '' : guardThiefName(view.thief!, t);
+    // 🔴 2026-11-12 玄参裁定：怪物同场交叉后，出场的怪不再恒等于贼种，
+    //    标题改通用文案（l10n guard_result_title），不再指名 guardThiefName。
     final bool isZh =
         Localizations.localeOf(context).languageCode.startsWith('zh');
     // 🔴 Guard-B13.11：高级宝箱的附加奖励各占一张卡；普通宝箱**一张都不渲染**
@@ -288,7 +299,8 @@ class _GuardResultCardState extends State<GuardResultCard>
               child: Container(
                 key: GuardResultCard.cardKey,
                 padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
-                constraints: const BoxConstraints(maxWidth: 340),
+                constraints:
+                    BoxConstraints(maxWidth: 340 * widget.uiScale),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFFBF1),
                   borderRadius: BorderRadius.circular(26),
@@ -309,9 +321,9 @@ class _GuardResultCardState extends State<GuardResultCard>
                   shrinkWrap: true,
                   padding: EdgeInsets.zero,
                   children: <Widget>[
-                    // ① 标题：赶走了馋光鼠
+                    // ① 标题（通用：花园守卫成功，赶走了贪吃的小动物）
                     Text(
-                      t.guard_result_title(thiefName),
+                      t.guard_result_title,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 18,
@@ -319,10 +331,10 @@ class _GuardResultCardState extends State<GuardResultCard>
                         color: Color(0xFF6B4A00),
                       ),
                     ),
-                    // ①′ 胜利战士立绘（B12）。
+                    // ①′ 胜利战士立绘（B12）；高度随平板倍率（B13.16）。
                     SizedBox(
                       key: GuardResultCard.winArtKey,
-                      height: 88,
+                      height: 88 * widget.uiScale,
                       child: GuardArt.soldierWin(),
                     ),
                     const SizedBox(height: 12),
@@ -539,7 +551,7 @@ class _GuardResultCardState extends State<GuardResultCard>
         children: <Widget>[
           Image.asset(
             'assets/rewards/sunlight.png',
-            height: 44,
+            height: 44 * widget.uiScale,
             fit: BoxFit.contain,
             errorBuilder: (_, __, ___) => const SizedBox(height: 44),
           ),
@@ -598,9 +610,10 @@ class _GuardResultCardState extends State<GuardResultCard>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          // 🔴 B13.7：券卡美术 84 高；B13.8 素材二次裁切后原比 276:294。
+          // 🔴 B13.7：券卡美术 84 高；B13.8 素材二次裁切后原比 276:294；
+          //    高度随平板倍率（B13.16，宽由 AspectRatio 联动）。
           SizedBox(
-            height: 84,
+            height: 84 * widget.uiScale,
             child: AspectRatio(
               aspectRatio: 276 / 294,
               child: GuardArt.voucherCard(kind, isZh: isZh),
@@ -638,7 +651,7 @@ class _GuardResultCardState extends State<GuardResultCard>
         children: <Widget>[
           Image.asset(
             'assets/rewards/fragment.png',
-            height: 44,
+            height: 44 * widget.uiScale,
             fit: BoxFit.contain,
             errorBuilder: (_, __, ___) => const SizedBox(height: 44),
           ),
@@ -688,7 +701,7 @@ class _GuardResultCardState extends State<GuardResultCard>
             view.chestSeedKind == GuardSeedKind.premium
                 ? 'assets/rewards/seed_premium.png'
                 : 'assets/rewards/seed_common.png',
-            height: 44,
+            height: 44 * widget.uiScale,
             fit: BoxFit.contain,
             errorBuilder: (_, __, ___) => const SizedBox(height: 44),
           ),

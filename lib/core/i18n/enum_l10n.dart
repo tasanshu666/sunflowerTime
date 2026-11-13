@@ -109,7 +109,8 @@ String guardThiefName(GuardThiefKind kind, AppLocalizations t) {
   }
 }
 
-/// 花园守卫 · 掉落券的展示名（浇水券 / 劳动券 / 施肥券 / 免费浇水券 / 免费施肥券）。
+/// 花园守卫 · 掉落券的展示名（浇水券 / 劳动券 / 施肥券 / 专注加餐券 / 专注放大券 /
+/// 免费浇水券 / 免费施肥券 / 免费浇水×3 / 免费施肥×2 —— B13.20 起券库 9 种）。
 ///
 /// 「无道具档」（[GuardDropKind.none]）**没有名字**：它是一条「今天没有券」的
 /// 数据，任何展示位都该走 `guard_result_nothing` 这类文案，而不是给它编一个名字
@@ -122,10 +123,18 @@ String guardDropName(GuardDropKind kind, AppLocalizations t) {
       return t.guard_drop_name_labor_voucher;
     case GuardDropKind.fertilizeVoucher:
       return t.guard_drop_name_fertilize_voucher;
+    case GuardDropKind.focusMeal:
+      return t.guard_drop_name_focus_meal;
+    case GuardDropKind.focusBoost:
+      return t.guard_drop_name_focus_boost;
     case GuardDropKind.freeWater:
       return t.guard_drop_name_free_water;
     case GuardDropKind.freeFertilize:
       return t.guard_drop_name_free_fertilize;
+    case GuardDropKind.freeWater3:
+      return t.guard_drop_name_free_water_3;
+    case GuardDropKind.freeFertilize2:
+      return t.guard_drop_name_free_fertilize_2;
     case GuardDropKind.none:
       return '';
   }

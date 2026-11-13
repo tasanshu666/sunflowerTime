@@ -41,6 +41,8 @@ import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart'
     show
+        kGuardFocusBoostRate,
+        kGuardFocusMealSun,
         kGuardFertilizerVoucherSave,
         kGuardLaborVoucherBonus,
         kGuardWaterVoucherSave;
@@ -81,10 +83,18 @@ class GuardBuffChip extends StatelessWidget {
         return t.guard_voucher_name_labor;
       case GuardVoucherKind.fertilize:
         return t.guard_voucher_name_fertilize;
+      case GuardVoucherKind.focusMeal:
+        return t.guard_voucher_name_focus_meal;
+      case GuardVoucherKind.focusBoost:
+        return t.guard_voucher_name_focus_boost;
       case GuardVoucherKind.freeWater:
         return t.guard_voucher_name_free_water;
       case GuardVoucherKind.freeFertilize:
         return t.guard_voucher_name_free_fertilize;
+      case GuardVoucherKind.freeWater3:
+        return t.guard_voucher_name_free_water_3;
+      case GuardVoucherKind.freeFertilize2:
+        return t.guard_voucher_name_free_fertilize_2;
       case null:
         return '';
     }
@@ -100,10 +110,18 @@ class GuardBuffChip extends StatelessWidget {
         return t.guard_voucher_name_labor;
       case GuardVoucherKind.fertilize:
         return t.guard_voucher_name_fertilize;
+      case GuardVoucherKind.focusMeal:
+        return t.guard_voucher_name_focus_meal;
+      case GuardVoucherKind.focusBoost:
+        return t.guard_voucher_name_focus_boost;
       case GuardVoucherKind.freeWater:
         return t.guard_voucher_short_free_water;
       case GuardVoucherKind.freeFertilize:
         return t.guard_voucher_short_free_fertilize;
+      case GuardVoucherKind.freeWater3:
+        return t.guard_voucher_short_free_water_3;
+      case GuardVoucherKind.freeFertilize2:
+        return t.guard_voucher_short_free_fertilize_2;
       case null:
         return '';
     }
@@ -118,9 +136,16 @@ class GuardBuffChip extends StatelessWidget {
         return t.guard_voucher_short_labor;
       case GuardVoucherKind.fertilize:
         return t.guard_voucher_short_fertilize;
+      case GuardVoucherKind.focusMeal:
+      case GuardVoucherKind.focusBoost:
+        return t.guard_voucher_short_focus;
       case GuardVoucherKind.freeWater:
         return t.guard_voucher_short_water;
       case GuardVoucherKind.freeFertilize:
+        return t.guard_voucher_short_fertilize;
+      case GuardVoucherKind.freeWater3:
+        return t.guard_voucher_short_water;
+      case GuardVoucherKind.freeFertilize2:
         return t.guard_voucher_short_fertilize;
       case null:
         return '';
@@ -138,8 +163,16 @@ class GuardBuffChip extends StatelessWidget {
         return '+$kGuardLaborVoucherBonus';
       case GuardVoucherKind.fertilize:
         return '-$kGuardFertilizerVoucherSave';
+      case GuardVoucherKind.focusMeal:
+        // 🔴 B13.20：加餐 = 达成后一次性 +10（用常量派生，禁写死）。
+        return '+${kGuardFocusMealSun.round()}';
+      case GuardVoucherKind.focusBoost:
+        // 🔴 B13.20：放大 = +20%（比例常量派生；输出不带小数点）。
+        return '+${(kGuardFocusBoostRate * 100).round()}%';
       case GuardVoucherKind.freeWater:
       case GuardVoucherKind.freeFertilize:
+      case GuardVoucherKind.freeWater3:
+      case GuardVoucherKind.freeFertilize2:
         return '0';
       case null:
         return '';
@@ -155,10 +188,18 @@ class GuardBuffChip extends StatelessWidget {
         return t.guard_voucher_desc_labor;
       case GuardVoucherKind.fertilize:
         return t.guard_voucher_desc_fertilize;
+      case GuardVoucherKind.focusMeal:
+        return t.guard_voucher_desc_focus_meal;
+      case GuardVoucherKind.focusBoost:
+        return t.guard_voucher_desc_focus_boost;
       case GuardVoucherKind.freeWater:
         return t.guard_voucher_desc_free_water;
       case GuardVoucherKind.freeFertilize:
         return t.guard_voucher_desc_free_fertilize;
+      case GuardVoucherKind.freeWater3:
+        return t.guard_voucher_desc_free_water_3;
+      case GuardVoucherKind.freeFertilize2:
+        return t.guard_voucher_desc_free_fertilize_2;
       case null:
         return '';
     }

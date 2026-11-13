@@ -58,11 +58,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // ════════════════════════════════════════════════════════════════════
-  // V1-1 付费赶贼：余额必须恰好 100 − 5 + winSun，账本恰好 2 行
+  // V1-1 付费赶贼：余额必须恰好 100 − 10 + winSun，账本恰好 2 行
   // ════════════════════════════════════════════════════════════════════
-  group('V1-1 付费赶贼：余额 = 100 − 5 + winSun，账本恰好 2 行', () {
+  group('V1-1 付费赶贼：余额 = 100 − 10 + winSun，账本恰好 2 行', () {
     for (final int winSun in <int>[3, 4, 5]) {
-      test('winSun=$winSun ⇒ 余额 ${100 - 5 + winSun}、2 行（−5 / +$winSun）', () async {
+      test('winSun=$winSun ⇒ 余额 ${100 - 10 + winSun}、2 行（−10 / +$winSun）', () async {
         final GuardProbeEnv env = await GuardProbeEnv.create(clock: _day);
         addTearDown(env.close);
         await env.seedPlant('p1');
@@ -76,7 +76,7 @@ void main() {
 
         expect(out.ok, isTrue);
         expect(out.usedEnergy, isFalse, reason: '没有专注记录 ⇒ 无能量 ⇒ 付费路径');
-        expect(out.paidSun, 5);
+        expect(out.paidSun, 10);
         expect(out.winSun, winSun);
 
         final List<SunlightEntry> guardRows = <SunlightEntry>[
@@ -88,8 +88,10 @@ void main() {
             guardRows.firstWhere((SunlightEntry e) => e.refType == 'guard_pay');
         final SunlightEntry win =
             guardRows.firstWhere((SunlightEntry e) => e.refType == 'guard_win');
-        expect(pay.net, -5.0, reason: '🔴 付费行金额必须是 −5（不是 −3 / −5.0 之外的数）');
-        expect(pay.gross, -5.0);
+        // 🔴 写死数字（不从实现常量反推）；2026-11-12 玄参裁定
+        // kGuardPayCost 5 → 10，本审计期望值随产品口径人工同步。
+        expect(pay.net, -10.0, reason: '🔴 付费行金额必须是 −10（不是 −3 / −10.0 之外的数）');
+        expect(pay.gross, -10.0);
         expect(win.net, winSun.toDouble());
         expect(win.gross, winSun.toDouble());
         expect(pay.refId, 'garden');
@@ -97,9 +99,9 @@ void main() {
         expect(pay.dayKey, env.today);
         expect(win.dayKey, env.today);
 
-        // 101 是「初始 100 + 两行流水」的唯一自洽结果（100 − 5 + winSun）。
-        expect(await env.ledger.balance(), (100 - 5 + winSun).toDouble());
-        expect(await env.ledger.balance() + 5 - winSun, 100.0,
+        // 100 − 10 + winSun 是「初始 100 + 两行流水」的唯一自洽结果。
+        expect(await env.ledger.balance(), (100 - 10 + winSun).toDouble());
+        expect(await env.ledger.balance() + 10 - winSun, 100.0,
             reason: '🔴 对账：余额 + 扣费 − 收入 必须回到初始 100');
       });
     }
@@ -123,8 +125,8 @@ void main() {
       final SunlightEntry pay = (await env.rowsOf('guard_pay')).single;
       expect(win.balanceAfter, finalBalance,
           reason: '🔴 最后一笔守卫流水的 balanceAfter 必须等于余额（对不上账即为 P0）');
-      expect(pay.balanceAfter, 95.0, reason: '扣费后瞬间余额 100 − 5');
-      expect(finalBalance, 98.0);
+      expect(pay.balanceAfter, 90.0, reason: '扣费后瞬间余额 100 − 10');
+      expect(finalBalance, 93.0);
     });
   });
 
@@ -191,8 +193,8 @@ void main() {
       final GuardClaimOutcome out = await env.guard.claim();
 
       expect(out.usedEnergy, isFalse);
-      expect(out.paidSun, 5, reason: '对照组：无效专注不许发能量');
-      expect(await env.ledger.balance(), 97.0);
+      expect(out.paidSun, 10, reason: '对照组：无效专注不许发能量');
+      expect(await env.ledger.balance(), 92.0);
     });
   });
 
@@ -225,7 +227,7 @@ void main() {
       expect((await env.rowsOf('guard_pay')).length, 1);
       expect((await env.rowsOf('guard_win')).length, 1);
       expect(await env.ledger.balance(), balanceAfter1);
-      expect(balanceAfter1, 97.0);
+      expect(balanceAfter1, 92.0);
     });
 
     test('免费路径连点 3 次：仍只有 1 行 guard_win、能量只消耗 1 点', () async {
@@ -326,10 +328,11 @@ void main() {
   });
 
   // ════════════════════════════════════════════════════════════════════
-  // V1-5 免费券绝不整批：一键 N 盆每盆付满 5、额度仍是 1
+  // V1-5 免费券「前 N 次免费、批量按盆计数」（B13.20）：一键 N 盆第 1 盆 0 ☀、
+  //      其余原价、额度恰好核销 1 次
   // ════════════════════════════════════════════════════════════════════
-  group('V1-5 免费浇水券绝不整批（PRD A10）', () {
-    test('一键 5 盆 ⇒ 每盆 5 ☀（合计 25）、remaining 仍为 1、未核销', () async {
+  group('V1-5 免费浇水券批量按盆计数（PRD A10 · B13.20）', () {
+    test('一键 5 盆 ⇒ [0, 5, 5, 5, 5]（合计 20）、remaining 0、核销 1 次', () async {
       final GuardProbeEnv env = await GuardProbeEnv.create(clock: _day);
       addTearDown(env.close);
       await env.seedBalance(1000);
@@ -353,7 +356,8 @@ void main() {
 
       final List<int> prices = <int>[];
       for (int i = 0; i < 5; i++) {
-        // 页面一键路径：批量一律 plantId == null。
+        // 页面一键路径：批量 plantId == null；B13.20 起免费券只看额度，
+        // 第 1 盆全免、额度用尽后自动回原价（按盆计数）。
         final PlantPerk perk = await env.vouchers.overlay(
           PlantPerk.none,
           kind: GuardVoucherKind.freeWater,
@@ -368,17 +372,18 @@ void main() {
         prices.add(price);
       }
 
-      expect(prices, <int>[5, 5, 5, 5, 5],
-          reason: '🔴 免费券在批量路径必须完全不生效（不是 0，也不是 20 的四盆价）');
-      expect(prices.fold<int>(0, (int a, int b) => a + b), 25);
-      expect((await env.vouchers.currentBuff())!.remaining, 1,
-          reason: '🔴 批量不得烧掉唯一的免费额度');
-      expect((await env.store.read(env.childId)).buff!.used, 0);
+      expect(prices, <int>[0, 5, 5, 5, 5],
+          reason: '🔴 B13.20：批量按盆计数 —— 前 1 盆免费、后 4 盆原价'
+              '（不是 0 全免、也不是 25 全价）');
+      expect(prices.fold<int>(0, (int a, int b) => a + b), 20);
+      expect((await env.vouchers.currentBuff())!.remaining, 0,
+          reason: '×1 券额度恰好被批量第 1 盆核销');
+      expect((await env.store.read(env.childId)).buff!.used, 1);
       expect(
         (await env.rowsOf('plant_water'))
             .map((SunlightEntry e) => (-e.net).round())
             .toList(),
-        <int>[5, 5, 5, 5, 5],
+        <int>[0, 5, 5, 5, 5],
       );
     });
 

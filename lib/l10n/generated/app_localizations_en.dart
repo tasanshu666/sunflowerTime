@@ -278,6 +278,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_settle_task_reward => 'Task Reward';
 
   @override
+  String get child_settle_voucher_bonus => 'Voucher Bonus';
+
+  @override
   String get child_settle_today_total => 'Today\'s Total';
 
   @override
@@ -2543,8 +2546,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String premium_table_guard_premium(int d) {
-    return 'Always a voucher · $d% chance of two';
+  String premium_table_guard_premium(int c, int d) {
+    return 'Always a voucher · $c% premium chest (double sun · free vouchers · $d% two vouchers)';
   }
 
   @override
@@ -3637,10 +3640,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get guard_drop_name_fertilize_voucher => 'Fertilizer Voucher';
 
   @override
+  String get guard_drop_name_focus_meal => 'Focus Treat Voucher';
+
+  @override
+  String get guard_drop_name_focus_boost => 'Focus Boost Voucher';
+
+  @override
   String get guard_drop_name_free_water => 'Free Water Voucher';
 
   @override
   String get guard_drop_name_free_fertilize => 'Free Fertilizer Voucher';
+
+  @override
+  String get guard_drop_name_free_water_3 => 'Free Water Voucher (3)';
+
+  @override
+  String get guard_drop_name_free_fertilize_2 => 'Free Fertilizer Voucher (2)';
 
   @override
   String get guard_pill_pending => 'A veggie thief is here — chase it away!';
@@ -3677,7 +3692,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get guard_tutorial_body =>
-      'Focus for 15 minutes to earn 1 energy point — up to 2 a day. With energy, your sunflower warrior charges out for free and chases the veggie thieves away!';
+      'Focus for 15 minutes to earn 1 energy point — up to 2 a day. With energy, your sunflower warrior charges out for free and chases the veggie thieves away! In battle, tap the sunlight capsule on screen to help your warrior fire attacks and drive the thieves away!';
 
   @override
   String guard_tutorial_paid_hint(int cost) {
@@ -3740,9 +3755,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String guard_result_title(String thief) {
-    return 'Chased away the $thief';
-  }
+  String get guard_result_title =>
+      'Garden guarded! The greedy critters ran off';
 
   @override
   String guard_result_gain(int sun) {
@@ -3790,11 +3804,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get guard_intro_energy_body_free =>
-      'Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 1 a day on the free version. No energy beans? You can still guard: spend 5 sunlight to send the soldier out.';
+      'Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 1 a day on the free version. No energy beans? You can still guard: spend 10 sunlight to send the soldier out.';
 
   @override
   String get guard_intro_energy_body_premium =>
-      'Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 2 a day. No energy beans? You can still guard: spend 5 sunlight to send the soldier out.';
+      'Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 2 a day. No energy beans? You can still guard: spend 10 sunlight to send the soldier out.';
 
   @override
   String get guard_energy_locked_hint =>
@@ -3867,11 +3881,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get guard_voucher_desc_free_water =>
-      'Pick one plant today — watering it is free';
+      'Your first watering today is free';
 
   @override
   String get guard_voucher_desc_free_fertilize =>
-      'Pick one plant today — fertilizing it is free';
+      'Your first fertilizing today is free';
+
+  @override
+  String get guard_voucher_name_free_water_3 => 'Free Watering Voucher (3)';
+
+  @override
+  String get guard_voucher_name_free_fertilize_2 =>
+      'Free Fertilizer Voucher (2)';
+
+  @override
+  String get guard_voucher_desc_free_water_3 =>
+      'Your first 3 waterings today are free';
+
+  @override
+  String get guard_voucher_desc_free_fertilize_2 =>
+      'Your first 2 fertilizings today are free';
+
+  @override
+  String get guard_voucher_name_focus_meal => 'Focus Treat Voucher';
+
+  @override
+  String get guard_voucher_name_focus_boost => 'Focus Boost Voucher';
+
+  @override
+  String get guard_voucher_desc_focus_meal =>
+      'Focus 15 minutes in total today to earn 10 bonus sunlight';
+
+  @override
+  String get guard_voucher_desc_focus_boost =>
+      'Every focus session today earns 20% extra sunlight';
 
   @override
   String get guard_intro_locked => 'Not met yet';
@@ -3913,6 +3956,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get guard_voucher_short_free_fertilize => 'Free feed';
+
+  @override
+  String get guard_voucher_short_free_water_3 => 'Free water (3)';
+
+  @override
+  String get guard_voucher_short_free_fertilize_2 => 'Free feed (2)';
+
+  @override
+  String get guard_voucher_short_focus => 'Focus';
 
   @override
   String guard_chip_inline_prefix(String action) {

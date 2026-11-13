@@ -32,6 +32,7 @@ import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart'
     show GuardBattleMonsterKind;
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/shared/responsive.dart' show uiScaleOf;
 
 /// 「已遇到的怪」prefs 键（字符串列表，值为 `m1` / `m2` / `m3`）。
 ///
@@ -85,7 +86,13 @@ Future<void> showGuardIntroDialog(
     barrierLabel: l10n.guard_intro_open,
     barrierColor: const Color(0xB31B1206),
     transitionDuration: const Duration(milliseconds: 200),
-    pageBuilder: (BuildContext _, Animation<double> __, Animation<double> ___) {
+    pageBuilder:
+        (BuildContext dialogCtx, Animation<double> __, Animation<double> ___) {
+      // 🔴 B13.18（玄参 2026-11-12 iPad 反馈「玩法说明卡片没有适应屏幕」）：
+      //    卡宽上限 360 / 卡高上限 640 原是手机常量 ⇒ iPad 上一条窄长条。
+      //    与守卫链路其余弹层（结算卡 B13.16）同口径：几何 × uiScaleOf，
+      //    文字不乘（走系统 textScaler，防双乘）。
+      final double ui = uiScaleOf(dialogCtx);
       return Center(
         child: Material(
           color: Colors.transparent,
@@ -93,7 +100,10 @@ Future<void> showGuardIntroDialog(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Container(
               key: const Key('guardIntroDialog'),
-              constraints: const BoxConstraints(maxWidth: 360, maxHeight: 640),
+              constraints: BoxConstraints(
+                maxWidth: 360 * ui,
+                maxHeight: 640 * ui,
+              ),
               decoration: BoxDecoration(
                 color: const Color(0xFFFFFBF1),
                 borderRadius: BorderRadius.circular(24),
@@ -105,7 +115,7 @@ Future<void> showGuardIntroDialog(
                   ),
                 ],
               ),
-              child: _IntroBody(l10n, isPremium: isPremium),
+              child: _IntroBody(l10n, isPremium: isPremium, uiScale: ui),
             ),
           ),
         ),
@@ -121,7 +131,10 @@ class _IntroBody extends ConsumerStatefulWidget {
   /// 权益档位（B13.8：能量正文免费 / 付费两套 key，见 [showGuardIntroDialog]）。
   final bool isPremium;
 
-  const _IntroBody(this.l10n, {this.isPremium = false});
+  /// 平板放大倍率（B13.18；手机 = 1.0）。只乘图鉴卡美术几何，文字不乘。
+  final double uiScale;
+
+  const _IntroBody(this.l10n, {this.isPremium = false, this.uiScale = 1.0});
 
   @override
   ConsumerState<_IntroBody> createState() => _IntroBodyState();
@@ -236,6 +249,7 @@ class _IntroBodyState extends ConsumerState<_IntroBody> {
   /// 单张图鉴卡（🟡 占位版式：素材 = 怪物进攻序列首帧，等玄参美术）。
   Widget _monsterCard(GuardThiefKind kind, Set<String> met) {
     final AppLocalizations t = widget.l10n;
+    final double ui = widget.uiScale; // B13.18：美术几何随平板放大，文字不乘
     final String monsterId = _monsterIdOf(kind);
     final bool unlocked = met.contains(monsterId);
     return Container(
@@ -252,7 +266,7 @@ class _IntroBodyState extends ConsumerState<_IntroBody> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
           SizedBox(
-            height: 52,
+            height: 52 * ui,
             child: Stack(
               alignment: Alignment.center,
               children: <Widget>[
@@ -260,15 +274,15 @@ class _IntroBodyState extends ConsumerState<_IntroBody> {
                   opacity: unlocked ? 1.0 : 0.25,
                   child: Image.asset(
                     'assets/guard/monster_${_monsterDirOf(kind)}/frame001.webp',
-                    height: 52,
+                    height: 52 * ui,
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) =>
-                        const SizedBox(height: 52, width: 52),
+                        SizedBox(height: 52 * ui, width: 52 * ui),
                   ),
                 ),
                 if (!unlocked)
-                  const Icon(Icons.lock_rounded,
-                      size: 22, color: Color(0xFF8A7A66)),
+                  Icon(Icons.lock_rounded,
+                      size: 22 * ui, color: const Color(0xFF8A7A66)),
               ],
             ),
           ),

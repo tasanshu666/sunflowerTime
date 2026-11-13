@@ -822,8 +822,8 @@ void main() {
     });
   });
 
-  group('⑦′ 全流程（付费路径）：确认后扣 5 ☀ 一次、发奖一次', () {
-    testWidgets('确认 → 战斗 → 结算 → 收下：pay/win 各恰好一行、paidSun = 5',
+  group('⑦′ 全流程（付费路径）：确认后扣 kGuardPayCost ☀ 一次、发奖一次', () {
+    testWidgets('确认 → 战斗 → 结算 → 收下：pay/win 各恰好一行、paidSun = kGuardPayCost',
         (WidgetTester tester) async {
       final _Env env = await _makeEnvWithChild(
           _findVoucherChild(dayKey(DateTime.now())));
@@ -853,7 +853,7 @@ void main() {
       expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 1,
           reason: '必得阳光必须恰好发一次');
       final GuardDayState state = await env.guardState();
-      expect(state.paidSun, 5);
+      expect(state.paidSun, kGuardPayCost);
       expect(state.status, GuardDayStatus.claimed);
     });
   });

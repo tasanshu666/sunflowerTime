@@ -85,7 +85,16 @@ class GuardSceneCard extends StatefulWidget {
   static const Key soldierKey = Key('guardBattleSoldier');
 
   /// 「开始守卫」按钮 Key（页面级流程测试据此点击）。
+  ///
+  /// 🔴 注意：此 Key 落在**右簇插槽容器**上（B13.5 口径：命中盒占满槽位
+  /// `rightClusterSize × uiScale`，不随内里 40 视觉钮缩），用于「点击 / 命中区」
+  /// 断言；**视觉钮尺寸**请用 [startButtonVisualKey]。
   static const Key startButtonKey = Key('guardSceneStartButton');
+
+  /// 「开始守卫」**视觉钮** Key（内层 `SizedBox(40 × uiScale)`；B13.5：
+  /// 实际可见的红底圆角方）。平板验收据此确认视觉尺寸随 [uiScale] 放大
+  /// （iPad 11″ 40 → 52 / 13″ → 64）。
+  static const Key startButtonVisualKey = Key('guardSceneStartButtonVisual');
 
   /// 「已完成守卫」徽标（B12 新增；claimed 态的右簇方块标识）。
   static const Key claimedBadgeKey = Key('guardSceneClaimedBadge');
@@ -136,6 +145,13 @@ class GuardSceneCard extends StatefulWidget {
   /// 为 null 时卡内自建一个（保活 widget 级测试与「卡自己也能开火」的旧用法）。
   final GuardBattleHandle? battleHandle;
 
+  /// **平板 UI 放大倍率**（来自 `uiScaleOf`，手机 = 1.0）。
+  ///
+  /// 🔴 守卫卡此前未走平板适配，iPad 上被拉成全宽窄带、房子/战士/按钮还是
+  /// 手机尺寸。本值在今日页由 `uiScaleOf(context)` 注入，使卡内几何与卡高
+  /// 等比放大（`GuardCardLayout` 据此乘同倍率）。默认 1.0 ⇒ 手机零回归。
+  final double uiScale;
+
   const GuardSceneCard({
     super.key,
     required this.view,
@@ -145,6 +161,7 @@ class GuardSceneCard extends StatefulWidget {
     this.onBattleFinished,
     this.debugScriptOverride,
     this.battleHandle,
+    this.uiScale = 1.0,
   });
 
   @override
@@ -204,8 +221,10 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
       label: _semanticsOf(view, t),
       child: SizedBox(
         key: GuardSceneCard.cardKey,
-        // 🔴 卡高不随字号 / 屏宽缩放（设计 §6.4；窄卡只缩卡内元素）。
-        height: kGuardSceneCardHeight,
+        // 🔴 卡高不随字号 / 屏宽缩放（设计 §6.4；窄卡只缩卡内元素），
+        //    但随平板 [uiScale] 放大（iPad 11″ 1.3 / 13″ 1.6）⇒ 卡不再是一条
+        //    全宽窄带（见 [GuardCardLayout.cardHeight]）。
+        height: kGuardSceneCardHeight * widget.uiScale,
         // 🔴 B8/A4：**不要外框** —— 卡根就是一个 SizedBox：没有 Container、
         // 没有 decoration（无描边、无圆角、无底色）、没有 ClipRRect。
         // 草地板自己就是卡的背景并铺满整张卡（玄参：「不要下面的框」）。
@@ -214,7 +233,7 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
           // LayoutBuilder 拿真实宽度，再派生唯一会变的那件事：通道宽度。
           builder: (BuildContext context, BoxConstraints constraints) {
             final GuardCardLayout layout =
-                GuardCardLayout(constraints.maxWidth);
+                GuardCardLayout(constraints.maxWidth, widget.uiScale);
 
             return Stack(
               clipBehavior: Clip.hardEdge,
@@ -260,6 +279,7 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                           ? (i == 0 && view.energyAvailable >= 1)
                           : i < view.energyAvailable,
                       locked: !widget.view.isPremium && i == 1,
+                      uiScale: widget.uiScale,
                       onTap: (!widget.view.isPremium && i == 1)
                           ? () => _showEnergyLockedHint(t)
                           : null,
@@ -303,6 +323,8 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                       },
                       // 开火受理 ⇒ 常驻战士切 300ms 攻击帧（战士在本卡渲染）。
                       onFireAccepted: _flashAttack,
+                      // 平板放大倍率透传（与卡同把尺子）。
+                      uiScale: widget.uiScale,
                       // B4：终局把 sim 的被偷合计透传给页面（取数链路
                       // sim 报告 → 页面 → 结算卡；本卡只转发、不落账）。
                       onFinished: (int stolenSun) =>
@@ -332,16 +354,27 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                 Positioned.fromRect(
                   rect: layout.rightClusterRect,
                   child: actionable
-                      ? _startButton(t)
-                      : (view.mode == GuardPillMode.claimed
+                      ? _startButton(t, widget.uiScale)
+                      : ((view.mode == GuardPillMode.claimed ||
+                              view.mode == GuardPillMode.freeRide)
                           // 🔴 B13：徽章含文字（旗子 +「成功守卫」），右簇槽位是
                           // 紧约束（窄卡内容区仅 ~30×40），文字会换行溢出 ——
                           // 用 FittedBox(scaleDown) 让整块徽章**等比缩**进槽位，
                           // 任何语言 / 字号 / 卡宽都不溢出（美术素材到位后整块替换）。
+                          // 🔴 2026-11-12（玄参「就两种视觉」）：freeRide（小雨顶班 /
+                          // 今日免守卫）原本右簇 `SizedBox.shrink()` 空白，iPad 上完全
+                          // 看不出状态；现归并到同一「胜利旗帜」视觉（Semantics 仍用
+                          // freeRide 文案，读屏准确）—— 守卫卡视觉从此只有
+                          // 「开始钮 / 旗帜」两种，消除空白。
                           ? Center(
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
-                                child: _claimedBadge(t),
+                                child: _claimedBadge(
+                                  t,
+                                  widget.uiScale,
+                                  isFreeRide:
+                                      view.mode == GuardPillMode.freeRide,
+                                ),
                               ),
                             )
                           : const SizedBox.shrink()),
@@ -403,7 +436,7 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
   /// 🔴 为什么不是文字按钮：`Start guard` 在 en 下曾占 188.8pt（吃掉 53% 卡宽）。
   /// 图标钮不随文案宽度变化 ⇒ 通道宽度在待机 / 战斗两态之间完全一致。
   /// 可读性由卡的 `Semantics.label` 承担（不参与布局，故不会被截断）。
-  Widget _startButton(AppLocalizations t) {
+  Widget _startButton(AppLocalizations t, double uiScale) {
     return Semantics(
       button: true,
       label: t.guard_scene_start,
@@ -417,9 +450,11 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
           // 圆角方 + 双太阳矛）—— 素材已在 GuardArt 单点覆盖。**外层 Key 容器
           // 仍占满槽位**：① 命中盒 ≥ 44pt 不缩；② v2 ①「按钮尺寸 ==
           // rightClusterSize」的断言口径不变。要再调大小只动这个 40。
+          // 🔴 平板：40 按 [uiScale] 放大（iPad 11″ → 52 / 13″ → 64），与卡同倍率。
           child: SizedBox(
-            width: 40,
-            height: 40,
+            key: GuardSceneCard.startButtonVisualKey,
+            width: 40 * uiScale,
+            height: 40 * uiScale,
             child: GuardArt.startButton(),
           ),
         ),
@@ -435,13 +470,16 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
   /// 版式 = 64×64 Stack：旗帜贴左下（60×60），文字贴右上（10pt 绿字 +
   /// 白色投影，压在草地 / 花丛上也要可读）。外层调用处的
   /// `Center + FittedBox(scaleDown)` 保留 —— 槽位再窄也只会等比缩、不溢出。
-  Widget _claimedBadge(AppLocalizations t) {
+  Widget _claimedBadge(AppLocalizations t, double uiScale,
+      {bool isFreeRide = false}) {
     return Semantics(
-      label: t.guard_scene_done,
+      label: isFreeRide ? t.guard_pill_free_ride : t.guard_scene_done,
       child: SizedBox(
         key: GuardSceneCard.claimedBadgeKey,
-        width: 64,
-        height: 64,
+        // 🔴 平板：徽章整块按 [uiScale] 放大（iPad 11″ 64 → 83.2 / 13″ → 102.4），
+        // 与卡同倍率；右簇插槽也同步放大 ⇒ FittedBox(scaleDown) 仍只做安全钳。
+        width: 64 * uiScale,
+        height: 64 * uiScale,
         child: Stack(
           clipBehavior: Clip.none,
           children: <Widget>[
@@ -450,12 +488,13 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
               left: 0,
               bottom: 0,
               child: SizedBox(
-                width: GuardCardLayout.soldierHeight,
-                height: GuardCardLayout.soldierHeight,
+                width: GuardCardLayout.soldierHeight * uiScale,
+                height: GuardCardLayout.soldierHeight * uiScale,
                 child: GuardArt.claimFlag(),
               ),
             ),
             // 「成功守卫」—— 右上角小标签（白投影兜可读性）。
+            // 🔴 文字不动 [uiScale]：平板已由系统 textScaler 等比放大，避免双乘。
             Positioned(
               top: 0,
               right: 0,
@@ -544,6 +583,7 @@ class _EnergyDot extends StatelessWidget {
     super.key,
     required this.lit,
     this.locked = false,
+    this.uiScale = 1.0,
     this.onTap,
   });
 
@@ -552,6 +592,9 @@ class _EnergyDot extends StatelessWidget {
 
   /// 锁标态（B13.8：免费档第 2 颗；灰环 + 🔒，可点）。
   final bool locked;
+
+  /// **平板 UI 放大倍率**（手机 = 1.0）：锁标图标按此放大，与卡同倍率。
+  final double uiScale;
 
   /// 点按回调（仅锁标态非 null）。
   final VoidCallback? onTap;
@@ -573,11 +616,11 @@ class _EnergyDot extends StatelessWidget {
             : null,
       ),
       child: locked
-          ? const Center(
+          ? Center(
               child: Icon(
                 Icons.lock_rounded,
-                size: 9,
-                color: Color(0xFF8A7A66),
+                size: 9 * uiScale,
+                color: const Color(0xFF8A7A66),
               ),
             )
           : null,

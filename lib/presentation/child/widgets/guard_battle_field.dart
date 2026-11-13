@@ -47,6 +47,7 @@ import 'package:flutter/scheduler.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart'
     show
+        kGuardAttackVolume,
         kGuardDeathFadeStartMs,
         kGuardDeathFleeMs,
         kGuardDeathFleePt,
@@ -171,6 +172,14 @@ class GuardBattleField extends StatefulWidget {
   /// null ⇒ 生产路径零感知；**冻结的 `deriveGuardBattleScript` 一行未动**。
   final GuardBattleScript? debugScriptOverride;
 
+  /// **平板 UI 放大倍率**（来自 `uiScaleOf`，手机 = 1.0）。
+  ///
+  /// 🔴 战斗层与场景卡共用同一把几何尺（`GuardCardLayout`），本值透传给它的
+  /// 几何计算（怪/子弹/通道/卡高全部等比放大）；怪/子弹之外的演出固定尺寸
+  /// （MISS / 阳光精灵 / 逃跑位移）也按本倍率放大，保持与卡同比例。默认 1.0
+  /// ⇒ 手机与既有测试逐位零回归。
+  final double uiScale;
+
   const GuardBattleField({
     super.key,
     required this.dayKey,
@@ -180,6 +189,7 @@ class GuardBattleField extends StatefulWidget {
     this.onFireAccepted,
     this.onFinished,
     this.debugScriptOverride,
+    this.uiScale = 1.0,
   });
 
   @override
@@ -372,6 +382,10 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     if (!mounted) return;
     if (_sim.isOver) return;
     _pendingFires.add(_sim.elapsedMs);
+    // 🔴 2026-11-12 玄参：开火**被受理**（子弹入队）那一刻播攻击音效
+    // （MISS 不回退——打没打中都算「攻击了」）。fire-and-forget（playSfx
+    // 本身就是 void 非阻塞口径），失败静默降级，绝不影响战局确定性。
+    AudioService.instance.playSfx(AudioCue.guardAttack, volume: kGuardAttackVolume);
     // 战士攻击帧（300ms）由**卡**渲染（战士是卡内常驻 L3 元素），本层只报事件。
     widget.onFireAccepted?.call();
   }
@@ -574,7 +588,7 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     // `guard_card_layout`（与卡同一把尺子，绝不各自算）。
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final GuardCardLayout layout = GuardCardLayout(constraints.maxWidth);
+        final GuardCardLayout layout = GuardCardLayout(constraints.maxWidth, widget.uiScale);
 
         return Stack(
           key: GuardBattleField.fieldKey,
@@ -702,7 +716,7 @@ class _GuardBattleFieldState extends State<GuardBattleField>
 
     return Positioned(
       key: GuardBattleField.monsterKey(m.index),
-      left: baseLeft + kGuardDeathFleePt * runFrac,
+      left: baseLeft + kGuardDeathFleePt * runFrac * layout.uiScale,
       top: top,
       width: w,
       height: h,
@@ -744,13 +758,13 @@ class _GuardBattleFieldState extends State<GuardBattleField>
         ((fxClockMs - miss.startMs) / kGuardMissFxMs).clamp(0.0, 1.0);
     return Positioned(
       key: GuardBattleField.missKey(miss.monsterIndex),
-      left: layout.mapMonsterX(miss.x) - 26,
+      left: layout.mapMonsterX(miss.x) - 26 * layout.uiScale,
       top: layout.mapMonsterY(miss.y) -
           layout.monsterExtent / 2 -
-          6 -
-          18 * t,
-      width: 52,
-      height: 18,
+          6 * layout.uiScale -
+          18 * layout.uiScale * t,
+      width: 52 * layout.uiScale,
+      height: 18 * layout.uiScale,
       child: IgnorePointer(
         child: Opacity(
           opacity: (1.0 - t).clamp(0.0, 1.0),
@@ -799,12 +813,12 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     }
     final double t =
         (ageMs / kGuardSunDropFxMs).clamp(0.0, 1.0).toDouble();
-    const double size = 18;
+    final double size = 18 * layout.uiScale;
     return Positioned(
       key: GuardBattleField.sunDropKey(s.monsterIndex),
       left: layout.mapMonsterX(s.x) - size / 2 + s.driftDx * t,
       // 🔴 负号 = 向上（原实现是 `+ 26 * t`，即下落）。
-      top: layout.mapMonsterY(s.y) - kGuardSunRisePt * t,
+      top: layout.mapMonsterY(s.y) - kGuardSunRisePt * layout.uiScale * t,
       width: size,
       height: size,
       child: IgnorePointer(

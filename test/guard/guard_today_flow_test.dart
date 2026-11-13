@@ -459,7 +459,7 @@ void _groupModes() {
       });
     }
 
-    testWidgets('pendingPaid 尾标显示 −5 ☀（数字来自 kGuardPayCost）',
+    testWidgets('pendingPaid 尾标显示 −10 ☀（数字来自 kGuardPayCost）',
         (WidgetTester tester) async {
       await _pumpCard(tester, _view(GuardPillMode.pendingPaid), onStart: () {});
       expect(_cardLabel(tester), contains('−$kGuardPayCost ☀'));

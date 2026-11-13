@@ -104,9 +104,11 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
   /// C77 · 当前称号专属属性（铲除返还额展示与扣费**同源**；未就绪回退 [PlantPerk.none]）。
   PlantPerk _perk = PlantPerk.none;
 
-  /// 花园守卫「今日券」快照（第四批 A）：与花园页的 `_guardBuff` 是**两个独立快照**
-  /// （养护卡按株读取，生命周期与页面刷新解耦）。`null` = 没券 / 读不到。
-  GuardBuffState? _guardBuff;
+  /// 花园守卫「今日券」快照（🔴 2026-11-12 修复：`currentBuffs()` 读**全部**
+  /// 当日券（主券 + 第二张，0~2 张）。原先用 `currentBuff()` 只拿主券——
+  /// 今天主券是劳动券、浇水券是第二张时，浇水价**永远不减**（玄参 iPad 实测
+  /// 「获得了浇水券，浇水还要 5 阳光」的根因）。空 = 没券 / 读不到。
+  List<GuardBuffState> _guardBuffs = const <GuardBuffState>[];
 
   @override
   void initState() {
@@ -123,14 +125,30 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
     }
   }
 
+  /// 今天与 [action] 同种的那张券（0~2 张里**至多一张**匹配；B13.5）。
+  ///
+  /// 匹配判据与花园页 `_buffForAction` 同款（复用 [guardVoucherKindForAction]）：
+  /// 用每张券自己的 `kind` 当 `activeDrop` 反问「这个动作在这张券面前是什么券种」，
+  /// 答案等于券本身的券种 ⇒ 匹配（免费券换名、劳动券恒定都自然覆盖）。
+  GuardBuffState? _buffForAction(GuardActionKind action) {
+    for (final GuardBuffState buff in _guardBuffs) {
+      if (guardVoucherKindForAction(action, activeDrop: buff.kind) ==
+          GuardVoucherKind.of(buff.kind)) {
+        return buff;
+      }
+    }
+    return null;
+  }
+
   /// 券减免叠在称号 perk 上（同步纯函数）：水价 / 肥价**各算各的**。
   ///
   /// 🔴 不能只算一个再共用：`PlantPerk.add` 是全字段相加，浇水券叠上去会顺手
-  /// 把肥价也改掉（反之亦然）。[plantId] 必须传（免费券只对单株生效）。
+  /// 把肥价也改掉（反之亦然）。[plantId] 必须传（免费券按额度生效，
+  /// B13.20 起「前 N 次免费」——展示与实扣必须同源）。
   /// 「动作 → 券种类」（含免费券换名）单点在 [guardVoucherKindForAction]，
   /// 养护卡与花园页**都只调它**（两份映射分叉 = 「展示便宜、实扣全额」）。
   PlantPerk _perkWithVoucher(GuardActionKind action, String plantId) {
-    final GuardBuffState? buff = _guardBuff;
+    final GuardBuffState? buff = _buffForAction(action);
     if (buff == null) return _perk; // 没券 / 读不到 ⇒ 零 provider 访问
     return ref.read(guardVoucherProvider).overlayFor(
           buff,
@@ -147,7 +165,7 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
     GuardActionKind action,
     String plantId,
   ) async {
-    final GuardBuffState? buff = _guardBuff;
+    final GuardBuffState? buff = _buffForAction(action);
     if (buff == null) return;
     try {
       await ref.read(guardVoucherProvider).recordConsumed(
@@ -167,12 +185,12 @@ class _PlantCareCardState extends ConsumerState<PlantCareCard> {
       // `sharedPreferencesProvider` 时 `guardVoucherProvider` 直接抛
       // `UnimplementedError`，裸放会被外层 catch 打成整卡错误态）。
       try {
-        _guardBuff = await ref
+        _guardBuffs = await ref
             .read(guardVoucherProvider)
-            .currentBuff()
+            .currentBuffs()
             .timeout(kGuardVoucherReadTimeout);
       } catch (e) {
-        _guardBuff = null;
+        _guardBuffs = const <GuardBuffState>[];
         debugPrint('[Guard] 养护卡今日券不可用，按「无券」处理：$e');
       }
       final PlantRepository repo = ref.read(plantRepositoryProvider);

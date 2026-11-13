@@ -206,6 +206,7 @@
   "child_settle_collected": "Sunlight Earned",
   "child_settle_eyecare_reward": "Eye-Break Reward",
   "child_settle_task_reward": "Task Reward",
+  "child_settle_voucher_bonus": "Voucher Bonus",
   "child_settle_today_total": "Today's Total",
   "child_settle_balance": "Sunlight Balance",
   "child_settle_too_short": "Too short — the sunflower collected nothing (output starts at 5 min)",
@@ -2045,9 +2046,10 @@
       "p": { "type": "int" }
     }
   },
-  "premium_table_guard_premium": "Always a voucher · {d}% chance of two",
+  "premium_table_guard_premium": "Always a voucher · {c}% premium chest (double sun · free vouchers · {d}% two vouchers)",
   "@premium_table_guard_premium": {
     "placeholders": {
+      "c": { "type": "int" },
       "d": { "type": "int" }
     }
   },
@@ -2677,8 +2679,18 @@
   "guard_drop_name_water_voucher": "Water Voucher",
   "guard_drop_name_labor_voucher": "Chore Voucher",
   "guard_drop_name_fertilize_voucher": "Fertilizer Voucher",
+  "guard_drop_name_focus_meal": "Focus Treat Voucher",
+  "guard_drop_name_focus_boost": "Focus Boost Voucher",
   "guard_drop_name_free_water": "Free Water Voucher",
   "guard_drop_name_free_fertilize": "Free Fertilizer Voucher",
+  "guard_drop_name_free_water_3": "Free Water Voucher (3)",
+  "@guard_drop_name_free_water_3": {
+      "description": "Garden guard: display name of the 3-use free-water voucher; no multiplication sign in copy (V3-5 rule)"
+  },
+  "guard_drop_name_free_fertilize_2": "Free Fertilizer Voucher (2)",
+  "@guard_drop_name_free_fertilize_2": {
+      "description": "Garden guard: display name of the 2-use free-fertilizer voucher"
+  },
   "guard_pill_pending": "A veggie thief is here — chase it away!",
   "guard_pill_pending_free": "Chase it away with focus energy (free)",
   "guard_pill_fighting": "Your guard is chasing it away…",
@@ -2692,7 +2704,7 @@
       "description": "Guard battle v2 scene card L3: claimed-state badge text under the flag (B13; Xuan Shen picked the wording)"
   },
   "guard_tutorial_title": "How does guarding work?",
-  "guard_tutorial_body": "Focus for 15 minutes to earn 1 energy point — up to 2 a day. With energy, your sunflower warrior charges out for free and chases the veggie thieves away!",
+  "guard_tutorial_body": "Focus for 15 minutes to earn 1 energy point — up to 2 a day. With energy, your sunflower warrior charges out for free and chases the veggie thieves away! In battle, tap the sunlight capsule on screen to help your warrior fire attacks and drive the thieves away!",
   "guard_tutorial_paid_hint": "No energy? You can still pay {cost} sunlight to send the warrior out.",
   "guard_tutorial_ok": "Got it",
   "guard_energy_bubble": "15 min of focus = 1 energy point, up to 2 a day",
@@ -2710,7 +2722,7 @@
   "guard_result_reward_fragment": "Plant fragments",
   "guard_result_reward_seed": "Seed",
   "guard_result_seed": "{species} seed",
-  "guard_result_title": "Chased away the {thief}",
+  "guard_result_title": "Garden guarded! The greedy critters ran off",
   "guard_result_gain": "Got back {sun} sunlight",
   "guard_result_stolen": "The thief stole {sun} sunlight",
   "guard_result_drop": "Also found a {drop}",
@@ -2723,8 +2735,8 @@
   "guard_intro_howto_title": "How to fight",
   "guard_intro_howto_body": "Tap Start Guard to send out the sunflower soldier, then tap the sunlight bubble at the top right to help it fire sun bullets — drive every monster away before it reaches the veggies!",
   "guard_intro_energy_title": "What are energy beans?",
-  "guard_intro_energy_body_free": "Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 1 a day on the free version. No energy beans? You can still guard: spend 5 sunlight to send the soldier out.",
-  "guard_intro_energy_body_premium": "Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 2 a day. No energy beans? You can still guard: spend 5 sunlight to send the soldier out.",
+  "guard_intro_energy_body_free": "Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 1 a day on the free version. No energy beans? You can still guard: spend 10 sunlight to send the soldier out.",
+  "guard_intro_energy_body_premium": "Energy beans are free guard plays you earn by focusing today — every 15 focused minutes earns 1, up to 2 a day. No energy beans? You can still guard: spend 10 sunlight to send the soldier out.",
   "guard_energy_locked_hint": "Up to 2 energy beans a day with the full version!",
   "guard_intro_reward_title": "What you earn",
   "guard_intro_reward_body": "Drive the monsters away to earn sunlight — and with a bit of luck, garden vouchers drop at random (watering vouchers, fertilizer vouchers…), helping you care for your garden even better.",
@@ -2741,11 +2753,31 @@
   "guard_voucher_name_fertilize": "Fertilizer Voucher",
   "guard_voucher_name_free_water": "Free Watering Voucher",
   "guard_voucher_name_free_fertilize": "Free Fertilizer Voucher",
+  "guard_voucher_name_free_water_3": "Free Watering Voucher (3)",
+  "@guard_voucher_name_free_water_3": {
+      "description": "B13.19: voucher card name (3 free waterings today)"
+  },
+  "guard_voucher_name_free_fertilize_2": "Free Fertilizer Voucher (2)",
+  "@guard_voucher_name_free_fertilize_2": {
+      "description": "B13.19: voucher card name (2 free fertilizings today)"
+  },
+  "guard_voucher_name_focus_meal": "Focus Treat Voucher",
+  "guard_voucher_name_focus_boost": "Focus Boost Voucher",
   "guard_voucher_desc_water": "Each watering costs 1 less sunlight today",
   "guard_voucher_desc_labor": "Each cleanup earns 1 extra sunlight today",
   "guard_voucher_desc_fertilize": "Each fertilizing costs 2 less sunlight today",
-  "guard_voucher_desc_free_water": "Pick one plant today — watering it is free",
-  "guard_voucher_desc_free_fertilize": "Pick one plant today — fertilizing it is free",
+  "guard_voucher_desc_free_water": "Your first watering today is free",
+  "guard_voucher_desc_free_fertilize": "Your first fertilizing today is free",
+  "guard_voucher_desc_free_water_3": "Your first 3 waterings today are free",
+  "@guard_voucher_desc_free_water_3": {
+      "description": "B13.20: voucher perk description (first N uses free, counted per pot in batch)"
+  },
+  "guard_voucher_desc_free_fertilize_2": "Your first 2 fertilizings today are free",
+  "@guard_voucher_desc_free_fertilize_2": {
+      "description": "B13.20: voucher perk description (first N uses free, counted per pot in batch)"
+  },
+  "guard_voucher_desc_focus_meal": "Focus 15 minutes in total today to earn 10 bonus sunlight",
+  "guard_voucher_desc_focus_boost": "Every focus session today earns 20% extra sunlight",
   "guard_intro_locked": "Not met yet",
   "guard_intro_desc_sunrat": "Steals sunlight only, never touches the veggies.",
   "guard_intro_desc_leafbug": "Munches growth from one plant.",
@@ -2761,6 +2793,18 @@
   "guard_voucher_short_fertilize": "Feed",
   "guard_voucher_short_free_water": "Free water",
   "guard_voucher_short_free_fertilize": "Free feed",
+  "guard_voucher_short_free_water_3": "Free water (3)",
+  "@guard_voucher_short_free_water_3": {
+      "description": "B13.19: voucher chip short title (3 uses)"
+  },
+  "guard_voucher_short_free_fertilize_2": "Free feed (2)",
+  "@guard_voucher_short_free_fertilize_2": {
+      "description": "B13.19: voucher chip short title (2 uses)"
+  },
+  "guard_voucher_short_focus": "Focus",
+  "@guard_voucher_short_focus": {
+      "description": "B13.20: short action word for the focus-treat / focus-boost vouchers (chip line \"Today: Focus +10 / +20%\")"
+  },
   "guard_chip_inline_prefix": "Today: {action}",
   "@guard_chip_inline_prefix": {
       "placeholders": {

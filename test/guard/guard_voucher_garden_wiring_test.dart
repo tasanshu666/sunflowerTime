@@ -10,7 +10,7 @@
 ///  5. 空盆除草 + 劳动券：实到 2；
 ///  6. 施肥券：今日每次施肥都是 8 ☀（额度 12 次，不缩额）；
 ///  7. 免费浇水券（单株）：显示 0、实扣 0、核销后另一盆 5；
-///  8. 免费浇水券 + 一键批量：每盆仍 5，且额度**未**核销；
+///  8. 免费浇水券 + 一键批量：前 1 盆 0 ☀、后 3 盆 5 ☀，额度核销 1 次（B13.20）；
 ///  9. 跨天过期：价格原样、chip 不显示；
 /// 10. prefs 不可用：页面正常、价格原样（比什么都重要）；
 /// 11. chip 无 `×`、chips 行 top/left 与基线一致（embedded 12 / standalone 60）；
@@ -968,9 +968,9 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 8 · 免费浇水券 + 一键批量：绝不整批免费
+  // 8 · 免费浇水券 + 一键批量：前 N 次免费、按盆计数（B13.20）
   // ══════════════════════════════════════════════════════════════════════════
-  testWidgets('8 · 免费浇水券 + 一键批量 4 盆：每盆仍 5 ☀，额度未被核销',
+  testWidgets('8 · 免费浇水券 + 一键批量 4 盆：前 1 盆 0 ☀ 后 3 盆 5 ☀，额度核销 1 次',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -990,10 +990,12 @@ void main() {
     await _runOneClick(tester, '一键浇水');
     await _pumpFrames(tester, 40);
 
-    expect(ledger.amountsOf(kPlantWaterRefType), <int>[5, 5, 5, 5],
-        reason: '批量路径 plantId == null ⇒ 免费券一律不生效（绝不整批免费）');
-    expect(store.writeCount, 0, reason: '批量时免费券必须**拒绝核销**');
-    expect(store.state?.buff?.remaining, 1, reason: '额度仍是 1（没被整批烧掉）');
+    // 🔴 B13.20：批量按盆计数 —— 总免费额恒 = 券面值（1 × 5 ☀），
+    //    绝不整批免费（0,0,0,0）也绝不整批原价（5,5,5,5）。
+    expect(ledger.amountsOf(kPlantWaterRefType), <int>[0, 5, 5, 5],
+        reason: 'B13.20：前 1 盆免费、后 3 盆原价（额度按盆核销）');
+    expect(store.writeCount, 1, reason: '免费额度恰好核销 1 次');
+    expect(store.state?.buff?.remaining, 0, reason: '×1 券额度用尽');
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1228,5 +1230,45 @@ void main() {
     );
     expect(find.text('4 ☀'), findsOneWidget,
         reason: '🔴 B13.4：即便存量记账 used==quota，水价仍是券后 4 ☀');
+  });
+
+  // 🔴 2026-11-12 玄参 iPad 实测「获得了浇水券，养护卡浇水还要 5 ☀」回归：
+  // 根因 = `plant_care_sheet` 用 `currentBuff()`（只返回**主券**）——今天
+  // 主券是劳动券、浇水券是**第二张**（B13.5 双券）时，养护卡永远拿不到
+  // 浇水券 ⇒ 5 ☀。修复 = 改 `currentBuffs()` + 按动作匹配（同花园页）。
+  // 本用例钉死：主券 labor + 第二张 water ⇒ 养护卡浇水 4 ☀、除草 +2 生效。
+  testWidgets('双券（主劳动 + 第二浇水）：养护卡浇水 4 ☀（原 bug：只读主券 → 5 ☀）',
+      (WidgetTester tester) async {
+    final _FakeGuardStore store = _FakeGuardStore(GuardDayState(
+      dayKey: _todayKey(),
+      status: GuardDayStatus.claimed,
+      dropKind: GuardDropKind.laborVoucher,
+      buff: const GuardBuffState(
+        kind: GuardDropKind.laborVoucher,
+        quota: 4,
+      ),
+      bonusBuff: const GuardBuffState(
+        kind: GuardDropKind.waterVoucher,
+        quota: 6,
+      ),
+    ));
+
+    await tester.pumpWidget(_hostGarden(
+      ledger: _MemLedger(),
+      plants: _MemPlantRepo(_plants(1)),
+      store: store,
+      capacity: 4,
+    ));
+    await _pumpFrames(tester, 40);
+
+    await tester.tap(find.byType(GardenPot).first);
+    expect(
+      await _pumpUntil(tester, () => find.text('4 ☀').evaluate().isNotEmpty),
+      isTrue,
+      reason: '🔴 第二张浇水券必须在养护卡生效：5 − 1 = 4 ☀（只读主券的旧实现这里显示 5 ☀）',
+    );
+    // 除草（主券劳动券）也照常生效：奖励 1 + 1 = 2 —— 双券互不干扰。
+    expect(find.text('4 ☀'), findsOneWidget,
+        reason: '水价只出现一份（券后 4 ☀，不是原价 5 ☀）');
   });
 }

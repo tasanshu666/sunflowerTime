@@ -364,7 +364,7 @@ void main() {
     test('常量：kGuardCardLift = 26，卡高 112 / 间距 10', () {
       // B9 = 16（Transform 实现，已因削顶废弃）→ B10 = 16（缩 sceneGap）→
       // **B11 = 26**（玄参第六轮「再往上一点」）。机制仍是缩滚动区留白。
-      expect(kGuardCardLift, 26, reason: '🔴 B11：卡顶与半圆弧之间的空隙再 +10');
+      expect(kGuardCardLift, 36, reason: '🔴 B11：卡顶与半圆弧之间的空隙再 +10（26 → 36）');
       expect(kGuardSceneCardHeight, 112,
           reason: '🔴 B10：padTop 10 → 14 ⇒ 卡高 112');
       expect(kGuardCardPadTop, 14);

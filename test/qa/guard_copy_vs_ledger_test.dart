@@ -500,25 +500,47 @@ void main() {
     final AppLocalizations zh = AppLocalizationsZh();
     final AppLocalizations en = AppLocalizationsEn();
 
-    test('五种券的 zh 券名逐个对字面量（B13.5 新口径）', () {
+    test('九种券的 zh 券名逐个对字面量（B13.20：券库 9 种）', () {
       expect(GuardBuffChip.nameOf(GuardDropKind.waterVoucher, zh), '浇水卡券');
       expect(GuardBuffChip.nameOf(GuardDropKind.laborVoucher, zh), '劳动卡券');
       expect(GuardBuffChip.nameOf(GuardDropKind.fertilizeVoucher, zh), '施肥卡券');
+      expect(GuardBuffChip.nameOf(GuardDropKind.focusMeal, zh), '专注加餐卡券',
+          reason: 'B13.20 新券');
+      expect(GuardBuffChip.nameOf(GuardDropKind.focusBoost, zh), '专注放大卡券',
+          reason: 'B13.20 新券');
       expect(GuardBuffChip.nameOf(GuardDropKind.freeWater, zh), '免费浇水卡券');
       expect(GuardBuffChip.nameOf(GuardDropKind.freeFertilize, zh), '免费施肥卡券');
+      expect(GuardBuffChip.nameOf(GuardDropKind.freeWater3, zh), '免费浇水卡券（3 次）',
+          reason: 'B13.19 新档；🔴 不用「×」号');
+      expect(GuardBuffChip.nameOf(GuardDropKind.freeFertilize2, zh), '免费施肥卡券（2 次）',
+          reason: 'B13.19 新档');
     });
 
-    test('五种券的 zh 增益描述逐个对字面量（玄参：「写清楚 buff 增益」）', () {
+    test('九种券的 zh 增益描述逐个对字面量（玄参：「写清楚 buff 增益」；B13.20 免费券改前 N 次口径）', () {
       expect(GuardBuffChip.descOf(GuardDropKind.waterVoucher, zh),
           '今日浇水每次可减少 1 阳光消耗');
       expect(GuardBuffChip.descOf(GuardDropKind.laborVoucher, zh),
           '今日除草除虫每次可多赚 1 阳光');
       expect(GuardBuffChip.descOf(GuardDropKind.fertilizeVoucher, zh),
           '今日施肥每次可减少 2 阳光消耗');
+      expect(GuardBuffChip.descOf(GuardDropKind.focusMeal, zh),
+          '今日累计专注满 15 分钟，额外获得 10 阳光',
+          reason: 'B13.20 新券（被动券）');
+      expect(GuardBuffChip.descOf(GuardDropKind.focusBoost, zh),
+          '今日每场专注结算的阳光额外加 20%',
+          reason: 'B13.20 新券（被动券）');
       expect(GuardBuffChip.descOf(GuardDropKind.freeWater, zh),
-          '今日任选一盆，浇水一次完全免费');
+          '今日第 1 次浇水完全免费',
+          reason: 'B13.20：「任选一盆」→「前 N 次免费」');
       expect(GuardBuffChip.descOf(GuardDropKind.freeFertilize, zh),
-          '今日任选一盆，施肥一次完全免费');
+          '今日第 1 次施肥完全免费',
+          reason: 'B13.20：「任选一盆」→「前 N 次免费」');
+      expect(GuardBuffChip.descOf(GuardDropKind.freeWater3, zh),
+          '今日前 3 次浇水完全免费',
+          reason: 'B13.19 新档；B13.20 改前 N 次口径');
+      expect(GuardBuffChip.descOf(GuardDropKind.freeFertilize2, zh),
+          '今日前 2 次施肥完全免费',
+          reason: 'B13.19 新档；B13.20 改前 N 次口径');
     });
 
     test('券名 / 描述不含「剩 N」、不含 `×`、en 不含汉字（中英可切换口径）', () {
@@ -563,7 +585,8 @@ void main() {
           GuardBuffState(kind: GuardDropKind.freeWater, quota: 1, used: 1);
       expect(
         GuardBuffChip.descLineOf(GuardDropKind.freeWater, freeUsedUp, en),
-        'Pick one plant today — watering it is free · Used up',
+        'Your first watering today is free · Used up',
+        reason: 'B13.20 文案：前 N 次免费口径',
       );
     });
   });

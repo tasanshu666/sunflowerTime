@@ -554,6 +554,12 @@ abstract class AppLocalizations {
   /// **'任务奖励'**
   String get child_settle_task_reward;
 
+  /// No description provided for @child_settle_voucher_bonus.
+  ///
+  /// In zh, this message translates to:
+  /// **'券加成'**
+  String get child_settle_voucher_bonus;
+
   /// No description provided for @child_settle_today_total.
   ///
   /// In zh, this message translates to:
@@ -4274,8 +4280,8 @@ abstract class AppLocalizations {
   /// No description provided for @premium_table_guard_premium.
   ///
   /// In zh, this message translates to:
-  /// **'必掉券 · {d}% 概率掉两张'**
-  String premium_table_guard_premium(int d);
+  /// **'必掉券 · {c}% 掉高级宝箱（阳光翻倍 · 含免费券 · 双券 {d}%）'**
+  String premium_table_guard_premium(int c, int d);
 
   /// No description provided for @premium_table_row_energy.
   ///
@@ -6137,6 +6143,18 @@ abstract class AppLocalizations {
   /// **'施肥券'**
   String get guard_drop_name_fertilize_voucher;
 
+  /// B13.20：掉落「专注加餐券」（被动券，专注结算生效）的展示名
+  ///
+  /// In zh, this message translates to:
+  /// **'专注加餐券'**
+  String get guard_drop_name_focus_meal;
+
+  /// B13.20：掉落「专注放大券」（被动券，专注结算生效）的展示名
+  ///
+  /// In zh, this message translates to:
+  /// **'专注放大券'**
+  String get guard_drop_name_focus_boost;
+
   /// 花园守卫：掉落「免费浇水券」（单株单次）的展示名
   ///
   /// In zh, this message translates to:
@@ -6148,6 +6166,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'免费施肥券'**
   String get guard_drop_name_free_fertilize;
+
+  /// 花园守卫：掉落「免费浇水券（3 次）」（当日3次单盆免费浇水）的展示名；🔴 不用「×」号（V3-5 文案口径禁 ×）
+  ///
+  /// In zh, this message translates to:
+  /// **'免费浇水券（3 次）'**
+  String get guard_drop_name_free_water_3;
+
+  /// 花园守卫：掉落「免费施肥券（2 次）」（当日2次单盆免费施肥）的展示名
+  ///
+  /// In zh, this message translates to:
+  /// **'免费施肥券（2 次）'**
+  String get guard_drop_name_free_fertilize_2;
 
   /// 今日页守卫胶囊：待处理态（无能量、余额够 ⇒ 需先弹确认卡）
   ///
@@ -6212,7 +6242,7 @@ abstract class AppLocalizations {
   /// 守卫战 v2 教学浮层 A：主文案（PRD §6 玄参已写好的口径，逐字使用）
   ///
   /// In zh, this message translates to:
-  /// **'认真专注满 15 分钟，就能攒 1 个能量点，一天最多攒 2 个。有能量点，向日葵战士就能免费出击，帮你赶跑偷菜的怪物！'**
+  /// **'认真专注满 15 分钟，就能攒 1 个能量点，一天最多攒 2 个。有能量点，向日葵战士就能免费出击，帮你赶跑偷菜的怪物！战斗中，点击屏幕上的阳光胶囊，就能帮助向日葵战士发动攻击，赶跑偷菜的怪物！'**
   String get guard_tutorial_body;
 
   /// 守卫战 v2 教学浮层 A：次文案（cost = kGuardPayCost，不从文案里写死 5）
@@ -6317,11 +6347,11 @@ abstract class AppLocalizations {
   /// **'{species}种子'**
   String guard_result_seed(String species);
 
-  /// 结算卡标题：赶走了{thief}（thief = guard_thief_name_* 的译文）
+  /// 结算卡标题（🔴 2026-11-12 玄参裁定：怪物同场交叉后不再指名具体怪种，改通用文案）
   ///
   /// In zh, this message translates to:
-  /// **'赶走了{thief}'**
-  String guard_result_title(String thief);
+  /// **'花园守卫成功，赶走了贪吃的小动物'**
+  String get guard_result_title;
 
   /// 结算卡：必得阳光到账（sun = 本次 winSun）
   ///
@@ -6398,13 +6428,13 @@ abstract class AppLocalizations {
   /// 守卫战 v2（B13.8 档位制）：能量点正文·免费档（🔴 15 分钟 = 1 个、免费一天最多 1 个；付费档另有 body_premium）
   ///
   /// In zh, this message translates to:
-  /// **'能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，免费一天最多 1 个。没有能量点也能守卫——花 5 阳光请战士出战就行。'**
+  /// **'能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，免费一天最多 1 个。没有能量点也能守卫——花 10 阳光请战士出战就行。'**
   String get guard_intro_energy_body_free;
 
   /// 守卫战 v2（B13.8 档位制）：能量点正文·完整版档（🔴 一天最多 2 个，与 kGuardEnergyDailyMaxPremium 一致）
   ///
   /// In zh, this message translates to:
-  /// **'能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，一天最多 2 个。没有能量点也能守卫——花 5 阳光请战士出战就行。'**
+  /// **'能量点是你今天专注赢来的免费出战次数——认真专注满 15 分钟攒 1 个，一天最多 2 个。没有能量点也能守卫——花 10 阳光请战士出战就行。'**
   String get guard_intro_energy_body_premium;
 
   /// 守卫战 v2（B13.8 / C81）：免费档点锁标能量点弹出的提示卡正文（只提示、不跳转，孩子端无购买入口；🔴 B13.9 措辞统一「完整版」，不叫会员，锁标下的小字已删）
@@ -6521,17 +6551,65 @@ abstract class AppLocalizations {
   /// **'今日施肥每次可减少 2 阳光消耗'**
   String get guard_voucher_desc_fertilize;
 
-  /// B13.5：buff 券增益描述（单株单次）
+  /// B13.20：buff 券增益描述（「前 N 次免费」，批量按盆计数；旧「任选一盆」口径废除）
   ///
   /// In zh, this message translates to:
-  /// **'今日任选一盆，浇水一次完全免费'**
+  /// **'今日第 1 次浇水完全免费'**
   String get guard_voucher_desc_free_water;
 
-  /// B13.5：buff 券增益描述（单株单次）
+  /// B13.20：buff 券增益描述（「前 N 次免费」）
   ///
   /// In zh, this message translates to:
-  /// **'今日任选一盆，施肥一次完全免费'**
+  /// **'今日第 1 次施肥完全免费'**
   String get guard_voucher_desc_free_fertilize;
+
+  /// B13.19：buff 券卡名（当日 3 次免费浇水；无专属美术，复用浇水卡面）；🔴 不用「×」号（V3-5 文案口径禁 ×）
+  ///
+  /// In zh, this message translates to:
+  /// **'免费浇水卡券（3 次）'**
+  String get guard_voucher_name_free_water_3;
+
+  /// B13.19：buff 券卡名（当日 2 次免费施肥；无专属美术，复用施肥卡面）
+  ///
+  /// In zh, this message translates to:
+  /// **'免费施肥卡券（2 次）'**
+  String get guard_voucher_name_free_fertilize_2;
+
+  /// B13.20：buff 券增益描述（「前 N 次免费」，批量按盆计数）
+  ///
+  /// In zh, this message translates to:
+  /// **'今日前 3 次浇水完全免费'**
+  String get guard_voucher_desc_free_water_3;
+
+  /// B13.20：buff 券增益描述（「前 N 次免费」，批量按盆计数）
+  ///
+  /// In zh, this message translates to:
+  /// **'今日前 2 次施肥完全免费'**
+  String get guard_voucher_desc_free_fertilize_2;
+
+  /// B13.20：buff 券卡名（被动券：当日累计专注满 15 分钟额外 +10 阳光；无专属美术，复用浇水卡面）
+  ///
+  /// In zh, this message translates to:
+  /// **'专注加餐卡券'**
+  String get guard_voucher_name_focus_meal;
+
+  /// B13.20：buff 券卡名（被动券：当日每场专注结算阳光 +20%）
+  ///
+  /// In zh, this message translates to:
+  /// **'专注放大卡券'**
+  String get guard_voucher_name_focus_boost;
+
+  /// B13.20：buff 券增益描述（专注加餐，达成瞬间自动到账）
+  ///
+  /// In zh, this message translates to:
+  /// **'今日累计专注满 15 分钟，额外获得 10 阳光'**
+  String get guard_voucher_desc_focus_meal;
+
+  /// B13.20：buff 券增益描述（专注放大，不占每日专注上限）
+  ///
+  /// In zh, this message translates to:
+  /// **'今日每场专注结算的阳光额外加 20%'**
+  String get guard_voucher_desc_focus_boost;
 
   /// 守卫战 v2（B13）：怪物图鉴卡未解锁态（还没在战斗里遇到过 ⇒ 剪影 + 本文案，名字不显示）
   ///
@@ -6604,6 +6682,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'免费施肥'**
   String get guard_voucher_short_free_fertilize;
+
+  /// B13.19：券卡迷你角标短标题（3 次版）；🔴 不用「×」号（V3-5 文案口径禁 ×）
+  ///
+  /// In zh, this message translates to:
+  /// **'免费浇水3次'**
+  String get guard_voucher_short_free_water_3;
+
+  /// B13.19：券卡迷你角标短标题（×2 版）
+  ///
+  /// In zh, this message translates to:
+  /// **'免费施肥2次'**
+  String get guard_voucher_short_free_fertilize_2;
+
+  /// B13.20：专注加餐 / 专注放大券的短动作词（横排文字「今日专注 +10 / +20%」）
+  ///
+  /// In zh, this message translates to:
+  /// **'专注'**
+  String get guard_voucher_short_focus;
 
   /// 守卫战 v2（B13.9）：券卡横排文字前缀 —— 「今日{action}」action 为「浇水 −1」等短文案，尾部再拼阳光 UI 小图（en 用 "Today: {action}" 保语序）
   ///

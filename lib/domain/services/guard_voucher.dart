@@ -14,16 +14,22 @@
 /// |---|---|---|
 /// | 浇水券 | `waterDiscount + 1` | 5 → 4（与 Lv.5 称号叠加：5 − 1 − 1 = 3） |
 /// | 免费浇水券 | `waterDiscount + 5`（= [kPlantWaterCost]） | 5 → 0（钳制，绝不 −1） |
+/// | 免费浇水 ×3 券（B13.19） | 同上 ×3 次 | 当日**前 3 次**浇水免费（B13.20 起批量按盆计数） |
 /// | 施肥券 | `fertilizeDiscount + 2` | 10 → 8（与 Lv.10 叠加：10 − 1 − 2 = 7） |
 /// | 免费施肥券 | `fertilizeDiscount + 10`（= [kPlantFertilizeCost]） | 10 → 0 |
+/// | 免费施肥 ×2 券（B13.19） | 同上 ×2 次 | 当日**前 2 次**施肥免费 |
 /// | 劳动券 | `weedBonus + 1, pestBonus + 1` | 除草 1 → 2 / 除虫 2 → 3 |
 ///
-/// ### ② 🔴 免费券**只能用于单株**（本批最重要的安全约束）
-/// 「一键浇水 5 盆 + 免费浇水券」若按整批生效 ⇒ 省 25 ☀ ⇒ 直接打穿浇水经济
-/// （= 5 天浇水预算，见 PRD §3.7 硬约束 A / 验收 A10）。
-/// 实现方式是**让批量调用拿不到减免**：[overlay] 的免费档在 `plantId == null`
-/// （= 批量动作）时**返回不带免费减免的 perk**，[recordConsumed] 同样拒绝核销。
-/// 「绝不整批免费」这条因此不依赖调用方自觉，也不依赖 UI 是否记得传 plantId。
+/// 🔴 **B13.20 语义修订（玄参 2026-11-13 拍板）**：免费券从「任选一盆、绝不整批」
+/// 改为「当日**前 N 次**免费，**批量按盆计数**」——一键 5 盆 + ×3 券 = 前 3 盆
+/// 免费、后 2 盆收费，总免费额仍 = 券面值（3 × 一盆标价），经济不穿帮。
+/// 「额度按盆消耗」的红线由 [GuardDropSpec.singlePotOnly] + [guardVoucherQuotaOf]
+/// 共同守住，见 [overlaySequenceFor] / [recordConsumed]。
+///
+/// 🔴 **B13.20 新增两种被动券（不走本类的减免链路）**：专注加餐券 / 专注放大券
+/// 在**专注结算**（`SunlightService.settle`）时生效，[overlayFor] 对它们恒返回
+/// 原 perk；它们也不会被 [guardVoucherKindForAction] 命中（被动券不对应任何
+/// 养护动作）。
 ///
 /// ### ③ 额度记账走 `GuardDayState.buff`，不新建存储
 /// 当日额度（施肥券 [kGuardFertilizerVoucherQuota] 次 / 免费券 1 次）就是
@@ -37,8 +43,8 @@
 /// 施肥券按次记账、免费券单株单次的口径**不变**。
 ///
 /// ## 券与掉落档的关系
-/// 掉落档 [GuardDropKind] 有 6 个值（含 `none` = 无道具），券 [GuardVoucherKind]
-/// 只有 5 个 —— 映射单点在枚举的构造参数上（[GuardVoucherKind.drop]），
+/// 掉落档 [GuardDropKind] 有 10 个值（含 `none` = 无道具），券 [GuardVoucherKind]
+/// 有 9 个 —— 映射单点在枚举的构造参数上（[GuardVoucherKind.drop]），
 /// 反查走 [GuardVoucherKind.of]。
 library guard_voucher;
 
@@ -64,11 +70,28 @@ enum GuardVoucherKind {
   /// 施肥券：今日**每次**施肥 −2 ☀（当日最多 [kGuardFertilizerVoucherQuota] 次）。
   fertilize(GuardDropKind.fertilizeVoucher),
 
-  /// 🔴 免费浇水券：**任选一盆、仅一次**免费（绝不整批）。
+  /// 🔴 B13.20 新增：专注加餐券（**被动券**）——当日累计专注 ≥ 15 分钟 ⇒
+  /// 额外 +10 ☀（一次性，达成瞬间自动到账；生效点 = `SunlightService.settle`，
+  /// 不参与任何养护减免）。
+  focusMeal(GuardDropKind.focusMeal),
+
+  /// 🔴 B13.20 新增：专注放大券（**被动券**）——当日每场专注结算阳光 +20%
+  /// （乘算、不占每日专注上限；同样只在专注结算时生效）。
+  focusBoost(GuardDropKind.focusBoost),
+
+  /// 🔴 免费浇水券（🔴 **高级宝箱限定**，B13.20）：当日**前 1 次**浇水免费。
   freeWater(GuardDropKind.freeWater),
 
-  /// 🔴 免费施肥券：**任选一盆、仅一次**免费（最稀有）。
-  freeFertilize(GuardDropKind.freeFertilize);
+  /// 🔴 免费施肥券（🔴 **高级宝箱限定**，B13.20）：当日**前 1 次**施肥免费。
+  freeFertilize(GuardDropKind.freeFertilize),
+
+  /// 🔴 B13.19 新增：免费浇水 ×3 券（🔴 **高级宝箱限定**，B13.20）——当日
+  /// **前 3 次**浇水免费（批量按盆计数；额度记账 quota = 3）。
+  freeWater3(GuardDropKind.freeWater3),
+
+  /// 🔴 B13.19 新增：免费施肥 ×2 券（🔴 **高级宝箱限定**，B13.20）——当日
+  /// **前 2 次**施肥免费（最稀有）。
+  freeFertilize2(GuardDropKind.freeFertilize2);
 
   const GuardVoucherKind(this.drop);
 
@@ -83,21 +106,35 @@ enum GuardVoucherKind {
     return null;
   }
 
-  /// 是否「免费」券（两种免费券 = true）。
+  /// 是否「免费养护」券（4 种全免类 = true；B13.20 起为**高级宝箱限定**）。
   ///
-  /// 🔴 免费券一律 [isSinglePlantOnly]：这是「绝不整批免费」的唯一判据。
+  /// 🔴 免费券一律 [isSinglePlantOnly]：「每次核销对应一盆真实动作」的判据。
   bool get isFree =>
       this == GuardVoucherKind.freeWater ||
-      this == GuardVoucherKind.freeFertilize;
+      this == GuardVoucherKind.freeFertilize ||
+      this == GuardVoucherKind.freeWater3 ||
+      this == GuardVoucherKind.freeFertilize2;
 
-  /// 是否「当日不限次」券（浇水券 / 劳动券）。
+  /// 是否「专注被动」券（B13.20 新增的两种 = true）。
+  ///
+  /// 被动券**不参与**养护减免（[overlayFor] 恒返回原 perk）、不被
+  /// [guardVoucherKindForAction] 命中；生效点在专注结算
+  /// （`SunlightService.settle`）。
+  bool get isFocusBonus =>
+      this == GuardVoucherKind.focusMeal || this == GuardVoucherKind.focusBoost;
+
+  /// 是否「当日不限次」券（浇水券 / 劳动券 / 专注放大券）。
   ///
   /// 🔴 **B13.4（玄参 2026-11-11 拍板）**：「今日浇水减 1，浇水次数应该不受
   /// 限制」——原 PRD §3.7 的当日累计封顶（浇水 6 ☀ / 劳动 4 ☀）**废除**：
   /// 减免全天足额生效。[guardVoucherQuotaOf] 的数字与存档里的 `quota` 字段
   /// **仅保留为记账**，不再钳制减免（真机实测：浇 6 次后价格从 4 跳回 5，
   /// 就是旧封顶 6 ☀ 用尽的表现）。
-  bool get isUnlimitedDaily => this == water || this == labor;
+  ///
+  /// 🔴 B13.20：专注放大券也归入本类 —— 它是**被动**加成（当日每场都生效），
+  /// 没有可核销的额度（[recordConsumed] 对它空操作）。
+  bool get isUnlimitedDaily =>
+      this == water || this == labor || this == focusBoost;
 
   /// 是否只作用于单株单次（数据源 = [GuardDropSpec.singlePotOnly]）。
   bool get isSinglePlantOnly => drop.singlePotOnly;
@@ -142,11 +179,15 @@ GuardVoucherKind guardVoucherKindForAction(
     case GuardActionKind.water:
       return activeDrop == GuardDropKind.freeWater
           ? GuardVoucherKind.freeWater
-          : GuardVoucherKind.water;
+          : activeDrop == GuardDropKind.freeWater3
+              ? GuardVoucherKind.freeWater3
+              : GuardVoucherKind.water;
     case GuardActionKind.fertilize:
       return activeDrop == GuardDropKind.freeFertilize
           ? GuardVoucherKind.freeFertilize
-          : GuardVoucherKind.fertilize;
+          : activeDrop == GuardDropKind.freeFertilize2
+              ? GuardVoucherKind.freeFertilize2
+              : GuardVoucherKind.fertilize;
     case GuardActionKind.labor:
       // 劳动券没有「免费版」：除草 / 除虫只有面值为 +1 ☀ 的那一张。
       return GuardVoucherKind.labor;
@@ -169,9 +210,19 @@ int guardVoucherQuotaOf(GuardDropKind kind) {
       // （每盆每天限施 1 次，见 [kGuardFertilizerVoucherQuota]）。
       return kGuardFertilizerVoucherQuota;
     case GuardDropKind.freeWater:
-      return 1; // 1 次/天（单株）
+      return 1; // 1 次/天（B13.20：当日第 1 次浇水免费）
     case GuardDropKind.freeFertilize:
-      return 1; // 1 次/天（单株）
+      return 1; // 1 次/天（B13.20：当日第 1 次施肥免费）
+    case GuardDropKind.freeWater3:
+      return 3; // 🔴 B13.19：3 次/天（B13.20 起批量按盆计数）
+    case GuardDropKind.freeFertilize2:
+      return 2; // 🔴 B13.19：2 次/天（B13.20 起批量按盆计数）
+    case GuardDropKind.focusMeal:
+      return 1; // 🔴 B13.20：达成 15 分钟即到账，一次性（核销在专注结算）
+    case GuardDropKind.focusBoost:
+      // 🔴 B13.20：被动券、当日不限场；quota 仅记账，从不核销
+      // （[GuardVoucherKind.isUnlimitedDaily] 含它）。
+      return 1;
     case GuardDropKind.none:
       return 0; // 无道具档：没有额度
   }
@@ -190,6 +241,10 @@ int voucherUnitOf(GuardVoucherKind kind) {
     case GuardVoucherKind.fertilize:
     case GuardVoucherKind.freeWater:
     case GuardVoucherKind.freeFertilize:
+    case GuardVoucherKind.freeWater3:
+    case GuardVoucherKind.freeFertilize2:
+    case GuardVoucherKind.focusMeal:
+    case GuardVoucherKind.focusBoost:
       return 1;
   }
 }
@@ -282,8 +337,14 @@ class GuardVoucherService {
   /// [buff] 来自 [currentBuff] 或调用方手里已有的当日状态；[base] 是称号 perk
   /// （可为 null = 无称号）。
   ///
-  /// 🔴 [plantId] == null 表示**批量动作**（一键 N 盆）：此时免费券**一律不生效**，
-  /// 返回的 perk 与 [base] 逐位相同 —— 「一键 5 盆免费 = 省 25 ☀」的漏洞不存在。
+  /// 🔴 **B13.20 语义修订**：免费券改「当日**前 N 次**免费」——本函数只看
+  /// [GuardBuffState.hasRemaining]（额度未尽 ⇒ 全免），**不再区分**单株 / 批量；
+  /// 「批量按盆计数」由 [overlaySequenceFor]（逐盆消耗额度副本）与
+  /// [recordConsumed]（逐盆核销）负责。总额度仍由 quota 钳死 ⇒ 一键 5 盆 +
+  /// ×3 券最多免 3 盆，经济不穿帮。
+  ///
+  /// 被动券（[GuardVoucherKind.isFocusBonus]）在本函数恒返回原 perk —— 它们
+  /// 只在专注结算时生效。
   PlantPerk overlayFor(
     GuardBuffState? buff,
     PlantPerk? base, {
@@ -292,13 +353,12 @@ class GuardVoucherService {
   }) {
     final PlantPerk perk = base ?? PlantPerk.none;
     if (buff == null) return perk;
-    // 今天只有一张券：种类不符绝不减免（防止「拿着浇水券去免施肥费」）
+    // 今天只有一张同类券：种类不符绝不减免（防止「拿着浇水券去免施肥费」）
     if (GuardVoucherKind.of(buff.kind) != kind) return perk;
     // 🔴 B13.4：浇水 / 劳动券**当日不限次**（额度字段不再挡减免）；
     // 施肥券 / 免费券维持「额度用完 = 不再减免」（券仍然显示）。
     if (!kind.isUnlimitedDaily && !buff.hasRemaining) return perk;
 
-    final bool single = plantId != null && plantId.isNotEmpty;
     switch (kind) {
       case GuardVoucherKind.water:
         // 每盆 −1（与称号减免相加；B13.4 起全天足额，不再按 remaining 缩减）
@@ -319,23 +379,33 @@ class GuardVoucherService {
           fertilizeDiscount: kGuardFertilizerVoucherSave,
         ));
       case GuardVoucherKind.freeWater:
-        // 🔴 批量（plantId == null）→ 不给减免，直接返回称号 perk。
-        if (!single) return perk;
+        // 🔴 B13.20：额度未尽 ⇒ 全免（单株 / 批量同口径，见方法头注释）。
+        return perk.add(const PlantPerk(waterDiscount: kPlantWaterCost));
+      case GuardVoucherKind.freeWater3:
+        // 🔴 B13.19/B13.20：同免费浇水券（额度未尽 ⇒ 全免），差别只在额度 3 次。
         return perk.add(const PlantPerk(waterDiscount: kPlantWaterCost));
       case GuardVoucherKind.freeFertilize:
-        if (!single) return perk;
         return perk.add(const PlantPerk(fertilizeDiscount: kPlantFertilizeCost));
+      case GuardVoucherKind.freeFertilize2:
+        // 🔴 B13.19/B13.20：同免费施肥券（额度未尽 ⇒ 全免），差别只在额度 2 次。
+        return perk.add(const PlantPerk(fertilizeDiscount: kPlantFertilizeCost));
+      case GuardVoucherKind.focusMeal:
+      case GuardVoucherKind.focusBoost:
+        // 🔴 B13.20：被动券不走养护减免链路（生效点 = 专注结算）。
+        return perk;
     }
   }
 
   /// 一次批量动作里**逐盆**的减免序列（长度 = [count]，第 i 项 = 第 i 盆该用的 perk）。
   ///
-  /// 存在理由：券有当日封顶（浇水 6☀ / 劳动 4☀），批量里额度会**中途用尽**。
+  /// 存在理由：券有额度（施肥按次 / 免费券按次），批量里额度会**中途用尽**。
   /// 「券后单价 × 盆数」在额度用尽后就是错的（12 盆会少报 6☀）；本函数把
   /// 「第几盆开始回原价」算准，让**确认卡合计、余额闸门、执行扣费**三处同源。
   ///
-  /// 免费券（[GuardVoucherKind.isSinglePlantOnly]）在这里自然失效：内部一律
-  /// `plantId: null` 调 [overlayFor]，免费档直接返回 base —— 绝不整批免费。
+  /// 🔴 **B13.20：免费券在批量里按盆计数**（「前 N 次免费」）——逐盆消耗一个
+  /// 额度副本（`consume` 自带钳制），额度未尽的那几盆全免、用尽后回原价。
+  /// 一键 5 盆 + ×3 券 ⇒ 前 3 盆 0☀、后 2 盆原价，合计正好等于「券面值 +
+  /// 2 盆原价」，与单株路径逐位一致。
   List<PlantPerk> overlaySequenceFor(
     GuardBuffState? buff,
     PlantPerk? base, {
@@ -348,7 +418,8 @@ class GuardVoucherService {
     final List<PlantPerk> out = <PlantPerk>[];
     GuardBuffState? cur = buff;
     for (int i = 0; i < count; i++) {
-      out.add(overlayFor(cur, base, kind: kind, plantId: null));
+      // 传非空 plantId（伪 id）：B13.20 起免费分支只看额度，不再拒绝批量。
+      out.add(overlayFor(cur, base, kind: kind, plantId: 'batch:$i'));
       // consume 自带钳制：额度到 0 后 hasRemaining == false，
       // 下一轮 overlayFor 自然返回 base（价格回到原样）。
       cur = cur?.consume(voucherUnitOf(kind));
@@ -381,8 +452,11 @@ class GuardVoucherService {
   ///
   /// 幂等与安全：
   ///  · 动作失败**不要**调（先把钱扣成功、再核销 —— 反了会白送减免）；
-  ///  · 免费券在 [plantId] == null（批量）时**拒绝核销**（否则一次批量就把
-  ///    唯一的免费额度烧掉，而孩子一盆都没免费到）；
+  ///  · 🔴 **B13.20**：免费券改「前 N 次免费、批量按盆计数」——批量路径
+  ///    （[plantId] == null）**逐盆核销合法**（每次核销对应一盆真实养护动作，
+  ///    总额度仍由 quota 钳制；旧的「批量拒绝核销」闸门随「绝不整批」口径
+  ///    一并废除）。专注放大券（[GuardVoucherKind.isUnlimitedDaily] 含它）
+  ///    没有可核销额度，走下面「不限次券」分支空操作；
   ///  · 额度用尽 / 券种类不符 / 存档不是今天 → 空操作（不抛异常、不改存档）。
   Future<void> recordConsumed({
     required GuardVoucherKind kind,
@@ -403,10 +477,9 @@ class GuardVoucherService {
     if (!onPrimary && !onBonus) return;
     final GuardBuffState buff = onPrimary ? primary : bonus!;
     if (!buff.hasRemaining) return;
-    if (kind.isSinglePlantOnly && (plantId == null || plantId.isEmpty)) return;
 
-    // 🔴 B13.4：不限次券（浇水 / 劳动）没有额度可记 —— 核销账只对
-    // 「次数券」（施肥 / 免费）有意义；也不写库（省一次 prefs 写）。
+    // 🔴 B13.4：不限次券（浇水 / 劳动 / 专注放大）没有额度可记 —— 核销账只对
+    // 「次数券」（施肥 / 免费券 / 专注加餐）有意义；也不写库（省一次 prefs 写）。
     if (kind.isUnlimitedDaily) return;
 
     final GuardBuffState consumed = buff.consume(voucherUnitOf(kind));

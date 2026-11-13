@@ -64,7 +64,6 @@ import 'dart:math' as math;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/stable_hash.dart';
-import 'package:sunflower_time/domain/entities/guard_thief.dart';
 
 // ── 冻结通道名（🔴 一经写入即冻结，见文件头通道表）─────────────────────────
 
@@ -475,14 +474,19 @@ GuardBattleScript deriveGuardBattleScript({
   );
 
   final List<GuardBattleMonsterSpec> monsters = <GuardBattleMonsterSpec>[];
-  // 🔴 B13（玄参：「小怪物出现的是馋光鼠，结算卡片弹的却是赶走了食叶虫——
-  // 说法不匹配」）：怪种不再逐怪走独立的 `kind_<i>` 通道，而是**对齐当日贼种**
-  // （[GuardThiefKind.roll]，与 resolve / 胶囊文案 / 结算卡标题同源同 seed）——
-  // 「今天来的是馋光鼠，出场的就全是馋光鼠」。`kind_<i>` 通道退役
-  // （通道名按冻结纪律保留在表里，不再消费）；映射见 [_kindOfThief]。
-  final GuardBattleMonsterKind kind =
-      _kindOfThief(GuardThiefKind.roll(dayKey: dayKey, childId: childId));
+  // 🔴 2026-11-12 玄参改裁定：**怪物同场交叉**——每只怪独立走 `kind_<i>` 通道
+  // 落桶（B13 退役的通道复活；通道名按冻结纪律保留在表里，复活消费不影响
+  // 其他通道）。B13「怪种 = 贼种」的原始动机（结算卡指名与出场不符）已在
+  // 结算卡侧改通用文案消灭，不再需要锁同种。
+  // ⚠️ 相邻通道名只差末字符、FNV-1a 只位移 0.39%（与 B8 闪避同款坑）⇒
+  // 必须经 [_kindUniform] 走 mix32 雪崩，否则会出现「连着 5 只同一种」的
+  // 长 streak——正是「太乏味」抱怨的技术根源。
   for (int i = 0; i < count; i++) {
+    final GuardBattleMonsterKind kind = _kindOf(_kindUniform(
+      dayKey: dayKey,
+      childId: childId,
+      monsterIndex: i,
+    ));
     // 出场时刻：出怪时刻表取前 N 项（防御分支：表短于 N 时按 6s 间隔顺延）。
     final int spawnMs = i < kGuardSpawnOffsetsMs.length
         ? kGuardSpawnOffsetsMs[i]
@@ -1421,19 +1425,37 @@ int _intInRange(double u, int min, int max) {
   return value;
 }
 
-/// 把当日贼种映射到战斗怪种（B13：怪种 = 贼种，见 [deriveGuardBattleScript]）。
+/// 怪种通道的均匀值：`mix32(FNV-1a(seed)) / 2^32`。
+///
+/// ## 🔴 为什么怪种必须**额外终混**（B8 闪避同款坑）
+/// 通道名形如 `kind_<i>`，相邻两只怪的输入串**只差最后一个字符**；FNV-1a 对
+/// 「只差末字符」的串只位移 **0.39%** ⇒ `u(i)` 在三等分桶边界附近**单调爬行**
+/// ⇒ 出现「连着 4~5 只同一种」的长 streak——确定性没问题，观感上却成了
+/// 「每次都是一种怪物」。加 [\_mix32]（MurmurHash3 finalizer）雪崩后恢复
+/// 独立同分布。只作用于怪种通道，其余通道一字节不动。
+double _kindUniform({
+  required String dayKey,
+  required String childId,
+  required int monsterIndex,
+}) {
+  final String seed = deterministicSeed(
+    dayKey: dayKey,
+    childId: childId,
+    salt: kGuardBattleSalt,
+    channel: '${kGuardBattleChannelKind}_$monsterIndex',
+  );
+  final int mixed = _mix32(fnv1a32(seed));
+  return mixed / 4294967296.0;
+}
+
+/// 把怪种均匀值落桶到三种怪（三等分，与 B13 前逐怪通道口径逐位一致）。
 ///
 /// m1 = 馋光鼠（sunRat）/ m2 = 食叶虫（leafBug）/ m3 = 贪婪鼬（sneakThief），
-/// 与素材目录（`monster_m1/m2/m3`）及 `guardThiefName` 的命名一一对应。
-GuardBattleMonsterKind _kindOfThief(GuardThiefKind thief) {
-  switch (thief) {
-    case GuardThiefKind.sunRat:
-      return GuardBattleMonsterKind.m1;
-    case GuardThiefKind.leafBug:
-      return GuardBattleMonsterKind.m2;
-    case GuardThiefKind.sneakThief:
-      return GuardBattleMonsterKind.m3;
-  }
+/// 与素材目录（`monster_m1/m2/m3`）一一对应。
+GuardBattleMonsterKind _kindOf(double u) {
+  if (u < 1.0 / 3.0) return GuardBattleMonsterKind.m1;
+  if (u < 2.0 / 3.0) return GuardBattleMonsterKind.m2;
+  return GuardBattleMonsterKind.m3;
 }
 
 /// 快照数值口径：位置取 2 位小数（金测「逐字符相同」的确定性格式）。

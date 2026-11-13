@@ -88,7 +88,7 @@ const double kGuardNarrowCardScale = 0.85;
 
 /// 卡片布局几何（由**卡宽**派生；其余全部是常量 × [scale]）。
 class GuardCardLayout {
-  const GuardCardLayout(this.cardWidth);
+  const GuardCardLayout(this.cardWidth, [this.uiScale = 1.0]);
 
   /// 卡宽。单位：pt。
   ///
@@ -270,29 +270,41 @@ class GuardCardLayout {
 
   // ── 派生量 ────────────────────────────────────────────────────────────
 
+  /// **平板 UI 放大倍率**（来自 `uiScaleOf`，手机 = 1.0）。
+  ///
+  /// 🔴 守卫卡此前未走平板适配（B 系列全程在手机上定稿），iPad 上被拉成一条
+  /// 全宽窄带、房子/战士/按钮还是手机尺寸 ⇒ 又瘦又空、按钮/旗标又小又偏。
+  /// 现把全部几何与卡高乘本倍率，使其与今日页其它元素（`uiScaleOf`）等比放大、
+  /// 保持手机同款比例。默认 1.0 ⇒ 手机与既有测试逐位零回归。
+  final double uiScale;
+
   /// 窄卡等比缩比例（1.0 或 [kGuardNarrowCardScale]）。
   double get scale =>
       cardWidth <= kGuardNarrowCardWidth ? kGuardNarrowCardScale : 1.0;
 
-  /// 卡高。单位：pt（**不随窄卡缩放**，跨屏宽恒定）。
+  /// 有效缩放 = 窄卡缩 × 平板放大。**所有几何与卡高都乘本值**（卡高本身不随
+  /// 窄卡缩、只随平板放大，见 [cardHeight]）。
+  double get e => scale * uiScale;
+
+  /// 卡高。单位：pt（**不随窄卡缩放、但随平板 [uiScale] 放大**，跨屏宽恒定）。
   ///
-  /// = `padTop + houseHeight + padBottom` = 14 + 88 + 10 = **112**
-  /// （派生自 [kGuardSceneCardHeight]，不再是一个可以手写错的自由常量）。
-  double get cardHeight => kGuardSceneCardHeight;
+  /// = `padTop + houseHeight + padBottom` = 14 + 88 + 10 = **112**，
+  /// 平板下 × [uiScale]（iPad 11″ 1.3 → 145.6 / 13″ 1.6 → 179.2）。
+  double get cardHeight => kGuardSceneCardHeight * uiScale;
 
   /// 舞台基线（房子 / 战士 / 开始钮的底边 y）。
-  double get baselineY => kGuardSceneCardHeight - padBottom * scale;
+  double get baselineY => kGuardSceneCardHeight * uiScale - padBottom * e;
 
   /// 房子屋顶 y（= 基线上移一个房子高度）。
   ///
   /// 🔴 与 [padTop] 的关系：卡宽 > 380（scale 1.0）时**逐位相等**（10）；
   /// 窄卡只缩元素不缩卡高，故屋顶会略低于 [padTop]（24.7），多出来的空白
   /// 留在卡顶 —— 这正是「窄卡不许改卡高」的代价，也是滚动预算稳定的原因。
-  double get houseTopY => baselineY - houseHeight * scale;
+  double get houseTopY => baselineY - houseHeight * e;
 
   /// 房子矩形（`contain` 完整可见，不被裁切）。
   Rect get houseRect {
-    final double s = scale;
+    final double s = e;
     return Rect.fromLTWH(
       padLeft * s,
       houseTopY,
@@ -303,7 +315,7 @@ class GuardCardLayout {
 
   /// 战士矩形（**栅栏外**：左缘 = 房子右缘 + [soldierHouseGap]，脚踩同一基线）。
   Rect get soldierRect {
-    final double s = scale;
+    final double s = e;
     final double left = houseRect.right + soldierHouseGap * s;
     return Rect.fromLTWH(
       left,
@@ -320,7 +332,7 @@ class GuardCardLayout {
   ///
   /// = [soldierOverflowWidth] × [scale]（130 宽卡 / 110.5 窄卡），比
   /// [soldierRect] 宽 ⇒ 由 `OverflowBox` 居中溢出，攻击帧不被裁。
-  double get soldierDrawWidth => soldierOverflowWidth * scale;
+  double get soldierDrawWidth => soldierOverflowWidth * e;
 
   /// 第 [index] 个能量点的矩形（0 = 左、1 = 右）。
   ///
@@ -332,7 +344,7 @@ class GuardCardLayout {
   ///  是卡的**真实**宽度（390 屏 = 390，`scale` = 1.0），见 v6 ①② 的六值 dump。
   /// 纵向：顶边 = **房顶线**（[energyDotTopY]）。
   Rect energyDotRect(int index) {
-    final double s = scale;
+    final double s = e;
     final double gap = energyDotGap * s;
     final double dot = energyDotSize * s;
     final double total = dot * 2 + gap;
@@ -347,7 +359,7 @@ class GuardCardLayout {
   /// `y ∈ [14, 28]`，顶边与房顶线逐位齐平、零像素飘到房子图上方。
   /// 窄卡（s = 0.85）：`houseTopY` 更低，取它（不是 `energyDotTop × scale`）
   /// ⇒ 同样不出房顶。
-  double get energyDotTopY => math.max(houseTopY, energyDotTop * scale);
+  double get energyDotTopY => math.max(houseTopY, energyDotTop * e);
 
   /// 小怪**基准高度上限**（= [monsterSize] × [scale]，窄卡随之缩小）。单位：pt。
   ///
@@ -362,7 +374,7 @@ class GuardCardLayout {
   ///   方向安全（怪不会提前停在跑道中央）；
   /// * 怪 / MISS 的**纵向**占位（`mapMonsterY` 出来的中心 ± 本值/2，取上界居中
   ///   ⇒ 最矮的 m3 也稳稳落在同一条带上，不会上下跳）。
-  double get monsterExtent => monsterSize * scale;
+  double get monsterExtent => monsterSize * e;
 
   /// 第 [kindId] 种怪的**渲染高度**（等面积反解，恒 ≤ [monsterExtent]）。单位：pt。
   ///
@@ -377,7 +389,7 @@ class GuardCardLayout {
     final double ratio =
         monsterAspectRatios[kindId] ?? monsterFallbackAspectRatio;
     final double factor = kGuardMonsterAreaFactorByKind[kindId] ?? 1.0;
-    return math.sqrt(monsterArea * factor / ratio) * scale;
+    return math.sqrt(monsterArea * factor / ratio) * e;
   }
 
   /// 第 [kindId] 种怪**渲染宽度**（= 高度 × 素材宽高比，允许超出方框）。单位：pt。
@@ -420,11 +432,11 @@ class GuardCardLayout {
   }
 
   /// 子弹**实际渲染**边长（= [bulletSize] × [scale]）。
-  double get bulletExtent => bulletSize * scale;
+  double get bulletExtent => bulletSize * e;
 
   /// 右簇槽位矩形（开始钮；战斗中留空但**照样占位**）。
   Rect get rightClusterRect {
-    final double s = scale;
+    final double s = e;
     return Rect.fromLTWH(
       cardWidth - padRight * s - rightClusterSize * s,
       baselineY - rightClusterSize * s,
@@ -451,7 +463,7 @@ class GuardCardLayout {
   /// 🔴 钳到 ≥ [channelLeft]：极窄卡上若放任负数，怪会被渲染到战士**左边**
   /// （视觉上「从花园里冒出来」）。
   double get channelRight =>
-      math.max(rightClusterRect.left - channelGap * scale, channelLeft);
+      math.max(rightClusterRect.left - channelGap * e, channelLeft);
 
   /// 战斗通道宽度（唯一随屏宽变化的量；窄卡下钳到 0）。
   ///
@@ -465,10 +477,12 @@ class GuardCardLayout {
 
   /// 倒计时细线矩形（卡片底部通栏）。
   Rect get countdownRect => Rect.fromLTWH(
-        padLeft * scale,
-        kGuardSceneCardHeight - countdownBottomInset - countdownHeight,
-        math.max(cardWidth - 2 * padLeft * scale, 0),
-        countdownHeight,
+        padLeft * e,
+        kGuardSceneCardHeight * uiScale -
+            countdownBottomInset * e -
+            countdownHeight * e,
+        math.max(cardWidth - 2 * padLeft * e, 0),
+        countdownHeight * e,
       );
 
   // ── sim 坐标 → 卡内渲染坐标（🔴 镜像在这里，sim 零改动）─────────────
@@ -496,7 +510,7 @@ class GuardCardLayout {
     const double span = kGuardBattleLaneBottomPt - kGuardBattleLaneTopPt;
     final double t =
         span <= 0 ? 0.5 : ((simY - kGuardBattleLaneTopPt) / span).clamp(0.0, 1.0);
-    final double half = monsterBandHalfHeight * scale;
+    final double half = monsterBandHalfHeight * e;
     final double y = soldierCenterY + (t - 0.5) * 2 * half;
     // 🔴 B13.2 渲染安全钳（只钳**渲染落点**，sim 的车道 / 到门判定零改动）：
     // 战士 60 高下，带的最低点（t=1）+ 半个怪恰好压上卡底倒计时细线。

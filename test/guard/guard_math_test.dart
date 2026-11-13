@@ -140,8 +140,10 @@ void main() {
   });
 
   // ─────────────────────────── 概率分布 ───────────────────────────
-  // 🔴 B13.5（玄参拍板）：掉落按权益分层 —— 免费表 none=50%、付费表 none=0%。
-  //    旧 PRD §3.7 表 [35/20/15/8/4/18] 已退役为历史测算口径（spec.rate）。
+  // 🔴 B13.20（玄参 2026-11-13 拍板）：**统一券池制**取代 B13.5 两张概率表 ——
+  //    免费档先过 30% 无道具闸门，再从普通宝箱券池（5 种非免费券）**等概率**挑；
+  //    免费券只进高级宝箱（掉落层恒 0）。
+  //    旧 B13.19 8 档表 [22/14/11/8/5/7/3/30] 已退役为历史口径。
   group('概率分布 · 免费档（10000 天，误差 < ±1.5 个百分点）', () {
     const int sampleCount = 10000;
     const double tolerance = 0.015;
@@ -183,45 +185,56 @@ void main() {
           reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs PRD 10%');
     });
 
-    test('浇水券 ≈ 21%', () {
+    test('浇水券 ≈ 14%（统一券池等概率 1/5 × 70%）', () {
       final double actual = dropHits[GuardDropKind.waterVoucher]! / sampleCount;
-      expect((actual - 0.21).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 21%');
+      expect((actual - 0.14).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.20 免费档 14%');
     });
 
-    test('劳动券 ≈ 12%', () {
+    test('劳动券 ≈ 14%（统一券池等概率）', () {
       final double actual = dropHits[GuardDropKind.laborVoucher]! / sampleCount;
-      expect((actual - 0.12).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 12%');
+      expect((actual - 0.14).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.20 免费档 14%');
     });
 
-    test('施肥券 ≈ 9%', () {
+    test('施肥券 ≈ 14%（统一券池等概率）', () {
       final double actual =
           dropHits[GuardDropKind.fertilizeVoucher]! / sampleCount;
-      expect((actual - 0.09).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 9%');
+      expect((actual - 0.14).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.20 免费档 14%');
     });
 
-    test('免费浇水券 ≈ 5%', () {
-      final double actual = dropHits[GuardDropKind.freeWater]! / sampleCount;
-      expect((actual - 0.05).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 5%');
+    test('专注加餐券 ≈ 14%（B13.20 新券 · 统一券池等概率）', () {
+      final double actual = dropHits[GuardDropKind.focusMeal]! / sampleCount;
+      expect((actual - 0.14).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.20 免费档 14%');
     });
 
-    test('免费施肥券 ≈ 3%', () {
-      final double actual =
-          dropHits[GuardDropKind.freeFertilize]! / sampleCount;
-      expect((actual - 0.03).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 3%');
+    test('专注放大券 ≈ 14%（B13.20 新券 · 统一券池等概率）', () {
+      final double actual = dropHits[GuardDropKind.focusBoost]! / sampleCount;
+      expect((actual - 0.14).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.20 免费档 14%');
     });
 
-    test('无道具 ≈ 50%', () {
+    test('四种免费券 = 0%（B13.20：普通宝箱不掉免费券，只进高级宝箱）', () {
+      // 期望值写字面量 0，不用 spec.rate 去读 —— 否则实现把池子写漏了测试会跟绿。
+      expect(dropHits[GuardDropKind.freeWater], 0,
+          reason: '免费浇水券实测出现 ${dropHits[GuardDropKind.freeWater]} 次 vs 期望 0');
+      expect(dropHits[GuardDropKind.freeFertilize], 0,
+          reason: '免费施肥券实测出现 ${dropHits[GuardDropKind.freeFertilize]} 次 vs 期望 0');
+      expect(dropHits[GuardDropKind.freeWater3], 0,
+          reason: '免费浇水×3 实测出现 ${dropHits[GuardDropKind.freeWater3]} 次 vs 期望 0');
+      expect(dropHits[GuardDropKind.freeFertilize2], 0,
+          reason: '免费施肥×2 实测出现 ${dropHits[GuardDropKind.freeFertilize2]} 次 vs 期望 0');
+    });
+
+    test('无道具 ≈ 30%（闸门常量 kGuardDropNothingRateFree）', () {
       final double actual = dropHits[GuardDropKind.none]! / sampleCount;
-      expect((actual - 0.50).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 免费表 50%');
+      expect((actual - 0.30).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs 30% 无道具闸门');
     });
 
-    test('六档合计 = 10000（没有漏统计的档）', () {
+    test('全部档位合计 = 10000（没有漏统计的档）', () {
       int total = 0;
       for (final int v in dropHits.values) {
         total += v;
@@ -263,36 +276,48 @@ void main() {
           reason: '付费档 none 概率 = 0.0，10000 天一次都不该出现');
     });
 
-    test('浇水券 ≈ 43%', () {
+    test('浇水券 ≈ 20%（B13.20 统一券池：无闸门 5 券等概率）', () {
       final double actual = dropHits[GuardDropKind.waterVoucher]! / sampleCount;
-      expect((actual - 0.43).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 付费表 43%');
+      expect((actual - 0.20).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.20 付费档 20%');
     });
 
-    test('劳动券 ≈ 24%', () {
+    test('劳动券 ≈ 20%（统一券池等概率）', () {
       final double actual = dropHits[GuardDropKind.laborVoucher]! / sampleCount;
-      expect((actual - 0.24).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 付费表 24%');
+      expect((actual - 0.20).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.20 付费档 20%');
     });
 
-    test('施肥券 ≈ 18%', () {
+    test('施肥券 ≈ 20%（统一券池等概率）', () {
       final double actual =
           dropHits[GuardDropKind.fertilizeVoucher]! / sampleCount;
-      expect((actual - 0.18).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 付费表 18%');
+      expect((actual - 0.20).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.20 付费档 20%');
     });
 
-    test('免费浇水券 ≈ 10%', () {
-      final double actual = dropHits[GuardDropKind.freeWater]! / sampleCount;
-      expect((actual - 0.10).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 付费表 10%');
+    test('专注加餐券 ≈ 20%（B13.20 新券 · 统一券池等概率）', () {
+      final double actual = dropHits[GuardDropKind.focusMeal]! / sampleCount;
+      expect((actual - 0.20).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.20 付费档 20%');
     });
 
-    test('免费施肥券 ≈ 5%', () {
-      final double actual =
-          dropHits[GuardDropKind.freeFertilize]! / sampleCount;
-      expect((actual - 0.05).abs(), lessThan(tolerance),
-          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.5 付费表 5%');
+    test('专注放大券 ≈ 20%（B13.20 新券 · 统一券池等概率）', () {
+      final double actual = dropHits[GuardDropKind.focusBoost]! / sampleCount;
+      expect((actual - 0.20).abs(), lessThan(tolerance),
+          reason: '实测 ${(actual * 100).toStringAsFixed(2)}% vs B13.20 付费档 20%');
+    });
+
+    test('四种免费券 = 0%（B13.20：掉落层/普通宝箱不掉免费券）', () {
+      // 免费券只出现在高级宝箱首券（chest_first_pick 全池重挑），
+      // 掉落层派生的 GuardRoll.drop 恒不含它们 —— 字面量 0 钉死。
+      expect(dropHits[GuardDropKind.freeWater], 0,
+          reason: '免费浇水券实测出现 ${dropHits[GuardDropKind.freeWater]} 次 vs 期望 0');
+      expect(dropHits[GuardDropKind.freeFertilize], 0,
+          reason: '免费施肥券实测出现 ${dropHits[GuardDropKind.freeFertilize]} 次 vs 期望 0');
+      expect(dropHits[GuardDropKind.freeWater3], 0,
+          reason: '免费浇水×3 实测出现 ${dropHits[GuardDropKind.freeWater3]} 次 vs 期望 0');
+      expect(dropHits[GuardDropKind.freeFertilize2], 0,
+          reason: '免费施肥×2 实测出现 ${dropHits[GuardDropKind.freeFertilize2]} 次 vs 期望 0');
     });
 
     test('🔴 掉落层不再产生第二张券：bonusDrop 恒 none（完成版也一样）', () {
@@ -364,12 +389,12 @@ void main() {
       expect(bonusHits[GuardDropKind.none], sampleCount);
     });
 
-    test('免费档仍有首张券（≈50% 券日 —— 不是「免费档永远无券」）', () {
+    test('免费档仍有首张券（≈70% 券日 —— 不是「免费档永远无券」）', () {
       final int voucherDays = sampleCount - dropHits[GuardDropKind.none]!;
       final double actual = voucherDays / sampleCount;
-      // 期望值 0.50 是 B13.5 免费表的字面量（无道具 50%）。
-      expect((actual - 0.50).abs(), lessThan(0.02),
-          reason: '实测券日 ${(actual * 100).toStringAsFixed(2)}% vs 50%');
+      // 期望值 0.70 是 B13.19 免费表的字面量（无道具 30%，玄参「50% 保底太高」）。
+      expect((actual - 0.70).abs(), lessThan(0.02),
+          reason: '实测券日 ${(actual * 100).toStringAsFixed(2)}% vs 70%');
       expect(voucherDays, greaterThan(0), reason: '券日必须可达（否则本组假绿）');
     });
 
@@ -394,7 +419,7 @@ void main() {
   // ── 跨档对照（🔴 防「改坏成永远 none」的假绿）─────────────────────────────
   //
   // 🔴 Guard-B13.11 后本组的判据**反转了方向**：不再是「免费恒 none / 完整版
-  //    ≈10%」，而是「**两档都恒 none**」+「首张券仍按档位分表（免费 50% 券日 /
+  //    ≈10%」，而是「**两档都恒 none**」+「首张券仍按档位分表（免费 70% 券日 /
   //    完整版必掉券）」—— 后者是唯一能证明「跑的不是同一张免费表」的可达性断言。
   //    双券的「确实会出」可达性由 `guard_chest_math_test.dart` 的高级宝箱组承担。
   group('跨档对照 · 掉落层 bonusDrop 两档都恒 none', () {
@@ -423,10 +448,10 @@ void main() {
         if (free.drop.hasVoucher) freeVoucherDays++;
         if (premium.drop.hasVoucher) premiumVoucherDays++;
       }
-      // 🔴 可达性：两档的首张券表必须**不同**（免费 ≈50% 券日 / 完整版 100%）。
+      // 🔴 可达性：两档的首张券表必须**不同**（免费 ≈70% 券日 / 完整版 100%）。
       final double freeRate = freeVoucherDays / sampleCount;
-      expect((freeRate - 0.50).abs(), lessThan(0.02),
-          reason: '免费档券日实测 ${(freeRate * 100).toStringAsFixed(2)}% vs 50%');
+      expect((freeRate - 0.70).abs(), lessThan(0.02),
+          reason: '免费档券日实测 ${(freeRate * 100).toStringAsFixed(2)}% vs 70%');
       expect(premiumVoucherDays, sampleCount,
           reason: '完整版档必掉券（none 概率 = 0）');
     });
@@ -516,39 +541,61 @@ void main() {
       expect(sum, closeTo(1.0, 1e-12));
     });
 
-    test('掉落概率表合计 = 1.0 且各档面值符合 PRD 表', () {
+    test('掉落概率表合计 = 1.0 且各档概率/面值符合 PRD §3.7（B13.20 统一券池）', () {
       double sum = 0;
       for (final GuardDropKind kind in GuardDropKind.values) {
         sum += kind.rate;
       }
+      // B13.20 rate 语义 = 免费档全口径：5×0.14（券池）+ 4×0（免费券）+ 0.30（none）。
       expect(sum, closeTo(1.0, 1e-12));
 
-      expect(GuardDropKind.waterVoucher.rate, 0.35);
+      // 🔴 B13.20：spec.rate 与统一券池三处同源（PRD §3.7 / kGuardDropRatePerVoucherFree
+      // / 本表）。期望值写字面量，绝不引用常量去乘 —— 否则实现改错了测试跟着绿。
+      expect(GuardDropKind.waterVoucher.rate, 0.14);
       expect(GuardDropKind.waterVoucher.faceValue, 5.5);
-      expect(GuardDropKind.laborVoucher.rate, 0.20);
+      expect(GuardDropKind.laborVoucher.rate, 0.14);
       expect(GuardDropKind.laborVoucher.faceValue, 2.5);
-      expect(GuardDropKind.fertilizeVoucher.rate, 0.15);
+      expect(GuardDropKind.fertilizeVoucher.rate, 0.14);
       expect(GuardDropKind.fertilizeVoucher.faceValue, 2.0);
-      expect(GuardDropKind.freeWater.rate, 0.08);
+      expect(GuardDropKind.focusMeal.rate, 0.14,
+          reason: 'B13.20 新券：普通宝箱券池成员');
+      expect(GuardDropKind.focusMeal.faceValue, 10.0,
+          reason: 'B13.20：专注加餐券面值 = 10 ☀');
+      expect(GuardDropKind.focusBoost.rate, 0.14,
+          reason: 'B13.20 新券：普通宝箱券池成员');
+      expect(GuardDropKind.focusBoost.faceValue, 10.0,
+          reason: 'B13.20：专注放大券面值 = (8+12)/2 中点');
+      // 四种免费券：普通宝箱不掉 ⇒ 免费档全口径概率 = 0（真实概率 1/9 在高级宝箱
+      // 全池，由派生层等概率保证，不在这里重复记账）。
+      expect(GuardDropKind.freeWater.rate, 0);
       expect(GuardDropKind.freeWater.faceValue, 5.0);
-      expect(GuardDropKind.freeFertilize.rate, 0.04);
+      expect(GuardDropKind.freeFertilize.rate, 0);
       expect(GuardDropKind.freeFertilize.faceValue, 10.0);
-      expect(GuardDropKind.none.rate, 0.18);
+      expect(GuardDropKind.freeWater3.rate, 0);
+      expect(GuardDropKind.freeWater3.faceValue, 15.0,
+          reason: '3 × 一盆浇水标价（kPlantWaterCost=5）');
+      expect(GuardDropKind.freeFertilize2.rate, 0);
+      expect(GuardDropKind.freeFertilize2.faceValue, 20.0,
+          reason: '2 × 一盆施肥标价（kPlantFertilizeCost=10）');
+      expect(GuardDropKind.none.rate, 0.30);
       expect(GuardDropKind.none.faceValue, 0.0);
     });
 
-    test('面值期望 E[D] = 3.525 ☀（PRD §5.1 的那笔账）', () {
+    test('面值期望 E[D] = 4.20 ☀（B13.20 统一后的 PRD §5.1 那笔账）', () {
+      // 0.14 × (5.5 + 2.5 + 2.0 + 10 + 10) + 0.30 × 0 = 0.14 × 30 = 4.20。
       double expected = 0;
       for (final GuardDropKind kind in GuardDropKind.values) {
         expected += kind.rate * kind.faceValue;
       }
-      expect(expected, closeTo(3.525, 1e-12));
+      expect(expected, closeTo(4.20, 1e-12));
     });
 
-    test('「免费」两档是唯一单株限定档（防整批免费）', () {
+    test('「免费」四档是仅有的单株限定档（防整批免费；B13.19 起含 ×3/×2 版）', () {
       for (final GuardDropKind kind in GuardDropKind.values) {
         final bool shouldBeSingle = kind == GuardDropKind.freeWater ||
-            kind == GuardDropKind.freeFertilize;
+            kind == GuardDropKind.freeFertilize ||
+            kind == GuardDropKind.freeWater3 ||
+            kind == GuardDropKind.freeFertilize2;
         expect(kind.singlePotOnly, shouldBeSingle, reason: kind.id);
       }
     });

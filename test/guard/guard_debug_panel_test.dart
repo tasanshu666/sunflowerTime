@@ -338,7 +338,7 @@ Future<void> _openPanel(WidgetTester tester, ProviderContainer c,
 }
 
 void main() {
-  testWidgets('1) 面板末尾有「花园守卫」分组与 7 个按钮（滚动后可见）',
+  testWidgets('1) 面板末尾有「花园守卫」分组与 9 个按钮（滚动后可见）',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(360 * 3, 780 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -355,6 +355,8 @@ void main() {
       '发免费浇水券',
       '发劳动券',
       '发施肥券',
+      '发免费浇水券(3次)',
+      '发免费施肥券(2次)',
       '清空今日守卫存档',
     ]) {
       expect(find.text(label), findsOneWidget, reason: '缺少按钮：$label');
@@ -370,6 +372,10 @@ void main() {
     final _Harness h = _Harness();
     await _openPanel(tester, h.container());
 
+    // 🔴 B13.19：面板新增 2 个发券按钮 ⇒ 按钮排布变了，点击前先滚到可见
+    // （否则 tap 落在视口外、静默不打，断言「券没发出来」假红）。
+    await tester.ensureVisible(find.text('刷新出偷菜贼（带免费浇水券）'));
+    await tester.pump();
     await tester.tap(find.text('刷新出偷菜贼（带免费浇水券）'));
     final bool written =
         await _pumpUntil(tester, () => h.store.state?.buff != null);
@@ -390,6 +396,8 @@ void main() {
     final _Harness h = _Harness();
     await _openPanel(tester, h.container());
 
+    await tester.ensureVisible(find.text('发免费浇水券'));
+    await tester.pump();
     await tester.tap(find.text('发免费浇水券'));
     final bool written =
         await _pumpUntil(tester, () => h.store.state?.buff != null);
@@ -409,6 +417,8 @@ void main() {
     final _Harness h = _Harness();
     await _openPanel(tester, h.container());
 
+    await tester.ensureVisible(find.text('发劳动券'));
+    await tester.pump();
     await tester.tap(find.text('发劳动券'));
     final bool written =
         await _pumpUntil(tester, () => h.store.state?.buff != null);
@@ -428,6 +438,8 @@ void main() {
     final _Harness h = _Harness();
     await _openPanel(tester, h.container());
 
+    await tester.ensureVisible(find.text('发施肥券'));
+    await tester.pump();
     await tester.tap(find.text('发施肥券'));
     final bool written =
         await _pumpUntil(tester, () => h.store.state?.buff != null);
@@ -450,6 +462,8 @@ void main() {
       changed++;
     });
 
+    await tester.ensureVisible(find.text('刷新出偷菜贼'));
+    await tester.pump();
     await tester.tap(find.text('刷新出偷菜贼'));
     // 🔴 B10：`forceThiefForDebug` 现在多读一次账本（派生当日场次序号）⇒
     // 存档写入与「_run 收尾的 onChanged」之间多一个微任务。判据改成
@@ -476,6 +490,8 @@ void main() {
 
     expect(await h.guard.energyAvailable(), 1, reason: '1 次有效专注 = 1 点能量');
 
+    await tester.ensureVisible(find.text('用光今日能量'));
+    await tester.pump();
     await tester.tap(find.text('用光今日能量'));
     final bool drained =
         await _pumpUntil(tester, () => h.store.state?.energyUsed == 1);
@@ -516,6 +532,8 @@ void main() {
 
     await _openPanel(tester, c);
 
+    await tester.ensureVisible(find.text('清空今日守卫存档'));
+    await tester.pump();
     await tester.tap(find.text('清空今日守卫存档'));
     final bool cleared = await _pumpUntil(tester, () => h.store.state == null);
     expect(cleared, isTrue, reason: '存档应被清空');

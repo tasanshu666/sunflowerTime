@@ -228,9 +228,10 @@ int dewBonusOf(PlantPerk p) => p.dewBonus;
 /// 护眼完成奖励（☀）：基础 + 加成。
 int eyeCareRewardOf(PlantPerk p) => kEyeCareRewardSunlight + p.eyeCareBonus;
 
-/// 花盆扩容单价（☀）：基础（高/低年段）− 减免，钳到 `[0, 基础]`。
-int expandCostOf(PlantPerk p, {required bool premium}) {
-  final int base = premium ? kPlantPotExpandCostHigh : kPlantPotExpandCostLow;
+/// 花盆扩容单价（☀）：**梯度基础价**（第 [purchaseNo] 次购买，B13.23）−
+/// 称号减免，钳到 `[0, 基础]`。
+int expandCostOf(PlantPerk p, {required int purchaseNo}) {
+  final int base = plantPotExpandBaseCost(purchaseNo);
   return (base - p.expandDiscount).clamp(0, base);
 }
 

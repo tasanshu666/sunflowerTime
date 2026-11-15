@@ -819,6 +819,12 @@ void main() {
       // 与 buff 卡片的 guard_voucher_name_*（浇水卡券）是两套线，别混。
       expect(find.text('浇水券'), findsOneWidget);
       expect(find.text('劳动券'), findsOneWidget);
+      // 🔴 B13.21（玄参「掉券时用户不知道有什么作用、在哪里用」）：券卡名下
+      // 必须带用途说明行 = GuardBuffChip.descOf 同一段 ARB 文案（单一来源）。
+      expect(find.text('今日浇水每次可减少 1 阳光消耗'), findsOneWidget,
+          reason: '主券卡说明行在');
+      expect(find.text('今日除草除虫每次可多赚 1 阳光'), findsOneWidget,
+          reason: '第二张券卡说明行在');
       expect(tester.takeException(), isNull);
     });
 

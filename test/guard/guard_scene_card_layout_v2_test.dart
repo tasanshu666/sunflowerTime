@@ -166,6 +166,25 @@ void main() {
       expect(buttonSmall.width, closeTo(GuardCardLayout.rightClusterSize, 0.01));
     });
 
+    testWidgets('B13.21：开始钮正下方有「开始守卫」提示小字（不改变钮尺寸）',
+        (WidgetTester tester) async {
+      await _pumpCard(tester, cardWidth: 390, screenWidth: 390);
+      // 小字在场（zh 文案，guard_scene_start 键）。
+      expect(find.text('开始守卫'), findsOneWidget,
+          reason: '玄参 2026-11-14：图标钮下补 4 个小字提醒');
+      // 图标槽尺寸不受影响（40pt）。
+      expect(
+        tester.getSize(find.byKey(GuardSceneCard.startButtonVisualKey)).width,
+        closeTo(40, 0.01),
+        reason: '小字只加在图标下方，图标槽逐位不变',
+      );
+      // 外层槽位容器仍占满 rightClusterSize（v2 ① 口径不变）。
+      expect(
+        tester.getSize(find.byKey(GuardSceneCard.startButtonKey)).width,
+        closeTo(GuardCardLayout.rightClusterSize, 0.01),
+      );
+    });
+
     testWidgets('战士 + 小怪：390 卡 vs 1024 卡 尺寸逐位相等', (WidgetTester tester) async {
       await _pumpCard(tester,
           cardWidth: 390, screenWidth: 390, mode: GuardPillMode.fighting);
@@ -298,7 +317,8 @@ void main() {
 
   // ── ⑥ 英文按钮预算 ────────────────────────────────────────────────────
   group('⑥ en 开始按钮 ≤ 120pt 且无文案截断', () {
-    testWidgets('图标钮 64pt；按钮内无 Text（不存在截断风险）', (WidgetTester tester) async {
+    testWidgets('图标钮 64pt；小字由 FittedBox 收缩不截断（B13.21 更新口径）',
+        (WidgetTester tester) async {
       await _pumpCard(tester,
           cardWidth: 288, english: true, textScale: 1.3);
 
@@ -306,14 +326,20 @@ void main() {
           tester.getSize(find.byKey(GuardSceneCard.startButtonKey));
       expect(button.width, lessThanOrEqualTo(120),
           reason: '🔴 en 下开始钮宽必须 ≤ 120pt（旧实现 188.8pt 吃掉 53% 卡宽）');
-      expect(
-        find.descendant(
-          of: find.byKey(GuardSceneCard.startButtonKey),
-          matching: find.byType(Text),
-        ),
-        findsNothing,
-        reason: '🔴 图标钮：文案不参与布局 ⇒ 任何语言都不会截断（a11y 名称走 Semantics）',
-      );
+      // 🔴 B13.21：图标下新增提示小字 —— 但它由 `FittedBox(scaleDown)` 在
+      // 槽宽内收缩，**不参与通道宽度**（外层槽位容器尺寸逐位不变 ⇒ 本组
+      // 「≤ 120pt」断言依旧成立），en「Start guard」也不会溢出/换行撑高。
+      final Set<String> labels = tester
+          .widgetList<Text>(find.descendant(
+            of: find.byKey(GuardSceneCard.startButtonKey),
+            matching: find.byType(Text),
+          ))
+          .map((Text t) => t.data ?? '')
+          .toSet();
+      expect(labels, <String>{'Start guard'},
+          reason: '按钮内只允许提示小字一个 Text（en 文案与 ARB 同源）');
+      expect(tester.takeException(), isNull,
+          reason: 'en + 1.3 字号下小字不得溢出（FittedBox 收缩兜底）');
       // 语义名仍在（读屏可读），且与 ARB 同源。
       expect(
         tester.getSemantics(find.byKey(GuardSceneCard.startButtonKey)).label,

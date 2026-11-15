@@ -119,13 +119,18 @@ void main() {
       expect(eyeCareRewardOf(perkOfLevel(1)), 3);
     });
 
-    test('TC-11 expandCostOf(Lv.35) → 精品 380 / 普通 140', () {
-      expect(expandCostOf(perkOfLevel(35), premium: true),
-          kPlantPotExpandCostHigh - kPerkExpandDiscount);
-      expect(expandCostOf(perkOfLevel(35), premium: true), 380);
-      expect(expandCostOf(perkOfLevel(35), premium: false),
-          kPlantPotExpandCostLow - kPerkExpandDiscount);
-      expect(expandCostOf(perkOfLevel(35), premium: false), 140);
+    test('TC-11 expandCostOf(Lv.35) → 梯度价 −20：80 / 180 / 280（B13.23）', () {
+      // B13.23（玄参 2026-11-14）：扩容价改**购买序数梯度**（不分年段）——
+      // 第 1~2 次 100 / 第 3~5 次 200 / 第 6~8 次 300；Lv.35 −20 叠加、钳 0。
+      expect(expandCostOf(perkOfLevel(35), purchaseNo: 1),
+          kPlantPotExpandCostTier1 - kPerkExpandDiscount);
+      expect(expandCostOf(perkOfLevel(35), purchaseNo: 1), 80);
+      expect(expandCostOf(perkOfLevel(35), purchaseNo: 3),
+          kPlantPotExpandCostTier2 - kPerkExpandDiscount);
+      expect(expandCostOf(perkOfLevel(35), purchaseNo: 3), 180);
+      expect(expandCostOf(perkOfLevel(35), purchaseNo: 6),
+          kPlantPotExpandCostTier3 - kPerkExpandDiscount);
+      expect(expandCostOf(perkOfLevel(35), purchaseNo: 6), 280);
     });
 
     test('无称号（Lv.0）→ 全部取值 = 基础值，逐位不变（回归）', () {
@@ -138,15 +143,21 @@ void main() {
       expect(bloomInstantBaseOf(none, premium: true),
           kBloomInstantSunlightPremium);
       expect(eyeCareRewardOf(none), kEyeCareRewardSunlight);
-      expect(expandCostOf(none, premium: true), kPlantPotExpandCostHigh);
-      expect(expandCostOf(none, premium: false), kPlantPotExpandCostLow);
+      // B13.23 梯度（字面量：第 1 次 100 / 第 3 次 200 / 第 6 次起 300、9~12 封顶）。
+      expect(expandCostOf(none, purchaseNo: 1), 100);
+      expect(expandCostOf(none, purchaseNo: 2), 100);
+      expect(expandCostOf(none, purchaseNo: 3), 200);
+      expect(expandCostOf(none, purchaseNo: 5), 200);
+      expect(expandCostOf(none, purchaseNo: 6), 300);
+      expect(expandCostOf(none, purchaseNo: 8), 300);
+      expect(expandCostOf(none, purchaseNo: 12), 300, reason: '超 8 封顶 300');
     });
 
     test('钳制：减免/加成极端值不产生负价 / 不越界', () {
       expect(waterCostOf(const PlantPerk(waterDiscount: 999)), 0);
       expect(fertilizeCostOf(const PlantPerk(fertilizeDiscount: 999)), 0);
-      expect(expandCostOf(const PlantPerk(expandDiscount: 999), premium: false),
-          0);
+      expect(expandCostOf(
+          const PlantPerk(expandDiscount: 999), purchaseNo: 1), 0);
     });
   });
 

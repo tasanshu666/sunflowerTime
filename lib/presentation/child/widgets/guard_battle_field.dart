@@ -474,7 +474,11 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     // 🔴 2026-11-12 玄参：开火**被受理**（子弹入队）那一刻播攻击音效
     // （MISS 不回退——打没打中都算「攻击了」）。fire-and-forget（playSfx
     // 本身就是 void 非阻塞口径），失败静默降级，绝不影响战局确定性。
-    AudioService.instance.playSfx(AudioCue.guardAttack, volume: kGuardAttackVolume);
+    // 🔴 F203（2026-11-14 玄参：连点胶囊所有战斗音效全消失）：改走**叠加池**
+    // [AudioService.playSfxOverlap] —— 单共享播放器下每支 stop 掉上一支，
+    // 连点时 setAsset 反复被打断 → 全部静默。池通道互不掐断、可叠加。
+    AudioService.instance
+        .playSfxOverlap(AudioCue.guardAttack, volume: kGuardAttackVolume);
     // 战士攻击帧（300ms）由**卡**渲染（战士是卡内常驻 L3 元素），本层只报事件。
     widget.onFireAccepted?.call();
   }
@@ -601,15 +605,18 @@ class _GuardBattleFieldState extends State<GuardBattleField>
   ///
   /// · `hit`（命中未击灭）与 `kill`（击灭）都算「真打中」⇒ 播；
   /// · `dodge`（闪避 = MISS）**绝不播**；
-  /// · 同一步多只怪同时被命中 ⇒ 只播一次（共享 SFX 播放器，多播也只是互掐）；
+  /// · 同一步多只怪同时被命中 ⇒ 只播一次（多播也是同一段音效重复，无信息量）；
   /// · 音频失败静默降级（AudioService 既有口径），绝不影响战局确定性 ——
   ///   本方法**只读事件**，不碰 sim 状态。
+  ///
+  /// 🔴 F203：改走**叠加池**（`playSfxOverlap`）——攻击音效高频连发会把共享
+  /// 播放器上的击中音效掐掉；池通道互不干扰（见 audio_service.dart 池注释）。
   void _playHitSfx(GuardBattleStepReport report) {
     for (final GuardBattleEvent e in report.events) {
       if (e.type == GuardBattleEventType.hit ||
           e.type == GuardBattleEventType.kill) {
         // B13.7：音量 0.25（玄参「声音有点大，稍微有个声音能听见就行」）。
-        AudioService.instance.playSfx(AudioCue.guardHit, volume: 0.25);
+        AudioService.instance.playSfxOverlap(AudioCue.guardHit, volume: 0.25);
         return;
       }
     }

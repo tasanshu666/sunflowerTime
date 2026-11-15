@@ -161,11 +161,31 @@ const int kPlantFertilizeMaxPerDay = 1;
 /// 两次浇水的最小间隔（分钟）：不能连续浇水（M3 修订）。
 const int kPlantWaterIntervalMinutes = 30;
 
-/// 花盆扩容消耗 · 高年段（PRD §4.6，解锁 +1 盆）。
-const int kPlantPotExpandCostHigh = 400;
+/// 花盆扩容基础价 · **梯度**（🔴 B13.23，玄参 2026-11-14 拍板）：
+/// 「购买花盆不要 400 阳光了，太贵了……从 100 阳光开始，购买第 1、2 盆 100，
+/// 第 3、4、5 盆 200，第 6、7、8 盆 300。定个梯度吧。」
+///
+/// 口径：**按购买序数**（花园默认 [kGardenPotCapacityDefault] = 4 盆起，
+/// 买断档最多再购 8 盆到 12）—— 第 1、2 次购买 100 / 第 3~5 次 200 /
+/// 第 6~8 次 300，与「购满 8 次 = 12 盆」严丝合缝。
+/// 原「高年段 400 / 低年段 160」双常量随本裁定**退役**（梯度不分年段）；
+/// 称号 Lv.35 的 −20 减免仍叠加、钳 0（见 `expandCostOf`）。
+const int kPlantPotExpandCostTier1 = 100;
 
-/// 花盆扩容消耗 · 低年段（PRD §4.6）。
-const int kPlantPotExpandCostLow = 160;
+/// 花盆扩容基础价 · 第 3~5 次购买（B13.23 梯度，见 [kPlantPotExpandCostTier1]）。
+const int kPlantPotExpandCostTier2 = 200;
+
+/// 花盆扩容基础价 · 第 6~8 次购买（B13.23 梯度，见 [kPlantPotExpandCostTier1]）。
+const int kPlantPotExpandCostTier3 = 300;
+
+/// 第 [purchaseNo] 次购买（1-based，= 当前容量 − 默认 4 + 1，钳 ≥1）的
+/// 扩容**基础价**（未叠称号减免）。购买序数超 8（防御分支）按 300 封顶。
+int plantPotExpandBaseCost(int purchaseNo) {
+  final int n = purchaseNo < 1 ? 1 : purchaseNo;
+  if (n <= 2) return kPlantPotExpandCostTier1;
+  if (n <= 5) return kPlantPotExpandCostTier2;
+  return kPlantPotExpandCostTier3;
+}
 
 /// 救回按钮已取消（2026-09-23 玄参大人拍板）：枯萎后只能靠养护动作恢复，
 /// 不再有付费救回。故 `kPlantReviveCostLow` / `kPlantReviveCostHigh` 已删除。
@@ -804,6 +824,21 @@ const int kAmbientStartGateStuckMs = 20000;
 /// 此时若再按 0.35 压低（-9.1 dB）等于把背景音重新按回「听不见」→ 仍会被听成打断；
 /// 改 0.80（-1.9 dB）为**轻微让位**：SFX 清晰、背景音全程可闻、绝不出现「消失感」。
 const double kSfxDuckAmbientVolume = 0.80;
+
+/// 专注页 · **1/3（及后续每满间隔）进度「收集阳光」配音**（`focus_collect.mp3`
+/// 10.08s）的音量（0~1）。
+///
+/// 🔴 **B13.24（玄参 2026-11-15）**：默认 1.0 → **0.5**（「提示音降低一些，
+/// 降低到现在的一半，声音有点大」）。减半线性对齐（响度感知非严格减半，
+/// 但项目既定音量口径都按线性 0~1 标量走，B13.7 击中 0.25 同款先例）。
+const double kFocusCollectVolume = 0.5;
+
+/// 专注到时 · 结束过渡 **5 秒倒计时配音**（`5s_countdown.mp3` 4.99s，进护眼卡
+/// 前的缓冲）的音量（0~1）。
+///
+/// 🔴 **B13.24（玄参 2026-11-15）**：默认 1.0 → **0.5**（「护眼模式倒计时的声音
+/// 也降低一半」）。与 [kFocusCollectVolume] 同批同幅度。
+const double kFocusEndCountdownVolume = 0.5;
 
 /// ducking 恢复的兜底超时（毫秒）· 万一监听不到 SFX `completed`（加载失败 / 播放器异常），
 /// 最多压低这么久即恢复，避免氛围音音量被永久钉死。
@@ -1813,7 +1848,7 @@ const double kLevelUpFxStageSize = 150;
 //   ⑤ Lv.20 专心小骑士 → 除虫奖励 +1        （kGardenPestReward 2→3）
 //   ⑥ Lv.25 守时小星使 → 开花即时阳光 +1    （kBloomInstantSunlight 6→7 / 精品 10→11）
 //   ⑦ Lv.30 专注小法师 → 晨露阳光 +1/条     （加在折损之后；见 dewSunlightOf）
-//   ⑧ Lv.35 星辰守护者 → 花盆扩容消耗 −20   （kPlantPotExpandCostHigh/Low 400/160→380/140）
+//   ⑧ Lv.35 星辰守护者 → 花盆扩容消耗 −20   （B13.23 梯度价 100/200/300 → 80/180/280）
 //   ⑨ Lv.40 时光大贤者 → 铲除退款 +20       （kShovelRefundCommon/Premium 150/250→170/270）
 //
 // 🔴 四条硬纪律（P1~P5）：
@@ -2637,8 +2672,17 @@ const double kGuardPillRadius = 22;
 const int kGuardBattleWindowMs = 30000;
 
 /// 出怪时刻表。单位：ms。怪数取前 N 项（N ∈ [kGuardMonsterCountMin,
-/// kGuardMonsterCountMax]），第 0 只 t=0 入场，间隔 6s。
-const List<int> kGuardSpawnOffsetsMs = <int>[0, 6000, 12000, 18000, 24000];
+/// kGuardMonsterCountMax]），第 0 只 t=0 入场，间隔 2.5s。
+///
+/// 🔴 B13.22（玄参 2026-11-14 第二轮拍板）：怪数改 **8~12 只**后表长 5 → 12、
+/// 间隔 6s → 2.5s —— 12 只 × 2.5s = 末怪 27.5s 进场，仍落在 30s 战斗窗口内
+/// （6s 间隔下第 7 只起就会在窗口外出场，永远打不到）。怪横穿卡片 ~19~25s
+/// （速度 13~17pt/s），2.5s 间隔 ⇒ 同屏怪峰值 ~8 只（原 5 只）——玄参明确
+/// 「3~5 只都嫌少」，拥挤是本参数的预期效果。
+const List<int> kGuardSpawnOffsetsMs = <int>[
+  0, 2500, 5000, 7500, 10000, 12500,
+  15000, 17500, 20000, 22500, 25000, 27500,
+];
 
 /// 战士攻击静态的切换时长。单位：ms（B5b 素材接线：开火瞬间切攻击图，
 /// 到点回待机循环帧；纯演出时长，不进 sim 时间轴、不影响确定性）。
@@ -2724,11 +2768,30 @@ const List<double> kGuardBulletTrailDotOpacities = <double>[0.50, 0.32, 0.18];
 /// 拖尾相邻圆点中心的间距（= 子弹渲染边长的倍数；随 uiScale 自然缩放）。
 const double kGuardBulletTrailGapFactor = 0.9;
 
-/// 怪物数量下限（PRD：3~5 只；通道 `count` 落桶）。
-const int kGuardMonsterCountMin = 3;
+/// 怪物数量下限。通道 `count` 落桶。
+///
+/// 🔴 B13.22（玄参 2026-11-14 第二轮拍板）：B13.21 的「1~3 只」是玄参对指令的
+/// 复述纠偏（原意 = **种类** 1~3 种）；数量口径为 **8~12 只**。同日同孩由
+/// `count` 通道确定落桶（`_intInRange` 闭区间 [8,12]），历史 seed 的怪数重掷
+/// 属预期内（战局剧本本来就按天重掷，不存在跨天兼容问题）。
+const int kGuardMonsterCountMin = 8;
 
-/// 怪物数量上限。
-const int kGuardMonsterCountMax = 5;
+/// 怪物数量上限（B13.22：3 → 12，见 [kGuardMonsterCountMin]）。
+///
+/// ⚠️ [kGuardSpawnOffsetsMs] 已同步扩到表长 12（间隔 2.5s），N ≤ 12 恒有定义。
+const int kGuardMonsterCountMax = 12;
+
+/// 每天出场的**怪物种类数**下限（B13.22 新增，日级通道 `kind_n` 落桶）。
+///
+/// 玄参 2026-11-14 第二轮拍板：「每次出现怪物的**种类** 1~3 种」——当天先掷
+/// 种类数 k ∈ [1,3]，再从 3 种怪里确定性地选 k 种组成当日种类池，8~12 只怪
+/// 逐只从池内落桶。同日同孩确定，跨天随机。
+const int kGuardMonsterKindCountMin = 1;
+
+/// 每天出场的怪物种类数上限（见 [kGuardMonsterKindCountMin]）。
+///
+/// 上限 = 3 = 三种怪（m1 馋光鼠 / m2 食叶虫 / m3 贪婪鼬）全部在场。
+const int kGuardMonsterKindCountMax = 3;
 
 /// m1（棕怪）行走速度。单位：pt/s。卡内可行程 ~330pt ⇒ 走完全程 ~25.4s。
 const double kGuardMonsterSpeedM1 = 13;
@@ -2753,8 +2816,13 @@ const double kGuardDodgeProbM1 = 0.35;
 /// m2 闪避概率。
 const double kGuardDodgeProbM2 = 0.25;
 
-/// m3 闪避概率。
-const double kGuardDodgeProbM3 = 0.35;
+/// m3（贪婪鼬）闪避概率。
+///
+/// 🔴 B13.22（玄参 2026-11-14 第二轮：「贪婪鼬的闪避率修改为 50%」）：
+/// B13.21 的 0.45 → **0.50**。300ms 开火冷却下每只约挨 3 发，`0.5³ = 12.5%`
+/// 一发都打不中（m1 0.35 是 `0.65³ ≈ 27%`）——鼬是三档里最难打的稀有精英
+/// （出现权重仅 10%），0.50 让「精英感」名副其实；闪避区间锚随之 0.15~0.50。
+const double kGuardDodgeProbM3 = 0.50;
 
 /// 子弹命中半径。单位：pt。自瞄前提下这是**容错圈**，不是瞄准难度。
 const double kGuardBulletHitRadius = 28;

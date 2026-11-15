@@ -22,7 +22,6 @@ import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/bloom_reward_outcome.dart';
-import 'package:sunflower_time/domain/entities/child_profile.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
@@ -612,6 +611,11 @@ class PlantGrowthService {
 
   /// 账号服务（C90 期 2 第二批可选注入：年龄段跟当前孩子走；null = 旧行为读
   /// 全局 settings，既有域单测零改动）。
+  ///
+  /// 🔴 B13.23：扩容价改梯度后唯一消费点 `_effectiveAgeTier` 已删，本字段暂无
+  /// 读取方；但构造参数 `account` 有 70+ 处调用点在传，**删参会全网涟漪**——
+  /// 保留字段（ignore）保 API 稳定，待下一个「跟孩子走」需求再复活。
+  // ignore: unused_field
   final AccountService? _account;
   final Uuid _uuid;
   final Random _random;
@@ -1931,27 +1935,13 @@ class PlantGrowthService {
     return quota == kUnlimitedQuota ? kGardenPotCapacityMax : quota;
   }
 
-  /// 当前生效档位（C90 期 2 第二批）：注入 [_account] 且**存在当前孩子档案**时
-  /// 读档案 ageTier（年龄段跟孩子走）；否则读全局 settings 单行（= 隔离前行为，
-  /// 桩模式 / 既有域单测零感知）。
-  Future<AgeTier> _effectiveAgeTier() async {
-    final AccountService? account = _account;
-    if (account != null) {
-      // 🔴 有界等待（Q-E 先例）：档案源不可用 → 超时回退 null 落 settings 兜底。
-      final ChildProfile? profile = await account
-          .currentProfile()
-          .timeout(kChildProfileReadTimeout);
-      if (profile != null) return profile.ageTier;
-    }
-    return (await _settings.getSettings()).ageTier;
-  }
-
   /// 花盆扩容：capacity<档位上限 → 扣扩容价(refType='plant_expand') → gardenPotCapacity+1。
   ///
   /// 🔴 阶段 4：上限改为**按档位**（域层防线，防绕过 UI 一次性顶到满格）；**只拦扩容**，
   /// 绝不压低 / 删除任何已有盆位（C69 红线：达上限时已有盆位照常可用）。
-  /// [perk]（C77 第 8 条）：扩容价 perk-aware（低年段取 low / 其余取 high，各 − 减免）；
-  /// 缺省 → 内部 [currentPerk]。
+  /// [perk]（C77 第 8 条）：扩容价 perk-aware —— **梯度基础价**（按购买序数
+  /// `容量 − 默认 4 + 1`，B13.23：第 1~2 次 100 / 第 3~5 次 200 / 第 6~8 次 300）
+  /// − 称号减免、钳 0；缺省 → 内部 [currentPerk]。
   Future<void> expandPot(DateTime now, {PlantPerk? perk}) async {
     final AppSettings settings = await _settings.getSettings();
     final int limit = _potCapacityLimit;
@@ -1963,8 +1953,9 @@ class PlantGrowthService {
     }
     final int cost = expandCostOf(
       perk ?? await currentPerk(),
-      // C90 期 2：档位跟当前孩子走（未注入 account → 全局 settings，旧行为）。
-      premium: (await _effectiveAgeTier()) != AgeTier.low,
+      // B13.23：购买序数（第 1 次买 = 容量 4 → purchaseNo 1）。
+      purchaseNo:
+          settings.gardenPotCapacity - kGardenPotCapacityDefault + 1,
     );
     final double balance = await _ledger.balance();
     if (balance < cost) {

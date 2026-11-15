@@ -51,6 +51,8 @@ import 'package:sunflower_time/domain/services/guard_service.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_art.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_buff_chip.dart'
+    show GuardBuffChip;
 
 /// 弹出结算卡，并在孩子点「收下」时**执行 [onCollect]**（= `GuardService.claim`）。
 ///
@@ -593,12 +595,20 @@ class _GuardResultCardState extends State<GuardResultCard>
   }
 
   /// buff 券卡（主券 / 高级宝箱的第二张券共用同一个款式）。
+  ///
+  /// 🔴 B13.21（玄参 2026-11-14「宝箱掉落的卡券，刚出现的时候用户可能不知道
+  /// 有什么作用、在哪里使用」）：券名下补一行**用途说明小字**——直接复用
+  /// [GuardBuffChip.descOf]（花园页券 chip 的同一段 ARB 文案，单一来源）：
+  /// 「今日浇水每次可减少 1 阳光消耗」「今日累计专注满 15 分钟，额外获得
+  /// 10 阳光」……作用与生效场景一句话讲清。无道具档（`descOf` 返回空串）
+  /// 不渲染空行。
   Widget _voucherRewardCard({
     required Key key,
     required GuardDropKind kind,
     required AppLocalizations t,
     required bool isZh,
   }) {
+    final String desc = GuardBuffChip.descOf(kind, t);
     return Container(
       key: key,
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -631,6 +641,24 @@ class _GuardResultCardState extends State<GuardResultCard>
               color: Color(0xFF2E6B60),
             ),
           ),
+          // B13.21：用途说明（与券名同色系浅一档；3 行封顶防溢出）。
+          if (desc.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 2),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(
+                desc,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 10,
+                  height: 1.25,
+                  color: Color(0xFF52796F),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

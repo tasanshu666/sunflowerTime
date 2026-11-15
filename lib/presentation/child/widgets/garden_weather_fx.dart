@@ -91,6 +91,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show ByteData, rootBundle;
 
 import 'package:sunflower_time/domain/services/weather_system.dart';
 
@@ -205,6 +206,7 @@ class GardenWeatherFxParticle {
     this.amplitude = 0,
     this.sizeIsFractionOfWidth = false,
     this.cycles = 1,
+    this.spriteIndex = 0,
   });
 
   /// 归一化起点 x（0..1；横向循环元素不使用，位移完全由 cycle 决定）。
@@ -256,6 +258,12 @@ class GardenWeatherFxParticle {
 
   /// true ⇒ [size] 解释为「画布宽的比例」（云影用）。
   final bool sizeIsFractionOfWidth;
+
+  /// 风叶**位图编号**（0..7，第十四批 2026-11-14）：仅 [GardenWeatherFxShape.leaf]
+  /// 使用 —— 生成时由固定种子随机选出（同 seed 逐位可复现），绘制时索引进
+  /// [loadGardenWeatherLeafSprites] 的缓存；位图未就绪 / 索引越界 ⇒ 回退代码梭形叶。
+  /// 其他形状一律 0（忽略）。
+  final int spriteIndex;
 }
 
 /// 一个**图层**的粒子配置（远 / 近各一条，混合形状也可多条）。
@@ -694,6 +702,9 @@ const Map<WeatherKind, _FxConfig> _configs = <WeatherKind, _FxConfig>{
     ],
   ),
   // ── 微风：18 片深绿叶（远 10 小快淡 + 近 8 大慢浓），α 抬到 0.65 ──
+  //    🔴 第十五批（2026-11-14 玄参实测反馈「叶子有点小」）：尺寸整体 ×2
+  //    （远 7~10 → 14~20、近 12~18 → 24~36）；速度 / α / 数量 / 起伏不动 ——
+  //    动画机制零改动，连续性探针口径不受尺寸影响（只量位移不量边界）。
   WeatherKind.breeze: _FxConfig(
     layers: <_FxLayer>[
       _FxLayer(
@@ -701,8 +712,8 @@ const Map<WeatherKind, _FxConfig> _configs = <WeatherKind, _FxConfig>{
         count: 10,
         // 🔴 深绿（不是浅草绿）：浅绿叶片落在草地上等于隐形。
         color: Color(0xFF2E5D24),
-        sizeMin: 7,
-        sizeMax: 10,
+        sizeMin: 14,
+        sizeMax: 20,
         speedMin: 0.52,
         speedMax: 0.74,
         alphaMin: 0.38,
@@ -712,8 +723,8 @@ const Map<WeatherKind, _FxConfig> _configs = <WeatherKind, _FxConfig>{
         shape: GardenWeatherFxShape.leaf,
         count: 8,
         color: Color(0xFF2E5D24),
-        sizeMin: 12,
-        sizeMax: 18,
+        sizeMin: 24,
+        sizeMax: 36,
         speedMin: 0.28,
         speedMax: 0.46,
         alphaMin: 0.55,
@@ -958,12 +969,16 @@ const Map<WeatherKind, _FxConfig> _configs = <WeatherKind, _FxConfig>{
       ),
       _FxLayer(
         shape: GardenWeatherFxShape.leaf,
-        count: 6,
+        // 🔴 第十六批（2026-11-14 玄参纠偏）：大风叶 6 → **14 片**、速度
+        // 0.90~1.30 → **1.20~1.60**（比风线还快）——「大风带来的叶子更多、
+        // 飘动更快」，原先「风线为主、叶子点缀」的配比观感反了（微风 18 片
+        // 反而比大风多）。尺寸 16~26 不再动（第五批 ×2 已定）。
+        count: 14,
         color: Color(0xFF2E5D24),
-        sizeMin: 8,
-        sizeMax: 13,
-        speedMin: 0.90,
-        speedMax: 1.30,
+        sizeMin: 16,
+        sizeMax: 26,
+        speedMin: 1.20,
+        speedMax: 1.60,
         alphaMin: 0.40,
         alphaMax: 0.52,
         layer: GardenWeatherFxLayer.near,
@@ -1086,10 +1101,58 @@ List<GardenWeatherFxParticle> buildGardenWeatherFxParticles(WeatherKind kind) {
         amplitude: layer.amplitudeMin +
             rnd.nextDouble() * (layer.amplitudeMax - layer.amplitudeMin),
         sizeIsFractionOfWidth: layer.sizeIsFractionOfWidth,
+        // 🔴 放在**所有**现有 rnd 调用之后：追加一次 nextInt 不改变前面字段的
+        //    随机序列 ⇒ 第十三批及以前的粒子基线（位置 / 尺寸 / α）逐位不变，
+        //    连续性探针与全部既有断言零漂移。仅 leaf 层取 0..7，其余形状 0。
+        spriteIndex: layer.shape == GardenWeatherFxShape.leaf
+            ? rnd.nextInt(kGardenWeatherLeafSpriteCount)
+            : 0,
       ));
     }
   }
   return out;
+}
+
+// ── 风叶位图（第十四批 2026-11-14，玄参交付 8 张落叶 / 花瓣）──────────────────
+
+/// 风叶位图张数（`assets/fx/leaves/leaf_01..08.png`，与 pubspec 目录一一对应）。
+const int kGardenWeatherLeafSpriteCount = 8;
+
+/// 风叶位图资产路径前缀（编号两位补零）。
+const String kGardenWeatherLeafSpriteAssetPrefix = 'assets/fx/leaves/leaf_';
+
+/// 进行中 / 已完成的加载 Future（并发调用复用同一 Future，绝不重复解码）。
+Future<List<ui.Image>?>? _leafSpriteLoad;
+
+/// 加载 8 张风叶位图：**全成功**返回表（按 leaf_01..08 顺序）；**任何一张缺失 /
+/// 解码失败**（测试宿主无 asset、素材漏打包等）返回 `null` ⇒ 绘制端回退代码梭形叶
+/// —— 「美术永不阻塞」纪律（与 `weatherArtOf` 的 errorBuilder 同一条）。
+///
+/// 幂等：首次调用后结果（含失败）被缓存，后续调用立即返回同一结果。
+Future<List<ui.Image>?> loadGardenWeatherLeafSprites() {
+  return _leafSpriteLoad ??= _loadLeafSprites();
+}
+
+Future<List<ui.Image>?> _loadLeafSprites() async {
+  try {
+    final List<ui.Image> out = <ui.Image>[];
+    for (int i = 1; i <= kGardenWeatherLeafSpriteCount; i++) {
+      final String path =
+          '$kGardenWeatherLeafSpriteAssetPrefix${i.toString().padLeft(2, '0')}.png';
+      final ByteData data = await rootBundle.load(path);
+      final ui.Codec codec =
+          await ui.instantiateImageCodec(data.buffer.asUint8List());
+      try {
+        out.add((await codec.getNextFrame()).image);
+      } finally {
+        codec.dispose();
+      }
+    }
+    return out.length == kGardenWeatherLeafSpriteCount ? out : null;
+  } catch (_) {
+    // 缺素材 / 测试宿主：整体回退代码叶，绝不抛。
+    return null;
+  }
 }
 
 /// 花园页天气**动效层**（`IgnorePointer` + `RepaintBoundary` + 单 `CustomPainter`）。
@@ -1134,11 +1197,23 @@ class _GardenWeatherFxState extends State<GardenWeatherFx>
   WeatherKind? _kind;
   List<GardenWeatherFxParticle> _particles = const <GardenWeatherFxParticle>[];
 
+  /// 风叶位图（第十四批）：`null` = 未加载完成 / 加载失败 ⇒ painter 画代码梭形叶。
+  /// 加载完成 `setState` 一次触发重绘（动画帧由 controller 推动，与本字段无关）。
+  List<ui.Image>? _leafSprites;
+
   @override
   void initState() {
     super.initState();
     _syncParticles();
     _syncController();
+    _loadLeafSprites();
+  }
+
+  /// 火后不理（fire-and-forget）：结果由 painter 的回退逻辑兜底，绝不阻塞首帧。
+  Future<void> _loadLeafSprites() async {
+    final List<ui.Image>? sprites = await loadGardenWeatherLeafSprites();
+    if (!mounted || sprites == null) return;
+    setState(() => _leafSprites = sprites);
   }
 
   @override
@@ -1205,6 +1280,7 @@ class _GardenWeatherFxState extends State<GardenWeatherFx>
             particles: _particles,
             animation: _controller,
             groundY: widget.groundY,
+            leafSprites: _leafSprites,
           ),
           // 外层 `Positioned.fill` 给的是紧约束 ⇒ 这里填满即可。
           size: Size.infinite,
@@ -1226,6 +1302,7 @@ class GardenWeatherFxPainter extends CustomPainter {
     required this.particles,
     this.animation,
     this.groundY,
+    this.leafSprites,
   }) : super(repaint: animation);
 
   /// 日型（决定形状、配色与全局氛围）。
@@ -1240,11 +1317,22 @@ class GardenWeatherFxPainter extends CustomPainter {
   /// 雨滴「地面线」在本层坐标里的 y；`null` ⇒ 层底缘。
   final double? groundY;
 
+  /// 风叶位图（第十四批 2026-11-14）：`null` / 空 ⇒ leaf 回退代码梭形叶
+  /// （测试宿主与缺素材场景恒走回退，绘制口径与第十四批前逐位一致）。
+  final List<ui.Image>? leafSprites;
+
   /// 共享画笔（每帧只改字段、不 new —— 见类注释的性能口径）。
   final Paint _stroke = Paint()..strokeCap = StrokeCap.round;
 
   /// 纯色填充画笔（叶片 / 暖尘 / 雪花 / 水花共用，逐次改 color）。
   final Paint _fill = Paint();
+
+  /// 风叶**位图**画笔（第十四批）：只用于调制 α（color 恒白 × 粒子 α），
+  /// 中等采样质量 —— 128px 源图缩到 14~36pt（第十五批 ×2 后），medium 足够
+  /// 且平滑。
+  final Paint _leafSpritePaint = Paint()
+    ..filterQuality = FilterQuality.medium
+    ..color = const Color(0xFFFFFFFF);
 
   /// 云影画笔（带常量模糊，模糊参数不必每帧重设）。
   final Paint _cloudPaint = Paint()..maskFilter = _cloudBlur;
@@ -1257,6 +1345,13 @@ class GardenWeatherFxPainter extends CustomPainter {
 
   /// 气流线路径（复用同一实例，每帧 `reset` ⇒ 零分配）。
   final Path _wavePath = Path();
+
+  /// 叶片路径（复用同一实例，每帧 `reset` ⇒ 零分配；第十一批新增）。
+  final Path _leafPath = Path();
+
+  /// 叶脉提亮色缓存（key = 图层底色 value；同图层全部粒子同色 ⇒ 命中率 ~100%，
+  /// 零逐帧分配；第十一批新增）。
+  final Map<int, Color> _leafVeinColors = <int, Color>{};
 
   /// 光束 / 暗角 / 雨雾缓存（按画布尺寸）。
   Paint? _beamPaint;
@@ -1427,19 +1522,81 @@ class GardenWeatherFxPainter extends CustomPainter {
 
       case GardenWeatherFxShape.leaf:
         // 叶片：从屏左外飘到屏右外（两端都在屏外）+ 上下起伏 + 翻转角度。
+        // 第十四批（2026-11-14 玄参交付 8 张落叶 / 花瓣位图）：**位图优先** ——
+        // 粒子自带 spriteIndex（0..7 固定种子随机），按素材宽高比缩放、
+        // p.size = 视觉长边（与第十一批代码叶同尺寸），固定初始倾角由 phase
+        // 派生（±0.8rad，避免 8 张素材同一朝向的整齐感）+ 原有 sin 摆动。
+        // 位图未就绪 / 越界 ⇒ 回退第十一批代码梭形叶 + 中脉（口径不变）。
+        // 动画机制（横飘 / 起伏 / 摆动）两分支逐位一致 ⇒ 连续性探针口径共用。
         final double ang = cycle * 2 * math.pi;
-        canvas.save();
-        canvas.translate(center.dx, center.dy);
-        canvas.rotate(math.sin(ang) * 0.6);
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: Offset.zero,
-            width: p.size,
-            height: p.size * 0.55,
-          ),
-          _fill..color = color,
-        );
-        canvas.restore();
+        // 🔴 第十六批（2026-11-14 玄参「叶子不应该只保持一个形态，应该是
+        // 随机的、旋转的」）：在原「固定倾角 + sin 摆动」上叠加**确定性翻滚**
+        // —— 每颗叶每 cycle 转 ±1 或 ±2 整圈，方向 / 圈数由 spriteIndex 与
+        // phase 派生（固定种子随机 ⇒ 同日型重跑逐位一致，⑤ 口径不破）。
+        // 整圈倍数是接缝安全的充要条件：cycle 1→0 时 `spin·ang` 恰好走过
+        // 2π 的整数倍，模 2π 归零（A7 铁律①同源）；sin 摆动项同理闭合。
+        // 中心不动 ⇒ 连续性探针（量位移）口径不受影响。
+        final int spinTurns = (p.spriteIndex.isEven ? 1 : -1) *
+            (((p.phase * 53).floor() % 2) + 1);
+        final ui.Image? sprite =
+            (leafSprites == null || leafSprites!.isEmpty)
+                ? null
+                : leafSprites![p.spriteIndex % leafSprites!.length];
+        if (sprite != null) {
+          final double ratio = sprite.width / sprite.height;
+          final double w;
+          final double h;
+          if (ratio >= 1) {
+            w = p.size;
+            h = p.size / ratio;
+          } else {
+            h = p.size;
+            w = p.size * ratio;
+          }
+          canvas.save();
+          canvas.translate(center.dx, center.dy);
+          canvas.rotate(
+            (p.phase - 0.5) * 1.6 + spinTurns * ang + math.sin(ang * 3 + p.phase * 2 * math.pi) * 0.3,
+          );
+          _leafSpritePaint.color =
+              const Color(0xFFFFFFFF).withValues(alpha: p.alpha * s.opacity);
+          canvas.drawImageRect(
+            sprite,
+            Rect.fromCenter(
+              center: Offset(sprite.width / 2, sprite.height / 2),
+              width: sprite.width.toDouble(),
+              height: sprite.height.toDouble(),
+            ),
+            Rect.fromCenter(center: Offset.zero, width: w, height: h),
+            _leafSpritePaint,
+          );
+          canvas.restore();
+        } else {
+          // ── 回退：代码梭形叶 + 中脉（第十一批，位图缺失时的兜底）──
+          canvas.save();
+          canvas.translate(center.dx, center.dy);
+          canvas.rotate(spinTurns * ang +
+              math.sin(ang * 3 + p.phase * 2 * math.pi) * 0.3);
+          final double w = p.size;
+          final double h = p.size * 0.5;
+          _leafPath
+            ..reset()
+            ..moveTo(-w / 2, 0)
+            ..quadraticBezierTo(w * 0.12, -h, w / 2, 0)
+            ..quadraticBezierTo(w * 0.12, h, -w / 2, 0)
+            ..close();
+          canvas.drawPath(_leafPath, _fill..color = color);
+          // 中脉：沿主轴的浅色细线（底色向白提亮 45%，缓存避免逐帧分配）。
+          final Color vein = _leafVeinColors.putIfAbsent(
+            p.color.toARGB32(),
+            () => Color.lerp(p.color, const Color(0xFFFFFFFF), 0.45)!,
+          );
+          _stroke
+            ..color = vein.withValues(alpha: p.alpha * s.opacity)
+            ..strokeWidth = math.max(1.0, w * 0.07);
+          canvas.drawLine(Offset(-w * 0.4, 0), Offset(w * 0.4, 0), _stroke);
+          canvas.restore();
+        }
 
       case GardenWeatherFxShape.cloud:
         // 云影：从「含 3σ 光晕整朵在屏外」走到「整朵在屏外」——行程含模糊扩张，
@@ -1695,10 +1852,12 @@ class GardenWeatherFxPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant GardenWeatherFxPainter oldDelegate) {
-    // 进度由 `repaint`（controller）推动，这里只需管「换了日型 / 换了动画源」。
+    // 进度由 `repaint`（controller）推动，这里只需管「换了日型 / 换了动画源 /
+    // 位图刚加载完成（第十四批，identical 比较防列表逐元素开销）」。
     return oldDelegate.kind != kind ||
         oldDelegate.animation != animation ||
         oldDelegate.groundY != groundY ||
-        oldDelegate.particles != particles;
+        oldDelegate.particles != particles ||
+        !identical(oldDelegate.leafSprites, leafSprites);
   }
 }

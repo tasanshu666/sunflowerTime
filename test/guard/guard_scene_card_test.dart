@@ -301,14 +301,20 @@ void main() {
           reason: '待机态不得渲染倒计时细线');
 
       // 🔴 卡内零文本（状态只走 Semantics.label）。
+      // 🔴 B13.21 更新：开始钮下新增「开始守卫」提示小字 ⇒ 口径从「零 Text」
+      // 改为「**恰好一个** Text（提示小字）」—— 状态条幅 / 气泡 / 尾标
+      // 仍全部退出卡面，多一个 Text 即红。
       expect(
         find.descendant(
           of: find.byKey(GuardSceneCard.cardKey),
           matching: find.byType(Text),
         ),
-        findsNothing,
-        reason: '🔴 B7：卡内必须零 Text（能量点气泡 / 状态条幅 / 尾标全部退出卡面）',
+        findsOneWidget,
+        reason: '🔴 B13.21：卡内只允许开始钮提示小字一个 Text'
+            '（能量点气泡 / 状态条幅 / 尾标全部退出卡面的口径不变）',
       );
+      expect(find.text('开始守卫'), findsOneWidget,
+          reason: '且这个 Text 就是开始钮的提示小字');
       // 卡内开火钮已删（旧实现是一枚 local_fire_department 大圆钮）。
       expect(find.byIcon(Icons.local_fire_department), findsNothing,
           reason: '🔴 B7：卡内开火钮已删（开火改由页面右上阳光胶囊触发）');

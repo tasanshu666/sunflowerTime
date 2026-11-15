@@ -349,7 +349,9 @@ class _GuardChestStageState extends State<GuardChestStage>
     // 音量 0.5（[kGuardChestLandVolume]，2026-11-12 玄参 B13.13 裁定：
     // 落地音与开箱音统一压到 0.5，首版的 1.0 真机听感偏大）。
     // 走可注入的 [GuardChestSfxPlayer] 接缝，测试逐位钉住音量。
-    (widget.playSfx ?? AudioService.instance.playSfx)(
+    // 🔴 F203：默认实现改**叠加池**（playSfxOverlap）—— 战斗高频攻击 / 击中
+    // 音效会把共享 SFX 播放器上的落地音掐掉（连点时全静默的根因）。
+    (widget.playSfx ?? AudioService.instance.playSfxOverlap)(
       AudioCue.guardChestLand,
       volume: kGuardChestLandVolume,
     );
@@ -376,7 +378,8 @@ class _GuardChestStageState extends State<GuardChestStage>
     if (!mounted) return;
     setState(() => _phase = GuardChestPhase.opening);
     // 🔴 音画同时起播（§7.5）：音量 0.5（Q-04 已裁定），与 5s 动画同一刻。
-    (widget.playSfx ?? AudioService.instance.playSfx)(
+    // 🔴 F203：默认实现改**叠加池**（playSfxOverlap，同落地音）。
+    (widget.playSfx ?? AudioService.instance.playSfxOverlap)(
       AudioCue.guardChestOpen,
       volume: kGuardChestOpenVolume,
     );

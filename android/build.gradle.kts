@@ -22,6 +22,11 @@ subprojects {
 // 直接导致 assembleDebug 失败（"set compileSdkVersion to 30 or above"）。
 // 插件位于 pub 缓存、不可改，故在根工程对全部 Android 模块统一覆盖。
 //
+// 2026-11-14：35 → **36**。androidx.browser 1.9.0 / androidx.core(-ktx) 1.17.0 的
+// AAR 元数据要求 compileSdk ≥ 36，:app 的 checkReleaseAarMetadata 失败。本块
+// afterEvaluate 会覆盖 app/build.gradle.kts 里的显式值 ⇒ 这里必须一起抬。
+// 只抬 compileSdk（编译期），targetSdk / minSdk 不动 ⇒ 安装范围与运行时行为不变。
+//
 // ⚠️ 位置很重要：本块必须放在下面 `evaluationDependsOn(":app")` 之前，
 // 否则会报 "Cannot run Project.afterEvaluate(Action) when the project is already evaluated"。
 subprojects {
@@ -30,12 +35,12 @@ subprojects {
         if (androidExt != null) {
             androidExt.withGroovyBuilder {
                 try {
-                    "compileSdkVersion"(35)
+                    "compileSdkVersion"(36)
                 } catch (_: Throwable) {
-                    "compileSdk"(35)
+                    "compileSdk"(36)
                 }
             }
-            println("[sunfocus] forced compileSdk=35 for ${project.name}")
+            println("[sunfocus] forced compileSdk=36 for ${project.name}")
         }
     }
 }

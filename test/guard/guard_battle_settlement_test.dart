@@ -109,8 +109,11 @@ GuardBattleEndReason _replayGreedy(String dayKey, String childId) {
 ///
 /// 限定 `want ∈ {1, 2}`（< 封顶 3）⇒ 领域层三道钳制（封顶 / 余额 / 幂等）
 /// 都不会改写数额 ⇒ 账本实扣 == sim 值，卡面/账本可逐位互证。
-/// 另取 `want = 1` 时天然满足经济守恒（B5b 起 winSun ≥ 3 恒成立）。
-(String, int) _findStolenChild(String dayKey, {int want = 1}) {
+/// 🔴 B13.22：怪数 8~12 后「被偷 1」结构性不可达 —— 前 2 只怪（spawn 0/2.5s）
+/// 横穿 ~19~25s 必然都在 30s 窗口内到门、各偷 ≥1 ⇒ 未触顶的最小被偷 = 2
+/// （300 seed 实测直方图 {3:280, 2:20}，恰 1 为 0）。故默认改搜 **want=2**；
+/// win ≥ 3 恒成立 ⇒ 经济守恒（win − stolen ≥ 0）不受影响。
+(String, int) _findStolenChild(String dayKey, {int want = 2}) {
   for (int n = 0; n < 500; n++) {
     final String childId = 'bt4-stolen-$n';
     if (_replayNoFire(dayKey, childId).stolenSun == want) {
@@ -428,7 +431,7 @@ void main() {
 
   // ── ① 必被偷：卡面 N == 账本 guard_stolen 行 ──────────────────────────
   group('① 必被偷战局：结算卡「偷走 N」== 账本 guard_stolen 行', () {
-    testWidgets('sim 被偷 1 ⇒ 卡面「被偷菜贼偷走 1 阳光」、账本 −1、收下照发奖',
+    testWidgets('sim 被偷 2 ⇒ 卡面「被偷菜贼偷走 2 阳光」、账本 −2、收下照发奖',
         (WidgetTester tester) async {
       final String today = dayKey(DateTime.now());
       final (String childId, int stolen) = _findStolenChild(today);
@@ -440,7 +443,7 @@ void main() {
       await _startBattle(tester);
       await _runBattleToResultCard(tester);
 
-      // 卡面：字面量 N 来自纯 sim 搜索（= 1），文案是 B4 新 key。
+      // 卡面：字面量 N 来自纯 sim 搜索（B13.22 起 = 2，见 _findStolenChild），文案是 B4 新 key。
       expect(find.text('被偷菜贼偷走 $stolen 阳光'), findsOneWidget,
           reason: '🔴 有怪到门口 ⇒ 结算卡必须有被偷行，数额 = sim 终局合计');
 
@@ -516,10 +519,10 @@ void main() {
 
   // ── ⑤ 经济守恒探针 ────────────────────────────────────────────────────
   group('⑤ 经济守恒：win − stolen ≥ 0、守卫账本行数恰为 2', () {
-    testWidgets('免费路径 + 被偷 1：guard_win + guard_stolen 恰两行、不倒贴',
+    testWidgets('免费路径 + 被偷 2：guard_win + guard_stolen 恰两行、不倒贴',
         (WidgetTester tester) async {
       final String today = dayKey(DateTime.now());
-      final (String childId, int stolen) = _findStolenChild(today); // stolen = 1
+      final (String childId, int stolen) = _findStolenChild(today); // stolen = 2
       final _Env env = await _makeEnvWithChild(childId);
       await _seedPlant(env);
       await _seedValidFocus(env);
@@ -541,7 +544,7 @@ void main() {
       expect(winRows + stolenRows + payRows, 2,
           reason: '🔴 守卫账本行数恰为 2（guard_pay 有则 3）');
 
-      // 🔴 同一战局 win − stolen ≥ 0（孩子侧不倒贴；stolen=1 时由
+      // 🔴 同一战局 win − stolen ≥ 0（孩子侧不倒贴；stolen=2 时由
       //    winSun ≥ kGuardWinSunMin ≥ 3（B5b）恒成立）。
       final int winSun = (await env.guardState()).winSun;
       expect(winSun - stolen, greaterThanOrEqualTo(0),
@@ -562,7 +565,7 @@ void main() {
       final _Env env = await _makeEnvWithChild(childId);
       await _seedPlant(env);
       await _seedValidFocus(env);
-      await _seedBalance(env, 10); // 余额充足：若写入成功本应落 −1
+      await _seedBalance(env, 10); // 余额充足：若写入成功本应落 −2
       final _ThrowingStolenLedger ledger =
           _ThrowingStolenLedger(env.database, account: env.account);
       await _pumpToday(

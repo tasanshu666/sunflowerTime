@@ -22,12 +22,13 @@
 ///
 /// ## 图标状态灯（唯一的 mood 表达）
 /// 56×56（×s）圆角容器（radius 12），天气位图居中（`weatherArtOf`）：
-///  · **none**（温和日）→ 底色浅绿 `0xFFC0DD97`，**无**角标；
+///  · **none**（温和日）→ 底色淡天蓝 `0xFFBFE0F2`（第十一批 2026-11-13，原浅绿
+///    `0xFFC0DD97` 与草地/黄太阳不搭，玄参拍板换天蓝系），**无**角标；
 ///  · **todo**（极端日待处理）→ **雾霾青蓝底 `0xFF6FA3A0` + 1.5 红描边 `0xFFE24B4A`**
 ///    + **右上角红底白「!」角标**（20×s 圆 `0xFFE24B4A`，外扩 4pt 压角不盖图标；
 ///    第八批 2026-11-07：第七批淡青底上的纯白雪花仍看不清，底色加深一档）；
-///  · **done**（极端日已购保护）→ 底色浅绿 + **右上角绿底白对勾角标**（同位同尺寸；
-///    绿 = 复用 `kShelterBoughtFg` 0xFF2E7D32，不新造色）。
+///  · **done**（极端日已购保护）→ 底色淡天蓝（同 none）+ **右上角绿底白对勾角标**
+///    （同位同尺寸；绿 = 复用 `kShelterBoughtFg` 0xFF2E7D32，不新造色）。
 ///
 /// ## 可点击
 /// 整块 56×s 状态灯包一层 `GestureDetector`（`HitTestBehavior.opaque`），点击
@@ -102,8 +103,13 @@ const double kGardenWeatherBadgeIconSize = 56;
 /// 图标状态灯容器的圆角 = **12**（56 盒配 12 圆角，与 chips 圆角同族）。
 const double kGardenWeatherBadgeIconContainerRadius = 12;
 
-/// 状态灯底色（**正常 / 温和日**，`mood == none`）：浅绿 = 一切正常。
-const Color kGardenWeatherBadgeStatusOkColor = Color(0xFFC0DD97);
+/// 状态灯底色（**正常 / 温和日**，`mood == none`）：淡天蓝 = 一切正常。
+///
+/// 第十一批（2026-11-13 玄参「图标背景与草地/图标本身不搭」）：浅绿
+/// `0xFFC0DD97` 与花园草地同色系（绿上加绿融进背景）且与黄太阳/橙风筝
+/// 邻近色打架；改**淡天蓝** —— 天气图标行业事实标准（100 个天气类 App 图标
+/// 外沿主色 70% 为蓝/白/深），黄太阳在淡蓝上对比最清晰，与草地背景形成区分。
+const Color kGardenWeatherBadgeStatusOkColor = Color(0xFFBFE0F2);
 
 /// 状态灯底色（**极端日 todo**，需处理）：**雾霾青蓝底 `0xFF6FA3A0`**（第八批
 /// 2026-11-07 玄参「雪花纯白后仍看不清」：第七批淡青 `0xFFE1F5EE` 太浅，纯白

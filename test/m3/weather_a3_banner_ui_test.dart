@@ -31,7 +31,8 @@
 ///
 /// ## 期望值来源（独立于实现常量）
 /// · 状态灯 `right == 390 − 12 / top == 12 / 尺寸 == 56`
-///   + 底色（温和/done = `0xFFC0DD97` 绿、极端 todo = `0xFF6FA3A0` 雾霾青蓝 + 红描边，
+///   + 底色（温和/done = `0xFFBFE0F2` 淡天蓝（第十一批 2026-11-13 玄参拍板，原
+///   浅绿 `0xFFBFE0F2` 与草地不搭）、极端 todo = `0xFF6FA3A0` 雾霾青蓝 + 红描边，
 ///   + 叹号角标 / done 对勾角标）= 玄参 2026-11-07 拍板的**写死坐标表**；
 /// · `chips 视觉顶 == 12` = A2 封版基线；
 /// · `kWeatherRowKey` / `kWeatherBannerKey` 在真页面树里**不存在** = 2026-11-06
@@ -415,7 +416,7 @@ void main() {
       (tester.widget<Container>(find.byKey(kGardenWeatherBadgeIconKey))
               .decoration! as BoxDecoration)
           .color,
-      const Color(0xFFC0DD97),
+      const Color(0xFFBFE0F2),
       reason: '温和日状态灯 = 浅绿底（正常，写死色值）',
     );
     expect(find.byKey(kGardenWeatherBadgeMarkKey), findsNothing,
@@ -649,7 +650,7 @@ void main() {
       (tester.widget<Container>(find.byKey(kGardenWeatherBadgeIconKey))
               .decoration! as BoxDecoration)
           .color,
-      const Color(0xFFC0DD97),
+      const Color(0xFFBFE0F2),
       reason: 'done 态状态灯 = 浅绿底（完成 = 正常，写死色值）',
     );
     expect(find.byKey(kGardenWeatherBadgeMarkKey), findsOneWidget,
@@ -704,7 +705,7 @@ void main() {
       (tester.widget<Container>(find.byKey(kGardenWeatherBadgeIconKey))
               .decoration! as BoxDecoration)
           .color,
-      const Color(0xFFC0DD97),
+      const Color(0xFFBFE0F2),
       reason: '重复刷新后仍必须 done（绿底不回退；重算幂等，§3.2）',
     );
     expect(find.byKey(kGardenWeatherBadgeMarkKey), findsOneWidget,

@@ -44,7 +44,8 @@ class GardenHelpSheet extends StatelessWidget {
   /// 当前花园容量（盆）——取自花园页 state。
   final int capacity;
 
-  /// 扩容一只花盆的阳光价（随年段变化，由调用方按当前 state 传入）。
+  /// 扩容下一只花盆的阳光价（**梯度价**按购买序数，B13.23；由调用方按当前
+  /// state 传入，含称号减免）。
   final int expandCost;
 
   @override

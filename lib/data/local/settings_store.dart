@@ -86,15 +86,34 @@ class SettingsStore {
 
   /// 孩子端已展示过的「家长赠予到账」**最新账本记录 id**（F150；默认 null =
   /// 从未弹过 —— 首次有赠予必弹。按 [childId] 分键）。
+  ///
+  /// ⚠️ F202（2026-11-14）起为**迁移只读源**：不再新写（判据改水位线，
+  /// 见 [acknowledgedParentGiftWatermark]）。保留 getter 供首跑迁移比对。
   Future<String?> acknowledgedParentGiftId({required String childId}) async =>
       _sp.getString(ackedParentGiftIdKey(childId));
 
   /// 覆写「家长赠予到账」已读 id（按 [childId] 分键）。
+  ///
+  /// ⚠️ F202 起**不再被生产链路调用**（判据改水位线）；保留仅为既有测试 /
+  /// 手工迁移兼容，勿在新代码使用。
   Future<void> setAcknowledgedParentGiftId(
     String id, {
     required String childId,
   }) async =>
       _sp.setString(ackedParentGiftIdKey(childId), id);
+
+  /// 「家长赠予到账」**已读时间水位**（F202 2026-11-14；毫秒 epoch，按
+  /// [childId] 分键）。语义：`ts > 水位` 的 parent_gift 记录 = 未读。
+  /// 默认 0 = 首跑新口径 ⇒ 调用方须先做旧「单 id」键迁移（见壳层实现）。
+  Future<int> acknowledgedParentGiftWatermark({required String childId}) async =>
+      _sp.getInt(ackedParentGiftWatermarkKey(childId)) ?? 0;
+
+  /// 推进「家长赠予到账」已读时间水位（弹卡确认后调用，写未读里最新一笔 ts）。
+  Future<void> setAcknowledgedParentGiftWatermark(
+    int millis, {
+    required String childId,
+  }) async =>
+      _sp.setInt(ackedParentGiftWatermarkKey(childId), millis);
 
   // ── 花园：孩子上次**看到**的植物阶段快照（按孩子分键）─────────────────────
 

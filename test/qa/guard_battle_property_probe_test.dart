@@ -1,8 +1,9 @@
 /// 守卫战 v2 独立验收 · **W7 属性测试探针（200 seed）**。
 ///
-/// 判据（主理人验收单 W7）：
-/// * 怪数 ∈ [3,5]、每怪 steal ∈ [1,3]、dodge ∈ [0.15,0.35]、HP ∈ [3,5]、
-///   spawn 时刻 ∈ kGuardSpawnOffsetsMs 表、laneY ∈ [10,80]；
+/// 判据（主理人验收单 W7；🔴 B13.22 更新：怪数 1~3 → **8~12**、日级种类数
+/// **1~3 种**、m3 闪避上限 0.45 → **0.50**，玄参 2026-11-14 第二轮拍板）：
+/// * 怪数 ∈ [8,12]、日级种类数 ∈ [1,3]、每怪 steal ∈ [1,3]、dodge ∈ [0.15,0.50]、
+///   HP ∈ [3,5]、spawn 时刻 ∈ kGuardSpawnOffsetsMs 表、laneY ∈ [10,80]；
 /// * kind 通道相关性作为**已知特征**记录分布（不判红——B3 已实测同 seed 强相关）。
 library;
 import 'package:flutter_test/flutter_test.dart';
@@ -32,23 +33,27 @@ void main() {
     }
   });
 
-  test('怪数 ∈ [3,5]（200 seed）', () {
+  test('怪数 ∈ [8,12]、日级种类数 ∈ [1,3]（200 seed；B13.22 玄参第二轮拍板）', () {
     for (int i = 0; i < 200; i++) {
       final GuardBattleScript script = deriveGuardBattleScript(
           dayKey: '2026-11-09', childId: 'qa-prop-$i');
-      expect(script.monsters.length, inInclusiveRange(3, 5),
+      expect(script.monsters.length, inInclusiveRange(8, 12),
           reason: 'seed qa-prop-$i 怪数 ${script.monsters.length}');
+      final int kinds =
+          script.monsters.map((GuardBattleMonsterSpec m) => m.kind).toSet().length;
+      expect(kinds, inInclusiveRange(1, 3),
+          reason: 'seed qa-prop-$i 日级种类数 $kinds');
     }
   });
 
-  test('每怪 steal ∈ [1,3]、dodge ∈ [0.15,0.35]、HP ∈ [3,5]（200 seed 全怪）', () {
+  test('每怪 steal ∈ [1,3]、dodge ∈ [0.15,0.50]、HP ∈ [3,5]（200 seed 全怪）', () {
     for (int i = 0; i < 200; i++) {
       final GuardBattleScript script = deriveGuardBattleScript(
           dayKey: '2026-11-09', childId: 'qa-prop-$i');
       for (final GuardBattleMonsterSpec m in script.monsters) {
         expect(m.steal, inInclusiveRange(kGuardStealMin, kGuardStealMax),
             reason: 'seed qa-prop-$i 怪 #${m.index} steal=${m.steal}');
-        expect(m.dodgeProb, inInclusiveRange(0.15, 0.35),
+        expect(m.dodgeProb, inInclusiveRange(0.15, 0.50),
             reason: 'seed qa-prop-$i 怪 #${m.index} dodge=${m.dodgeProb}');
         // B8：HP 1/2/3 → 3/4/5（玄参「一下死太无聊」）。
         expect(m.hitsToKill, inInclusiveRange(3, 5),

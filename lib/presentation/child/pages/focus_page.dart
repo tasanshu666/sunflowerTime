@@ -454,7 +454,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
     if (mounted) setState(() => _endingInSession = inSession);
     // 倒计时开始 → 5 秒倒计时配音（玄参 2026-10-08 晚交付 `5s_countdown.mp3`，
     // 替代此前的系统「叮」；fire-and-forget，受 soundOn 保护，失败静默不影响主流程）。
-    ref.read(audioServiceProvider).playSfx(AudioCue.focusEndCountdown);
+    // 🔴 B13.24（2026-11-15 玄参）：音量 1.0 → 0.5（「降低一半，声音有点大」）。
+    ref.read(audioServiceProvider)
+        .playSfx(AudioCue.focusEndCountdown, volume: kFocusEndCountdownVolume);
     for (int i = kFocusEndBufferSeconds; i >= 1; i--) {
       if (!mounted) return;
       setState(() => _endingCountdown = i);
@@ -514,7 +516,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
         setState(() => _level = FeedbackLevel.lvl2);
         _pulseParticle();
         _showBubble(event.textKey);
-        ref.read(audioServiceProvider).playSfx(AudioCue.focusCollect); // 收集阳光序列帧配音
+        // 🔴 B13.24（2026-11-15 玄参）：音量 1.0 → 0.5（「降低一半」）。
+        ref.read(audioServiceProvider)
+            .playSfx(AudioCue.focusCollect, volume: kFocusCollectVolume); // 收集阳光序列帧配音
       case FeedbackLevel.lvl3:
         setState(() {
           _level = FeedbackLevel.lvl3;

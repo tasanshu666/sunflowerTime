@@ -172,12 +172,26 @@ String ackedTaskCheckInIdsKey(String childId) =>
 
 /// 孩子端已读「家长赠予到账」通知键（F150；存**最近一条已读账本记录的 id**）。
 ///
+/// ⚠️ F202（2026-11-14）起本键**只作迁移读取源**，不再新写 —— 判据改用
+/// [ackedParentGiftWatermarkKey] 的时间水位线（连续赠多笔时旧「单 id 最新一条」
+/// 口径会把前一笔的未读提示吞掉，玄参真机实证：先赠 5 再赠 10 只弹 10）。
+///
 /// 为什么是单值 id 而非列表：赠予通知只弹**最新一条**（余额对得上即可，历史
 /// 累计金额在「我的-阳光来源」可查），拿最新记录 id 与本键比对即知有无未读。
 /// 按孩子分键口径同上（阳光账本按 childId 隔离，跨孩子绝不互串）。
 /// 🔴 键名生成走本 helper 单点，禁止散写字面量。
 String ackedParentGiftIdKey(String childId) =>
     'acked_parent_gift_id_read_$childId';
+
+/// 孩子端「家长赠予到账」**已读时间水位键**（F202 2026-11-14；毫秒 epoch，按
+/// [childId] 分键）。
+///
+/// 语义：`ts > 水位` 的 `parent_gift` 账本记录 = 未读；弹卡确认后水位推进到
+/// 未读里最新一笔的 ts。取代旧「单 id」口径的原因见
+/// [ackedParentGiftIdKey] 的 ⚠️ 注。`0`（或缺键）= 首跑新口径 ⇒ 触发旧键迁移。
+/// 🔴 键名生成走本 helper 单点，禁止散写字面量。
+String ackedParentGiftWatermarkKey(String childId) =>
+    'acked_parent_gift_watermark_$childId';
 
 /// 花园「孩子上次**看到**的植物阶段」快照键（按孩子分键口径同上）。
 ///

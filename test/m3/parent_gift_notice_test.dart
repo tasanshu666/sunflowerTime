@@ -4,7 +4,9 @@
 ///  · 检查时机**只有两处** —— 外壳首帧后 + 家长天地 pop 回孩子端（RouteAware
 ///    didPopNext）；**绝不挂 economyRevision 监听**（家长仍在家长端操作时弹卡
 ///    会挡住家长）。
-///  · 判据 = `parent_gift` 最新一条记录 id vs SP 已读键（按孩子分键）。
+///  · 判据（🔴 F202 2026-11-14 改版）：`ts > 已读水位` 的**全部** `parent_gift`
+///    记录逐笔一行（旧「最新一条 id」口径会把前一笔未读吞掉 —— 玄参实证：
+///    先赠 5 再赠 10 只弹 10）。旧单 id 键在首跑时迁移成水位（宁少弹不误弹）。
 ///
 /// 宿主与 fake 集同 `test/m4/child_shell_app_cap_test.dart`（有界 pump 纪律）。
 library parent_gift_notice_test;
@@ -14,6 +16,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/constants/prd_params.dart'
+    show kChildIdDefault;
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/data/local/repositories/in_memory_bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
@@ -52,9 +57,9 @@ const AppSettings _settings = AppSettings(
   poolBudget: 160,
 );
 
-SunlightEntry _gift(String id, {double net = 12.0}) => SunlightEntry(
+SunlightEntry _gift(String id, {double net = 12.0, DateTime? ts}) => SunlightEntry(
       id: id,
-      ts: DateTime(2026, 10, 23, 12),
+      ts: ts ?? DateTime(2026, 10, 23, 12),
       type: SunlightType.earn,
       gross: net,
       net: net,
@@ -64,16 +69,21 @@ SunlightEntry _gift(String id, {double net = 12.0}) => SunlightEntry(
       dayKey: '2026-10-23',
     );
 
-/// 账本 fake：`latest` 可变（模拟「家长在家长端又赠了一笔」）。
+/// 账本 fake：`gifts` 可变（模拟「家长在家长端又赠了一笔」）。
+/// 🔴 F202：壳层判据走 `all()` 过滤 parent_gift，fake 以 [gifts] 供数。
 class _FakeSunlightRepository implements SunlightRepository {
-  _FakeSunlightRepository({this.latest});
-  SunlightEntry? latest;
-  int latestReadCount = 0;
+  _FakeSunlightRepository({List<SunlightEntry>? gifts})
+      : gifts = gifts ?? <SunlightEntry>[];
+  final List<SunlightEntry> gifts;
+  int allReadCount = 0;
 
   @override
   Future<SunlightEntry?> latestByRefType(String refType) async {
-    latestReadCount++;
-    return latest;
+    // F202 后壳层不再走 latestByRefType；保留实现供其它调用方兜底。
+    final List<SunlightEntry> hits = gifts
+        .where((SunlightEntry e) => e.refType == refType)
+        .toList();
+    return hits.isEmpty ? null : hits.last;
   }
 
   @override
@@ -108,7 +118,10 @@ class _FakeSunlightRepository implements SunlightRepository {
   @override
   Future<double> earnNetOnDay(String dayKey) async => 0;
   @override
-  Future<List<SunlightEntry>> all() async => <SunlightEntry>[];
+  Future<List<SunlightEntry>> all() async {
+    allReadCount++;
+    return List<SunlightEntry>.from(gifts);
+  }
 }
 
 class _FakeSettingsRepository implements SettingsRepository {
@@ -196,7 +209,7 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final _FakeSunlightRepository ledger =
-        _FakeSunlightRepository(latest: _gift('gift-1'));
+        _FakeSunlightRepository(gifts: <SunlightEntry>[_gift('gift-1')]);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -217,7 +230,7 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final _FakeSunlightRepository ledger =
-        _FakeSunlightRepository(latest: _gift('gift-1'));
+        _FakeSunlightRepository(gifts: <SunlightEntry>[_gift('gift-1')]);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -232,7 +245,7 @@ void main() {
     await _pumpFrames(tester);
     expect(_giftCard(), findsNothing);
 
-    // 重建外壳（模拟重新进入孩子端）：已读键生效，绝不重弹。
+    // 重建外壳（模拟重新进入孩子端）：已读水位生效，绝不重弹。
     // 🔴 必须换 key 强制新建 element —— pumpWidget 树形相同会复用 element，
     // initState（含首帧检查）不会跑，「不重弹」会变假绿。
     await tester.pumpWidget(
@@ -245,8 +258,8 @@ void main() {
       ),
     );
     await _pumpFrames(tester);
-    expect(_giftCard(), findsNothing, reason: '已读 id 去重，不重复打扰');
-    expect(ledger.latestReadCount, greaterThan(1),
+    expect(_giftCard(), findsNothing, reason: '已读水位去重，不重复打扰');
+    expect(ledger.allReadCount, greaterThan(1),
         reason: '接线守：重建后首帧检查必须真的跑过（防 element 复用假绿）');
   });
 
@@ -255,7 +268,7 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final _FakeSunlightRepository ledger =
-        _FakeSunlightRepository(latest: _gift('gift-1'));
+        _FakeSunlightRepository(gifts: <SunlightEntry>[_gift('gift-1')]);
 
     late final ProviderContainer container;
     await tester.pumpWidget(
@@ -273,7 +286,10 @@ void main() {
     await _pumpFrames(tester);
 
     // 家长在家长端又赠一笔 → revision++（shell listener 触发既有三卡检查）。
-    ledger.latest = _gift('gift-2', net: 20);
+    // 🔴 F202：新笔 ts 必须晚于已读水位（同毫秒会被 `>` 判定吞掉 —— 真实操作
+    //    也不可能同毫秒连赠两笔）。
+    ledger.gifts.add(_gift('gift-2', net: 20,
+        ts: DateTime(2026, 10, 23, 12, 5)));
     container.read(economyRevisionProvider.notifier).state++;
     await _pumpFrames(tester);
     expect(_giftCard(), findsNothing,
@@ -326,7 +342,8 @@ void main() {
     ));
     await _pumpFrames(tester);
 
-    ledger.latest = _gift('gift-9', net: 8);
+    ledger.gifts.add(_gift('gift-9', net: 8,
+        ts: DateTime(2026, 10, 23, 12, 5)));
 
     // 家长退出 → pop 回孩子端 → didPopNext 检查 → 弹卡。
     await tester.pageBack();
@@ -335,5 +352,76 @@ void main() {
     expect(_giftCard(), findsOneWidget,
         reason: 'pop 回台前的 didPopNext 是赠予卡的第二触发点');
     expect(find.text('+8'), findsOneWidget);
+  });
+
+  testWidgets('🔴 F202：连赠两笔（5 + 10）未读 → 一张卡逐笔两行，5 不再被吞',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    // 玄参真机实证的场景：先赠 5、紧接着赠 10，孩子端首次回前台时两笔都未读。
+    final _FakeSunlightRepository ledger = _FakeSunlightRepository(gifts:
+        <SunlightEntry>[
+      _gift('gift-5', net: 5, ts: DateTime(2026, 10, 23, 12)),
+      _gift('gift-10', net: 10, ts: DateTime(2026, 10, 23, 12, 5)),
+    ]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _overrides(prefs, sunlight: ledger),
+        child: const MaterialApp(home: ChildShellPage()),
+      ),
+    );
+    await _pumpFrames(tester);
+
+    expect(_giftCard(), findsOneWidget, reason: '一张卡承载全部未读');
+    expect(find.text('+5'), findsOneWidget, reason: '旧口径下 5 会被 10 吞掉');
+    expect(find.text('+10'), findsOneWidget, reason: '两笔逐笔两行');
+
+    // 确认后重建外壳：水位已推进到最新一笔 ⇒ 不再弹。
+    await tester.tap(find.text('知道啦'));
+    await _pumpFrames(tester);
+    await tester.pumpWidget(
+      ProviderScope(
+        key: const ValueKey<String>('shell-rebuild-f202'),
+        overrides: _overrides(prefs, sunlight: ledger),
+        child: MaterialApp(
+          home: ChildShellPage(key: UniqueKey()),
+        ),
+      ),
+    );
+    await _pumpFrames(tester);
+    expect(_giftCard(), findsNothing, reason: '水位已覆盖两笔，不重复打扰');
+  });
+
+  testWidgets('🔴 F202：旧「单 id 已读」键迁移 —— 旧 id 之前的赠予不重弹',
+      (WidgetTester tester) async {
+    // 升级用户：旧版已 ack 到 gift-1（@12:00），账本里还有更早的 gift-0 与
+    // 更新的 gift-2。首跑新口径：水位 = gift-1.ts ⇒ 只弹更新的 gift-2，
+    // 历史（gift-0）不重弹（少弹优于误弹）。
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      ackedParentGiftIdKey(kChildIdDefault): 'gift-1',
+    });
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final _FakeSunlightRepository ledger = _FakeSunlightRepository(gifts:
+        <SunlightEntry>[
+      _gift('gift-0', net: 3, ts: DateTime(2026, 10, 23, 11)),
+      _gift('gift-1', net: 12, ts: DateTime(2026, 10, 23, 12)),
+      _gift('gift-2', net: 20, ts: DateTime(2026, 10, 23, 12, 5)),
+    ]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _overrides(prefs, sunlight: ledger),
+        child: const MaterialApp(home: ChildShellPage()),
+      ),
+    );
+    await _pumpFrames(tester);
+
+    expect(_giftCard(), findsOneWidget);
+    expect(find.text('+20'), findsOneWidget,
+        reason: '只弹水位之后的新笔');
+    expect(find.text('+3'), findsNothing, reason: '旧 ack 之前的历史不重弹');
+    expect(find.text('+12'), findsNothing,
+        reason: '旧 ack 指向的那一笔视为已读');
   });
 }

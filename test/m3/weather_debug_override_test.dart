@@ -546,17 +546,17 @@ void main() {
       reason: 'dayKey 仍等于真实今天（账本日期口径不被 override 带歪）',
     );
 
-    // badge **立即**（不等下一次刷新）变 done：绿底 + 对勾，叹号退场。
+    // badge **立即**（不等下一次刷新）变 done：淡天蓝底 + 对勾，叹号退场。
     await tester.pump();
     expect(
       (tester.widget<Container>(find.byKey(kGardenWeatherBadgeIconKey))
               .decoration! as BoxDecoration)
           .color,
-      const Color(0xFFC0DD97),
-      reason: '买棚成功 ⇒ badge 立即绿底（done 态，玄参本次反馈的验收点）',
+      const Color(0xFFBFE0F2),
+      reason: '买棚成功 ⇒ badge 立即淡天蓝底（done 态，玄参本次反馈的验收点）',
     );
     expect(find.byIcon(Icons.check_rounded), findsOneWidget,
-        reason: '绿底白对勾角标在场');
+        reason: '淡天蓝底上的绿底白对勾角标在场');
     expect(find.text('!'), findsNothing, reason: '叹号随 done 退场');
 
     // 重开对话框：买棚按钮退场（done）；盾牌行已迁往 badge 左侧（第七批），

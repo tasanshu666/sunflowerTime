@@ -4,12 +4,13 @@
 /// 旧 `GardenWeatherDock`（72 白条 + 一键右区 + 200 命中扩展盒）整体退役，
 /// 组件退化为独立图标状态灯 `GardenWeatherBadge`（Dock → Badge 改名留痕见组件
 /// 文件头）。本文件由 `garden_weather_dock_test.dart` 改名重写：
-///  · **① 温和日（none）**：状态灯在场（56×56）+ **绿底**（0xFFC0DD97）
+///  · **① 温和日（none）**：状态灯在场（56×56）+ **淡天蓝底**（0xFFBFE0F2，
+///    第十一批 2026-11-13：原浅绿 0xFFBFE0F2 与草地/黄太阳不搭，玄参拍板换天蓝系）
 ///    + **无**角标 + **无**任何文字 + 点击回调触发；
 ///  · **② 极端日 todo**：状态灯**雾霾青蓝底**（0xFF6FA3A0，第八批：纯白雪花在
 ///    第七批淡青底上仍看不清 → 底色加深一档）+ **1.5 红描边**（0xFFE24B4A）
 ///    + **红底白「!」角标在场**；
-///  · **③ 极端日 done**：状态灯**绿底** + **绿底白对勾角标在场**（「叹号换成
+///  · **③ 极端日 done**：状态灯**淡天蓝底** + **绿底白对勾角标在场**（「叹号换成
 ///    对勾」玄参原话）；
 ///  · **④ 几何 / 命中**：真实 56×56 命中块（`getSize` == 56×56，无假命中把戏）；
 ///  · **⑤ 白条退役**：组件树里不得再出现旧停靠条 Key（`garden_weather_dock`）
@@ -20,7 +21,7 @@
 ///    相当）；**盾牌盒不参与行高**（状态灯 top 恒 12，买棚时不下跳）；未购 ⇒ 不在场。
 ///
 /// ## 口径纪律
-///  · 期望值**写死**（56 / 12 / `0xFFC0DD97` / `0xFF6FA3A0` / `0xFFE24B4A`），
+///  · 期望值**写死**（56 / 12 / `0xFFBFE0F2` / `0xFF6FA3A0` / `0xFFE24B4A`），
 ///    不引用实现常量自证；
 ///  · `WeatherBannerState` 用**真实构造**（与 `weather_a3_banner_logic_test` 同法）；
 ///  · 组件内零动画 ⇒ 普通 `pump` 即可，不涉及 `pumpAndSettle` 陷阱。
@@ -120,7 +121,7 @@ void main() {
     final Size icon = tester.getSize(find.byKey(kGardenWeatherBadgeIconKey));
     expect(icon.width, closeTo(56, 0.5), reason: '天气图标容器宽 56（醒目放大）');
     expect(icon.height, closeTo(56, 0.5), reason: '天气图标容器高 56');
-    expect(iconBg(tester), const Color(0xFFC0DD97),
+    expect(iconBg(tester), const Color(0xFFBFE0F2),
         reason: '温和日状态灯 = 浅绿底（正常）');
 
     // 无角标、无买棚按钮、无任何天气描述文字。
@@ -189,7 +190,7 @@ void main() {
     await tester.pump();
 
     // done 态状态灯回到浅绿底（完成 = 正常色）。
-    expect(iconBg(tester), const Color(0xFFC0DD97),
+    expect(iconBg(tester), const Color(0xFFBFE0F2),
         reason: 'done 态状态灯 = 浅绿底（完成 = 正常）');
 
     // 对勾角标在场：绿底 + Icons.check（白对勾），不是叹号。

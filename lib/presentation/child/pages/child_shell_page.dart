@@ -801,9 +801,16 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   /// 检查「家长赠予到账」未读并弹金色提示卡（F150，玄参 2026-10-23 反馈：
   /// 家长赠了阳光孩子端无感）。
   ///
-  /// 判定口径：`sunlight_ledger` 中 refType=`parent_gift` 的**最新一条**记录，
-  /// 其 id 不在 shared_preferences 已读键（[ackedParentGiftIdKey]，按孩子分键）
-  /// → 弹卡并把该 id 写成已读。
+  /// 🔴 F202（2026-11-14 玄参真机反馈）：判据由「最新一条 id vs 已读 id」改为
+  /// **时间水位线** —— 旧口径连续赠两笔（先 5 后 10）时最新一条覆盖已读键，
+  /// 第一笔的提示被吞掉（余额已入账但孩子看不到）。新口径：
+  ///  · 未读 = `ts > 水位` 的**全部** `parent_gift` 记录（`ledger.all()` 过滤，
+  ///    不给 [SunlightRepository] 加方法 —— 签名绝不变铁律）；
+  ///  · 弹卡 = 一张卡**逐笔一行**（时间正序；多笔时行名带 HH:mm 区分），确认后
+  ///    水位推进到未读里最新一笔的 ts；
+  ///  · 旧键迁移（只跑一次）：水位缺键（= 0）时读旧「单 id」键 —— 能在账本里
+  ///    找到该 id ⇒ 水位 = 该条 ts；找不到（清数据 / 无记录）⇒ 水位 = 最新一条
+  ///    ts —— **宁可少弹不误弹**，绝不把历史赠予一股脑弹给孩子。
   ///
   /// 触发时机刻意**只有两处**（不走 [economyRevisionProvider] 监听）：
   ///  · 外壳首帧后（initState postFrame）；
@@ -811,7 +818,7 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   /// 原因：家长端赠予完成会自增修订号，若挂进 revision 监听，卡片会在家长
   /// 仍在家长端页面时弹出来挡住家长操作 —— 赠予卡必须等孩子真的回到台前。
   ///
-  /// 🔴 C91 同款跨孩子防线：待展示记录与已读键同属本次检查捕获的 childId
+  /// 🔴 C91 同款跨孩子防线：待展示记录与水位键同属本次检查捕获的 childId
   /// （阳光账本按 childId 隔离，读取过滤在仓储实现内完成）。任何异常都不阻塞。
   Future<void> _checkParentGiftNotice() async {
     try {
@@ -819,14 +826,46 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
       final SettingsStore store = ref.read(settingsStoreProvider);
       final String childId = _currentChildId();
 
-      final SunlightEntry? latest =
-          await ledger.latestByRefType('parent_gift');
-      if (latest == null) return;
+      final List<SunlightEntry> gifts = (await ledger.all())
+          .where((SunlightEntry e) => e.refType == 'parent_gift')
+          .toList()
+        ..sort((SunlightEntry a, SunlightEntry b) => a.ts.compareTo(b.ts));
+      if (gifts.isEmpty) return;
 
-      final String? acked = await store.acknowledgedParentGiftId(
-        childId: childId,
-      );
-      if (acked == latest.id) return;
+      int watermark =
+          await store.acknowledgedParentGiftWatermark(childId: childId);
+
+      // 首跑新口径（水位缺键）：从旧「单 id」键迁移（只跑一次 —— 迁移后立即
+      // 落水位键，此后旧键不再参与判定）。
+      if (watermark <= 0) {
+        final String? legacyAcked =
+            await store.acknowledgedParentGiftId(childId: childId);
+        DateTime? legacyTs;
+        if (legacyAcked != null) {
+          for (final SunlightEntry e in gifts) {
+            if (e.id == legacyAcked) {
+              legacyTs = e.ts;
+              break;
+            }
+          }
+        }
+        //  · 旧 id 找得到 ⇒ 水位 = 该条 ts（该条及其之前的全视为已读）；
+        //  · 旧 id 找不到（含 null）⇒ 水位 = 最早一笔 ts − 1ms ⇒ **全部** parent_gift
+        //    视为未读逐笔补报一次 —— 旧口径从未弹过的赠予正是 F202 要修的「看不到」；
+        //    金色卡内容区自带 SingleChildScrollView，几十笔也只是长卡可滚动，不溢出。
+        watermark = (legacyTs ?? gifts.first.ts).millisecondsSinceEpoch -
+            (legacyTs == null ? 1 : 0);
+        await store.setAcknowledgedParentGiftWatermark(
+          watermark,
+          childId: childId,
+        );
+      }
+
+      final List<SunlightEntry> unread = gifts
+          .where((SunlightEntry e) =>
+              e.ts.millisecondsSinceEpoch > watermark)
+          .toList();
+      if (unread.isEmpty) return;
       if (!mounted) return;
 
       final AppLocalizations t = _l10n ?? AppLocalizationsZh();
@@ -834,12 +873,17 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
         context,
         title: t.child_shell_gift_title,
         items: <GoldNoticeItem>[
-          GoldNoticeItem(
-            icon: Icons.card_giftcard,
-            name: t.child_shell_gift_item_name,
-            // C105 槽位纪律：amountText 只放金额（含正负号）。
-            amountText: '+${sunlightDisplayInt(latest.net)}',
-          ),
+          for (final SunlightEntry e in unread)
+            GoldNoticeItem(
+              icon: Icons.card_giftcard,
+              // 多笔同行名重复 ⇒ 追加 HH:mm 区分（单笔保持原文案不变）。
+              name: unread.length == 1
+                  ? t.child_shell_gift_item_name
+                  : '${t.child_shell_gift_item_name} '
+                      '${e.ts.hour}:${e.ts.minute.toString().padLeft(2, '0')}',
+              // C105 槽位纪律：amountText 只放金额（含正负号）。
+              amountText: '+${sunlightDisplayInt(e.net)}',
+            ),
         ],
         footerText: t.child_shell_gift_footer,
         // 🔴 F157-BUG-2（玄参 2026-10-27 小米 14 Pro 截图）：整界面英文、卡片内容
@@ -848,8 +892,8 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
         confirmLabel: t.shared_got_it,
       );
 
-      await store.setAcknowledgedParentGiftId(
-        latest.id,
+      await store.setAcknowledgedParentGiftWatermark(
+        unread.last.ts.millisecondsSinceEpoch,
         childId: childId,
       );
     } catch (_) {

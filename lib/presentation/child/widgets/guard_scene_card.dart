@@ -436,6 +436,13 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
   /// 🔴 为什么不是文字按钮：`Start guard` 在 en 下曾占 188.8pt（吃掉 53% 卡宽）。
   /// 图标钮不随文案宽度变化 ⇒ 通道宽度在待机 / 战斗两态之间完全一致。
   /// 可读性由卡的 `Semantics.label` 承担（不参与布局，故不会被截断）。
+  ///
+  /// 🔴 B13.21（玄参 2026-11-14「开始攻击的按钮下面写上 4 个小字，开始守卫」）：
+  /// 图标正下方补一行 **9pt 小字**（复用 `guard_scene_start` 文案，zh「开始守卫」
+  /// 逐字不动）。⚠️ 小字**不参与通道宽度**：外层槽位容器（[GuardSceneCard.startButtonKey]）
+  /// 与图标槽（[GuardSceneCard.startButtonVisualKey]）尺寸逐位不变 —— v2 ①
+  /// 「开始钮尺寸 == rightClusterSize」断言与 tablet 倍率测试口径都不受影响；
+  /// en 文案偏宽由 `FittedBox(scaleDown)` 就槽宽收缩（绝不溢出、绝不换行撑高）。
   Widget _startButton(AppLocalizations t, double uiScale) {
     return Semantics(
       button: true,
@@ -451,11 +458,35 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
           // 仍占满槽位**：① 命中盒 ≥ 44pt 不缩；② v2 ①「按钮尺寸 ==
           // rightClusterSize」的断言口径不变。要再调大小只动这个 40。
           // 🔴 平板：40 按 [uiScale] 放大（iPad 11″ → 52 / 13″ → 64），与卡同倍率。
-          child: SizedBox(
-            key: GuardSceneCard.startButtonVisualKey,
-            width: 40 * uiScale,
-            height: 40 * uiScale,
-            child: GuardArt.startButton(),
+          // 🔴 B13.21 补丁：Column（图标 + 小字）整体包 `FittedBox(scaleDown)`
+          // —— 窄卡（320 屏）下槽位缩到 54.4pt，56pt 的「图标 + 小字」原生
+          // 会溢出 1.6px（⑤ 溢出护栏当场抓住）；FittedBox 让整组内容就槽高
+          // 等比收缩（390 卡 / 平板槽位充足 ⇒ 不缩、尺寸逐位不变）。
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                SizedBox(
+                  key: GuardSceneCard.startButtonVisualKey,
+                  width: 40 * uiScale,
+                  height: 40 * uiScale,
+                  child: GuardArt.startButton(),
+                ),
+                SizedBox(height: 3 * uiScale),
+                // 提示小字：字号随 uiScale（与图标同倍率，手机 1.0 逐位零回归）。
+                Text(
+                  t.guard_scene_start,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 9 * uiScale,
+                    height: 1.1,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF8A5A00),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

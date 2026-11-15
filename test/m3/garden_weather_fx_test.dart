@@ -103,7 +103,7 @@ void main() {
       WeatherKind.lightRain: 70,
       WeatherKind.rainstorm: 140,
       WeatherKind.drought: 24,
-      WeatherKind.wind: 30,
+      WeatherKind.wind: 38, // 第十六批：叶 6→14（玄参「大风叶子更多更快」）
       WeatherKind.cold: 44,
     };
 

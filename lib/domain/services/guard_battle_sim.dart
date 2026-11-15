@@ -104,6 +104,18 @@ const String kGuardBattleChannelLaneShiftFrac = 'lane_shift_t';
 /// 通道前缀：第 i 怪第 k 次换道的目标车道（实际通道 = `lane_shift_y_<i>_<k>`）。
 const String kGuardBattleChannelLaneShiftY = 'lane_shift_y';
 
+/// 通道：当日怪物**种类数**（B13.22 追加；日级，落桶 [1,3]）。
+///
+/// B13.21 的「怪数 1~3」实为玄参口径里的「种类 1~3 种」——本通道承接该语义，
+/// 先掷当天出几种怪，再由 `kind_set` 通道选出具体种类池，逐怪从池内取种。
+const String kGuardBattleChannelKindCount = 'kind_n';
+
+/// 通道：当日种类池的选择子（B13.22 追加；日级）。
+///
+/// k 种怪从 3 种里选：k=1 有 3 种组合、k=2 有 3 种组合、k=3 仅 1 种 ——
+/// 通道值均匀落桶到组合表（见 [_kindPool]）。
+const String kGuardBattleChannelKindSet = 'kind_set';
+
 // ── 战场几何（🔴 B2 裁定值，见交付报告；表现层只读不改，改动需过设计）──────
 //
 // B2 裁定（替代 B1 的临时值）：PRD §8 素材清单——「门口/战士位居右侧 1/4」，
@@ -432,7 +444,7 @@ class GuardBattleScript {
     required this.windowMs,
   });
 
-  /// 怪物阵容（数量 3~5：kind/出场 t/速度/闪避 p/hits/steal/轨迹通道）。
+  /// 怪物阵容（数量 8~12（B13.22）：kind/出场 t/速度/闪避 p/hits/steal/轨迹通道）。
   final List<GuardBattleMonsterSpec> monsters;
 
   /// 战斗窗口（= [kGuardBattleWindowMs]）。
@@ -474,23 +486,34 @@ GuardBattleScript deriveGuardBattleScript({
   );
 
   final List<GuardBattleMonsterSpec> monsters = <GuardBattleMonsterSpec>[];
-  // 🔴 2026-11-12 玄参改裁定：**怪物同场交叉**——每只怪独立走 `kind_<i>` 通道
-  // 落桶（B13 退役的通道复活；通道名按冻结纪律保留在表里，复活消费不影响
-  // 其他通道）。B13「怪种 = 贼种」的原始动机（结算卡指名与出场不符）已在
-  // 结算卡侧改通用文案消灭，不再需要锁同种。
+  // 🔴 B13.22（玄参 2026-11-14 第二轮拍板）：**种类 1~3 种 / 天、数量 8~12 只**。
+  // 当天先掷种类数（日级通道 `kind_n` ∈ [1,3]），再由 `kind_set` 通道从 3 种里
+  // 确定性选出当日种类池，逐怪从池内落桶取种 —— 「可以 3 种同场，也可以只有
+  // 1 种、2 种，每天随机」的语义由日级两通道承担，逐怪 `kind_<i>` 通道保留
+  // （雪崩纪律不变）但语义收窄为「池内下标」。
   // ⚠️ 相邻通道名只差末字符、FNV-1a 只位移 0.39%（与 B8 闪避同款坑）⇒
-  // 必须经 [_kindUniform] 走 mix32 雪崩，否则会出现「连着 5 只同一种」的
-  // 长 streak——正是「太乏味」抱怨的技术根源。
+  // 必须经 [_kindUniform] 走 mix32 雪崩，否则池内取种会出现长 streak。
+  final int kindCount = _intInRange(
+    _uniform(dayKey: dayKey, childId: childId, channel: kGuardBattleChannelKindCount),
+    kGuardMonsterKindCountMin,
+    kGuardMonsterKindCountMax,
+  );
+  final List<GuardBattleMonsterKind> pool = _kindPool(
+    _uniform(dayKey: dayKey, childId: childId, channel: kGuardBattleChannelKindSet),
+    kindCount,
+  );
   for (int i = 0; i < count; i++) {
-    final GuardBattleMonsterKind kind = _kindOf(_kindUniform(
+    final double u = _kindUniform(
       dayKey: dayKey,
       childId: childId,
       monsterIndex: i,
-    ));
-    // 出场时刻：出怪时刻表取前 N 项（防御分支：表短于 N 时按 6s 间隔顺延）。
+    );
+    final GuardBattleMonsterKind kind =
+        pool[(u * pool.length).floor().clamp(0, pool.length - 1)];
+    // 出场时刻：出怪时刻表取前 N 项（防御分支：表短于 N 时按 2.5s 间隔顺延）。
     final int spawnMs = i < kGuardSpawnOffsetsMs.length
         ? kGuardSpawnOffsetsMs[i]
-        : kGuardSpawnOffsetsMs.last + 6000 * (i - kGuardSpawnOffsetsMs.length + 1);
+        : kGuardSpawnOffsetsMs.last + 2500 * (i - kGuardSpawnOffsetsMs.length + 1);
     final double uOffset = _uniform(
         dayKey: dayKey, childId: childId, channel: '${kGuardBattleChannelOffset}_$i');
     final double uAmp = _uniform(
@@ -1452,10 +1475,42 @@ double _kindUniform({
 ///
 /// m1 = 馋光鼠（sunRat）/ m2 = 食叶虫（leafBug）/ m3 = 贪婪鼬（sneakThief），
 /// 与素材目录（`monster_m1/m2/m3`）一一对应。
-GuardBattleMonsterKind _kindOf(double u) {
-  if (u < 1.0 / 3.0) return GuardBattleMonsterKind.m1;
-  if (u < 2.0 / 3.0) return GuardBattleMonsterKind.m2;
-  return GuardBattleMonsterKind.m3;
+/// 当日种类池：从 3 种怪里确定性选 [kindCount] 种（B13.22）。
+///
+/// 组合表（`u ∈ [0,1)` 均匀落桶，桶宽 1/组合数）：
+///  * k=1 → 3 组合：[m1] / [m2] / [m3]；
+///  * k=2 → 3 组合：[m1,m2] / [m1,m3] / [m2,m3]；
+///  * k=3 → 全池 [m1,m2,m3]。
+/// 🔴 纯整数/查表实现，无 Random；k=3 时 u 不消费（单一组合无随机自由度）。
+List<GuardBattleMonsterKind> _kindPool(double u, int kindCount) {
+  const List<List<GuardBattleMonsterKind>> k1 = <List<GuardBattleMonsterKind>>[
+    <GuardBattleMonsterKind>[GuardBattleMonsterKind.m1],
+    <GuardBattleMonsterKind>[GuardBattleMonsterKind.m2],
+    <GuardBattleMonsterKind>[GuardBattleMonsterKind.m3],
+  ];
+  const List<List<GuardBattleMonsterKind>> k2 = <List<GuardBattleMonsterKind>>[
+    <GuardBattleMonsterKind>[GuardBattleMonsterKind.m1, GuardBattleMonsterKind.m2],
+    <GuardBattleMonsterKind>[GuardBattleMonsterKind.m1, GuardBattleMonsterKind.m3],
+    <GuardBattleMonsterKind>[GuardBattleMonsterKind.m2, GuardBattleMonsterKind.m3],
+  ];
+  switch (kindCount) {
+    case 1:
+      return k1[(u * 3).floor().clamp(0, 2)];
+    case 2:
+      return k2[(u * 3).floor().clamp(0, 2)];
+    case 3:
+      return const <GuardBattleMonsterKind>[
+        GuardBattleMonsterKind.m1,
+        GuardBattleMonsterKind.m2,
+        GuardBattleMonsterKind.m3,
+      ];
+  }
+  // 防御分支：kindCount 越界（调用侧已钳 [1,3]）按全池处理。
+  return const <GuardBattleMonsterKind>[
+    GuardBattleMonsterKind.m1,
+    GuardBattleMonsterKind.m2,
+    GuardBattleMonsterKind.m3,
+  ];
 }
 
 /// 快照数值口径：位置取 2 位小数（金测「逐字符相同」的确定性格式）。

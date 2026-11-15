@@ -216,7 +216,9 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
 
   List<Plant> _plants = <Plant>[];
   List<PlantSpecies> _species = <PlantSpecies>[];
-  AgeTier _tier = AgeTier.low;
+  // 🔴 B13.23：扩容价改**购买序数梯度**后，年龄段字段不再被消费（原 `_tier`
+  // 只喂 `_expandCost` 的年段分支）⇒ 字段与 `_load` 里的 childAgeTierProvider
+  // 读取一并移除；年龄段判定在域层 `plantCost`（种植）仍按 settings 走。
   int _capacity = kGardenPotCapacityDefault;
   double _balance = 0;
 
@@ -541,10 +543,15 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     super.dispose();
   }
 
-  /// 扩容一只花盆的阳光价（按年段 + C77 称号减免）：供按钮文案与确认卡使用。
+  /// 扩容下一只花盆（第 `_capacity - kGardenPotCapacityDefault + 1` 次**购买**）
+  /// 的阳光价：梯度基础价（B13.23：第 1~2 次 100 / 第 3~5 次 200 / 第 6~8 次 300）
+  /// + C77 称号减免——供按钮文案与确认卡使用。
   ///
   /// 🔴 券**不**覆盖扩容：这里刻意仍只叠 [_perk]（展示与 `_expandPot` 实际扣费同源）。
-  int get _expandCost => expandCostOf(_perk, premium: _tier != AgeTier.low);
+  int get _expandCost => expandCostOf(
+        _perk,
+        purchaseNo: (_capacity - kGardenPotCapacityDefault + 1).clamp(1, 99),
+      );
 
   // ── 花园守卫「今日券」：券减免叠在称号 perk 上（第四批 A）─────────────────
 
@@ -655,13 +662,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       await svc.dedupePendingBloomRewards();
       final AppSettings settings =
           await ref.read(settingsRepositoryProvider).getSettings();
-      // C90 期 2：档位跟当前孩子走（不再读全局 settings 单行；档案源不可用
-      // 时回退 settings，与隔离前行为一致）。
-      try {
-        _tier = await ref.read(childAgeTierProvider.future);
-      } catch (_) {
-        _tier = settings.ageTier;
-      }
+      // 🔴 B13.23：原「档位跟当前孩子走」的 `_tier` 读取（childAgeTierProvider，
+      // 失败回退 settings.ageTier）随扩容价改梯度而退役 —— 字段已删。
       // C77：当前称号专属属性（与域层 [PlantGrowthService.currentPerk] 同源；随经济
       // 修订号 / tab 刷新重算）。批量路径以本值下发，避免逐株重读。
       _perk = await ref.read(currentPlantPerkProvider.future);
@@ -2180,9 +2182,9 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
 
   /// 当前**权益**档位（阶段 4 门控判定；build 期与回调期读取一致）。
   ///
-  /// ⚠️ 命名带 `Ent` 前缀以区别于本页既有的 **[AgeTier] 年龄段字段 `_tier`**
-  /// （用于扩容定价，见 [`_expandCost`]）——两者语义不同（年龄段 vs 权益档），
-  /// 若同名会编译冲突。
+  /// ⚠️ 命名带 `Ent` 前缀：本页历史上有过「年龄段字段 `_tier`」（B13.23 扩容价
+  /// 改梯度后已删）——保留前缀避免与未来同类字段撞名（年龄段 vs 权益档语义
+  /// 不同，同名会编译冲突）。
   ///
   /// 用 `watch` 而非 `read`：花园 tab 处于 [IndexedStack] 保活之下（切 tab 只切
   /// index，本页 State.build 不重跑），`read` 拿到的是挂载时的旧快照 —— 权益

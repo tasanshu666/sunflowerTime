@@ -79,6 +79,60 @@ void main() {
     });
   });
 
+  group('F203 · SFX 叠加池（战斗音效连点全消失修复）', () {
+    test('挑槽策略：有空闲槽 → 取第一个空闲槽（绝不占用忙槽）', () {
+      expect(
+        AudioService.pickSfxPoolSlot(
+          busy: <bool>[true, false, true, false],
+          cursor: 2,
+        ),
+        1,
+        reason: '空闲槽按序取第一个 —— 保证 4 支以内完全不互相打断',
+      );
+    });
+
+    test('挑槽策略：全忙 → 按游标轮换', () {
+      expect(
+        AudioService.pickSfxPoolSlot(
+          busy: <bool>[true, true, true, true],
+          cursor: 0,
+        ),
+        0,
+      );
+      expect(
+        AudioService.pickSfxPoolSlot(
+          busy: <bool>[true, true, true, true],
+          cursor: 3,
+        ),
+        3,
+      );
+      expect(
+        AudioService.pickSfxPoolSlot(
+          busy: <bool>[true, true, true, true],
+          cursor: 4,
+        ),
+        0,
+        reason: '游标绕回',
+      );
+    });
+
+    test('playSfxOverlap 无可用播放器（null 槽）静默降级不抛', () async {
+      final int idx = await audio.playSfxOverlapForTest(
+        'assets/audio/sfx/guard_attack.mp3',
+      );
+      expect(idx, inInclusiveRange(0, AudioService.kSfxOverlapPoolSize - 1),
+          reason: '返回合法槽位下标（null 槽下标合法，播放静默跳过）');
+    });
+
+    test('soundOn=false 时 playSfxOverlap 直接跳过', () {
+      audio.applySettings(soundOn: false, bgmOn: false);
+      expect(
+        () => audio.playSfxOverlap(AudioCue.guardAttack),
+        returnsNormally,
+      );
+    });
+  });
+
   // 释放（无可用播放器时为空操作），便于进程干净退出。
   tearDownAll(() => unawaited(audio.dispose()));
 }

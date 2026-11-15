@@ -18,7 +18,11 @@ if (hasReleaseSigning) {
 
 android {
     namespace = "com.sunflowertime.app"
-    compileSdk = flutter.compileSdkVersion
+    // 2026-11-14：androidx.browser 1.9.0 / core-ktx 1.17.0 等 AAR 元数据要求
+    // compileSdk ≥ 36（flutter.compileSdkVersion 当前解析为 35 → checkReleaseAarMetadata
+    // 失败）。只抬 compileSdk（允许用新 API 编译），targetSdk / minSdk 仍跟随
+    // Flutter 默认 ⇒ 安装范围与运行时行为不变。
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -704,12 +704,27 @@ void main() {
       }
     });
 
-    test('count=5：出场表前 5 项（0/6/12/18/24s）、steal 轮转 1/2/3/1/2', () {
+    test('count=5：出场表前 5 项（0/2.5/5/7.5/10s）、steal 轮转 1/2/3/1/2', () {
       final GuardBattleScript s =
           buildGuardBattleScriptForDebug(monsterCount: 5);
       expect(s.monsters.length, 5);
-      expect([for (final m in s.monsters) m.spawnMs], kGuardSpawnOffsetsMs);
+      // 🔴 B13.22：出怪表扩到 12 项（2.5s 间隔），count=5 只取前 5 项。
+      expect(
+          [for (final m in s.monsters) m.spawnMs],
+          <int>[0, 2500, 5000, 7500, 10000],
+          reason: 'B13.22 字面量口径：前 5 项 = 0/2.5/5/7.5/10s（不再等于全表）');
       expect([for (final m in s.monsters) m.steal], <int>[1, 2, 3, 1, 2]);
+    });
+
+    test('count=12：出场表全 12 项（0~27.5s，2.5s 间隔）、末怪仍在 30s 窗口内', () {
+      // 🔴 B13.22 追加：怪数上限 12 ⇒ 调试面板必须能整表铺满。
+      final GuardBattleScript s =
+          buildGuardBattleScriptForDebug(monsterCount: 12);
+      expect(s.monsters.length, 12);
+      expect([for (final m in s.monsters) m.spawnMs],
+          kGuardSpawnOffsetsMs.sublist(0, 12));
+      expect(s.monsters.last.spawnMs, lessThan(kGuardBattleWindowMs),
+          reason: '末怪 27.5s 进场，必须落在 30s 战斗窗口内');
     });
 
     test('kinds=[m1,m2,m3]：逐怪种类保序', () {

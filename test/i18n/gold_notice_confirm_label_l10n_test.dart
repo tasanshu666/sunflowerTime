@@ -270,11 +270,19 @@ SunlightEntry _gift(String id, {double net = 12.0}) => SunlightEntry(
     );
 
 class _FakeSunlightRepository implements SunlightRepository {
-  _FakeSunlightRepository({this.latest});
-  SunlightEntry? latest;
+  // 🔴 F202：壳层判据走 all() 过滤 parent_gift（水位线口径）——fake 必须从
+  // all() 供数，latestByRefType 已不在壳层链路上。
+  _FakeSunlightRepository({List<SunlightEntry>? gifts})
+      : gifts = gifts ?? <SunlightEntry>[];
+  final List<SunlightEntry> gifts;
 
   @override
-  Future<SunlightEntry?> latestByRefType(String refType) async => latest;
+  Future<SunlightEntry?> latestByRefType(String refType) async {
+    final List<SunlightEntry> hits = gifts
+        .where((SunlightEntry e) => e.refType == refType)
+        .toList();
+    return hits.isEmpty ? null : hits.last;
+  }
   @override
   Future<double> append(SunlightEntry entry) async => 999.0;
   @override
@@ -307,7 +315,7 @@ class _FakeSunlightRepository implements SunlightRepository {
   @override
   Future<double> earnNetOnDay(String dayKey) async => 0;
   @override
-  Future<List<SunlightEntry>> all() async => <SunlightEntry>[];
+  Future<List<SunlightEntry>> all() async => List<SunlightEntry>.from(gifts);
 }
 
 class _FakeSettingsRepository implements SettingsRepository {
@@ -405,7 +413,7 @@ void main() {
       (WidgetTester tester) async {
     AppLocaleController.init(AppLanguage.en);
     final _FakeSunlightRepository ledger =
-        _FakeSunlightRepository(latest: _gift('gift-en'));
+        _FakeSunlightRepository(gifts: <SunlightEntry>[_gift('gift-en')]);
 
     await _pumpShell(tester, ledger);
 
@@ -422,7 +430,7 @@ void main() {
       (WidgetTester tester) async {
     AppLocaleController.init(AppLanguage.zh);
     final _FakeSunlightRepository ledger =
-        _FakeSunlightRepository(latest: _gift('gift-zh'));
+        _FakeSunlightRepository(gifts: <SunlightEntry>[_gift('gift-zh')]);
 
     await _pumpShell(tester, ledger);
 

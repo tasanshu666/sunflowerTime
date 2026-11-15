@@ -416,9 +416,11 @@ void main() {
       // B8：能量点回归（玄参第三轮：「能量点恢复」）—— 正向钉住，位置见 v4 专项。
       expect(find.byKey(GuardSceneCard.energyDotKey(0)), findsOneWidget);
       expect(find.byKey(GuardSceneCard.energyDotKey(1)), findsOneWidget);
-      // 卡内零状态文本 ⇒ 状态条幅 / −5 ☀ 尾标都无处可渲染。
-      // 🔴 B13.9：免费档锁标下的小字已删 —— 零文本豁免撤销，卡内零 Text
-      // 纪律恢复（战斗演出 MISS 只在 dodge 事件后出现 600ms）。
+      // 卡内状态文本零容忍 ⇒ 状态条幅 / −5 ☀ 尾标都无处可渲染。
+      // 🔴 B13.9：免费档锁标下的小字已删 —— 状态文本纪律恢复（战斗演出 MISS
+      // 只在 dodge 事件后出现 600ms）。
+      // 🔴 B13.21 更新：开始钮提示小字「开始守卫」为**唯一豁免**（玄参要求）；
+      // 除它之外卡内不得有任何 Text。
       expect(
         tester
             .widgetList<Text>(
@@ -429,9 +431,10 @@ void main() {
             )
             .map((Text t) => t.data ?? '')
             .toSet(),
-        isEmpty,
+        <String>{'开始守卫'},
         reason: '🔴 状态信息只保留在 Semantics.label（B13.9 豁免撤销；'
-            '战斗演出 MISS 只在 dodge 事件后出现 600ms）',
+            '战斗演出 MISS 只在 dodge 事件后出现 600ms）；'
+            'B13.21 起唯一豁免 = 开始钮提示小字',
       );
     });
   });

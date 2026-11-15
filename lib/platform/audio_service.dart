@@ -540,6 +540,112 @@ class AudioService {
     unawaited(_playSfxPaths(paths, volume: volume));
   }
 
+  // ── SFX 叠加池（F203；玄参 2026-11-14 真机反馈）───────────────────────────
+  //
+  // 🔴 症状：战斗里快速连点阳光胶囊时，发射 / 击中 / 宝箱落地 / 开箱音效**全部
+  // 消失**，只剩战斗底噪（小怪跑步声）。根因 = 战斗 4 个 cue 全走 [playSfxPaths]
+  // 的**单共享 SFX 播放器**：每支起播前 `player.stop()` 掐掉上一支（F116「后到者
+  // 赢」是给长配音互斥设计的），连点时 `setAsset` 反复被下一支的 `stop()` 打断 →
+  // [loadAssetBounded] 超时 → 该候选判失败 → 两轮重试全败 → 静默；宝箱落地 /
+  // 开箱也被高频攻击 / 击中音效掐住。
+  //
+  // 修法 = **小播放器池**：4 个独立槽，每支音效占一槽独立 load+play，**互不
+  // stop 别人** ⇒ 短音效可自然叠加（发射 + 击中几乎同时出现是产品直觉）。
+  // 挑槽：优先「空闲」槽；全忙按游标轮换（掐掉的是上一支 3.2s 资产的静音
+  // 尾巴，无感知）。setAsset 超时的槽直接重建（F133 同款纪律：卡在 loading 的
+  // 播放器会一直占着共享音频会话）。
+  //
+  // ⚠️ 长配音（护眼 / 结算 / 升级）仍走原 [playSfxPaths] 单播放器互斥通道——
+  // F116 的「后到者赢」语义在那里仍然正确，零回归。
+
+  /// 叠加池槽位数。战斗音效最密时 = 发射 + 击中 + 落地同时 ≈ 3 支，4 槽留余量。
+  static const int kSfxOverlapPoolSize = 4;
+
+  /// 叠加池（懒建到 [kSfxOverlapPoolSize] 个；每槽独立播放器）。
+  final List<AudioPlayer?> _sfxPool = <AudioPlayer?>[];
+
+  /// 全忙时的轮换游标。
+  int _sfxPoolCursor = 0;
+
+  /// 播放一次性音效（**可叠加池通道**，fire-and-forget；F203）。
+  ///
+  /// 与 [playSfx] 的区别：不共享单播放器、**不打断**任何在播音效——供战斗
+  /// 高频短音效（发射 / 击中 / 宝箱落地 / 开箱）使用；连点时每支都能完整出声。
+  /// 受 [_soundOn] 保护；音量语义与 [playSfx] 一致；失败静默降级。
+  void playSfxOverlap(AudioCue cue, {double volume = 1.0}) {
+    if (!_soundOn) return;
+    unawaited(_playSfxOverlap(cue.assetPath, volume: volume));
+  }
+
+  /// 【纯函数】叠加池**挑槽策略**（可 headless 单测；F203）。
+  ///
+  /// [busy] = 每槽「正在被占用」表（playing 或卡在 loading/buffering 都算忙）；
+  /// [cursor] = 当前轮换游标。返回槽位下标。
+  /// 规则：① 优先**空闲**槽（取第一个，FIFO 公平）；② 全忙按游标轮换
+  /// （掐掉的是上一支资产的静音尾巴 / 最旧的占用，无感知）。
+  @visibleForTesting
+  static int pickSfxPoolSlot({required List<bool> busy, required int cursor}) {
+    for (int i = 0; i < busy.length; i++) {
+      if (!busy[i]) return i;
+    }
+    return cursor % busy.length;
+  }
+
+  /// [playSfxOverlap] 的实现体。返回实际使用的槽位下标（测试断言用）。
+  @visibleForTesting
+  Future<int> playSfxOverlapForTest(String path, {double volume = 1.0}) =>
+      _playSfxOverlap(path, volume: volume);
+
+  Future<int> _playSfxOverlap(String path, {double volume = 1.0}) async {
+    // 懒建槽位（构造可能失败 → null 槽，静默降级）。
+    await _ensureAudioSessionConfigured();
+    while (_sfxPool.length < kSfxOverlapPoolSize) {
+      _sfxPool.add(_createSfx());
+    }
+    // 挑槽：优先「空闲」（未在播且未卡在加载）；全忙按游标轮换（并推进游标）。
+    final List<bool> busy = <bool>[
+      for (final AudioPlayer? p in _sfxPool)
+        p == null ||
+            p.playing ||
+            p.processingState == ProcessingState.loading ||
+            p.processingState == ProcessingState.buffering,
+    ];
+    final bool hasFreeSlot = busy.contains(false);
+    final int idx = pickSfxPoolSlot(busy: busy, cursor: _sfxPoolCursor);
+    if (!hasFreeSlot) {
+      _sfxPoolCursor++;
+    }
+    final AudioPlayer? player = _sfxPool[idx];
+    if (player == null) return idx; // 播放器构造失败：静默降级
+    // 与单播放器通道同款：SFX 起手压低花园氛围音（ducking），播完恢复。
+    final bool ducked = _duckAmbientForSfx();
+    if (ducked) _armDuckRestore(player);
+    try {
+      await player.stop();
+      // F133 同款有界加载：setAsset 被 stop 打断会永不返回，超时即丢弃本槽
+      // （重建播放器，防卡 loading 的槽逐渐占满整池）。
+      if (!await loadAssetBounded(() => player.setAsset(path))) {
+        await _rebuildSfxPoolSlot(idx);
+        return idx;
+      }
+      await player.seek(Duration.zero);
+      await player.setVolume(volume.clamp(0.0, 1.0));
+      // 绝不 await play()（D1：会挂到整段播完）。
+      unawaited(player.play());
+    } catch (_) {
+      // 该槽播放失败：静默（不重试——池模式下下一支自然补位）。
+    }
+    return idx;
+  }
+
+  /// 重建一个池槽（setAsset 卡死 / 构造失败后的自愈）。
+  Future<void> _rebuildSfxPoolSlot(int idx) async {
+    if (idx < 0 || idx >= _sfxPool.length) return;
+    final AudioPlayer? old = _sfxPool[idx];
+    _sfxPool[idx] = _createSfx();
+    unawaited(_disposeQuietly(old));
+  }
+
   Future<void> _playSfxPaths(List<String> paths, {double volume = 1.0}) async {
     // F116 排号：**同步**递增（先于本函数内一切 `await`）→ 后发起者号更大，天然「后到者赢」。
     final int gen = ++_sfxGeneration;
@@ -1307,6 +1413,9 @@ class AudioService {
       await _bgmPlayer?.dispose();
       await _ambientPlayer?.dispose();
       await _battlePlayer?.dispose();
+      for (final AudioPlayer? p in _sfxPool) {
+        await p?.dispose();
+      }
     } catch (_) {
       // 静默降级。
     }
@@ -1314,6 +1423,8 @@ class AudioService {
     _bgmPlayer = null;
     _ambientPlayer = null;
     _battlePlayer = null;
+    _sfxPool.clear();
+    _sfxPoolCursor = 0;
     _ambientGeneration++; // F71 v3：作废一切在途氛围音加载/启动
     _bgmPlaying = false;
     _ambientPlaying = false;
@@ -1352,6 +1463,7 @@ class AudioService {
       _bgmPlayer,
       _ambientPlayer,
       _battlePlayer,
+      ..._sfxPool, // F203：叠加池槽位一并释放
     ]) {
       unawaited(_disposeQuietly(p));
     }
@@ -1359,6 +1471,8 @@ class AudioService {
     _bgmPlayer = null;
     _ambientPlayer = null;
     _battlePlayer = null;
+    _sfxPool.clear();
+    _sfxPoolCursor = 0;
     _battlePlaying = false;
     _battleWasPlayingBeforeBackground = false;
     // 2) 与播放器绑定的定时器 / 订阅一并作废（否则它们仍引用旧播放器）。

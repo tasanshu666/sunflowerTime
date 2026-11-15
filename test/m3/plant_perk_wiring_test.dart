@@ -170,7 +170,13 @@ class _MemSettingsRepo implements SettingsRepository {
 
   final AgeTier _ageTier;
 
-  AppSettings get _value => AppSettings(
+  /// 🔴 B13.23：扩容价按购买序数（容量派生）⇒ 本夹具必须**持久化**
+  /// saveSettings（原 no-op 会让容量恒 4、梯度永远停在第 1 档）。
+  AppSettings? _saved;
+
+  AppSettings get _value =>
+      _saved ??
+      AppSettings(
         ageTier: _ageTier,
         dailyFocusCap: kDailyFocusCapLow,
         dailyAppCapMinutes: 30,
@@ -184,7 +190,9 @@ class _MemSettingsRepo implements SettingsRepository {
   Future<AppSettings> getSettings() async => _value;
 
   @override
-  Future<void> saveSettings(AppSettings settings) async {}
+  Future<void> saveSettings(AppSettings settings) async {
+    _saved = settings;
+  }
 }
 
 /// 可编排随机源（确定性）：`nextDouble` 依次取 [doubles]；`nextInt` 取 [ints]。
@@ -486,21 +494,33 @@ void main() {
   });
 
   // ── ⑥ 扩容（TC-23）───────────────────────────────────────────────────────
-  group('⑥ 花盆扩容（TC-23）', () {
-    test('Lv.35 低年段 → −140；高年段 → −380', () async {
+  group('⑥ 花盆扩容（TC-23 · B13.23 梯度价）', () {
+    test('Lv.35 → 6 连购走满梯度：80/80/180/180/180/280（_net = 累计合计）', () async {
+      // B13.23（玄参 2026-11-14）：扩容价按**购买序数**梯度、不分年段——
+      // 第 1~2 次 100 / 第 3~5 次 200 / 第 6~8 次 300；Lv.35 −20 叠加、钳 0。
+      // 🔴 _net() 是该 refType 的**累计合计** ⇒ 断言用累加口径。
       final _Ctx low = _make();
-      await low.svc.expandPot(_now, perk: perkOfLevel(35));
-      expect(_net(low.ledger, 'plant_expand'), -140);
-
-      final _Ctx high = _make(ageTier: AgeTier.high);
-      await high.svc.expandPot(_now, perk: perkOfLevel(35));
-      expect(_net(high.ledger, 'plant_expand'), -380);
+      final List<int> perPurchase = <int>[80, 80, 180, 180, 180, 280];
+      int cumulative = 0;
+      for (int i = 0; i < perPurchase.length; i++) {
+        await low.svc.expandPot(_now, perk: perkOfLevel(35));
+        cumulative += perPurchase[i];
+        expect(_net(low.ledger, 'plant_expand'), -cumulative.toDouble(),
+            reason: '第 ${i + 1} 次购买：本次 −${perPurchase[i]}，累计 −$cumulative');
+      }
     });
 
-    test('无称号 → 基础价（低 160 / 高 400）', () async {
+    test('无称号 → 梯度基础价（100 / 100 / 200，_net = 累计合计）', () async {
       final _Ctx low = _make();
       await low.svc.expandPot(_now, perk: perkOfLevel(0));
-      expect(_net(low.ledger, 'plant_expand'), -kPlantPotExpandCostLow);
+      expect(_net(low.ledger, 'plant_expand'), -100,
+          reason: '默认容量 4 → 首购 = 梯度第 1 档 100');
+      await low.svc.expandPot(_now, perk: perkOfLevel(0));
+      expect(_net(low.ledger, 'plant_expand'), -200,
+          reason: '第 2 次购买仍在 100 档（累计 200）');
+      await low.svc.expandPot(_now, perk: perkOfLevel(0));
+      expect(_net(low.ledger, 'plant_expand'), -400,
+          reason: '第 3 次购买进入 200 档（累计 400）');
     });
   });
 

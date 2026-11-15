@@ -6,15 +6,16 @@
 /// | # | 红线 | 断言口径 |
 /// |---|---|---|
 /// | G1 | 金测：同 seed + 同 fireTimeline 逐位一致 | 10s/20s/29999ms 快照 JSON 逐字符相同；不同 seed 不同 |
-/// | G2 | 剧本派生确定性 + 区间 | 同日同孩两次派生 `==`；怪数 3~5、steal 1~3、dodge 0.15~0.35、speed 13~17 |
-/// | G3 | 怪数 3 与 5 都在 seed 空间可达 | 60 个 childId 里 3 与 5 都出现 |
+/// | G2 | 剧本派生确定性 + 区间 | 同日同孩两次派生 `==`；怪数 8~12（B13.22）、种类数 1~3 种/天（B13.22）、steal 1~3、dodge 0.15~0.50（m3 0.45→0.50，B13.22）、speed 13~17 |
+/// | G3 | 怪数 8 与 12 都在 seed 空间可达 | 60 个 childId 里 8 与 12 都出现 |
 /// | G4 | 冷却闸门 | 400ms 内的第二发被拦下 |
 /// | G5 | 全灭提前结束 | 密集开火 → victory 且早于 30s；待出场怪取消、已出场怪全灭 |
 /// | G6 | 到点撤退 + 已偷保留 + 封顶 | 空 fireTimeline → retreat；被偷 = 逐怪合计 ≤ 3；之后快照冻结 |
 /// | G7 | 分段无关性 | 同一时间线按不同步长切分 → 最终快照逐位相同 |
 /// | G8 | 反 Random 哨兵 | 源文件不出现 `Random(` |
+/// | G9 | 种类池雪崩护栏 | 120 seed 里「多池却只出 1 种」占比受控（见组内口径） |
 ///
-/// 🔴 期望值一律写死常量（30000 / 3~5 / 0.15~0.35 / 13~17），**不从实现里引用
+/// 🔴 期望值一律写死常量（30000 / 8~12 / 0.15~0.50 / 13~17），**不从实现里引用
 /// 同一常量反推** —— 否则常量被改错时测试会跟着一起错。
 library guard_battle_sim_test;
 
@@ -166,21 +167,35 @@ void main() {
   });
 
   group('G2 剧本区间（字面量）', () {
-    test('怪数 3~5、出场表、steal 1~3、dodge 0.15~0.35、speed 13~17、HP 3~5、窗口 30000', () {
+    // 🔴 B13.22（玄参 2026-11-14 第二轮，纠正 B13.21 的口径误读）：
+    // ① 怪物**数量** = 8~12 只（B13.21 的「1~3」实为「种类 1~3 种」）；
+    // ② 每天出场**种类数** = 1~3 种（日级通道先掷种类数，再选种类池）；
+    // ③ m3（贪婪鼬）闪避 0.45 → **0.50**。
+    // 期望值写死字面量，不引用实现常量（改参必须有意更新本文件）。
+    test('怪数 8~12、出场表 2.5s 间隔、种类数 1~3、steal 1~3、dodge 0.15~0.50、speed 13~17、HP 3~5、窗口 30000', () {
       final GuardBattleScript script =
           deriveGuardBattleScript(dayKey: _dayKey, childId: _childId);
       expect(script.windowMs, 30000);
-      expect(script.monsters.length, greaterThanOrEqualTo(3));
-      expect(script.monsters.length, lessThanOrEqualTo(5));
+      expect(script.monsters.length, greaterThanOrEqualTo(8));
+      expect(script.monsters.length, lessThanOrEqualTo(12));
+      final Set<GuardBattleMonsterKind> kinds =
+          script.monsters.map((GuardBattleMonsterSpec m) => m.kind).toSet();
+      expect(kinds.length, greaterThanOrEqualTo(1));
+      expect(kinds.length, lessThanOrEqualTo(3));
       for (int i = 0; i < script.monsters.length; i++) {
         final GuardBattleMonsterSpec m = script.monsters[i];
         expect(m.index, i);
-        expect(m.spawnMs, <int>[0, 6000, 12000, 18000, 24000][i],
-            reason: '出场时刻必须来自出怪时刻表前 N 项');
+        expect(
+            m.spawnMs,
+            <int>[
+              0, 2500, 5000, 7500, 10000, 12500,
+              15000, 17500, 20000, 22500, 25000, 27500,
+            ][i],
+            reason: '出场时刻必须来自出怪时刻表前 N 项（2.5s 间隔，B13.22）');
         expect(m.steal, greaterThanOrEqualTo(1));
         expect(m.steal, lessThanOrEqualTo(3));
         expect(m.dodgeProb, greaterThanOrEqualTo(0.15));
-        expect(m.dodgeProb, lessThanOrEqualTo(0.35));
+        expect(m.dodgeProb, lessThanOrEqualTo(0.50));
         expect(m.speedPtPerSec, greaterThanOrEqualTo(13.0));
         expect(m.speedPtPerSec, lessThanOrEqualTo(17.0));
         // B8：HP 1/2/3 → 3/4/5（玄参「一下死太无聊」）。
@@ -190,8 +205,8 @@ void main() {
     });
   });
 
-  group('G3 怪数 3 与 5 都在 seed 空间可达', () {
-    test('扫 60 个 childId：3 和 5 都出现', () {
+  group('G3 怪数 8 与 12 都在 seed 空间可达', () {
+    test('扫 60 个 childId：8 和 12 都出现', () {
       final Set<int> counts = <int>{};
       for (int i = 0; i < 60; i++) {
         final GuardBattleScript script = deriveGuardBattleScript(
@@ -200,8 +215,23 @@ void main() {
         );
         counts.add(script.monsters.length);
       }
-      expect(counts.contains(3), isTrue, reason: '实际分布：$counts');
-      expect(counts.contains(5), isTrue, reason: '实际分布：$counts');
+      expect(counts.contains(8), isTrue, reason: '实际分布：$counts');
+      expect(counts.contains(12), isTrue, reason: '实际分布：$counts');
+    });
+
+    test('扫 60 个 childId：单种怪日（只出 1 种）与 3 种混编日都在 seed 空间可达', () {
+      // 🔴 B13.22 新语义：种类数 1~3 种/天由日级通道决定 —— 两个极端都必须可达。
+      final Set<int> kindCounts = <int>{};
+      for (int i = 0; i < 60; i++) {
+        final GuardBattleScript script = deriveGuardBattleScript(
+          dayKey: _dayKey,
+          childId: 'kindpool-$i',
+        );
+        kindCounts.add(
+            script.monsters.map((GuardBattleMonsterSpec m) => m.kind).toSet().length);
+      }
+      expect(kindCounts.contains(1), isTrue, reason: '实际分布：$kindCounts');
+      expect(kindCounts.contains(3), isTrue, reason: '实际分布：$kindCounts');
     });
   });
 
@@ -408,35 +438,32 @@ void main() {
     });
   });
 
-  group('G9 怪种同场交叉（2026-11-12 玄参裁定：不要按天单一）', () {
-    test('40 个 seed：≥3 只怪的剧本里「全同种」占比 < 25%（mix32 雪崩护栏）', () {
-      // 🔴 变异护栏：`kind_<i>` 相邻通道只差末字符，FNV-1a 只位移 0.39%，
-      // 不加 _mix32 终混时 u 在桶边界单调爬行 ⇒ 长 streak ⇒「全同种」剧本
-      // 占比飙升（B8 闪避连闪同款坑）。独立等概率下 3 只全同种概率 =
-      // 3×(1/3)² ≈ 33%？—— 不对：逐怪独立抽，n≥3 全同种概率 = 3×(1/3)^n，
-      // n=3 时 ≈ 11%、n=4 时 ≈ 3.7%，混合 n 后全同种占比应在 10% 上下。
-      // 阈值 25%：正常实现远低于它，去掉 mix32 的变体远高于它。
-      int sameKindScripts = 0;
-      int totalScripts = 0;
-      for (int i = 0; i < 40; i++) {
+  group('G9 种类池雪崩护栏（B13.22：种类 1~3 种/天）', () {
+    test('扫 120 个 seed：「整场只出 1 种怪」的剧本占比 ∈ (0.22, 0.45)', () {
+      // 🔴 变异护栏：逐怪 `kind_<i>` 相邻通道只差末字符，FNV-1a 只位移 0.39%，
+      // 不加 _mix32 终混时 u 在桶边界单调爬行 ⇒ 池内取种出现长 streak ⇒
+      // 明明 k=2/3 的多池日也整场只出 1 种，占比被推过半。
+      // 独立同分布期望：P(k=1)=1/3 必然单种 + k=2 日 2×(1/2)^n≈0.8%（n≥8）+
+      // k=3 日 3×(1/3)^8≈0.15% ⇒ ≈ 0.336。120 seed 的二项 σ≈0.043，
+      // 带 (0.22, 0.45) ≈ 期望 ±2.7σ；去 mix32 的变体在此必红。
+      int singleKindScripts = 0;
+      for (int i = 0; i < 120; i++) {
         final GuardBattleScript script = deriveGuardBattleScript(
           dayKey: '2027-03-01',
           childId: 'cross-$i',
         );
-        if (script.monsters.length < 3) continue; // 1~2 只全同种太常见，不计
-        totalScripts++;
         final Set<GuardBattleMonsterKind> kinds =
             script.monsters.map((GuardBattleMonsterSpec m) => m.kind).toSet();
-        if (kinds.length == 1) sameKindScripts++;
+        if (kinds.length == 1) singleKindScripts++;
       }
-      expect(totalScripts, greaterThan(30),
-          reason: '绝大多数 seed 怪数 ≥ 3（min=3）');
-      expect(sameKindScripts, lessThan(totalScripts ~/ 4),
-          reason: '🔴「全同种」剧本占比必须 < 25% —— '
-              '去掉 mix32 的变体在此必红（爬行 streak 把占比推过半）');
+      final double ratio = singleKindScripts / 120;
+      expect(ratio, greaterThan(0.22),
+          reason: '单种日占比 $ratio 过低 —— kind_n/kind_set 通道分布失衡');
+      expect(ratio, lessThan(0.45),
+          reason: '🔴 单种日占比 $ratio 过高 —— 池内取种 streak（mix32 雪崩被去掉）');
     });
 
-    test('同 seed 重跑：逐怪 kind 逐位一致（确定性不因交叉而破坏）', () {
+    test('同 seed 重跑：逐怪 kind 逐位一致（确定性不因种类池而破坏）', () {
       final GuardBattleScript a = deriveGuardBattleScript(
           dayKey: '2027-03-02', childId: 'cross-det');
       final GuardBattleScript b = deriveGuardBattleScript(

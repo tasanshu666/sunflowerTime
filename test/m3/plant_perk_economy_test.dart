@@ -262,15 +262,15 @@ void main() {
 
   // ── ② TC-40 经济上限回归（PRD §1.4 标尺，全部由常量推导）────────────────────
   group('TC-40 经济上限回归（PRD §1.4 标尺）', () {
-    test('消耗减免：12 盆满养护一日最坏 = 48 ☀/天（PRD §1.4 (a)）', () {
+    test('消耗减免：12 盆满养护一日最坏 = 60 ☀/天（PRD §1.4 (a)；B13.25 施肥 −2）', () {
       // 单盆每日减免 = 浇水日上限×单次减免 + 施肥日上限×单次减免。
       const int perPotPerDay = kPlantWaterMaxPerDay * kPerkWaterDiscount +
           kPlantFertilizeMaxPerDay * kPerkFertilizeDiscount;
-      expect(perPotPerDay, 4, reason: '3 次×1 + 1 次×1 = 4 ☀/盆/天');
+      expect(perPotPerDay, 5, reason: '3 次×1 + 1 次×2 = 5 ☀/盆/天（B13.25）');
 
       const int worst12 = kGardenPotCapacityMax * perPotPerDay;
-      expect(worst12, 48,
-          reason: '12 盆 × 4 = 48 ☀/天（减弱 sink，不注入阳光）');
+      expect(worst12, 60,
+          reason: '12 盆 × 5 = 60 ☀/天（B13.25 施肥 −2；原 48）');
     });
 
     test('一次性扩容：全生命周期最坏 = 160 ☀（4→12 = 8 次 × −20，PRD §1.4 (c)）', () {
@@ -300,21 +300,22 @@ void main() {
       // 「单次一律 ±1」的增量约束（P1）：五条微收入单次加成**恒为 1**（不得调大）。
       // 🔴 C91 修订（玄参 2026-10-19 拍板）：绽放（开花即时）与晨露两条例外调档
       // +1 → **+2**；其余三条（除草 / 除虫 / 护眼）仍恒为 1。
+      // 🔴 B13.25 修订（玄参 2026-11-15 拍板）：绽放 / 晨露 +2 → **+5**，施肥 −1 → **−2**。
       final PlantPerk full = perkOfLevel(40);
       expect(full.weedBonus, 1);
       expect(full.pestBonus, 1);
-      expect(full.bloomInstantBonus, 2);
-      expect(full.dewBonus, 2);
+      expect(full.bloomInstantBonus, 5);
+      expect(full.dewBonus, 5);
       expect(full.eyeCareBonus, 1);
     });
 
-    test('最坏总影响 ≈ 82 ☀/天（减免 48 + 收入 33.8，PRD §1.4 (d)）', () {
+    test('最坏总影响 ≈ 94 ☀/天（减免 60 + 收入 33.8；B13.25 后，PRD §1.4 (d)）', () {
       const int reduction = kGardenPotCapacityMax *
           (kPlantWaterMaxPerDay * kPerkWaterDiscount +
               kPlantFertilizeMaxPerDay * kPerkFertilizeDiscount);
       const double income = 33.8;
-      expect(reduction + income, closeTo(82, 0.5),
-          reason: 'PRD §1.4 (d)：日频最坏 48 + 33.8 = 81.8 ≈ 82 ☀/天（标尺取整）');
+      expect(reduction + income, closeTo(94, 0.5),
+          reason: 'B13.25：日频最坏 60 + 33.8 = 93.8 ≈ 94 ☀/天（原 82）');
     });
   });
 }

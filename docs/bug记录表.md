@@ -1218,3 +1218,14 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 | **测试** | `audio_service_test` 新增 F203 组：挑槽策略纯函数（空闲优先 / 全忙轮换 / 游标绕回）、null 槽静默降级、soundOn=false 跳过；「互不掐断」的播放级行为 headless 无音频后端覆盖不到 ⇒ 真机验证（先例：F70 ⑤⑥） |
 | **教训** | 「单播放器 + 后到者赢」只适合**互斥**语义的配音场景；高频短音效（每次点击都可能触发）需要**并行通道**。当年 F116 修的是「后发起掐断先发起」，这次的反面教训是「先发起也会把上一支掐掉」——同一个单播放器，两种症状 |
 | **状态** | ✅ 代码 + 测试 + 文档（裁定表 C120-4）已同步；**待玄参真机复验**（快速连点：每发都有发射音效、命中即击中音效、落地/开箱完整） |
+
+## F204 · 🔴 一键护理不清空盆干扰物（真机 · 已修复）
+
+| 项 | 内容 |
+|---|---|
+| **发现** | 2026-11-15，玄参真机反馈：「我刚才给花园做了一件护理，但是发现空盆的杂草和害虫没有被清理掉，这应该是个bug」 |
+| **根因** | 空盆干扰物（F155-B）是**独立玩法线**（`EmptyPotService` + `PotDisturbanceRepository`，按 potIndex 定位、无 plant 行可挂）；一键护理的 `OneClickPlan.careTargets` 只由**有植物盆**派生，且 garden_page 334 行注释当时把「一键护理不触碰空盆干扰物」登记为**刻意设计**——孩子视角里「护理」就是「把花园收拾干净」，空盆长草却清不掉，语义裂缝 |
+| **修复** | **页面组合层**合并两类目标（尊重 EmptyPotService 与 PlantGrowthService 的分立设计，不动域层）：`_onOneClick(care)` 从 `_potDisturbances`（每次 reload 由 `_refreshEmptyPots` 刷新、只含当前空盆）派生 pot 目标，与植物 careTargets **同批计划 / 同批执行**：① 空计划判定改「两侧都空」；② 券 overlay 序列 seq 长度 = 植物处数 + 空盆处数（执行同序取 perk）；③ 确认卡「共清理 N 处，奖励合计 +M ☀」含空盆；④ 执行走 `EmptyPotService.clearWeed/clearPest`（奖励/账本 refType/refId='pot:<i>'/劳动券核销与单清完全同源）+ 轻量脉冲（与植物侧批量一致，不播 4.1s 单清演出）；⑤ 清完由 _run 收尾 `_reload → _refreshEmptyPots` 让浮标消失 |
+| **测试** | 新增 `one_click_care_empty_pot_test.dart` 2 用例：A（植物全净、空盆 3 处 → 确认卡「共清理 3 处 +5 ☀」→ 仓储清空 + 账本 3 行 + 汇总 ×3）；B（植物草 + 空盆虫 → 同批 2 处 +3 ☀，refId 分别为 plantId / 'pot:4'）。🔴 测试坑：预置植物 weedAt 必须同步写 `weedPestRollDay=today` 幂等位，否则 _reload → tickAll 的每日 roll 用 NoHitRandom 把预置杂草重写成无草 |
+| **教训** | 「独立服务 = 独立语义」防住了域层污染，却造出了**入口遗漏**：新增批量入口时只扫了主服务的目标面，没扫平行的副服务。批量入口每次扩面（care/water/fertilize）都该问一句「另一条玩法线有没有同类目标」 |
+| **状态** | ✅ 代码 + 测试 + 文档同步；**待玄参真机复验**（空盆长草虫 → 一键护理 → 确认卡数处含空盆 → 确定后浮标消失、奖励到账） |

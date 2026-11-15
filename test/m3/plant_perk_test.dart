@@ -93,9 +93,9 @@ void main() {
       expect(waterCostOf(perkOfLevel(1)), kPlantWaterCost);
     });
 
-    test('TC-07 fertilizeCostOf(Lv.10) == 9（10 − 1）', () {
-      expect(fertilizeCostOf(perkOfLevel(10)), kPlantFertilizeCost - 1);
-      expect(fertilizeCostOf(perkOfLevel(10)), 9);
+    test('TC-07 fertilizeCostOf(Lv.10) == 8（10 − 2；B13.25 施肥减免 −1 → −2）', () {
+      expect(fertilizeCostOf(perkOfLevel(10)), kPlantFertilizeCost - 2);
+      expect(fertilizeCostOf(perkOfLevel(10)), 8);
     });
 
     test('TC-08 weedRewardOf(Lv.15) == 2 / pestRewardOf(Lv.20) == 3', () {
@@ -105,13 +105,13 @@ void main() {
       expect(pestRewardOf(perkOfLevel(20)), 3);
     });
 
-    test('TC-09 bloomInstantBaseOf(Lv.25) → 普通 8 / 精品 12（C91：绽放 +1 → +2）', () {
+    test('TC-09 bloomInstantBaseOf(Lv.25) → 普通 11 / 精品 15（C91 +2；B13.25 绽放 +2 → +5）', () {
       expect(bloomInstantBaseOf(perkOfLevel(25), premium: false),
-          kBloomInstantSunlight + 2);
-      expect(bloomInstantBaseOf(perkOfLevel(25), premium: false), 8);
+          kBloomInstantSunlight + 5);
+      expect(bloomInstantBaseOf(perkOfLevel(25), premium: false), 11);
       expect(bloomInstantBaseOf(perkOfLevel(25), premium: true),
-          kBloomInstantSunlightPremium + 2);
-      expect(bloomInstantBaseOf(perkOfLevel(25), premium: true), 12);
+          kBloomInstantSunlightPremium + 5);
+      expect(bloomInstantBaseOf(perkOfLevel(25), premium: true), 15);
     });
 
     test('TC-10 eyeCareRewardOf(Lv.1) == 3（C78 基础 2 + 1；C78 前置）', () {
@@ -240,11 +240,11 @@ void main() {
       expect(perkShortTextOf(PlantPerk.none), '');
       expect(perkShortTextOf(perkOfTitleNode(1)), '+1'); // ① 护眼
       expect(perkShortTextOf(perkOfTitleNode(5)), '−1'); // ② 浇水
-      expect(perkShortTextOf(perkOfTitleNode(10)), '−1'); // ③ 施肥
+      expect(perkShortTextOf(perkOfTitleNode(10)), '−2'); // ③ 施肥（B13.25：−1 → −2）
       expect(perkShortTextOf(perkOfTitleNode(15)), '+1'); // ④ 除草
       expect(perkShortTextOf(perkOfTitleNode(20)), '+1'); // ⑤ 除虫
-      expect(perkShortTextOf(perkOfTitleNode(25)), '+2'); // ⑥ 绽放（C91：+1 → +2）
-      expect(perkShortTextOf(perkOfTitleNode(30)), '+2'); // ⑦ 晨露（C91：+1 → +2）
+      expect(perkShortTextOf(perkOfTitleNode(25)), '+5'); // ⑥ 绽放（C91 +2；B13.25 → +5）
+      expect(perkShortTextOf(perkOfTitleNode(30)), '+5'); // ⑦ 晨露（C91 +2；B13.25 → +5）
       expect(perkShortTextOf(perkOfTitleNode(35)), '−20'); // ⑧ 扩盆
       expect(perkShortTextOf(perkOfTitleNode(40)), '+20'); // ⑨ 铲除
       // 🔴 C81 ③：描述词（额外/消耗/返还）已全部去掉。

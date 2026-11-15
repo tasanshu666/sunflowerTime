@@ -37,7 +37,7 @@
 | 阳光账本**已够用**：`countByRefTypeAndRefIdOnDay` / `netByRefTypeOnDay` / `latestByRefType` / `append` | `sunlight_repository.dart` |
 | 打卡日上限只读**自己 refType** 的净额（不会被守卫收入挤占） | `task_checkin_service.dart:845-848`、`kTaskCheckinDailyCap=80` |
 | 浇水 5☀ / 施肥 10☀ / 每株每天 3 水 1 肥 / 拔草 +1☀ / 除虫 +2☀ / 花盆 4→12 | `prd_params.dart:150,153,156,159,939,942,198,201` |
-| 称号减免：浇水 −1（Lv.5）、施肥 −1（Lv.10）、除草 +1（Lv.15）、除虫 +1（Lv.20） | `prd_params.dart:1833-1843`、`plant_perk.dart:204-215` |
+| 称号减免：浇水 −1（Lv.5）、施肥 −2（Lv.10，B13.25 原 −1）、除草 +1（Lv.15）、除虫 +1（Lv.20） | `prd_params.dart` C77 块、`plant_perk.dart:204-215` |
 | 一天自然成长 10pp/阶段（240h/阶段），满养护 16pp/天，30 天成株 | `prd_params.dart:206,215,221,230` |
 | 极端天气惩罚量级：**0.30pp/天**（对照组，用于标定「偷菜有多疼」） | `prd_params.dart:2238` |
 | 低龄真实日收入 **88☀/天**、月 2640；4 盆「2 水 1 肥」= 78☀/天 = 88.6% | `docs/天气系统_最终方案.md` §7 / §8.5 |

@@ -13,14 +13,14 @@
 /// 每解锁一个节点即**永久获得**该属性 ⇒ [perkOfLevel] 是**已解锁节点的累积**：
 ///  · Lv.1 → 仅护眼 +1（C78 前置）；Lv.5 → 护眼 +1 **且** 浇水 −1（两节点各一条，叠加）；
 ///  · Lv.40（满级）→ 9 条属性**全生效**。
-/// （量化模型，见 PRD §1.4 (d)：「减免 48 = 浇水 36 + 施肥 12」正需两者同时生效。）
+/// （量化模型，见 PRD §1.4 (d)；B13.25 后：12 盆×5 = 60 ☀/天 = 浇水 36 + 施肥 24。）
 ///
 /// 🔴 纪律：
 ///  · 属性 = `perkOfLevel(levelOfMinutes(totalFocusMinutes))` —— **任何地方都不换输入**；
 ///    🔴 C80 修订（废止 P4）：当前属性统一走 provider/域层单点（读 `FeatureKey.titlePerks`），
 ///    `perkOfLevel` 本身无档位入参，门控在调用侧（旁路禁令见 `plant_perk_bypass_guard_test`）；
 ///  · 9 条零重复：同一常量不在两条里出现，禁止「再 −1」叠加式写法；
-///  · 单次一律 ±1（仅 ⑧⑨ 两条一次性项用小幅定量）。
+///  · 单次一律 ±1（仅 ⑧⑨ 两条一次性项用小幅定量）；C91/B13.25 例外见 `prd_params.dart` C77 块注记。
 library plant_perk;
 
 import 'package:sunflower_time/core/constants/prd_params.dart';

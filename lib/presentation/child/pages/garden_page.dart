@@ -331,9 +331,12 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 实现要求（保留）：一张票据一条定时器、绝不 cancel 别人的、[dispose] 里统一 cancel
   /// —— 这是「未来放宽 [_busy]」时的**前置条件**，不是当下的可观测缺陷防护。
   ///
-  /// 顺带事实（QA 核对项，无需改代码）：一键清除 / 一键护理**不触碰空盆干扰物**
-  /// ——`OneClickPlan.careTargets` 只由有植物盆（`plants`）派生，且该路径不建票据；
-  /// 故当前**没有**绕过 4.1s 演出的清空盆路径。
+  /// 顺带事实（QA 核对项）：~~一键清除 / 一键护理不触碰空盆干扰物~~
+  /// 🔴 **F204（玄参 2026-11-15「做了一件护理，空盆的杂草害虫没被清理，应该是
+  /// bug」）推翻**：一键护理的目标**扩到空盆干扰物**（[_onOneClick] 的 care 分支
+  /// 把 [_potDisturbances] 里的草/虫一并纳入计划与执行，奖励/账本/劳动券与
+  /// 植物侧同源）。注意：批量路径仍是「轻量脉冲」**不播 4.1s 演出**（与植物侧
+  /// 一键护理一致）；单独点浮标的那条路径才播完整演出。
   final Map<int, Timer> _clearTimers = <int, Timer>{};
 
   /// 正在「渐变消失」的干扰物（2026-10-03 玄参口径：播完动画先淡出浮标再刷新草地）：
@@ -2251,6 +2254,21 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     final OneClickPlan plan =
         await svc.oneClickPlan(kind, now, perk: _perkForOneClick(kind));
     if (!mounted) return;
+    // 🔴 F204（玄参 2026-11-15「做了一件护理，空盆的杂草害虫没被清理」）：
+    // 一键护理的目标**扩到空盆干扰物** —— 从 [_potDisturbances]（每次 _reload
+    // 由 [_refreshEmptyPots] 刷新，只含当前空盆）派生 pot 目标，与植物目标
+    // 同批计划 / 同批执行。奖励、账本 refType、劳动券核销与植物侧完全同源。
+    // 每个盆可同时有草 + 虫 → 拆成两条目标（与植物侧 careTargets 同口径）。
+    final List<({int potIndex, bool weed})> potTargets =
+        <({int potIndex, bool weed})>[
+      for (final MapEntry<int, PotDisturbance> e in _potDisturbances.entries)
+        ...<({int potIndex, bool weed})>[
+          if (e.value.hasWeed) (potIndex: e.key, weed: true),
+          if (e.value.hasPest) (potIndex: e.key, weed: false),
+        ],
+    ];
+    // 护理总处数（植物 + 空盆）—— 确认卡数量、奖励合计、券 overlay 序列共用。
+    final int careActionCount = plan.careTargets.length + potTargets.length;
     // 一键操作的「计划为空 / 不可执行」提示统一走**居中 Overlay 浮层**（玄参 2026-10-07
     // 截图实证：旧 `_snack` 是屏幕最下面的 SnackBar，停留久且不居中）——复用 [_showBatchHint]，
     // 与一键成功汇总**同节奏**（淡入 [kHintFadeInMs] → 停留 [kOneClickHintHoldMs] → 淡出
@@ -2285,7 +2303,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
           return;
         }
       case PlantOneClickKind.care:
-        if (plan.isEmpty) {
+        // 🔴 F204：植物侧与空盆侧**都空**才算空计划（只有空盆草虫也照样清）。
+        if (plan.isEmpty && potTargets.isEmpty) {
           _showBatchHint(_t.garden_batch_none_care, 0, showSunlight: false);
           return;
         }
@@ -2306,7 +2325,7 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       }
     }
     final int seqCount = kind == PlantOneClickKind.care
-        ? plan.careTargets.length
+        ? careActionCount // 🔴 F204：护理 overlay 序列含空盆目标（与执行同序）
         : plan.plantIds.length;
     // 🔴 B13.5 双券：按动作取**匹配那张**（主券 / 第二张都可能），不许取 first。
     final GuardActionKind seqAction = switch (kind) {
@@ -2340,11 +2359,18 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
           plannedCost += fertilizeCostOf(perk);
         }
       case PlantOneClickKind.care:
-        for (int i = 0; i < seq.length; i++) {
+        for (int i = 0; i < plan.careTargets.length; i++) {
           final ({String plantId, bool weed}) target = plan.careTargets[i];
           plannedEarn +=
               (target.weed ? weedRewardOf(seq[i]) : pestRewardOf(seq[i]))
                   .toInt();
+        }
+        // 🔴 F204：空盆目标的奖励并入同一合计（seq 后段与执行同序）。
+        for (int j = 0; j < potTargets.length; j++) {
+          final ({int potIndex, bool weed}) t = potTargets[j];
+          final PlantPerk perk = seq[plan.careTargets.length + j];
+          plannedEarn +=
+              (t.weed ? weedRewardOf(perk) : pestRewardOf(perk)).toInt();
         }
     }
     // ── note 分档（G1）：单价一致 → 沿用「每盆 X ☀」；有高有低 → 区间文案 ──
@@ -2424,7 +2450,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             ConfirmCardRow(
               icon: Icons.cleaning_services_outlined,
               name: _t.garden_row_cleanup,
-              value: _t.garden_cleanup_count(plan.actionCount),
+              // 🔴 F204：处数含空盆干扰物。
+              value: _t.garden_cleanup_count(careActionCount),
             ),
             ConfirmCardRow(
               icon: Icons.account_balance_wallet_outlined,
@@ -2434,9 +2461,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             ),
           ],
           // F3：券额度会在批量中途用尽 ⇒ 单次奖励（「除草 +2」）会多报。
-          // 改用**合计口径**：处数 + 逐处实发之和（[plannedEarn]）。
-          note: _t.garden_care_note_total(
-              plan.careTargets.length, plannedEarn),
+          // 改用**合计口径**：处数 + 逐处实发之和（[plannedEarn]，F204 起含空盆）。
+          note: _t.garden_care_note_total(careActionCount, plannedEarn),
           icon: Icons.cleaning_services_outlined,
         ),
     };
@@ -2543,6 +2569,37 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
             } catch (e) {
               firstError ??= e;
               debugPrint('[Guard] 一键护理失败（${t.plantId}），跳过：$e');
+            }
+          }
+          // 🔴 F204：空盆干扰物同批清理 —— [EmptyPotService.clearWeed /
+          //    clearPest]（奖励 / 账本 refType / refId='pot:<i>' 与植物侧同源，
+          //    劳动券核销同款）。perk 取 [seq] 后段（与计划合计同一份 overlay 序列）。
+          //    批量路径与植物侧一致走「轻量脉冲」，**不播 4.1s 单清演出**；
+          //    数据清完后由 _run 收尾的 _reload → _refreshEmptyPots 让浮标消失。
+          if (potTargets.isNotEmpty) {
+            final EmptyPotService emptySvc = ref.read(emptyPotServiceProvider);
+            for (int j = 0; j < potTargets.length; j++) {
+              final ({int potIndex, bool weed}) t = potTargets[j];
+              try {
+                final PlantPerk perk = seq[plan.careTargets.length + j];
+                final int reward =
+                    (t.weed ? weedRewardOf(perk) : pestRewardOf(perk)).toInt();
+                if (t.weed) {
+                  await emptySvc.clearWeed(t.potIndex, now, perk: perk);
+                } else {
+                  await emptySvc.clearPest(t.potIndex, now, perk: perk);
+                }
+                // 空盆没有 plantId ⇒ 传 null（与单清路径同口径）。
+                await _recordVoucherConsumed(GuardActionKind.labor,
+                    plantId: null);
+                okCount++;
+                earnedSun += reward;
+                pulse[t.potIndex] =
+                    t.weed ? CareEffectType.weed : CareEffectType.pest;
+              } catch (e) {
+                firstError ??= e;
+                debugPrint('[Guard] 一键护理失败（空盆 ${t.potIndex}），跳过：$e');
+              }
             }
           }
       }

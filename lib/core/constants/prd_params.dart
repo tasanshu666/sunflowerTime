@@ -1843,16 +1843,19 @@ const double kLevelUpFxStageSize = 150;
 // Lv.1、其余 8 条顺延一位，9 条属性内容与数值一字不变）：
 //   ① Lv.1  专注小萌芽 → 护眼完成奖励 +1    （kEyeCareRewardSunlight 基础值 C78 后 2，+1 → 3）
 //   ② Lv.5  专注小苗苗 → 浇水消耗 −1        （kPlantWaterCost 5→4）
-//   ③ Lv.10 静心小书童 → 施肥消耗 −1        （kPlantFertilizeCost 10→9）
+//   ③ Lv.10 静心小书童 → 施肥消耗 −2        （kPlantFertilizeCost 10→8；B13.25 原表 −1）
 //   ④ Lv.15 时光小卫士 → 除草奖励 +1        （kGardenWeedReward 1→2）
 //   ⑤ Lv.20 专心小骑士 → 除虫奖励 +1        （kGardenPestReward 2→3）
-//   ⑥ Lv.25 守时小星使 → 开花即时阳光 +1    （kBloomInstantSunlight 6→7 / 精品 10→11）
-//   ⑦ Lv.30 专注小法师 → 晨露阳光 +1/条     （加在折损之后；见 dewSunlightOf）
+//   ⑥ Lv.25 守时小星使 → 开花即时阳光 +5    （kBloomInstantSunlight 6→11 / 精品 10→15；
+//                                             B13.25 原 C91 +2）
+//   ⑦ Lv.30 专注小法师 → 晨露阳光 +5/条     （加在折损之后；见 dewSunlightOf；B13.25 原 C91 +2）
 //   ⑧ Lv.35 星辰守护者 → 花盆扩容消耗 −20   （B13.23 梯度价 100/200/300 → 80/180/280）
 //   ⑨ Lv.40 时光大贤者 → 铲除退款 +20       （kShovelRefundCommon/Premium 150/250→170/270）
 //
 // 🔴 四条硬纪律（P1~P5）：
 //   · **单次一律 ±1**（仅 ⑧⑨ 两条一次性项用小幅定量）；绝不引入乘法/加速/花期变更；
+//     ⚠️ 例外记录：⑥⑦ C91（+1→+2）、B13.25（玄参 2026-11-15：③ −1→−2、⑥⑦ +2→+5）——
+//     玄参拍板调档合法，「±1」仅是初始取值习惯、非永久约束；
 //   · **9 条零重复**：同一常量不在两条里出现，**禁止「再 −1」叠加式写法**；
 //   · 属性 = `f(当前称号)` **纯派生**（`perkOfLevel(levelOfMinutes(totalFocusMinutes))`），
 //     **不新增表 / 不加列，`schemaVersion` 不因本属性变更**（当前 25，C79 起）；
@@ -1869,7 +1872,10 @@ const int kPerkEyeCareBonus = 1;
 const int kPerkWaterDiscount = 1;
 
 /// ③ 施肥消耗减免（**Lv.10 · 静心小书童**，C78 前原 Lv.5）。
-const int kPerkFertilizeDiscount = 1;
+///
+/// 🔴 **B13.25 修订（玄参 2026-11-15 拍板）**：−1 → **−2**（施肥 10→8 ☀；
+/// 单点真源 `kPlantPerkPerTitleNode` 同步，测试随改）。
+const int kPerkFertilizeDiscount = 2;
 
 /// ④ 除草奖励加成（**Lv.15 · 时光小卫士**，C78 前原 Lv.10）。
 const int kPerkWeedBonus = 1;
@@ -1879,15 +1885,18 @@ const int kPerkPestBonus = 1;
 
 /// ⑥ 开花即时阳光加成（**Lv.25 · 守时小星使**，C78 前原 Lv.20）。
 ///
-/// 🔴 **C91 修订（玄参 2026-10-19 拍板）**：+1 → **+2**（花开奖励加成翻档；
-/// 单点真源 `kPlantPerkPerTitleNode` 同步，测试与边界断言随改）。
-const int kPerkBloomInstantBonus = 2;
+/// 🔴 **C91 修订（玄参 2026-10-19 拍板）**：+1 → **+2**（花开奖励加成翻档）。
+/// 🔴 **B13.25 修订（玄参 2026-11-15 拍板）**：+2 → **+5**（绽放 6→11 / 精品 10→15 ☀；
+/// 单点真源 `kPlantPerkPerTitleNode` 同步，测试随改）。
+const int kPerkBloomInstantBonus = 5;
 
 /// ⑦ 晨露阳光加成（**Lv.30 · 专注小法师**，C78 前原 Lv.25；**加在折损之后**，见 `dewSunlightOf`）。
 ///
 /// 🔴 **C91 修订（玄参 2026-10-19 拍板）**：+1 → **+2**（语义 = **折损后** +2，
-/// 「先折损后加成」顺序不变；单点真源 `kPlantPerkPerTitleNode` 同步）。
-const int kPerkDewBonus = 2;
+/// 「先折损后加成」顺序不变）。
+/// 🔴 **B13.25 修订（玄参 2026-11-15 拍板）**：+2 → **+5**（折损后 +5 ☀；
+/// 单点真源 `kPlantPerkPerTitleNode` 同步，测试随改）。
+const int kPerkDewBonus = 5;
 
 /// ⑧ 花盆扩容消耗减免（Lv.35 · 星辰守护者；一次性项）。
 const int kPerkExpandDiscount = 20;
@@ -1904,11 +1913,11 @@ const int kPerkShovelRefundBonus = 20;
 const List<String> kPerkEmojis = <String>[
   '👁', // Lv.1  护眼 +1
   '💧', // Lv.5  浇水 −1
-  '🌾', // Lv.10 施肥 −1
+  '🌾', // Lv.10 施肥 −2（B13.25）
   '🌿', // Lv.15 除草 +1
   '🦗', // Lv.20 除虫 +1
-  '🌻', // Lv.25 绽放 +2（C91：花开奖励 +1 → +2）
-  '🌤', // Lv.30 晨露 +2（C91：折损后加成 +1 → +2）
+  '🌻', // Lv.25 绽放 +5（C91 +2；B13.25 → +5）
+  '🌤', // Lv.30 晨露 +5（C91 +2；B13.25 → +5）
   '🪴', // Lv.35 扩容 −20
   '🗑️', // Lv.40 铲除 +20（C91：⛏️ → 🗑️）
 ];

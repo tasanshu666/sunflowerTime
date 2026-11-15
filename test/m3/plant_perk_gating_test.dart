@@ -248,12 +248,13 @@ void main() {
       expect(perk, perkOfLevel(40));
       expect(perk.eyeCareBonus, 1);
       expect(perk.waterDiscount, 1);
-      expect(perk.fertilizeDiscount, 1);
+      expect(perk.fertilizeDiscount, 2, reason: 'B13.25：施肥减免 −1 → −2');
       expect(perk.weedBonus, 1);
       expect(perk.pestBonus, 1);
-      // C91（玄参 2026-10-19 拍板）：绽放 / 晨露两条 +1 → +2，其余七条不变。
-      expect(perk.bloomInstantBonus, 2);
-      expect(perk.dewBonus, 2);
+      // C91（玄参 2026-10-19 拍板）：绽放 / 晨露 +1 → +2；
+      // B13.25（玄参 2026-11-15 拍板）：绽放 / 晨露 +2 → +5。
+      expect(perk.bloomInstantBonus, 5);
+      expect(perk.dewBonus, 5);
       expect(perk.expandDiscount, 20);
       expect(perk.shovelRefundBonus, 20);
     });

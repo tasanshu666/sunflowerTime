@@ -342,7 +342,7 @@ void main() {
                   childId: 'end-0',
                   handle: handle,
                   debugScriptOverride: script,
-                  onFinished: (int _) => finishedAt.add(nowMs()),
+                  onFinished: (int _, bool __) => finishedAt.add(nowMs()),
                 ),
               ),
             ),

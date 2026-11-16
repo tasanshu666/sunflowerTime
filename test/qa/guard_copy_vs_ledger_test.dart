@@ -711,7 +711,7 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════
   // V3-8 结算卡被偷行（守卫战 v2 B4）：卡面 N == recordBattleTheft 实扣
   // ══════════════════════════════════════════════════════════════════════
-  group('V3-8 结算卡「被偷菜贼偷走 N 阳光」vs 账本实扣', () {
+  group('V3-8 结算卡「被偷菜贼偷走了 N 阳光」vs 账本实扣', () {
     final AppLocalizations zh = AppLocalizationsZh();
     final AppLocalizations en = AppLocalizationsEn();
 
@@ -749,13 +749,13 @@ void main() {
     }
 
     test('文案模板（zh/en 成对）：N 进句式，与流水页「被偷菜贼偷走」同语根', () {
-      expect(zh.guard_result_stolen(2), '被偷菜贼偷走 2 阳光');
-      expect(en.guard_result_stolen(2), 'The thief stole 2 sunlight');
+      expect(zh.guard_result_stolen(2), '被偷菜贼偷走了 2 阳光');
+      expect(en.guard_result_stolen(2), 'The sneaky thief stole 2 sunlight');
     });
 
-    testWidgets('有被偷（实扣 2）⇒ 卡面渲染「被偷菜贼偷走 2 阳光」', (tester) async {
+    testWidgets('有被偷（实扣 2）⇒ 卡面渲染「被偷菜贼偷走了 2 阳光」', (tester) async {
       await pumpCard(tester, stolenSun: 2);
-      expect(find.text('被偷菜贼偷走 2 阳光'), findsOneWidget,
+      expect(find.text('被偷菜贼偷走了 2 阳光'), findsOneWidget,
           reason: '🟢 卡面 2 == recordBattleTheft 实扣 2（页面只传账本返回值）');
       expect(tester.takeException(), isNull);
     });

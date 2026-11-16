@@ -48,6 +48,7 @@
 library guard_scene_card;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -113,6 +114,21 @@ class GuardSceneCard extends StatefulWidget {
   /// 只提示、不跳转 —— 孩子端无购买入口）。widget 测试断言用。
   static const Key energyLockedHintKey = Key('guardEnergyLockedHint');
 
+  /// 战士受击闪烁的不透明度曲线（**纯函数，可单测**；B13.26）。
+  ///
+  /// `t ∈ [0,1]`（受击后归一化时长）：
+  /// * 起手最深 `1 − [kGuardSoldierHitFlashDepth]`（0.45）；
+  /// * 在 [kGuardSoldierHitFlashPulses]（2）个整周期内明暗往返（`cos` 波）；
+  /// * 包络 `(1 − t)` 线性回亮 ⇒ 结束时**恰好回到 1.0**（无收尾跳变）；
+  /// * 零随机（确定性要求），与怪的受击闪动 `hitFlashAlphaAt` 同构。
+  /// 越界 `t` 自动钳在 [0,1]。
+  static double soldierHitAlphaAt(double t) {
+    final double clamped = t.clamp(0.0, 1.0);
+    final double blink = 0.5 +
+        0.5 * math.cos(2 * math.pi * kGuardSoldierHitFlashPulses * clamped);
+    return 1.0 - kGuardSoldierHitFlashDepth * (1.0 - clamped) * blink;
+  }
+
   /// 当前守卫快照（由页面 `ref.watch(guardTodayProvider)` 传入）。
   ///
   /// 🔴 B13.8 能量档位制：档位从 [GuardTodayView.isPremium] 读（领域层单点
@@ -134,7 +150,10 @@ class GuardSceneCard extends StatefulWidget {
   ///
   /// B4 起携带本场实际被偷合计（sim 终局 `stolenSun`，由 L4 field 透传；
   /// 页面据此调 `recordBattleTheft` 落账后再弹结算卡）。卡只转发，不落账。
-  final ValueChanged<int>? onBattleFinished;
+  ///
+  /// 🔴 B13.26：第二参 = 本场**是否开过火**（sim `hasFired` 透传，页面据此
+  /// 在 `claim()` 里短路必得阳光）。卡只转发。
+  final void Function(int stolenSun, bool hasFired)? onBattleFinished;
 
   /// 调试剧本覆盖（B5a，仅 kDebugMode 有非空值；页面从
   /// `debugGuardBattleScriptOverrideProvider` 读来透传，本卡只转发）。
@@ -182,6 +201,17 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
   /// 攻击帧窗口的收尾定时器（[kGuardSoldierAttackFlashMs] 后回站立）。
   Timer? _attackTimer;
 
+  /// 战士**受击**演出的起点（战局时间轴 ms，快照钟；null = 不在受击演出中）。
+  ///
+  /// 🔴 B13.26（玄参 2026-11-16：怪接触战士要有受击反馈）：由 L4 field 的
+  /// `theft` 事件触发。时长 [kGuardSoldierHitFlashMs]（800ms）内切受击姿态
+  /// `soldier_hit.png` + 闪烁 [kGuardSoldierHitFlashPulses] 次（曲线
+  /// [GuardSceneCard.soldierHitAlphaAt]，纯函数、零随机）；到点回站立。
+  /// 时钟用**快照 elapsedMs**：战斗进行中每帧经 `onSnapshot` setState 刷新
+  /// ⇒ 姿态随钟自动收尾，无需 Timer；终局后快照冻结，演出随之定格（随后
+  /// 结算卡上屏，肉眼不可见，可接受）。
+  int? _hitStartMs;
+
   @override
   void dispose() {
     _attackTimer?.cancel();
@@ -199,6 +229,15 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
         if (mounted) setState(() => _attacking = false);
       },
     );
+  }
+
+  /// 怪到门（`theft` 事件）⇒ 战士受击 [kGuardSoldierHitFlashMs] 毫秒
+  /// （受击姿态 + 闪烁；再次受击从头重播 —— 与攻击帧刷新同口径）。
+  ///
+  /// 音效由 L4 field 自己播（[_playSoldierHitSfx]），本卡只管姿态。
+  void _flashSoldierHit() {
+    if (!mounted) return;
+    setState(() => _hitStartMs = _battleSnap?.elapsedMs ?? 0);
   }
 
   @override
@@ -323,12 +362,16 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                       },
                       // 开火受理 ⇒ 常驻战士切 300ms 攻击帧（战士在本卡渲染）。
                       onFireAccepted: _flashAttack,
+                      // 🔴 B13.26：怪到门（theft）⇒ 战士受击 800ms 姿态 + 闪烁
+                      // （战士在本卡渲染，音效由 field 自己播）。
+                      onSoldierHit: _flashSoldierHit,
                       // 平板放大倍率透传（与卡同把尺子）。
                       uiScale: widget.uiScale,
-                      // B4：终局把 sim 的被偷合计透传给页面（取数链路
-                      // sim 报告 → 页面 → 结算卡；本卡只转发、不落账）。
-                      onFinished: (int stolenSun) =>
-                          widget.onBattleFinished?.call(stolenSun),
+                      // B4：终局把 sim 的被偷合计 + 是否开过火透传给页面
+                      // （取数链路 sim 报告 → 页面 → 结算卡 / claim；本卡只
+                      // 转发、不落账）。
+                      onFinished: (int stolenSun, bool hasFired) =>
+                          widget.onBattleFinished?.call(stolenSun, hasFired),
                       // B5a：调试剧本覆盖（仅 debug 有非空值；null = 真实派生）。
                       debugScriptOverride: widget.debugScriptOverride,
                     ),
@@ -408,24 +451,45 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
     );
   }
 
-  // ── 常驻战士的三态素材 ─────────────────────────────────────────────────
+  // ── 常驻战士的四态素材 ─────────────────────────────────────────────────
 
-  /// 待机 / 战斗 / 开火三态（玄参 B7 原话逐条落地）：
+  /// 待机 / 战斗 / 开火 / 受击四态（玄参 B7 原话逐条落地 + B13.26 受击）：
   /// * 开火后 [kGuardSoldierAttackFlashMs] 内 ⇒ 攻击静态；
-  /// * 战斗进行中 ⇒ **静止站立**（idle frame001 定格，不循环 —— 不闲晃）；
+  /// * **受击 [kGuardSoldierHitFlashMs] 内 ⇒ 受击静态 + 闪烁**（受击优先：
+  ///   攻击帧进行中同时被贴，按玄参「受击要有反馈」的语义先演受击）；
+  /// * 战斗进行中 ⇒ **静止站立**（`soldier_stand.webp` 定格，不循环 —— 不闲晃）；
   /// * 待机 / 战斗收场（Victory / Retreat）⇒ 待机 19 帧**循环**。
   Widget _soldierArt(bool fighting) {
     final bool over = fighting &&
         _battleSnap != null &&
         _battleSnap!.phaseId != GuardBattlePhase.fighting.id;
+    // 受击窗口判定（快照钟，见 [_hitStartMs]）：800ms 内 ⇒ 姿态 + 闪烁。
+    bool hit = false;
+    double hitAlpha = 1.0;
+    final int? hitStart = _hitStartMs;
+    if (fighting && hitStart != null && _battleSnap != null) {
+      final int ageMs = _battleSnap!.elapsedMs - hitStart;
+      if (ageMs >= 0 && ageMs < kGuardSoldierHitFlashMs) {
+        hit = true;
+        hitAlpha =
+            GuardSceneCard.soldierHitAlphaAt(ageMs / kGuardSoldierHitFlashMs);
+      }
+    }
     // 🔴 B12：战斗进行中的「站立」改用**专用站立静态** `soldier_stand.webp`
     // （玄参：「攻击情况下，站立动作用单独的那张站立待机图片，而不是动作帧
     // 里面的图片」）。待机动画帧只保留给非战斗态与收场后循环。
-    return GuardArt.soldier(
-      // 开火瞬间 = 攻击静态；战斗进行中 = 站立静态；其余（含收场后）= 循环。
-      attack: _attacking,
-      stand: fighting && !_attacking && !over,
-      animate: !fighting || over,
+    // 🔴 B13.26：**恒包 Opacity**（不闪时 opacity = 1.0）—— 不翻转树结构
+    // （B13.20c 教训：条件挂层会让 _GuardSequence State 重建、闪一帧兜底色块）。
+    return Opacity(
+      opacity: hitAlpha,
+      child: GuardArt.soldier(
+        // 开火瞬间 = 攻击静态；受击 = 受击静态（优先）；战斗进行中 = 站立
+        // 静态；其余（含收场后）= 循环。
+        hit: hit,
+        attack: _attacking,
+        stand: fighting && !_attacking && !hit && !over,
+        animate: !fighting || over,
+      ),
     );
   }
 

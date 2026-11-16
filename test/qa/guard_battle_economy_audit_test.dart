@@ -456,6 +456,7 @@ void main() {
       WidgetTester tester, {
       required int stolenSun,
       required Locale locale,
+      bool hasFired = true,
     }) async {
       const GuardDayState state = GuardDayState(
         dayKey: '2026-11-09',
@@ -489,6 +490,7 @@ void main() {
                   l10n: l10n,
                   onCollect: () async => throw UnimplementedError(),
                   stolenSun: stolenSun,
+                  hasFired: hasFired,
                 ),
               ),
             );
@@ -498,21 +500,25 @@ void main() {
       await tester.pump();
     }
 
-    testWidgets('zh：stolenSun=2 ⇒ 「被偷菜贼偷走 2 阳光」且为红色行',
+    testWidgets('zh：stolenSun=2 ⇒ 「被偷菜贼偷走了 2 阳光」且图标为馋光鼠（B13.26）',
         (WidgetTester tester) async {
       await pumpCard(tester, stolenSun: 2, locale: const Locale('zh'));
-      expect(find.text('被偷菜贼偷走 2 阳光'), findsOneWidget);
-      // 红色行：被偷行图标颜色 = 0xFFB3261E（图标与文案同在一个 Row）。
-      final Icon icon = tester.widget<Icon>(
+      expect(find.text('被偷菜贼偷走了 2 阳光'), findsOneWidget);
+      // B13.26（玄参 2026-11-16）：被偷行图标从「奔跑小人」换成**馋光鼠 UI
+      // 图标**（m1 静态首帧）。素材缺失时 errorBuilder 回退红色 Icon ——
+      // 素材在库 ⇒ 正常路径断言 Image.asset 在树。
+      final Image image = tester.widget<Image>(
         find.descendant(
           of: find.ancestor(
-            of: find.text('被偷菜贼偷走 2 阳光'),
+            of: find.text('被偷菜贼偷走了 2 阳光'),
             matching: find.byType(Row),
           ).first,
-          matching: find.byType(Icon),
+          matching: find.byType(Image),
         ),
       );
-      expect(icon.color, const Color(0xFFB3261E), reason: '被偷行必须是红色');
+      final AssetImage asset = image.image as AssetImage;
+      expect(asset.assetName, 'assets/guard/monster_m1/frame001.webp',
+          reason: '🔴 被偷行图标 = 馋光鼠静态首帧');
     });
 
     testWidgets('zh：stolenSun=0 ⇒ 整行不渲染（「偷走」句式绝不出现）',
@@ -520,6 +526,31 @@ void main() {
       await pumpCard(tester, stolenSun: 0, locale: const Locale('zh'));
       expect(find.textContaining('偷走'), findsNothing,
           reason: '🔴 不许出现「偷走 0 阳光」');
+    });
+
+    testWidgets('B13.26：未开火（hasFired=false）⇒ 阳光卡红色 −N、绝不显示 +winSun',
+        (WidgetTester tester) async {
+      // 存档 winSun=2（正常场会显示 +2）：未开火 ⇒ 必须显示红色 −2（被偷合计），
+      // 绝不能把「本该发的 2」画成 +2 误导孩子。
+      await pumpCard(
+        tester,
+        stolenSun: 2,
+        locale: const Locale('zh'),
+        hasFired: false,
+      );
+      expect(find.text('−2'), findsOneWidget,
+          reason: '🔴 未开火场显示红色 −N（N = 被偷合计）');
+      expect(find.text('+2'), findsNothing, reason: '未开火场绝不显示 +winSun');
+      // 阳光卡描边同样转红（整卡是「没拿到反而被偷」的红色语义）。
+      final Container card = tester.widget<Container>(
+        find.byKey(GuardResultCard.sunRewardKey),
+      );
+      final BoxDecoration decoration = card.decoration! as BoxDecoration;
+      expect(
+        (decoration.border! as Border).top.color,
+        const Color(0xFFB3261E),
+        reason: '🔴 未开火场阳光卡描边 = 红色',
+      );
     });
 
     testWidgets('en：stolenSun=3 ⇒ 账本口径文案渲染且不溢出',

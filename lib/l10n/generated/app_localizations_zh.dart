@@ -3632,14 +3632,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guard_result_title => '花园守卫成功，赶走了贪吃的小动物';
 
   @override
+  String get guard_result_title_defeat => '守卫失败，怪物偷走了阳光！';
+
+  @override
   String guard_result_gain(int sun) {
     return '拿回 $sun 阳光';
   }
 
   @override
   String guard_result_stolen(int sun) {
-    return '被偷菜贼偷走 $sun 阳光';
+    return '被偷菜贼偷走了 $sun 阳光';
   }
+
+  @override
+  String get guard_pill_teach_text => '点这个阳光胶囊，帮小小葵发射阳光打跑小偷！';
 
   @override
   String guard_result_drop(String drop) {

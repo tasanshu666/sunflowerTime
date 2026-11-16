@@ -444,7 +444,7 @@ class GuardBattleScript {
     required this.windowMs,
   });
 
-  /// 怪物阵容（数量 8~12（B13.22）：kind/出场 t/速度/闪避 p/hits/steal/轨迹通道）。
+  /// 怪物阵容（数量 6~9（B13.27，见 [kGuardMonsterCountMin]）：kind/出场 t/速度/闪避 p/hits/steal/轨迹通道）。
   final List<GuardBattleMonsterSpec> monsters;
 
   /// 战斗窗口（= [kGuardBattleWindowMs]）。
@@ -486,7 +486,8 @@ GuardBattleScript deriveGuardBattleScript({
   );
 
   final List<GuardBattleMonsterSpec> monsters = <GuardBattleMonsterSpec>[];
-  // 🔴 B13.22（玄参 2026-11-14 第二轮拍板）：**种类 1~3 种 / 天、数量 8~12 只**。
+  // 🔴 B13.22（玄参 2026-11-14 第二轮拍板）：**种类 1~3 种 / 天**；数量 B13.27
+  // 改 **6~9 只**（B13.22 为 8~12，玄参 2026-11-16 模拟器验收「偏多」）。
   // 当天先掷种类数（日级通道 `kind_n` ∈ [1,3]），再由 `kind_set` 通道从 3 种里
   // 确定性选出当日种类池，逐怪从池内落桶取种 —— 「可以 3 种同场，也可以只有
   // 1 种、2 种，每天随机」的语义由日级两通道承担，逐怪 `kind_<i>` 通道保留
@@ -890,6 +891,14 @@ class GuardBattleSim {
   /// 是否打完（victory / retreat）。Abandoned 不经过本方法 —— 进程被杀时
   /// 本对象直接被丢弃（零写库由「根本没有持久化」保证）。
   bool get isOver => _phase != GuardBattlePhase.fighting;
+
+  /// 本场**是否开过火**（玄参 2026-11-16 拍板：从未开火的场 = 没帮战士攻击
+  /// ⇒ 结算不发必得阳光）。
+  ///
+  /// 🔴 只读派生（`_lastFireMs != null`），sim 状态机 / 时间轴 / 快照结构
+  /// **一个字节不动** —— 冷却闸门与确定性零感知；表现层在终局回调里读它，
+  /// 传给结算链路（`GuardService.claim(hasFired: …)`）。
+  bool get hasFired => _lastFireMs != null;
 
   /// 推进到 [elapsedMs]，处理其间 [newFireEventsMs] 的开火（含冷却闸门）。
   ///

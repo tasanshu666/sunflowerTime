@@ -652,7 +652,20 @@ class GuardService {
   ///
   /// [useEnergy] = false 时强制走阳光路径（调试面板 / 未来的「攒着能量」玩法用；
   /// 默认 true，即「有能量必须不花阳光」）。
-  Future<GuardClaimOutcome> claim({DateTime? now, bool useEnergy = true}) async {
+  ///
+  /// 🔴 **B13.26（玄参 2026-11-16）**：[hasFired] = 本场**是否开过火**（sim
+  /// `hasFired`，由页面在终局回调里透传）。**未开火 ⇒ 不发必得阳光**（玄参：
+  /// 「没有操控向日葵战士攻击怪物……不应该获得阳光，因为被怪物偷走了」）：
+  /// 不写 `guard_win` 账本行、`GuardClaimOutcome.winSun = 0`；**成本照扣**（进了
+  /// 战斗就该付成本）、**券/buff 发放逻辑不动**（概率制照旧）。缺省 true =
+  /// 既有口径（老调用方零改动）。⚠️ 为什么不能用「winSun = 0 落盘」表达未开火：
+  /// `guardGrantWinSunOf` 会把 ≤0 兜底成 [kGuardWinSunNoItem]（重放时凭空变 5），
+  /// 故必须显式短路。
+  Future<GuardClaimOutcome> claim({
+    DateTime? now,
+    bool useEnergy = true,
+    bool hasFired = true,
+  }) async {
     final DateTime at = now ?? _clock();
     final String childId = _childId();
     final String today = dayKey(at);
@@ -760,25 +773,39 @@ class GuardService {
     // ⑥ 发必得阳光（3~5；无道具档 = 5）。
     //    🔴 Guard-B13.11：金额必须走 `guardGrantWinSunOf`（高级宝箱 ×2），
     //    绝不能用裸 `state.winSun` —— 否则「结算卡写 +8、账本只 +4」。
-    final int winSun = guardGrantWinSunOf(state);
+    //    🔴 B13.26：**未开火场整段跳过**（不写 `guard_win` 行、到账 0）——
+    //    幂等判据 `winRows > attempt` 天然兼容（没写行 ⇒ 重放时重新按
+    //    hasFired 判定，绝不重复发也绝不补发）。
+    //    ⚠️ 已知取舍：`expire()` 的 fighting 补发分支**收不到** hasFired
+    //    （战斗进程内存态，跨天强杀后无从知晓），维持既有补发口径 —— 方向
+    //    偏向孩子，且只影响「进战斗后一发未打就强杀」的极端路径。
+    //    ⚠️ battleAttempt 口径：未开火场不产生 `guard_win` 行 ⇒ 场次序号
+    //    （按当日 win 行数派生）不再逐场 +1。生产一天一场零影响；调试连打时
+    //    未开火场不占号，最坏后果是**付费重号被主键去重吞掉 = 少扣**（偏向
+    //    孩子，与「宁可少发不少发」的既有方向一致），绝不重复发钱。
+    final int winSun = hasFired ? guardGrantWinSunOf(state) : 0;
     // 🔴 落盘的是**基础值**（`winSun` 字段的语义自 B13 起就是「基础 3~5」）：
     //    翻倍只在读取侧由 `guardGrantWinSunOf` 派生 ⇒ 任何时候都不会出现
     //    「已翻倍的值再翻一次」（设计 §2.4 / §3.4）。
+    //    🔴 B13.26：未开火场**跳过账本写入**（`winSun == 0` 即哨兵）；
+    //    `winSun` 落盘值仍保持基础值（存档口径不变，只是「这场不发」）。
     final int baseWinSun =
         state.winSun > 0 ? state.winSun : kGuardWinSunNoItem;
     final double beforeWin = await _ledger.balance();
-    await _appendLedger(SunlightEntry(
-      // 🔴 B10/B4：同 `guard_pay`，第 1 场 id 与历史逐位相同。
-      id: 'guard_win_${childId}_$today$suffix',
-      ts: at,
-      type: SunlightType.earn,
-      gross: winSun.toDouble(),
-      net: winSun.toDouble(),
-      balanceAfter: beforeWin + winSun,
-      refType: kGuardWinRefType,
-      refId: kGuardRefId,
-      dayKey: today,
-    ));
+    if (hasFired) {
+      await _appendLedger(SunlightEntry(
+        // 🔴 B10/B4：同 `guard_pay`，第 1 场 id 与历史逐位相同。
+        id: 'guard_win_${childId}_$today$suffix',
+        ts: at,
+        type: SunlightType.earn,
+        gross: winSun.toDouble(),
+        net: winSun.toDouble(),
+        balanceAfter: beforeWin + winSun,
+        refType: kGuardWinRefType,
+        refId: kGuardRefId,
+        dayKey: today,
+      ));
+    }
 
     // ⑦ 落 buff（当日券的额度账；无道具档 = 没有券）。
     //    🔴 Guard-B13.11：第二张券改由**高级宝箱**给出（`chestBonusDropKind`）。
@@ -887,6 +914,70 @@ class GuardService {
       balanceAfter: balance - charge,
       refType: kGuardStolenRefType,
       refId: kGuardRefId,
+      dayKey: today,
+    ));
+    return written ? charged : 0;
+  }
+
+  /// 【B13.27 增量（C120-13，2026-11-16 玄参拍板「惩罚必达 −3」），唯一】
+  /// **未开火场**的固定惩罚落账：一枪不发 ⇒ 无视当日互斥 / sim 封顶，恒扣
+  /// [kGuardWinSunMin] ☀。
+  ///
+  /// ## 为什么不走 [recordBattleTheft]
+  /// 它有三层钳制（同日互斥去重 / 余额 ≤0 空操作 / `kGuardStealDailyCap` 封顶），
+  /// 全是**开火场**的口径（「每天最多被偷一次」= 玄参当日偷窃额度）。未开火
+  /// 惩罚是**确定性罚金**，与 sim 被偷值无关：玄参今天前几场测试耗掉额度后，
+  /// 未开火场会「被偷 0」——惩罚凭空消失，这就是「惩罚必达」要堵的洞。
+  /// 🔴 开火场的既有互斥 / 封顶逻辑一字节不动。
+  ///
+  /// ## 落账口径
+  /// · refType 沿用 [kGuardStolenRefType]（报表口径统一「被偷」）；
+  /// · refId = [kGuardNoFirePenaltyRefId]（'garden_penalty'）—— 与开火场
+  ///   'garden' 刻意分流，两条路径的同日互斥判据互不误伤；
+  /// · 行主键 id = `guard_stolen_<childId>_<dayKey>_p<序号>`（序号 = 当日
+  ///   惩罚行数）—— 恒带后缀避开开火场行 id 的冻结格式（无后缀），同日多场
+  ///   各自成行；重放时两次调用读到同一序号 ⇒ 同 id 被账本主键去重吞掉
+  ///   （防重放双扣）。
+  /// · 实扣 = `min([kGuardWinSunMin], 当前余额)` —— 负余额红线（D6）不变；
+  ///   余额 0 / 不足 1 ☀ 不写 0 元行。🔴 已知边缘（口径表 C120-13 记录）：
+  ///   余额不足时**账本实扣 < 3 而卡面恒 −3** —— 拍板口径「惩罚必达」优先于
+  ///   「卡面 == 账本」契约（仅此未开火场景让步）。
+  ///
+  /// 返回实际落账额（0 = 已写过 / 余额不足）。
+  Future<int> recordNoFirePenalty({DateTime? now}) async {
+    final DateTime at = now ?? _clock();
+    final String childId = _childId();
+    final String today = dayKey(at);
+    // ① 场次序号 = 当日已有惩罚行数（不依赖 battleAttempt —— 未开火场不产生
+    //    guard_win 行、不占号，attempt 在调试连打下会重复，不能做序号）。
+    final int penaltyRows = await _ledger.countByRefTypeAndRefIdOnDay(
+      kGuardStolenRefType,
+      kGuardNoFirePenaltyRefId,
+      today,
+    );
+    final String rowId =
+        'guard_stolen_${childId}_$today${penaltyRows > 0 ? '_p$penaltyRows' : '_p0'}';
+    // ② 幂等防重放：重放（同一战局终局回调重入 / 极端时序两次调用）会读到
+    //    同一 penaltyRows ⇒ 同 rowId ⇒ 被账本主键去重吞掉第二次写入
+    //    （`_appendLedger` 返回 false ⇒ 返回 0）；而新战局（行数已 +1）⇒
+    //    新序号 ⇒ 独立成行（同日调试连打各自受罚，符合「惩罚必达」）。
+    final double balance = await _ledger.balance();
+    // ③ 余额钳制：绝不产生负余额（D6 红线）。余额 0 ⇒ 空操作。
+    if (balance <= 0) return 0;
+    final double charge =
+        math.min(kGuardWinSunMin.toDouble(), balance);
+    final int charged = charge.toInt();
+    if (charged <= 0) return 0; // 余额不足 1 ☀：按 0 处理，不写 0 元账本行
+    final double net = -charge;
+    final bool written = await _appendLedger(SunlightEntry(
+      id: rowId,
+      ts: at,
+      type: SunlightType.plant,
+      gross: net,
+      net: net,
+      balanceAfter: balance - charge,
+      refType: kGuardStolenRefType,
+      refId: kGuardNoFirePenaltyRefId,
       dayKey: today,
     ));
     return written ? charged : 0;

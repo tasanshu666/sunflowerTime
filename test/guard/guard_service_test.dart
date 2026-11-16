@@ -500,6 +500,100 @@ void main() {
     });
   });
 
+  // ───────────────────────── B13.26 未开火场不发必得阳光 ─────────────────────────
+  //
+  // 🔴 玄参 2026-11-16：「没有操控向日葵战士攻击怪物……不应该获得阳光，
+  // 因为被怪物偷走了」。口径：`claim(hasFired: false)` ⇒ `guard_win` 账本行
+  // **不写**、`outcome.winSun = 0`；**成本照扣**（进了战斗就该付）、券/buff
+  // 发放逻辑不动。缺省 true = 既有口径（上面 A1/A2 全部用例零改动回归）。
+  group('B13.26 claim(hasFired)：未开火场不发必得阳光，成本照扣', () {
+    test('未开火 + 有能量：零账本行、winSun=0、余额不变、状态照常收尾', () async {
+      final _Ctx ctx = _make(
+        balance: 100,
+        plants: <Plant>[_plant('p1')],
+        validSessionsToday: 1,
+      );
+      await ctx.store.write(
+        _childId,
+        _pendingState(winSun: 2, drop: GuardDropKind.none),
+      );
+
+      final GuardClaimOutcome out = await ctx.guard.claim(hasFired: false);
+
+      expect(out.ok, isTrue, reason: '结算流程本身照常走完');
+      expect(out.usedEnergy, isTrue);
+      expect(out.winSun, 0, reason: '🔴 未开火 ⇒ 必得阳光不发');
+      expect(ctx.ledger.entries, isEmpty,
+          reason: '🔴 不写 guard_win 行（免能路径也不写 guard_pay）');
+      expect(ctx.balance, 100, reason: '有能量不扣钱，也没有 +2 进账');
+      expect(ctx.state.isClaimed, isTrue, reason: '存档收尾照常（防重放重发）');
+    });
+
+    test('未开火 + 无能量：guard_pay 照扣、guard_win 不写（差一行）', () async {
+      final _Ctx ctx = _make(
+        balance: 100,
+        plants: <Plant>[_plant('p1')],
+        abortedSessionsToday: 3,
+      );
+      await ctx.store.write(
+        _childId,
+        _pendingState(winSun: 2, drop: GuardDropKind.none),
+      );
+
+      final GuardClaimOutcome out = await ctx.guard.claim(hasFired: false);
+
+      expect(out.ok, isTrue);
+      expect(out.usedEnergy, isFalse);
+      expect(out.paidSun, kGuardPayCost, reason: '成本照扣：进了战斗就该付');
+      expect(ctx.ledger.countOf('guard_pay'), 1);
+      expect(ctx.ledger.countOf('guard_win'), 0, reason: '🔴 唯一的差别行');
+      expect(ctx.balance, 100 - kGuardPayCost, reason: '只扣成本、无进账');
+    });
+
+    test('开火（hasFired: true）⇒ 与缺省口径逐位一致（guard_win 照写）', () async {
+      final _Ctx ctx = _make(
+        balance: 100,
+        plants: <Plant>[_plant('p1')],
+        validSessionsToday: 1,
+      );
+      await ctx.store.write(
+        _childId,
+        _pendingState(winSun: 2, drop: GuardDropKind.none),
+      );
+
+      final GuardClaimOutcome out = await ctx.guard.claim(hasFired: true);
+
+      expect(out.ok, isTrue);
+      expect(out.winSun, 2);
+      expect(ctx.ledger.countOf('guard_win'), 1);
+      expect(ctx.balance, 102);
+    });
+
+    test('未开火 + 幂等重放：没有 guard_win 行 ⇒ 重放不再补发、也不重复扣',
+        () async {
+      final _Ctx ctx = _make(
+        balance: 100,
+        plants: <Plant>[_plant('p1')],
+        validSessionsToday: 1,
+      );
+      await ctx.store.write(
+        _childId,
+        _pendingState(winSun: 2, drop: GuardDropKind.none),
+      );
+
+      final GuardClaimOutcome first = await ctx.guard.claim(hasFired: false);
+      final GuardClaimOutcome second = await ctx.guard.claim(hasFired: false);
+
+      expect(first.ok, isTrue);
+      expect(second.ok, isTrue, reason: '幂等分支返回成功（不是失败）');
+      // 能量路径本来就不写 guard_pay 行（见 A1）—— 幂等判据看状态与余额：
+      expect(ctx.state.energyUsed, 1, reason: '能量只消耗一次，重放不再扣点');
+      expect(ctx.ledger.entries, isEmpty,
+          reason: '🔴 没写 guard_win 行 ⇒ 重放不补发，也没有任何费用行');
+      expect(ctx.balance, 100, reason: '绝不因重放多扣或多发');
+    });
+  });
+
   // ───────────────────────── A2：余额不足 ─────────────────────────
   group('A2 余额不足：返回明确失败原因，不扣钱、不发放', () {
     test('余额 3 + 无能量 ⇒ 失败、账本 0 行、余额仍 3', () async {

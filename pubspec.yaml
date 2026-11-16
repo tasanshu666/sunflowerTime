@@ -118,6 +118,9 @@ flutter:
     - assets/guard/monster_m3/
     - assets/guard/claim_flag/
     - assets/guard/buff_voucher/
+    # 战士受击单帧（B13.26，2026-11-16 玄参交付：受击.png 2048² → 487²，与
+    # soldier_stand.webp 同高 487；音效 assets/audio/sfx/guard_soldier_hit.mp3）。
+    - assets/guard/soldier_hit/
     # 宝箱开箱序列帧（2026-11-11 玄参交付；管线 tools/convert_guard_chest.py，
     # PNG 720² → WebP 512²，两档合计 7.73MB ≤ 8MB 预算）：
     #  · chest_normal/   普通宝箱 30 帧 q90（1.76MB）→ 5s 开箱演出 / 静态展示帧 frame001

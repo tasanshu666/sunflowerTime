@@ -141,6 +141,15 @@ enum AudioCue {
   /// 同日玄参换 **`攻击音效02.mp3`**（实测 0.444083s → `apad=pad_dur=2.76` 补到
   /// **3.204082s** 重落盘）。音量 [kGuardAttackVolume]（1.0 → 0.5 → 0.35 两轮下调）。
   guardAttack,
+
+  /// 花园守卫 · 向日葵战士**受击**（`guard_soldier_hit.mp3`，
+  /// 2026-11-16 玄参交付「受击音效.mp3」）。
+  ///
+  /// 播放点：`GuardBattleField._playSoldierHitSfx()`——sim 的 `theft` 事件
+  /// （怪到门 = 贴住战士，每怪恰好一次）触发的**叠加池**播放
+  /// （[AudioService.playSfxOverlap]，多怪同帧到门只播一次）。
+  /// 音量 [kGuardSoldierHitVolume]（0.35，玄参「与攻击音同档」）。
+  guardSoldierHit,
 }
 
 /// [AudioCue] 到 assets 音频文件路径的映射（相对工程根）。
@@ -198,6 +207,8 @@ extension AudioCueX on AudioCue {
         return 'assets/audio/sfx/guard_chest_land.mp3';
       case AudioCue.guardAttack:
         return 'assets/audio/sfx/guard_attack.mp3';
+      case AudioCue.guardSoldierHit:
+        return 'assets/audio/sfx/guard_soldier_hit.mp3';
     }
   }
 }

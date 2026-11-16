@@ -859,25 +859,14 @@ void _groupVoucherSaving() {
 // ⑩ 端到端：战完 → 宝箱 → 结算卡（T03 演出链接线）
 // ═══════════════════════════════════════════════════════════════════════
 
-/// 结算卡阳光奖励卡上的到账额（`+N` 里的 N；找不到即 fail，不静默兜底 0）。
-int _cardSunAmount(WidgetTester tester) {
-  final Iterable<Text> texts = tester.widgetList<Text>(
-    find.descendant(
-      of: find.byKey(GuardResultCard.sunRewardKey),
-      matching: find.byType(Text),
-    ),
-  );
-  for (final Text text in texts) {
-    final String data = text.data ?? '';
-    if (data.startsWith('+')) return int.parse(data.substring(1));
-  }
-  fail('阳光奖励卡上找不到「+N」文案 —— 结算卡结构被改坏了');
-}
+// 🔴 B13.26：原 `_cardSunAmount`（解析「+N」）已随「未开火场不发必得阳光」
+// 退役 —— ⑩ 改为直接断言「−N」文案。开火场的 +N 卡面覆盖见
+// guard_battle_settlement_test ③（fireTimeline 全流程）。
 
 void _groupChestFlow() {
   group('⑩ 端到端：战完 → 宝箱（不可跳过）→ 结算卡 → 收下', () {
     testWidgets('一枪不发推完 30s 窗口：宝箱先上屏、点开 5s 后弹结算卡，'
-        '阳光卡面 == 账本 guard_win（普通档不翻倍），收下后不再演宝箱',
+        '未开火场阳光卡恒 −3（C120-13 惩罚必达）且 guard_win 0 行，收下后不再演宝箱',
         (WidgetTester tester) async {
       final _Env env = await _makeEnv();
       await _seedPlant(env);
@@ -922,10 +911,22 @@ void _groupChestFlow() {
       expect(find.byKey(GuardChestStage.stageKey), findsNothing,
           reason: '30 帧播完 ⇒ 宝箱 overlay 必须收场，不能盖住结算卡');
 
-      // ── 卡面阳光 == 账本 guard_win（同一口径 guardGrantWinSunOf）────────
-      final int cardSun = _cardSunAmount(tester);
-      expect(cardSun, greaterThan(0),
-          reason: '有贼日必得阳光 ≥ 1（卡面不许出现 +0）');
+      // ── 未开火场（B13.26/C120-13）：阳光卡显示红色 −3（惩罚必达），绝不
+      // 显示 +winSun ── 本环境余额 0 ⇒ 惩罚实扣 0（无账本行），但卡面恒 −3
+      // （确定性罚金与实扣解耦的边缘，见口径表 C120-13）；标题 = 失败文案。
+      expect(find.text('守卫失败，怪物偷走了阳光！'), findsOneWidget,
+          reason: '🔴 C120-13：未开火场标题 = 失败文案');
+      final Iterable<Text> sunTexts = tester.widgetList<Text>(
+        find.descendant(
+          of: find.byKey(GuardResultCard.sunRewardKey),
+          matching: find.byType(Text),
+        ),
+      );
+      expect(
+        sunTexts.map((Text t) => t.data).whereType<String>(),
+        contains('−3'),
+        reason: '🔴 C120-13：未开火场阳光卡恒 −3（惩罚必达），绝不显示 +winSun',
+      );
 
       await tester.tap(find.byKey(GuardResultCard.collectButtonKey));
       await _pumpUntil(tester, find.byType(ChildTodayPage));
@@ -933,11 +934,11 @@ void _groupChestFlow() {
         await tester.pump(const Duration(milliseconds: 100));
       }
 
+      // 未开火 ⇒ 必得阳光不发（B13.26）：guard_win 账本 0 行。
       final double winNet =
           await env.ledger.netByRefTypeOnDay(kGuardWinRefType, today);
-      expect(winNet, cardSun.toDouble(),
-          reason: '🔴 卡面 +$cardSun 恒 == 账本 guard_win $winNet'
-              '（普通档 winSun 不翻倍；高级档也走同一到账口径）');
+      expect(winNet, 0.0,
+          reason: '🔴 一枪不发 ⇒ 不发必得阳光（B13.26）');
 
       // ── 已领取态：不再演宝箱，场景卡回到「已守住」──────────────────────
       expect(find.byKey(GuardChestStage.stageKey), findsNothing,

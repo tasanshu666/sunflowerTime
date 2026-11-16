@@ -68,6 +68,13 @@ import 'package:sunflower_time/presentation/child/widgets/guard_buff_chip.dart'
 /// [onCollect] 由调用方注入而不是本文件 import `GuardService`：结算卡只管
 /// 「什么时候发」，不关心「怎么发」；`claim()` 的幂等与账本口径全部留在领域层。
 ///
+/// [hasFired] = 本场**是否开过火**（B13.26，玄参 2026-11-16：未开火场不发
+/// 必得阳光，阳光卡显示红色 `−N`（N = 被偷合计）+ 底部馋光鼠被偷行；
+/// 缺省 true = 正常场，显示 `+winSunToGrant`，逐位不变）。
+/// 🔴 B13.27 增量（C120-13「惩罚必达」）：未开火场的 N = 固定惩罚
+/// [kGuardWinSunMin]=3（宿主恒传，见 [showGuardResultCard] 调用方契约），
+/// 标题同步切失败文案 [AppLocalizations.guard_result_title_defeat]。
+///
 /// ## 被偷行（B4，守卫战 v2 §5.3 裁决 B）
 /// [stolenSun] = 本场**账本实扣额**（`recordBattleTheft` 的返回值，不是 sim
 /// 原始值 —— 余额钳制 / 互斥去重都可能让实扣 < sim 值）。契约：**卡面 N 恒
@@ -80,6 +87,7 @@ Future<GuardClaimOutcome?> showGuardResultCard(
   required AppLocalizations l10n,
   required Future<GuardClaimOutcome> Function() onCollect,
   int stolenSun = 0,
+  bool hasFired = true,
   bool showPremiumHint = false,
   double uiScale = 1.0,
 }) {
@@ -101,6 +109,7 @@ Future<GuardClaimOutcome?> showGuardResultCard(
         l10n: l10n,
         onCollect: onCollect,
         stolenSun: stolenSun,
+        hasFired: hasFired,
         showPremiumHint: showPremiumHint,
         uiScale: uiScale,
       ),
@@ -159,6 +168,10 @@ class GuardResultCard extends StatefulWidget {
   /// 本场账本实扣的被偷额（☀；<= 0 时不渲染被偷行 —— 见文件头契约）。
   final int stolenSun;
 
+  /// 本场**是否开过火**（B13.26；false = 未开火 ⇒ 阳光卡显示红色 `−stolenSun`，
+  /// 见 [_sunRewardCard]。缺省 true = 正常场）。
+  final bool hasFired;
+
   /// 是否显示「完整版有高级宝箱」引导行（B13.16 玄参：打赢的文案里加
   /// 「完整版还会有高级宝箱掉落，奖励会更丰富」提示）。
   ///
@@ -181,6 +194,7 @@ class GuardResultCard extends StatefulWidget {
     required this.l10n,
     required this.onCollect,
     this.stolenSun = 0,
+    this.hasFired = true,
     this.showPremiumHint = false,
     this.uiScale = 1.0,
   });
@@ -271,8 +285,11 @@ class _GuardResultCardState extends State<GuardResultCard>
     final GuardTodayView view = widget.view;
     // 🔴 2026-11-12 玄参裁定：怪物同场交叉后，出场的怪不再恒等于贼种，
     //    标题改通用文案（l10n guard_result_title），不再指名 guardThiefName。
+    // 🔴 B13.27 增量（C120-13「惩罚必达」）：未开火场 = 守卫失败 ⇒ 标题改
+    //    失败文案（guard_result_title_defeat），不再用「花园守卫成功」误导。
     final bool isZh =
         Localizations.localeOf(context).languageCode.startsWith('zh');
+    final bool noFireTitle = !widget.hasFired;
     // 🔴 Guard-B13.11：高级宝箱的附加奖励各占一张卡；普通宝箱**一张都不渲染**
     //    （绝不出现「空槽」或「+0 片」这种把孩子当傻子的占位）。
     final bool premium = view.isPremiumChest;
@@ -323,9 +340,12 @@ class _GuardResultCardState extends State<GuardResultCard>
                   shrinkWrap: true,
                   padding: EdgeInsets.zero,
                   children: <Widget>[
-                    // ① 标题（通用：花园守卫成功，赶走了贪吃的小动物）
+                    // ① 标题（通用：花园守卫成功，赶走了贪吃的小动物；
+                    //    未开火场 = 失败态，B13.27 增量 C120-13）。
                     Text(
-                      t.guard_result_title,
+                      noFireTitle
+                          ? t.guard_result_title_defeat
+                          : t.guard_result_title,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 18,
@@ -419,10 +439,16 @@ class _GuardResultCardState extends State<GuardResultCard>
                     ],
                     // ②‴ 被偷行（B4）：本场有怪到门口且账本实扣 > 0 才渲染。
                     //    🔴 0 不渲染（「偷走 0 阳光」= QA 抓过的「省 0 阳光」同罪）。
+                    //    🔴 B13.26：图标从「奔跑小人」换成**馋光鼠 UI 图标**
+                    //    （m1 静态首帧 —— 玄参「馋光鼠的UI图标+被偷菜贼偷走了
+                    //    3阳光」；缺失回退原 Icon）。
+                    //    🔴 B13.27 增量（C120-13）：未开火场宿主恒传 3 ⇒ 被偷行
+                    //    **恒渲染**（「被偷菜贼偷走了 3 阳光」）—— 惩罚必达口径。
                     if (widget.stolenSun > 0) ...<Widget>[
                       const SizedBox(height: 10),
                       _ResultLine(
                         icon: Icons.directions_run,
+                        assetIcon: GuardArt.monsterM1Still,
                         color: const Color(0xFFB3261E),
                         text: t.guard_result_stolen(widget.stolenSun),
                       ),
@@ -535,18 +561,34 @@ class _GuardResultCardState extends State<GuardResultCard>
   /// 🔴 卡面 N **恒等于**账本 `guard_win` 行的 gross（V3 口径扫描钉死）。
   /// 高级宝箱在这里显示翻倍后的数字，并用一行小字说明「为什么是 8 而不是 4」——
   /// 否则孩子会以为卡面算错了。
+  ///
+  /// 🔴 **B13.26（玄参 2026-11-16）**：未开火场（[GuardResultCard.hasFired]
+  /// == false）**没有阳光到账**（被怪偷走了）⇒ 显示红色 `−N`（N = 被偷合计
+  /// = 账本 `guard_stolen` 行），图标仍是阳光素材；「高级宝箱翻倍说明」小字
+  /// 一并隐藏（对 −N 解释翻倍是自相矛盾）。正常场逐位不变。
+  /// 🔴 **B13.27 增量（C120-13「惩罚必达」）**：未开火场的 N = **固定惩罚**
+  /// [kGuardWinSunMin]（宿主恒传 3，与账本实扣 `min(3, 余额)` 解耦 —— 余额
+  /// 不足时账本实扣 <3 而卡面仍恒 −3，拍板口径优先，边缘见口径表）。
   Widget _sunRewardCard(
     AppLocalizations t,
     GuardTodayView view,
     bool premium,
   ) {
+    // 未开火场：红色 −N（B13.27 增量 C120-13：宿主恒传 kGuardWinSunMin=3 ⇒
+    // 恒显示「−3」；stolenSun 为 0 的脏入参防御 = 显示无符号「0」，绝不显示
+    // −0/+winSunToGrant 误导）。
+    final bool noFire = !widget.hasFired;
+    final int shownStolen = widget.stolenSun < 0 ? 0 : widget.stolenSun;
     return Container(
       key: GuardResultCard.sunRewardKey,
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF6DE),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8A600), width: 1.5),
+        border: Border.all(
+          color: noFire ? const Color(0xFFB3261E) : const Color(0xFFE8A600),
+          width: 1.5,
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -559,12 +601,14 @@ class _GuardResultCardState extends State<GuardResultCard>
           ),
           const SizedBox(height: 4),
           Text(
-            '+${view.winSunToGrant}',
-            style: const TextStyle(
+            noFire
+                ? (shownStolen > 0 ? '−$shownStolen' : '0')
+                : '+${view.winSunToGrant}',
+            style: TextStyle(
               fontSize: 18,
               height: 1.1,
               fontWeight: FontWeight.w800,
-              color: Color(0xFFB37400),
+              color: noFire ? const Color(0xFFB3261E) : const Color(0xFFB37400),
             ),
           ),
           Text(
@@ -575,7 +619,7 @@ class _GuardResultCardState extends State<GuardResultCard>
               color: Color(0xFF8A7A66),
             ),
           ),
-          if (premium) ...<Widget>[
+          if (premium && !noFire) ...<Widget>[
             const SizedBox(height: 2),
             Text(
               t.guard_result_premium_chest,
@@ -761,13 +805,20 @@ class _GuardResultCardState extends State<GuardResultCard>
   }
 }
 /// 结算卡里的一行（图标 + 文案）。文案由调用方格式化，本类只管排版。
+///
+/// 🔴 B13.26：[assetIcon] 非空时优先渲染**素材图**（被偷行的馋光鼠 UI 图标，
+/// 18pt 与原 Icon 同高），缺失回退 [icon]（颜色仍取 [color]，红色语义保留）。
 class _ResultLine extends StatelessWidget {
   final IconData icon;
+
+  /// 素材图路径（非 null 时优先；加载失败回退 [icon]）。
+  final String? assetIcon;
   final Color color;
   final String text;
 
   const _ResultLine({
     required this.icon,
+    this.assetIcon,
     required this.color,
     required this.text,
   });
@@ -776,7 +827,16 @@ class _ResultLine extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        Icon(icon, size: 18, color: color),
+        if (assetIcon != null)
+          Image.asset(
+            assetIcon!,
+            width: 18,
+            height: 18,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => Icon(icon, size: 18, color: color),
+          )
+        else
+          Icon(icon, size: 18, color: color),
         const SizedBox(width: 8),
         // 🔴 必须可收缩（F127 教训）：`Expanded` + 两行省略，
         // 320 屏 + 1.3 字号下也不会把卡撑破。

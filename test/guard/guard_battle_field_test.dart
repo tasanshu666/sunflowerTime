@@ -161,7 +161,7 @@ Future<_FieldSession> _pumpField(
   WidgetTester tester, {
   String dayKey = '2026-01-01',
   required String childId,
-  ValueChanged<int>? onFinished,
+  void Function(int stolenSun, bool hasFired)? onFinished,
   bool english = false,
   double textScale = 1.0,
 }) async {
@@ -720,8 +720,8 @@ void main() {
       for (int i = 0; i < 20; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
-      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 1,
-          reason: 'Retreat 收场同样走既有 claim，恰好入账一次');
+      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 0,
+          reason: '🔴 B13.26：一枪不发的 Retreat 场不发必得阳光');
       final GuardDayState state = await env.guardState();
       expect(state.status, GuardDayStatus.claimed);
     });
@@ -791,13 +791,27 @@ void main() {
       await _pumpUntil(tester, find.byKey(GuardResultCard.cardKey));
       await _settleRoute(tester);
 
-      // 结算卡内容与 v1 同口径（入参 view 不变）。
-      expect(find.textContaining('赶走了'), findsOneWidget);
-      final int winSun = (await env.guardState()).winSun;
-      // 🔴 B13：奖励卡区（阳光卡 + 券卡；[_findVoucherChild] 保证本局有券）。
+      // 结算卡内容与 v1 同口径（入参 view 不变）；🔴 B13.26：一枪不发 ⇒
+      // 阳光卡显示红色 −N。🔴 B13.27 增量（C120-13「惩罚必达」）：未开火
+      // 恒显示 −3（惩罚是确定性罚金；本用例余额 0 ⇒ 账本实扣 0，卡面与账本
+      // 解耦的边缘见口径表 C120-13），绝不显示 +winSun。
+      expect(find.text('守卫失败，怪物偷走了阳光！'), findsOneWidget,
+          reason: '🔴 C120-13：未开火场标题 = 失败文案（不再显示「守卫成功」）');
       expect(find.byKey(GuardResultCard.sunRewardKey), findsOneWidget);
-      expect(find.text('+$winSun'), findsOneWidget,
-          reason: '阳光卡数值 == 必得阳光口径');
+      // 限定在阳光卡内找。
+      final Iterable<String> sunCardTexts = tester
+          .widgetList<Text>(
+            find.descendant(
+              of: find.byKey(GuardResultCard.sunRewardKey),
+              matching: find.byType(Text),
+            ),
+          )
+          .map((Text t) => t.data)
+          .whereType<String>();
+      expect(sunCardTexts, contains('−3'),
+          reason: '🔴 C120-13：未开火场阳光卡恒 −3（惩罚必达），绝不显示 +winSun');
+      expect(sunCardTexts.any((String s) => s.startsWith('+')), isFalse,
+          reason: '🔴 未开火场绝不允许出现「+必得阳光」');
       expect(find.byKey(GuardResultCard.voucherRewardKey), findsOneWidget,
           reason: '券档 ⇒ 券卡必须在（占位票券图标 + 券名）');
       expect(find.text('恭喜获得稀有奖励！'), findsOneWidget,
@@ -810,8 +824,8 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       }
 
-      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 1,
-          reason: '必得阳光必须恰好入账一次');
+      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 0,
+          reason: '🔴 B13.26：一枪不发 ⇒ 不发必得阳光');
       expect(await env.ledgerRowsOnDay(kGuardPayRefType, today), 0,
           reason: '有能量路径不得扣阳光');
       final GuardDayState state = await env.guardState();
@@ -823,7 +837,7 @@ void main() {
   });
 
   group('⑦′ 全流程（付费路径）：确认后扣 kGuardPayCost ☀ 一次、发奖一次', () {
-    testWidgets('确认 → 战斗 → 结算 → 收下：pay/win 各恰好一行、paidSun = kGuardPayCost',
+    testWidgets('确认 → 战斗 → 结算 → 收下：pay 恰一行、未开火不发 win（B13.26）',
         (WidgetTester tester) async {
       final _Env env = await _makeEnvWithChild(
           _findVoucherChild(dayKey(DateTime.now())));
@@ -840,8 +854,14 @@ void main() {
 
       // 🔴 B13.2 玄参裁定：结算卡不再算账 —— 有券直接写稀有奖励文案。
       expect(find.text('恭喜获得稀有奖励！'), findsOneWidget);
-
+      // 🔴 B13.26：一枪不发 ⇒ 阳光卡显示 −N（余额 100 ⇒ 实扣 = sim 被偷合计）。
       final String today = dayKey(DateTime.now());
+      final double stolenNet =
+          await env.ledger.netByRefTypeOnDay(kGuardStolenRefType, today);
+      final int stolen = (-stolenNet).round();
+      expect(find.text('−$stolen'), findsOneWidget,
+          reason: '🔴 未开火场阳光卡 = −N（N = 账本实扣被偷额），绝不显示 +winSun');
+
       await tester.tap(find.byKey(GuardResultCard.collectButtonKey));
       await _pumpUntil(tester, find.byType(ChildTodayPage));
       for (int i = 0; i < 20; i++) {
@@ -849,9 +869,9 @@ void main() {
       }
 
       expect(await env.ledgerRowsOnDay(kGuardPayRefType, today), 1,
-          reason: '付费必须恰好扣一次');
-      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 1,
-          reason: '必得阳光必须恰好发一次');
+          reason: '付费必须恰好扣一次（未开火场成本照扣）');
+      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 0,
+          reason: '🔴 B13.26：一枪不发 ⇒ 不发必得阳光');
       final GuardDayState state = await env.guardState();
       expect(state.paidSun, kGuardPayCost);
       expect(state.status, GuardDayStatus.claimed);

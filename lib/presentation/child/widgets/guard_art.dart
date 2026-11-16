@@ -69,8 +69,21 @@ abstract final class _GuardAssetPaths {
   /// 战士胜利静态（胜利横幅时刻切换）。
   static const String soldierWin = 'assets/guard/soldier_win.webp';
 
+  /// 战士**受击**静态（🔴 B13.26，玄参 2026-11-16 交付「受击.png」：怪贴住
+  /// 战士的 800ms 内切换 + 闪烁，见 `guard_scene_card.dart`）。
+  ///
+  /// 素材管线：`受击.png`（2048²）等比缩放到与 `soldier_stand.webp` 同高
+  /// （512×487 ⇒ 487²）后落盘；缺失回退金色块（不 crash）。
+  static const String soldierHit = 'assets/guard/soldier_hit/soldier_hit.png';
+
   /// m1（馋光鼠）进攻序列帧目录（7 帧）。
   static const String monsterM1Dir = 'assets/guard/monster_m1';
+
+  /// m1（馋光鼠）**静态首帧**（🔴 B13.26：结算卡「被偷行」的馋光鼠 UI 图标
+  /// —— 玄参 2026-11-16「馋光鼠的UI图标+被偷菜贼偷走了3阳光」。取序列帧
+  /// frame001 与宝箱静帧同一口径：A-03 资产守卫钉死 frame001 为字典序第一张
+  /// ⇒ 静图 == 动画首帧，渲染最稳）。
+  static const String monsterM1Still = 'assets/guard/monster_m1/frame001.webp';
 
   /// m2（食叶虫）进攻序列帧目录（7 帧；B9 接入）。
   static const String monsterM2Dir = 'assets/guard/monster_m2';
@@ -120,6 +133,10 @@ abstract final class _GuardAssetPaths {
 /// 素材位取值函数集（纯静态，无状态；全部返回**新** widget）。
 class GuardArt {
   const GuardArt._();
+
+  /// m1（馋光鼠）**UI 图标**（B13.26：结算卡「被偷行」用；静态首帧 =
+  /// 序列 frame001，缺失时 `_ResultLine` 回退原 Icon）。
+  static const String monsterM1Still = _GuardAssetPaths.monsterM1Still;
 
   /// 战士**攻击帧覆盖层**的 Key（B7）。
   ///
@@ -207,40 +224,50 @@ class GuardArt {
 
   /// 素材位：向日葵战士（卡内 L3 **常驻位**，B7 起待机态也在树）。
   ///
-  /// 三种姿态**共用同一个 [ _GuardSequence ] widget 类型**（只切参数）：
-  ///  · [animate] = true、[attack] = false ⇒ 19 帧待机**循环**（待机 / 战斗收场后）；
-  ///  · [animate] = false、[attack] = false ⇒ **静止定格首帧**（战斗进行中
-  ///    「端枪站立」，玄参 B7：「fighting 静止站立 = idle frame001 静态不循环」）；
+  /// 四种姿态**共用同一个 [ _GuardSequence ] widget 类型**（只切参数）：
+  ///  · [animate] = true、[attack]/[hit]/[win]/[stand] 全 false ⇒ 19 帧待机
+  ///    **循环**（待机 / 战斗收场后）；
+  ///  · [stand] = true ⇒ **静止定格首帧**（战斗进行中「端枪站立」，玄参 B7）；
+  ///  · [hit] = true ⇒ 受击静态（B13.26：怪贴住战士 800ms；**优先级最高**，
+  ///    攻击帧进行中同时被贴按玄参「受击要有反馈」先演受击）；
   ///  · [attack] = true ⇒ 攻击静态（开火瞬间 300ms）；
   ///  · [win] = true ⇒ 胜利静态（胜利横幅时刻；B11 起也走质心对齐）。
   ///
   /// 🔴 为什么是「同一 widget 类型切参数」而不是「换一个 widget」：换类型会丢掉
   /// 本 State（AssetManifest 解析结果 + 帧序列播放器位置）⇒ 每次开火都要重解析、
   /// 且会插进一帧占位色块（玄参最反感的「一闪一闪」）。同类型切参 ⇒ 帧缓存
-  /// 与播放器位置全保留，三种姿态之间**零闪烁**切换。
+  /// 与播放器位置全保留，各姿态之间**零闪烁**切换。
   ///
   /// 🔴 **B11/C4**：三态各按**自己的身体质心**对齐绘制框中轴（见
   /// `GuardCardLayout.soldierStateAlignShiftX` 与 `kGuardSoldierStateCentroidX`）
   /// —— 玄参第六轮「攻击时人往左挪了一点」的治本项（根因是素材配准差 9.69pt，
-  /// 不是定位公式算错）。
+  /// 不是定位公式算错）。⚠️ 受击姿态（B13.26）**暂不做质心配准**（`stillStateKey`
+  /// 置 null ⇒ 按实体框居中）：`受击.png` 是单帧 800ms 演出素材，质心未入
+  /// `kGuardSoldierStateCentroidX` 表（换素材须跑 `tools/measure_soldier_centroid.py`
+  /// 重测）；若真机目检发现受击帧身体偏移明显，再补测入表。
   static Widget soldier({
     bool animate = true,
     bool attack = false,
     bool win = false,
     bool stand = false,
+    bool hit = false,
   }) {
+    // 姿态优先级：hit > attack > win > stand > 帧序列。
+    final String? stillAsset = hit
+        ? _GuardAssetPaths.soldierHit
+        : (attack
+            ? _GuardAssetPaths.soldierAttack
+            : (win
+                ? _GuardAssetPaths.soldierWin
+                : (stand ? _GuardAssetPaths.soldierStand : null)));
     return _GuardSequence(
       dir: _GuardAssetPaths.soldierIdleDir,
       fallbackColor: _soldierGold,
       animate: animate,
-      stillAsset: attack
-          ? _GuardAssetPaths.soldierAttack
-          : (win
-              ? _GuardAssetPaths.soldierWin
-              : (stand ? _GuardAssetPaths.soldierStand : null)),
+      stillAsset: stillAsset,
       // 🔴 B9：**高度铺满、宽度按素材比例横向溢出**（不用 contain）。
       // 素材已按实体裁边：待机 362×372（宽 0.973h）、攻击 512×349（宽 1.467h）。
-      // contain 会把攻击帧按宽度缩到 53pt（一开火就变小）；fitHeight 让三种姿态
+      // contain 会把攻击帧按宽度缩到 53pt（一开火就变小）；fitHeight 让各姿态
       // 都是同一高度（B10/C1 起 **68pt**，玄参「68 刚好」——B11 锁定不动），
       // 攻击帧左右各溢出 ~15.8pt（只闪 300ms，压在房子/跑道上很自然）。
       fit: BoxFit.fitHeight,
@@ -250,10 +277,13 @@ class GuardArt {
       // 🔴 B11/C4：两层的「素材状态」——由它们查质心常量，算出各自的横向配准位移。
       // 🔴 B12：stand（战斗站立静态）也必须配准 —— 0.5262 已入表
       // （漏了它 stand 身体就会比 idle 偏 ~7pt，与 B11 治的「两个人错位」同病）。
+      // 🔴 B13.26：hit 态不做质心配准（见方法注释的取舍说明）⇒ stateKey null。
       idleStateKey: 'idle',
-      stillStateKey: attack
-          ? 'attack'
-          : (win ? 'win' : (stand ? 'stand' : null)),
+      stillStateKey: hit
+          ? null
+          : (attack
+              ? 'attack'
+              : (win ? 'win' : (stand ? 'stand' : null))),
     );
   }
 

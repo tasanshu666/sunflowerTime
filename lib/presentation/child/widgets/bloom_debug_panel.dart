@@ -1340,11 +1340,11 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
                 onPressed: _busy ? null : () => _forceBattleScript(count: 5),
                 child: const Text('强制 5 只怪'),
               ),
-              // 🔴 B13.22：怪数上限 8~12 —— 补上限档的真机验证入口。
+              // 🔴 B13.22 上限 8~12；B13.27 改 6~9 —— 补上限档的验证入口。
               FilledButton.tonal(
-                key: const ValueKey<String>(kDebugGuardScriptKeyCount12),
-                onPressed: _busy ? null : () => _forceBattleScript(count: 12),
-                child: const Text('强制 12 只怪'),
+                key: const ValueKey<String>(kDebugGuardScriptKeyCount9),
+                onPressed: _busy ? null : () => _forceBattleScript(count: 9),
+                child: const Text('强制 9 只怪'),
               ),
               FilledButton.tonal(
                 key: const ValueKey<String>(kDebugGuardScriptKeyMixed),

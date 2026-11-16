@@ -2723,8 +2723,13 @@
   "guard_result_reward_seed": "Seed",
   "guard_result_seed": "{species} seed",
   "guard_result_title": "Garden guarded! The greedy critters ran off",
+  "guard_result_title_defeat": "Guard failed — the monsters stole the sunlight!",
   "guard_result_gain": "Got back {sun} sunlight",
-  "guard_result_stolen": "The thief stole {sun} sunlight",
+  "guard_result_stolen": "The sneaky thief stole {sun} sunlight",
+  "guard_pill_teach_text": "Tap the sunlight capsule to help Sunny shoot the thieves!",
+  "@guard_pill_teach_text": {
+      "description": "Sunlight capsule tap tutorial (B13.26: shown above the capsule for the first 3 battles; disappears on first tap)"
+  },
   "guard_result_drop": "Also found a {drop}",
   "guard_result_nothing": "Nothing found this time, but the veggies are safe",
   "guard_result_rare": "You got a rare reward!",

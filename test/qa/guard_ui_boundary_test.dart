@@ -425,4 +425,117 @@ void main() {
       );
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // V13-27 结算卡阳光卡数字 + 失败态标题（B13.27 增量 C120-13 玄参口径钉死）
+  // ══════════════════════════════════════════════════════════════════════
+  group('V13-27 结算卡阳光卡：未开火恒 −N（页面恒传 3）+ 失败标题、开火 +N', () {
+    Future<void> pump(
+      WidgetTester tester,
+      GuardTodayView view, {
+      int stolenSun = 0,
+      bool hasFired = true,
+    }) async {
+      final AppLocalizations zh = await AppLocalizations.delegate.load(
+        const Locale('zh'),
+      );
+      await tester.pumpWidget(
+        _shell(
+          Center(
+            child: GuardResultCard(
+              view: view,
+              l10n: zh,
+              onCollect: () async => throw UnimplementedError(),
+              stolenSun: stolenSun,
+              hasFired: hasFired,
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    Finder sunText() => find.descendant(
+          of: find.byKey(GuardResultCard.sunRewardKey),
+          matching: find.byType(Text),
+        );
+
+    String sunNumber(WidgetTester tester) {
+      final Iterable<String> texts = sunText().evaluate().map(
+            (Element e) => (e.widget as Text).data ?? '',
+          );
+      return texts.firstWhere(
+        (String s) => s.startsWith('+') ||
+            s.startsWith('−') ||
+            (s.length <= 2 && int.tryParse(s) != null),
+      );
+    }
+
+    Color sunColor(WidgetTester tester) {
+      final Iterable<Text> texts = sunText().evaluate().map(
+            (Element e) => e.widget as Text,
+          );
+      return texts
+          .firstWhere((Text t) => (t.data ?? '').startsWith('+') ||
+              (t.data ?? '').startsWith('−') ||
+              (t.data ?? '').length <= 2 && int.tryParse(t.data ?? '') != null)
+          .style!
+          .color!;
+    }
+
+    testWidgets('未开火 + 惩罚 3（页面真实入参）⇒ 显示「−3」红色 + 失败标题 + 被偷行恒渲染',
+        (WidgetTester tester) async {
+      await pump(
+        tester,
+        _view(GuardPillMode.pendingFree, winSun: 4),
+        stolenSun: 3,
+        hasFired: false,
+      );
+      expect(find.text('守卫失败，怪物偷走了阳光！'), findsOneWidget,
+          reason: '🔴 C120-13：未开火场标题 = 失败文案，绝不用「守卫成功」误导');
+      expect(sunNumber(tester), '−3',
+          reason: '🔴 C120-13：未开火场阳光卡恒 −3（惩罚必达），绝不允许 0/+N');
+      expect(sunColor(tester), const Color(0xFFB3261E),
+          reason: '红色 = 「被偷走」的损失语义');
+      // 馋光鼠被偷行恒渲染（文案数字 = 惩罚额 3；用精确匹配防标题「偷走」撞车）。
+      expect(find.text('被偷菜贼偷走了 3 阳光'), findsOneWidget);
+    });
+
+    testWidgets('未开火 + N=1（组件级任意 N 支持）⇒ 显示「−1」', (WidgetTester tester) async {
+      await pump(
+        tester,
+        _view(GuardPillMode.pendingFree, winSun: 4),
+        stolenSun: 1,
+        hasFired: false,
+      );
+      expect(sunNumber(tester), '−1');
+      expect(find.text('守卫失败，怪物偷走了阳光！'), findsOneWidget,
+          reason: '失败标题只跟 hasFired 走，与 N 无关');
+    });
+
+    testWidgets('未开火 + 脏入参 N=0（防御）⇒ 显示「0」而不是「−0」', (WidgetTester tester) async {
+      await pump(
+        tester,
+        _view(GuardPillMode.pendingFree, winSun: 4),
+        stolenSun: 0,
+        hasFired: false,
+      );
+      expect(sunNumber(tester), '0',
+          reason: '「−0」是脏数字 —— 实扣 0 = 分毫未损，负号在撒谎（页面恒传 3，此为防御分支）');
+    });
+
+    testWidgets('开火场显示现状「+winSunToGrant」+ 成功标题不回归', (WidgetTester tester) async {
+      await pump(
+        tester,
+        _view(GuardPillMode.pendingFree, winSun: 4),
+        stolenSun: 0,
+        hasFired: true,
+      );
+      expect(sunNumber(tester), '+4',
+          reason: '开火场逐位不变（winSun=4 → guardGrantWinSunOf = +4）');
+      expect(sunColor(tester), const Color(0xFFB37400));
+      expect(find.text('花园守卫成功，赶走了贪吃的小动物'), findsOneWidget,
+          reason: '🔴 开火场标题不变（成功文案）');
+    });
+  });
 }

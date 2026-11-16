@@ -6353,17 +6353,29 @@ abstract class AppLocalizations {
   /// **'花园守卫成功，赶走了贪吃的小动物'**
   String get guard_result_title;
 
+  /// 结算卡标题·失败态（🔴 B13.27 增量 C120-13，2026-11-16 玄参拍板「惩罚必达」：未开火场阳光卡恒 −3 且标题改失败文案，不再误导孩子「守卫成功」；仅未开火场渲染）
+  ///
+  /// In zh, this message translates to:
+  /// **'守卫失败，怪物偷走了阳光！'**
+  String get guard_result_title_defeat;
+
   /// 结算卡：必得阳光到账（sun = 本次 winSun）
   ///
   /// In zh, this message translates to:
   /// **'拿回 {sun} 阳光'**
   String guard_result_gain(int sun);
 
-  /// 结算卡（守卫战 v2 B4）：本场被偷的阳光（sun = recordBattleTheft 的账本实扣额；0 时整行不渲染，卡面 N 恒 == 账本 guard_stolen 行）
+  /// 结算卡（守卫战 v2 B4）：本场被偷的阳光（sun = recordBattleTheft 的账本实扣额；0 时整行不渲染，卡面 N 恒 == 账本 guard_stolen 行）。B13.26（玄参 2026-11-16）：加「了」更口语；图标换成馋光鼠静态首帧
   ///
   /// In zh, this message translates to:
-  /// **'被偷菜贼偷走 {sun} 阳光'**
+  /// **'被偷菜贼偷走了 {sun} 阳光'**
   String guard_result_stolen(int sun);
+
+  /// 阳光胶囊点击教学（B13.26，玄参 2026-11-16：前 3 场战斗在胶囊上方显示引导气泡，首次点击即消失；孩子并不了解阳光胶囊是哪个）
+  ///
+  /// In zh, this message translates to:
+  /// **'点这个阳光胶囊，帮小小葵发射阳光打跑小偷！'**
+  String get guard_pill_teach_text;
 
   /// 结算卡：有掉落时的券名（drop = guard_drop_name_* 的译文）
   ///

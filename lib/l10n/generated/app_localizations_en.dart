@@ -3759,14 +3759,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Garden guarded! The greedy critters ran off';
 
   @override
+  String get guard_result_title_defeat =>
+      'Guard failed — the monsters stole the sunlight!';
+
+  @override
   String guard_result_gain(int sun) {
     return 'Got back $sun sunlight';
   }
 
   @override
   String guard_result_stolen(int sun) {
-    return 'The thief stole $sun sunlight';
+    return 'The sneaky thief stole $sun sunlight';
   }
+
+  @override
+  String get guard_pill_teach_text =>
+      'Tap the sunlight capsule to help Sunny shoot the thieves!';
 
   @override
   String guard_result_drop(String drop) {

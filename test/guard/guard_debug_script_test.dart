@@ -483,8 +483,11 @@ void main() {
     }
 
     // 🔴 被偷行渲染 + 字面量 3 = 封顶常量（设计 §4.2 初值 = 3，改参须有意更新本值）。
-    expect(find.text('被偷菜贼偷走 3 阳光'), findsOneWidget,
-        reason: '高偷窃战局（首怪必到门、steal=3）⇒ 结算卡必须有被偷行且钳在 3');
+    // 🔴 B13.27 增量（C120-13）：本用例一枪不发 ⇒ 走**未开火固定惩罚**路径
+    //    （recordNoFirePenalty 恒扣 3）—— 高偷窃剧本的首怪 steal=3 与惩罚额
+    //    巧合相等，卡面/账本数值不变，机制已换（见口径表 C120-13）。
+    expect(find.text('被偷菜贼偷走了 3 阳光'), findsOneWidget,
+        reason: '未开火场惩罚必达 ⇒ 结算卡必须有被偷行且恒 −3');
 
     // 账本实扣 == 卡面 N 且 ≤ 封顶（「账本 ≤3」的强形式 = 恰 −3.0）。
     final String today = dayKey(DateTime.now());
@@ -492,8 +495,14 @@ void main() {
         await env.ledger.netByRefTypeOnDay(kGuardStolenRefType, today);
     expect(net, -3.0,
         reason: '账本实扣 −3（= −封顶）：被偷行必须进账且不超过封顶');
-    expect(await env.ledgerRowsOnDay(kGuardStolenRefType, today), 1,
-        reason: '同日至多 1 行 guard_stolen');
+    // 🔴 惩罚行 refId 分流为 garden_penalty（C120-13，与开火场互斥判据互不
+    //    误伤），行数按新 refId 计数。
+    expect(
+      await env.ledger.countByRefTypeAndRefIdOnDay(
+          kGuardStolenRefType, kGuardNoFirePenaltyRefId, today),
+      1,
+      reason: '惩罚行恰 1 行（garden_penalty 分流）',
+    );
   });
 
   // ── ④ 恢复随机剧本 ⇒ 覆盖清空 ────────────────────────────────────────
@@ -718,6 +727,8 @@ void main() {
 
     test('count=12：出场表全 12 项（0~27.5s，2.5s 间隔）、末怪仍在 30s 窗口内', () {
       // 🔴 B13.22 追加：怪数上限 12 ⇒ 调试面板必须能整表铺满。
+      // 🔴 B13.27：怪数口径改 6~9，但出怪表 12 项不变（6~9 ≤ 12 恒有定义），
+      //    本用例保留 count=12 验证全表铺满仍成立（debug 构建范围 1..表长）。
       final GuardBattleScript s =
           buildGuardBattleScriptForDebug(monsterCount: 12);
       expect(s.monsters.length, 12);

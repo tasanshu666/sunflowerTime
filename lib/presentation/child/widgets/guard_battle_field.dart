@@ -79,6 +79,9 @@ import 'package:sunflower_time/core/constants/prd_params.dart'
         kGuardKnockbackMs,
         kGuardKnockbackPt,
         kGuardMissFxMs,
+        kGuardMonsterEntrySlideMs,
+        kGuardMonsterEntrySlidePt,
+        kGuardSoldierHitVolume,
         kGuardSunDropFxMs,
         kGuardSunRiseFadeStart,
         kGuardSunRiseFadeStartOpacity,
@@ -229,7 +232,18 @@ class GuardBattleField extends StatefulWidget {
   /// 钳制值 —— 战局冻结后快照逐位不变，见 guard_battle_sim 文件头）。
   /// 取数链路（§5.3 裁决 B）：sim 报告 → 页面（`recordBattleTheft` 落账）
   /// → 结算卡。本层只报数，**零写库**。
-  final ValueChanged<int>? onFinished;
+  ///
+  /// 🔴 B13.26（玄参 2026-11-16）：第二参 = 本场**是否开过火**（sim
+  /// `hasFired`，见 guard_battle_sim.dart）—— 页面据此在 `claim()` 里短路
+  /// 必得阳光（未开火场不发 +3 ☀）。取值在**调度时**定格（与 stolenSun 同一口径）。
+  final void Function(int stolenSun, bool hasFired)? onFinished;
+
+  /// 战士**受击**回调（B13.26，玄参 2026-11-16：怪接触战士要有反馈）。
+  ///
+  /// 触发点 = sim 的 `theft` 事件（怪到门 = 贴住战士，每怪恰好一次，
+  /// `amount = 0` 也算贴住）。本层负责受击音效；**姿态与闪烁**由卡渲染
+  /// （战士是卡内常驻 L3，与攻击帧同一职责划分）。
+  final VoidCallback? onSoldierHit;
 
   /// 调试剧本覆盖（B5a，**仅 kDebugMode 有非空值**；null = 走真实 seed 派生）。
   ///
@@ -254,6 +268,7 @@ class GuardBattleField extends StatefulWidget {
     this.onSnapshot,
     this.onFireAccepted,
     this.onFinished,
+    this.onSoldierHit,
     this.debugScriptOverride,
     this.uiScale = 1.0,
   });
@@ -522,6 +537,7 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     _collectHitFlashFx(report);
     _updateBulletDirs();
     _playHitSfx(report);
+    _playSoldierHitSfx(report);
     _pruneSunDrops();
     widget.onSnapshot?.call(_snap);
     if (_sim.isOver && !_endHandled) {
@@ -529,9 +545,10 @@ class _GuardBattleFieldState extends State<GuardBattleField>
       widget.handle._over = true;
       // 🔴 B13.6：战局收场 → 战斗背景音即刻停（横幅/补时期间不再有底噪）。
       unawaited(AudioService.instance.stopGuardBattleBgm());
-      // 被偷合计在**调度时**定格（战局已冻结，之后 step 也逐位不变；
-      // 显式取值避免延迟回调里再读可变字段）。
+      // 被偷合计 / 是否开过火在**调度时**定格（战局已冻结，之后 step 也逐位
+      // 不变；显式取值避免延迟回调里再读可变字段）。
       final int stolenSun = _sim.stolenSun;
+      final bool hasFired = _sim.hasFired;
       // 🔴 B10/D1：终局由「打死最后一只怪」触发 ⇒ 逃跑演出还没播完 ⇒
       // ticker 多活 `补时 = 800 − 已播`，播完（800ms）才交回页面；
       // 到点撤退 / 中止没有死亡演出 ⇒ 补时 0，照旧 900ms 横幅停留。
@@ -548,7 +565,9 @@ class _GuardBattleFieldState extends State<GuardBattleField>
       // 代际号闸门（E2）：窗口期内若调试覆盖触发重开，旧战局的结果作废。
       final int gen = _battleGen;
       Future<void>.delayed(Duration(milliseconds: delayMs), () {
-        if (mounted && gen == _battleGen) widget.onFinished?.call(stolenSun);
+        if (mounted && gen == _battleGen) {
+          widget.onFinished?.call(stolenSun, hasFired);
+        }
       });
     }
     setState(() {});
@@ -620,6 +639,31 @@ class _GuardBattleFieldState extends State<GuardBattleField>
         return;
       }
     }
+  }
+
+  /// 把本步的 `theft` 事件翻译成**战士受击反馈**（B13.26，玄参 2026-11-16：
+  /// 「怪物在接触到向日葵战士的时候，需要有反馈，反馈动作和音效」）。
+  ///
+  /// · `theft` = 怪到门 = 贴住战士（每怪恰好一次，`amount = 0` 也算贴住）⇒
+  ///   播受击音效 + 通知卡切受击姿态（姿态/闪烁由 [GuardSceneCard] 渲染）；
+  /// · 同一步多只怪同时到门 ⇒ 音效只播一次（多播是同一段音效重复，无信息量，
+  ///   与 [_playHitSfx] 同口径），姿态回调也只发一次（卡自会重置 800ms 计时）；
+  /// · 音频失败静默降级（AudioService 既有口径），**只读事件**，不碰 sim 状态。
+  void _playSoldierHitSfx(GuardBattleStepReport report) {
+    bool theftSeen = false;
+    for (final GuardBattleEvent e in report.events) {
+      if (e.type == GuardBattleEventType.theft) {
+        theftSeen = true;
+        break;
+      }
+    }
+    if (!theftSeen) return;
+    // 音量 = kGuardSoldierHitVolume（0.35，玄参 2026-11-16「与攻击音同档」）。
+    AudioService.instance.playSfxOverlap(
+      AudioCue.guardSoldierHit,
+      volume: kGuardSoldierHitVolume,
+    );
+    widget.onSoldierHit?.call();
   }
 
   /// 把本步的 `kill` 事件记成死亡时刻（B9/D1 逃跑演出的**唯一输入**）。
@@ -838,6 +882,20 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     final double top = layout.mapMonsterY(m.y) - h / 2;
 
     if (!dead || deathT == null) {
+      // 🔴 B13.26（玄参 2026-11-16「怪物出现的位置有点太靠左」）：**入场滑入**
+      // —— 怪出场后前 [kGuardMonsterEntrySlideMs] 内渲染 x 额外偏移
+      // `+Δ × (1 − elapsed/400)`（向右为正；Δ 随场景缩放 `layout.e`，与怪
+      // extent 同一把尺）。曲线由 `spawnMs` 纯推导 ⇒ 同 seed 逐位一致；
+      // 400ms 后恒为 0 ⇒ 渲染与滑入前**逐字节一致**。纯渲染层：sim 的出生
+      // 位置 / 行程 / 到门判定一个字节不动。z 序与 clip 结论见常量注释
+      // （[kGuardMonsterEntrySlidePt]：怪画在右簇之下 ⇒ Δ 保持 36；不越卡）。
+      double entrySlide = 0;
+      final int spawnAgeMs = fxClockMs - m.spawnMs;
+      if (spawnAgeMs >= 0 && spawnAgeMs < kGuardMonsterEntrySlideMs) {
+        entrySlide = kGuardMonsterEntrySlidePt *
+            layout.e *
+            (1.0 - spawnAgeMs / kGuardMonsterEntrySlideMs);
+      }
       // 🔴 B13.20d：受击**击退** —— 卡片空间向右弹开再回位（远离战士方向），
       // 与闪动共用同一个受击时刻账本 [_hitFlashes]（`sin(π·t)` 平滑往返，
       // 端点必为 0 ⇒ 到点后与未受击逐位相同）；再次被击中从头重弹。
@@ -855,7 +913,7 @@ class _GuardBattleFieldState extends State<GuardBattleField>
       }
       return Positioned(
         key: GuardBattleField.monsterKey(m.index),
-        left: baseLeft + knockback,
+        left: baseLeft + knockback + entrySlide,
         top: top,
         width: w,
         height: h,

@@ -6,8 +6,8 @@
 /// | # | 红线 | 断言口径 |
 /// |---|---|---|
 /// | G1 | 金测：同 seed + 同 fireTimeline 逐位一致 | 10s/20s/29999ms 快照 JSON 逐字符相同；不同 seed 不同 |
-/// | G2 | 剧本派生确定性 + 区间 | 同日同孩两次派生 `==`；怪数 8~12（B13.22）、种类数 1~3 种/天（B13.22）、steal 1~3、dodge 0.15~0.50（m3 0.45→0.50，B13.22）、speed 13~17 |
-/// | G3 | 怪数 8 与 12 都在 seed 空间可达 | 60 个 childId 里 8 与 12 都出现 |
+/// | G2 | 剧本派生确定性 + 区间 | 同日同孩两次派生 `==`；怪数 6~9（B13.27，原 8~12）、种类数 1~3 种/天（B13.22）、steal 1~3、dodge 0.15~0.50（m3 0.45→0.50，B13.22）、speed 13~17 |
+/// | G3 | 怪数 6 与 9 都在 seed 空间可达 | 60 个 childId 里 6 与 9 都出现 |
 /// | G4 | 冷却闸门 | 400ms 内的第二发被拦下 |
 /// | G5 | 全灭提前结束 | 密集开火 → victory 且早于 30s；待出场怪取消、已出场怪全灭 |
 /// | G6 | 到点撤退 + 已偷保留 + 封顶 | 空 fireTimeline → retreat；被偷 = 逐怪合计 ≤ 3；之后快照冻结 |
@@ -171,13 +171,14 @@ void main() {
     // ① 怪物**数量** = 8~12 只（B13.21 的「1~3」实为「种类 1~3 种」）；
     // ② 每天出场**种类数** = 1~3 种（日级通道先掷种类数，再选种类池）；
     // ③ m3（贪婪鼬）闪避 0.45 → **0.50**。
+    // 🔴 B13.27（玄参 2026-11-16 模拟器验收）：① 改 **6~9 只**（「偏多」）。
     // 期望值写死字面量，不引用实现常量（改参必须有意更新本文件）。
-    test('怪数 8~12、出场表 2.5s 间隔、种类数 1~3、steal 1~3、dodge 0.15~0.50、speed 13~17、HP 3~5、窗口 30000', () {
+    test('怪数 6~9、出场表 2.5s 间隔、种类数 1~3、steal 1~3、dodge 0.15~0.50、speed 13~17、HP 3~5、窗口 30000', () {
       final GuardBattleScript script =
           deriveGuardBattleScript(dayKey: _dayKey, childId: _childId);
       expect(script.windowMs, 30000);
-      expect(script.monsters.length, greaterThanOrEqualTo(8));
-      expect(script.monsters.length, lessThanOrEqualTo(12));
+      expect(script.monsters.length, greaterThanOrEqualTo(6));
+      expect(script.monsters.length, lessThanOrEqualTo(9));
       final Set<GuardBattleMonsterKind> kinds =
           script.monsters.map((GuardBattleMonsterSpec m) => m.kind).toSet();
       expect(kinds.length, greaterThanOrEqualTo(1));
@@ -205,8 +206,8 @@ void main() {
     });
   });
 
-  group('G3 怪数 8 与 12 都在 seed 空间可达', () {
-    test('扫 60 个 childId：8 和 12 都出现', () {
+  group('G3 怪数 6 与 9 都在 seed 空间可达', () {
+    test('扫 60 个 childId：6 和 9 都出现', () {
       final Set<int> counts = <int>{};
       for (int i = 0; i < 60; i++) {
         final GuardBattleScript script = deriveGuardBattleScript(
@@ -215,8 +216,8 @@ void main() {
         );
         counts.add(script.monsters.length);
       }
-      expect(counts.contains(8), isTrue, reason: '实际分布：$counts');
-      expect(counts.contains(12), isTrue, reason: '实际分布：$counts');
+      expect(counts.contains(6), isTrue, reason: '实际分布：$counts');
+      expect(counts.contains(9), isTrue, reason: '实际分布：$counts');
     });
 
     test('扫 60 个 childId：单种怪日（只出 1 种）与 3 种混编日都在 seed 空间可达', () {

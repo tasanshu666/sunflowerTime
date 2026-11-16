@@ -27,6 +27,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_scene_card.dart';
 
 const String _dayKey = '2026-01-01';
 
@@ -245,6 +246,30 @@ void main() {
     }
     expect(GuardBattleField.hitFlashAlphaAt(-1), closeTo(0.25, 1e-9));
     expect(GuardBattleField.hitFlashAlphaAt(2), closeTo(1.0, 1e-9));
+  });
+
+  // ── ⑤′ 战士受击闪烁曲线（B13.26，纯函数，与渲染解耦）───────────────────
+  test('soldierHitAlphaAt：起手 0.45 → 2 周期往复明暗 → t=1 恰好回 1.0，全程 ∈ [0.45, 1]',
+      () {
+    // 起手最深：1 − depth(0.55) = 0.45（字面量，改参须有意更新）。
+    expect(GuardSceneCard.soldierHitAlphaAt(0), closeTo(0.45, 1e-9));
+    // 包络保证结束时恰好回亮（无收尾跳变）。
+    expect(GuardSceneCard.soldierHitAlphaAt(1), closeTo(1.0, 1e-9));
+    // 中段字面锚点：t = 1/4 / 3/4 是两个「全亮」谷点（cos(4π·t) = −1，
+    // 2 个整周期 = [kGuardSoldierHitFlashPulses]）。
+    expect(GuardSceneCard.soldierHitAlphaAt(1 / 4), closeTo(1.0, 1e-9));
+    expect(GuardSceneCard.soldierHitAlphaAt(3 / 4), closeTo(1.0, 1e-9));
+    // t = 1/2 峰点：1 − 0.55 × 0.5 × 1。
+    expect(GuardSceneCard.soldierHitAlphaAt(1 / 2), closeTo(1 - 0.55 / 2, 1e-9));
+
+    // 全程值域 + 越界钳制（下界留 1 ulp 余量：1 − 0.55 在 IEEE754 下
+    // = 0.44999999999999996）。
+    for (int i = 0; i <= 60; i++) {
+      final double value = GuardSceneCard.soldierHitAlphaAt(i / 60);
+      expect(value, inInclusiveRange(0.449, 1.0), reason: 't=${i / 60}');
+    }
+    expect(GuardSceneCard.soldierHitAlphaAt(-1), closeTo(0.45, 1e-9));
+    expect(GuardSceneCard.soldierHitAlphaAt(2), closeTo(1.0, 1e-9));
   });
 
   // ── ⑥ 拖尾常量表自检 ────────────────────────────────────────────────────

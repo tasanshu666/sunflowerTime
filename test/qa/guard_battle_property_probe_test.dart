@@ -1,8 +1,8 @@
 /// 守卫战 v2 独立验收 · **W7 属性测试探针（200 seed）**。
 ///
-/// 判据（主理人验收单 W7；🔴 B13.22 更新：怪数 1~3 → **8~12**、日级种类数
-/// **1~3 种**、m3 闪避上限 0.45 → **0.50**，玄参 2026-11-14 第二轮拍板）：
-/// * 怪数 ∈ [8,12]、日级种类数 ∈ [1,3]、每怪 steal ∈ [1,3]、dodge ∈ [0.15,0.50]、
+/// 判据（主理人验收单 W7；🔴 B13.22 更新：怪数 1~3 → 8~12；🔴 B13.27 更新：
+/// 怪数 8~12 → **6~9**，玄参 2026-11-16 模拟器验收「偏多」）：
+/// * 怪数 ∈ [6,9]、日级种类数 ∈ [1,3]、每怪 steal ∈ [1,3]、dodge ∈ [0.15,0.50]、
 ///   HP ∈ [3,5]、spawn 时刻 ∈ kGuardSpawnOffsetsMs 表、laneY ∈ [10,80]；
 /// * kind 通道相关性作为**已知特征**记录分布（不判红——B3 已实测同 seed 强相关）。
 library;
@@ -33,11 +33,11 @@ void main() {
     }
   });
 
-  test('怪数 ∈ [8,12]、日级种类数 ∈ [1,3]（200 seed；B13.22 玄参第二轮拍板）', () {
+  test('怪数 ∈ [6,9]、日级种类数 ∈ [1,3]（200 seed；B13.27 玄参「偏多」改 6~9）', () {
     for (int i = 0; i < 200; i++) {
       final GuardBattleScript script = deriveGuardBattleScript(
           dayKey: '2026-11-09', childId: 'qa-prop-$i');
-      expect(script.monsters.length, inInclusiveRange(8, 12),
+      expect(script.monsters.length, inInclusiveRange(6, 9),
           reason: 'seed qa-prop-$i 怪数 ${script.monsters.length}');
       final int kinds =
           script.monsters.map((GuardBattleMonsterSpec m) => m.kind).toSet().length;

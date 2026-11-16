@@ -838,7 +838,11 @@ const double kFocusCollectVolume = 0.5;
 ///
 /// 🔴 **B13.24（玄参 2026-11-15）**：默认 1.0 → **0.5**（「护眼模式倒计时的声音
 /// 也降低一半」）。与 [kFocusCollectVolume] 同批同幅度。
-const double kFocusEndCountdownVolume = 0.5;
+///
+/// 🔴 **B13.26（玄参 2026-11-16：真机验收后再降一半）**：0.5 → **0.25**
+/// （「5 秒倒计时的声音还是有点大」—— 在 B13.24 减半基础上再减一半）。
+/// 线性减半，与同批 [kFocusCollectVolume] 的口径一致；[kFocusCollectVolume] 本轮**不动**。
+const double kFocusEndCountdownVolume = 0.25;
 
 /// ducking 恢复的兜底超时（毫秒）· 万一监听不到 SFX `completed`（加载失败 / 播放器异常），
 /// 最多压低这么久即恢复，避免氛围音音量被永久钉死。
@@ -1843,18 +1847,18 @@ const double kLevelUpFxStageSize = 150;
 // Lv.1、其余 8 条顺延一位，9 条属性内容与数值一字不变）：
 //   ① Lv.1  专注小萌芽 → 护眼完成奖励 +1    （kEyeCareRewardSunlight 基础值 C78 后 2，+1 → 3）
 //   ② Lv.5  专注小苗苗 → 浇水消耗 −1        （kPlantWaterCost 5→4）
-//   ③ Lv.10 静心小书童 → 施肥消耗 −2        （kPlantFertilizeCost 10→8；B13.25 原表 −1）
+//   ③ Lv.10 静心小书童 → 施肥消耗 −2        （kPlantFertilizeCost 10→8；B13.26 原表 −1）
 //   ④ Lv.15 时光小卫士 → 除草奖励 +1        （kGardenWeedReward 1→2）
 //   ⑤ Lv.20 专心小骑士 → 除虫奖励 +1        （kGardenPestReward 2→3）
 //   ⑥ Lv.25 守时小星使 → 开花即时阳光 +5    （kBloomInstantSunlight 6→11 / 精品 10→15；
-//                                             B13.25 原 C91 +2）
-//   ⑦ Lv.30 专注小法师 → 晨露阳光 +5/条     （加在折损之后；见 dewSunlightOf；B13.25 原 C91 +2）
+//                                             B13.26 原 C91 +2）
+//   ⑦ Lv.30 专注小法师 → 晨露阳光 +5/条     （加在折损之后；见 dewSunlightOf；B13.26 原 C91 +2）
 //   ⑧ Lv.35 星辰守护者 → 花盆扩容消耗 −20   （B13.23 梯度价 100/200/300 → 80/180/280）
 //   ⑨ Lv.40 时光大贤者 → 铲除退款 +20       （kShovelRefundCommon/Premium 150/250→170/270）
 //
 // 🔴 四条硬纪律（P1~P5）：
 //   · **单次一律 ±1**（仅 ⑧⑨ 两条一次性项用小幅定量）；绝不引入乘法/加速/花期变更；
-//     ⚠️ 例外记录：⑥⑦ C91（+1→+2）、B13.25（玄参 2026-11-15：③ −1→−2、⑥⑦ +2→+5）——
+//     ⚠️ 例外记录：⑥⑦ C91（+1→+2）、B13.26（玄参 2026-11-15：③ −1→−2、⑥⑦ +2→+5）——
 //     玄参拍板调档合法，「±1」仅是初始取值习惯、非永久约束；
 //   · **9 条零重复**：同一常量不在两条里出现，**禁止「再 −1」叠加式写法**；
 //   · 属性 = `f(当前称号)` **纯派生**（`perkOfLevel(levelOfMinutes(totalFocusMinutes))`），
@@ -1873,7 +1877,7 @@ const int kPerkWaterDiscount = 1;
 
 /// ③ 施肥消耗减免（**Lv.10 · 静心小书童**，C78 前原 Lv.5）。
 ///
-/// 🔴 **B13.25 修订（玄参 2026-11-15 拍板）**：−1 → **−2**（施肥 10→8 ☀；
+/// 🔴 **B13.26 修订（玄参 2026-11-15 拍板）**：−1 → **−2**（施肥 10→8 ☀；
 /// 单点真源 `kPlantPerkPerTitleNode` 同步，测试随改）。
 const int kPerkFertilizeDiscount = 2;
 
@@ -1886,7 +1890,7 @@ const int kPerkPestBonus = 1;
 /// ⑥ 开花即时阳光加成（**Lv.25 · 守时小星使**，C78 前原 Lv.20）。
 ///
 /// 🔴 **C91 修订（玄参 2026-10-19 拍板）**：+1 → **+2**（花开奖励加成翻档）。
-/// 🔴 **B13.25 修订（玄参 2026-11-15 拍板）**：+2 → **+5**（绽放 6→11 / 精品 10→15 ☀；
+/// 🔴 **B13.26 修订（玄参 2026-11-15 拍板）**：+2 → **+5**（绽放 6→11 / 精品 10→15 ☀；
 /// 单点真源 `kPlantPerkPerTitleNode` 同步，测试随改）。
 const int kPerkBloomInstantBonus = 5;
 
@@ -1894,7 +1898,7 @@ const int kPerkBloomInstantBonus = 5;
 ///
 /// 🔴 **C91 修订（玄参 2026-10-19 拍板）**：+1 → **+2**（语义 = **折损后** +2，
 /// 「先折损后加成」顺序不变）。
-/// 🔴 **B13.25 修订（玄参 2026-11-15 拍板）**：+2 → **+5**（折损后 +5 ☀；
+/// 🔴 **B13.26 修订（玄参 2026-11-15 拍板）**：+2 → **+5**（折损后 +5 ☀；
 /// 单点真源 `kPlantPerkPerTitleNode` 同步，测试随改）。
 const int kPerkDewBonus = 5;
 
@@ -1913,11 +1917,11 @@ const int kPerkShovelRefundBonus = 20;
 const List<String> kPerkEmojis = <String>[
   '👁', // Lv.1  护眼 +1
   '💧', // Lv.5  浇水 −1
-  '🌾', // Lv.10 施肥 −2（B13.25）
+  '🌾', // Lv.10 施肥 −2（B13.26）
   '🌿', // Lv.15 除草 +1
   '🦗', // Lv.20 除虫 +1
-  '🌻', // Lv.25 绽放 +5（C91 +2；B13.25 → +5）
-  '🌤', // Lv.30 晨露 +5（C91 +2；B13.25 → +5）
+  '🌻', // Lv.25 绽放 +5（C91 +2；B13.26 → +5）
+  '🌤', // Lv.30 晨露 +5（C91 +2；B13.26 → +5）
   '🪴', // Lv.35 扩容 −20
   '🗑️', // Lv.40 铲除 +20（C91：⛏️ → 🗑️）
 ];
@@ -2394,6 +2398,11 @@ const double kGuardGrowthStealPerPlantDailyCap = 0.05;
 /// 🔴 B5b（2026-11-10 玄参拍板）：胜利奖励 1~3 → **3~5** —— 被偷仍 1~3（封顶
 /// [kGuardStealDailyCap] = 3）⇒ 净额 ∈ [0, +4]，QA 抓的「最坏净得 −2」根治，
 /// 无需结算保底逻辑。
+///
+/// 🔴 B13.27 增量（C120-13，2026-11-16 玄参拍板「惩罚必达 −3」）：本值同时是
+/// **未开火场的固定惩罚额** —— 一枪不发的战局无视当日互斥 / sim 封顶，恒扣
+/// [kGuardWinSunMin] ☀（账本实扣 `min(3, 余额)`，绝不产生负余额的 D6 红线不变；
+/// 余额不足时卡面仍恒 −3、账本实扣 < 3，边缘已在口径表 C120-13 记录）。
 const int kGuardWinSunMin = 3;
 
 /// 必得阳光区间上限。单位：☀。
@@ -2596,6 +2605,14 @@ const String kGuardStolenRefType = 'guard_stolen';
 /// 账本 refId（按园记账，不按株）。冻结。
 const String kGuardRefId = 'garden';
 
+/// 🔴 B13.27 增量（C120-13，2026-11-16 玄参拍板「惩罚必达」）：**未开火场固定
+/// 惩罚**行的账本 refId —— 与开火场的 [kGuardRefId]（'garden'）**刻意分流**：
+/// 开火场 `recordBattleTheft` 的同日互斥判据按 refId='garden' 计数，惩罚行若
+/// 也用 'garden' 会误伤同日开火场的偷窃落账（反之亦然）。refType 仍统一
+/// [kGuardStolenRefType]（报表口径「被偷」不变）；行主键 id 另带 `_p<序号>`
+/// 后缀（序号 = 当日惩罚行数），同日多场调试连打各行独立、重放被主键去重吞掉。
+const String kGuardNoFirePenaltyRefId = 'garden_penalty';
+
 /// 读「今日券」的**有界超时**（花园页 / 养护卡）。
 ///
 /// 与 `kGuardTodayReadTimeout`（`guard_today_state.dart`，600ms）同量级：
@@ -2633,6 +2650,20 @@ const String kGuardTutorialSeenPrefKey = 'guard_tutorial_seen_v1';
 /// 会一并清掉，可接受）。⚠️ 无 childId 后缀：守护概念是设备级知识。
 const String kGuardFirstPlantIntroSeenPrefKey =
     'guard_first_plant_intro_seen_v1';
+
+/// 「阳光胶囊点击教学」已讲过的**场次计数** prefs 键（玄参 2026-11-16 拍板）。
+///
+/// 玄参原话：「孩子并不了解阳光胶囊是哪个，需要在前3次战斗的时候对阳光胶囊的
+/// 位置进行提醒，提醒孩子点击帮助向日葵攻击」。口径：每次守卫战**结算时** +1
+/// （挂点 = 今日页 `_onBattleFinished`，一场恰好记一次）；读取 < [kGuardPillTeachMaxBattles]
+/// ⇒ 该场战斗态显示引导气泡；孩子首次点击胶囊即消失（本场不再现）。
+///
+/// ⚠️ 无 childId 后缀：教学是**设备级**知识（与 [kGuardTutorialSeenPrefKey] 同一
+/// prefs 宿主，`DataManagementService.clearAll` 会一并清掉，可接受）。
+const String kGuardPillTeachCountPrefKey = 'guard_pill_teach_count_v1';
+
+/// 阳光胶囊点击教学的**提醒场数上限**：计数 < 本值 ⇒ 该场显示引导气泡（前 3 场）。
+const int kGuardPillTeachMaxBattles = 3;
 
 // ── 埋点事件名（复用 `TrackingRepository.track`，`TrackingType.metric`）──
 
@@ -2700,6 +2731,23 @@ const int kGuardSoldierAttackFlashMs = 300;
 /// 守卫序列帧的单帧时长。单位：ms（B5b：待机 19 帧 ≈ 1.9s/圈、m1 7 帧
 /// 0.7s/圈；帧数由 AssetManifest 实测 ⇒ 换帧数不改本常量）。
 const int kGuardAnimFrameMs = 100;
+
+/// 战士**受击**姿态的持续时长。单位：ms（玄参 2026-11-16：「怪物在接触到
+/// 向日葵战士的时候，需要有反馈……向日葵受击后要有闪烁效果」—— 素材
+/// `soldier_hit.png` 静态单帧 + 闪烁，800ms 后回站立）。
+///
+/// 与攻击帧 [kGuardSoldierAttackFlashMs] 同口径：**纯演出时长**，由战斗层
+/// `theft` 事件触发（怪到门 = 贴住战士，每怪恰好一次），不进 sim 时间轴、
+/// 不影响确定性。攻击姿态进行中若同时受击，**受击优先**。
+const int kGuardSoldierHitFlashMs = 800;
+
+/// 战士受击在 [kGuardSoldierHitFlashMs] 内完成的**闪烁次数**（玄参：受击后
+/// 「闪烁」，800ms 内明暗 2 个整周期）。
+const int kGuardSoldierHitFlashPulses = 2;
+
+/// 战士受击闪烁的**闪烁深度**：本体不透明度最低压到 `1 − 本值`（0.45）。
+/// 与怪的受击闪动 [kGuardHitFlashDepth] 同实现思路（Opacity 明暗，不用色块）。
+const double kGuardSoldierHitFlashDepth = 0.55;
 
 /// 「MISS」打击反馈的存活时长。单位：ms（B8：玄参「闪避没表现」）。
 ///
@@ -2783,12 +2831,42 @@ const double kGuardBulletTrailGapFactor = 0.9;
 /// 复述纠偏（原意 = **种类** 1~3 种）；数量口径为 **8~12 只**。同日同孩由
 /// `count` 通道确定落桶（`_intInRange` 闭区间 [8,12]），历史 seed 的怪数重掷
 /// 属预期内（战局剧本本来就按天重掷，不存在跨天兼容问题）。
-const int kGuardMonsterCountMin = 8;
-
-/// 怪物数量上限（B13.22：3 → 12，见 [kGuardMonsterCountMin]）。
 ///
-/// ⚠️ [kGuardSpawnOffsetsMs] 已同步扩到表长 12（间隔 2.5s），N ≤ 12 恒有定义。
-const int kGuardMonsterCountMax = 12;
+/// 🔴 B13.27（玄参 2026-11-16 模拟器验收）：8~12 偏多，改 **6~9**（闭区间
+/// [6,9]）；出怪表 12 项 @2.5s 不动（6~9 ≤ 12 恒有定义）。
+const int kGuardMonsterCountMin = 6;
+
+/// 怪物数量上限（B13.22：3 → 12；B13.27：12 → 9，见 [kGuardMonsterCountMin]）。
+///
+/// ⚠️ [kGuardSpawnOffsetsMs] 表长 12（间隔 2.5s），N ≤ 9 ≤ 12 恒有定义。
+const int kGuardMonsterCountMax = 9;
+
+/// 怪物**入场滑入**的总时长。单位：ms（玄参 2026-11-16 拍板，见
+/// [kGuardMonsterEntrySlidePt]）。400ms 后偏移恒为 0 ⇒ 渲染与滑入前逐字节一致。
+const int kGuardMonsterEntrySlideMs = 400;
+
+/// 怪物出生位置的**入场滑入位移**（卡片空间 pt，390 卡基准）。
+///
+/// 🔴 **B13.26（玄参 2026-11-16：「怪物出现的位置有点太靠左……需要往右移动
+/// 一些」）**：怪出生在卡内 `channelRight`（390 卡 ≈ 314pt = 卡宽 80.5%），
+/// 与右侧红旗/开始钮区域不对齐。修法 = **纯渲染层入场滑入**：怪出场后前
+/// [kGuardMonsterEntrySlideMs] 内渲染 x 额外偏移 `+Δ × (1 − elapsed/400)`
+/// （向右为正，Δ 随场景缩放 `GuardCardLayout.e` 等比缩放 —— 与怪 extent
+/// 同一把尺），400ms 后为 0。**sim 一个字节不动**（行程/到门判定/确定性红线）。
+///
+/// ## 🔴 Δ = 36 的 z 序裁决（实现时实测确认）
+/// 场景卡 Stack 的绘制顺序 = … L4 战斗层（`GuardBattleField`，:316）→ 右簇
+/// （`rightClusterRect`，:354）—— **怪画在右簇之下**，滑入时从券卡/旗标
+/// **后面**探出，不会遮挡右簇 ⇒ 按需求口径保持 **36**（若怪画在右簇之上
+/// 会遮挡券卡，才需降为 24）。战斗态右簇槽位本身留空（`SizedBox.shrink`），
+/// 视觉上不产生遮挡。
+///
+/// ## clip 复核
+/// 滑入期间怪右缘最远 = `channelRight + Δ + 半个 m3`：390 卡 ≈ 380.5 < 390、
+/// 320 窄卡（×0.85）≈ 311.9 < 320 ⇒ 不越出整卡 clipRect（战斗层 `Stack`
+/// 的 `Clip.hardEdge` 边界 = 整张卡）；iPad 宽卡越出部分 = 屏幕边缘外的
+/// 「从画外滑入」，被裁属预期演出，**无需放宽 clip 区**。
+const double kGuardMonsterEntrySlidePt = 36.0;
 
 /// 每天出场的**怪物种类数**下限（B13.22 新增，日级通道 `kind_n` 落桶）。
 ///
@@ -3350,6 +3428,14 @@ const double kGuardChestLandVolume = 0.5;
 /// 🔴 **0.35**（2026-11-12 玄参 B13.18 两轮裁定：首版 1.0「有点大」→ 0.5；
 /// 素材换成 `攻击音效02.mp3` 后再降「比现在的声音再小一些」→ 0.35）。
 const double kGuardAttackVolume = 0.35;
+
+/// 向日葵战士**受击**音效（`guard_soldier_hit.mp3`，怪到门贴住战士时播）的
+/// 音量（0~1）。
+///
+/// 🔴 **0.35**（玄参 2026-11-16 拍板「与攻击音同档」：受击与攻击同为高频短促
+/// 反馈音，取 [kGuardAttackVolume] 同值 0.35，连击不炸耳；播放走叠加池
+/// `playSfxOverlap`，与 B13.18 攻击音同款接线）。
+const double kGuardSoldierHitVolume = 0.35;
 
 /// 战斗背景音（`guard_attack.mp3`，B13.14 换为跑步音效 30.09s）的音量（0~1）。
 ///

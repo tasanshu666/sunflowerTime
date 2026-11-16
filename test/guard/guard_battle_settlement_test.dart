@@ -5,10 +5,10 @@
 /// ## 覆盖（逐条对应交付要求）
 /// | # | 断言 | 层级 |
 /// |---|---|---|
-/// | ① | 「必被偷」战局：结算卡含「偷走 N 阳光」且 N == 账本 `guard_stolen` 行 amount | 页面 |
-/// | ② | 封顶：名义被偷合计 > 3 的战局 ⇒ 卡面 3、账本 3 | 页面 |
+/// | ① | 未开火惩罚必达（C120-13）：阳光卡 −3 + 失败标题 + 被偷行恒渲染、账本恒 −3 | 页面 |
+/// | ② | 封顶（开火场口径；未开火数值巧合相等）：卡面 3、账本 3 | 页面 |
 /// | ③ | 无怪到门口：被偷行**不渲染**（「偷走 0 阳光」句式绝不出现）、账本 0 行 | 页面 |
-/// | ⑤ | 经济守恒：同一战局 win − stolen ≥ 0，守卫账本行数恰为 2（付费则 3） | 页面 |
+/// | ⑤ | 经济守恒：未开火惩罚恒扣 3、守卫账本行数恰为 1（付费则 2） | 页面 |
 /// | ⑥ | 落账失败注入（store 抛异常）⇒ 结算卡照常弹出、无第二次扣减尝试 | 页面 |
 /// | ④ | 互斥回归（战斗已落 `guard_stolen` ⇒ 次日 `expire` 零扣）：E4 既有用例
 ///       在 `test/guard/guard_service_test.dart`，B4 全量复跑确认仍绿 —— 本文件不重复 | 领域 |
@@ -110,9 +110,12 @@ GuardBattleEndReason _replayGreedy(String dayKey, String childId) {
 /// 限定 `want ∈ {1, 2}`（< 封顶 3）⇒ 领域层三道钳制（封顶 / 余额 / 幂等）
 /// 都不会改写数额 ⇒ 账本实扣 == sim 值，卡面/账本可逐位互证。
 /// 🔴 B13.22：怪数 8~12 后「被偷 1」结构性不可达 —— 前 2 只怪（spawn 0/2.5s）
-/// 横穿 ~19~25s 必然都在 30s 窗口内到门、各偷 ≥1 ⇒ 未触顶的最小被偷 = 2
-/// （300 seed 实测直方图 {3:280, 2:20}，恰 1 为 0）。故默认改搜 **want=2**；
-/// win ≥ 3 恒成立 ⇒ 经济守恒（win − stolen ≥ 0）不受影响。
+/// 横穿 ~19~25s 必然都在 30s 窗口内到门、各偷 ≥1 ⇒ 未触顶的最小被偷 = 2。
+/// 🔴 B13.27：怪数改 6~9 后复测 300 seed 直方图 {3:279, 2:21, 恰1:0} —— 结论
+/// 不变（前 2 只怪仍在窗口内必到门），故默认仍搜 **want=2**；win ≥ 3 恒成立
+/// ⇒ 经济守恒（win − stolen ≥ 0）不受影响。
+/// 🔴 B13.27 增量（C120-13）：未开火场惩罚恒 3、与 sim 被偷值解耦 —— 本搜索
+/// 退化为「挑任意未开火战局」的选局工具（want 值不再进断言）。
 (String, int) _findStolenChild(String dayKey, {int want = 2}) {
   for (int n = 0; n < 500; n++) {
     final String childId = 'bt4-stolen-$n';
@@ -166,8 +169,14 @@ class _Env {
 
   Future<GuardDayState> guardState() => guardStore.read(childId);
 
-  Future<int> ledgerRowsOnDay(String refType, String dayKeyValue) =>
-      ledger.countByRefTypeAndRefIdOnDay(refType, kGuardRefId, dayKeyValue);
+  Future<int> ledgerRowsOnDay(String refType, String dayKeyValue,
+      {String? refId}) =>
+      ledger.countByRefTypeAndRefIdOnDay(refType, refId ?? kGuardRefId, dayKeyValue);
+
+  /// 惩罚行（B13.27 增量 C120-13：refId 分流为 garden_penalty）计数。
+  Future<int> penaltyRowsOnDay(String dayKeyValue) =>
+      ledger.countByRefTypeAndRefIdOnDay(
+          kGuardStolenRefType, kGuardNoFirePenaltyRefId, dayKeyValue);
 }
 
 /// 建库 + 以 [childId] 建**活跃孩子**（在 initialize() 前插档 ⇒ initialize
@@ -429,40 +438,84 @@ class _ThrowingStolenLedger extends SunlightLocalRepository {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // ── ① 必被偷：卡面 N == 账本 guard_stolen 行 ──────────────────────────
-  group('① 必被偷战局：结算卡「偷走 N」== 账本 guard_stolen 行', () {
-    testWidgets('sim 被偷 2 ⇒ 卡面「被偷菜贼偷走 2 阳光」、账本 −2、收下照发奖',
+  // ── ① 未开火惩罚必达：卡面恒 −3、账本恒扣 3（C120-13）────────────────
+  group('① 未开火惩罚必达（C120-13）：阳光卡 −3、被偷行恒渲染、账本恒 −3', () {
+    testWidgets('未开火战局（sim 被偷 2 的局）⇒ 卡面「被偷菜贼偷走了 3 阳光」+ 失败标题、账本 −3、收下不发必得',
         (WidgetTester tester) async {
       final String today = dayKey(DateTime.now());
       final (String childId, int stolen) = _findStolenChild(today);
       final _Env env = await _makeEnvWithChild(childId);
       await _seedPlant(env);
       await _seedValidFocus(env); // 有能量 ⇒ 免费路径
-      await _seedBalance(env, 10); // 余额充足 ⇒ 无余额钳制干扰
+      await _seedBalance(env, 10); // 余额充足 ⇒ 实扣 = 惩罚全额 3
       await _pumpToday(tester, env);
       await _startBattle(tester);
+
+      // ── B13.27 增量：胶囊教学气泡（首场必显示 + 可见性钉死）──────────
+      // 时序复核：全新 prefs ⇒ 计数 0 < kGuardPillTeachMaxBattles(3) ⇒ 开战
+      // 判定显示（无 off-by-one：计数只在结算时 +1）—— **首场必显示**。
+      // 可见性：气泡 Text 在树中渲染（页面 Stack 无裁剪层覆盖它 —— 胶囊之后
+      // 声明的兄弟仅左上角徽章 Positioned，几何不重叠；场景卡在底层 ListView
+      // 内、绘制先于胶囊），且矩形完整落在屏幕内、位于胶囊**下方**。
+      {
+        final Finder teach = find.text(
+            '点这个阳光胶囊，帮小小葵发射阳光打跑小偷！');
+        expect(teach, findsOneWidget,
+            reason: '🔴 首场（prefs 计数 0）战斗态必显示胶囊教学气泡');
+        final RenderBox teachBox = tester.renderObject<RenderBox>(teach);
+        final Offset teachTopLeft = teachBox.localToGlobal(Offset.zero);
+        final Size teachSize = teachBox.size;
+        final Size screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+        expect(teachTopLeft.dx, greaterThanOrEqualTo(0),
+            reason: '气泡左缘不越屏');
+        expect(teachTopLeft.dx + teachSize.width, lessThanOrEqualTo(screen.width),
+            reason: '气泡右缘不越屏（B13.27 锚定复核）');
+        expect(teachTopLeft.dy + teachSize.height, lessThanOrEqualTo(screen.height),
+            reason: '气泡完整落在屏内（页面 Stack 无裁剪截断）');
+        // 位置：气泡在胶囊**下方**（B13.27 改版口径），水平与胶囊重叠（箭头对齐）。
+        final RenderBox capsuleBox =
+            tester.renderObject<RenderBox>(find.byKey(ChildTodayPage.sunBubbleKey));
+        final Offset capsuleTopLeft = capsuleBox.localToGlobal(Offset.zero);
+        expect(teachTopLeft.dy, greaterThan(capsuleTopLeft.dy + capsuleBox.size.height),
+            reason: '🔴 B13.27：气泡必须显示在胶囊下方（玄参「更醒目 + 移到下方」）');
+        expect(
+          teachTopLeft.dx < capsuleTopLeft.dx + capsuleBox.size.width &&
+              teachTopLeft.dx + teachSize.width > capsuleTopLeft.dx,
+          isTrue,
+          reason: '气泡与胶囊水平重叠（箭头指向胶囊）',
+        );
+      }
+
       await _runBattleToResultCard(tester);
 
-      // 卡面：字面量 N 来自纯 sim 搜索（B13.22 起 = 2，见 _findStolenChild），文案是 B4 新 key。
-      expect(find.text('被偷菜贼偷走 $stolen 阳光'), findsOneWidget,
-          reason: '🔴 有怪到门口 ⇒ 结算卡必须有被偷行，数额 = sim 终局合计');
+      // 🔴 B13.27 增量（C120-13「惩罚必达」）：未开火 = 固定罚金 kGuardWinSunMin，
+      //    **与 sim 被偷值无关**（本局 sim 被偷 2 也恒扣 3）—— 无视当日互斥 /
+      //    封顶；标题切失败态（guard_result_title_defeat）。
+      expect(find.text('守卫失败，怪物偷走了阳光！'), findsOneWidget,
+          reason: '🔴 未开火场标题 = 失败文案，不再显示「花园守卫成功」误导');
+      expect(find.text('被偷菜贼偷走了 3 阳光'), findsOneWidget,
+          reason: '🔴 惩罚恒 3（sim 实际被偷 $stolen 不影响卡面）');
 
-      // 🔴 卡面 N 恒 == 账本 guard_stolen 行（V3「文案说 N、实扣 M」同口径）。
+      // 🔴 账本恒 −3（recordNoFirePenalty；refType 仍 guard_stolen 报表口径）。
       final double stolenNet =
           await env.ledger.netByRefTypeOnDay(kGuardStolenRefType, today);
-      expect(stolenNet, -stolen.toDouble(),
-          reason: '账本实扣 $stolenNet 必须等于卡面 $stolen（取负号）');
-      expect(await env.ledgerRowsOnDay(kGuardStolenRefType, today), 1,
-          reason: '同日至多 1 行 guard_stolen（结束时一次写）');
+      expect(stolenNet, -kGuardWinSunMin.toDouble(),
+          reason: '惩罚必达：账本恒扣 3（余额充足时实扣 = 全额）');
+      expect(await env.penaltyRowsOnDay(today), 1,
+          reason: '惩罚行恰 1 行（_p0 序号；refId=garden_penalty 分流）');
 
-      // 被偷不影响奖励口径：收下 → 必得阳光照发一次。
+      // B13.26（玄参 2026-11-16）：本战局**一枪不发**（无 fireTimeline）⇒
+      // 收下也不发必得阳光（被怪偷走了）—— guard_win 账本 0 行。
       await _collectAndSettle(tester);
-      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 1,
-          reason: '被偷与发奖是两条独立账，收下后必得阳光照发');
+      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 0,
+          reason: '🔴 未开火场不发必得阳光（B13.26）');
     });
   });
 
-  // ── ② 封顶：名义被偷 > 3 ⇒ 卡面 3、账本 3 ─────────────────────────────
+  // ── ② 封顶（开火场口径）：名义被偷 > 3 ⇒ 卡面 3、账本 3 ────────────────
+  // 🔴 B13.27 增量（C120-13）：「每天最多被偷一次 / 封顶 3」只对**开火场**
+  // 生效；未开火场已改走固定惩罚（①），本组战局虽仍未开火构造，但数值上
+  // 惩罚恒 3 与封顶值巧合相等 —— 断言保留（数值防线不放松），语义见 C120-13。
   group('② 封顶：名义被偷合计 > 3 ⇒ 卡面 3、账本 3', () {
     testWidgets('触顶战局：卡面与账本都钳在 kGuardStealDailyCap',
         (WidgetTester tester) async {
@@ -477,18 +530,18 @@ void main() {
       await _runBattleToResultCard(tester);
 
       // 🔴 字面量 3 = 封顶常量（设计 §4.2 初值 = 3，改参须有意更新本值）：
-      //    封顶在 sim 内逐怪裁过（第一道），领域层再钳一次（双保险）——
-      //    卡面/账本都只能是 3。
-      expect(find.text('被偷菜贼偷走 3 阳光'), findsOneWidget,
+      //    未开火场（C120-13）走固定惩罚恒扣 3 —— 卡面/账本都只能是 3。
+      expect(find.text('被偷菜贼偷走了 3 阳光'), findsOneWidget,
           reason: '名义被偷 > 3 ⇒ 卡面必须钳在 3（不许出现 4/5）');
       final double stolenNet =
           await env.ledger.netByRefTypeOnDay(kGuardStolenRefType, today);
       expect(stolenNet, -3.0,
           reason: '账本实扣同样钳在 3');
-      expect(await env.ledgerRowsOnDay(kGuardStolenRefType, today), 1);
+      expect(await env.penaltyRowsOnDay(today), 1);
 
+      // B13.26：本战局一枪不发 ⇒ 收下也不发必得阳光（guard_win 0 行）。
       await _collectAndSettle(tester);
-      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 1);
+      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 0);
     });
   });
 
@@ -518,11 +571,11 @@ void main() {
   });
 
   // ── ⑤ 经济守恒探针 ────────────────────────────────────────────────────
-  group('⑤ 经济守恒：win − stolen ≥ 0、守卫账本行数恰为 2', () {
-    testWidgets('免费路径 + 被偷 2：guard_win + guard_stolen 恰两行、不倒贴',
+  group('⑤ 经济守恒：未开火场零发放、惩罚恒扣 3、不倒贴（C120-13）', () {
+    testWidgets('免费路径 + 未开火：guard_stolen（惩罚）恰一行 −3、guard_win 0 行',
         (WidgetTester tester) async {
       final String today = dayKey(DateTime.now());
-      final (String childId, int stolen) = _findStolenChild(today); // stolen = 2
+      final (String childId, int stolen) = _findStolenChild(today); // 任意未开火局
       final _Env env = await _makeEnvWithChild(childId);
       await _seedPlant(env);
       await _seedValidFocus(env);
@@ -533,39 +586,33 @@ void main() {
       await _runBattleToResultCard(tester);
       await _collectAndSettle(tester);
 
-      // 守卫账本行数：免费路径无 guard_pay ⇒ 恰好 2 行（win + stolen）。
+      // 守卫账本行数：免费路径无 guard_pay；一枪不发 ⇒ 无 guard_win；
+      // 恰好 1 行（惩罚）。
       final int winRows = await env.ledgerRowsOnDay(kGuardWinRefType, today);
-      final int stolenRows =
-          await env.ledgerRowsOnDay(kGuardStolenRefType, today);
+      final int stolenRows = await env.penaltyRowsOnDay(today);
       final int payRows = await env.ledgerRowsOnDay(kGuardPayRefType, today);
-      expect(winRows, 1, reason: '必得阳光恰好一行');
-      expect(stolenRows, 1, reason: '被偷恰好一行');
+      expect(winRows, 0, reason: '🔴 B13.26：未开火场不发必得阳光');
+      expect(stolenRows, 1, reason: '惩罚行恰好一行');
       expect(payRows, 0, reason: '免费路径不得有 guard_pay');
-      expect(winRows + stolenRows + payRows, 2,
-          reason: '🔴 守卫账本行数恰为 2（guard_pay 有则 3）');
+      expect(winRows + stolenRows + payRows, 1,
+          reason: '🔴 守卫账本行数恰为 1（未开火场：只有惩罚行）');
 
-      // 🔴 同一战局 win − stolen ≥ 0（孩子侧不倒贴；stolen=2 时由
-      //    winSun ≥ kGuardWinSunMin ≥ 3（B5b）恒成立）。
-      final int winSun = (await env.guardState()).winSun;
-      expect(winSun - stolen, greaterThanOrEqualTo(0),
-          reason: '🟢 win $winSun − stolen $stolen ≥ 0（经济守恒）');
-
-      // 余额守恒：10 − 1（被偷）+ winSun（必得）。
-      expect(await env.ledger.balance(), closeTo(seeded - stolen + winSun, 1e-9),
-          reason: '余额 = 种子 $seeded − 被偷 $stolen + 必得 $winSun');
+      // 余额守恒：只罚、零发放 —— 10 − 3（惩罚必达，C120-13），绝不倒贴。
+      expect(await env.ledger.balance(), closeTo(seeded - kGuardWinSunMin, 1e-9),
+          reason: '余额 = 种子 $seeded − 惩罚 3（sim 被偷 $stolen 不影响数额；未开火无进账）');
     });
   });
 
   // ── ⑥ 落账失败注入：store 抛异常 ⇒ 结算卡照常弹出、无第二次扣减 ────────
   group('⑥ 落账失败注入（guard_stolen 写入抛异常）', () {
-    testWidgets('结算卡照常弹出（无被偷行）、写尝试恰好 1 次、收下照发奖',
+    testWidgets('结算卡照常弹出（未开火惩罚卡面恒 −3）、写尝试恰好 1 次、收下不发奖',
         (WidgetTester tester) async {
       final String today = dayKey(DateTime.now());
       final (String childId, int stolen) = _findStolenChild(today);
       final _Env env = await _makeEnvWithChild(childId);
       await _seedPlant(env);
       await _seedValidFocus(env);
-      await _seedBalance(env, 10); // 余额充足：若写入成功本应落 −2
+      await _seedBalance(env, 10); // 余额充足：若写入成功本应落 −3
       final _ThrowingStolenLedger ledger =
           _ThrowingStolenLedger(env.database, account: env.account);
       await _pumpToday(
@@ -579,21 +626,26 @@ void main() {
       await _runBattleToResultCard(tester);
 
       // 🔴 落账失败不阻断：结算卡照常弹出（孩子不多看一张卡，也不被卡死）。
-      //    实扣 0 ⇒ 卡面无被偷行（卡面==账本契约在失败路径同样成立：
-      //    账本没扣就不能说「偷走 1」）。
-      expect(find.textContaining('偷走'), findsNothing,
-          reason: '写入失败 ⇒ 实扣 0 ⇒ 被偷行不渲染（不许谎报）');
+      //    🔴 C120-13 拍板取舍：未开火场惩罚是**确定性罚金** ⇒ 落账失败时
+      //    卡面仍**恒 −3 + 被偷行恒渲染**（「卡面==账本」契约仅此未开火场景
+      //    让步，见 recordNoFirePenalty 文档与口径表）。
+      expect(find.text('守卫失败，怪物偷走了阳光！'), findsOneWidget,
+          reason: '🔴 未开火场标题 = 失败文案');
+      expect(find.text('被偷菜贼偷走了 3 阳光'), findsOneWidget,
+          reason: '🔴 惩罚必达：落账失败也恒显示 −3（C120-13）');
       expect(await env.ledgerRowsOnDay(kGuardStolenRefType, today), 0,
           reason: '写入失败 ⇒ 账本零新增（无半截行）');
 
       // 🔴 无第二次扣减尝试：整条流程对 guard_stolen 的写尝试恰好 1 次
       //    （页面吞掉失败后不重试；收下路径也不补写）。
       expect(ledger.stolenAppendAttempts, 1,
-          reason: '🔴 recordBattleTheft 恰好一次写尝试，绝不重试');
+          reason: '🔴 recordNoFirePenalty 恰好一次写尝试，绝不重试');
 
-      // 收下照常发奖（失败被吞不影响 claim 主链路）。
+      // 收下流程照常走完（失败被吞不影响 claim 主链路）；一枪不发 ⇒
+      // 不发必得阳光（B13.26），guard_win 0 行。
       await _collectAndSettle(tester);
-      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 1);
+      expect(await env.ledgerRowsOnDay(kGuardWinRefType, today), 0,
+          reason: '🔴 B13.26：未开火场不发必得阳光');
       expect(ledger.stolenAppendAttempts, 1,
           reason: '收下后仍无第二次扣减尝试');
     });

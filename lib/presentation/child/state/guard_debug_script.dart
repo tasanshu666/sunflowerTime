@@ -92,8 +92,8 @@ const String kDebugGuardScriptKeyCount3 = 'debug_guard_script_count3';
 /// 「强制 5 只怪」按钮 Key。
 const String kDebugGuardScriptKeyCount5 = 'debug_guard_script_count5';
 
-/// 「强制 12 只怪」按钮 Key（B13.22：怪数上限改 12 后的真机验证入口）。
-const String kDebugGuardScriptKeyCount12 = 'debug_guard_script_count12';
+/// 「强制 9 只怪」按钮 Key（B13.22 上限 12；B13.27 上限改 9 后的验证入口）。
+const String kDebugGuardScriptKeyCount9 = 'debug_guard_script_count9';
 
 /// 「强制三怪混编」按钮 Key。
 const String kDebugGuardScriptKeyMixed = 'debug_guard_script_mixed';

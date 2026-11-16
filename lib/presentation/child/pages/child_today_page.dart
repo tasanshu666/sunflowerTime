@@ -187,6 +187,45 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   /// 终局跨方法回调，故升为字段）。
   GuardTodayView? _battleView;
 
+  /// 阳光胶囊点击教学（B13.26，玄参 2026-11-16：「孩子并不了解阳光胶囊是
+  /// 哪个，需要在前 3 次战斗的时候对阳光胶囊的位置进行提醒」）：
+  /// 当前场战斗是否在胶囊上方显示引导气泡。
+  ///
+  /// · 开战（[_onGuardCardTap] 切 fighting 前）判定：prefs 计数
+  ///   [kGuardPillTeachCountPrefKey] < [kGuardPillTeachMaxBattles] ⇒ true；
+  /// · **本场首次点击胶囊即消失**（[_firePill] 置 false，本场不再现）；
+  /// · 结算（[_onBattleFinished]）时计数 +1 并复位 false。
+  bool _pillTeachVisible = false;
+
+  /// 读「胶囊教学」场次计数（prefs 异常按 0 处理 —— 宁可多提醒一遍，也不让
+  /// 孩子看不到提示；与 [_tutorialSeenInPrefs] 同范式，绝不阻断开战）。
+  int _pillTeachCountInPrefs() {
+    try {
+      return ref
+              .read(sharedPreferencesProvider)
+              .getInt(kGuardPillTeachCountPrefKey) ??
+          0;
+    } catch (e) {
+      debugPrint('[Guard] 读「胶囊教学计数」失败（按 0 处理）：$e');
+      return 0;
+    }
+  }
+
+  /// 「胶囊教学」场次计数 +1（结算时调用，见 [kGuardPillTeachCountPrefKey]；
+  /// 写失败吞掉不阻断 —— 最坏多提醒一场，方向偏向孩子）。
+  Future<void> _bumpPillTeachCountInPrefs() async {
+    try {
+      await ref
+          .read(sharedPreferencesProvider)
+          .setInt(
+            kGuardPillTeachCountPrefKey,
+            _pillTeachCountInPrefs() + 1,
+          );
+    } catch (e) {
+      debugPrint('[Guard] 写「胶囊教学计数」失败（不阻断）：$e');
+    }
+  }
+
   /// 开火手柄（B7）：**页面**持有 —— 开火入口是页面右上的阳光胶囊，
   /// 它在场景卡之外，经 `GuardSceneCard(battleHandle: …)` 下发到 L4 战斗层。
   /// 战斗层未挂载 / 已收场时 `fire()` 是 no-op（手柄自带闸门）。
@@ -216,6 +255,15 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
     } catch (e) {
       debugPrint('[Guard] 标记「教学已看」失败（不阻断）：$e');
     }
+  }
+
+  /// 战斗态点胶囊 = 开火（B7）。🔴 B13.26：本场**首次点击**即收起教学气泡
+  ///（孩子已经知道胶囊在哪了，本场不再现 —— 下场战斗按 prefs 计数重新判定）。
+  void _firePill() {
+    if (_pillTeachVisible && mounted) {
+      setState(() => _pillTeachVisible = false);
+    }
+    _guardBattleHandle.fire();
   }
 
   /// 点阳光胶囊 → 播一次「阳光四散」。
@@ -534,6 +582,9 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
       // 结算卡用**进入战斗前的快照**：`claim()` 的奖品由 `resolve()` 定死，
       // 与战局输赢无关（v1 ④ 同口径，搬到终局回调里用）。
       _battleView = view;
+      // 🔴 B13.26 胶囊教学（玄参 2026-11-16）：开战时判定是否显示引导气泡
+      //（前 [kGuardPillTeachMaxBattles] 场；读失败按 0 = 显示，绝不阻断开战）。
+      _pillTeachVisible = _pillTeachCountInPrefs() < kGuardPillTeachMaxBattles;
       // 切 fighting ⇒ 卡挂 L4 战斗层（sim 零落盘：战局进度只活在 widget 树里，
       // 强杀 / 重挂 = 战局重开，账本零新增行；落账只发生在打完之后的 claim）。
       ref.read(guardTodayProvider.notifier).state =
@@ -555,12 +606,20 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   ///
   /// [battleStolenSun] = sim 终局报告的实际被偷合计（含 30s 到点时刻的钳制值；
   /// 取数链路：sim 报告 → 本方法 → 结算卡）。
-  Future<void> _onBattleFinished(int battleStolenSun) async {
+  ///
+  /// [hasFired] = 本场**是否开过火**（B13.26，玄参 2026-11-16：未开火场不发
+  /// 必得阳光 —— sim `hasFired` 透传，进 [showGuardResultCard] 显示红色 −N、
+  /// 进 `claim(hasFired:)` 短路 `guard_win` 账本行）。
+  Future<void> _onBattleFinished(int battleStolenSun, bool hasFired) async {
     if (_guardBusy || !mounted) return;
     final GuardTodayView? view = _battleView;
     final AppLocalizations? t = _l10n;
     if (view == null || t == null) return; // 防御：无快照（理论不可达）
     _guardBusy = true;
+    // 🔴 B13.26 胶囊教学：**结算时**计数 +1（一场恰好记一次），并复位气泡
+    //（本场无论输赢都算「讲过一次机会」；写失败吞掉不阻断结算）。
+    _pillTeachVisible = false;
+    await _bumpPillTeachCountInPrefs();
     try {
       // ③½ 落账「被偷」（B4，§5.3 裁决 B「结束时一次写」）：战斗态零落盘，
       //    被偷额只活在 sim 内存里，打完这一场才由本处**一次**写入 —— 同日
@@ -570,13 +629,26 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
       //    独立 try/catch 同范式）—— 绝不让「被偷没记上」导致孩子多看一张卡
       //    或多扣一次。落账失败 ⇒ 实扣 0 ⇒ 结算卡**不渲染**被偷行（卡面 N
       //    恒 == 账本行，见 [showGuardResultCard] 的 stolenSun 契约）。
+      //    🔴 B13.27 增量（C120-13「惩罚必达」）：**未开火场改走固定惩罚**
+      //    [GuardService.recordNoFirePenalty]（恒扣 kGuardWinSunMin=3，无视
+      //    当日互斥/封顶；refId 分流不误伤开火场互斥）—— 开火场原路径一字节
+      //    不动。未开火卡面**恒 −3**（惩罚是确定性罚金，与实扣解耦；余额不足
+      //    时账本实扣 <3 的边缘见口径表 C120-13）。
       int stolenCharged = 0;
       try {
-        stolenCharged = await ref
-            .read(guardServiceProvider)
-            .recordBattleTheft(stolenSun: battleStolenSun);
-        debugPrint('[Guard] 战斗被偷落账: sim=$battleStolenSun → '
-            '实扣=$stolenCharged');
+        if (hasFired) {
+          stolenCharged = await ref
+              .read(guardServiceProvider)
+              .recordBattleTheft(stolenSun: battleStolenSun);
+          debugPrint('[Guard] 战斗被偷落账: sim=$battleStolenSun → '
+              '实扣=$stolenCharged');
+        } else {
+          stolenCharged = await ref
+              .read(guardServiceProvider)
+              .recordNoFirePenalty();
+          debugPrint('[Guard] 未开火惩罚落账（恒 $kGuardWinSunMin ☀）: '
+              '实扣=$stolenCharged');
+        }
       } catch (e) {
         debugPrint('[Guard] 落账「被偷」失败（不阻断结算卡）：$e');
       }
@@ -613,6 +685,9 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
       // ④ 结算卡：「收下」才 `claim()`（唯一记账入口，领域层自带三层幂等）。
       //    stolenSun 传**账本实扣额**（recordBattleTheft 返回值），不传 sim
       //    原始值 —— 余额不足 / 已写过时实扣 < sim 值，卡面必须与账本一致。
+      //    🔴 B13.27 增量（C120-13）：未开火场**恒传 kGuardWinSunMin**——
+      //    惩罚是确定性罚金，卡面恒 −3（实扣 min(3, 余额) 与卡面解耦，边缘
+      //    见口径表）；开火场仍传实扣额（卡面==账本契约不变）。
       //    showPremiumHint：free 档才提示「完整版有高级宝箱」（B13.16 玄参）；
       //    premium 用户自己就能掉高级宝箱，提示了反而矛盾。🔴 判定走
       //    [showGuardPremiumHint] 单点（权益标识符白名单守卫：等级纯链路文件
@@ -622,8 +697,12 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         context,
         view: view,
         l10n: t,
-        stolenSun: stolenCharged,
-        onCollect: () => ref.read(guardServiceProvider).claim(),
+        stolenSun: hasFired ? stolenCharged : kGuardWinSunMin,
+        // 🔴 B13.26：未开火场 ⇒ 结算卡阳光卡显示红色 −N（被怪偷走了）。
+        hasFired: hasFired,
+        onCollect: () => ref
+            .read(guardServiceProvider)
+            .claim(hasFired: hasFired),
         showPremiumHint: showGuardPremiumHint(context),
         uiScale: uiScaleOf(context),
       );
@@ -1034,7 +1113,14 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
             // GuardBattleHandle，400ms 冷却 / 终局禁用语义全部不变）。
             // 非战斗态 ⇒ 恢复原漂浮轨迹 + 「阳光四散」纯视觉特效（F170）。
             firing: guard.mode == GuardPillMode.fighting,
-            onFire: () => _guardBattleHandle.fire(),
+            // 🔴 B13.26 胶囊教学：战斗态且本场未点过胶囊 ⇒ 下方显示引导气泡
+            //（B13.27 移到下方 + 橙色醒目配色；null = 不显示；首次点击经
+            // [_firePill] 收起）。
+            teachText:
+                _pillTeachVisible && guard.mode == GuardPillMode.fighting
+                    ? _l10n!.guard_pill_teach_text
+                    : null,
+            onFire: _firePill,
             // F170：点击 → 阳光四散（纯视觉，见 [_fireSunBurst]）。
             onBurst: _fireSunBurst,
           ),
@@ -1125,6 +1211,13 @@ class _FloatingSunBubble extends StatefulWidget {
   /// 战斗态点击 → 开火（页面传 `() => handle.fire()`）。
   final VoidCallback? onFire;
 
+  /// 🔴 B13.26 胶囊教学（玄参 2026-11-16）：非 null 时在胶囊**下方**显示
+  /// 引导气泡（B13.27 从上方移到下方：上方挡花脸/徽章；圆角气泡 + 向上箭头
+  /// 指向胶囊，`IgnorePointer` 不吞手势 —— 点气泡 = 点到胶囊区域外的场景，
+  /// 绝不挡住胶囊本身的点击）。null = 不显示。
+  /// 只在战斗态出现（胶囊钉死不飘，气泡跟着钉死，不会随漂移甩动）。
+  final String? teachText;
+
   const _FloatingSunBubble({
     required this.balance,
     required this.drift,
@@ -1132,6 +1225,7 @@ class _FloatingSunBubble extends StatefulWidget {
     this.onBurst,
     this.firing = false,
     this.onFire,
+    this.teachText,
   });
 
   @override
@@ -1195,7 +1289,16 @@ class _FloatingSunBubbleState extends State<_FloatingSunBubble>
     // C65：气泡内素材图**不随 textScaler 缩放**（图片不吃 textScaler），
     // 故与旁边已放大的数字相比会显小 —— 显式乘 uiScaleOf 补平（手机 = 1.0，零回归）。
     final double s = uiScaleOf(context);
-    return AnimatedBuilder(
+    // 🔴 B13.26：教学气泡包在胶囊 Stack 的**负偏移 Positioned** 里 —— 不改变
+    // 胶囊自身的布局矩形（锚点/命中区/度量护栏逐位不变），气泡只是叠画在
+    // 下方（`Clip.none` 允许越出 Stack 边界）。几何锚定：胶囊锚点 x ≈ 0.65 屏宽，
+    // 气泡左移 60pt、宽 ≤190pt ⇒ 手机（402pt）右缘 ≈ 391 < 402 不越屏；
+    // 🔴 B13.27：位置从胶囊上方改**下方**（top 54 = 胶囊高 ~46 + 8pt 间隙，
+    // 上方原位挡花脸/徽章区），箭头朝上正对胶囊中心。
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        AnimatedBuilder(
       animation: widget.drift,
       builder: (BuildContext context, Widget? child) {
         final double t = widget.drift.value * 2 * math.pi;
@@ -1289,6 +1392,67 @@ class _FloatingSunBubbleState extends State<_FloatingSunBubble>
           ),
         ),
       ),
+        ),
+        // 🔴 B13.26：引导气泡（仅战斗态且本场未点过胶囊时上屏；`IgnorePointer`
+        // 让气泡纯展示 —— 点击落在其下方的场景上，绝不吞胶囊的手势）。
+        // 🔴 B13.27（玄参「气泡不够醒目」）：① 位置改胶囊**下方**；② 配色
+        // 改高饱和琥珀橙底 + 白粗字 + 深描边重阴影（白底细金描边太素，孩子
+        // 看不见）；箭头朝上指向胶囊。`IgnorePointer` 保留不挡操作。
+        if (widget.teachText != null)
+          Positioned(
+            left: -60,
+            top: 54,
+            child: IgnorePointer(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  Container(
+                    constraints: const BoxConstraints(maxWidth: 190),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFB8C00), // Colors.orange.shade600
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: const Color(0xFF6B3A00), width: 2),
+                      boxShadow: const <BoxShadow>[
+                        BoxShadow(
+                            color: Color(0x55000000),
+                            blurRadius: 10,
+                            offset: Offset(0, 4)),
+                      ],
+                    ),
+                    child: Text(
+                      widget.teachText!,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.3,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  // 向上箭头（指向胶囊）：旋转 45° 的小方片，与气泡同底色同描边。
+                  Positioned(
+                    left: 104,
+                    top: -5,
+                    child: Transform.rotate(
+                      angle: math.pi / 4,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFB8C00),
+                          border: Border.all(color: const Color(0xFF6B3A00)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

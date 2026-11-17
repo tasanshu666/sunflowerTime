@@ -30,12 +30,19 @@
 %%   · `WishEventKind` 9 → **13 个成员**（11 首发 + 2 P1）：+ `goalSet` + `selfFulfilled`；
 %%   · 🔴 **作废** `wishTreeStage(...)`（玄参：「许愿树没有成长属性，就是一颗大树」）
 %%     ⇒ 图中**不再有**「树阶段 / 形态切换」；✅ **保留** `poolMilestoneCount`（里程碑盖章）；
-%%   · 🔴 **v0.5.2 修正**：**里程碑盖章计数** 的基数 = `count(status = fulfilled AND fulfill_source != 'child')` ⇒ 🔴 **不是**「累计达成数」
-%%     （孩子自助达成 ⇒ 只进池、**不盖章** ⇒ R29 防刷主线）；
+%%   · 🔴 **v0.7.0 改写（玄参 2026-11-17 深夜拍板）**：**里程碑盖章计数** 的基数 = `count(status = fulfilled)` —— **含孩子自助达成**
+%%     ⇒ 🔴 **不是**「累计达成数」；⛔ 旧式 `count(status = fulfilled AND fulfill_source != 'child')` 已作废 2026-11-17；🔴 防刷主线换靶 = 家长可撤销 + 入口闸门 + 二次确认；
 %%     ⇒ `poolMilestoneCount` 的入参**语义 = 盖章计数**（新增 `stampedAchievedCount()`）；
 %%     ⇒ 🔴 **列名对照（同一判据两个写法）** ⇒ 🔴 **DB 列 = `fulfill_source`（Drift 字段 `fulfillSource`）**
 %%       ⇒ 🔴 **Dart 里写 `fulfillSource`（本图 `Wish.fulfillSource`）、SQL 里写 `fulfill_source`**，🔴 **不许串**；
 %%   · 🔴 **v0.5.2 第 6 批（收口补项）**：🔴 **盖章计数判据补 camelCase ↔ snake_case 列名对照标注**（图 ↔ 正文口径逐字一致）；
+%%   · 🔴 **v0.7.0 变更（玄参 2026-11-17 深夜拍板）**：
+%%     · **里程碑盖章计数** = `count(status = fulfilled)`（**含孩子自助达成**）；⛔ 旧式 `... AND fulfill_source != 'child'` 已作废；
+%%     · `fulfillSource` **仅溯源 / 「✨ 我自己做到的」标记 / 埋点 `wish_fulfilled.source` 同源**，不再用于排除计数；
+%%     · 🔴 **唯一合法反向边 `fulfilled → pending`**（家长「退回树上」）：服务新增 `undoFulfill`，`_assertTransition` 仅对该边放行、其余越级 / 反向仍抛 `StateError`；
+%%     · 撤销副作用：盖章计数 −1、印章数按 `floor(… / kWishPoolMilestoneStep=3)` 重算退档；**C69 不删行**、`fulfilledAt` / `fulfillSource` 留痕不清空；树上位满 ⇒ 落愿望收藏箱；埋点 `wishUndo`（复用 `tracking_events` 表、零新增列，`type = TrackingType.metric`）；
+%%     · 防刷三件叠加 = 家长可撤销 + 入口闸门（`targetValue==0` 拒不落库 / `releasedAt!=null` 不渲染）+ 二次确认；⛔「进度达 100% 才能点」为已撤销错案；
+%%     · 三条可选增强见正文 **A36.1~A36.3**（零新增列 / 索引 / tab、只读，🔴 **对两图影响 = 零**）；
 %%
 %% 编号前缀 A（Architecture），不与 PRD 的 W 编号撞号。
 %% 纪律：domain 层零 Flutter / 零 drift / 零 CJK（代码部分）。
@@ -300,6 +307,7 @@ classDiagram
         +Future~Wish~ collectToBox({id, now})
         +Future~Wish~ restoreFromBox({id, now})
         +Future~Wish~ selfFulfill({id, now})
+        +Future~Wish~ undoFulfill({id, now})
         +Future~Wish~ abandon({id, now})
         +Future~void~ markParentSeen({id, now})
         +Future~List~Task~~ tasksOf({wishId, now})

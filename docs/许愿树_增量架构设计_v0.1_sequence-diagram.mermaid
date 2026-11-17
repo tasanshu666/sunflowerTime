@@ -1,4 +1,4 @@
-%% 许愿树 · 增量架构设计 **v0.5.1** —— 时序图集（8 张）
+%% 许愿树 · 增量架构设计 **v0.5.1** —— 时序图集（9 张，🔴 v0.7.0 增补 A6.9 家长撤销）
 %% 对应文档：docs/许愿树_增量架构设计_v0.1.md §A6 + §A18~§A23
 %% 编号前缀 A（Architecture），不与 PRD 的 W 编号撞号。
 %%
@@ -33,11 +33,16 @@
 %%     （与埋点 `wish_fulfilled.source` **同一个常量源**）；
 %%   · 🔴 **作废 `wishTreeStage(...)`**（玄参：「许愿树没有成长属性，就是一颗大树」）
 %%     ⇒ 图中**不再有**「树阶段 / 形态切换」；✅ **保留**里程碑盖章演出；
-%%   · 🔴 **v0.5.2 修正**：**里程碑盖章计数** 的基数 = `count(status = fulfilled AND fulfill_source != 'child')` ⇒ 🔴 **不是**「累计达成数」
-%%     （孩子自助达成 ⇒ 只进池、**不盖章** ⇒ R29 防刷主线）；
+%%   · 🔴 **v0.7.0 改写（玄参 2026-11-17 深夜拍板）**：**里程碑盖章计数** 的基数 = `count(status = fulfilled)` —— **含孩子自助达成** ⇒ 🔴 **不是**「累计达成数」
+%%     ⛔ 旧式 `count(status = fulfilled AND fulfill_source != 'child')` 已作废；🔴 防刷主线换靶 = ① 家长可撤销 + ② 入口闸门 + ③ 二次确认；
 %%     ⇒ 🔴 **列名对照（同一判据两个写法）** ⇒ 🔴 **DB 列 = `fulfill_source`（Drift 字段 `fulfillSource`）**
 %%       ⇒ 🔴 **本图 SQL 用 `fulfill_source`、Dart 侧用 `fulfillSource`**，🔴 **不许串**；
 %%   · 🔴 **v0.5.2 第 6 批（收口补项）**：🔴 **盖章计数判据补 camelCase ↔ snake_case 列名对照标注**（图 ↔ 正文口径逐字一致）；
+%%   · 🔴 **v0.7.0 变更（玄参 2026-11-17 深夜拍板）**：
+%%     · 盖章 SQL 改 `count(status = fulfilled)`（含孩子自助达成）；⛔ 旧式 `... AND fulfill_source != 'child'` 已作废；
+%%     · 防刷三件叠加：家长可撤销（唯一合法反向边 fulfilled→pending）+ 入口闸门（`targetValue==0` 拒不落库 / `releasedAt!=null` 不渲染）+ 二次确认；
+%%     · 撤销副作用：盖章计数 −1、印章数 floor(…/3) 退档；C69 不删行、`fulfilledAt`/`fulfillSource` 留痕不清空；树上位满落愿望收藏箱；埋点 `wishUndo`；
+%%     · ⛔「进度达 100% 才能点」为已撤销错案；三条可选增强见正文 A36.1~A36.3（只读、零新增列/索引/tab，对两图影响 = 零）；
 %%   · 🔴 **v0.5.2 收口批**：🔴 **类图已同步更新**（`WishTaskStage` 补可达性（百分比注释）标注、
 %%     `taskStageOf` → `wishTaskStageOf`、`WishProgressService` 关系修正、
 %%     删除无源的 `countMounted` / `countAchieved`）⇒ 🔴 **图与正文逐字一致**；
@@ -277,8 +282,8 @@ sequenceDiagram
     REPO->>DB: UPDATE wishes
     SVC->>SVC: 埋点 wish_parent_action{action:fulfill}
 
-    SVC->>REPO: countStampedAchieved()（status = fulfilled AND fulfill_source != 'child'）
-    REPO->>DB: SELECT COUNT(*) WHERE status = fulfilled AND fulfill_source != 'child' AND child_id = ?
+    SVC->>REPO: countStampedAchieved()（status = fulfilled）
+    REPO->>DB: SELECT COUNT(*) WHERE status = fulfilled AND child_id = ?
     DB-->>SVC: stampedAchievedCount（🔴 盖章计数，不是累计达成数）
     SVC->>SVC: milestone = poolMilestoneCount(stampedAchievedCount)
     Note over SVC: 🔴 v0.5.1：**无树阶段 / 无形态切换**（许愿树 = 一棵静态大树）
@@ -401,13 +406,13 @@ sequenceDiagram
     DET->>SVC: selfFulfill(id, now)
     SVC->>SVC: ① _guardCurrentChild ② 迁移校验（pending/tagged → fulfilled）
     SVC->>SVC: 写 fulfilled_at + 🔴 fulfill_source = 'child'
-    Note over SVC,DB: 🔴 **不改 progress_value**、🔴 **不写 check_ins**<br/>🔴 **不计入里程碑盖章计数**（防刷）<br/>🔴 「已落池但 progress_value < target_value」= **合法组合**
+    Note over SVC,DB: 🔴 **不改 progress_value**、🔴 **不写 check_ins**<br/>🔴 **v0.7.0：计入里程碑盖章计数**（⛔ 旧「不计入（防刷）」已作废）<br/>🔴 「已落池但 progress_value < target_value」= **合法组合**
     SVC->>REPO: save(wish)
     REPO->>DB: UPDATE wishes（status / fulfilled_at / fulfill_source / tree_slot=NULL）
     DB-->>SVC: ok
     SVC->>SVC: 事件 kind = selfFulfilled + 埋点 wish_fulfilled{source:child}
     SVC->>BUS: onChanged() → state++
-    Note over POOL: 达成池条目显示「我自己做到的」徽标（🔴 不计入池顶章数）
+    Note over POOL: 达成池条目显示「我自己做到的」徽标（🔴 v0.7.0：同样计入池顶「N 枚章」）
 
     Note over C,SVC: —— 放进愿望收藏箱（🔴 状态不变）——
     C->>DET: 点「放进愿望收藏箱」
@@ -513,3 +518,38 @@ sequenceDiagram
     Note over SVC,PROG: 🔴 **经济隔离 5 处**：不发阳光 / 不参与完美日 / 不进周月池 / 不计入今日必做 / 专注分钟单独累加到愿望进度（守卫 G14）
     Note over SVC,DB: 🔴 **判定单点**：task.wishId != null ⇒ 走唯一 helper `_isWishLinkedTask(task)`（禁止多处各写一遍）
     FP-->>C: 结算页（既有流程）+ 许愿树进度条刷新
+
+%% A6.9 🆕 **v0.7.0**：家长「退回树上」（家长可撤销 · 唯一合法反向边 fulfilled → pending）
+sequenceDiagram
+    participant PAR as 家长端今日 tab
+    participant SEC as 分区「✨ 孩子说做到了」
+    participant SVC as WishOrchestrationService
+    participant REPO as WishRepository
+    participant DB as drift wishes
+    participant TRK as TrackingRepository
+    participant BUS as revision bus
+
+    Note over PAR,SEC: 🔴 家长端今日 tab 许愿树区块新增独立分区「✨ 孩子说做到了」
+    PAR->>SEC: 打开分区（列 fulfill_source = 'child' 且 status = fulfilled 的愿望）
+    SEC->>SVC: parentDeskList(now) → 过滤孩子自助达成条目
+    SVC->>REPO: byStatuses({fulfilled}) / pool()
+    REPO->>DB: SELECT ... WHERE status = fulfilled AND child_id = ?
+    DB-->>SEC: 孩子自助达成条目列表
+    PAR->>SEC: 一键「退回树上」
+    SEC->>PAR: 二次确认（「确定退回树上吗？」）
+    PAR->>SEC: 确认
+    SEC->>SVC: undoFulfill(id, now)
+    SVC->>SVC: ① _guardCurrentChild ② _assertTransition(fulfilled, pending)（🔴 唯一合法反向边；其他越级/反向仍抛 StateError）
+    SVC->>SVC: 写 status = pending；🔴 fulfilledAt / fulfillSource 留痕不清空（C69：不删行）
+    SVC->>SVC: 里程碑盖章计数 −1；印章数 = floor(盖章计数 / kWishPoolMilestoneStep=3) 重算退档
+    alt 树上挂载位已满
+        SVC->>SVC: 写 released_at = now ⇒ 落愿望收藏箱（status 仍 pending，进度保留）
+    else 有空位
+        SVC->>SVC: _allocateSlot ⇒ 重新挂回树上（优先回填被释放的空位）
+    end
+    SVC->>REPO: save(wish)
+    REPO->>DB: UPDATE wishes（status / tree_slot / released_at；fulfilled_at 与 fulfill_source 不动）
+    DB-->>SVC: ok
+    SVC->>TRK: track(wishUndo)（{'wish_id': String, 'actor': 'parent'}，type = TrackingType.metric；复用 tracking_events 表、零新增列）
+    SVC->>BUS: onChanged() → state++（孩子端 / 家长端同步刷新）
+    Note over BUS,PAR: 🔴 家长不处理 = 默认保留、系统不自动退回<br/>🔴 该反向边仅家长端显式操作触发，孩子端不得触发

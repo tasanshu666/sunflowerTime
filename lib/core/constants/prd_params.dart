@@ -3494,3 +3494,22 @@ const double kGuardChestCardTopReserve = 12;
 
 
 
+
+// ══════════════════════════════════════════════════════════════════
+// 许愿树 · 达成触发方（fulfill_source）—— 🔴 判定孪生铁律：同源常量
+// ══════════════════════════════════════════════════════════════════
+// 🔴 **这 3 个字面量只允许出现在本文件** —— DB 写入侧与埋点 payload 侧
+//    各自引用一次即合规；**任何一侧另写字符串字面量都算违规**。
+// 🔴 `parentAction` 与 `progress` **都算**「家长确认过」；`child` 不算
+//    （孩子自助达成只进达成池、**不盖里程碑章**）。
+// 🔴 落库列 = `fulfill_source`（Drift 字段 `fulfillSource`）⇒ Dart 里写
+//    `fulfillSource`、SQL 里写 `fulfill_source`，**同一判据两个写法不许串**。
+
+/// 家长点「直接实现」触发达成。
+const String kWishFulfillSourceParentAction = 'parentAction';
+
+/// 进度满 100%（果实成熟）触发达成。
+const String kWishFulfillSourceProgress = 'progress';
+
+/// 孩子自助达成（「我做到了」）触发达成。
+const String kWishFulfillSourceChild = 'child';

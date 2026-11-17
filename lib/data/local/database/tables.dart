@@ -317,6 +317,7 @@ class MonthlyPools extends Table {
 }
 
 /// 任务（§3.1 task）。
+@TableIndex(name: 'idx_tasks_wish', columns: {#wishId})
 class Tasks extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
@@ -336,6 +337,13 @@ class Tasks extends Table {
   // kChildIdDefault —— 新建孩子初始任务为空，由家长自行配置，见报告风险项）。
   TextColumn get childId =>
       text().withDefault(const Constant(kChildIdDefault))(); // 归属孩子（C90 期 2）
+
+  // ── 许愿树（schemaVersion 32）：归属愿望 ─────────────────────────────────
+  // null = 普通成长任务（不是愿望任务）。愿望任务由家长在编辑器里选了
+  // 「归属愿望」后才写这里；进度按愿望的目标口径累计，不影响成长任务自身。
+  // 🔴 复用 tasks 表（不新建独立许愿任务表）—— 见 PRD W21.2 核对结论。
+  // 🔴 索引 `idx_tasks_wish`（wish_id）挂在既有 tasks 表上（架构 A16.2 / A30.5）。
+  TextColumn get wishId => text().nullable()(); // 归属愿望 id（null = 普通成长任务）
 
   @override
   Set<Column> get primaryKey => {id};
@@ -463,6 +471,118 @@ class ChildProfiles extends Table {
   // 表示植物头像）。选择结果跟孩子档案存，切孩子各用各的。
   TextColumn get avatar =>
       text().withDefault(const Constant(kChildAvatarSun))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 许愿树 · 愿望（许愿树增量架构设计 **A15.3 · v0.5.1 定稿 · 22 列**）。
+///
+/// ## 表的定位
+/// 「孩子写、家长应」的自由文本承诺 —— 与 [RewardTemplates]（家长定目录、孩子选）
+/// **方向相反、语义不同**，故**独立成表**（PRD W4.3 核对结论）。
+///
+/// ## 列的取舍原则
+/// **能算出来的一律不落列**：挂载数 / 累计达成数 / 🔴 里程碑盖章计数 /
+/// 等待天数 全部实时聚合，见 `WishOrchestrationService`。
+/// 🔴 v0.5.1：许愿树**无成长阶段**（玄参原话）⇒ 阶段概念只剩「里程碑」。
+///
+/// ## 状态语义（落库存 [WishStatus].index）
+///  · [WishStatus.pending]    树上挂载中，等家长回应
+///  · [WishStatus.tagged]     树上挂载中，家长已贴标签 + 回信（仍占挂载位）
+///  · [WishStatus.committed] 树上挂载中，家长已承诺兑现日期（P1，首发不接线）
+///  · [WishStatus.fulfilled]  已实现 —— **不在树上**，落达成池
+///  · [WishStatus.replaced]  协商替代后原愿望落池 —— **不在树上**（P1）
+///  · [WishStatus.abandoned] 孩子换掉 —— **不在树上**，**不进达成池、不计达成数**
+///
+/// ## 归属孩子（C90 期 2 口径）
+/// `childId` **不进主键**（主键是 uuid，天然全局唯一），只作**过滤列 + 索引首列**。
+///
+/// ## 🔴 第 3 列的 Drift 字段名 = `wishText`，DB 列名 = `text`（v0.6.1 定稿）
+/// 🔴 **drift 2.34 的 `Table` 已有 `text()` 方法** ⇒ Dart **语言级禁止**在子类里
+///    再定义同名字段（`Class can't define field 'text' and have method
+///    'Table.text' with the same name`）⇒ 🔴 **且类内一旦出现 `text` getter，
+///    本类所有 `text()` 调用全部解析失败**（实测 21 列连带报错）。
+/// ⇒ 故 Drift 字段改名为 **`wishText`**，用 `.named('text')` 把 **DB 列名保持为
+///    `text`**（与 PRD W21.1.1 的 DB 列清单逐字一致，SQL 侧零改动）。
+/// ⇒ 🔴 **领域层实体 `Wish.text` 不改**（领域层不继承 Table，无此冲突）。
+@DataClassName('WishRow')
+@TableIndex(name: 'idx_wishes_child_status', columns: {#childId, #status})
+@TableIndex(name: 'idx_wishes_child_created', columns: {#childId, #createdAt})
+@TableIndex(name: 'idx_wishes_child_slot', columns: {#childId, #treeSlot})
+class Wishes extends Table {
+  /// 愿望 id（uuid；主键）。
+  TextColumn get id => text()();
+
+  /// 归属孩子（C90 期 2 口径；写入落当前孩子）。
+  TextColumn get childId =>
+      text().withDefault(const Constant(kChildIdDefault))();
+
+  /// 愿望原文（孩子自由输入；trim 后长度 ∈ [kWishTextMinLength, kWishTextMaxLength]，
+  /// 按 Unicode 码点计 —— emoji 不虚高）。
+  ///
+  /// 🔴 Drift 字段名 = `wishText`，**DB 列名 = `text`**（见类注释的 drift 冲突裁决）。
+  TextColumn get wishText => text().named('text')();
+
+  /// 分类标签（[WishCategory].index；0 = other = 历史安全默认）。
+  IntColumn get category => integer().withDefault(const Constant(0))();
+
+  /// 状态机（[WishStatus].index；6 态 · index 一次定全）。
+  IntColumn get status => integer()();
+
+  /// **许愿时间**（孩子提交那一刻）。UI 展示「X 月 X 日许的」。
+  DateTimeColumn get createdAt => dateTime()();
+
+  /// 家长**承诺**时间（`status=committed` 时写；之后转 fulfilled 仍保留）。
+  DateTimeColumn get committedAt => dateTime().nullable()();
+
+  /// 家长承诺的**兑现日期**（可空；`status=committed` 时可写）。
+  DateTimeColumn get commitDueDate => dateTime().nullable()();
+
+  /// **实现时间**（`status=fulfilled / replaced` 时写）。
+  DateTimeColumn get fulfilledAt => dateTime().nullable()();
+
+  /// 达成触发方（3 值：`parentAction` / `progress` / `child`）。
+  /// 🔴 字面量只许出现在 `prd_params.dart` 的三个 `kWishFulfillSource*` 常量里。
+  TextColumn get fulfillSource => text().nullable()();
+
+  /// 孩子**换掉**时间（`status=abandoned` 时写）。
+  DateTimeColumn get abandonedAt => dateTime().nullable()();
+
+  /// 家长最后一次**查看**该愿望的时间（「家长还没看你的愿望」红点判据）。
+  DateTimeColumn get parentSeenAt => dateTime().nullable()();
+
+  /// 孩子「已提醒家长看」的时间（家长端列表置顶判据）。
+  DateTimeColumn get remindedAt => dateTime().nullable()();
+
+  /// **家长回信**（孩子端卡片背面展示；可空 —— 空态展示占位文案，不隐藏背面区）。
+  TextColumn get parentReply => text().nullable()();
+
+  /// 协商替代后的**新愿望文本**（`status=replaced` 时写；原文本保留在 [wishText]）。
+  TextColumn get replacedText => text().nullable()();
+
+  /// 挂在树上的**槽位序号**（0 基逻辑序号）。
+  /// `null` = **不在树上**（fulfilled / replaced / abandoned）。
+  IntColumn get treeSlot => integer().nullable()();
+
+  /// 目标口径（`WishGoalMode`.index：0 = 专注分钟 / 1 = 任务条数）。
+  /// 🔴 **不可空、默认 0**（v0.2.5）。
+  IntColumn get targetMode => integer().withDefault(const Constant(0))();
+
+  /// 目标值（单位随 mode）；🔴 **`0` = 未设定目标**（🔴 这是「未设目标」的**唯一判据**）。
+  IntColumn get targetValue => integer().withDefault(const Constant(0))();
+
+  /// 已完成量（单位随 mode）；**单调不减**。
+  IntColumn get progressValue => integer().withDefault(const Constant(0))();
+
+  /// 标签 key（`WishTag.name`）。
+  TextColumn get tagKey => text().nullable()();
+
+  /// 贴标签时间。
+  DateTimeColumn get taggedAt => dateTime().nullable()();
+
+  /// 「放进愿望收藏箱」时间（**兼作树上态标记**：`!= null` ⇒ 不计入挂载数）。
+  DateTimeColumn get releasedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

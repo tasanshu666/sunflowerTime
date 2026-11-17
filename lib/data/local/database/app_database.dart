@@ -39,6 +39,7 @@ part 'app_database.g.dart';
     TrackingEvents,
     EyeCareLogs,
     ChildProfiles,
+    Wishes,
   ],
   daos: [
     SettingsDao,
@@ -60,11 +61,55 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? openEncryptedDb());
 
   @override
-  int get schemaVersion => 31;
+  int get schemaVersion => 32;
+
+  /// 🔴 v32（许愿树）新增的 4 条索引名。
+  ///
+  /// 迁移时先 `DROP INDEX IF EXISTS` 再由 `m.createAll()` 按当前 schema 重建 ——
+  /// 根因与修法见 `onUpgrade` 的 **⓿ 步**注释（drift 的 `createAll()` 对已存在的
+  /// 表也会无条件 `CREATE INDEX`，而生成物**不带 `IF NOT EXISTS`**）。
+  ///
+  /// 🔴 改动索引清单时**必须同步更新本列表**，否则老库升级会命中
+  /// `index ... already exists` 而失败。
+  static const List<String> _v32NewIndexNames = <String>[
+    'idx_tasks_wish',
+    'idx_wishes_child_status',
+    'idx_wishes_child_created',
+    'idx_wishes_child_slot',
+  ];
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onUpgrade: (Migrator m, int from, int to) async {
+          // ⓿ 🔴 v32（许愿树）：**「补列」与「建索引」的先后顺序** + **索引幂等**，
+          //    两者都必须在 `m.createAll()` 之前解决。
+          //
+          //    根因（实测 drift 2.34.0 · `lib/src/runtime/query_builder/migration.dart`）：
+          //    ① `Migrator.createAll()` 把索引当作**独立的 schema entity**
+          //       （`_allSchemaEntities` → `create(entity)` → `createIndex`），
+          //       对**已存在的表也无条件**执行生成物里的
+          //       `CREATE INDEX <name> ON <table> (...)`；
+          //       🔴 **生成物不带 `IF NOT EXISTS`**（见 `app_database.g.dart`）
+          //       ⇒ 索引已存在时直接报
+          //       `index idx_tasks_wish already exists, SQL logic error (code 1)`。
+          //    ② 若建索引时列还不存在 ⇒ `no such column: wish_id`。
+          //    ③ 本项目此前**没有任何「既有表」带 `@TableIndex`**（表级索引只出现在
+          //       新表上）⇒ `createAll()` 对老库一直是幂等的；
+          //       v32 首次给既有表 `tasks` 加了索引，打破了这一前提。
+          //
+          //    修法：① 先补 `tasks.wish_id` 列；② 先 `DROP INDEX IF EXISTS` 掉
+          //    本批新增的 4 条索引；③ 再让 `m.createAll()` 按**当前 schema** 重建
+          //    （定义与生成物完全一致 ⇒ 无副作用；整个 `onUpgrade` 在 drift 的
+          //    迁移事务内 ⇒ 中途失败自动回滚，索引不会「掉一半」）。
+          //
+          //    🔴 全新库（表还不存在）时补列本步**静默跳过** —— 表随后由
+          //    `createAll()` 按**新 schema** 建出，列与索引天然齐全；
+          //    `DROP INDEX IF EXISTS` 对不存在的索引是 no-op，同样安全。
+          await _ensureColumn(m, tasks, tasks.wishId);
+          for (final String indexName in _v32NewIndexNames) {
+            await customStatement('DROP INDEX IF EXISTS $indexName;');
+          }
+
           // ① 幂等补齐所有表（CREATE TABLE IF NOT EXISTS，防御性对齐）。
           //    玄参大人真机库由 v1 升级而来，可能停留在 v2（缺列），此处先把
           //    所有表对齐到当前 schema，避免后续 addColumn/alterTable 因缺表报错。
@@ -803,6 +848,24 @@ class AppDatabase extends _$AppDatabase {
           //    · 幂等：v31+ 库不再进入 onUpgrade；createAll 本身即 IF NOT EXISTS。
           //    ⚠️ 版本变更（30 → 31），必须配迁移测试（见
           //       `test/m3/migration_v31_test.dart`）。
+
+          // ㉜ v32（许愿树 · 玄参 2026-11-17 拍板 22 条全部定稿）：**许愿树愿望表** ——
+          //    · 新增 `wishes` 表（**22 列**，语义逐字对齐 PRD W21.1.1 / 架构 A15.3）
+          //      + **3 条**索引：`idx_wishes_child_status` /
+          //      `idx_wishes_child_created` / `idx_wishes_child_slot`；
+          //      （🔴 第 4 条索引 `idx_tasks_wish` 挂在 `tasks` 表上，见下）
+          //    · `tasks` 表加 **1 列** `wish_id`（归属愿望；null = 普通成长任务）
+          //      ⇒ 愿望任务**复用 `tasks` 表**，不新建独立许愿任务表
+          //      （PRD W21.2 核对结论）；
+          //    · 全新表、无历史数据迁移：由 onUpgrade **首步 `m.createAll()`**
+          //      （CREATE TABLE IF NOT EXISTS）自动建出 —— 与 v31 的
+          //      `empty_pot_disturbances`、v26 的 `child_profiles` 同一既有约定，
+          //      故本处**不写** `m.createTable` 分支（重复建表无意义）；
+          //    · 幂等：v32+ 库不再进入 onUpgrade；createAll 本身即 IF NOT EXISTS。
+          //    ⚠️ 版本变更（31 → 32），必须配迁移测试（见
+          //       `test/m3/migration_v32_test.dart`）。
+          //    🔴 `tasks.wish_id` 的补列**已在本 onUpgrade 的 ⓿ 步完成**
+          //      （必须先于 `createAll()`，否则 `idx_tasks_wish` 建索引时列还不存在）。
         },
       );
 
@@ -828,6 +891,7 @@ class AppDatabase extends _$AppDatabase {
         await delete(trackingEvents).go();
         await delete(eyeCareLogs).go();
         await delete(childProfiles).go();
+        await delete(wishes).go();
       });
 
   /// 该表当前是否含某列（PRAGMA table_info）。
@@ -840,12 +904,22 @@ class AppDatabase extends _$AppDatabase {
   /// 缺列才补（幂等），避免 "duplicate column name"。
   ///
   /// 语义与 [Migrator.addColumn] 一致：先查 [PRAGMA table_info] 再决定是否补列。
+  ///
+  /// 🔴 **表本身不存在时静默跳过**（v32 起）：`PRAGMA table_info` 返回空 ⇒ 表还没建。
+  ///    这种情况只出现在「补列调用发生在 `m.createAll()` **之前**」时（见 `onUpgrade`
+  ///    的 ⓿ 步 —— `tasks.wish_id` 必须先于 `createAll()` 建索引补齐）。
+  ///    ⇒ 表随后由 `createAll()` 按**新 schema** 建出，列与索引天然齐全 ⇒ 无需补。
+  ///    🔴 对既有调用点（全部在 `createAll()` **之后**）**语义零变化**：表必定存在。
   Future<void> _ensureColumn<T extends Table, D>(
     Migrator m,
     TableInfo<T, D> table,
     GeneratedColumn column,
   ) async {
-    if (!await _hasColumn(table.actualTableName, column.name)) {
+    final List<QueryRow> info =
+        await customSelect('PRAGMA table_info(${table.actualTableName});').get();
+    if (info.isEmpty) return; // 表尚不存在 ⇒ 由 createAll() 按新 schema 建出
+    final bool has = info.any((QueryRow r) => r.read<String>('name') == column.name);
+    if (!has) {
       await m.addColumn(table, column);
     }
   }

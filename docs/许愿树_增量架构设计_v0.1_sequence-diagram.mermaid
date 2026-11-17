@@ -1,0 +1,515 @@
+%% 许愿树 · 增量架构设计 **v0.5.1** —— 时序图集（8 张）
+%% 对应文档：docs/许愿树_增量架构设计_v0.1.md §A6 + §A18~§A23
+%% 编号前缀 A（Architecture），不与 PRD 的 W 编号撞号。
+%%
+%% 🔴 **v0.4 变更（相对 v0.3 · 玄参 Q16 根本性改写）**：
+%%   · 🔴 **愿望任务 = 既有 `tasks` 表的一行**（`tasks.wish_id` nullable 标记归属）
+%%     ⇒ v0.3 的两张独立专表**整节作废**（撤销理由见文档 A16.0）；
+%%   · 🔴 **打卡流水复用既有 `check_ins`**（不加任何列；归属由
+%%     `check_ins.task_id → tasks.id → tasks.wish_id` 两跳关联得出）；
+%%   · 🔴 **目标模型 v2**：`wishes.target_mode`（0 专注分钟 / 1 任务条数）
+%%     + `target_value`（**只在设目标时写一次**）+ `progress_value`（**单调不减**）；
+%%     🔴 **判据函数恰 2 个可达分支**（K26 铁律）；
+%%   · 🔴 **家长动作 3 → 4**（新增「设定目标」）；
+%%   · 🔴 **写侧经济隔离 5 处**（不发阳光 / 不参与完美日 / 不进周月池 /
+%%     不计入今日必做 / 专注分钟单独累加到愿望进度）；
+%%   · 🔴 **v0.4 列名统一**：`wishes` 目标口径列 → **`wishes.target_mode`**
+%%     （与 PRD v0.2.3 同名；枚举名 `WishGoalMode` 不变）；
+%%   · 🔴 **v0.4 埋点裁决**：**作废 `wishTaskCompleted`** ⇒ 首发愿望任务埋点
+%%     v0.4 只保留 3 个；🔴 **v0.5.1 再作废 `wishTaskAssigned`**（与
+%%     `wish_parent_action{action=taskAssigned}` 语义重叠 = 同一件事重复上报）
+%%     ⇒ **只剩 2 个**：`wishTaskVerified` / `wishTaskRejected`；
+%%     🔴 专注型任务**自动核销**时**只发 `wishTaskVerified`**（不再多发一次「提交完成」）；
+%%     🔴 「埋点名 ↔ A23 `WishEventKind`」映射表见文档 **A7.3.1**；
+%%
+%% 🆕 **v0.5.1 变更（状态机 v5 + 「许愿树无成长阶段」）**：
+%%   · 🔴 **A6.7 新增**：孩子端**三段结构**（树上 / **愿望收藏箱** / 达成所愿池）
+%%     + 愿望级「**我做到了**」（`fulfill_source = 'child'`）
+%%     + 收藏箱**进 / 出**（取回先过额度校验，C69 不删数据）；
+%%   · 🔴 **A6.8 新增**：家长端今日页**三段 + 折叠**（互斥分段 ·
+%%     待我核销 > 待我安排 > 进行中 > 折叠）；
+%%   · 🔴 事件 kind 9 → **11 种首发**（+ `goalSet` + `selfFulfilled`）；
+%%   · 🔴 成真时写 **`fulfill_source`**：`parentAction` / `progress` / `child`
+%%     （与埋点 `wish_fulfilled.source` **同一个常量源**）；
+%%   · 🔴 **作废 `wishTreeStage(...)`**（玄参：「许愿树没有成长属性，就是一颗大树」）
+%%     ⇒ 图中**不再有**「树阶段 / 形态切换」；✅ **保留**里程碑盖章演出；
+%%   · 🔴 **v0.5.2 修正**：**里程碑盖章计数** 的基数 = `count(status = fulfilled AND fulfill_source != 'child')` ⇒ 🔴 **不是**「累计达成数」
+%%     （孩子自助达成 ⇒ 只进池、**不盖章** ⇒ R29 防刷主线）；
+%%     ⇒ 🔴 **列名对照（同一判据两个写法）** ⇒ 🔴 **DB 列 = `fulfill_source`（Drift 字段 `fulfillSource`）**
+%%       ⇒ 🔴 **本图 SQL 用 `fulfill_source`、Dart 侧用 `fulfillSource`**，🔴 **不许串**；
+%%   · 🔴 **v0.5.2 第 6 批（收口补项）**：🔴 **盖章计数判据补 camelCase ↔ snake_case 列名对照标注**（图 ↔ 正文口径逐字一致）；
+%%   · 🔴 **v0.5.2 收口批**：🔴 **类图已同步更新**（`WishTaskStage` 补可达性（百分比注释）标注、
+%%     `taskStageOf` → `wishTaskStageOf`、`WishProgressService` 关系修正、
+%%     删除无源的 `countMounted` / `countAchieved`）⇒ 🔴 **图与正文逐字一致**；
+%%
+%% 🆕 **v0.3 变更（相对 v0.2）**：
+%%   · A6.1 挂载位判定改走 `quotaAllowsAddWishSlot(focusLevel, isPremium, currentCount)`
+%%     （等级挂钩，**不是** `quotaAllowsAdd(FeatureKey.wishSlot, ...)` —— G8 守卫钉死）；
+%%     **按日限条数闸门作废** ⇒ 创建期闸门由 **4 道减为 3 道**（长度 / 去重 / 挂载位）
+%%   · A6.2 家长端动作 **5 → 3**（布置任务 / 直接实现 / 贴标签+温柔回复）；「承诺」「协商替代」
+%%     降 P1；「这次先放一放」被孩子端「先收起来」取代；状态 `declined` → `tagged`
+%%   · A6.3 事件 kind 扩为 **9 种首发 + 2 种 P1 预留**（新增 `tagged` / `untagged` /
+%%     `released` / `restored`）
+%%   · A6.5 两型任务两条路径：🔴 专注型**自动完成免核销** / 行为型**需家长核销**
+%%     🔴 **v0.4：完成流水专表已撤销 ⇒ 统一复用既有 `check_ins`**
+%%   · A6.6 专注型任务走 `/focus?wishTask=`（含与 `?task=` 的互斥判定）
+
+%% ════════════════════════════════════════════════════════════════
+%% A6.1 孩子许愿 → 挂树
+%% ════════════════════════════════════════════════════════════════
+sequenceDiagram
+    autonumber
+    participant U as 孩子
+    participant GP as GardenPage
+    participant WT as WishTreePage
+    participant WC as WishComposeDialog
+    participant ST as wish_state.dart child
+    participant LVL as CurrentFocusLevelProvider
+    participant Q as WishSlotQuota entitlement_matrix
+    participant SVC as WishOrchestrationService
+    participant REPO as WishRepository
+    participant DB as AppDatabase wishes
+    participant BUS as economyRevisionProvider
+
+    U->>GP: 点花园内「许愿树」布景热点
+    GP->>WT: context.push('/wish-tree')
+    WT->>ST: ref.watch(wishTreeProvider)
+    ST->>SVC: mountedWishes() / mountedCount()
+    SVC->>REPO: mounted() / countByStatuses()
+    REPO->>DB: SELECT ... WHERE child_id = ? AND status IN (pending, tagged, committed) AND released_at IS NULL
+    DB-->>REPO: rows
+    REPO-->>SVC: List<Wish>
+    SVC-->>ST: List<Wish> + 派生量
+    ST->>LVL: ref.watch(currentFocusLevelProvider)
+    LVL-->>ST: focusLevel（纯派生：levelOfMinutes(totalStats)）
+    ST->>Q: wishSlotQuotaFor(focusLevel, isPremium)
+    Q-->>ST: 当前额度 M（等级挂钩）
+    ST-->>WT: 渲染树上卡片 + [已挂 N/额度 M]
+
+    U->>WT: 点「开始许愿」
+    WT->>WT: 软门槛自检（已种下 >= 1 株植物？）
+    alt 软门槛未达成
+        WT-->>U: 弹引导（灰态但可点，C62）
+    else 挂载位满（等级挂钩额度已用尽）
+        WT->>SVC: createWish(...) → 闸门 ③
+        SVC->>Q: quotaAllowsAddWishSlot(focusLevel, isPremium, mountedCount)
+        Q-->>SVC: false
+        SVC-->>WT: 拒绝（wish slot quota exceeded）
+        WT-->>U: 弹流程引导（面向孩子，🔴 **不出购买入口**，C81）
+    else 全部通过
+        WT->>WC: showModalBottomSheet（自包 L10nScope）
+        U->>WC: 输入愿望原文
+        WC->>WC: 字数自检（Unicode 码点）/ 草稿保留
+        U->>WC: 点「挂上许愿树」
+        WC->>SVC: createWish(text, category, now)
+        SVC->>SVC: ① trim + 长度校验
+        SVC->>REPO: byStatuses / occupiedSlots
+        REPO->>DB: 聚合查询
+        DB-->>REPO: 计数 / 槽位集合
+        REPO-->>SVC: 数据
+        SVC->>SVC: ② 去重（树上 + 近 N 天已结束）
+        SVC->>Q: ③ quotaAllowsAddWishSlot(focusLevel, isPremium, mountedCount)
+        Q-->>SVC: true
+        Note over SVC,Q: 🔴 按日限条数闸门已作废（PRD W22-15）⇒ **三道闸门**
+        SVC->>SVC: 分配 treeSlot（最小空闲）/ 生成 id / 写 createdAt
+        SVC->>REPO: save(wish)
+        REPO->>DB: INSERT（child_id 由 DAO upsert 统一补）
+        DB-->>REPO: ok
+        REPO-->>SVC: ok
+        SVC->>SVC: 埋点 wish_created
+        SVC-->>WC: Wish
+        SVC->>BUS: onChanged() → state++
+        WC-->>WT: 关闭弹层
+        WT->>ST: 失效重算（watch 修订号）
+        ST-->>WT: 新卡片出现在树上 + 许愿日期 + 等待天数
+    end
+
+%% ════════════════════════════════════════════════════════════════
+%% A6.2 家长**三动作（对外）/ 四个可独立触发的操作（对内）** → 状态迁移 + 修订号自增（入口 = 家长端今日 tab）
+%% ════════════════════════════════════════════════════════════════
+sequenceDiagram
+    autonumber
+    participant P as 家长
+    participant PT as ParentTodayPage
+    participant WS as WishTreeSection
+    participant ED as WishTaskEditor
+    participant AS as ParentWishActionSheet
+    participant GREPO as WishTaskRepository
+    participant ST as wish_state.dart parent
+    participant SVC as WishOrchestrationService
+    participant REPO as WishRepository
+    participant DB as AppDatabase wishes
+    participant BUS as economyRevisionProvider
+
+    Note over PT,BUS: initState 新增 ref.listenManual(economyRevisionProvider, ...)（原本零订阅）
+    PT->>PT: ref.listenManual → 块体闭包调用 _reload()
+    PT->>ST: ref.watch(parentWishDeskProvider)
+    ST->>SVC: parentDeskList(now)
+    SVC->>REPO: byStatuses({pending, tagged, committed})
+    REPO->>DB: SELECT ... WHERE child_id = ? AND status IN (...)
+    DB-->>SVC: rows（等待天数降序，remindedAt 非空置顶）
+    SVC-->>WS: List<Wish>
+    WS-->>PT: 区块渲染（插入在 _PendingCheckInsCard 之后、兑换请求循环之前）
+
+    Note over P,SVC: —— 🔴 动作 ①-a 设定目标（对内：goalSet）——
+    P->>WS: 点「设定目标」
+    WS->>ED: 打开 WishTaskEditor「目标」页签
+    P->>ED: 选口径（专注分钟 / 任务条数）+ 填目标值
+    P->>ED: 确认
+    ED->>SVC: setGoal(wishId, mode, targetValue, now)
+    SVC->>SVC: ① _guardCurrentChild ② R1：**目标值只在设目标时写一次**
+    SVC->>DB: UPDATE wishes SET target_mode = ?, target_value = ?
+    DB-->>SVC: ok
+    SVC->>SVC: 事件 kind = goalSet + 埋点 wish_parent_action{action:goalSet}
+    Note over SVC,DB: 🔴 **progress_value 不变** ⇒ 进度不跳动；mode 0 下不给行为型任务选项（R8）
+    SVC->>BUS: onChanged() → state++
+
+    Note over P,SVC: —— 动作 ①-b 布置任务 / 追加任务（对内：taskAssigned）——
+    P->>WS: 点「布置任务」
+    WS->>ED: 打开 WishTaskEditor「任务」页签（下拉 + 自由输入范式）
+    P->>ED: 填任务名 + 重复(once/daily) + 是否需专注（🔴 v0.4：单次时长复用 tasks.minFocusMin）
+    P->>ED: 确认
+    ED->>SVC: assignTask(wishId, name, minFocusMin, repeatRule, requiresFocus, now)
+    SVC->>SVC: ① _guardCurrentChild ② R2 / R3：target_value 与 progress_value 均不变 ⇒ **进度不跳动**
+    SVC->>GREPO: assignWish(taskId, wishId, childId)
+    GREPO->>DB: UPDATE tasks SET wish_id = ?（🔴 愿望任务 = tasks 的一行）
+    DB-->>SVC: ok
+    SVC->>SVC: 事件 kind = taskAssigned + 埋点 wish_parent_action{action:taskAssigned}
+    Note over SVC,BUS: 🔴 v0.5.1：**不再发 `wish_task_assigned`**（语义重叠 = 重复上报）
+    SVC->>BUS: onChanged() → state++
+
+    Note over P,SVC: —— 动作 ② 直接实现（对内：fulfill）——
+    P->>WS: 点「直接实现」→ 确认
+    WS->>SVC: fulfill(id, reply, now)
+    SVC->>REPO: byId(id)
+    REPO->>DB: SELECT WHERE id = ? AND child_id = ?
+    DB-->>SVC: Wish
+    SVC->>SVC: _guardCurrentChild（跨孩子 → StateError）
+    SVC->>SVC: 迁移校验（pending/tagged/committed → fulfilled 合法）
+    SVC->>REPO: save(wish)
+    REPO->>DB: UPDATE（fulfilled_at / parent_reply / tree_slot=NULL / **fulfill_source='parentAction'**）
+    SVC->>SVC: 落达成池 + 计入累计达成数 + ✅ 计入里程碑盖章计数（fulfill_source='parentAction'）+ 埋点 wish_parent_action{action:fulfill}
+    Note over SVC,DB: 🔴 `fulfill_source` 3 值：`parentAction` / `progress` / `child`（同源常量）
+    SVC->>BUS: onChanged() → state++
+    BUS-->>ST: 修订号变化 → FutureProvider 重算
+    WS->>ST: 重算列表 → 该条移出「待处理」、进「已处理」
+
+    Note over P,SVC: —— 动作 ③ 贴标签 + 温柔回复（对内：tagged）——
+    P->>WS: 点「贴标签 + 回复」
+    WS->>AS: 打开 ParentWishActionSheet「标签 + 预设回复」页签
+    P->>AS: 选标签（6 个）+ 选预设回复（8 条，可编辑）+ 始终可见回信输入框
+    P->>AS: 确认
+    AS->>SVC: tagWithReply(id, tag, reply, now)
+    SVC->>SVC: 迁移校验（pending/committed → tagged）
+    SVC->>REPO: save(wish)
+    REPO->>DB: UPDATE（tag_key / tagged_at / parent_reply / parent_seen_at；tree_slot **保留**）
+    SVC->>SVC: 🔴 **仍在树上、仍占 1 个挂载位**；事件 kind = tagged + 埋点 wish_parent_action{action:tagged}
+    SVC->>BUS: onChanged() → state++
+    Note over SVC,BUS: 🔴 「承诺」「协商替代」= P1 首发**不实现**（枚举预留、入口不出现）
+
+%% ════════════════════════════════════════════════════════════════
+%% A6.3 跨端刷新（重点：修订号总线 + 已读键两半都要在图里）
+%% ════════════════════════════════════════════════════════════════
+sequenceDiagram
+    autonumber
+    participant P as 家长（家长端）
+    participant WS as WishTreeSection
+    participant SVC as WishOrchestrationService
+    participant DB as AppDatabase
+    participant BUS as economyRevisionProvider providers.dart:312
+    participant PST as wish_state.dart parent
+    participant CHILD as 孩子端外壳 child_shell_page
+    participant SP as SettingsStore
+    participant KEY as SharedPreferences wish_acked_event_ids
+    participant CST as wish_state.dart child
+
+    Note over P,BUS: 半 ① 修订号总线（让「缓存失效」）
+    P->>WS: 确认「直接实现」
+    WS->>SVC: fulfill(id, reply, now)
+    SVC->>DB: UPDATE wishes SET status=fulfilled, fulfilled_at=?, tree_slot=NULL
+    DB-->>SVC: ok
+    SVC-->>WS: Wish
+    WS->>BUS: state++ （自增）
+    BUS-->>PST: parentWishDeskProvider 重算（家长端列表即时更新）
+
+    Note over CHILD,KEY: 半 ② 已读键（让「提示只弹一次」）
+    P->>P: 退出家长天地（context.go('/')）
+    CHILD->>CHILD: RouteAware.didPopNext()
+    CHILD->>CST: pendingWishEventIdsProvider
+    CST->>DB: SELECT ... WHERE status IN (tagged, committed, fulfilled, replaced, abandoned)
+    DB-->>CST: rows
+    CST->>SP: acknowledgedWishEventIds(childId)
+    SP->>KEY: getStringList('wish_acked_event_ids_$childId')
+    KEY-->>SP: 已读集合含 w-old#fulfilled#1720000000000
+    SP-->>CST: 已读集合
+    CST->>CST: 候选事件 − 已读集合 = w-abc#tagged#1720000600000
+    Note over CST: 事件 id 格式 = <wishId>#<WishEventKind.name>#<eventAtMillis>
+    CST-->>CHILD: 未读事件列表
+    CHILD-->>P: 弹「爸爸妈妈回应了你的愿望」提示卡（复用 gold_notice_dialog 壳）
+    P->>CHILD: 点「知道啦」
+    CHILD->>SP: setAcknowledgedWishEventIds 合并写 w-abc#tagged#1720000600000
+    SP->>KEY: setStringList（合并写）
+    CHILD-->>P: 关闭
+
+    Note over BUS,CST: 半 ③ 孩子端数据刷新（修订号总线驱动）
+    Note over CST: wishTreeProvider / wishBadgeProvider 均 ref.watch(economyRevisionProvider)
+    BUS-->>CST: 修订号变化
+    CST->>DB: 重新查询树上 / 达成池
+    DB-->>CST: 最新数据
+    CST-->>CHILD: 愿望卡状态徽标更新 + 家长回信可见 + 花园徽标刷新
+
+%% ════════════════════════════════════════════════════════════════
+%% A6.4 达成池里程碑触发
+%% ════════════════════════════════════════════════════════════════
+sequenceDiagram
+    autonumber
+    participant P as 家长
+    participant SVC as WishOrchestrationService
+    participant REPO as WishRepository
+    participant DB as AppDatabase
+    participant ST as wish_state.dart child
+    participant WT as WishTreePage
+    participant POOL as WishPoolTile
+
+    P->>SVC: fulfill(id, reply, now)
+    SVC->>SVC: 写 fulfilledAt / 释放 treeSlot
+    SVC->>REPO: save(wish)
+    REPO->>DB: UPDATE wishes
+    SVC->>SVC: 埋点 wish_parent_action{action:fulfill}
+
+    SVC->>REPO: countStampedAchieved()（status = fulfilled AND fulfill_source != 'child'）
+    REPO->>DB: SELECT COUNT(*) WHERE status = fulfilled AND fulfill_source != 'child' AND child_id = ?
+    DB-->>SVC: stampedAchievedCount（🔴 盖章计数，不是累计达成数）
+    SVC->>SVC: milestone = poolMilestoneCount(stampedAchievedCount)
+    Note over SVC: 🔴 v0.5.1：**无树阶段 / 无形态切换**（许愿树 = 一棵静态大树）
+
+    Note over ST,WT: 孩子端回到许愿树页 / 花园页
+    ST->>SVC: poolWishes() / stampedAchievedCount()
+    SVC->>REPO: pool()
+    REPO->>DB: SELECT ... ORDER BY fulfilled_at DESC
+    DB-->>ST: rows
+    ST-->>WT: 池数据 + milestone
+    WT->>WT: 判定「本次是否新跨过里程碑」（与上次比较，防重复播演出）
+    alt 新跨过
+        WT-->>P: 播掉落演出（kWishDropDelayMs）+ 全屏庆祝 + 盖章「第 N 个愿望」（🔴 **不切树形态** —— 许愿树是一棵静态大树）
+    else 未跨过
+        WT-->>P: 仅更新列表（无演出）
+    end
+    WT->>POOL: 渲染条目（许愿日期 → 实现日期 + 等了 N 天 + 家长回信 + 标签缎带）
+
+%% ════════════════════════════════════════════════════════════════
+%% A6.5 家长设定目标 → 布置任务 → 孩子完成 → 进度推进 → 自动成真（🔴 两种口径）
+%% ════════════════════════════════════════════════════════════════
+sequenceDiagram
+    autonumber
+    participant P as 家长
+    participant PT as ParentTodayPage
+    participant WS as WishTreeSection
+    participant ED as WishTaskEditor
+    participant C as 孩子
+    participant WT as WishTreePage
+    participant SVC as WishOrchestrationService
+    participant PROG as WishProgressService
+    participant TREPO as WishTaskRepository
+    participant DB as AppDatabase tasks + check_ins + wishes
+    participant BUS as economyRevisionProvider
+
+    Note over P,SVC: —— 🔴 步骤 0：设定目标（只写一次）——
+    P->>WS: 点「设定目标」
+    WS->>ED: 打开 WishTaskEditor「目标」页签
+    P->>ED: 选口径 mode（0 专注分钟 / 1 任务条数）+ 填 targetValue
+    P->>ED: 确认
+    ED->>SVC: setGoal(wishId, mode, targetValue, now)
+    SVC->>DB: UPDATE wishes SET target_mode = ?, target_value = ?（progress_value 不动）
+    DB-->>SVC: ok
+    SVC->>SVC: 事件 kind = goalSet + 埋点 wish_parent_action{action:goalSet}
+    Note over SVC,DB: 🔴 R1：**目标值只写一次**（守卫 G12）；mode 0 ⇒ 只能布置专注型任务（R8）
+
+    Note over P,SVC: —— 步骤 1：布置任务（愿望任务 = tasks 的一行）——
+    P->>WS: 点「布置任务」
+    WS->>ED: 打开 WishTaskEditor「任务」页签
+    P->>ED: 填任务名 + 重复(once/daily) + 是否需专注
+    P->>ED: 确认
+    ED->>SVC: assignTask(wishId, name, minFocusMin, repeatRule, requiresFocus, now)
+    SVC->>SVC: ① _guardCurrentChild ② R2 / R3：target_value 与 progress_value 均不变
+    SVC->>TREPO: assignWish(taskId, wishId, childId)
+    TREPO->>DB: UPDATE tasks SET wish_id = ?（null = 普通成长任务）
+    DB-->>SVC: ok
+    SVC->>BUS: onChanged() → state++
+    Note over SVC,BUS: 🔴 事件 kind = taskAssigned + 埋点 wish_parent_action{action:taskAssigned}；🔴 **发阳光 = 0**（愿望任务不发阳光）
+
+    Note over C,DB: —— 路径 A：行为型（点「我做到了」）——
+    C->>WT: 许愿树页点「我做到了」
+    WT->>SVC: submitBehaviorTask(taskId, now)
+    SVC->>SVC: _serialized 闸门（并发三件套之 1）
+    SVC->>DB: INSERT INTO check_ins（status = pending，actual_focus_min = NULL）
+    DB-->>SVC: ok
+    SVC->>BUS: onChanged() → state++
+    Note over SVC,DB: 🔴 行为型**待核销**，此刻**不推进** progress_value（R14）
+
+    Note over P,DB: —— 家长核销 → 推进进度 → 可能自动成真 ——
+    P->>WS: 核销该任务
+    WS->>SVC: verifyTask(taskId, note, now)
+    SVC->>SVC: _serialized 闸门
+    SVC->>SVC: CAS 抢状态（pending → verified，resolveCheckInIfStatus 同款）
+    SVC->>DB: UPDATE check_ins SET status = 'verified', resolved_at = ?
+    DB-->>SVC: ok
+    SVC->>PROG: progressDeltaOf(mode, task, checkIn)
+    alt mode = 0（专注分钟）
+        PROG-->>SVC: delta = min(floor(actual_focus_min), task.min_focus_min)（🔴 封顶）
+    else mode = 1（任务条数）
+        PROG-->>SVC: delta = 1（🔴 每条已核销任务记 1）
+    end
+    SVC->>SVC: _advanceProgress(wish, delta)（🔴 同事务写 wishes.progress_value）
+    SVC->>PROG: compute(wish)
+    PROG->>PROG: ① 累计 ② percent = min(100, floor(progress/target*100)) ③ 分子单调不减
+    alt percent < 100
+        SVC->>SVC: 愿望仍在树上（「进行中」是**派生态**，不落列）
+    else percent == 100
+        SVC->>SVC: 自动成真（🔴 **同事务**）：写 fulfilledAt + 🔴 fulfill_source='progress' + 释放 treeSlot + 事件 kind=fulfilled
+        Note over SVC: 🔴 落池判据单点 = fruitStageOf(...) == WishFruitStage.ripe（不许另写 progressValue >= targetValue）
+    end
+    SVC->>BUS: onChanged() → state++
+    Note over SVC,BUS: 事件 id = wishId + kind + millis；进度推进**本身不产生事件**（除 taskVerified / fulfilled）
+
+%% ════════════════════════════════════════════════════════════════
+%% A6.7 孩子端三段结构 + 愿望收藏箱进出 + 愿望级「我做到了」（v0.5 / v0.5.1）
+%% ════════════════════════════════════════════════════════════════
+sequenceDiagram
+    autonumber
+    participant C as 孩子
+    participant WTP as WishTreePage
+    participant DET as WishCardDetail
+    participant BOX as WishCollectionBox
+    participant POOL as WishPoolTile
+    participant SVC as WishOrchestrationService
+    participant REPO as WishRepository
+    participant DB as AppDatabase wishes
+    participant BUS as economyRevisionProvider
+
+    Note over WTP,POOL: —— 三段（页内分段，不是 tab；同一批数据的三个过滤视图）——
+    WTP->>SVC: mountedWishes() / boxedWishes() / poolWishes()
+    SVC->>REPO: mounted() / boxed() / pool()
+    REPO->>DB: SELECT ... WHERE child_id = ?（树上 treeSlot 升序 / 收藏箱 created_at DESC / 达成池 fulfilled_at DESC）
+    DB-->>WTP: rows
+    Note over WTP: 段①树上：status ∈ {pending,tagged,committed} 且 released_at == null<br/>段②愿望收藏箱：released_at != null<br/>段③达成所愿池：status ∈ {fulfilled,replaced}
+
+    Note over C,SVC: —— 愿望级「我做到了」（🔴 与任务级不是同一个按钮）——
+    C->>DET: 点「我做到了」
+    DET->>C: 二次确认「确定是你自己做到的吗？」
+    C->>DET: 确认
+    DET->>SVC: selfFulfill(id, now)
+    SVC->>SVC: ① _guardCurrentChild ② 迁移校验（pending/tagged → fulfilled）
+    SVC->>SVC: 写 fulfilled_at + 🔴 fulfill_source = 'child'
+    Note over SVC,DB: 🔴 **不改 progress_value**、🔴 **不写 check_ins**<br/>🔴 **不计入里程碑盖章计数**（防刷）<br/>🔴 「已落池但 progress_value < target_value」= **合法组合**
+    SVC->>REPO: save(wish)
+    REPO->>DB: UPDATE wishes（status / fulfilled_at / fulfill_source / tree_slot=NULL）
+    DB-->>SVC: ok
+    SVC->>SVC: 事件 kind = selfFulfilled + 埋点 wish_fulfilled{source:child}
+    SVC->>BUS: onChanged() → state++
+    Note over POOL: 达成池条目显示「我自己做到的」徽标（🔴 不计入池顶章数）
+
+    Note over C,SVC: —— 放进愿望收藏箱（🔴 状态不变）——
+    C->>DET: 点「放进愿望收藏箱」
+    DET->>SVC: collectToBox(id, now)
+    SVC->>SVC: ① _guardCurrentChild ② **不改 status**、🔴 **不动 progress_value**
+    SVC->>REPO: save(wish)
+    REPO->>DB: UPDATE wishes SET released_at = ?, tree_slot = NULL
+    DB-->>SVC: ok
+    SVC->>SVC: 事件 kind = released（🔴 kind 名保留 v0.3 原名；UI 名 = 愿望收藏箱）
+    SVC->>BUS: onChanged() → state++
+    Note over BOX: 该条从树上消失、进入收藏箱段（🔴 进度保留、数据不删）
+
+    Note over C,SVC: —— 取回（🔴 先过挂载位额度校验）——
+    C->>BOX: 点「取回」
+    BOX->>SVC: restoreFromBox(id, now)
+    SVC->>SVC: quotaAllowsAddWishSlot(focusLevel, isPremium, currentCount)
+    alt 额度够
+        SVC->>REPO: save(wish)
+        REPO->>DB: UPDATE wishes SET released_at = NULL, tree_slot = ?（优先回填空位）
+        DB-->>SVC: ok
+        SVC->>SVC: 事件 kind = restored
+        SVC->>BUS: onChanged() → state++
+    else 额度不够
+        SVC-->>C: 拒绝 + 提示「树上已经挂满啦，先实现一个再取回」（🔴 C69：不删数据）
+    end
+
+%% ════════════════════════════════════════════════════════════════
+%% A6.8 家长端今日页：三段 + 折叠（互斥分段 · v0.5.1）
+%% ════════════════════════════════════════════════════════════════
+sequenceDiagram
+    autonumber
+    participant P as 家长
+    participant PT as ParentTodayPage
+    participant WS as WishTreeSection
+    participant ST as wish_state.dart parent
+    participant SVC as WishOrchestrationService
+    participant REPO as WishRepository
+    participant TREPO as WishTaskRepository
+    participant DB as AppDatabase wishes + tasks + check_ins
+
+    PT->>ST: ref.watch(parentWishDeskProvider)
+    ST->>SVC: parentDeskList(now)
+    SVC->>REPO: byStatuses({pending, tagged, committed})
+    REPO->>DB: SELECT ... WHERE child_id = ?
+    DB-->>SVC: rows
+    SVC->>TREPO: tasksOfWish(wishId) + checkInsOfTaskIds(taskIds)
+    TREPO->>DB: SELECT ... WHERE wish_id = ? / task_id IN (...)
+    DB-->>SVC: tasks + checkIns
+    SVC->>SVC: 对每条愿望算 sectionOf(wish, tasks, checkIns)
+    Note over SVC: ① 待我核销：hasPendingCheckIn(wish, checkIns)<br/>   存在 check_ins.status == pending<br/>② 待我安排：needsParentSetup(wish, tasks)<br/>   target_value == 0 **或** 名下无 tasks 行<br/>③ 进行中：isSelfProgressing(wish)<br/>   target_value > 0 且 0 < progress_value < target_value<br/>④ 折叠：collapsedWishes(all) 的其余（tagged / 收藏箱 / fulfilled / abandoned / replaced）
+    Note over SVC: 🔴 判定顺序固定 ① → ② → ③ → ④（互斥且完备）<br/>🔴 折叠计数 N = 折叠集合条数 = collapsedWishes(all).length<br/>🔴 返回值枚举 WishWorkCategory：pendingVerify / needsSetup / selfProgressing / collapsed
+    SVC-->>WS: 三段 + 折叠
+    WS-->>PT: 渲染：待我核销 / 待我安排 / 进行中 + 「查看全部 N 条」
+
+%% ════════════════════════════════════════════════════════════════
+%% A6.6 专注型愿望任务走 /focus?wishTask=（含与 ?task= 的互斥判定）
+%% ════════════════════════════════════════════════════════════════
+sequenceDiagram
+    autonumber
+    participant C as 孩子
+    participant WT as WishTreePage
+    participant CARD as WishTaskCard
+    participant CONF as showChildConfirmCard
+    participant RT as app_router.dart
+    participant FP as FocusPage
+    participant FS as FocusEngine
+    participant SVC as WishOrchestrationService
+    participant PROG as WishProgressService
+    participant TREPO as WishTaskRepository
+    participant DB as AppDatabase tasks + check_ins + wishes
+    participant BUS as economyRevisionProvider
+
+    C->>WT: 许愿树页看到专注型愿望任务卡（🌟 徽标 + 归属愿望短名）
+    C->>CARD: 点「去专注」
+    CARD->>CONF: 先弹确认卡（复用既有范式）
+    C->>CONF: 点「开始」
+    CONF->>RT: context.go('/focus?minutes=15&dnd=1&wishTask=<既有 tasks.id>')
+    RT->>RT: 🔴 互斥判定：queryParameters['task'] 与 ['wishTask'] 同时存在？
+    alt 两个都带
+        RT->>RT: 走 ?task=（既有行为逐字节不变）+ wishTaskId 丢弃 + warning + 埋点 wish_focus_conflict
+        RT->>FP: FocusPage(taskId=<既有 task>)
+    else 只有 wishTask
+        RT->>FP: FocusPage(wishTaskId=<既有 tasks.id>)
+    end
+    FP->>FS: 专注进行中（既有流程不变）
+    FS-->>FP: 结束 → settle(outcome, start, end, plannedMin)
+    FP->>FP: settlement = FocusSettlement（真实落库 session，sessionId 来自结算）
+    FP->>SVC: submitFocusTask(taskId, sessionId=settlement.sessionId, minutes=有效分钟, now)
+    SVC->>SVC: ① isValidFocusSession 判定（focus_validity.dart 单点真源）—— 无效专注**不推进**
+    SVC->>SVC: ② _serialized 闸门 ③ sessionAlreadyUsed 守卫（同 session 不得二次结算）
+    SVC->>DB: INSERT INTO check_ins（status = verified，actual_focus_min = 实际分钟，session_id = ?）
+    DB-->>SVC: ok
+    SVC->>PROG: progressDeltaOf(mode, task, checkIn)
+    alt mode = 0（专注分钟）
+        PROG-->>SVC: delta = floor(actual_focus_min)
+    else mode = 1（任务条数）
+        PROG-->>SVC: delta = 1（🔴 本口径按**条数**计，不按分钟计）
+    end
+    SVC->>SVC: _advanceProgress(wish, delta)（🔴 同事务写 wishes.progress_value）
+    PROG-->>SVC: percent
+    SVC->>BUS: onChanged() → state++
+    Note over SVC,BUS: 🔴 专注型**自动完成免核销**（R13）：核销通过即计入 progress_value
+    Note over SVC,PROG: 🔴 **经济隔离 5 处**：不发阳光 / 不参与完美日 / 不进周月池 / 不计入今日必做 / 专注分钟单独累加到愿望进度（守卫 G14）
+    Note over SVC,DB: 🔴 **判定单点**：task.wishId != null ⇒ 走唯一 helper `_isWishLinkedTask(task)`（禁止多处各写一遍）
+    FP-->>C: 结算页（既有流程）+ 许愿树进度条刷新

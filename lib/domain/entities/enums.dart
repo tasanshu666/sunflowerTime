@@ -216,3 +216,26 @@ const List<RewardContentCategory> kRewardContentCategoryOrder =
   RewardContentCategory.entertainment,
   RewardContentCategory.other,
 ];
+
+/// 许愿状态机（许愿树增量架构设计 **A19.1 · v0.3 定稿**）。
+///
+/// 🔴 **index 即落库值，一旦发布不可改**（老库行按 index 解释）。
+/// 🔴 INDEX ORDER IS FROZEN (v0.3, PRD W8.1 order; v0.5 只重写语义、index 不动):
+///    pending(0) / tagged(1) / committed(2) / fulfilled(3) / replaced(4) / abandoned(5)
+///    - `declined` was REPLACED by `tagged` (PRD W5.3); the whole order changed.
+///    - v0.5（玄参口述重定义）：只重述语义，index 一个都没动。
+///    - Future members may only be APPENDED at the tail; never re-order.
+///
+/// 🔴 本枚举**不复用** `RequestStatus`（后者含 `queued` 排队放行 / 阳光原路返回等
+/// 对愿望毫无意义的语义，见 PRD W4.3 核对结论）。
+///
+/// 🔴 `committed` / `replaced` 是 P1 预留（PRD W20.2）：枚举保留，首发**不接线**
+///（不提供入口、状态图保留边但不实现）⇒ 上线后**不得借机重排**。
+enum WishStatus {
+  pending, // 0 · 待家长回应 —— 树上 · 占挂载位
+  tagged, // 1 · 家长已标注「暂时做不到」，仍挂在树上 —— 树上 · 占挂载位
+  committed, // 2 · 家长已承诺兑现日期 —— P1（预留，首发不接线）—— 树上 · 占挂载位
+  fulfilled, // 3 · 达成落地 —— 达成所愿池 · 不占挂载位
+  replaced, // 4 · 已协商替换 —— P1（预留）—— 达成所愿池 · 不占挂载位
+  abandoned, // 5 · 孩子「换一个愿望」换掉 —— 不进池 · 不占挂载位
+}

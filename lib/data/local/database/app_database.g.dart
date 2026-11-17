@@ -5607,6 +5607,11 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant(kChildIdDefault));
+  static const VerificationMeta _wishIdMeta = const VerificationMeta('wishId');
+  @override
+  late final GeneratedColumn<String> wishId = GeneratedColumn<String>(
+      'wish_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -5619,7 +5624,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         repeatRule,
         isCustom,
         category,
-        childId
+        childId,
+        wishId
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5694,6 +5700,10 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       context.handle(_childIdMeta,
           childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
     }
+    if (data.containsKey('wish_id')) {
+      context.handle(_wishIdMeta,
+          wishId.isAcceptableOrUnknown(data['wish_id']!, _wishIdMeta));
+    }
     return context;
   }
 
@@ -5725,6 +5735,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
           .read(DriftSqlType.int, data['${effectivePrefix}category'])!,
       childId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
+      wishId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}wish_id']),
     );
   }
 
@@ -5746,6 +5758,7 @@ class Task extends DataClass implements Insertable<Task> {
   final bool isCustom;
   final int category;
   final String childId;
+  final String? wishId;
   const Task(
       {required this.id,
       required this.name,
@@ -5757,7 +5770,8 @@ class Task extends DataClass implements Insertable<Task> {
       this.repeatRule,
       required this.isCustom,
       required this.category,
-      required this.childId});
+      required this.childId,
+      this.wishId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -5776,6 +5790,9 @@ class Task extends DataClass implements Insertable<Task> {
     map['is_custom'] = Variable<bool>(isCustom);
     map['category'] = Variable<int>(category);
     map['child_id'] = Variable<String>(childId);
+    if (!nullToAbsent || wishId != null) {
+      map['wish_id'] = Variable<String>(wishId);
+    }
     return map;
   }
 
@@ -5796,6 +5813,8 @@ class Task extends DataClass implements Insertable<Task> {
       isCustom: Value(isCustom),
       category: Value(category),
       childId: Value(childId),
+      wishId:
+          wishId == null && nullToAbsent ? const Value.absent() : Value(wishId),
     );
   }
 
@@ -5814,6 +5833,7 @@ class Task extends DataClass implements Insertable<Task> {
       isCustom: serializer.fromJson<bool>(json['isCustom']),
       category: serializer.fromJson<int>(json['category']),
       childId: serializer.fromJson<String>(json['childId']),
+      wishId: serializer.fromJson<String?>(json['wishId']),
     );
   }
   @override
@@ -5831,6 +5851,7 @@ class Task extends DataClass implements Insertable<Task> {
       'isCustom': serializer.toJson<bool>(isCustom),
       'category': serializer.toJson<int>(category),
       'childId': serializer.toJson<String>(childId),
+      'wishId': serializer.toJson<String?>(wishId),
     };
   }
 
@@ -5845,7 +5866,8 @@ class Task extends DataClass implements Insertable<Task> {
           Value<String?> repeatRule = const Value.absent(),
           bool? isCustom,
           int? category,
-          String? childId}) =>
+          String? childId,
+          Value<String?> wishId = const Value.absent()}) =>
       Task(
         id: id ?? this.id,
         name: name ?? this.name,
@@ -5859,6 +5881,7 @@ class Task extends DataClass implements Insertable<Task> {
         isCustom: isCustom ?? this.isCustom,
         category: category ?? this.category,
         childId: childId ?? this.childId,
+        wishId: wishId.present ? wishId.value : this.wishId,
       );
   Task copyWithCompanion(TasksCompanion data) {
     return Task(
@@ -5881,6 +5904,7 @@ class Task extends DataClass implements Insertable<Task> {
       isCustom: data.isCustom.present ? data.isCustom.value : this.isCustom,
       category: data.category.present ? data.category.value : this.category,
       childId: data.childId.present ? data.childId.value : this.childId,
+      wishId: data.wishId.present ? data.wishId.value : this.wishId,
     );
   }
 
@@ -5897,7 +5921,8 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('repeatRule: $repeatRule, ')
           ..write('isCustom: $isCustom, ')
           ..write('category: $category, ')
-          ..write('childId: $childId')
+          ..write('childId: $childId, ')
+          ..write('wishId: $wishId')
           ..write(')'))
         .toString();
   }
@@ -5914,7 +5939,8 @@ class Task extends DataClass implements Insertable<Task> {
       repeatRule,
       isCustom,
       category,
-      childId);
+      childId,
+      wishId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5929,7 +5955,8 @@ class Task extends DataClass implements Insertable<Task> {
           other.repeatRule == this.repeatRule &&
           other.isCustom == this.isCustom &&
           other.category == this.category &&
-          other.childId == this.childId);
+          other.childId == this.childId &&
+          other.wishId == this.wishId);
 }
 
 class TasksCompanion extends UpdateCompanion<Task> {
@@ -5944,6 +5971,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<bool> isCustom;
   final Value<int> category;
   final Value<String> childId;
+  final Value<String?> wishId;
   final Value<int> rowid;
   const TasksCompanion({
     this.id = const Value.absent(),
@@ -5957,6 +5985,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.isCustom = const Value.absent(),
     this.category = const Value.absent(),
     this.childId = const Value.absent(),
+    this.wishId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TasksCompanion.insert({
@@ -5971,6 +6000,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     required bool isCustom,
     this.category = const Value.absent(),
     this.childId = const Value.absent(),
+    this.wishId = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -5989,6 +6019,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<bool>? isCustom,
     Expression<int>? category,
     Expression<String>? childId,
+    Expression<String>? wishId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6003,6 +6034,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (isCustom != null) 'is_custom': isCustom,
       if (category != null) 'category': category,
       if (childId != null) 'child_id': childId,
+      if (wishId != null) 'wish_id': wishId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6019,6 +6051,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       Value<bool>? isCustom,
       Value<int>? category,
       Value<String>? childId,
+      Value<String?>? wishId,
       Value<int>? rowid}) {
     return TasksCompanion(
       id: id ?? this.id,
@@ -6032,6 +6065,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       isCustom: isCustom ?? this.isCustom,
       category: category ?? this.category,
       childId: childId ?? this.childId,
+      wishId: wishId ?? this.wishId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6072,6 +6106,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     if (childId.present) {
       map['child_id'] = Variable<String>(childId.value);
     }
+    if (wishId.present) {
+      map['wish_id'] = Variable<String>(wishId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6092,6 +6129,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('isCustom: $isCustom, ')
           ..write('category: $category, ')
           ..write('childId: $childId, ')
+          ..write('wishId: $wishId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -8014,6 +8052,1090 @@ class ChildProfilesCompanion extends UpdateCompanion<ChildProfileRow> {
   }
 }
 
+class $WishesTable extends Wishes with TableInfo<$WishesTable, WishRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WishesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _childIdMeta =
+      const VerificationMeta('childId');
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+      'child_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(kChildIdDefault));
+  static const VerificationMeta _wishTextMeta =
+      const VerificationMeta('wishText');
+  @override
+  late final GeneratedColumn<String> wishText = GeneratedColumn<String>(
+      'text', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _categoryMeta =
+      const VerificationMeta('category');
+  @override
+  late final GeneratedColumn<int> category = GeneratedColumn<int>(
+      'category', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<int> status = GeneratedColumn<int>(
+      'status', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _committedAtMeta =
+      const VerificationMeta('committedAt');
+  @override
+  late final GeneratedColumn<DateTime> committedAt = GeneratedColumn<DateTime>(
+      'committed_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _commitDueDateMeta =
+      const VerificationMeta('commitDueDate');
+  @override
+  late final GeneratedColumn<DateTime> commitDueDate =
+      GeneratedColumn<DateTime>('commit_due_date', aliasedName, true,
+          type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _fulfilledAtMeta =
+      const VerificationMeta('fulfilledAt');
+  @override
+  late final GeneratedColumn<DateTime> fulfilledAt = GeneratedColumn<DateTime>(
+      'fulfilled_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _fulfillSourceMeta =
+      const VerificationMeta('fulfillSource');
+  @override
+  late final GeneratedColumn<String> fulfillSource = GeneratedColumn<String>(
+      'fulfill_source', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _abandonedAtMeta =
+      const VerificationMeta('abandonedAt');
+  @override
+  late final GeneratedColumn<DateTime> abandonedAt = GeneratedColumn<DateTime>(
+      'abandoned_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _parentSeenAtMeta =
+      const VerificationMeta('parentSeenAt');
+  @override
+  late final GeneratedColumn<DateTime> parentSeenAt = GeneratedColumn<DateTime>(
+      'parent_seen_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _remindedAtMeta =
+      const VerificationMeta('remindedAt');
+  @override
+  late final GeneratedColumn<DateTime> remindedAt = GeneratedColumn<DateTime>(
+      'reminded_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _parentReplyMeta =
+      const VerificationMeta('parentReply');
+  @override
+  late final GeneratedColumn<String> parentReply = GeneratedColumn<String>(
+      'parent_reply', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _replacedTextMeta =
+      const VerificationMeta('replacedText');
+  @override
+  late final GeneratedColumn<String> replacedText = GeneratedColumn<String>(
+      'replaced_text', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _treeSlotMeta =
+      const VerificationMeta('treeSlot');
+  @override
+  late final GeneratedColumn<int> treeSlot = GeneratedColumn<int>(
+      'tree_slot', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _targetModeMeta =
+      const VerificationMeta('targetMode');
+  @override
+  late final GeneratedColumn<int> targetMode = GeneratedColumn<int>(
+      'target_mode', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _targetValueMeta =
+      const VerificationMeta('targetValue');
+  @override
+  late final GeneratedColumn<int> targetValue = GeneratedColumn<int>(
+      'target_value', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _progressValueMeta =
+      const VerificationMeta('progressValue');
+  @override
+  late final GeneratedColumn<int> progressValue = GeneratedColumn<int>(
+      'progress_value', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _tagKeyMeta = const VerificationMeta('tagKey');
+  @override
+  late final GeneratedColumn<String> tagKey = GeneratedColumn<String>(
+      'tag_key', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _taggedAtMeta =
+      const VerificationMeta('taggedAt');
+  @override
+  late final GeneratedColumn<DateTime> taggedAt = GeneratedColumn<DateTime>(
+      'tagged_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _releasedAtMeta =
+      const VerificationMeta('releasedAt');
+  @override
+  late final GeneratedColumn<DateTime> releasedAt = GeneratedColumn<DateTime>(
+      'released_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        childId,
+        wishText,
+        category,
+        status,
+        createdAt,
+        committedAt,
+        commitDueDate,
+        fulfilledAt,
+        fulfillSource,
+        abandonedAt,
+        parentSeenAt,
+        remindedAt,
+        parentReply,
+        replacedText,
+        treeSlot,
+        targetMode,
+        targetValue,
+        progressValue,
+        tagKey,
+        taggedAt,
+        releasedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'wishes';
+  @override
+  VerificationContext validateIntegrity(Insertable<WishRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('child_id')) {
+      context.handle(_childIdMeta,
+          childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta));
+    }
+    if (data.containsKey('text')) {
+      context.handle(_wishTextMeta,
+          wishText.isAcceptableOrUnknown(data['text']!, _wishTextMeta));
+    } else if (isInserting) {
+      context.missing(_wishTextMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(_categoryMeta,
+          category.isAcceptableOrUnknown(data['category']!, _categoryMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('committed_at')) {
+      context.handle(
+          _committedAtMeta,
+          committedAt.isAcceptableOrUnknown(
+              data['committed_at']!, _committedAtMeta));
+    }
+    if (data.containsKey('commit_due_date')) {
+      context.handle(
+          _commitDueDateMeta,
+          commitDueDate.isAcceptableOrUnknown(
+              data['commit_due_date']!, _commitDueDateMeta));
+    }
+    if (data.containsKey('fulfilled_at')) {
+      context.handle(
+          _fulfilledAtMeta,
+          fulfilledAt.isAcceptableOrUnknown(
+              data['fulfilled_at']!, _fulfilledAtMeta));
+    }
+    if (data.containsKey('fulfill_source')) {
+      context.handle(
+          _fulfillSourceMeta,
+          fulfillSource.isAcceptableOrUnknown(
+              data['fulfill_source']!, _fulfillSourceMeta));
+    }
+    if (data.containsKey('abandoned_at')) {
+      context.handle(
+          _abandonedAtMeta,
+          abandonedAt.isAcceptableOrUnknown(
+              data['abandoned_at']!, _abandonedAtMeta));
+    }
+    if (data.containsKey('parent_seen_at')) {
+      context.handle(
+          _parentSeenAtMeta,
+          parentSeenAt.isAcceptableOrUnknown(
+              data['parent_seen_at']!, _parentSeenAtMeta));
+    }
+    if (data.containsKey('reminded_at')) {
+      context.handle(
+          _remindedAtMeta,
+          remindedAt.isAcceptableOrUnknown(
+              data['reminded_at']!, _remindedAtMeta));
+    }
+    if (data.containsKey('parent_reply')) {
+      context.handle(
+          _parentReplyMeta,
+          parentReply.isAcceptableOrUnknown(
+              data['parent_reply']!, _parentReplyMeta));
+    }
+    if (data.containsKey('replaced_text')) {
+      context.handle(
+          _replacedTextMeta,
+          replacedText.isAcceptableOrUnknown(
+              data['replaced_text']!, _replacedTextMeta));
+    }
+    if (data.containsKey('tree_slot')) {
+      context.handle(_treeSlotMeta,
+          treeSlot.isAcceptableOrUnknown(data['tree_slot']!, _treeSlotMeta));
+    }
+    if (data.containsKey('target_mode')) {
+      context.handle(
+          _targetModeMeta,
+          targetMode.isAcceptableOrUnknown(
+              data['target_mode']!, _targetModeMeta));
+    }
+    if (data.containsKey('target_value')) {
+      context.handle(
+          _targetValueMeta,
+          targetValue.isAcceptableOrUnknown(
+              data['target_value']!, _targetValueMeta));
+    }
+    if (data.containsKey('progress_value')) {
+      context.handle(
+          _progressValueMeta,
+          progressValue.isAcceptableOrUnknown(
+              data['progress_value']!, _progressValueMeta));
+    }
+    if (data.containsKey('tag_key')) {
+      context.handle(_tagKeyMeta,
+          tagKey.isAcceptableOrUnknown(data['tag_key']!, _tagKeyMeta));
+    }
+    if (data.containsKey('tagged_at')) {
+      context.handle(_taggedAtMeta,
+          taggedAt.isAcceptableOrUnknown(data['tagged_at']!, _taggedAtMeta));
+    }
+    if (data.containsKey('released_at')) {
+      context.handle(
+          _releasedAtMeta,
+          releasedAt.isAcceptableOrUnknown(
+              data['released_at']!, _releasedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WishRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WishRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      childId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}child_id'])!,
+      wishText: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}text'])!,
+      category: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}category'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}status'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      committedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}committed_at']),
+      commitDueDate: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}commit_due_date']),
+      fulfilledAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}fulfilled_at']),
+      fulfillSource: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}fulfill_source']),
+      abandonedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}abandoned_at']),
+      parentSeenAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}parent_seen_at']),
+      remindedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}reminded_at']),
+      parentReply: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}parent_reply']),
+      replacedText: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}replaced_text']),
+      treeSlot: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}tree_slot']),
+      targetMode: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}target_mode'])!,
+      targetValue: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}target_value'])!,
+      progressValue: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}progress_value'])!,
+      tagKey: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}tag_key']),
+      taggedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}tagged_at']),
+      releasedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}released_at']),
+    );
+  }
+
+  @override
+  $WishesTable createAlias(String alias) {
+    return $WishesTable(attachedDatabase, alias);
+  }
+}
+
+class WishRow extends DataClass implements Insertable<WishRow> {
+  /// 愿望 id（uuid；主键）。
+  final String id;
+
+  /// 归属孩子（C90 期 2 口径；写入落当前孩子）。
+  final String childId;
+
+  /// 愿望原文（孩子自由输入；trim 后长度 ∈ [kWishTextMinLength, kWishTextMaxLength]，
+  /// 按 Unicode 码点计 —— emoji 不虚高）。
+  ///
+  /// 🔴 Drift 字段名 = `wishText`，**DB 列名 = `text`**（见类注释的 drift 冲突裁决）。
+  final String wishText;
+
+  /// 分类标签（[WishCategory].index；0 = other = 历史安全默认）。
+  final int category;
+
+  /// 状态机（[WishStatus].index；6 态 · index 一次定全）。
+  final int status;
+
+  /// **许愿时间**（孩子提交那一刻）。UI 展示「X 月 X 日许的」。
+  final DateTime createdAt;
+
+  /// 家长**承诺**时间（`status=committed` 时写；之后转 fulfilled 仍保留）。
+  final DateTime? committedAt;
+
+  /// 家长承诺的**兑现日期**（可空；`status=committed` 时可写）。
+  final DateTime? commitDueDate;
+
+  /// **实现时间**（`status=fulfilled / replaced` 时写）。
+  final DateTime? fulfilledAt;
+
+  /// 达成触发方（3 值：`parentAction` / `progress` / `child`）。
+  /// 🔴 字面量只许出现在 `prd_params.dart` 的三个 `kWishFulfillSource*` 常量里。
+  final String? fulfillSource;
+
+  /// 孩子**换掉**时间（`status=abandoned` 时写）。
+  final DateTime? abandonedAt;
+
+  /// 家长最后一次**查看**该愿望的时间（「家长还没看你的愿望」红点判据）。
+  final DateTime? parentSeenAt;
+
+  /// 孩子「已提醒家长看」的时间（家长端列表置顶判据）。
+  final DateTime? remindedAt;
+
+  /// **家长回信**（孩子端卡片背面展示；可空 —— 空态展示占位文案，不隐藏背面区）。
+  final String? parentReply;
+
+  /// 协商替代后的**新愿望文本**（`status=replaced` 时写；原文本保留在 [wishText]）。
+  final String? replacedText;
+
+  /// 挂在树上的**槽位序号**（0 基逻辑序号）。
+  /// `null` = **不在树上**（fulfilled / replaced / abandoned）。
+  final int? treeSlot;
+
+  /// 目标口径（`WishGoalMode`.index：0 = 专注分钟 / 1 = 任务条数）。
+  /// 🔴 **不可空、默认 0**（v0.2.5）。
+  final int targetMode;
+
+  /// 目标值（单位随 mode）；🔴 **`0` = 未设定目标**（🔴 这是「未设目标」的**唯一判据**）。
+  final int targetValue;
+
+  /// 已完成量（单位随 mode）；**单调不减**。
+  final int progressValue;
+
+  /// 标签 key（`WishTag.name`）。
+  final String? tagKey;
+
+  /// 贴标签时间。
+  final DateTime? taggedAt;
+
+  /// 「放进愿望收藏箱」时间（**兼作树上态标记**：`!= null` ⇒ 不计入挂载数）。
+  final DateTime? releasedAt;
+  const WishRow(
+      {required this.id,
+      required this.childId,
+      required this.wishText,
+      required this.category,
+      required this.status,
+      required this.createdAt,
+      this.committedAt,
+      this.commitDueDate,
+      this.fulfilledAt,
+      this.fulfillSource,
+      this.abandonedAt,
+      this.parentSeenAt,
+      this.remindedAt,
+      this.parentReply,
+      this.replacedText,
+      this.treeSlot,
+      required this.targetMode,
+      required this.targetValue,
+      required this.progressValue,
+      this.tagKey,
+      this.taggedAt,
+      this.releasedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['child_id'] = Variable<String>(childId);
+    map['text'] = Variable<String>(wishText);
+    map['category'] = Variable<int>(category);
+    map['status'] = Variable<int>(status);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || committedAt != null) {
+      map['committed_at'] = Variable<DateTime>(committedAt);
+    }
+    if (!nullToAbsent || commitDueDate != null) {
+      map['commit_due_date'] = Variable<DateTime>(commitDueDate);
+    }
+    if (!nullToAbsent || fulfilledAt != null) {
+      map['fulfilled_at'] = Variable<DateTime>(fulfilledAt);
+    }
+    if (!nullToAbsent || fulfillSource != null) {
+      map['fulfill_source'] = Variable<String>(fulfillSource);
+    }
+    if (!nullToAbsent || abandonedAt != null) {
+      map['abandoned_at'] = Variable<DateTime>(abandonedAt);
+    }
+    if (!nullToAbsent || parentSeenAt != null) {
+      map['parent_seen_at'] = Variable<DateTime>(parentSeenAt);
+    }
+    if (!nullToAbsent || remindedAt != null) {
+      map['reminded_at'] = Variable<DateTime>(remindedAt);
+    }
+    if (!nullToAbsent || parentReply != null) {
+      map['parent_reply'] = Variable<String>(parentReply);
+    }
+    if (!nullToAbsent || replacedText != null) {
+      map['replaced_text'] = Variable<String>(replacedText);
+    }
+    if (!nullToAbsent || treeSlot != null) {
+      map['tree_slot'] = Variable<int>(treeSlot);
+    }
+    map['target_mode'] = Variable<int>(targetMode);
+    map['target_value'] = Variable<int>(targetValue);
+    map['progress_value'] = Variable<int>(progressValue);
+    if (!nullToAbsent || tagKey != null) {
+      map['tag_key'] = Variable<String>(tagKey);
+    }
+    if (!nullToAbsent || taggedAt != null) {
+      map['tagged_at'] = Variable<DateTime>(taggedAt);
+    }
+    if (!nullToAbsent || releasedAt != null) {
+      map['released_at'] = Variable<DateTime>(releasedAt);
+    }
+    return map;
+  }
+
+  WishesCompanion toCompanion(bool nullToAbsent) {
+    return WishesCompanion(
+      id: Value(id),
+      childId: Value(childId),
+      wishText: Value(wishText),
+      category: Value(category),
+      status: Value(status),
+      createdAt: Value(createdAt),
+      committedAt: committedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(committedAt),
+      commitDueDate: commitDueDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(commitDueDate),
+      fulfilledAt: fulfilledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fulfilledAt),
+      fulfillSource: fulfillSource == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fulfillSource),
+      abandonedAt: abandonedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(abandonedAt),
+      parentSeenAt: parentSeenAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentSeenAt),
+      remindedAt: remindedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remindedAt),
+      parentReply: parentReply == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentReply),
+      replacedText: replacedText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replacedText),
+      treeSlot: treeSlot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(treeSlot),
+      targetMode: Value(targetMode),
+      targetValue: Value(targetValue),
+      progressValue: Value(progressValue),
+      tagKey:
+          tagKey == null && nullToAbsent ? const Value.absent() : Value(tagKey),
+      taggedAt: taggedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taggedAt),
+      releasedAt: releasedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(releasedAt),
+    );
+  }
+
+  factory WishRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WishRow(
+      id: serializer.fromJson<String>(json['id']),
+      childId: serializer.fromJson<String>(json['childId']),
+      wishText: serializer.fromJson<String>(json['wishText']),
+      category: serializer.fromJson<int>(json['category']),
+      status: serializer.fromJson<int>(json['status']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      committedAt: serializer.fromJson<DateTime?>(json['committedAt']),
+      commitDueDate: serializer.fromJson<DateTime?>(json['commitDueDate']),
+      fulfilledAt: serializer.fromJson<DateTime?>(json['fulfilledAt']),
+      fulfillSource: serializer.fromJson<String?>(json['fulfillSource']),
+      abandonedAt: serializer.fromJson<DateTime?>(json['abandonedAt']),
+      parentSeenAt: serializer.fromJson<DateTime?>(json['parentSeenAt']),
+      remindedAt: serializer.fromJson<DateTime?>(json['remindedAt']),
+      parentReply: serializer.fromJson<String?>(json['parentReply']),
+      replacedText: serializer.fromJson<String?>(json['replacedText']),
+      treeSlot: serializer.fromJson<int?>(json['treeSlot']),
+      targetMode: serializer.fromJson<int>(json['targetMode']),
+      targetValue: serializer.fromJson<int>(json['targetValue']),
+      progressValue: serializer.fromJson<int>(json['progressValue']),
+      tagKey: serializer.fromJson<String?>(json['tagKey']),
+      taggedAt: serializer.fromJson<DateTime?>(json['taggedAt']),
+      releasedAt: serializer.fromJson<DateTime?>(json['releasedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'childId': serializer.toJson<String>(childId),
+      'wishText': serializer.toJson<String>(wishText),
+      'category': serializer.toJson<int>(category),
+      'status': serializer.toJson<int>(status),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'committedAt': serializer.toJson<DateTime?>(committedAt),
+      'commitDueDate': serializer.toJson<DateTime?>(commitDueDate),
+      'fulfilledAt': serializer.toJson<DateTime?>(fulfilledAt),
+      'fulfillSource': serializer.toJson<String?>(fulfillSource),
+      'abandonedAt': serializer.toJson<DateTime?>(abandonedAt),
+      'parentSeenAt': serializer.toJson<DateTime?>(parentSeenAt),
+      'remindedAt': serializer.toJson<DateTime?>(remindedAt),
+      'parentReply': serializer.toJson<String?>(parentReply),
+      'replacedText': serializer.toJson<String?>(replacedText),
+      'treeSlot': serializer.toJson<int?>(treeSlot),
+      'targetMode': serializer.toJson<int>(targetMode),
+      'targetValue': serializer.toJson<int>(targetValue),
+      'progressValue': serializer.toJson<int>(progressValue),
+      'tagKey': serializer.toJson<String?>(tagKey),
+      'taggedAt': serializer.toJson<DateTime?>(taggedAt),
+      'releasedAt': serializer.toJson<DateTime?>(releasedAt),
+    };
+  }
+
+  WishRow copyWith(
+          {String? id,
+          String? childId,
+          String? wishText,
+          int? category,
+          int? status,
+          DateTime? createdAt,
+          Value<DateTime?> committedAt = const Value.absent(),
+          Value<DateTime?> commitDueDate = const Value.absent(),
+          Value<DateTime?> fulfilledAt = const Value.absent(),
+          Value<String?> fulfillSource = const Value.absent(),
+          Value<DateTime?> abandonedAt = const Value.absent(),
+          Value<DateTime?> parentSeenAt = const Value.absent(),
+          Value<DateTime?> remindedAt = const Value.absent(),
+          Value<String?> parentReply = const Value.absent(),
+          Value<String?> replacedText = const Value.absent(),
+          Value<int?> treeSlot = const Value.absent(),
+          int? targetMode,
+          int? targetValue,
+          int? progressValue,
+          Value<String?> tagKey = const Value.absent(),
+          Value<DateTime?> taggedAt = const Value.absent(),
+          Value<DateTime?> releasedAt = const Value.absent()}) =>
+      WishRow(
+        id: id ?? this.id,
+        childId: childId ?? this.childId,
+        wishText: wishText ?? this.wishText,
+        category: category ?? this.category,
+        status: status ?? this.status,
+        createdAt: createdAt ?? this.createdAt,
+        committedAt: committedAt.present ? committedAt.value : this.committedAt,
+        commitDueDate:
+            commitDueDate.present ? commitDueDate.value : this.commitDueDate,
+        fulfilledAt: fulfilledAt.present ? fulfilledAt.value : this.fulfilledAt,
+        fulfillSource:
+            fulfillSource.present ? fulfillSource.value : this.fulfillSource,
+        abandonedAt: abandonedAt.present ? abandonedAt.value : this.abandonedAt,
+        parentSeenAt:
+            parentSeenAt.present ? parentSeenAt.value : this.parentSeenAt,
+        remindedAt: remindedAt.present ? remindedAt.value : this.remindedAt,
+        parentReply: parentReply.present ? parentReply.value : this.parentReply,
+        replacedText:
+            replacedText.present ? replacedText.value : this.replacedText,
+        treeSlot: treeSlot.present ? treeSlot.value : this.treeSlot,
+        targetMode: targetMode ?? this.targetMode,
+        targetValue: targetValue ?? this.targetValue,
+        progressValue: progressValue ?? this.progressValue,
+        tagKey: tagKey.present ? tagKey.value : this.tagKey,
+        taggedAt: taggedAt.present ? taggedAt.value : this.taggedAt,
+        releasedAt: releasedAt.present ? releasedAt.value : this.releasedAt,
+      );
+  WishRow copyWithCompanion(WishesCompanion data) {
+    return WishRow(
+      id: data.id.present ? data.id.value : this.id,
+      childId: data.childId.present ? data.childId.value : this.childId,
+      wishText: data.wishText.present ? data.wishText.value : this.wishText,
+      category: data.category.present ? data.category.value : this.category,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      committedAt:
+          data.committedAt.present ? data.committedAt.value : this.committedAt,
+      commitDueDate: data.commitDueDate.present
+          ? data.commitDueDate.value
+          : this.commitDueDate,
+      fulfilledAt:
+          data.fulfilledAt.present ? data.fulfilledAt.value : this.fulfilledAt,
+      fulfillSource: data.fulfillSource.present
+          ? data.fulfillSource.value
+          : this.fulfillSource,
+      abandonedAt:
+          data.abandonedAt.present ? data.abandonedAt.value : this.abandonedAt,
+      parentSeenAt: data.parentSeenAt.present
+          ? data.parentSeenAt.value
+          : this.parentSeenAt,
+      remindedAt:
+          data.remindedAt.present ? data.remindedAt.value : this.remindedAt,
+      parentReply:
+          data.parentReply.present ? data.parentReply.value : this.parentReply,
+      replacedText: data.replacedText.present
+          ? data.replacedText.value
+          : this.replacedText,
+      treeSlot: data.treeSlot.present ? data.treeSlot.value : this.treeSlot,
+      targetMode:
+          data.targetMode.present ? data.targetMode.value : this.targetMode,
+      targetValue:
+          data.targetValue.present ? data.targetValue.value : this.targetValue,
+      progressValue: data.progressValue.present
+          ? data.progressValue.value
+          : this.progressValue,
+      tagKey: data.tagKey.present ? data.tagKey.value : this.tagKey,
+      taggedAt: data.taggedAt.present ? data.taggedAt.value : this.taggedAt,
+      releasedAt:
+          data.releasedAt.present ? data.releasedAt.value : this.releasedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WishRow(')
+          ..write('id: $id, ')
+          ..write('childId: $childId, ')
+          ..write('wishText: $wishText, ')
+          ..write('category: $category, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('committedAt: $committedAt, ')
+          ..write('commitDueDate: $commitDueDate, ')
+          ..write('fulfilledAt: $fulfilledAt, ')
+          ..write('fulfillSource: $fulfillSource, ')
+          ..write('abandonedAt: $abandonedAt, ')
+          ..write('parentSeenAt: $parentSeenAt, ')
+          ..write('remindedAt: $remindedAt, ')
+          ..write('parentReply: $parentReply, ')
+          ..write('replacedText: $replacedText, ')
+          ..write('treeSlot: $treeSlot, ')
+          ..write('targetMode: $targetMode, ')
+          ..write('targetValue: $targetValue, ')
+          ..write('progressValue: $progressValue, ')
+          ..write('tagKey: $tagKey, ')
+          ..write('taggedAt: $taggedAt, ')
+          ..write('releasedAt: $releasedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+        id,
+        childId,
+        wishText,
+        category,
+        status,
+        createdAt,
+        committedAt,
+        commitDueDate,
+        fulfilledAt,
+        fulfillSource,
+        abandonedAt,
+        parentSeenAt,
+        remindedAt,
+        parentReply,
+        replacedText,
+        treeSlot,
+        targetMode,
+        targetValue,
+        progressValue,
+        tagKey,
+        taggedAt,
+        releasedAt
+      ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WishRow &&
+          other.id == this.id &&
+          other.childId == this.childId &&
+          other.wishText == this.wishText &&
+          other.category == this.category &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt &&
+          other.committedAt == this.committedAt &&
+          other.commitDueDate == this.commitDueDate &&
+          other.fulfilledAt == this.fulfilledAt &&
+          other.fulfillSource == this.fulfillSource &&
+          other.abandonedAt == this.abandonedAt &&
+          other.parentSeenAt == this.parentSeenAt &&
+          other.remindedAt == this.remindedAt &&
+          other.parentReply == this.parentReply &&
+          other.replacedText == this.replacedText &&
+          other.treeSlot == this.treeSlot &&
+          other.targetMode == this.targetMode &&
+          other.targetValue == this.targetValue &&
+          other.progressValue == this.progressValue &&
+          other.tagKey == this.tagKey &&
+          other.taggedAt == this.taggedAt &&
+          other.releasedAt == this.releasedAt);
+}
+
+class WishesCompanion extends UpdateCompanion<WishRow> {
+  final Value<String> id;
+  final Value<String> childId;
+  final Value<String> wishText;
+  final Value<int> category;
+  final Value<int> status;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> committedAt;
+  final Value<DateTime?> commitDueDate;
+  final Value<DateTime?> fulfilledAt;
+  final Value<String?> fulfillSource;
+  final Value<DateTime?> abandonedAt;
+  final Value<DateTime?> parentSeenAt;
+  final Value<DateTime?> remindedAt;
+  final Value<String?> parentReply;
+  final Value<String?> replacedText;
+  final Value<int?> treeSlot;
+  final Value<int> targetMode;
+  final Value<int> targetValue;
+  final Value<int> progressValue;
+  final Value<String?> tagKey;
+  final Value<DateTime?> taggedAt;
+  final Value<DateTime?> releasedAt;
+  final Value<int> rowid;
+  const WishesCompanion({
+    this.id = const Value.absent(),
+    this.childId = const Value.absent(),
+    this.wishText = const Value.absent(),
+    this.category = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.committedAt = const Value.absent(),
+    this.commitDueDate = const Value.absent(),
+    this.fulfilledAt = const Value.absent(),
+    this.fulfillSource = const Value.absent(),
+    this.abandonedAt = const Value.absent(),
+    this.parentSeenAt = const Value.absent(),
+    this.remindedAt = const Value.absent(),
+    this.parentReply = const Value.absent(),
+    this.replacedText = const Value.absent(),
+    this.treeSlot = const Value.absent(),
+    this.targetMode = const Value.absent(),
+    this.targetValue = const Value.absent(),
+    this.progressValue = const Value.absent(),
+    this.tagKey = const Value.absent(),
+    this.taggedAt = const Value.absent(),
+    this.releasedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WishesCompanion.insert({
+    required String id,
+    this.childId = const Value.absent(),
+    required String wishText,
+    this.category = const Value.absent(),
+    required int status,
+    required DateTime createdAt,
+    this.committedAt = const Value.absent(),
+    this.commitDueDate = const Value.absent(),
+    this.fulfilledAt = const Value.absent(),
+    this.fulfillSource = const Value.absent(),
+    this.abandonedAt = const Value.absent(),
+    this.parentSeenAt = const Value.absent(),
+    this.remindedAt = const Value.absent(),
+    this.parentReply = const Value.absent(),
+    this.replacedText = const Value.absent(),
+    this.treeSlot = const Value.absent(),
+    this.targetMode = const Value.absent(),
+    this.targetValue = const Value.absent(),
+    this.progressValue = const Value.absent(),
+    this.tagKey = const Value.absent(),
+    this.taggedAt = const Value.absent(),
+    this.releasedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        wishText = Value(wishText),
+        status = Value(status),
+        createdAt = Value(createdAt);
+  static Insertable<WishRow> custom({
+    Expression<String>? id,
+    Expression<String>? childId,
+    Expression<String>? wishText,
+    Expression<int>? category,
+    Expression<int>? status,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? committedAt,
+    Expression<DateTime>? commitDueDate,
+    Expression<DateTime>? fulfilledAt,
+    Expression<String>? fulfillSource,
+    Expression<DateTime>? abandonedAt,
+    Expression<DateTime>? parentSeenAt,
+    Expression<DateTime>? remindedAt,
+    Expression<String>? parentReply,
+    Expression<String>? replacedText,
+    Expression<int>? treeSlot,
+    Expression<int>? targetMode,
+    Expression<int>? targetValue,
+    Expression<int>? progressValue,
+    Expression<String>? tagKey,
+    Expression<DateTime>? taggedAt,
+    Expression<DateTime>? releasedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (childId != null) 'child_id': childId,
+      if (wishText != null) 'text': wishText,
+      if (category != null) 'category': category,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (committedAt != null) 'committed_at': committedAt,
+      if (commitDueDate != null) 'commit_due_date': commitDueDate,
+      if (fulfilledAt != null) 'fulfilled_at': fulfilledAt,
+      if (fulfillSource != null) 'fulfill_source': fulfillSource,
+      if (abandonedAt != null) 'abandoned_at': abandonedAt,
+      if (parentSeenAt != null) 'parent_seen_at': parentSeenAt,
+      if (remindedAt != null) 'reminded_at': remindedAt,
+      if (parentReply != null) 'parent_reply': parentReply,
+      if (replacedText != null) 'replaced_text': replacedText,
+      if (treeSlot != null) 'tree_slot': treeSlot,
+      if (targetMode != null) 'target_mode': targetMode,
+      if (targetValue != null) 'target_value': targetValue,
+      if (progressValue != null) 'progress_value': progressValue,
+      if (tagKey != null) 'tag_key': tagKey,
+      if (taggedAt != null) 'tagged_at': taggedAt,
+      if (releasedAt != null) 'released_at': releasedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WishesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? childId,
+      Value<String>? wishText,
+      Value<int>? category,
+      Value<int>? status,
+      Value<DateTime>? createdAt,
+      Value<DateTime?>? committedAt,
+      Value<DateTime?>? commitDueDate,
+      Value<DateTime?>? fulfilledAt,
+      Value<String?>? fulfillSource,
+      Value<DateTime?>? abandonedAt,
+      Value<DateTime?>? parentSeenAt,
+      Value<DateTime?>? remindedAt,
+      Value<String?>? parentReply,
+      Value<String?>? replacedText,
+      Value<int?>? treeSlot,
+      Value<int>? targetMode,
+      Value<int>? targetValue,
+      Value<int>? progressValue,
+      Value<String?>? tagKey,
+      Value<DateTime?>? taggedAt,
+      Value<DateTime?>? releasedAt,
+      Value<int>? rowid}) {
+    return WishesCompanion(
+      id: id ?? this.id,
+      childId: childId ?? this.childId,
+      wishText: wishText ?? this.wishText,
+      category: category ?? this.category,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      committedAt: committedAt ?? this.committedAt,
+      commitDueDate: commitDueDate ?? this.commitDueDate,
+      fulfilledAt: fulfilledAt ?? this.fulfilledAt,
+      fulfillSource: fulfillSource ?? this.fulfillSource,
+      abandonedAt: abandonedAt ?? this.abandonedAt,
+      parentSeenAt: parentSeenAt ?? this.parentSeenAt,
+      remindedAt: remindedAt ?? this.remindedAt,
+      parentReply: parentReply ?? this.parentReply,
+      replacedText: replacedText ?? this.replacedText,
+      treeSlot: treeSlot ?? this.treeSlot,
+      targetMode: targetMode ?? this.targetMode,
+      targetValue: targetValue ?? this.targetValue,
+      progressValue: progressValue ?? this.progressValue,
+      tagKey: tagKey ?? this.tagKey,
+      taggedAt: taggedAt ?? this.taggedAt,
+      releasedAt: releasedAt ?? this.releasedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
+    if (wishText.present) {
+      map['text'] = Variable<String>(wishText.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<int>(category.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<int>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (committedAt.present) {
+      map['committed_at'] = Variable<DateTime>(committedAt.value);
+    }
+    if (commitDueDate.present) {
+      map['commit_due_date'] = Variable<DateTime>(commitDueDate.value);
+    }
+    if (fulfilledAt.present) {
+      map['fulfilled_at'] = Variable<DateTime>(fulfilledAt.value);
+    }
+    if (fulfillSource.present) {
+      map['fulfill_source'] = Variable<String>(fulfillSource.value);
+    }
+    if (abandonedAt.present) {
+      map['abandoned_at'] = Variable<DateTime>(abandonedAt.value);
+    }
+    if (parentSeenAt.present) {
+      map['parent_seen_at'] = Variable<DateTime>(parentSeenAt.value);
+    }
+    if (remindedAt.present) {
+      map['reminded_at'] = Variable<DateTime>(remindedAt.value);
+    }
+    if (parentReply.present) {
+      map['parent_reply'] = Variable<String>(parentReply.value);
+    }
+    if (replacedText.present) {
+      map['replaced_text'] = Variable<String>(replacedText.value);
+    }
+    if (treeSlot.present) {
+      map['tree_slot'] = Variable<int>(treeSlot.value);
+    }
+    if (targetMode.present) {
+      map['target_mode'] = Variable<int>(targetMode.value);
+    }
+    if (targetValue.present) {
+      map['target_value'] = Variable<int>(targetValue.value);
+    }
+    if (progressValue.present) {
+      map['progress_value'] = Variable<int>(progressValue.value);
+    }
+    if (tagKey.present) {
+      map['tag_key'] = Variable<String>(tagKey.value);
+    }
+    if (taggedAt.present) {
+      map['tagged_at'] = Variable<DateTime>(taggedAt.value);
+    }
+    if (releasedAt.present) {
+      map['released_at'] = Variable<DateTime>(releasedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WishesCompanion(')
+          ..write('id: $id, ')
+          ..write('childId: $childId, ')
+          ..write('wishText: $wishText, ')
+          ..write('category: $category, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('committedAt: $committedAt, ')
+          ..write('commitDueDate: $commitDueDate, ')
+          ..write('fulfilledAt: $fulfilledAt, ')
+          ..write('fulfillSource: $fulfillSource, ')
+          ..write('abandonedAt: $abandonedAt, ')
+          ..write('parentSeenAt: $parentSeenAt, ')
+          ..write('remindedAt: $remindedAt, ')
+          ..write('parentReply: $parentReply, ')
+          ..write('replacedText: $replacedText, ')
+          ..write('treeSlot: $treeSlot, ')
+          ..write('targetMode: $targetMode, ')
+          ..write('targetValue: $targetValue, ')
+          ..write('progressValue: $progressValue, ')
+          ..write('tagKey: $tagKey, ')
+          ..write('taggedAt: $taggedAt, ')
+          ..write('releasedAt: $releasedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -8042,6 +9164,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TrackingEventsTable trackingEvents = $TrackingEventsTable(this);
   late final $EyeCareLogsTable eyeCareLogs = $EyeCareLogsTable(this);
   late final $ChildProfilesTable childProfiles = $ChildProfilesTable(this);
+  late final $WishesTable wishes = $WishesTable(this);
+  late final Index idxTasksWish =
+      Index('idx_tasks_wish', 'CREATE INDEX idx_tasks_wish ON tasks (wish_id)');
+  late final Index idxWishesChildStatus = Index('idx_wishes_child_status',
+      'CREATE INDEX idx_wishes_child_status ON wishes (child_id, status)');
+  late final Index idxWishesChildCreated = Index('idx_wishes_child_created',
+      'CREATE INDEX idx_wishes_child_created ON wishes (child_id, created_at)');
+  late final Index idxWishesChildSlot = Index('idx_wishes_child_slot',
+      'CREATE INDEX idx_wishes_child_slot ON wishes (child_id, tree_slot)');
   late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
   late final PlantDao plantDao = PlantDao(this as AppDatabase);
   late final EmptyPotDisturbanceDao emptyPotDisturbanceDao =
@@ -8085,7 +9216,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         cooldownCounters,
         trackingEvents,
         eyeCareLogs,
-        childProfiles
+        childProfiles,
+        wishes,
+        idxTasksWish,
+        idxWishesChildStatus,
+        idxWishesChildCreated,
+        idxWishesChildSlot
       ];
 }
 
@@ -10803,6 +11939,7 @@ typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
   required bool isCustom,
   Value<int> category,
   Value<String> childId,
+  Value<String?> wishId,
   Value<int> rowid,
 });
 typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
@@ -10817,6 +11954,7 @@ typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
   Value<bool> isCustom,
   Value<int> category,
   Value<String> childId,
+  Value<String?> wishId,
   Value<int> rowid,
 });
 
@@ -10861,6 +11999,9 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<String> get childId => $composableBuilder(
       column: $table.childId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get wishId => $composableBuilder(
+      column: $table.wishId, builder: (column) => ColumnFilters(column));
 }
 
 class $$TasksTableOrderingComposer
@@ -10907,6 +12048,9 @@ class $$TasksTableOrderingComposer
 
   ColumnOrderings<String> get childId => $composableBuilder(
       column: $table.childId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get wishId => $composableBuilder(
+      column: $table.wishId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$TasksTableAnnotationComposer
@@ -10950,6 +12094,9 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumn<String> get childId =>
       $composableBuilder(column: $table.childId, builder: (column) => column);
+
+  GeneratedColumn<String> get wishId =>
+      $composableBuilder(column: $table.wishId, builder: (column) => column);
 }
 
 class $$TasksTableTableManager extends RootTableManager<
@@ -10986,6 +12133,7 @@ class $$TasksTableTableManager extends RootTableManager<
             Value<bool> isCustom = const Value.absent(),
             Value<int> category = const Value.absent(),
             Value<String> childId = const Value.absent(),
+            Value<String?> wishId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TasksCompanion(
@@ -11000,6 +12148,7 @@ class $$TasksTableTableManager extends RootTableManager<
             isCustom: isCustom,
             category: category,
             childId: childId,
+            wishId: wishId,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -11014,6 +12163,7 @@ class $$TasksTableTableManager extends RootTableManager<
             required bool isCustom,
             Value<int> category = const Value.absent(),
             Value<String> childId = const Value.absent(),
+            Value<String?> wishId = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TasksCompanion.insert(
@@ -11028,6 +12178,7 @@ class $$TasksTableTableManager extends RootTableManager<
             isCustom: isCustom,
             category: category,
             childId: childId,
+            wishId: wishId,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -12051,6 +13202,431 @@ typedef $$ChildProfilesTableProcessedTableManager = ProcessedTableManager<
     ),
     ChildProfileRow,
     PrefetchHooks Function()>;
+typedef $$WishesTableCreateCompanionBuilder = WishesCompanion Function({
+  required String id,
+  Value<String> childId,
+  required String wishText,
+  Value<int> category,
+  required int status,
+  required DateTime createdAt,
+  Value<DateTime?> committedAt,
+  Value<DateTime?> commitDueDate,
+  Value<DateTime?> fulfilledAt,
+  Value<String?> fulfillSource,
+  Value<DateTime?> abandonedAt,
+  Value<DateTime?> parentSeenAt,
+  Value<DateTime?> remindedAt,
+  Value<String?> parentReply,
+  Value<String?> replacedText,
+  Value<int?> treeSlot,
+  Value<int> targetMode,
+  Value<int> targetValue,
+  Value<int> progressValue,
+  Value<String?> tagKey,
+  Value<DateTime?> taggedAt,
+  Value<DateTime?> releasedAt,
+  Value<int> rowid,
+});
+typedef $$WishesTableUpdateCompanionBuilder = WishesCompanion Function({
+  Value<String> id,
+  Value<String> childId,
+  Value<String> wishText,
+  Value<int> category,
+  Value<int> status,
+  Value<DateTime> createdAt,
+  Value<DateTime?> committedAt,
+  Value<DateTime?> commitDueDate,
+  Value<DateTime?> fulfilledAt,
+  Value<String?> fulfillSource,
+  Value<DateTime?> abandonedAt,
+  Value<DateTime?> parentSeenAt,
+  Value<DateTime?> remindedAt,
+  Value<String?> parentReply,
+  Value<String?> replacedText,
+  Value<int?> treeSlot,
+  Value<int> targetMode,
+  Value<int> targetValue,
+  Value<int> progressValue,
+  Value<String?> tagKey,
+  Value<DateTime?> taggedAt,
+  Value<DateTime?> releasedAt,
+  Value<int> rowid,
+});
+
+class $$WishesTableFilterComposer
+    extends Composer<_$AppDatabase, $WishesTable> {
+  $$WishesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get wishText => $composableBuilder(
+      column: $table.wishText, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get category => $composableBuilder(
+      column: $table.category, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get committedAt => $composableBuilder(
+      column: $table.committedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get commitDueDate => $composableBuilder(
+      column: $table.commitDueDate, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get fulfilledAt => $composableBuilder(
+      column: $table.fulfilledAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get fulfillSource => $composableBuilder(
+      column: $table.fulfillSource, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get abandonedAt => $composableBuilder(
+      column: $table.abandonedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get parentSeenAt => $composableBuilder(
+      column: $table.parentSeenAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get remindedAt => $composableBuilder(
+      column: $table.remindedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get parentReply => $composableBuilder(
+      column: $table.parentReply, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get replacedText => $composableBuilder(
+      column: $table.replacedText, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get treeSlot => $composableBuilder(
+      column: $table.treeSlot, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get targetMode => $composableBuilder(
+      column: $table.targetMode, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get targetValue => $composableBuilder(
+      column: $table.targetValue, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get progressValue => $composableBuilder(
+      column: $table.progressValue, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get tagKey => $composableBuilder(
+      column: $table.tagKey, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get taggedAt => $composableBuilder(
+      column: $table.taggedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get releasedAt => $composableBuilder(
+      column: $table.releasedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$WishesTableOrderingComposer
+    extends Composer<_$AppDatabase, $WishesTable> {
+  $$WishesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+      column: $table.childId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get wishText => $composableBuilder(
+      column: $table.wishText, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get category => $composableBuilder(
+      column: $table.category, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get committedAt => $composableBuilder(
+      column: $table.committedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get commitDueDate => $composableBuilder(
+      column: $table.commitDueDate,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get fulfilledAt => $composableBuilder(
+      column: $table.fulfilledAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get fulfillSource => $composableBuilder(
+      column: $table.fulfillSource,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get abandonedAt => $composableBuilder(
+      column: $table.abandonedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get parentSeenAt => $composableBuilder(
+      column: $table.parentSeenAt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get remindedAt => $composableBuilder(
+      column: $table.remindedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get parentReply => $composableBuilder(
+      column: $table.parentReply, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get replacedText => $composableBuilder(
+      column: $table.replacedText,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get treeSlot => $composableBuilder(
+      column: $table.treeSlot, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get targetMode => $composableBuilder(
+      column: $table.targetMode, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get targetValue => $composableBuilder(
+      column: $table.targetValue, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get progressValue => $composableBuilder(
+      column: $table.progressValue,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get tagKey => $composableBuilder(
+      column: $table.tagKey, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get taggedAt => $composableBuilder(
+      column: $table.taggedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get releasedAt => $composableBuilder(
+      column: $table.releasedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$WishesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WishesTable> {
+  $$WishesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
+
+  GeneratedColumn<String> get wishText =>
+      $composableBuilder(column: $table.wishText, builder: (column) => column);
+
+  GeneratedColumn<int> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<int> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get committedAt => $composableBuilder(
+      column: $table.committedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get commitDueDate => $composableBuilder(
+      column: $table.commitDueDate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get fulfilledAt => $composableBuilder(
+      column: $table.fulfilledAt, builder: (column) => column);
+
+  GeneratedColumn<String> get fulfillSource => $composableBuilder(
+      column: $table.fulfillSource, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get abandonedAt => $composableBuilder(
+      column: $table.abandonedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get parentSeenAt => $composableBuilder(
+      column: $table.parentSeenAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get remindedAt => $composableBuilder(
+      column: $table.remindedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get parentReply => $composableBuilder(
+      column: $table.parentReply, builder: (column) => column);
+
+  GeneratedColumn<String> get replacedText => $composableBuilder(
+      column: $table.replacedText, builder: (column) => column);
+
+  GeneratedColumn<int> get treeSlot =>
+      $composableBuilder(column: $table.treeSlot, builder: (column) => column);
+
+  GeneratedColumn<int> get targetMode => $composableBuilder(
+      column: $table.targetMode, builder: (column) => column);
+
+  GeneratedColumn<int> get targetValue => $composableBuilder(
+      column: $table.targetValue, builder: (column) => column);
+
+  GeneratedColumn<int> get progressValue => $composableBuilder(
+      column: $table.progressValue, builder: (column) => column);
+
+  GeneratedColumn<String> get tagKey =>
+      $composableBuilder(column: $table.tagKey, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get taggedAt =>
+      $composableBuilder(column: $table.taggedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get releasedAt => $composableBuilder(
+      column: $table.releasedAt, builder: (column) => column);
+}
+
+class $$WishesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $WishesTable,
+    WishRow,
+    $$WishesTableFilterComposer,
+    $$WishesTableOrderingComposer,
+    $$WishesTableAnnotationComposer,
+    $$WishesTableCreateCompanionBuilder,
+    $$WishesTableUpdateCompanionBuilder,
+    (WishRow, BaseReferences<_$AppDatabase, $WishesTable, WishRow>),
+    WishRow,
+    PrefetchHooks Function()> {
+  $$WishesTableTableManager(_$AppDatabase db, $WishesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WishesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WishesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WishesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> childId = const Value.absent(),
+            Value<String> wishText = const Value.absent(),
+            Value<int> category = const Value.absent(),
+            Value<int> status = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime?> committedAt = const Value.absent(),
+            Value<DateTime?> commitDueDate = const Value.absent(),
+            Value<DateTime?> fulfilledAt = const Value.absent(),
+            Value<String?> fulfillSource = const Value.absent(),
+            Value<DateTime?> abandonedAt = const Value.absent(),
+            Value<DateTime?> parentSeenAt = const Value.absent(),
+            Value<DateTime?> remindedAt = const Value.absent(),
+            Value<String?> parentReply = const Value.absent(),
+            Value<String?> replacedText = const Value.absent(),
+            Value<int?> treeSlot = const Value.absent(),
+            Value<int> targetMode = const Value.absent(),
+            Value<int> targetValue = const Value.absent(),
+            Value<int> progressValue = const Value.absent(),
+            Value<String?> tagKey = const Value.absent(),
+            Value<DateTime?> taggedAt = const Value.absent(),
+            Value<DateTime?> releasedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WishesCompanion(
+            id: id,
+            childId: childId,
+            wishText: wishText,
+            category: category,
+            status: status,
+            createdAt: createdAt,
+            committedAt: committedAt,
+            commitDueDate: commitDueDate,
+            fulfilledAt: fulfilledAt,
+            fulfillSource: fulfillSource,
+            abandonedAt: abandonedAt,
+            parentSeenAt: parentSeenAt,
+            remindedAt: remindedAt,
+            parentReply: parentReply,
+            replacedText: replacedText,
+            treeSlot: treeSlot,
+            targetMode: targetMode,
+            targetValue: targetValue,
+            progressValue: progressValue,
+            tagKey: tagKey,
+            taggedAt: taggedAt,
+            releasedAt: releasedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            Value<String> childId = const Value.absent(),
+            required String wishText,
+            Value<int> category = const Value.absent(),
+            required int status,
+            required DateTime createdAt,
+            Value<DateTime?> committedAt = const Value.absent(),
+            Value<DateTime?> commitDueDate = const Value.absent(),
+            Value<DateTime?> fulfilledAt = const Value.absent(),
+            Value<String?> fulfillSource = const Value.absent(),
+            Value<DateTime?> abandonedAt = const Value.absent(),
+            Value<DateTime?> parentSeenAt = const Value.absent(),
+            Value<DateTime?> remindedAt = const Value.absent(),
+            Value<String?> parentReply = const Value.absent(),
+            Value<String?> replacedText = const Value.absent(),
+            Value<int?> treeSlot = const Value.absent(),
+            Value<int> targetMode = const Value.absent(),
+            Value<int> targetValue = const Value.absent(),
+            Value<int> progressValue = const Value.absent(),
+            Value<String?> tagKey = const Value.absent(),
+            Value<DateTime?> taggedAt = const Value.absent(),
+            Value<DateTime?> releasedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WishesCompanion.insert(
+            id: id,
+            childId: childId,
+            wishText: wishText,
+            category: category,
+            status: status,
+            createdAt: createdAt,
+            committedAt: committedAt,
+            commitDueDate: commitDueDate,
+            fulfilledAt: fulfilledAt,
+            fulfillSource: fulfillSource,
+            abandonedAt: abandonedAt,
+            parentSeenAt: parentSeenAt,
+            remindedAt: remindedAt,
+            parentReply: parentReply,
+            replacedText: replacedText,
+            treeSlot: treeSlot,
+            targetMode: targetMode,
+            targetValue: targetValue,
+            progressValue: progressValue,
+            tagKey: tagKey,
+            taggedAt: taggedAt,
+            releasedAt: releasedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$WishesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $WishesTable,
+    WishRow,
+    $$WishesTableFilterComposer,
+    $$WishesTableOrderingComposer,
+    $$WishesTableAnnotationComposer,
+    $$WishesTableCreateCompanionBuilder,
+    $$WishesTableUpdateCompanionBuilder,
+    (WishRow, BaseReferences<_$AppDatabase, $WishesTable, WishRow>),
+    WishRow,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -12089,4 +13665,6 @@ class $AppDatabaseManager {
       $$EyeCareLogsTableTableManager(_db, _db.eyeCareLogs);
   $$ChildProfilesTableTableManager get childProfiles =>
       $$ChildProfilesTableTableManager(_db, _db.childProfiles);
+  $$WishesTableTableManager get wishes =>
+      $$WishesTableTableManager(_db, _db.wishes);
 }

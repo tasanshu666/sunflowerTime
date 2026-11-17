@@ -1,0 +1,594 @@
+%% 许愿树 · 增量架构设计 **v0.4** —— 领域层类图
+%% 对应文档：docs/许愿树_增量架构设计_v0.1.md §A3 + §A14~§A24 + §A30
+%%
+%% 🔴 **v0.4 根本性改写（玄参 Q16）：愿望任务 = 既有 `tasks` 表的一行**
+%%   · v0.3 的「独立任务专表 / 独立完成流水专表」**整节作废**（理由见文档 A16.0）；
+%%   · 领域实体层面：**删除** v0.3 的「愿望任务实体」与「愿望完成流水实体」两个实体
+%%     ⇒ 愿望任务**就是既有 `Task` 值对象 + 一个 `wishId` 字段**；
+%%   · 流水层面：**复用既有 `check_ins`**（13 列，不加任何列）；
+%%   · 目标模型：**新增 `WishGoalMode` 枚举（2 态 · index 一次定全）**，
+%%     `Wish` 的「专注分钟分母 / 分子」两列 ⇒ `targetMode` / `targetValue` / `progressValue`；
+%%   · 🔴 **判据函数必须恰有 2 个可达分支**（K26 铁律）—— 见 `WishProgressService.progressDeltaOf`；
+%%   · 🔴 **写侧经济隔离 5 处**（`task_checkin_service.dart`），判定收敛到唯一 helper。
+%%   · 🔴 **v0.4 列名统一**：`wishes` 目标口径列统一改名 → **`targetMode`**（DB 列 `target_mode`）——
+%%     与 PRD v0.2.3 **同名**（判定孪生铁律）；🔴 **枚举名 `WishGoalMode` 保留不改**。
+%%   · 🔴 **v0.4 埋点裁决**：**作废 `wishTaskCompleted`** —— 复用 `tasks` + `check_ins` 后，
+%%     专注型任务的「孩子提交完成」与「家长核销通过」是**同一次事件**（自动核销）
+%%     ⇒ 拆两个埋点会产生「有 completed 没 verified」的**幽灵记录**；
+%%     ⇒ 首发愿望任务埋点**只保留 3 个**：`wishTaskAssigned` / `wishTaskVerified` / `wishTaskRejected`；
+%%     🔴 「埋点名 ↔ A23 `WishEventKind`」映射表见文档 **A7.3.1**。
+%%
+%% 🆕 **v0.5.1 变更（状态机 v5 + 「许愿树无成长阶段」）**：
+%%   · `Wish` 实体 21 → **22 字段**（+ `fulfillSource`）；`Wishes` 表 21 → **22 列**
+%%     （+ `fulfillSource`，3 值 `parentAction` / `progress` / `child`，
+%%     与埋点 `wish_fulfilled.source` **同一个常量源**）；
+%%   · 🆕 **`WishFruitStage`**（4 态 · **纯视觉**）：🔴 **美术按它的分支选图**
+%%     （**不画第二个枚举**）；🔴 **落池判据单点** = `fruitStageOf(...) == ripe`；
+%%     🔴 **成真的业务判据 = `status == fulfilled`**（不是果实态）；
+%%   · 🆕 **`WishWorkCategory`**（4 段 + 折叠）：家长端今日页的**互斥分段**
+%%     （待我核销 > 待我安排 > 进行中 > 折叠）；
+%%   · `WishEventKind` 9 → **13 个成员**（11 首发 + 2 P1）：+ `goalSet` + `selfFulfilled`；
+%%   · 🔴 **作废** `wishTreeStage(...)`（玄参：「许愿树没有成长属性，就是一颗大树」）
+%%     ⇒ 图中**不再有**「树阶段 / 形态切换」；✅ **保留** `poolMilestoneCount`（里程碑盖章）；
+%%   · 🔴 **v0.5.2 修正**：**里程碑盖章计数** 的基数 = `count(status = fulfilled AND fulfill_source != 'child')` ⇒ 🔴 **不是**「累计达成数」
+%%     （孩子自助达成 ⇒ 只进池、**不盖章** ⇒ R29 防刷主线）；
+%%     ⇒ `poolMilestoneCount` 的入参**语义 = 盖章计数**（新增 `stampedAchievedCount()`）；
+%%     ⇒ 🔴 **列名对照（同一判据两个写法）** ⇒ 🔴 **DB 列 = `fulfill_source`（Drift 字段 `fulfillSource`）**
+%%       ⇒ 🔴 **Dart 里写 `fulfillSource`（本图 `Wish.fulfillSource`）、SQL 里写 `fulfill_source`**，🔴 **不许串**；
+%%   · 🔴 **v0.5.2 第 6 批（收口补项）**：🔴 **盖章计数判据补 camelCase ↔ snake_case 列名对照标注**（图 ↔ 正文口径逐字一致）；
+%%
+%% 编号前缀 A（Architecture），不与 PRD 的 W 编号撞号。
+%% 纪律：domain 层零 Flutter / 零 drift / 零 CJK（代码部分）。
+%%
+%% 🆕 **v0.3 变更（相对 v0.2）**：
+%%   · `Wish` 实体 17 → **20 字段**（+ 专注分钟分母 / 分子两列 / +tagKey / +taggedAt /
+%%     +releasedAt；−declineReason / −waterCount / −label / −replySource）
+%%     🔴 **v0.4 再把这「两列」换成 `targetMode` / `targetValue` / `progressValue`**
+%%   · `WishStatus` **6 态 · index 一次定全** = pending(0) / tagged(1) / committed(2) /
+%%     fulfilled(3) / replaced(4) / abandoned(5)（`declined` 被 `tagged` 取代，index 全排）
+%%   · `WishLabel` → 🔴 **`WishTag`**（6 个：needMoreTime / overBudget / notPossible /
+%%     smallerWish / waitForMoment / parentsWorkingOnIt）；🔴 **删除 `WishReplySource`**
+%%     （PRD W21 无 `reply_source` 列 ⇒ 只作读侧展示，不落库）
+%%   · `WishReplyPreset` 8 个（PRD W19.2 原文）+ 🆕 `WishOccasion` 5 个（时机只能从预设里选）
+%%   · 🔴 **v0.4 撤销**：v0.3 的两张独立专表（任务专表 12 列 / 完成流水专表 10 列）
+%%     **整节作废** ⇒ 改为 **复用既有 `tasks` 表 + 新增 `tasks.wishId`（nullable）**
+%%     + **复用既有 `check_ins`**（`check_ins.task_id → tasks.id → tasks.wish_id` 两跳关联）；
+%%   · 🔴 **v0.4 新增** `WishGoalMode` 枚举（`focusMinutes`(0) / `taskCount`(1)）
+%%     与 `Wish` 的 `targetMode` / `targetValue` / `progressValue` 三字段；
+%%   · `WishSlotLadder` → 🔴 **`WishSlotQuota`**（落 `lib/core/constants/entitlement_matrix.dart`：
+%%     `wishSlotQuotaFor(focusLevel, isPremium)` / `quotaAllowsAddWishSlot(...)`）
+%%   · `FeatureKey` 只加 **`wishSlot`**（额度语义 = 满级天花板 10/20，仅展示）；
+%%     ❌ **不新增第二个 key**（按日限条数闸门已作废，PRD W22-15）
+%%   · `WishEventKind` = **9 种首发 + 2 种 P1 预留**（`tagged` / `untagged` / `released` /
+%%     `restored` 为 v0.3 新增语义）
+
+classDiagram
+    direction TB
+
+    %% ── 领域实体 ──────────────────────────────────────────────
+    class Wish {
+        <<value object>>
+        +String id
+        +String childId
+        +String text
+        +WishCategory category
+        +WishStatus status
+        +DateTime createdAt
+        +DateTime? committedAt
+        +DateTime? commitDueDate
+        +DateTime? fulfilledAt
+        +DateTime? abandonedAt
+        +DateTime? parentSeenAt
+        +DateTime? remindedAt
+        +String? parentReply
+        +String? replacedText
+        +int? treeSlot
+        +WishGoalMode targetMode
+        +int targetValue
+        +int progressValue
+        +String? tagKey
+        +DateTime? taggedAt
+        +DateTime? releasedAt
+        +String? fulfillSource
+        +const Wish({...})
+        +bool get isMounted
+        +bool get isAchieved
+        +bool get isTagged
+        +bool get isReleased
+        +Wish copyWith({...})
+        +bool operator ==(Object other)
+        +int get hashCode
+    }
+
+    class WishGoalMode {
+        <<enums · 2 态 · index 一次定全>>
+        focusMinutes
+        taskCount
+    }
+
+    class WishFruitStage {
+        <<enums · 4 态 · v0.5.1 · 纯视觉态>>
+        none
+        waiting
+        growing
+        ripe
+    }
+
+    class WishWorkCategory {
+        <<enums · v0.5.1 · 家长端今日页互斥分段>>
+        pendingVerify
+        needsSetup
+        selfProgressing
+        collapsed
+    }
+
+    class WishStatus {
+        <<enums · index 一次定全>>
+        pending
+        tagged
+        committed
+        fulfilled
+        replaced
+        abandoned
+    }
+
+    class WishCategory {
+        <<enums>>
+        other
+        gift
+        experience
+        toy
+        growth
+        companionship
+    }
+
+    class WishTag {
+        <<enums · 6 个>>
+        needMoreTime
+        overBudget
+        notPossible
+        smallerWish
+        waitForMoment
+        parentsWorkingOnIt
+    }
+
+    class WishReplyPreset {
+        <<enums · 8 条>>
+        hardButLove
+        dinosaur
+        waitAndSee
+        tooExpensive
+        smallerWish
+        weSawIt
+        onOccasion
+        weWantItToo
+    }
+
+    class WishOccasion {
+        <<enums · 5 个时机>>
+        birthday
+        newYear
+        christmas
+        endOfTerm
+        tripDay
+    }
+
+    %% ── 🔴 v0.4：愿望任务 = 既有 `Task` 值对象 + 一个 `wishId` 字段 ─────
+    %%    （v0.3 的「愿望任务实体 / 愿望完成流水实体」已删除 —— 撤销理由见文档 A16.0）
+
+    class Task {
+        <<existing value object · v0.4 加 1 字段>>
+        +String id
+        +String name
+        +int subject
+        +String? customSubject
+        +bool requiresFocus
+        +int minFocusMin
+        +int sunlightReward
+        +String? repeatRule
+        +bool isCustom
+        +int category
+        +String childId
+        +String? wishId
+        +const Task({...})
+        +Task copyWith({...})
+        +bool operator ==(Object other)
+        +int get hashCode
+    }
+
+    class CheckIn {
+        <<existing value object · 复用 · 不加列>>
+        +String id
+        +String taskId
+        +DateTime date
+        +DateTime completedAt
+        +String? sessionId
+        +bool isPerfectDay
+        +int status
+        +double? sunlightGross
+        +double? sunlightGranted
+        +DateTime? resolvedAt
+        +String? parentNote
+        +double? actualFocusMin
+        +String childId
+    }
+
+    class CheckInStatus {
+        <<enums · existing>>
+        pending
+        verified
+        rejected
+    }
+
+    class WishTaskStage {
+        <<enums · 读侧派生>>
+        awaitingVerify
+        done
+        notScheduled  %% 🔴 v0.5.2 首发不可达（P1 预留）：tasks 无 weekdayMask ⇒ 实现里不许写它的判定
+        pending
+    }
+
+    %% ── 🔴 v0.4：进度模型（目标模型 v2 · R1~R20）────────────────
+    class WishProgress {
+        <<value object>>
+        +WishGoalMode mode
+        +int targetValue
+        +int progressValue
+        +int percent
+        +bool isComputable
+        +bool isComplete
+        +int remainingValue
+        +const WishProgress({...})
+        +WishProgress copyWith({...})
+    }
+
+    class WishProgressService {
+        <<pure functions · wish_progress.dart>>
+        +WishProgress compute(Wish wish)
+        +int? percentOf(WishGoalMode mode, int targetValue, int progressValue)
+        +int remainingValue(Wish wish)
+        +WishFruitStage fruitStageOf(int targetValue, int progressValue)
+        +WishTaskStage wishTaskStageOf(Task task, List~CheckIn~ checkIns, DateTime now)
+        +bool isValidFocusMinutes(int minutes)
+        +int progressDeltaOf(WishGoalMode mode, Task task, CheckIn checkIn)
+        +int recomputeProgressValue(WishGoalMode mode, List~Task~ tasks, List~CheckIn~ checkIns)
+    }
+
+    %% ── 领域抽象 ──────────────────────────────────────────────
+    class WishRepository {
+        <<interface>>
+        +Future~List~Wish~~ mounted()
+        +Future~List~Wish~~ pool()
+        +Future~List~Wish~~ boxed()
+        +Future~List~Wish~~ abandoned()
+        +Future~List~Wish~~ byStatuses(Set~WishStatus~)
+        +Future~int~ countByStatuses(Set~WishStatus~)
+        +Future~int~ countStampedAchieved()
+        +Future~Set~int~~ occupiedSlots()
+        +Future~Wish~ byId(String)
+        +Future~void~ save(Wish)
+        +Future~void~ deleteAll()
+    }
+
+    class WishTaskRepository {
+        <<interface · 能力扩展 · 由 TaskLocalRepository 实现>>
+        +Future~List~Task~~ tasksOfWish({String wishId, String childId})
+        +Future~List~CheckIn~~ checkInsOfTaskIds({List~String~ taskIds, String childId})
+        +Future~void~ assignWish({String taskId, String wishId, String childId})
+        +Future~void~ unassignWish({String taskId, String childId})
+    }
+
+    class WishOrchestrationService {
+        +WishOrchestrationService({wishes, wishTasks, account, tracking, onChanged, idGenerator, isPremium, focusLevelOf})
+        +Future~List~Wish~~ mountedWishes()
+        +Future~List~Wish~~ poolWishes()
+        +Future~List~Wish~~ boxedWishes()
+        +Future~List~Wish~~ abandonedWishes()
+        +Future~int~ mountedCount()
+        +Future~int~ achievedCount()
+        +Future~int~ stampedAchievedCount()
+        +Future~Wish~ wishById(String)
+        +Future~List~Wish~~ parentDeskList(DateTime now)
+        +Future~Wish~ createWish({text, category, now})
+        +Future~Wish~ setGoal({wishId, mode, targetValue, now})
+        +Future~Wish~ assignTask({wishId, name, minFocusMin, repeatRule, requiresFocus, now})
+        +Future~Wish~ fulfill({id, reply, now})
+        +Future~Wish~ tagWithReply({id, tag, reply, now})
+        +Future~Wish~ untag({id, now})
+        +Future~Wish~ release({id, now})
+        +Future~Wish~ restore({id, now})
+        +Future~Wish~ collectToBox({id, now})
+        +Future~Wish~ restoreFromBox({id, now})
+        +Future~Wish~ selfFulfill({id, now})
+        +Future~Wish~ abandon({id, now})
+        +Future~void~ markParentSeen({id, now})
+        +Future~List~Task~~ tasksOf({wishId, now})
+        +Future~CheckIn~ submitBehaviorTask({taskId, now})
+        +Future~CheckIn~ submitFocusTask({taskId, sessionId, minutes, now})
+        +Future~CheckIn~ verifyTask({taskId, note, now})
+        +Future~CheckIn~ rejectTask({taskId, note, now})
+        +Future~int~ currentWishSlotQuota()
+        +WishWorkCategory sectionOf({Wish wish, List~Task~ tasks, List~CheckIn~ checkIns})
+        +List~Wish~~ collapsedWishes({List~Wish~~ all})
+        +bool hasPendingCheckIn({Wish wish, List~CheckIn~ checkIns})
+        +bool needsParentSetup({Wish wish, List~Task~ tasks})
+        +bool isSelfProgressing({Wish wish})
+        +static int waitingDays(DateTime, DateTime)
+        +static int poolMilestoneCount(int stampedAchievedCount)
+        +static bool softGateSatisfied(int plantCount)
+        -void _guardCurrentChild(Wish)
+        -int _allocateSlot(Set~int~ occupied)
+        -void _assertTransition(WishStatus from, WishStatus to)
+        -Future~Wish~ _advanceProgress({wish, delta, now})
+        -bool _isWishLinkedTask(Task task)
+        -void _emitEvent(Wish, WishEventKind, DateTime)
+    }
+
+    %% ── v0.3：挂载位额度（唯一实现 = entitlement_matrix.dart）──
+    class WishSlotQuota {
+        <<pure functions · entitlement_matrix.dart>>
+        +int crossedTitleNodes(int focusLevel)
+        +int wishSlotQuotaFor(int focusLevel, bool isPremium)
+        +bool quotaAllowsAddWishSlot(int focusLevel, bool isPremium, int currentCount)
+    }
+
+    class EntitlementMatrix {
+        <<existing · const Map>>
+        +int featureQuotaFor(FeatureKey, EntitlementTier)
+        +bool quotaAllowsAdd(FeatureKey, EntitlementTier, int)
+        +bool featureAllowedFor(FeatureKey, EntitlementTier)
+    }
+
+    class FocusLevelService {
+        <<existing>>
+        +int levelOfMinutes(double minutes)
+        +FocusLevelProgress progressOf(double totalMinutes)
+        +int latestTitleNodeOfLevel(int level)
+    }
+
+    %% ── v0.3：跨端事件 kind（9 首发 + 2 P1 预留）──────────────
+    class WishEventKind {
+        <<enums · 11 首发 + 2 P1 = 13 成员 · 冻结·只追加>>
+        taskAssigned
+        goalSet
+        fulfilled
+        tagged
+        untagged
+        taskVerified
+        taskRejected
+        released
+        restored
+        abandoned
+        selfFulfilled
+        committed
+        replaced
+    }
+
+    %% ── 领域依赖（外部既有接口）────────────────────────────────
+    class AccountService {
+        <<existing>>
+        +String currentChildId()
+    }
+
+    class TrackingRepository {
+        <<existing>>
+        +Future~void~ track(TrackingEvent)
+    }
+
+    class FeatureKey {
+        <<enums>>
+        oneClickCare
+        gardenPotCapacity
+        parentReport
+        taskTemplateCount
+        rewardTemplateCount
+        multiChildProfile
+        deepReport
+        exportShare
+        memoirExport
+        familySharing
+        titlePerks
+        wishSlot
+    }
+
+    %% ── 数据层 ────────────────────────────────────────────────
+    class Wishes {
+        <<drift table · 22 列 · v0.5.1>>
+        +TextColumn id PK
+        +TextColumn childId
+        +TextColumn text
+        +IntColumn category
+        +IntColumn status
+        +DateTimeColumn createdAt
+        +DateTimeColumn committedAt
+        +DateTimeColumn commitDueDate
+        +DateTimeColumn fulfilledAt
+        +DateTimeColumn abandonedAt
+        +DateTimeColumn parentSeenAt
+        +DateTimeColumn remindedAt
+        +TextColumn parentReply
+        +TextColumn replacedText
+        +IntColumn treeSlot
+        +IntColumn targetMode
+        +IntColumn targetValue
+        +IntColumn progressValue
+        +TextColumn tagKey
+        +DateTimeColumn taggedAt
+        +DateTimeColumn releasedAt
+        +TextColumn fulfillSource
+        +Set~Column~ primaryKey
+    }
+
+    class Tasks {
+        <<existing drift table · 12 列 · v0.4 加 1 列>>
+        +TextColumn id PK
+        +TextColumn name
+        +IntColumn subject
+        +TextColumn customSubject
+        +BoolColumn requiresFocus
+        +IntColumn minFocusMin
+        +IntColumn sunlightReward
+        +TextColumn repeatRule
+        +BoolColumn isCustom
+        +IntColumn category
+        +TextColumn childId
+        +TextColumn wishId
+        +Set~Column~ primaryKey
+    }
+
+    class CheckIns {
+        <<existing drift table · 13 列 · 复用·不加列>>
+        +TextColumn id PK
+        +TextColumn taskId
+        +DateTimeColumn date
+        +DateTimeColumn completedAt
+        +TextColumn sessionId
+        +BoolColumn isPerfectDay
+        +IntColumn status
+        +RealColumn sunlightGross
+        +RealColumn sunlightGranted
+        +DateTimeColumn resolvedAt
+        +TextColumn parentNote
+        +RealColumn actualFocusMin
+        +TextColumn childId
+        +Set~Column~ primaryKey
+    }
+
+    class WishDao {
+        +Future~List~WishRow~~ allByStatus({String childId, List~int~ statuses})
+        +Future~int~ countByStatuses({String childId, List~int~ statuses})
+        +Future~int~ countStampedAchieved({String childId})
+        +Future~Set~int~~ occupiedSlots({String childId})
+        +Future~WishRow~ byId(String id, {String childId})
+        +Future~void~ upsert(WishesCompanion row, {String childId})
+        +Future~int~ deleteAll({String childId})
+    }
+
+    class TaskDao {
+        <<existing · v0.4 加读侧隔离>>
+        +Future~List~Task~~ allTasks({String childId, bool includeWishTasks})
+        +Future~List~Task~~ tasksOfWish({String wishId, String childId})
+        +Future~List~CheckIn~~ checkInsOfTaskIds({List~String~ taskIds, String childId})
+    }
+
+    class WishLocalRepository {
+        +WishLocalRepository(AppDatabase db, {AccountService account})
+        +Future~List~Wish~~ mounted()
+        +Future~List~Wish~~ pool()
+        +Future~List~Wish~~ boxed()
+        +Future~List~Wish~~ abandoned()
+        +Future~List~Wish~~ byStatuses(Set~WishStatus~)
+        +Future~int~ countByStatuses(Set~WishStatus~)
+        +Future~int~ countStampedAchieved()
+        +Future~Set~int~~ occupiedSlots()
+        +Future~Wish~ byId(String)
+        +Future~void~ save(Wish)
+        +Future~void~ deleteAll()
+    }
+
+    class TaskLocalRepository {
+        <<existing · v0.4 一并实现 WishTaskRepository>>
+        +TaskLocalRepository(AppDatabase db, {AccountService account})
+        +Future~List~Task~~ tasks()
+        +Future~List~Task~~ tasksOfWish({String wishId, String childId})
+        +Future~List~CheckIn~~ checkInsOfTaskIds({List~String~ taskIds, String childId})
+        +Future~void~ assignWish({String taskId, String wishId, String childId})
+        +Future~void~ unassignWish({String taskId, String childId})
+    }
+
+    %% ── 表现层 state ──────────────────────────────────────────
+    class WishTreeProvider {
+        <<riverpod FutureProvider>>
+        +Future~WishTreeSnapshot~ watch()
+    }
+
+    class WishBadgeProvider {
+        <<riverpod FutureProvider>>
+        +Future~WishBadge~ watch()
+    }
+
+    class PendingWishEventIdsProvider {
+        <<riverpod FutureProvider>>
+        +Future~List~String~~ watch()
+    }
+
+    class ParentWishDeskProvider {
+        <<riverpod FutureProvider>>
+        +Future~List~Wish~~ watch()
+    }
+
+    class CurrentFocusLevelProvider {
+        <<riverpod FutureProvider>>
+        +Future~int~ watch()
+    }
+
+    class EconomyRevisionProvider {
+        <<riverpod StateProvider int>>
+        +int value
+    }
+
+    class SettingsStore {
+        +Future~List~String~~ acknowledgedWishEventIds({String childId})
+        +Future~void~ setAcknowledgedWishEventIds(List~String~ ids, {String childId})
+    }
+
+    %% ── 关系 ──────────────────────────────────────────────────
+    Wish "1" --> "1" WishStatus : status
+    Wish "1" --> "1" WishGoalMode : targetMode（口径枚举 · 2 态）
+    Wish "1" --> "1" WishCategory : category
+    Wish "1" --> "0..1" WishTag : tagKey（枚举 name · text）
+    Wish "1" --> "0..1" WishReplyPreset : 读侧展示（reply 不落库）
+    Wish "1" --> "0..1" WishOccasion : 读侧展示（时机只能从 5 个预设选）
+
+    WishRepository <|.. WishLocalRepository : implements
+    WishLocalRepository --> WishDao : 委托
+    WishDao --> Wishes : 读写
+    Wishes ..> Wish : Drift 行 → 领域实体
+
+    Task "0..*" --> "0..1" Wish : wishId 逻辑外键（null = 普通成长任务）
+    CheckIn "0..*" --> "1" Task : taskId 逻辑外键
+    CheckIn "1" --> "1" CheckInStatus : status
+    WishTaskRepository <|.. TaskLocalRepository : implements（能力扩展）
+    TaskLocalRepository --> TaskDao : 委托
+    TaskDao --> Tasks : 读写
+    TaskDao --> CheckIns : 读写
+    Tasks ..> Task : Drift 行 → 领域实体
+    CheckIns ..> CheckIn : Drift 行 → 领域实体
+
+    WishOrchestrationService --> WishRepository : 依赖（接口）
+    WishOrchestrationService --> WishTaskRepository : 依赖（接口）
+    WishOrchestrationService --> AccountService : 依赖（接口）
+    WishOrchestrationService --> TrackingRepository : 依赖（接口）
+    WishOrchestrationService ..> Wish : 产出 / 迁移
+    WishOrchestrationService ..> Task : 产出 / 迁移（愿望任务 = tasks 行）
+    WishOrchestrationService ..> CheckIn : 产出 / 迁移（复用 check_ins）
+    WishOrchestrationService ..> WishProgressService : 进度推进（R1~R20）
+    WishOrchestrationService ..> WishSlotQuota : 挂载位额度（唯一判定）
+    WishOrchestrationService ..> WishEventKind : 事件 kind（13 个成员）
+    WishOrchestrationService ..> WishFruitStage : 🔴 落池判据单点（ripe）
+    WishOrchestrationService ..> WishWorkCategory : 家长端互斥分段（三段 + 折叠）
+
+    WishProgressService ..> WishProgress : 产出
+    WishProgressService ..> WishTaskStage : 🔴 两套派生量、无调用关系（进度 = A18 / 任务阶段 = A19.3）
+    WishProgressService ..> WishGoalMode : 分派（🔴 恰 2 个可达分支 · K26）
+    WishProgressService ..> WishFruitStage : 🔴 果实视觉态（唯一判定源）
+    WishProgressService ..> Task : 取数
+    WishProgressService ..> CheckIn : 取数
+
+    WishSlotQuota ..> FocusLevelService : 取等级（纯派生）
+    WishSlotQuota ..> EntitlementMatrix : 🔴 不调用（禁止偷用天花板 · G7）
+    EntitlementMatrix "1" --> "*" FeatureKey : 登记行（wishSlot = 满级天花板）
+
+    WishTreeProvider ..> WishOrchestrationService : 读取
+    WishBadgeProvider ..> WishOrchestrationService : 读取
+    PendingWishEventIdsProvider ..> SettingsStore : 读已读集合
+    ParentWishDeskProvider ..> WishOrchestrationService : 读取
+    CurrentFocusLevelProvider ..> FocusLevelService : 读取等级
+
+    WishTreeProvider ..> EconomyRevisionProvider : watch（修订号总线）
+    WishBadgeProvider ..> EconomyRevisionProvider : watch
+    ParentWishDeskProvider ..> EconomyRevisionProvider : watch
+    CurrentFocusLevelProvider ..> EconomyRevisionProvider : watch
+    WishOrchestrationService ..> EconomyRevisionProvider : onChanged 自增（DI 装配）
+    PendingWishEventIdsProvider ..> SettingsStore : 写已读集合（合并写）
+    PendingWishEventIdsProvider ..> WishEventKind : 事件 id 的 kind 段

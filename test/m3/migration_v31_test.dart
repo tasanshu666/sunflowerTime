@@ -126,7 +126,7 @@ void main() {
       addTearDown(database.close);
       await database.customSelect('SELECT 1').get();
 
-      expect(database.schemaVersion, 31);
+      expect(database.schemaVersion, 32);
     });
 
     test('② v30 老库升级后空盆表存在：四列 + 复合主键 (child_id, pot_index)', () async {
@@ -186,7 +186,7 @@ void main() {
       addTearDown(database.close);
       await database.customSelect('SELECT 1').get();
 
-      expect(database.schemaVersion, 31);
+      expect(database.schemaVersion, 32);
       expect(await _hasTable(database, 'empty_pot_disturbances'), isTrue);
       expect(await _columnsOf(database, 'empty_pot_disturbances'),
           _expectedColumns);
@@ -213,7 +213,7 @@ void main() {
       final db.AppDatabase second = db.AppDatabase(NativeDatabase(file));
       addTearDown(second.close);
       await second.customSelect('SELECT 1').get();
-      expect(second.schemaVersion, 31);
+      expect(second.schemaVersion, 32);
       expect(await _count(second, 'empty_pot_disturbances'), before,
           reason: '已迁移库不再进 onUpgrade，createAll 幂等 → 行数不变');
       expect(await _hasTable(second, 'empty_pot_disturbances'), isTrue);

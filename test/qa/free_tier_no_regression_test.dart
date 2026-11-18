@@ -38,6 +38,7 @@ const Set<FeatureKey> _tightenedInPhase4 = <FeatureKey>{
   FeatureKey.deepReport,
   FeatureKey.titlePerks,
   FeatureKey.multiChildProfile,
+  FeatureKey.wishSlot, // 许愿树：满级天花板登记，实际额度随专注等级派生
 };
 
 void main() {

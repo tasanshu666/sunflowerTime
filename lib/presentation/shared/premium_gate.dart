@@ -65,6 +65,10 @@ String _featureLabel(AppLocalizations t, FeatureKey f) {
       return t.premium_gate_feature_family_sharing;
     case FeatureKey.titlePerks:
       return t.premium_gate_feature_title_perks;
+    // 许愿树挂载位不走 PremiumGate（只按专注等级派生额度）；此处仅满足
+    // switch 穷尽性，避免漏登记新枚举值时静默走旧分支。
+    case FeatureKey.wishSlot:
+      return 'wishSlot';
   }
 }
 

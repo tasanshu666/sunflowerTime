@@ -3496,12 +3496,48 @@ const double kGuardChestCardTopReserve = 12;
 
 
 // ══════════════════════════════════════════════════════════════════
+// 许愿树 · 数值单点（架构 A7.2 / PRD W22；字面量全仓只出现在本文件）
+// ══════════════════════════════════════════════════════════════════
+
+/// 挂载位基数（Lv.0）+ 完整版倍数；阶梯拐点只取 [kFocusLevelTitleLevels]。
+const int kWishSlotBaseFree = 1;
+const int kWishSlotPremiumMultiplier = 2;
+
+/// 满级天花板（只做矩阵登记 / 展示，不参与业务判定）。
+/// G10：free 天花板 = 1 + [kFocusLevelTitleLevels].length。
+const int kWishSlotMaxFree = 10;
+const int kWishSlotMaxPremium = 20;
+
+/// 目标值区间（6 个，唯一真源）。
+const int kWishGoalFocusMinutesDefault = 30;
+const int kWishGoalFocusMinutesMin = 10;
+const int kWishGoalFocusMinutesMax = 600;
+const int kWishGoalTaskCountDefault = 3;
+const int kWishGoalTaskCountMin = 1;
+const int kWishGoalTaskCountMax = 5;
+
+/// 愿望任务条数上限（与目标值上限相互独立）。
+const int kWishTaskMaxCount = 5;
+
+/// 目标调整护栏（PRD Q21 / Q29）。
+const int kWishTargetUpscaleMaxFactor = 3;
+const double kWishTargetUpscaleMaxRatioPerEdit = 0.5;
+
+/// M1 / M2 数值（许愿树最小规则集）。
+const int kWishTextMinLength = 2;
+const int kWishTextMaxLength = 30;
+const int kWishDuplicateLookbackDays = 30;
+const int kWishPendingAgeWarnDays = 7;
+const int kWishPoolMilestoneStep = 3;
+const int kWishSoftGateMinPlants = 1;
+const int kWishProgressPercentMax = 100;
+
+// ══════════════════════════════════════════════════════════════════
 // 许愿树 · 达成触发方（fulfill_source）—— 🔴 判定孪生铁律：同源常量
 // ══════════════════════════════════════════════════════════════════
 // 🔴 **这 3 个字面量只允许出现在本文件** —— DB 写入侧与埋点 payload 侧
 //    各自引用一次即合规；**任何一侧另写字符串字面量都算违规**。
-// 🔴 `parentAction` 与 `progress` **都算**「家长确认过」；`child` 不算
-//    （孩子自助达成只进达成池、**不盖里程碑章**）。
+// 🔴 v0.7.0：三者都计入里程碑盖章计数；`fulfillSource` 仅溯源、不用于排除计数。
 // 🔴 落库列 = `fulfill_source`（Drift 字段 `fulfillSource`）⇒ Dart 里写
 //    `fulfillSource`、SQL 里写 `fulfill_source`，**同一判据两个写法不许串**。
 

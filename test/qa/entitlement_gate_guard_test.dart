@@ -74,6 +74,10 @@ final Set<String> _whitelist = <String>{
   //    quotaAllowsAdd(multiChildProfile) 决定新建是否放行 / 弹 showPremiumUpsell）。
   //    只读矩阵单点，无 isPremium 判定；免费 1 / 买断 3，只拦新增（C69）。
   'lib/presentation/parent/widgets/child_profile_bar.dart',
+  // A-T02 许愿树：档位 -> bool isPremium 的读取单点（只读矩阵派生额度，
+  // 不做 isPremium 业务分支；领域层零权益命名空间）。
+  'lib/presentation/child/state/wish_state.dart',
+  'lib/presentation/parent/state/wish_state.dart',
 };
 
 /// 权益命名空间标识符（词边界、大小写敏感）。

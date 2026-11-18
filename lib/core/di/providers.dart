@@ -26,6 +26,7 @@ import 'package:sunflower_time/data/local/repositories/tracking_local_repository
 import 'package:sunflower_time/data/local/repositories/plant_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/pot_disturbance_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/task_local_repository.dart';
+import 'package:sunflower_time/data/local/repositories/wish_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/eye_care_log_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/child_profile_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/entitlement_local_repository.dart';
@@ -50,6 +51,8 @@ import 'package:sunflower_time/domain/repositories/child_profile_repository.dart
 import 'package:sunflower_time/domain/repositories/focus_level_store.dart';
 import 'package:sunflower_time/domain/repositories/guard_state_store.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
+import 'package:sunflower_time/domain/repositories/wish_repository.dart';
+import 'package:sunflower_time/domain/repositories/wish_task_repository.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/domain/services/guard_service.dart';
 import 'package:sunflower_time/domain/services/guard_voucher.dart';
@@ -58,6 +61,7 @@ import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
+import 'package:sunflower_time/domain/services/wish_orchestration_service.dart';
 import 'package:sunflower_time/domain/services/entitlement_service.dart';
 import 'package:sunflower_time/domain/services/weekly_pool_service.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
@@ -309,6 +313,11 @@ final weeklyPoolServiceProvider = Provider<WeeklyPoolService>((ref) =>
 /// 孩子端商店页的缓存 `FutureProvider`（storeLoad / storeBalance）`watch` 本值，
 /// 修订号一变即重算 —— 否则家长端处理完返回孩子端，商店仍显示旧缓存
 /// （待核销总额不变、卡片仍停在「待家长核销」禁用态），即真机 BUG「拒绝后不同步」。
+///
+/// 🔴 许愿树（A-T03）：本总线**复用、不另建**。[wishOrchestrationServiceProvider]
+/// 的 `onChanged` 在愿望写入成功后 `state++`；孩子端通过外壳首帧 / didPopNext
+/// 的定向通知读取新数据（不订阅本总线，避免进度推进引发无意义全量重算），
+/// 家长端今日页用 `listenManual` 订阅本总线刷新许愿树区块。
 final economyRevisionProvider = StateProvider<int>((ref) => 0);
 
 /// 阳光余额（随 [economyRevisionProvider] 自动重算；花园页左上角胶囊展示用）。
@@ -467,6 +476,45 @@ final taskCheckInServiceProvider = Provider<TaskCheckInService>(
     ledger: ref.watch(sunlightRepositoryProvider),
     focus: ref.watch(focusRepositoryProvider),
     settings: ref.watch(settingsRepositoryProvider),
+  ),
+);
+
+// ── 许愿树（A-T02）· 领域装配 ──────────────────────────────────────────────
+//
+// 🔴 档位 -> bool 的翻译**只**发生在 DI：领域层用 `bool Function() isPremium`，
+//    不出现 Entitlement / FeatureKey（权益命名空间守卫零命中）。
+// 🔴 挂载位阶梯的唯一实现在 `entitlement_matrix.dart`，本层只提供 bool 入参。
+
+/// 许愿仓储（当前孩子过滤在 local 实现内部完成）。
+final wishRepositoryProvider = Provider<WishRepository>(
+  (ref) => WishLocalRepository(ref.watch(appDatabaseProvider),
+      account: ref.watch(accountServiceProvider)),
+);
+
+/// 愿望任务读侧能力扩展：与 `taskRepositoryProvider` 同一个实例（零重复映射）。
+final wishTaskRepositoryProvider = Provider<WishTaskRepository>(
+  (ref) => ref.watch(taskRepositoryProvider) as WishTaskRepository,
+);
+
+/// 当前专注等级注入位（A-T03 的 `currentFocusLevelProvider` 将复用同一取值）。
+final wishFocusLevelProvider = StateProvider<int>((ref) => 0);
+
+/// 档位布尔翻译（read 不 watch：权益切换不重建领域服务）。
+final wishPremiumProvider = Provider<bool>(
+  (ref) => ref.watch(entitlementProvider).isPremium,
+);
+
+/// 许愿树编排服务：所有愿望状态写入 / 额度闸门 / 跨孩子守卫的唯一入口。
+final wishOrchestrationServiceProvider = Provider<WishOrchestrationService>(
+  (ref) => WishOrchestrationService(
+    wishes: ref.watch(wishRepositoryProvider),
+    wishTasks: ref.watch(wishTaskRepositoryProvider),
+    account: ref.watch(accountServiceProvider),
+    tracking: ref.watch(trackingRepositoryProvider),
+    onChanged: () => ref.read(economyRevisionProvider.notifier).state++,
+    idFactory: () => const Uuid().v4(),
+    isPremium: () => ref.read(wishPremiumProvider),
+    focusLevelOf: () => ref.read(wishFocusLevelProvider),
   ),
 );
 

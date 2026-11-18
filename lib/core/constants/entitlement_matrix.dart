@@ -179,11 +179,25 @@ const Map<FeatureKey, FeatureRule> kEntitlementMatrix = <FeatureKey, FeatureRule
   //    买断 = 按等级累积解锁（见 `kPlantPerkPerTitleNode`）。
   //    门控判定唯一入口 = `featureAllowedFor(FeatureKey.titlePerks, tier)`；
   //    UI（详情卡 / 演出卡）与域层（`PlantGrowthService.currentPerk`）均走此判定。
+  // ── C80 · 称号专属属性（真门控）：免费 = 关闭（当前属性恒为 none），
+  //    买断 = 按等级累积解锁（见 `kPlantPerkPerTitleNode`）。
+  //    门控判定唯一入口 = `featureAllowedFor(FeatureKey.titlePerks, tier)`；
+  //    UI（详情卡 / 演出卡）与域层（`PlantGrowthService.currentPerk`）均走此判定。
   FeatureKey.titlePerks: FeatureRule(
     key: FeatureKey.titlePerks,
     freeEnabled: false,
     freeQuota: kUnlimitedQuota,
     premiumQuota: kUnlimitedQuota,
+  ),
+  // 许愿树挂载位：这里的额度是**满级天花板**（free = kWishSlotMaxFree = 10 /
+  // premium = kWishSlotMaxPremium = 20），只供买断页展示与对照。
+  // 🔴 实际额度一律走 wishSlotQuotaFor（唯一实现），禁止用 featureQuotaFor 判定。
+  // 🔴 只拦新增、绝不删存量（C69 红线）。
+  FeatureKey.wishSlot: FeatureRule(
+    key: FeatureKey.wishSlot,
+    freeEnabled: true,
+    freeQuota: kWishSlotMaxFree,
+    premiumQuota: kWishSlotMaxPremium,
   ),
 };
 
@@ -230,3 +244,39 @@ bool quotaAllowsAdd(
   final int quota = featureQuotaFor(feature, tier, matrix: matrix);
   return quota == kUnlimitedQuota || currentCount < quota;
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// 许愿树 · 挂载位阶梯（A14.3 / A20 · 唯一实现）
+//
+// 档位翻译（EntitlementTier -> bool isPremium）只发生在 DI 层；本文件与领域层
+// 一律用 bool，避免领域层命中权益命名空间守卫。
+// ───────────────────────────────────────────────────────────────────────────
+
+/// Number of focus-level title nodes already unlocked at [focusLevel].
+int crossedTitleNodes(int focusLevel) {
+  int crossed = 0;
+  for (final int anchor in kFocusLevelTitleLevels) {
+    if (focusLevel >= anchor) crossed++;
+  }
+  return crossed;
+}
+
+/// Actual simultaneous wish slots at [focusLevel] (the sole judgement).
+int wishSlotQuotaFor({
+  required int focusLevel,
+  required bool isPremium,
+}) {
+  final int base = kWishSlotBaseFree + crossedTitleNodes(focusLevel);
+  return isPremium ? base * kWishSlotPremiumMultiplier : base;
+}
+
+/// Add-only gate: never deletes or trims existing wishes (C69).
+bool quotaAllowsAddWishSlot({
+  required int focusLevel,
+  required bool isPremium,
+  required int currentCount,
+}) =>
+    currentCount < wishSlotQuotaFor(
+      focusLevel: focusLevel,
+      isPremium: isPremium,
+    );

@@ -44,4 +44,17 @@ class TrackingEventNames {
 
   /// 里程碑事件（结算后按累计统计判「新跨过的里程碑」，按 type 去重）。
   static const milestoneEvent = 'milestone_event';
+
+  // ── 许愿树（A7.3）：事件名唯一真源 ──────────────────────────────
+  static const wishTreeOpen = 'wish_tree_open';
+  static const wishCreated = 'wish_created';
+  static const wishParentAction = 'wish_parent_action';
+  static const wishAbandoned = 'wish_abandoned';
+  static const wishTaskVerified = 'wish_task_verified';
+  static const wishTaskRejected = 'wish_task_rejected';
+  static const wishFulfilled = 'wish_fulfilled';
+  static const wishFocusConflict = 'wish_focus_conflict';
+
+  /// v0.7.0 家长「退回树上」：复用既有 tracking_events 表，零新增列。
+  static const wishUndo = 'wish_undo';
 }

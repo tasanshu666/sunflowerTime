@@ -12,6 +12,7 @@ import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
+import 'package:sunflower_time/domain/repositories/wish_task_repository.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
 
 /// 本地任务 / 打卡仓储（实现 domain 接口，§2.1 / §3.1）。
@@ -23,7 +24,7 @@ import 'package:sunflower_time/domain/services/account_service.dart';
 /// 读取全口径按 childId 过滤（成长任务每个孩子各一套；家长端待核销 / 今日打卡 /
 /// 累计计数均只算当前孩子）。🔴 仓储接口签名一律不变（过滤在实现内部完成）；
 /// [AccountService] 可选（null → 按 kChildIdDefault，既有单测零改动）。
-class TaskLocalRepository implements TaskRepository, CheckInAdminRepository {
+class TaskLocalRepository implements TaskRepository, CheckInAdminRepository, WishTaskRepository {
   final db.AppDatabase _db;
   final AccountService? _account;
 
@@ -98,6 +99,44 @@ class TaskLocalRepository implements TaskRepository, CheckInAdminRepository {
         parentNote: parentNote,
         childId: _childId,
       ) == 1;
+  // ── WishTaskRepository（能力扩展，零重复映射）──────────────────────────
+  @override
+  Future<List<Task>> tasksOfWish({required String wishId}) async {
+    final List<db.Task> rows = await (_db.select(_db.tasks)
+          ..where((db.$TasksTable t) =>
+              t.childId.equals(_childId) & t.wishId.equals(wishId)))
+        .get();
+    return rows.map(_toTask).toList();
+  }
+
+  @override
+  Future<List<CheckIn>> checkInsOfTaskIds({
+    required List<String> taskIds,
+  }) async {
+    if (taskIds.isEmpty) return <CheckIn>[];
+    final List<db.CheckIn> rows = await (_db.select(_db.checkIns)
+          ..where((db.$CheckInsTable t) =>
+              t.childId.equals(_childId) & t.taskId.isIn(taskIds)))
+        .get();
+    return rows.map(_toCheckIn).toList();
+  }
+
+  @override
+  Future<void> assignWish({
+    required String taskId,
+    required String wishId,
+  }) =>
+      (_db.update(_db.tasks)
+            ..where((db.$TasksTable t) =>
+                t.id.equals(taskId) & t.childId.equals(_childId)))
+          .write(db.TasksCompanion(wishId: Value(wishId)));
+
+  @override
+  Future<void> unassignWish({required String taskId}) =>
+      (_db.update(_db.tasks)
+            ..where((db.$TasksTable t) =>
+                t.id.equals(taskId) & t.childId.equals(_childId)))
+          .write(const db.TasksCompanion(wishId: Value<String?>(null)));
 }
 
 /// [db.Task] → 领域 [Task]。
@@ -112,6 +151,7 @@ Task _toTask(db.Task r) => Task(
       sunlightReward: r.sunlightReward,
       repeatRule: r.repeatRule,
       isCustom: r.isCustom,
+      wishId: r.wishId,
     );
 
 /// 领域 [Task] → [db.TasksCompanion]。
@@ -126,6 +166,7 @@ db.TasksCompanion _toTaskCompanion(Task t) => db.TasksCompanion(
       sunlightReward: Value(t.sunlightReward),
       repeatRule: Value(t.repeatRule),
       isCustom: Value(t.isCustom),
+      wishId: Value(t.wishId),
     );
 
 /// [db.CheckIn] → 领域 [CheckIn]。

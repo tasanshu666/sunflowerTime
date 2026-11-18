@@ -17,6 +17,9 @@ class Task {
   final String? repeatRule; // 周/日重复规则（占位）
   final bool isCustom;
 
+  /// Wish ownership (`tasks.wish_id`); null = ordinary growth task.
+  final String? wishId;
+
   const Task({
     required this.id,
     required this.name,
@@ -28,7 +31,47 @@ class Task {
     this.repeatRule,
     required this.isCustom,
     this.category = TaskCategory.other,
+    this.wishId,
   });
+
+  /// Explicit-null marker for [copyWith].
+  static const Object kClear = _TaskFieldClear();
+  static const Object _unset = _TaskCopyUnset();
+
+  /// Immutable copy. Pass [kClear] to detach a task from its wish.
+  Task copyWith({
+    String? id,
+    String? name,
+    TaskSubject? subject,
+    Object? customSubject = _unset,
+    TaskCategory? category,
+    bool? requiresFocus,
+    int? minFocusMin,
+    int? sunlightReward,
+    Object? repeatRule = _unset,
+    bool? isCustom,
+    Object? wishId = _unset,
+  }) {
+    return Task(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      subject: subject ?? this.subject,
+      customSubject: _resolveString(customSubject, this.customSubject),
+      category: category ?? this.category,
+      requiresFocus: requiresFocus ?? this.requiresFocus,
+      minFocusMin: minFocusMin ?? this.minFocusMin,
+      sunlightReward: sunlightReward ?? this.sunlightReward,
+      repeatRule: _resolveString(repeatRule, this.repeatRule),
+      isCustom: isCustom ?? this.isCustom,
+      wishId: _resolveString(wishId, this.wishId),
+    );
+  }
+
+  static String? _resolveString(Object? arg, String? current) {
+    if (identical(arg, _unset)) return current;
+    if (identical(arg, kClear)) return null;
+    return arg as String?;
+  }
 
   /// 给定「最少专注分钟」，返回奖励阳光上限（分钟 × [kTaskRewardRatio]，至少 1）。
   /// 编辑器与实体共用同一口径，禁止各处复写公式。
@@ -56,4 +99,12 @@ class Task {
   ///
   /// [categoryIcon] 保留：emoji 是**符号**而非文案（各语言一致，不走 ARB）。
   String get categoryIcon => category.icon;
+}
+
+class _TaskFieldClear {
+  const _TaskFieldClear();
+}
+
+class _TaskCopyUnset {
+  const _TaskCopyUnset();
 }

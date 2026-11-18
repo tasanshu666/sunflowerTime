@@ -63,6 +63,13 @@ enum FeatureKey {
   /// free = 不生效（`currentPerk()` 回 [PlantPerk.none]），premium = 按等级累积解锁。
   /// 门控判定唯一入口 = `featureAllowedFor(FeatureKey.titlePerks, tier)`。
   titlePerks,
+
+  // ── 许愿树（A-T02）──
+
+  /// 同时挂载位的满级天花板登记（10 / 20）。
+  ///
+  /// 🔴 实际额度随专注等级派生，唯一入口 = `wishSlotQuotaFor`。
+  wishSlot,
 }
 
 /// 一次（永久）买断的权益快照。

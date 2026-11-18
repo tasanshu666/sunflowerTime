@@ -195,6 +195,8 @@ void main() {
       FeatureKey.titlePerks,
       // C90 期 1：多孩子档案 —— free 1 / premium 3，只拦新增（C69）。
       FeatureKey.multiChildProfile,
+      // 许愿树挂载位：矩阵登记的是满级天花板，实际额度随等级派生。
+      FeatureKey.wishSlot,
     };
 
     test('矩阵覆盖全部 FeatureKey', () {

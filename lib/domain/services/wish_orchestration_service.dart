@@ -7,6 +7,7 @@ library wish_orchestration_service;
 
 import 'dart:async';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/constants/tracking_event_names.dart';
@@ -674,7 +675,28 @@ class WishOrchestrationService {
       name: _trackingNameOf(kind),
       type: TrackingType.metric,
       ts: now,
-      payload: <String, dynamic>{'wish_id': wish.id},
+      payload: <String, dynamic>{
+        'wish_id': wish.id,
+        // 🔴 A23.2：事件 id 由单点拼装，孩子端据此与已读集合做差集。
+        'kind': kind.name,
+        'event_id': wishEventIdOf(wish.id, kind.name, now.millisecondsSinceEpoch),
+      },
     ));
   }
+
+  /// Emit a cross-end event for a wish that was completed inside another
+  /// service's transaction (A18 R20 focus settlement).
+  ///
+  /// Progress-driven settlement intentionally emits nothing except the single
+  /// `fulfilled` event; callers must not emit `taskVerified` for focus tasks.
+  Future<void> emitCrossEndEvent({
+    required String wishId,
+    required WishEventKind kind,
+    required DateTime now,
+  }) =>
+      _serialized(() async {
+        final Wish wish = await _requireWish(wishId);
+        await _emit(wish, kind, now);
+        _changed();
+      });
 }

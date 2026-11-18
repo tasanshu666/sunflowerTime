@@ -21,3 +21,40 @@ abstract class WishTaskRepository {
   /// Write side: clear `tasks.wish_id` only.
   Future<void> unassignWish({required String taskId});
 }
+
+/// Optional read bridge for wish-linked tasks (A-T03).
+///
+/// Kept separate from [WishTaskRepository] so existing test fakes implementing
+/// that interface stay source-compatible. Injections are optional: when absent
+/// the caller silently degrades to the legacy behaviour.
+abstract class WishTaskReadBridge {
+  /// Look up one wish-linked task by its existing `tasks.id`.
+  ///
+  /// Returns null when the task is missing, belongs to another child, or is a
+  /// plain growth task (`wish_id == null`).
+  Future<Task?> wishTaskById(String taskId);
+
+  /// All tasks for the current child, including wish-linked rows.
+  ///
+  /// Parent-side pending check-ins need this: behaviour-type wish tasks must be
+  /// visible for verification even though the daily board filters them out.
+  Future<List<Task>> allTasksIncludingWish();
+}
+
+/// Optional atomic writer for wish focus settlement (A18 R20 / A16.4-e).
+///
+/// The single transaction writes both the `check_ins` row and the owning
+/// wish's `progress_value` (plus in-transaction fulfilment when ripe), so a
+/// failed progress write can never leave a "checked-in but not credited" row.
+/// Implementations must be pure data adapters; no Flutter dependency here.
+abstract class WishFocusSettlementWriter {
+  /// Atomically persist [checkIn] and credit [creditedMinutes] to the wish.
+  ///
+  /// Returns true when the wish became fulfilled inside this transaction.
+  Future<bool> settleWishFocus({
+    required String wishId,
+    required CheckIn checkIn,
+    required int creditedMinutes,
+    required DateTime now,
+  });
+}

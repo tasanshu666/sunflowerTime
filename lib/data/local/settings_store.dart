@@ -84,6 +84,25 @@ class SettingsStore {
   }) async =>
       _sp.setStringList(ackedTaskCheckInIdsKey(childId), ids);
 
+  // ── 许愿树跨端事件（A-T03 / A23.5：键名不变、值格式扩展）─────────────────
+
+  /// 孩子端已读过的许愿树事件 id（默认空，按 [childId] 分键）。
+  ///
+  /// id 格式 = `'<wishId>#<WishEventKind.name>#<eventAtMillis>'`（见
+  /// [wishEventIdOf]）。v0.1 未实现 ⇒ 无存量、零迁移；脏值原样返回，交由调用方
+  /// 的差集逻辑忽略未知 id（不抛异常，通知检查绝不阻塞孩子端首页）。
+  Future<List<String>> acknowledgedWishEventIds({
+    required String childId,
+  }) async =>
+      _sp.getStringList(wishAckedEventIdsKey(childId)) ?? <String>[];
+
+  /// 覆写「许愿树跨端事件」已读 id 列表（按 [childId] 分键；合并后一次性写入）。
+  Future<void> setAcknowledgedWishEventIds(
+    List<String> ids, {
+    required String childId,
+  }) async =>
+      _sp.setStringList(wishAckedEventIdsKey(childId), ids);
+
   /// 孩子端已展示过的「家长赠予到账」**最新账本记录 id**（F150；默认 null =
   /// 从未弹过 —— 首次有赠予必弹。按 [childId] 分键）。
   ///

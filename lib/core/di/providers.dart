@@ -2,6 +2,8 @@
 /// G2+ 切换云同步时仅需在此替换实现，领域层零改动。
 library providers;
 
+import 'dart:async' show unawaited;
+
 import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,7 +16,10 @@ import 'package:sunflower_time/core/i18n/app_locale_controller.dart';
 import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart'
     show lookupAppLocalizations;
-import 'package:sunflower_time/data/local/database/app_database.dart';
+// `Task` / `CheckIn` in this file always mean domain entities (A-T03 hooks);
+// drift rows with the same names are hidden to avoid ambiguous imports.
+import 'package:sunflower_time/data/local/database/app_database.dart'
+    hide Task, CheckIn;
 import 'package:sunflower_time/data/local/focus_level_prefs_store.dart';
 import 'package:sunflower_time/data/local/guard_state_prefs_store.dart';
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
@@ -34,8 +39,11 @@ import 'package:sunflower_time/data/local/secure_entitlement_store.dart';
 import 'package:sunflower_time/data/local/secure_store.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/domain/entities/child_profile.dart';
+import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/domain/repositories/entitlement_repository.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart';
@@ -471,12 +479,40 @@ final dataManagementServiceProvider = Provider<DataManagementService>(
 
 /// 任务打卡服务（M4，§4.4 / §4.5）：打卡即刻发阳光，按当日累计过软顶只补差额。
 final taskCheckInServiceProvider = Provider<TaskCheckInService>(
-  (ref) => TaskCheckInService(
-    tasks: ref.watch(taskRepositoryProvider),
-    ledger: ref.watch(sunlightRepositoryProvider),
-    focus: ref.watch(focusRepositoryProvider),
-    settings: ref.watch(settingsRepositoryProvider),
-  ),
+  (ref) {
+    // A-T03：愿望任务能力探测（测试 Fake 未实现 ⇒ null ⇒ 走既有成长路径）。
+    final TaskRepository tasks = ref.watch(taskRepositoryProvider);
+    final WishTaskReadBridge? wishTasks = tasks is WishTaskReadBridge
+        ? tasks as WishTaskReadBridge
+        : null;
+    final WishFocusSettlementWriter? wishWriter =
+        tasks is WishFocusSettlementWriter
+            ? tasks as WishFocusSettlementWriter
+            : null;
+    return TaskCheckInService(
+      tasks: tasks,
+      ledger: ref.watch(sunlightRepositoryProvider),
+      focus: ref.watch(focusRepositoryProvider),
+      settings: ref.watch(settingsRepositoryProvider),
+      wishTasks: wishTasks,
+      wishFocusWriter: wishWriter,
+      onWishEvent: (String wishId, WishEventKind kind, DateTime now) {
+        // 同步入队即可：编排服务内部有自己的串行闸门。
+        unawaited(ref.read(wishOrchestrationServiceProvider).emitCrossEndEvent(
+              wishId: wishId,
+              kind: kind,
+              now: now,
+            ));
+      },
+      onWishCheckInVerified: (Task task, CheckIn checkIn, DateTime now) =>
+          ref.read(wishOrchestrationServiceProvider).registerCheckIn(
+                wishId: task.wishId ?? '',
+                checkIn: checkIn,
+                task: task,
+                now: now,
+              ),
+    );
+  },
 );
 
 // ── 许愿树（A-T02）· 领域装配 ──────────────────────────────────────────────

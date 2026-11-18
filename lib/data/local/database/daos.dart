@@ -505,10 +505,21 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
   TaskDao(super.db);
 
   /// 全部任务模板。
-  Future<List<Task>> allTasks({String? childId}) {
+  ///
+  /// 🔴 A16.4 / A18 读侧隔离：[includeWishTasks] 默认 false —— 愿望任务
+  ///（`tasks.wish_id != null`）不出现在「今日必做 x/y」等既有成长任务链路里，
+  /// 因此既有调用点（`task_local_repository.dart` / `task_checkin_service.dart`）
+  /// **零改动即隔离**。家长端待核销通过 [includeWishTasks] = true 显式取全量。
+  Future<List<Task>> allTasks({
+    String? childId,
+    bool includeWishTasks = false,
+  }) {
     final query = select(tasks);
     if (childId != null) {
       query.where((t) => t.childId.equals(childId));
+    }
+    if (!includeWishTasks) {
+      query.where((t) => t.wishId.isNull());
     }
     return query.get();
   }

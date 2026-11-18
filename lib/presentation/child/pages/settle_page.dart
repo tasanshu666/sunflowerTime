@@ -75,6 +75,18 @@ class SettleArgs {
   /// 是否跳过了成长项结算（取不到真实落库会话 / 结算异常，兜底标记）。
   final bool taskSettleSkipped;
 
+  /// A-T03：愿望任务（专注型）的结算结果；为 null 时结算页逐像素不变。
+  ///
+  /// 金额恒为 0 —— 愿望任务不发阳光，这里只展示「愿望任务完成 / 本次没算上」，
+  /// 绝不复用成长项的 `+N ☀` 文案。
+  final TaskCheckInOutcome? wishTaskOutcome;
+
+  /// 愿望任务名称（展示用；无则 null）。
+  final String? wishTaskName;
+
+  /// 愿望任务结算被跳过（取不到真实会话 / 无效专注 / 异常，兜底标记）。
+  final bool wishTaskSettleSkipped;
+
   /// 进入结算页之前是否**还需要一次护眼休息**（C28 §1 场末插入点）。
   ///
   /// 真值 → 本页会先把 [EyeCarePage] 压在自己之上，等它结束（完成 / 确认跳过）才
@@ -97,6 +109,9 @@ class SettleArgs {
     this.taskOutcome,
     this.taskName,
     this.taskSettleSkipped = false,
+    this.wishTaskOutcome,
+    this.wishTaskName,
+    this.wishTaskSettleSkipped = false,
     this.eyeCarePending = false,
     this.eyeCareReward = 0,
   });
@@ -354,6 +369,42 @@ class _SettlePageState extends ConsumerState<SettlePage>
     } catch (_) {
       // 埋点失败容忍：绝不影响结算页既有行为。
     }
+  }
+
+  /// A-T03：愿望任务结算展示（**非阻塞**，可选）。
+  ///
+  /// 三个可选字段全为默认 null/false 时返回空列表 ⇒ 结算页逐像素不变（既有
+  /// `?task=` 链路回归红线）。愿望项**不显示阳光数字**，只表示进度已推进。
+  List<Widget> _wishTaskSettlementLines(AppLocalizations l10n) {
+    final SettleArgs? args = widget.args;
+    if (args == null) return const <Widget>[];
+    final TaskCheckInOutcome? outcome = args.wishTaskOutcome;
+    if (args.wishTaskSettleSkipped || outcome == null) {
+      if (!args.wishTaskSettleSkipped) return const <Widget>[];
+      return <Widget>[
+        const SizedBox(height: 12),
+        Text(
+          l10n.child_settle_task_skipped,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Color(0xFFBDBDBD), fontSize: 13),
+        ),
+      ];
+    }
+    final String name = args.wishTaskName ?? l10n.child_settle_task_label;
+    return <Widget>[
+      const SizedBox(height: 12),
+      Text(
+        outcome.status == CheckInStatus.verified
+            ? l10n.child_settle_task_progress(name)
+            : l10n.child_settle_task_skipped,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Color(0xFFFFE082),
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ];
   }
 
   /// 联动成长项结算展示（**非阻塞**）：失败 / 跳过只温和提示，绝不改变
@@ -735,6 +786,8 @@ class _SettlePageState extends ConsumerState<SettlePage>
                       ],
                       // 联动成长项结算（仅从「成长」进入专注才会有）。
                       ..._taskSettlementLines(l10n),
+                      // A-T03：愿望任务结算（仅从 `?wishTask=` 进入才会有）。
+                      ..._wishTaskSettlementLines(l10n),
                     ],
                   ),
                 ),

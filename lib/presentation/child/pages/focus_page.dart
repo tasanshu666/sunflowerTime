@@ -45,9 +45,11 @@ import 'package:sunflower_time/domain/entities/tracking_event.dart';
 import 'package:sunflower_time/domain/services/eye_care_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/domain/services/focus_engine.dart';
+import 'package:sunflower_time/domain/services/focus_validity.dart';
 import 'package:sunflower_time/domain/services/presence_detector.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
+import 'package:sunflower_time/domain/repositories/wish_task_repository.dart';
 import 'package:sunflower_time/platform/dnd_controller.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/pages/eye_care_page.dart';
@@ -89,12 +91,19 @@ class FocusPage extends ConsumerStatefulWidget {
   /// 非空时，本次专注结束后按会话自动结算该成长项（见 [_FocusPageState._handleOutcome]）。
   final String? taskId;
 
+  /// A-T03：愿望任务 id（**就是既有 `tasks.id`**），由 `?wishTask=` 传入。
+  ///
+  /// 与 [taskId] 互斥；两者都带时路由已丢弃本字段，既有 `?task=` 链路不动。
+  /// 非空时本次专注结束后走**独立**愿望结算分支（不发阳光 / 不进经济池）。
+  final String? wishTaskId;
+
   const FocusPage({
     super.key,
     this.plannedMinutes = kFocusDurationDefaultMinutes,
     this.dnd = true,
     this.freeMode = false,
     this.taskId,
+    this.wishTaskId,
   });
 
   @override
@@ -739,6 +748,62 @@ class _FocusPageState extends ConsumerState<FocusPage>
       }
     }
 
+    // ── A-T03：愿望任务结算（**独立 try/catch**，成长项链路上方逐字节不变）──
+    //
+    // 纪律同 M4：任何失败 / 取不到会话都不影响「专注本身已成功」，静默降级为
+    // `wishTaskSettleSkipped`，绝不回滚、绝不报错页。
+    TaskCheckInOutcome? wishTaskOutcome;
+    String? wishTaskName;
+    bool wishTaskSettleSkipped = false;
+    final String? wishTaskId = widget.wishTaskId;
+    if (wishTaskId != null) {
+      try {
+        // 值 = 既有 tasks.id；用读桥接取真实任务，并二次确认 wishId != null。
+        final Object taskRepo = ref.read(taskRepositoryProvider);
+        Task? wishTask;
+        if (taskRepo is WishTaskReadBridge) {
+          wishTask = await taskRepo.wishTaskById(wishTaskId);
+        }
+        if (wishTask == null || wishTask.wishId == null) {
+          wishTaskSettleSkipped = true;
+        } else {
+          wishTaskName = taskDisplayName(
+            wishTask.id,
+            wishTask.name,
+            lookupAppLocalizations(AppLocaleController.current),
+          );
+          // 取**真实落库**的会话对象，按 settlement.sessionId 精确匹配，绝不自造。
+          final List<FocusSession> todaySessions = await ref
+              .read(focusRepositoryProvider)
+              .sessionsOfDay(dayKey(DateTime.now()));
+          FocusSession? session;
+          for (final FocusSession s in todaySessions) {
+            if (s.id == settlement.sessionId) {
+              session = s;
+              break;
+            }
+          }
+          // 无效专注（短退 / 完成率不足）⇒ 不推进、不写任何记录。
+          if (session == null || !isValidFocusSession(session)) {
+            wishTaskSettleSkipped = true;
+          } else {
+            wishTaskOutcome = await ref.read(taskCheckInServiceProvider)
+                .settleWishFocusTask(
+                  task: wishTask,
+                  session: session,
+                  now: DateTime.now(),
+                );
+            // 进度变化通过既有修订号总线让家长端 / 今日页刷新。
+            if (wishTaskOutcome.status == CheckInStatus.verified) {
+              ref.read(economyRevisionProvider.notifier).state++;
+            }
+          }
+        }
+      } catch (_) {
+        wishTaskSettleSkipped = true;
+      }
+    }
+
     if (!mounted) return;
     // go 是替换路由栈（B20）；结算页经 go 进入，退出用 go('/')。
     //
@@ -754,6 +819,9 @@ class _FocusPageState extends ConsumerState<FocusPage>
         taskOutcome: taskOutcome,
         taskName: taskName,
         taskSettleSkipped: taskSettleSkipped,
+        wishTaskOutcome: wishTaskOutcome,
+        wishTaskName: wishTaskName,
+        wishTaskSettleSkipped: wishTaskSettleSkipped,
         eyeCarePending: !eyeCareFirst && _shouldEyeCareAtSessionEnd(),
         eyeCareReward: eyeCareReward,
       ),

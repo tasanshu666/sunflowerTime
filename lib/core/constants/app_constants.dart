@@ -170,6 +170,20 @@ String ackedRejectIdsKey(String childId) => 'acked_reject_ids_read_$childId';
 String ackedTaskCheckInIdsKey(String childId) =>
     'acked_task_checkin_ids_read_$childId';
 
+/// 孩子端已读「许愿树跨端事件」的事件 id 列表键（A-T03 / A23.5；按孩子分键）。
+///
+/// 🔴 键名保持 A23.5 定稿的 `'wish_acked_event_ids_$childId'`（v0.1 未实现、
+/// 无存量 ⇒ 值格式直接扩展为 `'<wishId>#<WishEventKind.name>#<eventAtMillis>'`，
+/// 不需要迁移）。事件 id 由 [wishEventIdOf] 单点拼装，业务层禁止另写字面量。
+/// 🔴 键名生成走本 helper 单点，禁止散写字面量。
+String wishAckedEventIdsKey(String childId) => 'wish_acked_event_ids_$childId';
+
+/// 许愿树跨端事件 id 的唯一拼装点（A23.2）：`<wishId>#<kind>#<millis>`。
+///
+/// [eventAtMillis] 取**写进 DB 的那个时间戳**（不是读取时刻），保证可重放 / 对账。
+String wishEventIdOf(String wishId, String kind, int eventAtMillis) =>
+    '$wishId#$kind#$eventAtMillis';
+
 /// 孩子端已读「家长赠予到账」通知键（F150；存**最近一条已读账本记录的 id**）。
 ///
 /// ⚠️ F202（2026-11-14）起本键**只作迁移读取源**，不再新写 —— 判据改用

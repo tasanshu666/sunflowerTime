@@ -25,6 +25,7 @@ import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
+import 'package:sunflower_time/core/i18n/wish_l10n.dart';
 import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
@@ -42,6 +43,7 @@ import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/domain/repositories/reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
+import 'package:sunflower_time/presentation/child/state/wish_state.dart';
 import 'package:sunflower_time/presentation/child/pages/child_today_page.dart';
 import 'package:sunflower_time/presentation/child/pages/child_task_page.dart';
 import 'package:sunflower_time/presentation/child/pages/child_profile_page.dart';
@@ -217,6 +219,8 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     // 不并入 _checkAllNotices（那套挂 economyRevision 监听，会在家长仍在
     // 家长端操作时就把卡弹出来挡住家长）—— 赠予卡只在孩子真的回到台前时弹。
     _checkParentGiftNotice();
+    // A-T03：许愿树通知同样只在孩子真的回到台前时弹（不走修订号监听）。
+    _checkWishNotices();
   }
 
   /// 把「家长端设置」的音效 / 背景音乐开关接到音频服务。
@@ -792,10 +796,77 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   /// 顺序**刻意**把新增的任务审批卡放在最后：既有两条卡片的弹出次序 / 去重口径
   /// 保持一字不变（已被 `nav_structure_test` / `c91` 钉死），新卡只在它们都无未读
   /// 时才轮到，避免打断既有体验。
-  Future<void> _checkAllNotices() async {
+  /// 既有三条通知（M2 / B4 / F126），顺序一字不变。
+  ///
+  /// 🔴 A-T03：本 helper 单独存在是为了让 `economyRevisionProvider` 监听仍只
+  /// 触发这三条卡 —— 许愿树卡**不能**走修订号监听（A23.4）。
+  Future<void> _checkLegacyNotices() async {
     await _checkVerifiedNotices();
     await _checkRejectedNotices();
     await _checkTaskVerifiedNotices();
+  }
+
+  /// 汇总检查：既有三条 + **许愿树回应**（v0.2，含 taskRejected）。
+  ///
+  /// 只在首帧 postFrame 调用；didPopNext 单独调 [_checkWishNotices]。
+  Future<void> _checkAllNotices() async {
+    await _checkLegacyNotices();
+    // 🆕 A-T03：许愿树卡刻意排在最后，既有三条卡的弹出次序 / 去重口径不变。
+    await _checkWishNotices();
+  }
+
+  /// 许愿树跨端通知（A-T03 / A23.4）：读未读事件 → 弹**一张**卡 → 合并写已读。
+  ///
+  /// 🔴 触发时机**只有两处**：外壳首帧 postFrame（经 [_checkAllNotices]）与
+  /// [didPopNext]。**绝不**监听 [economyRevisionProvider] —— 家长仍在家长端
+  /// 操作时弹卡会挡住家长。`taskRejected` 与 `taskVerified` 走同一条路。
+  /// 任何异常静默降级，不阻塞孩子端首页。
+  Future<void> _checkWishNotices() async {
+    try {
+      final List<WishPendingEvent> unread =
+          await ref.read(pendingWishEventsProvider.future);
+      if (unread.isEmpty || !mounted) return;
+
+      final List<GoldNoticeItem> items = <GoldNoticeItem>[];
+      for (final WishPendingEvent event in unread) {
+        String wishText = '';
+        try {
+          wishText = (await ref
+                  .read(wishOrchestrationServiceProvider)
+                  .wishById(event.wishId))?.text ??
+              '';
+        } catch (_) {
+          wishText = '';
+        }
+        items.add(GoldNoticeItem(
+          icon: Icons.favorite_border,
+          name: wishText.isEmpty
+              ? wishTextOf(WishTextKey.wishGrowing)
+              : wishText,
+          subtitle: event.kind,
+        ));
+      }
+      if (!mounted) return;
+      await showGoldNoticeDialog(
+        context,
+        title: wishTextOf(WishTextKey.wishGrowing),
+        items: items,
+        confirmLabel: (_l10n ?? AppLocalizationsZh()).shared_got_it,
+      );
+
+      // 弹窗关闭后才写已读（「未看先读」会永久吞掉通知）；合并一次写入。
+      final String childId = _currentChildId();
+      final SettingsStore store = ref.read(settingsStoreProvider);
+      final List<String> acked =
+          await store.acknowledgedWishEventIds(childId: childId);
+      await store.setAcknowledgedWishEventIds(
+        <String>{...acked, ...unread.map((WishPendingEvent e) => e.eventId)}
+            .toList(),
+        childId: childId,
+      );
+    } catch (_) {
+      // 通知失败不阻塞孩子端首页。
+    }
   }
 
   /// 检查「家长赠予到账」未读并弹金色提示卡（F150，玄参 2026-10-23 反馈：
@@ -906,8 +977,10 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
     // B5：核销同步弹窗时机修复 —— 家长核销会自增经济修订号，孩子端外壳（若仍挂载）
     // 监听修订号变化即重新检查「家长已核销」通知，避免仅 initState 触发一次、
     // 页面未重建则不弹的隐患。已读集合在仓库层去重，不会重复弹窗。
+    // 🔴 A-T03：这里刻意调 `_checkLegacyNotices()` 而非 `_checkAllNotices()` ——
+    // 许愿树卡只在首帧 / didPopNext 弹，绝不走修订号监听（A23.4）。
     ref.listen(economyRevisionProvider, (_, __) {
-      if (mounted) _checkAllNotices();
+      if (mounted) _checkLegacyNotices();
     });
     // F99：使用时长状态变化（单次锁定触发 / 日上限到顶）→ 人在娱乐 tab 时即时收口。
     ref.listen(appUsageControllerProvider, (_, AppUsageState next) {

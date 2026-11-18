@@ -63,6 +63,9 @@ import 'package:sunflower_time/domain/repositories/focus_repository.dart';
 import 'package:sunflower_time/domain/repositories/settings_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/repositories/task_repository.dart';
+import 'package:sunflower_time/domain/repositories/wish_task_repository.dart';
+import 'package:sunflower_time/domain/entities/wish.dart';
+import 'package:sunflower_time/domain/services/wish_progress.dart';
 
 /// 联动专注结算「按比例」的**最低实际专注秒数**（F143，玄参 2026-10-20 拍板）。
 ///
@@ -307,17 +310,41 @@ class TaskCheckInService {
     required FocusRepository focus,
     required SettingsRepository settings,
     Uuid? idGenerator,
+    // ── A-T03 许愿树接线（全部可选，既有测试 Fake 构造零改动）────────────
+    WishTaskReadBridge? wishTasks,
+    WishFocusSettlementWriter? wishFocusWriter,
+    void Function(String wishId, WishEventKind kind, DateTime now)? onWishEvent,
+    Future<void> Function(Task task, CheckIn checkIn, DateTime now)?
+        onWishCheckInVerified,
   })  : _tasks = tasks,
         _ledger = ledger,
         _focus = focus,
         _settings = settings,
-        _uuid = idGenerator ?? const Uuid();
+        _uuid = idGenerator ?? const Uuid(),
+        _wishTasks = wishTasks,
+        _wishFocusWriter = wishFocusWriter,
+        _onWishEvent = onWishEvent,
+        _onWishCheckInVerified = onWishCheckInVerified;
 
   final TaskRepository _tasks;
   final SunlightRepository _ledger;
   final FocusRepository _focus;
   final SettingsRepository _settings;
   final Uuid _uuid;
+
+  /// A-T03：愿望任务读 / 写桥接。缺失时按既有成长任务路径降级（零回归）。
+  final WishTaskReadBridge? _wishTasks;
+  final WishFocusSettlementWriter? _wishFocusWriter;
+  final void Function(String wishId, WishEventKind kind, DateTime now)?
+      _onWishEvent;
+  final Future<void> Function(Task task, CheckIn checkIn, DateTime now)?
+      _onWishCheckInVerified;
+
+  /// 🔴 A16.4 经济隔离判定的**唯一 helper**（G14）。
+  ///
+  /// 所有 5 处隔离点（阳光 / 完美日 / 周月池 / 今日必做 / 进度累加）都只经
+  /// 本函数判定 `task.wishId != null`，禁止在业务分支里各写一遍（判定孪生）。
+  static bool _isWishLinkedTask(Task task) => task.wishId != null;
 
   /// 成长项打卡的账本标识（**数据标识**，非文案：改动会对不上历史账本，一律不动）。
   ///
@@ -444,13 +471,19 @@ class TaskCheckInService {
     }
 
     final List<FocusSession> todaySessions = await _focus.sessionsOfDay(day);
-    final double reward = _rewardFor(task, todaySessions);
-    final bool perfectDayBonus = _isPerfectDayToday(todaySessions);
-    final bool allTasksDone = await _allDailySubmitted(todayCheckIns, task.id);
+    // 🔴 A16.4-a/b：愿望任务不发阳光、不参与完美日。判定只走唯一 helper。
+    final bool wishTask = _isWishLinkedTask(task);
+    final double reward = wishTask ? 0.0 : _rewardFor(task, todaySessions);
+    final bool perfectDayBonus =
+        wishTask ? false : _isPerfectDayToday(todaySessions);
+    final bool allTasksDone = wishTask
+        ? false
+        : await _allDailySubmitted(todayCheckIns, task.id);
 
     final String checkInId = _uuid.v4();
 
     // 落 pending：当期不发阳光（sunlightGranted = 0），只记应发 [sunlightGross]。
+    // 愿望任务的 gross / granted 均为 0 ⇒ 天然不进周月池聚合（A16.4-c）。
     await _tasks.checkIn(CheckIn(
       id: checkInId,
       taskId: task.id,
@@ -601,6 +634,13 @@ class TaskCheckInService {
       throw const TaskCheckInException(TaskCheckInError.sessionUsed);
     }
 
+    // 🔴 A16.4 / A18：**独立愿望分支**（成长任务分支以下逐字节不变）。
+    // G14：唯一判定 helper；不发阳光 / 不落账本 / 不参与完美日 / 不进周月池，
+    // 专注分钟经数据层桥接在同一事务里累加到所属愿望的 progress_value。
+    if (_isWishLinkedTask(task)) {
+      return _settleWishLinkedFocus(task: task, session: session, now: now);
+    }
+
     final List<FocusSession> sessions = await _focus.sessionsOfDay(day);
     // F143：应发阳光 —— 全额 = [Task.effectiveSunlightReward]（现状逻辑）；
     // 部分完成 = 按比例 floor（最少 1）。⚠️ 比例只用整数秒运算，不读 double 分钟。
@@ -648,19 +688,120 @@ class TaskCheckInService {
     );
   }
 
+  /// A-T03 / A22.5 结算桥：专注页按 `settlement.sessionId` 取到真实会话后调用。
+  ///
+  /// 只接受愿望任务（唯一 helper 判定），经同一串行闸门排队，避免同 session
+  /// 两次结算交错。成长任务链路完全不经过本方法。
+  Future<TaskCheckInOutcome> settleWishFocusTask({
+    required Task task,
+    required FocusSession session,
+    required DateTime now,
+  }) {
+    if (!_isWishLinkedTask(task)) {
+      throw const TaskCheckInException(TaskCheckInError.notLinked);
+    }
+    // 复用 `_settleFocusLinked` 的四道既有守卫（requiresFocus / 跨天 / 5 分钟
+    // 短退 / session 幂等），守卫通过后由其中的独立愿望分支结算；成长分支不执行。
+    return _serialized(
+      () => _settleFocusLinked(task: task, session: session, now: now),
+    );
+  }
+
+  /// 🔴 愿望任务专注结算（A16.4 / A18）：与成长任务分支**完全隔离**。
+  ///
+  /// 入口已由 [_settleFocusLinked] 做过：requiresFocus、跨天、无效短退、
+  /// session 幂等四道守卫。本方法不再造会话，也不触碰任何阳光账本。
+  Future<TaskCheckInOutcome> _settleWishLinkedFocus({
+    required Task task,
+    required FocusSession session,
+    required DateTime now,
+  }) async {
+    final String wishId = task.wishId ?? '';
+    final String checkInId = _uuid.v4();
+    final CheckIn checkIn = CheckIn(
+      id: checkInId,
+      taskId: task.id,
+      date: now,
+      completedAt: now,
+      sessionId: session.id,
+      // 愿望项不参与完美日；gross / granted 恒 0 ⇒ 不进周月池。
+      isPerfectDay: false,
+      status: CheckInStatus.verified,
+      sunlightGross: 0.0,
+      sunlightGranted: 0.0,
+      // 照常记录实际专注分钟（家长端记录 / 孩子端任务卡展示）。
+      actualFocusMin: session.actualFocusMin,
+    );
+    // 计分口径单点复用领域纯函数（mode 0：floor + min_focus_min 封顶）。
+    final int credited = progressDeltaOf(
+      mode: WishGoalMode.focusMinutes,
+      task: task,
+      checkIn: checkIn,
+    );
+
+    bool fulfilled = false;
+    final WishFocusSettlementWriter? writer = _wishFocusWriter;
+    if (writer != null) {
+      fulfilled = await writer.settleWishFocus(
+        wishId: wishId,
+        checkIn: checkIn,
+        creditedMinutes: credited,
+        now: now,
+      );
+    } else {
+      // 测试 Fake / 未装配桥接时的降级：仍写打卡流水，只是不推进进度。
+      // 经济隔离在降级路径同样成立（无账本写入）。
+      await _tasks.checkIn(checkIn);
+    }
+    // 进度推进本身不产生事件；只有事务内成真才发一条 fulfilled（A23.3）。
+    if (fulfilled) {
+      try {
+        _onWishEvent?.call(wishId, WishEventKind.fulfilled, now);
+      } catch (_) {
+        // 事件失败不打断专注结算主链路。
+      }
+    }
+
+    return TaskCheckInOutcome(
+      checkInId: checkInId,
+      reward: 0.0,
+      granted: 0.0,
+      cappedByDailyCap: false,
+      perfectDayBonus: false,
+      allTasksDone: false,
+      status: CheckInStatus.verified,
+      partial: false,
+      completionPercent: 100,
+    );
+  }
+
   /// 家长端：全部待核销（**不限今日**，避免积压几天就看不到），按 completedAt 升序。
   ///
   /// 只读入口，**不加**串行化闸门。
   Future<List<PendingCheckIn>> pendingCheckIns() async {
     final List<CheckIn> rows =
         await _admin.checkInsByStatus(CheckInStatus.pending);
-    final List<Task> allTasks = await _tasks.tasks();
+    // 🔴 A16.4-d 的唯一例外：家长待核销**必须**看到行为型愿望任务，否则永远
+    // 无法核销。显式走桥接取全量（含 wish_id），再按 wishId 拆两段返回：
+    // 既有成长项保持原顺序在前，愿望任务接在后段（旧 UI 零感知）。
+    final WishTaskReadBridge? bridge = _wishTasks;
+    final List<Task> allTasks =
+        bridge == null ? await _tasks.tasks() : await bridge.allTasksIncludingWish();
     final Map<String, Task> byId = <String, Task>{
       for (final Task t in allTasks) t.id: t,
     };
-    return rows
-        .map((CheckIn c) => PendingCheckIn(checkIn: c, task: byId[c.taskId]))
-        .toList();
+    final List<PendingCheckIn> growth = <PendingCheckIn>[];
+    final List<PendingCheckIn> wish = <PendingCheckIn>[];
+    for (final CheckIn c in rows) {
+      final Task? task = byId[c.taskId];
+      final PendingCheckIn item = PendingCheckIn(checkIn: c, task: task);
+      if (task != null && _isWishLinkedTask(task)) {
+        wish.add(item);
+      } else {
+        growth.add(item);
+      }
+    }
+    return <PendingCheckIn>[...growth, ...wish];
   }
 
   /// 家长端「记录」页：全部**已核销**打卡（不限日期），供历史聚合统计（C54）。
@@ -696,9 +837,22 @@ class TaskCheckInService {
 
     // 上限按「打卡原始日」核算：pending 期间未入账，故不被当日 earn 合计占用。
     final String day = dayKey(c.date);
-    final double reward = c.sunlightGross;
+    // 🔴 A16.4-a：愿望任务的核销写回也走 0 阳光 + 0 账本。判定只走唯一 helper。
+    final WishTaskReadBridge? bridge = _wishTasks;
+    final List<Task> known = bridge == null
+        ? await _tasks.tasks()
+        : await bridge.allTasksIncludingWish();
+    Task? linked;
+    for (final Task t in known) {
+      if (t.id == c.taskId) {
+        linked = t;
+        break;
+      }
+    }
+    final bool wishTask = linked != null && _isWishLinkedTask(linked);
+    final double reward = wishTask ? 0.0 : c.sunlightGross;
     final ({double grant, bool capped}) rewardCap =
-        await _dailyRewardGrant(day, reward);
+        wishTask ? (grant: 0.0, capped: false) : await _dailyRewardGrant(day, reward);
 
     // CAS 抢状态（修复 2，P0）：仅当记录仍是 pending 时写回；抢占成功才可入账。
     // 抢占失败 = 已被并发处理（家长连点两次），必须放弃入账，否则余额翻倍。
@@ -712,7 +866,17 @@ class TaskCheckInService {
     if (!won) {
       throw const TaskCheckInException(TaskCheckInError.race);
     }
-    await _appendLedger(checkInId, day, now, reward, rewardCap.grant);
+    if (wishTask) {
+      // 愿望任务：核销只推进愿望进度（mode 1 = +1 / mode 0 = floor 分钟）；
+      // 事件由编排服务的 registerCheckIn 发出（taskVerified）。
+      try {
+        await _onWishCheckInVerified?.call(linked, c, now);
+      } catch (_) {
+        // 进度失败不回滚已完成的核销（CAS 已落库），异常静默降级。
+      }
+    } else {
+      await _appendLedger(checkInId, day, now, reward, rewardCap.grant);
+    }
 
     return TaskCheckInOutcome(
       checkInId: checkInId,
@@ -812,7 +976,11 @@ class TaskCheckInService {
     List<CheckIn> todayCheckIns,
     String extraTaskId,
   ) async {
-    final List<Task> allTasks = await _tasks.tasks();
+    // 🔴 A16.4-b：默认 allTasks() 已过滤愿望任务；这里再用唯一 helper 显式排除
+    // 一次（即便将来传入含愿望任务的桥接结果也不会污染完美日判定）。
+    final List<Task> allTasks = (await _tasks.tasks())
+        .where((Task t) => !_isWishLinkedTask(t))
+        .toList();
     // 被驳回的打卡不顶替「已提交」：先剔除 rejected，再取 taskId 集合（修复 5）。
     final Set<String> submitted = todayCheckIns
         .where((CheckIn c) => c.status != CheckInStatus.rejected)

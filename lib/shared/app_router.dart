@@ -3,11 +3,15 @@
 /// 孩子端（默认竖屏）与 家长端（本地 PIN 进入）分离；首启未同意 → /consent。
 library app_router;
 
+import 'dart:async' show unawaited;
+import 'dart:developer' show log;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
+import 'package:sunflower_time/core/constants/tracking_event_names.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/presentation/child/pages/child_shell_page.dart';
 import 'package:sunflower_time/presentation/child/pages/child_sunlight_history_page.dart';
@@ -29,6 +33,8 @@ import 'package:sunflower_time/presentation/parent/pages/parent_premium_page.dar
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
 import 'package:sunflower_time/presentation/shared/privacy_policy_page.dart';
 import 'package:sunflower_time/shared/child_route_observer.dart';
+import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/tracking_event.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -64,6 +70,28 @@ final routerProvider = Provider<GoRouter>((ref) {
           final dnd = state.uri.queryParameters['dnd'] != '0';
           // task 可空：从「成长」联动项进入时携带成长项 id（M4 达标后自动结算）。
           final taskId = state.uri.queryParameters['task'];
+          // 🔴 A22.4：许愿任务联动（专注型）。`?wishTask=` 的值就是既有
+          // `tasks.id`（没有第二种任务 id）。与 `?task=` **互斥**：两者都带时
+          // `?task=` 优先（既有链路逐字节不变），丢弃 wishTask + warning + 埋点。
+          final String? wishTaskId = state.uri.queryParameters['wishTask'];
+          final bool hasTask = taskId != null && taskId.isNotEmpty;
+          final bool hasWishTask =
+              wishTaskId != null && wishTaskId.isNotEmpty;
+          final bool wishTaskConflict = hasTask && hasWishTask;
+          if (wishTaskConflict) {
+            log('wish_focus_conflict: ?task= wins, ?wishTask= dropped',
+                name: TrackingEventNames.wishFocusConflict, level: 900);
+            unawaited(ref.read(trackingRepositoryProvider).track(TrackingEvent(
+              id: DateTime.now().microsecondsSinceEpoch.toString(),
+              name: TrackingEventNames.wishFocusConflict,
+              type: TrackingType.metric,
+              ts: DateTime.now(),
+              payload: <String, dynamic>{
+                'task_id': taskId,
+                'wish_task_id': wishTaskId,
+              },
+            )));
+          }
           // free=1：自由专注（玄参 2026-09-30）——不预设时长、无到时提醒，
           // 孩子自定结束；minutes 透传 0（仅落库 plannedMin=0 的口径标记）。
           final bool free = state.uri.queryParameters['free'] == '1';
@@ -72,6 +100,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             dnd: dnd,
             freeMode: free,
             taskId: taskId,
+            wishTaskId: wishTaskConflict ? null : wishTaskId,
           );
         },
       ),

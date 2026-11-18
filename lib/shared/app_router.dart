@@ -22,6 +22,7 @@ import 'package:sunflower_time/presentation/child/pages/focus_page.dart';
 import 'package:sunflower_time/presentation/child/pages/settle_page.dart';
 import 'package:sunflower_time/presentation/child/pages/store_page.dart';
 import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
+import 'package:sunflower_time/presentation/child/pages/wish_tree_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_home_page.dart';
 import 'package:sunflower_time/presentation/parent/pages/parent_login_page.dart';
 // ⚠️ C76 / C87：`parent_report_page.dart` 曾在此被 import；C76 起 `/parent/report`
@@ -158,6 +159,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/garden',
         builder: (context, state) => const GardenPage(),
+      ),
+      // 许愿树（A-T04）：孩子端独立页面，从花园热点 / 今日页速览入口 push 进入。
+      GoRoute(
+        path: '/wish-tree',
+        builder: (context, state) => const WishTreePage(),
       ),
       GoRoute(
         path: '/parent/report',

@@ -23,6 +23,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sunflower_time/core/i18n/enum_l10n.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_en.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
@@ -146,6 +147,49 @@ void main() {
       expect(taskDisplaySubject(_task(TaskSubject.math), zh), '数学');
       expect(taskDisplaySubject(_task(TaskSubject.math), en), 'Math');
       expect(taskDisplaySubject(_task(TaskSubject.general), en), 'General');
+    });
+  });
+
+  group('wishCategoryLabel（许愿分类 · A-T04/A24.6）', () {
+    // 判据量写死独立期望值，不引用实现常量（防恒绿）。
+    const Map<WishCategory, String> zhTable = <WishCategory, String>{
+      WishCategory.other: '其他',
+      WishCategory.gift: '礼物',
+      WishCategory.experience: '一次体验',
+      WishCategory.toy: '玩具',
+      WishCategory.growth: '成长',
+      WishCategory.companionship: '陪伴',
+    };
+    const Map<WishCategory, String> enTable = <WishCategory, String>{
+      WishCategory.other: 'Other',
+      WishCategory.gift: 'Gift',
+      WishCategory.experience: 'An experience',
+      WishCategory.toy: 'A toy',
+      WishCategory.growth: 'Growth',
+      WishCategory.companionship: 'Companionship',
+    };
+
+    test('zh 六类逐字正确', () {
+      for (final MapEntry<WishCategory, String> e in zhTable.entries) {
+        expect(wishCategoryLabel(e.key, zh), e.value,
+            reason: '分类 ${e.key.name} 的中文文案');
+      }
+    });
+
+    test('en 六类逐字正确且无 CJK', () {
+      for (final MapEntry<WishCategory, String> e in enTable.entries) {
+        final String label = wishCategoryLabel(e.key, en);
+        expect(label, e.value, reason: '分类 ${e.key.name} 的英文文案');
+        expect(_cjkRe.hasMatch(label), isFalse,
+            reason: '英文环境不得出现中文（${e.key.name}）');
+      }
+    });
+
+    test('switch 穷尽全部 6 个枚举值', () {
+      expect(WishCategory.values.length, 6);
+      for (final WishCategory c in WishCategory.values) {
+        expect(wishCategoryLabel(c, zh), isNotEmpty);
+      }
     });
   });
 

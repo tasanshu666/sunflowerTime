@@ -18,6 +18,7 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
 import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 /// 成长项分类名（学习 / 运动 / 生活 / 习惯 / 其他）。
@@ -88,6 +89,27 @@ String taskDisplaySubject(Task task, AppLocalizations t) {
     return name.isEmpty ? t.child_entry_custom : name;
   }
   return taskSubjectLabel(task.subject, t);
+}
+
+/// 愿望分类名（A-T04 / A24.6）：其他 / 礼物 / 一次体验 / 玩具 / 成长 / 陪伴。
+///
+/// switch 覆盖全部 6 类（新增枚举成员时编译器在此报错），文案走 ARB
+/// `wishCategory*`（zh/en 键集同源），许愿弹窗与卡片共用同一出口。
+String wishCategoryLabel(WishCategory category, AppLocalizations t) {
+  switch (category) {
+    case WishCategory.other:
+      return t.wishCategoryOther;
+    case WishCategory.gift:
+      return t.wishCategoryGift;
+    case WishCategory.experience:
+      return t.wishCategoryExperience;
+    case WishCategory.toy:
+      return t.wishCategoryToy;
+    case WishCategory.growth:
+      return t.wishCategoryGrowth;
+    case WishCategory.companionship:
+      return t.wishCategoryCompanionship;
+  }
 }
 
 /// 花园守卫 · 偷菜贼的展示名（馋光鼠 / 食叶虫 / 贪婪鼬）。

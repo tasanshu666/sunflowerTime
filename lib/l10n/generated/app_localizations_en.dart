@@ -3990,4 +3990,245 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get guard_result_collect => 'Collect';
+
+  @override
+  String get wishTreeTitle => 'My Wish Tree';
+
+  @override
+  String wishTreeHanging(int mounted, int quota) {
+    return '$mounted hung / $quota slots';
+  }
+
+  @override
+  String wishTreeLevel(int level) {
+    return 'Lv.$level';
+  }
+
+  @override
+  String get wishTreeStart => 'Make a Wish';
+
+  @override
+  String get wishTreeSoftGateHint =>
+      'Grow a plant in the garden first, then you can make a wish';
+
+  @override
+  String get wishTreeSlotFullHint =>
+      'The tree is full! Keep focusing to level up for more slots';
+
+  @override
+  String get wishTreeGuideTitle => 'Wish Tree Tips';
+
+  @override
+  String get wishTreeGuideOk => 'Got it';
+
+  @override
+  String get wishTreeTabTree => 'On the Tree';
+
+  @override
+  String wishTreeTabBox(int count) {
+    return 'Keepsake Box $count';
+  }
+
+  @override
+  String wishTreeTabPool(int count) {
+    return 'Fulfilled $count';
+  }
+
+  @override
+  String get wishTreeEmptyTree =>
+      'No wishes on the tree yet — tap \"Make a Wish\" to write your first one';
+
+  @override
+  String get wishTreeEmptyBox => 'Your keepsake box is empty';
+
+  @override
+  String get wishTreeEmptyPool => 'No fulfilled wishes yet — keep going!';
+
+  @override
+  String wishTreeWishDate(String date) {
+    return 'Wished on $date';
+  }
+
+  @override
+  String wishTreeFulfillDate(String date) {
+    return 'Fulfilled on $date';
+  }
+
+  @override
+  String wishTreePoolDateRange(String wishDate, String fulfilledDate) {
+    return 'Wished on $wishDate · fulfilled on $fulfilledDate';
+  }
+
+  @override
+  String wishTreeWaitDays(int days) {
+    return 'Waiting $days days';
+  }
+
+  @override
+  String wishTreeTaskBadge(int count) {
+    return '$count tasks';
+  }
+
+  @override
+  String get wishTreeStaleHint => 'It\'s been a while';
+
+  @override
+  String get wishTreeReplyEmpty => 'No reply from Mom and Dad yet';
+
+  @override
+  String get wishTreeTagRibbon => 'Not possible for now';
+
+  @override
+  String get wishTreeChangeWish => 'Pick a different wish';
+
+  @override
+  String get wishTreeSelfFulfillConfirm => 'Are you sure you did it yourself?';
+
+  @override
+  String get wishTreeBoxFullHint =>
+      'The tree is full — fulfill one before taking it back';
+
+  @override
+  String wishTreeMilestone(int count) {
+    return '$count stamps earned';
+  }
+
+  @override
+  String get wishTaskBadgeLabel => 'Wish Task';
+
+  @override
+  String wishTaskBadgeOfWish(String wishTitle) {
+    return 'Wish Task · $wishTitle';
+  }
+
+  @override
+  String wishProgressFocusMinutes(int doneMinutes, int leftMinutes) {
+    return '$doneMinutes min focused, $leftMinutes min to go';
+  }
+
+  @override
+  String wishProgressTaskCount(int doneCount, int leftCount) {
+    return '$doneCount tasks done, $leftCount to go';
+  }
+
+  @override
+  String get wishFruitGrowing => 'The wish fruit is growing';
+
+  @override
+  String get wishFruitWaiting => 'Waiting to begin';
+
+  @override
+  String get wishNoTargetYet => 'Waiting for Mom and Dad to set a goal';
+
+  @override
+  String get wishCollectToBox => 'Put in keepsake box';
+
+  @override
+  String get wishRestoreFromBox => 'Take it back';
+
+  @override
+  String get wishSelfFulfill => 'I did it';
+
+  @override
+  String get wishSelfFulfillConfirm => 'Are you sure you did it yourself?';
+
+  @override
+  String get wishSelfFulfilledBadge => 'I did it myself';
+
+  @override
+  String get wishBoxFullHint =>
+      'The tree is full — fulfill one before taking it back';
+
+  @override
+  String get wishStaleHint => 'It\'s been a while';
+
+  @override
+  String get wishPlanTogetherHint => 'Talk it over with your child';
+
+  @override
+  String get wishAnnivTitle => 'On This Day';
+
+  @override
+  String wishAnnivYearsAgo(int years) {
+    return 'You wished for this on this day $years years ago';
+  }
+
+  @override
+  String get wishAnnivLastYear => 'You wished for this on this day last year';
+
+  @override
+  String get wishAnnivFulfilled => 'Later it came true';
+
+  @override
+  String get wishAnnivOnTree => 'It is still on the tree waiting for you';
+
+  @override
+  String get wishAnnivBoxed => 'It was put in the keepsake box';
+
+  @override
+  String get wishAnnivChanged => 'You later picked a different wish';
+
+  @override
+  String wishAnnivMore(int count) {
+    return '$count more';
+  }
+
+  @override
+  String get wishAnnivLook => 'See it';
+
+  @override
+  String get wishAnnivDismiss => 'Dismiss';
+
+  @override
+  String get wishAnnivGone => 'That wish is no longer here';
+
+  @override
+  String get wishComposeTitle => 'Make a Wish';
+
+  @override
+  String get wishComposeHint => 'Write down the wish you want';
+
+  @override
+  String wishComposeCounter(int count, int max) {
+    return '$count/$max';
+  }
+
+  @override
+  String get wishComposeTooLong => 'Too many characters — delete a few';
+
+  @override
+  String get wishComposeSubmit => 'Hang it on the tree';
+
+  @override
+  String get wishComposeSaveFailed => 'Couldn\'t hang it — your draft is kept';
+
+  @override
+  String get wishTaskGoFocus => 'Focus';
+
+  @override
+  String get wishTaskDidIt => 'I did it';
+
+  @override
+  String get wishTaskDone => 'Done';
+
+  @override
+  String get wishTaskPending => 'Waiting for approval';
+
+  @override
+  String get wishCategoryOther => 'Other';
+
+  @override
+  String get wishCategoryGift => 'Gift';
+
+  @override
+  String get wishCategoryExperience => 'An experience';
+
+  @override
+  String get wishCategoryToy => 'A toy';
+
+  @override
+  String get wishCategoryGrowth => 'Growth';
+
+  @override
+  String get wishCategoryCompanionship => 'Companionship';
 }

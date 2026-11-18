@@ -2820,5 +2820,136 @@
   },
   "guard_stolen_today": "{n} points of growth were stolen last night",
   "guard_result_premium_hint": "With the full version, winning a guard battle can also drop a Premium Chest — richer rewards!",
-  "guard_result_collect": "Collect"
+  "guard_result_collect": "Collect",
+  "wishTreeTitle": "My Wish Tree",
+  "wishTreeHanging": "{mounted} hung / {quota} slots",
+  "@wishTreeHanging": {
+    "placeholders": {
+      "mounted": {"type": "int"},
+      "quota": {"type": "int"}
+    }
+  },
+  "wishTreeLevel": "Lv.{level}",
+  "@wishTreeLevel": {
+    "placeholders": {"level": {"type": "int"}}
+  },
+  "wishTreeStart": "Make a Wish",
+  "wishTreeSoftGateHint": "Grow a plant in the garden first, then you can make a wish",
+  "wishTreeSlotFullHint": "The tree is full! Keep focusing to level up for more slots",
+  "wishTreeGuideTitle": "Wish Tree Tips",
+  "wishTreeGuideOk": "Got it",
+  "wishTreeTabTree": "On the Tree",
+  "wishTreeTabBox": "Keepsake Box {count}",
+  "@wishTreeTabBox": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishTreeTabPool": "Fulfilled {count}",
+  "@wishTreeTabPool": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishTreeEmptyTree": "No wishes on the tree yet — tap \"Make a Wish\" to write your first one",
+  "wishTreeEmptyBox": "Your keepsake box is empty",
+  "wishTreeEmptyPool": "No fulfilled wishes yet — keep going!",
+  "wishTreeWishDate": "Wished on {date}",
+  "@wishTreeWishDate": {
+    "placeholders": {"date": {"type": "String"}}
+  },
+  "wishTreeFulfillDate": "Fulfilled on {date}",
+  "@wishTreeFulfillDate": {
+    "placeholders": {"date": {"type": "String"}}
+  },
+  "wishTreePoolDateRange": "Wished on {wishDate} · fulfilled on {fulfilledDate}",
+  "@wishTreePoolDateRange": {
+    "placeholders": {
+      "wishDate": {"type": "String"},
+      "fulfilledDate": {"type": "String"}
+    }
+  },
+  "wishTreeWaitDays": "Waiting {days} days",
+  "@wishTreeWaitDays": {
+    "placeholders": {"days": {"type": "int"}}
+  },
+  "wishTreeTaskBadge": "{count} tasks",
+  "@wishTreeTaskBadge": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishTreeStaleHint": "It's been a while",
+  "wishTreeReplyEmpty": "No reply from Mom and Dad yet",
+  "wishTreeTagRibbon": "Not possible for now",
+  "wishTreeChangeWish": "Pick a different wish",
+  "wishTreeSelfFulfillConfirm": "Are you sure you did it yourself?",
+  "wishTreeBoxFullHint": "The tree is full — fulfill one before taking it back",
+  "wishTreeMilestone": "{count} stamps earned",
+  "@wishTreeMilestone": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishTaskBadgeLabel": "Wish Task",
+  "wishTaskBadgeOfWish": "Wish Task · {wishTitle}",
+  "@wishTaskBadgeOfWish": {
+    "placeholders": {"wishTitle": {"type": "String"}}
+  },
+  "wishProgressFocusMinutes": "{doneMinutes} min focused, {leftMinutes} min to go",
+  "@wishProgressFocusMinutes": {
+    "placeholders": {
+      "doneMinutes": {"type": "int"},
+      "leftMinutes": {"type": "int"}
+    }
+  },
+  "wishProgressTaskCount": "{doneCount} tasks done, {leftCount} to go",
+  "@wishProgressTaskCount": {
+    "placeholders": {
+      "doneCount": {"type": "int"},
+      "leftCount": {"type": "int"}
+    }
+  },
+  "wishFruitGrowing": "The wish fruit is growing",
+  "wishFruitWaiting": "Waiting to begin",
+  "wishNoTargetYet": "Waiting for Mom and Dad to set a goal",
+  "wishCollectToBox": "Put in keepsake box",
+  "wishRestoreFromBox": "Take it back",
+  "wishSelfFulfill": "I did it",
+  "wishSelfFulfillConfirm": "Are you sure you did it yourself?",
+  "wishSelfFulfilledBadge": "I did it myself",
+  "wishBoxFullHint": "The tree is full — fulfill one before taking it back",
+  "wishStaleHint": "It's been a while",
+  "wishPlanTogetherHint": "Talk it over with your child",
+  "wishAnnivTitle": "On This Day",
+  "wishAnnivYearsAgo": "You wished for this on this day {years} years ago",
+  "@wishAnnivYearsAgo": {
+    "placeholders": {"years": {"type": "int"}}
+  },
+  "wishAnnivLastYear": "You wished for this on this day last year",
+  "wishAnnivFulfilled": "Later it came true",
+  "wishAnnivOnTree": "It is still on the tree waiting for you",
+  "wishAnnivBoxed": "It was put in the keepsake box",
+  "wishAnnivChanged": "You later picked a different wish",
+  "wishAnnivMore": "{count} more",
+  "@wishAnnivMore": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishAnnivLook": "See it",
+  "wishAnnivDismiss": "Dismiss",
+  "wishAnnivGone": "That wish is no longer here",
+  "wishComposeTitle": "Make a Wish",
+  "wishComposeHint": "Write down the wish you want",
+  "wishComposeCounter": "{count}/{max}",
+  "@wishComposeCounter": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "max": {"type": "int"}
+    }
+  },
+  "wishComposeTooLong": "Too many characters — delete a few",
+  "wishComposeSubmit": "Hang it on the tree",
+  "wishComposeSaveFailed": "Couldn't hang it — your draft is kept",
+  "wishTaskGoFocus": "Focus",
+  "wishTaskDidIt": "I did it",
+  "wishTaskDone": "Done",
+  "wishTaskPending": "Waiting for approval",
+  "wishCategoryOther": "Other",
+  "wishCategoryGift": "Gift",
+  "wishCategoryExperience": "An experience",
+  "wishCategoryToy": "A toy",
+  "wishCategoryGrowth": "Growth",
+  "wishCategoryCompanionship": "Companionship"
 }

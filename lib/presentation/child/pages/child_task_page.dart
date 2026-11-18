@@ -14,6 +14,8 @@
 /// 任何阳光计算或状态推断，只按服务给出的 [TaskCheckInItem] 字段渲染并给反馈。
 library child_task_page;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,11 +26,14 @@ import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/wish_task_card.dart'
+    show WishTaskBadge, wishTaskShortTitle;
 import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
@@ -192,6 +197,11 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
   bool _loading = true;
   String? _error;
   String? _busyTaskId;
+
+  /// 愿望 id → 归属愿望短名（A24.6 徽标用）。随 board 一次并发拉取；
+  /// 普通成长任务 `wishId == null`，查不到也不渲染徽标（逐字节不变）。
+  final Map<String, String> _wishTitles = <String, String>{};
+
   /// 当前页文案（build 期在 L10nScope 内赋值；异步回调经 [_t] 取，
   /// 尚未 build 过的极端早回调回退中文，与迁移前行为一致）。
   AppLocalizations? _l10n;
@@ -225,6 +235,9 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
         _error = null;
         _loading = false;
       });
+      // A24.6 徽标：愿望标题**异步补拉**，绝不阻塞 board 渲染时序
+      // （既有打卡/完美日用例的 pump 帧数依赖原来的单次 await）。
+      unawaited(_loadWishTitlesThenSet());
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -232,6 +245,36 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
         _loading = false;
       });
     }
+  }
+
+  /// 异步补拉愿望标题并局部刷新（不触发整页 loading）。
+  Future<void> _loadWishTitlesThenSet() async {
+    final Map<String, String> titles = await _loadWishTitles();
+    if (!mounted) return;
+    setState(() {
+      _wishTitles
+        ..clear()
+        ..addAll(titles);
+    });
+  }
+
+  /// 读三段愿望，构造 `id → 短名` 表（A24.6 徽标）。零新增服务方法。
+  Future<Map<String, String>> _loadWishTitles() async {
+    final Map<String, String> out = <String, String>{};
+    try {
+      final service = ref.read(wishOrchestrationServiceProvider);
+      final List<Wish> all = <Wish>[
+        ...await service.mountedWishes(),
+        ...await service.boxedWishes(),
+        ...await service.poolWishes(),
+      ];
+      for (final Wish w in all) {
+        out[w.id] = wishTaskShortTitle(w.text);
+      }
+    } catch (_) {
+      // 静默降级：愿望数据失败不影响成长任务页主流程。
+    }
+    return out;
   }
 
   /// 非联动项「我做到了」的**误触保护**（玄参 2026-11-06：与联动项 F177 同款）——
@@ -687,6 +730,16 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: <Widget>[
                     _dailyBadge(item.isDaily),
+                    // A24.6 ①：🌟 愿望任务徽标 + 归属愿望短名。
+                    // 🔴 仅 `wishId != null` 时插入 ⇒ 普通成长任务逐字节不变。
+                    if (item.task.wishId != null)
+                      WishTaskBadge(
+                        wishTitle:
+                            _wishTitles[item.task.wishId] ?? '',
+                        label: _t.wishTaskBadgeOfWish(
+                          _wishTitles[item.task.wishId] ?? '',
+                        ),
+                      ),
                     // F154：预制任务显示名跟随当前语言（自定义/改过名原样）。
                     Text(
                         taskDisplayName(

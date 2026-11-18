@@ -166,6 +166,22 @@ class SettingsStore {
   }) async =>
       _sp.setString(lastSeenPlantPhasesKey(childId), jsonEncode(phases));
 
+  // ── 许愿树「历史上的今天」回顾卡频次（A26.10.4；按 childId 分键）────────
+
+  /// 回顾卡**最后展示日**（`yyyy-MM-dd`；null = 从未展示；按 [childId] 分键）。
+  ///
+  /// 与逐条已读键不同类：这里是「一天最多一次」的日历水位，展示那一刻即写，
+  /// 「收起」复用同一条记录。**零新增数据库列**。
+  Future<String?> wishAnniversaryShownOn({required String childId}) async =>
+      _sp.getString(wishAnniversaryShownOnKey(childId));
+
+  /// 覆写回顾卡最后展示日（按 [childId] 分键；[yyyyMmDd] 形如 `2026-11-17`）。
+  Future<void> setWishAnniversaryShownOn({
+    required String childId,
+    required String yyyyMmDd,
+  }) async =>
+      _sp.setString(wishAnniversaryShownOnKey(childId), yyyyMmDd);
+
   // ── P0 · A App 总使用时长（§6.1）：日键 + 当日累计秒 ──────────────────
 
   /// App 当日累计时长所属自然日 key（yyyy-MM-dd；无记录返回 null）。

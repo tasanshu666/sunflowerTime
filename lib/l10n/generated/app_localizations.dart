@@ -6736,6 +6736,414 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'收下'**
   String get guard_result_collect;
+
+  /// No description provided for @wishTreeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的许愿树'**
+  String get wishTreeTitle;
+
+  /// No description provided for @wishTreeHanging.
+  ///
+  /// In zh, this message translates to:
+  /// **'已挂 {mounted} / 额度 {quota}'**
+  String wishTreeHanging(int mounted, int quota);
+
+  /// No description provided for @wishTreeLevel.
+  ///
+  /// In zh, this message translates to:
+  /// **'Lv.{level}'**
+  String wishTreeLevel(int level);
+
+  /// No description provided for @wishTreeStart.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始许愿'**
+  String get wishTreeStart;
+
+  /// No description provided for @wishTreeSoftGateHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'先在花园里种下一株植物，就能开始许愿啦'**
+  String get wishTreeSoftGateHint;
+
+  /// No description provided for @wishTreeSlotFullHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'树上已经挂满啦，继续专注升级就能挂更多'**
+  String get wishTreeSlotFullHint;
+
+  /// No description provided for @wishTreeGuideTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'许愿树小贴士'**
+  String get wishTreeGuideTitle;
+
+  /// No description provided for @wishTreeGuideOk.
+  ///
+  /// In zh, this message translates to:
+  /// **'知道啦'**
+  String get wishTreeGuideOk;
+
+  /// No description provided for @wishTreeTabTree.
+  ///
+  /// In zh, this message translates to:
+  /// **'树上'**
+  String get wishTreeTabTree;
+
+  /// No description provided for @wishTreeTabBox.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏箱 {count}'**
+  String wishTreeTabBox(int count);
+
+  /// No description provided for @wishTreeTabPool.
+  ///
+  /// In zh, this message translates to:
+  /// **'达成所愿池 {count}'**
+  String wishTreeTabPool(int count);
+
+  /// No description provided for @wishTreeEmptyTree.
+  ///
+  /// In zh, this message translates to:
+  /// **'树上还没有愿望，点「开始许愿」写下第一个吧'**
+  String get wishTreeEmptyTree;
+
+  /// No description provided for @wishTreeEmptyBox.
+  ///
+  /// In zh, this message translates to:
+  /// **'愿望收藏箱还是空的'**
+  String get wishTreeEmptyBox;
+
+  /// No description provided for @wishTreeEmptyPool.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有达成的愿望，继续加油哦'**
+  String get wishTreeEmptyPool;
+
+  /// No description provided for @wishTreeWishDate.
+  ///
+  /// In zh, this message translates to:
+  /// **'许愿日期 {date}'**
+  String wishTreeWishDate(String date);
+
+  /// No description provided for @wishTreeFulfillDate.
+  ///
+  /// In zh, this message translates to:
+  /// **'实现日期 {date}'**
+  String wishTreeFulfillDate(String date);
+
+  /// No description provided for @wishTreePoolDateRange.
+  ///
+  /// In zh, this message translates to:
+  /// **'{wishDate} 许的愿望 · {fulfilledDate} 实现'**
+  String wishTreePoolDateRange(String wishDate, String fulfilledDate);
+
+  /// No description provided for @wishTreeWaitDays.
+  ///
+  /// In zh, this message translates to:
+  /// **'等了 {days} 天'**
+  String wishTreeWaitDays(int days);
+
+  /// No description provided for @wishTreeTaskBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个任务'**
+  String wishTreeTaskBadge(int count);
+
+  /// No description provided for @wishTreeStaleHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'有点久了'**
+  String get wishTreeStaleHint;
+
+  /// No description provided for @wishTreeReplyEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'爸爸妈妈还没回信'**
+  String get wishTreeReplyEmpty;
+
+  /// No description provided for @wishTreeTagRibbon.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时做不到'**
+  String get wishTreeTagRibbon;
+
+  /// No description provided for @wishTreeChangeWish.
+  ///
+  /// In zh, this message translates to:
+  /// **'换一个愿望'**
+  String get wishTreeChangeWish;
+
+  /// No description provided for @wishTreeSelfFulfillConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定是你自己做到的吗？'**
+  String get wishTreeSelfFulfillConfirm;
+
+  /// No description provided for @wishTreeBoxFullHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'树上已经挂满啦，先实现一个再取回'**
+  String get wishTreeBoxFullHint;
+
+  /// No description provided for @wishTreeMilestone.
+  ///
+  /// In zh, this message translates to:
+  /// **'已盖 {count} 枚章'**
+  String wishTreeMilestone(int count);
+
+  /// No description provided for @wishTaskBadgeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'愿望任务'**
+  String get wishTaskBadgeLabel;
+
+  /// No description provided for @wishTaskBadgeOfWish.
+  ///
+  /// In zh, this message translates to:
+  /// **'愿望任务 · {wishTitle}'**
+  String wishTaskBadgeOfWish(String wishTitle);
+
+  /// No description provided for @wishProgressFocusMinutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'已专注 {doneMinutes} 分钟，还差 {leftMinutes} 分钟'**
+  String wishProgressFocusMinutes(int doneMinutes, int leftMinutes);
+
+  /// No description provided for @wishProgressTaskCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'已完成 {doneCount} 个任务，还差 {leftCount} 个'**
+  String wishProgressTaskCount(int doneCount, int leftCount);
+
+  /// No description provided for @wishFruitGrowing.
+  ///
+  /// In zh, this message translates to:
+  /// **'愿望的果实正在成长'**
+  String get wishFruitGrowing;
+
+  /// No description provided for @wishFruitWaiting.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待开始'**
+  String get wishFruitWaiting;
+
+  /// No description provided for @wishNoTargetYet.
+  ///
+  /// In zh, this message translates to:
+  /// **'等爸爸妈妈设定目标'**
+  String get wishNoTargetYet;
+
+  /// No description provided for @wishCollectToBox.
+  ///
+  /// In zh, this message translates to:
+  /// **'放进愿望收藏箱'**
+  String get wishCollectToBox;
+
+  /// No description provided for @wishRestoreFromBox.
+  ///
+  /// In zh, this message translates to:
+  /// **'取回'**
+  String get wishRestoreFromBox;
+
+  /// No description provided for @wishSelfFulfill.
+  ///
+  /// In zh, this message translates to:
+  /// **'我做到了'**
+  String get wishSelfFulfill;
+
+  /// No description provided for @wishSelfFulfillConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定是你自己做到的吗？'**
+  String get wishSelfFulfillConfirm;
+
+  /// No description provided for @wishSelfFulfilledBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'我自己做到的'**
+  String get wishSelfFulfilledBadge;
+
+  /// No description provided for @wishBoxFullHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'树上已经挂满啦，先实现一个再取回'**
+  String get wishBoxFullHint;
+
+  /// No description provided for @wishStaleHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'有点久了'**
+  String get wishStaleHint;
+
+  /// No description provided for @wishPlanTogetherHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'和孩子一起商量着填'**
+  String get wishPlanTogetherHint;
+
+  /// No description provided for @wishAnnivTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'历史上的今天'**
+  String get wishAnnivTitle;
+
+  /// No description provided for @wishAnnivYearsAgo.
+  ///
+  /// In zh, this message translates to:
+  /// **'这是你{years}年前的今天许的'**
+  String wishAnnivYearsAgo(int years);
+
+  /// No description provided for @wishAnnivLastYear.
+  ///
+  /// In zh, this message translates to:
+  /// **'这是你去年今天许的'**
+  String get wishAnnivLastYear;
+
+  /// No description provided for @wishAnnivFulfilled.
+  ///
+  /// In zh, this message translates to:
+  /// **'后来它实现了'**
+  String get wishAnnivFulfilled;
+
+  /// No description provided for @wishAnnivOnTree.
+  ///
+  /// In zh, this message translates to:
+  /// **'它还在树上等你'**
+  String get wishAnnivOnTree;
+
+  /// No description provided for @wishAnnivBoxed.
+  ///
+  /// In zh, this message translates to:
+  /// **'它被收进了愿望收藏箱'**
+  String get wishAnnivBoxed;
+
+  /// No description provided for @wishAnnivChanged.
+  ///
+  /// In zh, this message translates to:
+  /// **'你后来换成了别的愿望'**
+  String get wishAnnivChanged;
+
+  /// No description provided for @wishAnnivMore.
+  ///
+  /// In zh, this message translates to:
+  /// **'还有 {count} 条'**
+  String wishAnnivMore(int count);
+
+  /// No description provided for @wishAnnivLook.
+  ///
+  /// In zh, this message translates to:
+  /// **'看看它'**
+  String get wishAnnivLook;
+
+  /// No description provided for @wishAnnivDismiss.
+  ///
+  /// In zh, this message translates to:
+  /// **'收起'**
+  String get wishAnnivDismiss;
+
+  /// No description provided for @wishAnnivGone.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个愿望已经不在啦'**
+  String get wishAnnivGone;
+
+  /// No description provided for @wishComposeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'许个愿吧'**
+  String get wishComposeTitle;
+
+  /// No description provided for @wishComposeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'把你想要的愿望写下来'**
+  String get wishComposeHint;
+
+  /// No description provided for @wishComposeCounter.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count}/{max}'**
+  String wishComposeCounter(int count, int max);
+
+  /// No description provided for @wishComposeTooLong.
+  ///
+  /// In zh, this message translates to:
+  /// **'字太多啦，删掉一些吧'**
+  String get wishComposeTooLong;
+
+  /// No description provided for @wishComposeSubmit.
+  ///
+  /// In zh, this message translates to:
+  /// **'挂到树上'**
+  String get wishComposeSubmit;
+
+  /// No description provided for @wishComposeSaveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'没挂上，草稿帮你留着啦'**
+  String get wishComposeSaveFailed;
+
+  /// No description provided for @wishTaskGoFocus.
+  ///
+  /// In zh, this message translates to:
+  /// **'去专注'**
+  String get wishTaskGoFocus;
+
+  /// No description provided for @wishTaskDidIt.
+  ///
+  /// In zh, this message translates to:
+  /// **'我做到了'**
+  String get wishTaskDidIt;
+
+  /// No description provided for @wishTaskDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'已完成'**
+  String get wishTaskDone;
+
+  /// No description provided for @wishTaskPending.
+  ///
+  /// In zh, this message translates to:
+  /// **'等家长确认'**
+  String get wishTaskPending;
+
+  /// No description provided for @wishCategoryOther.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他'**
+  String get wishCategoryOther;
+
+  /// No description provided for @wishCategoryGift.
+  ///
+  /// In zh, this message translates to:
+  /// **'礼物'**
+  String get wishCategoryGift;
+
+  /// No description provided for @wishCategoryExperience.
+  ///
+  /// In zh, this message translates to:
+  /// **'一次体验'**
+  String get wishCategoryExperience;
+
+  /// No description provided for @wishCategoryToy.
+  ///
+  /// In zh, this message translates to:
+  /// **'玩具'**
+  String get wishCategoryToy;
+
+  /// No description provided for @wishCategoryGrowth.
+  ///
+  /// In zh, this message translates to:
+  /// **'成长'**
+  String get wishCategoryGrowth;
+
+  /// No description provided for @wishCategoryCompanionship.
+  ///
+  /// In zh, this message translates to:
+  /// **'陪伴'**
+  String get wishCategoryCompanionship;
 }
 
 class _AppLocalizationsDelegate

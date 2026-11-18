@@ -3264,5 +3264,136 @@
     "description": "结算卡完整版引导行（B13.16 2026-11-12 玄参：打赢的文案里加入完整版还会有高级宝箱掉落，奖励会更丰富这类的提示语）。仅 free 档 + 打赢（未被偷）时渲染"
   },
   "guard_result_collect": "收下",
-  "@guard_result_collect": {"description": "结算卡：收下按钮（🔴 claim() 在这里触发，不在战斗开始时 —— 观看/跳过不改变奖励，但发放必须落在「领取」动作上且只落一次）"}
+  "@guard_result_collect": {"description": "结算卡：收下按钮（🔴 claim() 在这里触发，不在战斗开始时 —— 观看/跳过不改变奖励，但发放必须落在「领取」动作上且只落一次）"},
+  "wishTreeTitle": "我的许愿树",
+  "wishTreeHanging": "已挂 {mounted} / 额度 {quota}",
+  "@wishTreeHanging": {
+    "placeholders": {
+      "mounted": {"type": "int"},
+      "quota": {"type": "int"}
+    }
+  },
+  "wishTreeLevel": "Lv.{level}",
+  "@wishTreeLevel": {
+    "placeholders": {"level": {"type": "int"}}
+  },
+  "wishTreeStart": "开始许愿",
+  "wishTreeSoftGateHint": "先在花园里种下一株植物，就能开始许愿啦",
+  "wishTreeSlotFullHint": "树上已经挂满啦，继续专注升级就能挂更多",
+  "wishTreeGuideTitle": "许愿树小贴士",
+  "wishTreeGuideOk": "知道啦",
+  "wishTreeTabTree": "树上",
+  "wishTreeTabBox": "收藏箱 {count}",
+  "@wishTreeTabBox": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishTreeTabPool": "达成所愿池 {count}",
+  "@wishTreeTabPool": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishTreeEmptyTree": "树上还没有愿望，点「开始许愿」写下第一个吧",
+  "wishTreeEmptyBox": "愿望收藏箱还是空的",
+  "wishTreeEmptyPool": "还没有达成的愿望，继续加油哦",
+  "wishTreeWishDate": "许愿日期 {date}",
+  "@wishTreeWishDate": {
+    "placeholders": {"date": {"type": "String"}}
+  },
+  "wishTreeFulfillDate": "实现日期 {date}",
+  "@wishTreeFulfillDate": {
+    "placeholders": {"date": {"type": "String"}}
+  },
+  "wishTreePoolDateRange": "{wishDate} 许的愿望 · {fulfilledDate} 实现",
+  "@wishTreePoolDateRange": {
+    "placeholders": {
+      "wishDate": {"type": "String"},
+      "fulfilledDate": {"type": "String"}
+    }
+  },
+  "wishTreeWaitDays": "等了 {days} 天",
+  "@wishTreeWaitDays": {
+    "placeholders": {"days": {"type": "int"}}
+  },
+  "wishTreeTaskBadge": "{count} 个任务",
+  "@wishTreeTaskBadge": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishTreeStaleHint": "有点久了",
+  "wishTreeReplyEmpty": "爸爸妈妈还没回信",
+  "wishTreeTagRibbon": "暂时做不到",
+  "wishTreeChangeWish": "换一个愿望",
+  "wishTreeSelfFulfillConfirm": "确定是你自己做到的吗？",
+  "wishTreeBoxFullHint": "树上已经挂满啦，先实现一个再取回",
+  "wishTreeMilestone": "已盖 {count} 枚章",
+  "@wishTreeMilestone": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishTaskBadgeLabel": "愿望任务",
+  "wishTaskBadgeOfWish": "愿望任务 · {wishTitle}",
+  "@wishTaskBadgeOfWish": {
+    "placeholders": {"wishTitle": {"type": "String"}}
+  },
+  "wishProgressFocusMinutes": "已专注 {doneMinutes} 分钟，还差 {leftMinutes} 分钟",
+  "@wishProgressFocusMinutes": {
+    "placeholders": {
+      "doneMinutes": {"type": "int"},
+      "leftMinutes": {"type": "int"}
+    }
+  },
+  "wishProgressTaskCount": "已完成 {doneCount} 个任务，还差 {leftCount} 个",
+  "@wishProgressTaskCount": {
+    "placeholders": {
+      "doneCount": {"type": "int"},
+      "leftCount": {"type": "int"}
+    }
+  },
+  "wishFruitGrowing": "愿望的果实正在成长",
+  "wishFruitWaiting": "等待开始",
+  "wishNoTargetYet": "等爸爸妈妈设定目标",
+  "wishCollectToBox": "放进愿望收藏箱",
+  "wishRestoreFromBox": "取回",
+  "wishSelfFulfill": "我做到了",
+  "wishSelfFulfillConfirm": "确定是你自己做到的吗？",
+  "wishSelfFulfilledBadge": "我自己做到的",
+  "wishBoxFullHint": "树上已经挂满啦，先实现一个再取回",
+  "wishStaleHint": "有点久了",
+  "wishPlanTogetherHint": "和孩子一起商量着填",
+  "wishAnnivTitle": "历史上的今天",
+  "wishAnnivYearsAgo": "这是你{years}年前的今天许的",
+  "@wishAnnivYearsAgo": {
+    "placeholders": {"years": {"type": "int"}}
+  },
+  "wishAnnivLastYear": "这是你去年今天许的",
+  "wishAnnivFulfilled": "后来它实现了",
+  "wishAnnivOnTree": "它还在树上等你",
+  "wishAnnivBoxed": "它被收进了愿望收藏箱",
+  "wishAnnivChanged": "你后来换成了别的愿望",
+  "wishAnnivMore": "还有 {count} 条",
+  "@wishAnnivMore": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishAnnivLook": "看看它",
+  "wishAnnivDismiss": "收起",
+  "wishAnnivGone": "这个愿望已经不在啦",
+  "wishComposeTitle": "许个愿吧",
+  "wishComposeHint": "把你想要的愿望写下来",
+  "wishComposeCounter": "{count}/{max}",
+  "@wishComposeCounter": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "max": {"type": "int"}
+    }
+  },
+  "wishComposeTooLong": "字太多啦，删掉一些吧",
+  "wishComposeSubmit": "挂到树上",
+  "wishComposeSaveFailed": "没挂上，草稿帮你留着啦",
+  "wishTaskGoFocus": "去专注",
+  "wishTaskDidIt": "我做到了",
+  "wishTaskDone": "已完成",
+  "wishTaskPending": "等家长确认",
+  "wishCategoryOther": "其他",
+  "wishCategoryGift": "礼物",
+  "wishCategoryExperience": "一次体验",
+  "wishCategoryToy": "玩具",
+  "wishCategoryGrowth": "成长",
+  "wishCategoryCompanionship": "陪伴"
 }

@@ -1062,6 +1062,44 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 13, color: Color(0xFF8A7A66)),
                   ),
+                  // A22.1 备注：今日页「许愿树」速览入口（跳 /wish-tree；
+                  // 与花园入口同款 push，孩子端零购买入口）。
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    key: const Key('child_today_wish_tree_entry'),
+                    onTap: () => context.push('/wish-tree'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF6DC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0x4DE8A600)),
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          const Text('🌳', style: TextStyle(fontSize: 22)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _l10n!.wishTreeTitle,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF6B4E12),
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right,
+                            color: Color(0xFF8D6E00),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

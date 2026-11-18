@@ -215,6 +215,15 @@ String ackedParentGiftWatermarkKey(String childId) =>
 /// 🔴 键名生成走本 helper 单点，禁止散写字面量。
 String lastSeenPlantPhasesKey(String childId) => 'last_seen_plant_phases_$childId';
 
+/// 许愿树「历史上的今天」回顾卡**最后展示日**键（A26.10.4；按孩子分键）。
+///
+/// 值 = `yyyy-MM-dd` 日期串（不是 id 列表）：回顾是「一天最多一次」的**日历**
+/// 语义，与逐条已读的 `acknowledgedWishEventIds` 是两类。展示的那一刻即写当天，
+/// 「收起」复用同一条记录 ⇒ 天然满足「收起后当天不再出现」。
+/// 🔴 键名生成走本 helper 单点，禁止散写字面量。
+String wishAnniversaryShownOnKey(String childId) =>
+    'wish_anniversary_shown_on_$childId';
+
 /// 「家长审批任务」确认卡的**展示时间窗**（F126）。
 ///
 /// 为什么必须加窗：`verified` 状态里躺着**全部历史**打卡（老库升级默认即

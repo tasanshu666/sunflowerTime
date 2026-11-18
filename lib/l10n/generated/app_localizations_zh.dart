@@ -3845,4 +3845,240 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get guard_result_collect => '收下';
+
+  @override
+  String get wishTreeTitle => '我的许愿树';
+
+  @override
+  String wishTreeHanging(int mounted, int quota) {
+    return '已挂 $mounted / 额度 $quota';
+  }
+
+  @override
+  String wishTreeLevel(int level) {
+    return 'Lv.$level';
+  }
+
+  @override
+  String get wishTreeStart => '开始许愿';
+
+  @override
+  String get wishTreeSoftGateHint => '先在花园里种下一株植物，就能开始许愿啦';
+
+  @override
+  String get wishTreeSlotFullHint => '树上已经挂满啦，继续专注升级就能挂更多';
+
+  @override
+  String get wishTreeGuideTitle => '许愿树小贴士';
+
+  @override
+  String get wishTreeGuideOk => '知道啦';
+
+  @override
+  String get wishTreeTabTree => '树上';
+
+  @override
+  String wishTreeTabBox(int count) {
+    return '收藏箱 $count';
+  }
+
+  @override
+  String wishTreeTabPool(int count) {
+    return '达成所愿池 $count';
+  }
+
+  @override
+  String get wishTreeEmptyTree => '树上还没有愿望，点「开始许愿」写下第一个吧';
+
+  @override
+  String get wishTreeEmptyBox => '愿望收藏箱还是空的';
+
+  @override
+  String get wishTreeEmptyPool => '还没有达成的愿望，继续加油哦';
+
+  @override
+  String wishTreeWishDate(String date) {
+    return '许愿日期 $date';
+  }
+
+  @override
+  String wishTreeFulfillDate(String date) {
+    return '实现日期 $date';
+  }
+
+  @override
+  String wishTreePoolDateRange(String wishDate, String fulfilledDate) {
+    return '$wishDate 许的愿望 · $fulfilledDate 实现';
+  }
+
+  @override
+  String wishTreeWaitDays(int days) {
+    return '等了 $days 天';
+  }
+
+  @override
+  String wishTreeTaskBadge(int count) {
+    return '$count 个任务';
+  }
+
+  @override
+  String get wishTreeStaleHint => '有点久了';
+
+  @override
+  String get wishTreeReplyEmpty => '爸爸妈妈还没回信';
+
+  @override
+  String get wishTreeTagRibbon => '暂时做不到';
+
+  @override
+  String get wishTreeChangeWish => '换一个愿望';
+
+  @override
+  String get wishTreeSelfFulfillConfirm => '确定是你自己做到的吗？';
+
+  @override
+  String get wishTreeBoxFullHint => '树上已经挂满啦，先实现一个再取回';
+
+  @override
+  String wishTreeMilestone(int count) {
+    return '已盖 $count 枚章';
+  }
+
+  @override
+  String get wishTaskBadgeLabel => '愿望任务';
+
+  @override
+  String wishTaskBadgeOfWish(String wishTitle) {
+    return '愿望任务 · $wishTitle';
+  }
+
+  @override
+  String wishProgressFocusMinutes(int doneMinutes, int leftMinutes) {
+    return '已专注 $doneMinutes 分钟，还差 $leftMinutes 分钟';
+  }
+
+  @override
+  String wishProgressTaskCount(int doneCount, int leftCount) {
+    return '已完成 $doneCount 个任务，还差 $leftCount 个';
+  }
+
+  @override
+  String get wishFruitGrowing => '愿望的果实正在成长';
+
+  @override
+  String get wishFruitWaiting => '等待开始';
+
+  @override
+  String get wishNoTargetYet => '等爸爸妈妈设定目标';
+
+  @override
+  String get wishCollectToBox => '放进愿望收藏箱';
+
+  @override
+  String get wishRestoreFromBox => '取回';
+
+  @override
+  String get wishSelfFulfill => '我做到了';
+
+  @override
+  String get wishSelfFulfillConfirm => '确定是你自己做到的吗？';
+
+  @override
+  String get wishSelfFulfilledBadge => '我自己做到的';
+
+  @override
+  String get wishBoxFullHint => '树上已经挂满啦，先实现一个再取回';
+
+  @override
+  String get wishStaleHint => '有点久了';
+
+  @override
+  String get wishPlanTogetherHint => '和孩子一起商量着填';
+
+  @override
+  String get wishAnnivTitle => '历史上的今天';
+
+  @override
+  String wishAnnivYearsAgo(int years) {
+    return '这是你$years年前的今天许的';
+  }
+
+  @override
+  String get wishAnnivLastYear => '这是你去年今天许的';
+
+  @override
+  String get wishAnnivFulfilled => '后来它实现了';
+
+  @override
+  String get wishAnnivOnTree => '它还在树上等你';
+
+  @override
+  String get wishAnnivBoxed => '它被收进了愿望收藏箱';
+
+  @override
+  String get wishAnnivChanged => '你后来换成了别的愿望';
+
+  @override
+  String wishAnnivMore(int count) {
+    return '还有 $count 条';
+  }
+
+  @override
+  String get wishAnnivLook => '看看它';
+
+  @override
+  String get wishAnnivDismiss => '收起';
+
+  @override
+  String get wishAnnivGone => '这个愿望已经不在啦';
+
+  @override
+  String get wishComposeTitle => '许个愿吧';
+
+  @override
+  String get wishComposeHint => '把你想要的愿望写下来';
+
+  @override
+  String wishComposeCounter(int count, int max) {
+    return '$count/$max';
+  }
+
+  @override
+  String get wishComposeTooLong => '字太多啦，删掉一些吧';
+
+  @override
+  String get wishComposeSubmit => '挂到树上';
+
+  @override
+  String get wishComposeSaveFailed => '没挂上，草稿帮你留着啦';
+
+  @override
+  String get wishTaskGoFocus => '去专注';
+
+  @override
+  String get wishTaskDidIt => '我做到了';
+
+  @override
+  String get wishTaskDone => '已完成';
+
+  @override
+  String get wishTaskPending => '等家长确认';
+
+  @override
+  String get wishCategoryOther => '其他';
+
+  @override
+  String get wishCategoryGift => '礼物';
+
+  @override
+  String get wishCategoryExperience => '一次体验';
+
+  @override
+  String get wishCategoryToy => '玩具';
+
+  @override
+  String get wishCategoryGrowth => '成长';
+
+  @override
+  String get wishCategoryCompanionship => '陪伴';
 }

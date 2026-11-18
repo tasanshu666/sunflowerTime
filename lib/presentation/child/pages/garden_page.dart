@@ -37,6 +37,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
@@ -85,6 +86,7 @@ import 'package:sunflower_time/presentation/child/widgets/garden_weather_badge.d
 import 'package:sunflower_time/presentation/child/widgets/garden_weather_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_weather_fx.dart';
 import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dart';
+import 'package:sunflower_time/presentation/child/widgets/wish_tree_hotspot.dart';
 import 'package:sunflower_time/presentation/shared/quota_notice.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
@@ -116,6 +118,12 @@ const Key _kCareEffectOverlayKey = ValueKey<String>('gardenCareEffectOverlay');
 
 /// 成长过渡演出浮层的稳定 Key（C82；机制与实测边界见 [_kCareEffectOverlayKey] 的说明）。
 const Key _kGrowthFxOverlayKey = ValueKey<String>('gardenGrowthFxOverlay');
+
+/// 许愿树入口浮层的稳定 Key（A7.6 S6）。
+///
+/// 本浮层追加在根 Stack children **末尾**（S5）：既有节点 index 全不变；独立 Key
+/// 让条件渲染的养护 / 成长演出进出时不与其错位复用（C82 同款机制）。
+const Key kWishTreeHotspotKey = ValueKey<String>('wish-tree-hotspot');
 
 /// 孩子端花园：植物养成主界面。
 ///
@@ -3630,6 +3638,23 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                       },
                     ),
                   ),
+                // ── 许愿树入口（A-T04 / A7.6 S4~S7）────────────────────────
+                // 🔴 追加在根 Stack **children 末尾**：既有节点 index 全不变
+                //    （C82 按 index 复用坑不触发）；带稳定 Key；不进左上 chips 行
+                //    ⇒ weather_a3_banner_ui_test V6/V7/V8 逐像素零回归。
+                // 摆在木牌正上方（左侧空白带），与木牌同侧成组；不挡花盆 / FAB /
+                // 天气灯。孩子端零购买入口：本热点只 push 许愿树页。
+                Positioned(
+                  key: kWishTreeHotspotKey,
+                  left: 12,
+                  top: gardenSignScreenRect(size).top - 46 > 60
+                      ? gardenSignScreenRect(size).top - 46
+                      : 60,
+                  child: WishTreeHotspot(
+                    label: _t.wishTreeTitle,
+                    onTap: () => context.push('/wish-tree'),
+                  ),
+                ),
               ],
             );
           },

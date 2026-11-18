@@ -4081,4 +4081,189 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get wishCategoryCompanionship => '陪伴';
+
+  @override
+  String get shared_wish_tag_need_more_time => '需要更多时间';
+
+  @override
+  String get shared_wish_tag_over_budget => '超出预算';
+
+  @override
+  String get shared_wish_tag_not_possible => '现实里做不到';
+
+  @override
+  String get shared_wish_tag_smaller_wish => '换一个更小的愿望';
+
+  @override
+  String get shared_wish_tag_wait_for_moment => '等一个特别的时机';
+
+  @override
+  String get shared_wish_tag_parents_working_on_it => '爸爸妈妈也在想办法';
+
+  @override
+  String get shared_wish_reply_hard_but_love =>
+      '这个愿望有点难做到，不过爸爸妈妈记在心里了，我们一起想想别的办法，好吗？';
+
+  @override
+  String get shared_wish_reply_dinosaur =>
+      '养恐龙这件事爸爸妈妈真的做不到，但你想要的那种勇敢，我们一定帮你实现。';
+
+  @override
+  String get shared_wish_reply_wait_and_see => '现在还不行，我们再等一等，等你再长大一点，也许就可以啦。';
+
+  @override
+  String get shared_wish_reply_too_expensive => '这个要花好多钱，爸爸妈妈想和你商量一个我们都能接受的办法。';
+
+  @override
+  String get shared_wish_reply_smaller_wish => '我们可以把它换成一个小一点、但一样开心的愿望，你愿意吗？';
+
+  @override
+  String get shared_wish_reply_we_saw_it => '你的愿望爸爸妈妈看到了，写下来就已经很棒了。';
+
+  @override
+  String shared_wish_reply_on_occasion(String occasion) {
+    return '等 $occasion 那天，爸爸妈妈会认真准备这个礼物。';
+  }
+
+  @override
+  String get shared_wish_reply_we_want_it_too => '爸爸妈妈也想做到，我们一起努力攒一攒，好不好？';
+
+  @override
+  String get shared_wish_occasion_birthday => '生日';
+
+  @override
+  String get shared_wish_occasion_new_year => '新年';
+
+  @override
+  String get shared_wish_occasion_christmas => '圣诞节';
+
+  @override
+  String get shared_wish_occasion_end_of_term => '期末';
+
+  @override
+  String get shared_wish_occasion_trip_day => '旅行出发日';
+
+  @override
+  String get parent_wish_tree_title => '孩子的许愿树';
+
+  @override
+  String get parent_wish_section_verify => '待我核销';
+
+  @override
+  String get parent_wish_section_setup => '待我安排';
+
+  @override
+  String get parent_wish_section_progress => '进行中';
+
+  @override
+  String parent_wish_view_all(int count) {
+    return '查看全部 $count 条';
+  }
+
+  @override
+  String get parent_wish_self_fulfilled_title => '✨ 孩子说做到了';
+
+  @override
+  String get parent_wish_action_setup => '设定目标 + 布置任务';
+
+  @override
+  String get parent_wish_action_fulfill => '直接实现';
+
+  @override
+  String get parent_wish_action_tag => '贴标签 + 温柔回复';
+
+  @override
+  String get parent_wish_undo => '退回树上';
+
+  @override
+  String get parent_wish_undo_confirm => '确定要把这个愿望退回树上吗？';
+
+  @override
+  String get parent_wish_fulfill_confirm => '确定现在就实现这个愿望吗？';
+
+  @override
+  String get parent_wish_empty => '暂时没有需要处理的愿望';
+
+  @override
+  String get parent_wish_editor_title => '设定目标 + 布置任务';
+
+  @override
+  String get parent_wish_tab_goal => '目标';
+
+  @override
+  String get parent_wish_tab_tasks => '任务';
+
+  @override
+  String get parent_wish_goal_mode_label => '目标口径';
+
+  @override
+  String get wishGoalFocusMinutes => '专注分钟';
+
+  @override
+  String get wishGoalTaskCount => '任务条数';
+
+  @override
+  String get parent_wish_goal_value_label => '目标值';
+
+  @override
+  String get parent_wish_goal_decrease_confirm => '调低目标会按已完成进度保底，确定调整吗？';
+
+  @override
+  String get parent_wish_goal_increase_confirm => '目标一次不能调太高，确定调整吗？';
+
+  @override
+  String get parent_wish_goal_upscale_reject => '请分几次调整';
+
+  @override
+  String get parent_wish_task_add => '添加任务';
+
+  @override
+  String parent_wish_task_max(int max) {
+    return '最多 $max 个任务';
+  }
+
+  @override
+  String get parent_wish_task_name => '任务名称';
+
+  @override
+  String get parent_wish_task_focus => '专注型任务';
+
+  @override
+  String get parent_wish_task_minutes => '单次专注（分钟）';
+
+  @override
+  String get parent_wish_task_remove_confirm => '删除任务会影响任务条数口径，确定删除吗？';
+
+  @override
+  String get parent_wish_focus_desc => '孩子专注达标后自动完成';
+
+  @override
+  String get parent_wish_manual_desc => '孩子点「我做到了」，等家长核销';
+
+  @override
+  String get parent_wish_sheet_title => '温柔回复';
+
+  @override
+  String get parent_wish_tag_hint => '选一个标签（可以跳过）';
+
+  @override
+  String get parent_wish_reply_preset => '预设回复';
+
+  @override
+  String get parent_wish_reply_input => '想对孩子说的话';
+
+  @override
+  String get parent_wish_occasion_hint => '选一个时机';
+
+  @override
+  String get parent_wish_tag_apply => '贴上标签';
+
+  @override
+  String get parent_wish_reply_apply => '发送回复';
+
+  @override
+  String get parent_wish_verify => '核销';
+
+  @override
+  String get parent_wish_reject => '驳回';
 }

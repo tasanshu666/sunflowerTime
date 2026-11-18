@@ -7,6 +7,7 @@
 library wish_l10n;
 
 import 'package:sunflower_time/domain/entities/wish.dart';
+import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 
 /// Keys for all wish-tree UI strings.
 enum WishTextKey {
@@ -79,4 +80,109 @@ WishTextKey _fruitStageKey(WishFruitStage stage) {
     case WishFruitStage.ripe:
       return WishTextKey.wishRipe;
   }
+}
+
+/// A24.2 文案出口：标签枚举 → ARB 文案（`shared_wish_tag_*`）。
+///
+/// 标签落库用枚举 `name`（text 列，不落 index），展示名一律经本函数取。
+String wishTagText(WishTag tag, AppLocalizations t) {
+  switch (tag) {
+    case WishTag.needMoreTime:
+      return t.shared_wish_tag_need_more_time;
+    case WishTag.overBudget:
+      return t.shared_wish_tag_over_budget;
+    case WishTag.notPossible:
+      return t.shared_wish_tag_not_possible;
+    case WishTag.smallerWish:
+      return t.shared_wish_tag_smaller_wish;
+    case WishTag.waitForMoment:
+      return t.shared_wish_tag_wait_for_moment;
+    case WishTag.parentsWorkingOnIt:
+      return t.shared_wish_tag_parents_working_on_it;
+  }
+}
+
+/// A24.2 文案出口：预设回复枚举 → ARB 文案（`shared_wish_reply_*`）。
+///
+/// [occasion] 仅 `WishReplyPreset.onOccasion` 需要（5 选 1 的时机文案），
+/// 其余预设忽略该参数。8 条中文原文由 PRD W19.2 定稿，逐字采用。
+String wishReplyPresetText(
+  WishReplyPreset preset,
+  AppLocalizations t, {
+  String occasion = '',
+}) {
+  switch (preset) {
+    case WishReplyPreset.hardButLove:
+      return t.shared_wish_reply_hard_but_love;
+    case WishReplyPreset.dinosaur:
+      return t.shared_wish_reply_dinosaur;
+    case WishReplyPreset.waitAndSee:
+      return t.shared_wish_reply_wait_and_see;
+    case WishReplyPreset.tooExpensive:
+      return t.shared_wish_reply_too_expensive;
+    case WishReplyPreset.smallerWish:
+      return t.shared_wish_reply_smaller_wish;
+    case WishReplyPreset.weSawIt:
+      return t.shared_wish_reply_we_saw_it;
+    case WishReplyPreset.onOccasion:
+      return t.shared_wish_reply_on_occasion(occasion);
+    case WishReplyPreset.weWantItToo:
+      return t.shared_wish_reply_we_want_it_too;
+  }
+}
+
+/// A24.2 文案出口：时机枚举 → ARB 文案（`shared_wish_occasion_*`）。
+String wishOccasionText(WishOccasion occasion, AppLocalizations t) {
+  switch (occasion) {
+    case WishOccasion.birthday:
+      return t.shared_wish_occasion_birthday;
+    case WishOccasion.newYear:
+      return t.shared_wish_occasion_new_year;
+    case WishOccasion.christmas:
+      return t.shared_wish_occasion_christmas;
+    case WishOccasion.endOfTerm:
+      return t.shared_wish_occasion_end_of_term;
+    case WishOccasion.tripDay:
+      return t.shared_wish_occasion_trip_day;
+  }
+}
+
+/// A24.3.1 每个预设回复的「推荐标签」—— 用于弹层按所选标签过滤并重排预设词。
+///
+/// 返回空集表示**通用**（`weSawIt`），任何标签下都保留且排在首位附近。
+const Map<WishReplyPreset, Set<WishTag>> kWishPresetRecommendedTags =
+    <WishReplyPreset, Set<WishTag>>{
+  WishReplyPreset.hardButLove: <WishTag>{
+    WishTag.needMoreTime,
+    WishTag.parentsWorkingOnIt,
+  },
+  WishReplyPreset.dinosaur: <WishTag>{WishTag.notPossible},
+  WishReplyPreset.waitAndSee: <WishTag>{
+    WishTag.needMoreTime,
+    WishTag.waitForMoment,
+  },
+  WishReplyPreset.tooExpensive: <WishTag>{WishTag.overBudget},
+  WishReplyPreset.smallerWish: <WishTag>{WishTag.smallerWish},
+  WishReplyPreset.weSawIt: <WishTag>{},
+  WishReplyPreset.onOccasion: <WishTag>{WishTag.waitForMoment},
+  WishReplyPreset.weWantItToo: <WishTag>{WishTag.parentsWorkingOnIt},
+};
+
+/// 按所选标签过滤并重排 8 条预设词：命中推荐标签的排前（推荐词首位），
+/// 通用词（`weSawIt`）保留，其余仍可见（家长自由选择，不隐藏任何一条）。
+List<WishReplyPreset> wishPresetsForTag(WishTag? tag) {
+  final List<WishReplyPreset> matched = <WishReplyPreset>[];
+  final List<WishReplyPreset> general = <WishReplyPreset>[];
+  final List<WishReplyPreset> rest = <WishReplyPreset>[];
+  for (final WishReplyPreset preset in WishReplyPreset.values) {
+    final Set<WishTag> tags = kWishPresetRecommendedTags[preset]!;
+    if (tags.isEmpty) {
+      general.add(preset);
+    } else if (tag != null && tags.contains(tag)) {
+      matched.add(preset);
+    } else {
+      rest.add(preset);
+    }
+  }
+  return <WishReplyPreset>[...matched, ...general, ...rest];
 }

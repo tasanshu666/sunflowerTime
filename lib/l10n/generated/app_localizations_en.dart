@@ -4231,4 +4231,200 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wishCategoryCompanionship => 'Companionship';
+
+  @override
+  String get shared_wish_tag_need_more_time => 'Need more time';
+
+  @override
+  String get shared_wish_tag_over_budget => 'Over budget';
+
+  @override
+  String get shared_wish_tag_not_possible => 'Not possible right now';
+
+  @override
+  String get shared_wish_tag_smaller_wish => 'Try a smaller wish';
+
+  @override
+  String get shared_wish_tag_wait_for_moment => 'Wait for the right moment';
+
+  @override
+  String get shared_wish_tag_parents_working_on_it => 'We\'re figuring it out';
+
+  @override
+  String get shared_wish_reply_hard_but_love =>
+      'This wish is a little hard to make happen, but Mom and Dad have it in heart. Let\'s think of another way together, okay?';
+
+  @override
+  String get shared_wish_reply_dinosaur =>
+      'We really can\'t raise a dinosaur, but the courage you want for it — we\'ll make sure you get to feel it.';
+
+  @override
+  String get shared_wish_reply_wait_and_see =>
+      'Not just yet. Let\'s wait a little longer — when you grow a bit more, maybe it\'ll work out.';
+
+  @override
+  String get shared_wish_reply_too_expensive =>
+      'This costs a lot. Mom and Dad want to talk with you about a way we\'re both comfortable with.';
+
+  @override
+  String get shared_wish_reply_smaller_wish =>
+      'How about a smaller wish that\'s just as fun? Would you like that?';
+
+  @override
+  String get shared_wish_reply_we_saw_it =>
+      'Mom and Dad saw your wish — writing it down is already something to be proud of.';
+
+  @override
+  String shared_wish_reply_on_occasion(String occasion) {
+    return 'On $occasion, Mom and Dad will get this gift ready for you.';
+  }
+
+  @override
+  String get shared_wish_reply_we_want_it_too =>
+      'Mom and Dad want to do this too. Let\'s save up for it together, okay?';
+
+  @override
+  String get shared_wish_occasion_birthday => 'birthday';
+
+  @override
+  String get shared_wish_occasion_new_year => 'New Year';
+
+  @override
+  String get shared_wish_occasion_christmas => 'Christmas';
+
+  @override
+  String get shared_wish_occasion_end_of_term => 'end of term';
+
+  @override
+  String get shared_wish_occasion_trip_day => 'our trip day';
+
+  @override
+  String get parent_wish_tree_title => 'Child\'s wish tree';
+
+  @override
+  String get parent_wish_section_verify => 'To verify';
+
+  @override
+  String get parent_wish_section_setup => 'To plan';
+
+  @override
+  String get parent_wish_section_progress => 'In progress';
+
+  @override
+  String parent_wish_view_all(int count) {
+    return 'View all $count';
+  }
+
+  @override
+  String get parent_wish_self_fulfilled_title => '✨ Child says done';
+
+  @override
+  String get parent_wish_action_setup => 'Set goal + assign tasks';
+
+  @override
+  String get parent_wish_action_fulfill => 'Make it happen';
+
+  @override
+  String get parent_wish_action_tag => 'Add a tag + kind reply';
+
+  @override
+  String get parent_wish_undo => 'Back to the tree';
+
+  @override
+  String get parent_wish_undo_confirm => 'Move this wish back to the tree?';
+
+  @override
+  String get parent_wish_fulfill_confirm => 'Make this wish come true now?';
+
+  @override
+  String get parent_wish_empty => 'No wishes need attention right now';
+
+  @override
+  String get parent_wish_editor_title => 'Set goal + assign tasks';
+
+  @override
+  String get parent_wish_tab_goal => 'Goal';
+
+  @override
+  String get parent_wish_tab_tasks => 'Tasks';
+
+  @override
+  String get parent_wish_goal_mode_label => 'Goal type';
+
+  @override
+  String get wishGoalFocusMinutes => 'Focus minutes';
+
+  @override
+  String get wishGoalTaskCount => 'Task count';
+
+  @override
+  String get parent_wish_goal_value_label => 'Target value';
+
+  @override
+  String get parent_wish_goal_decrease_confirm =>
+      'Lowering the goal keeps it at your child\'s progress. Adjust anyway?';
+
+  @override
+  String get parent_wish_goal_increase_confirm =>
+      'A goal can\'t jump too high at once. Adjust anyway?';
+
+  @override
+  String get parent_wish_goal_upscale_reject =>
+      'Please adjust in a few smaller steps';
+
+  @override
+  String get parent_wish_task_add => 'Add task';
+
+  @override
+  String parent_wish_task_max(int max) {
+    return 'At most $max tasks';
+  }
+
+  @override
+  String get parent_wish_task_name => 'Task name';
+
+  @override
+  String get parent_wish_task_focus => 'Focus task';
+
+  @override
+  String get parent_wish_task_minutes => 'Focus minutes per task';
+
+  @override
+  String get parent_wish_task_remove_confirm =>
+      'Removing a task changes the task-count goal. Remove anyway?';
+
+  @override
+  String get parent_wish_focus_desc =>
+      'Completes automatically once focus time is reached';
+
+  @override
+  String get parent_wish_manual_desc =>
+      'Child taps \"I did it\", parent verifies';
+
+  @override
+  String get parent_wish_sheet_title => 'Kind reply';
+
+  @override
+  String get parent_wish_tag_hint => 'Pick a tag (optional)';
+
+  @override
+  String get parent_wish_reply_preset => 'Suggested replies';
+
+  @override
+  String get parent_wish_reply_input => 'What you\'d like to say';
+
+  @override
+  String get parent_wish_occasion_hint => 'Pick an occasion';
+
+  @override
+  String get parent_wish_tag_apply => 'Apply tag';
+
+  @override
+  String get parent_wish_reply_apply => 'Send reply';
+
+  @override
+  String get parent_wish_verify => 'Verify';
+
+  @override
+  String get parent_wish_reject => 'Reject';
 }

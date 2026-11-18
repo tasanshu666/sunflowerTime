@@ -324,12 +324,18 @@ class WishOrchestrationService {
             requestedTarget: next,
             progressValue: wish.progressValue,
           );
-        } else if (next > wish.targetValue &&
+        } else if (wish.targetValue > 0 &&
+            next > wish.targetValue &&
             !upscaleAllowed(
               oldTarget: wish.targetValue,
               requestedTarget: next,
               progressValue: wish.progressValue,
             )) {
+          // 上调护栏只约束「已有目标」的调整（R5 / PRD Q21）。
+          // 首次设定（targetValue == 0，未设目标的唯一判据）必须放行：
+          // 此时 cap = min(0*1.5, progress*3) = 0，若不过滤会把家长的
+          // 第一次设目标全部拒掉，使「设定目标 + 布置任务」整条链路不可用。
+          // 与 UI 判据（wish_task_editor.dart 的 oldTarget > 0 前置）同源。
           throw StateError('goal upscale exceeds guard');
         }
         Wish updated = wish.copyWith(targetMode: mode, targetValue: next);
@@ -414,6 +420,13 @@ class WishOrchestrationService {
   }) =>
       _serialized(() async {
         final Wish wish = await _requireWish(id);
+        // 唯一合法反向边只对「已达成」生效（PRD：其他任何越级 / 反向迁移仍一律抛错）。
+        // 不能只依赖 assertTransition：`tagged → pending`（取消标签）与
+        // `committed → pending`（解除承诺）本身就是合法边，会让撤销作用在
+        // 非达成愿望上静默成功，并写出一条「从未发生的退回已达成」审计埋点。
+        if (wish.status != WishStatus.fulfilled) {
+          throw StateError('undo requires a fulfilled wish');
+        }
         assertTransition(wish.status, WishStatus.pending, parentUndo: true);
         final int level = _focusLevelOf();
         final bool premium = _isPremium();

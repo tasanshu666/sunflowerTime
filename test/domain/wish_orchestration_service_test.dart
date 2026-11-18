@@ -472,6 +472,75 @@ void main() {
       expect(wishes.rows['w1']!.targetValue, 3);
     });
 
+    // 🔴 P0 回归：首次设定（targetValue == 0，未设目标的唯一判据）必须放行。
+    // 旧实现把上调护栏无条件套在 0 → N 上，cap = min(0*1.5, 0*3) = 0，
+    // 导致家长第一次给孩子设目标 100% 抛 StateError，"设定目标 + 布置任务"
+    // 整条链路不可用。期望值写死，不引用常量或护栏函数。
+    test('setGoal 首次设定目标（原值 0 → 15 分钟）必须成功', () async {
+      wishes.rows['w1'] = seedWish(targetValue: 0);
+      final Wish w = await service.setGoal(
+          wishId: 'w1',
+          mode: WishGoalMode.focusMinutes,
+          targetValue: 15,
+          now: now);
+      expect(w.targetValue, 15);
+      expect(w.targetMode, WishGoalMode.focusMinutes);
+      expect(w.progressValue, 0);
+      expect(w.status, WishStatus.pending);
+      expect(
+        tracking.events
+            .where((TrackingEvent e) => e.payload['kind'] == 'goalSet')
+            .length,
+        1,
+      );
+    });
+
+    test('setGoal 首次设定目标（口径 1：原值 0 → 5 条）必须成功', () async {
+      wishes.rows['w1'] = seedWish(targetValue: 0);
+      final Wish w = await service.setGoal(
+          wishId: 'w1',
+          mode: WishGoalMode.taskCount,
+          targetValue: 5,
+          now: now);
+      expect(w.targetValue, 5);
+      expect(w.targetMode, WishGoalMode.taskCount);
+      expect(w.progressValue, 0);
+    });
+
+    test('setGoal 已有目标的上调护栏不被削弱（cap = min(原×1.5, 已完成×3)）',
+        () async {
+      // 原目标 40、已完成 20 ⇒ cap = min(60, 60) = 60。
+      wishes.rows['w1'] = seedWish(targetValue: 40, progressValue: 20);
+      await expectLater(
+          service.setGoal(
+              wishId: 'w1',
+              mode: WishGoalMode.focusMinutes,
+              targetValue: 61,
+              now: now),
+          throwsA(isA<StateError>()));
+      expect(wishes.rows['w1']!.targetValue, 40);
+
+      final Wish w = await service.setGoal(
+          wishId: 'w1',
+          mode: WishGoalMode.focusMinutes,
+          targetValue: 55,
+          now: now);
+      expect(w.targetValue, 55);
+      expect(w.progressValue, 20);
+    });
+
+    test('setGoal 原目标 60、已完成 20 ⇒ 上调到 90 被拒（> 已完成×3）', () async {
+      wishes.rows['w1'] = seedWish(targetValue: 60, progressValue: 20);
+      await expectLater(
+          service.setGoal(
+              wishId: 'w1',
+              mode: WishGoalMode.focusMinutes,
+              targetValue: 90,
+              now: now),
+          throwsA(isA<StateError>()));
+      expect(wishes.rows['w1']!.targetValue, 60);
+    });
+
     test('assignTasks 只写 tasks.wish_id，不碰目标/进度', () async {
       wishTasks.tasks['t1'] = seedTask();
       await service.assignTasks(

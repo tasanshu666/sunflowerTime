@@ -2951,5 +2951,79 @@
   "wishCategoryExperience": "An experience",
   "wishCategoryToy": "A toy",
   "wishCategoryGrowth": "Growth",
-  "wishCategoryCompanionship": "Companionship"
+  "wishCategoryCompanionship": "Companionship",
+  "shared_wish_tag_need_more_time": "Need more time",
+  "shared_wish_tag_over_budget": "Over budget",
+  "shared_wish_tag_not_possible": "Not possible right now",
+  "shared_wish_tag_smaller_wish": "Try a smaller wish",
+  "shared_wish_tag_wait_for_moment": "Wait for the right moment",
+  "shared_wish_tag_parents_working_on_it": "We're figuring it out",
+  "shared_wish_reply_hard_but_love": "This wish is a little hard to make happen, but Mom and Dad have it in heart. Let's think of another way together, okay?",
+  "shared_wish_reply_dinosaur": "We really can't raise a dinosaur, but the courage you want for it — we'll make sure you get to feel it.",
+  "shared_wish_reply_wait_and_see": "Not just yet. Let's wait a little longer — when you grow a bit more, maybe it'll work out.",
+  "shared_wish_reply_too_expensive": "This costs a lot. Mom and Dad want to talk with you about a way we're both comfortable with.",
+  "shared_wish_reply_smaller_wish": "How about a smaller wish that's just as fun? Would you like that?",
+  "shared_wish_reply_we_saw_it": "Mom and Dad saw your wish — writing it down is already something to be proud of.",
+  "shared_wish_reply_on_occasion": "On {occasion}, Mom and Dad will get this gift ready for you.",
+  "@shared_wish_reply_on_occasion": {
+    "placeholders": {
+      "occasion": {"type": "String"}
+    }
+  },
+  "shared_wish_reply_we_want_it_too": "Mom and Dad want to do this too. Let's save up for it together, okay?",
+  "shared_wish_occasion_birthday": "birthday",
+  "shared_wish_occasion_new_year": "New Year",
+  "shared_wish_occasion_christmas": "Christmas",
+  "shared_wish_occasion_end_of_term": "end of term",
+  "shared_wish_occasion_trip_day": "our trip day",
+  "parent_wish_tree_title": "Child's wish tree",
+  "parent_wish_section_verify": "To verify",
+  "parent_wish_section_setup": "To plan",
+  "parent_wish_section_progress": "In progress",
+  "parent_wish_view_all": "View all {count}",
+  "@parent_wish_view_all": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "parent_wish_self_fulfilled_title": "✨ Child says done",
+  "parent_wish_action_setup": "Set goal + assign tasks",
+  "parent_wish_action_fulfill": "Make it happen",
+  "parent_wish_action_tag": "Add a tag + kind reply",
+  "parent_wish_undo": "Back to the tree",
+  "parent_wish_undo_confirm": "Move this wish back to the tree?",
+  "parent_wish_fulfill_confirm": "Make this wish come true now?",
+  "parent_wish_empty": "No wishes need attention right now",
+  "parent_wish_editor_title": "Set goal + assign tasks",
+  "parent_wish_tab_goal": "Goal",
+  "parent_wish_tab_tasks": "Tasks",
+  "parent_wish_goal_mode_label": "Goal type",
+  "wishGoalFocusMinutes": "Focus minutes",
+  "wishGoalTaskCount": "Task count",
+  "parent_wish_goal_value_label": "Target value",
+  "parent_wish_goal_decrease_confirm": "Lowering the goal keeps it at your child's progress. Adjust anyway?",
+  "parent_wish_goal_increase_confirm": "A goal can't jump too high at once. Adjust anyway?",
+  "parent_wish_goal_upscale_reject": "Please adjust in a few smaller steps",
+  "parent_wish_task_add": "Add task",
+  "parent_wish_task_max": "At most {max} tasks",
+  "@parent_wish_task_max": {
+    "placeholders": {
+      "max": {"type": "int"}
+    }
+  },
+  "parent_wish_task_name": "Task name",
+  "parent_wish_task_focus": "Focus task",
+  "parent_wish_task_minutes": "Focus minutes per task",
+  "parent_wish_task_remove_confirm": "Removing a task changes the task-count goal. Remove anyway?",
+  "parent_wish_focus_desc": "Completes automatically once focus time is reached",
+  "parent_wish_manual_desc": "Child taps \"I did it\", parent verifies",
+  "parent_wish_sheet_title": "Kind reply",
+  "parent_wish_tag_hint": "Pick a tag (optional)",
+  "parent_wish_reply_preset": "Suggested replies",
+  "parent_wish_reply_input": "What you'd like to say",
+  "parent_wish_occasion_hint": "Pick an occasion",
+  "parent_wish_tag_apply": "Apply tag",
+  "parent_wish_reply_apply": "Send reply",
+  "parent_wish_verify": "Verify",
+  "parent_wish_reject": "Reject"
 }

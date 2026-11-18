@@ -7144,6 +7144,360 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'陪伴'**
   String get wishCategoryCompanionship;
+
+  /// No description provided for @shared_wish_tag_need_more_time.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要更多时间'**
+  String get shared_wish_tag_need_more_time;
+
+  /// No description provided for @shared_wish_tag_over_budget.
+  ///
+  /// In zh, this message translates to:
+  /// **'超出预算'**
+  String get shared_wish_tag_over_budget;
+
+  /// No description provided for @shared_wish_tag_not_possible.
+  ///
+  /// In zh, this message translates to:
+  /// **'现实里做不到'**
+  String get shared_wish_tag_not_possible;
+
+  /// No description provided for @shared_wish_tag_smaller_wish.
+  ///
+  /// In zh, this message translates to:
+  /// **'换一个更小的愿望'**
+  String get shared_wish_tag_smaller_wish;
+
+  /// No description provided for @shared_wish_tag_wait_for_moment.
+  ///
+  /// In zh, this message translates to:
+  /// **'等一个特别的时机'**
+  String get shared_wish_tag_wait_for_moment;
+
+  /// No description provided for @shared_wish_tag_parents_working_on_it.
+  ///
+  /// In zh, this message translates to:
+  /// **'爸爸妈妈也在想办法'**
+  String get shared_wish_tag_parents_working_on_it;
+
+  /// No description provided for @shared_wish_reply_hard_but_love.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个愿望有点难做到，不过爸爸妈妈记在心里了，我们一起想想别的办法，好吗？'**
+  String get shared_wish_reply_hard_but_love;
+
+  /// No description provided for @shared_wish_reply_dinosaur.
+  ///
+  /// In zh, this message translates to:
+  /// **'养恐龙这件事爸爸妈妈真的做不到，但你想要的那种勇敢，我们一定帮你实现。'**
+  String get shared_wish_reply_dinosaur;
+
+  /// No description provided for @shared_wish_reply_wait_and_see.
+  ///
+  /// In zh, this message translates to:
+  /// **'现在还不行，我们再等一等，等你再长大一点，也许就可以啦。'**
+  String get shared_wish_reply_wait_and_see;
+
+  /// No description provided for @shared_wish_reply_too_expensive.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个要花好多钱，爸爸妈妈想和你商量一个我们都能接受的办法。'**
+  String get shared_wish_reply_too_expensive;
+
+  /// No description provided for @shared_wish_reply_smaller_wish.
+  ///
+  /// In zh, this message translates to:
+  /// **'我们可以把它换成一个小一点、但一样开心的愿望，你愿意吗？'**
+  String get shared_wish_reply_smaller_wish;
+
+  /// No description provided for @shared_wish_reply_we_saw_it.
+  ///
+  /// In zh, this message translates to:
+  /// **'你的愿望爸爸妈妈看到了，写下来就已经很棒了。'**
+  String get shared_wish_reply_we_saw_it;
+
+  /// No description provided for @shared_wish_reply_on_occasion.
+  ///
+  /// In zh, this message translates to:
+  /// **'等 {occasion} 那天，爸爸妈妈会认真准备这个礼物。'**
+  String shared_wish_reply_on_occasion(String occasion);
+
+  /// No description provided for @shared_wish_reply_we_want_it_too.
+  ///
+  /// In zh, this message translates to:
+  /// **'爸爸妈妈也想做到，我们一起努力攒一攒，好不好？'**
+  String get shared_wish_reply_we_want_it_too;
+
+  /// No description provided for @shared_wish_occasion_birthday.
+  ///
+  /// In zh, this message translates to:
+  /// **'生日'**
+  String get shared_wish_occasion_birthday;
+
+  /// No description provided for @shared_wish_occasion_new_year.
+  ///
+  /// In zh, this message translates to:
+  /// **'新年'**
+  String get shared_wish_occasion_new_year;
+
+  /// No description provided for @shared_wish_occasion_christmas.
+  ///
+  /// In zh, this message translates to:
+  /// **'圣诞节'**
+  String get shared_wish_occasion_christmas;
+
+  /// No description provided for @shared_wish_occasion_end_of_term.
+  ///
+  /// In zh, this message translates to:
+  /// **'期末'**
+  String get shared_wish_occasion_end_of_term;
+
+  /// No description provided for @shared_wish_occasion_trip_day.
+  ///
+  /// In zh, this message translates to:
+  /// **'旅行出发日'**
+  String get shared_wish_occasion_trip_day;
+
+  /// No description provided for @parent_wish_tree_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'孩子的许愿树'**
+  String get parent_wish_tree_title;
+
+  /// No description provided for @parent_wish_section_verify.
+  ///
+  /// In zh, this message translates to:
+  /// **'待我核销'**
+  String get parent_wish_section_verify;
+
+  /// No description provided for @parent_wish_section_setup.
+  ///
+  /// In zh, this message translates to:
+  /// **'待我安排'**
+  String get parent_wish_section_setup;
+
+  /// No description provided for @parent_wish_section_progress.
+  ///
+  /// In zh, this message translates to:
+  /// **'进行中'**
+  String get parent_wish_section_progress;
+
+  /// No description provided for @parent_wish_view_all.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看全部 {count} 条'**
+  String parent_wish_view_all(int count);
+
+  /// No description provided for @parent_wish_self_fulfilled_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'✨ 孩子说做到了'**
+  String get parent_wish_self_fulfilled_title;
+
+  /// No description provided for @parent_wish_action_setup.
+  ///
+  /// In zh, this message translates to:
+  /// **'设定目标 + 布置任务'**
+  String get parent_wish_action_setup;
+
+  /// No description provided for @parent_wish_action_fulfill.
+  ///
+  /// In zh, this message translates to:
+  /// **'直接实现'**
+  String get parent_wish_action_fulfill;
+
+  /// No description provided for @parent_wish_action_tag.
+  ///
+  /// In zh, this message translates to:
+  /// **'贴标签 + 温柔回复'**
+  String get parent_wish_action_tag;
+
+  /// No description provided for @parent_wish_undo.
+  ///
+  /// In zh, this message translates to:
+  /// **'退回树上'**
+  String get parent_wish_undo;
+
+  /// No description provided for @parent_wish_undo_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定要把这个愿望退回树上吗？'**
+  String get parent_wish_undo_confirm;
+
+  /// No description provided for @parent_wish_fulfill_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定现在就实现这个愿望吗？'**
+  String get parent_wish_fulfill_confirm;
+
+  /// No description provided for @parent_wish_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时没有需要处理的愿望'**
+  String get parent_wish_empty;
+
+  /// No description provided for @parent_wish_editor_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'设定目标 + 布置任务'**
+  String get parent_wish_editor_title;
+
+  /// No description provided for @parent_wish_tab_goal.
+  ///
+  /// In zh, this message translates to:
+  /// **'目标'**
+  String get parent_wish_tab_goal;
+
+  /// No description provided for @parent_wish_tab_tasks.
+  ///
+  /// In zh, this message translates to:
+  /// **'任务'**
+  String get parent_wish_tab_tasks;
+
+  /// No description provided for @parent_wish_goal_mode_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'目标口径'**
+  String get parent_wish_goal_mode_label;
+
+  /// No description provided for @wishGoalFocusMinutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注分钟'**
+  String get wishGoalFocusMinutes;
+
+  /// No description provided for @wishGoalTaskCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'任务条数'**
+  String get wishGoalTaskCount;
+
+  /// No description provided for @parent_wish_goal_value_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'目标值'**
+  String get parent_wish_goal_value_label;
+
+  /// No description provided for @parent_wish_goal_decrease_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'调低目标会按已完成进度保底，确定调整吗？'**
+  String get parent_wish_goal_decrease_confirm;
+
+  /// No description provided for @parent_wish_goal_increase_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'目标一次不能调太高，确定调整吗？'**
+  String get parent_wish_goal_increase_confirm;
+
+  /// No description provided for @parent_wish_goal_upscale_reject.
+  ///
+  /// In zh, this message translates to:
+  /// **'请分几次调整'**
+  String get parent_wish_goal_upscale_reject;
+
+  /// No description provided for @parent_wish_task_add.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加任务'**
+  String get parent_wish_task_add;
+
+  /// No description provided for @parent_wish_task_max.
+  ///
+  /// In zh, this message translates to:
+  /// **'最多 {max} 个任务'**
+  String parent_wish_task_max(int max);
+
+  /// No description provided for @parent_wish_task_name.
+  ///
+  /// In zh, this message translates to:
+  /// **'任务名称'**
+  String get parent_wish_task_name;
+
+  /// No description provided for @parent_wish_task_focus.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注型任务'**
+  String get parent_wish_task_focus;
+
+  /// No description provided for @parent_wish_task_minutes.
+  ///
+  /// In zh, this message translates to:
+  /// **'单次专注（分钟）'**
+  String get parent_wish_task_minutes;
+
+  /// No description provided for @parent_wish_task_remove_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除任务会影响任务条数口径，确定删除吗？'**
+  String get parent_wish_task_remove_confirm;
+
+  /// No description provided for @parent_wish_focus_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'孩子专注达标后自动完成'**
+  String get parent_wish_focus_desc;
+
+  /// No description provided for @parent_wish_manual_desc.
+  ///
+  /// In zh, this message translates to:
+  /// **'孩子点「我做到了」，等家长核销'**
+  String get parent_wish_manual_desc;
+
+  /// No description provided for @parent_wish_sheet_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'温柔回复'**
+  String get parent_wish_sheet_title;
+
+  /// No description provided for @parent_wish_tag_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'选一个标签（可以跳过）'**
+  String get parent_wish_tag_hint;
+
+  /// No description provided for @parent_wish_reply_preset.
+  ///
+  /// In zh, this message translates to:
+  /// **'预设回复'**
+  String get parent_wish_reply_preset;
+
+  /// No description provided for @parent_wish_reply_input.
+  ///
+  /// In zh, this message translates to:
+  /// **'想对孩子说的话'**
+  String get parent_wish_reply_input;
+
+  /// No description provided for @parent_wish_occasion_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'选一个时机'**
+  String get parent_wish_occasion_hint;
+
+  /// No description provided for @parent_wish_tag_apply.
+  ///
+  /// In zh, this message translates to:
+  /// **'贴上标签'**
+  String get parent_wish_tag_apply;
+
+  /// No description provided for @parent_wish_reply_apply.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送回复'**
+  String get parent_wish_reply_apply;
+
+  /// No description provided for @parent_wish_verify.
+  ///
+  /// In zh, this message translates to:
+  /// **'核销'**
+  String get parent_wish_verify;
+
+  /// No description provided for @parent_wish_reject.
+  ///
+  /// In zh, this message translates to:
+  /// **'驳回'**
+  String get parent_wish_reject;
 }
 
 class _AppLocalizationsDelegate

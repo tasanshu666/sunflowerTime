@@ -222,7 +222,7 @@ void main() {
     expect(declarations, 1);
     for (final String path in <String>[
       'lib/presentation/child/state/wish_state.dart',
-      'lib/presentation/parent/state/wish_state.dart',
+      // 家长端 state/wish_state.dart 已随「今日页愿望展示」整体移除（v0.4）。
     ]) {
       expect(_read(path).contains('RevisionProvider ='), isFalse, reason: path);
     }

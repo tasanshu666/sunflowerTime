@@ -4094,6 +4094,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Here are some little ways to make your wish come true.';
 
   @override
+  String get wishGoGrowthHint =>
+      'Go make your wish come true in the Growth tab';
+
+  @override
   String wishWayCountBadge(int count) {
     return '$count little ways';
   }

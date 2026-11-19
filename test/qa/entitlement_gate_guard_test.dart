@@ -76,8 +76,8 @@ final Set<String> _whitelist = <String>{
   'lib/presentation/parent/widgets/child_profile_bar.dart',
   // A-T02 许愿树：档位 -> bool isPremium 的读取单点（只读矩阵派生额度，
   // 不做 isPremium 业务分支；领域层零权益命名空间）。
+  // 家长端 state/wish_state.dart 已随「今日页愿望展示」整体移除（v0.4）。
   'lib/presentation/child/state/wish_state.dart',
-  'lib/presentation/parent/state/wish_state.dart',
 };
 
 /// 权益命名空间标识符（词边界、大小写敏感）。

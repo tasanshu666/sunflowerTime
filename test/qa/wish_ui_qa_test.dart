@@ -415,19 +415,24 @@ void main() {
       expect(page, isNot(contains('.save(')), reason: '页内不得绕过服务直接写库');
       expect(page, isNot(contains('economyRevisionProvider.notifier')),
           reason: '不得在页内自增/篡改修订号总线（A-T03 economyRevisionProvider 只读订阅）');
-      // 改动文件清单不含 A-T03 两个接线层文件（工作区 diff 复验）。
+      // 改动文件清单不含 A-T03 孩子端接线层文件（工作区 diff 复验）。
+      // 家长端 state/wish_state.dart 已在 v0.4 随「今日页愿望展示」整体删除。
       final ProcessResult diff = Process.runSync(
         'git', <String>['diff', '--name-only', 'HEAD'],
         workingDirectory: Directory.current.path,
       );
       final List<String> changed = (diff.stdout as String).split('\n');
       expect(
-        changed.any((String p) => p.endsWith('child/state/wish_state.dart') ||
-            p.endsWith('parent/state/wish_state.dart')),
+        changed.any((String p) => p.endsWith('child/state/wish_state.dart')),
         isFalse,
-        reason: 'A-T03 接线层 state 文件必须与 HEAD 逐字节一致：v0.3 回退已把 '
-            'v0.2 的 wishShareRevisionProvider watch 整体移除，两个文件内容回到 '
+        reason: 'A-T03 孩子端接线层 state 文件必须与 HEAD 逐字节一致：v0.3 回退已把 '
+            'v0.2 的 wishShareRevisionProvider watch 整体移除，文件内容回到 '
             'HEAD 原样 ⇒ 工作区 diff 为空（本批应绿，不是豁免）',
+      );
+      expect(
+        File('lib/presentation/parent/state/wish_state.dart').existsSync(),
+        isFalse,
+        reason: 'v0.4 家长端今日页愿望展示已整块移除，专属 provider 文件不得残留',
       );
     });
 

@@ -1,7 +1,9 @@
-/// A-T05 家长端今日页许愿树区块断言 ①~⑨ + V14/V15（A21 / A-T05）。
+/// 家长端愿望领域层断言（A21 / A-T05 遗留资产）。
 ///
-/// 分两层：纯函数 / 领域层（真判据 + 数据不丢 + 经济零改）；源码守卫
-/// （listenManual 订阅、块体闭包刷新、区块插入位置、无购买入口、分段唯一）。
+/// v0.4 起家长端「今日」tab **不再展示愿望区块**（`WishTreeSection` /
+/// `ParentWishCard` / `ParentWishActionSheet` 已整体移除），本文件只保留仍然有效的
+/// 领域层 / 页面通用守卫：tab 结构、parentDeskList 排序、三动作数据不丢、
+/// 经济零改动、listenManual 订阅、块体闭包刷新、孩子端零购买入口、撤销埋点。
 /// 期望值写死独立量。
 library wish_desk_test;
 
@@ -21,7 +23,6 @@ import 'package:sunflower_time/domain/repositories/wish_repository.dart';
 import 'package:sunflower_time/domain/repositories/wish_task_repository.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
 import 'package:sunflower_time/domain/services/wish_orchestration_service.dart';
-import 'package:sunflower_time/presentation/parent/widgets/wish_tree_section.dart';
 
 // ── fakes（自包含，期望独立于实现） ──────────────────────────────────────
 class DeskWishRepo implements WishRepository {
@@ -119,7 +120,6 @@ Wish _wish({
       createdAt: createdAt ?? DateTime(2025, 1, 1),
       fulfillSource: fulfillSource,
       tagKey: tagKey,
-      // v0.2.0：家长台数据源只收已授权愿望；既有排序断言沿用授权数据。
     );
 
 WishOrchestrationService _service(
@@ -136,7 +136,7 @@ WishOrchestrationService _service(
 
 void main() {
   group('① 区块出现 + tab 总数 5', () {
-    test('家长端 5 tab 结构不变（源码守卫：nav  destinations 5）', () {
+    test('家长端 5 tab 结构不变（源码守卫：nav destinations 5）', () {
       final String src =
           File('lib/presentation/parent/pages/parent_home_page.dart')
               .readAsStringSync();
@@ -144,32 +144,6 @@ void main() {
       expect(src.contains('parent_today_page'), isTrue);
       expect(src.contains('wish_tree_page'), isFalse,
           reason: '不新增家长端独立愿望 tab');
-    });
-  });
-
-  group('② 区块与待核销 / 兑换并列（顺序守卫）', () {
-    test('cards 列表顺序：_PendingCheckInsCard → WishTreeSection → 兑换循环', () {
-      final String src =
-          File('lib/presentation/parent/pages/parent_today_page.dart')
-              .readAsStringSync();
-      final int pending = src.indexOf('_PendingCheckInsCard(');
-      final int wish = src.indexOf('WishTreeSection(');
-      final int redeem = src.indexOf('for (final RedemptionRequest req');
-      expect(pending, lessThan(wish));
-      expect(wish, lessThan(redeem));
-    });
-  });
-
-  group('③ 空列表整卡不渲染', () {
-    test('WishTreeSection 空 entries + 空 selfFulfilled ⇒ SizedBox.shrink', () {
-      final String src = File(
-              'lib/presentation/parent/widgets/wish_tree_section.dart')
-          .readAsStringSync();
-      expect(
-        src.contains('widget.entries.isEmpty && widget.selfFulfilled.isEmpty'),
-        isTrue,
-      );
-      expect(src.contains('return const SizedBox.shrink();'), isTrue);
     });
   });
 
@@ -255,86 +229,6 @@ void main() {
               .hasMatch(line));
       expect(hasArrow, isFalse);
       expect(src.contains('setState(() {'), isTrue);
-    });
-  });
-
-  group('⑨ 默认只展示三类，其余折叠', () {
-    test('V14 四段互斥且完备：sectionOf 全覆盖 + 折叠计数 = 折叠集合条数', () {
-      final DeskWishRepo repo = DeskWishRepo();
-      final DeskTaskRepo tasks = DeskTaskRepo();
-      final DeskTrackingRepo tracking = DeskTrackingRepo();
-      // 待安排：无任务无目标
-      repo.rows['setup'] = _wish(id: 'setup', treeSlot: 0);
-      // 进行中：有目标有进度（且有任务，才不被 needsParentSetup 判走）
-      repo.rows['prog'] = _wish(
-          id: 'prog', treeSlot: 1, targetValue: 30, progressValue: 10);
-      tasks.tasks['prog-t'] = const Task(
-          id: 'prog-t',
-          name: '任务',
-          subject: TaskSubject.general,
-          requiresFocus: true,
-          minFocusMin: 15,
-          sunlightReward: 5,
-          isCustom: true,
-          wishId: 'prog');
-      // 折叠：已贴标签 + 有目标 + 有任务 + 进度 0（不进前三段）
-      repo.rows['tag'] = _wish(
-          id: 'tag', treeSlot: 2, targetValue: 10, tagKey: 'needMoreTime');
-      tasks.tasks['tag-t'] = const Task(
-          id: 'tag-t',
-          name: '任务',
-          subject: TaskSubject.general,
-          requiresFocus: true,
-          minFocusMin: 15,
-          sunlightReward: 5,
-          isCustom: true,
-          wishId: 'tag');
-      final WishOrchestrationService svc = _service(repo, tasks, tracking);
-
-      final WishDeskEntry eSetup = WishDeskEntry(wish: repo.rows['setup']!);
-      final WishDeskEntry eProg = WishDeskEntry(
-        wish: repo.rows['prog']!,
-        tasks: tasks.tasks.values.toList(),
-      );
-      final WishDeskEntry eTag = WishDeskEntry(
-        wish: repo.rows['tag']!,
-        tasks: <Task>[tasks.tasks['tag-t']!],
-      );
-      final sections = partitionWishDesk(
-          service: svc, entries: <WishDeskEntry>[eSetup, eProg, eTag]);
-      expect(
-        sections.verify.length +
-            sections.setup.length +
-            sections.progress.length +
-            sections.collapsed.length,
-        3,
-        reason: '互斥且完备（每条恰一段）',
-      );
-      expect(sections.setup.map((e) => e.wish.id), contains('setup'));
-      expect(sections.progress.map((e) => e.wish.id), contains('prog'));
-      expect(sections.collapsed.map((e) => e.wish.id), contains('tag'));
-    });
-
-    test('折叠计数 N = 折叠集合条数（源码守卫：用 .length 而非二次算式）', () {
-      final String src = File(
-              'lib/presentation/parent/widgets/wish_tree_section.dart')
-          .readAsStringSync();
-      expect(src.contains('final int n = entries.length;'), isTrue,
-          reason: '折叠计数取折叠集合长度');
-    });
-  });
-
-  group('V15 家长三动作恰好 3 个（对外口径）', () {
-    test('ParentWishCard 三动作按钮恰好 3 个 key', () {
-      final String src =
-          File('lib/presentation/parent/widgets/parent_wish_card.dart')
-              .readAsStringSync();
-      expect(src.contains("Key('parent_wish_action_setup')"), isTrue);
-      expect(src.contains("Key('parent_wish_action_fulfill')"), isTrue);
-      expect(src.contains("Key('parent_wish_action_tag')"), isTrue);
-      expect(src.contains('Key(\'parent_wish_action_4\')'), isFalse);
-      expect(src.contains('commit'), isFalse, reason: '承诺降 P1 不接线');
-      expect(src.contains('replace'), isFalse, reason: '协商替代降 P1 不接线');
     });
   });
 

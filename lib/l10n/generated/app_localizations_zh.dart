@@ -3945,6 +3945,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wishWayTitle => '你的愿望可以通过这些小办法实现哦';
 
   @override
+  String get wishGoGrowthHint => '去成长里面实现你的愿望吧';
+
+  @override
   String wishWayCountBadge(int count) {
     return '小办法 $count 个';
   }

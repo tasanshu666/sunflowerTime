@@ -2,7 +2,7 @@
 ///
 /// 与 `wish_face_state_test.dart` 分工：那个测**判据纯函数**，本文件测
 /// **判据落到 UI 上的元素集合**（S1/S2 必须 `findsNothing` 徽标 / 进度条 /
-/// 「等爸爸妈妈设定目标」，S3 必须有「小办法」标题 + 计数 + 进度）。
+/// 「等爸爸妈妈设定目标」，S3 必须有单句成长引导 + 计数 + 进度）。
 library wish_face_render_test;
 
 import 'package:flutter/material.dart';
@@ -190,7 +190,7 @@ void main() {
   });
 
   group('S3 家长给了小办法', () {
-    testWidgets('卡片：显示「小办法 n 个」+ S3 标题 + 果实阶段 + 进度条',
+    testWidgets('卡片：显示「小办法 n 个」+ 单句成长引导 + 进度条（无果实阶段行）',
         (WidgetTester tester) async {
       await tester.pumpWidget(_hostCard(
         _wish(targetValue: 30, progressValue: 10),
@@ -201,8 +201,10 @@ void main() {
       expect(find.byKey(const Key('wish_card_task_badge')), findsOneWidget);
       expect(find.text(_t.wishWayCountBadge(2)), findsOneWidget);
       expect(find.byKey(const Key('wish_card_way_title')), findsOneWidget);
-      expect(find.text(_t.wishWayTitle), findsOneWidget);
-      expect(find.byKey(const Key('wish_card_fruit_stage')), findsOneWidget);
+      expect(find.text(_t.wishGoGrowthHint), findsOneWidget);
+      // v0.4：原两行已合并为单句，旧标题 / 果实阶段行不得再渲染。
+      expect(find.text(_t.wishWayTitle), findsNothing);
+      expect(find.byKey(const Key('wish_card_fruit_stage')), findsNothing);
       expect(find.byType(WishProgressBar), findsOneWidget);
       // 孩子端文案不含「任务」二字（D2）。
       expect(find.textContaining('任务'), findsNothing);

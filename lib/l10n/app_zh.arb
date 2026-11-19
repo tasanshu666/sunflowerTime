@@ -3336,6 +3336,7 @@
   },
   "wishWayLabel": "小办法",
   "wishWayTitle": "你的愿望可以通过这些小办法实现哦",
+  "wishGoGrowthHint": "去成长里面实现你的愿望吧",
   "wishWayCountBadge": "小办法 {count} 个",
   "@wishWayCountBadge": {
     "placeholders": {"count": {"type": "int"}}

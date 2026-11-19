@@ -4,8 +4,8 @@
 ///  ① **孩子端一律「小办法」**：许愿树相关、孩子可见的 ARB 键，值里**不得含
 ///     「任务」二字**；家长端键仍然叫「任务」（成人语境）。
 ///  ② **三态文案齐备**：`wishStateHangingHint` / `wishStateParentWorking` /
-///     `wishWayTitle` / `wishWayLabel` / `wishWayCountBadge` 在 zh + en 都存在且非空，
-///     且 **en 值零 CJK**（切英文不回落中文）。
+///     `wishWayTitle` / `wishGoGrowthHint` / `wishWayLabel` / `wishWayCountBadge`
+///     在 zh + en 都存在且非空，且 **en 值零 CJK**（切英文不回落中文）。
 ///  ③ **改写对**：`wishTreeTaskBadge` / `wishProgressTaskCount` 已改成「小办法」措辞。
 ///
 /// ⚠️ 口径说明（已报备）：`grep 任务` 全量清零**不可能** —— 既有成长任务体系
@@ -28,6 +28,7 @@ const List<String> _childWishKeys = <String>[
   'wishProgressTaskCount',
   'wishWayLabel',
   'wishWayTitle',
+  'wishGoGrowthHint',
   'wishWayCountBadge',
   'wishStateHangingHint',
   'wishStateParentWorking',
@@ -82,6 +83,7 @@ void main() {
       'wishStateHangingHint',
       'wishStateParentWorking',
       'wishWayTitle',
+      'wishGoGrowthHint',
       'wishWayLabel',
       'wishWayCountBadge',
     ];
@@ -108,6 +110,12 @@ void main() {
       expect(zh['wishStateHangingHint'], contains('愿望'));
       expect(zh['wishStateParentWorking'], contains('想办法'));
       expect(zh['wishWayTitle'], contains('小办法'));
+    });
+
+    test('S3 单句成长引导文案固定（v0.4 两行合并口径）', () {
+      expect(zh['wishGoGrowthHint'], '去成长里面实现你的愿望吧');
+      expect(zh['wishGoGrowthHint'], isNot(contains('任务')));
+      expect(en['wishGoGrowthHint'], isNot(contains('task')));
     });
   });
 

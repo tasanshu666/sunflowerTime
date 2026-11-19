@@ -6893,6 +6893,12 @@ abstract class AppLocalizations {
   /// **'你的愿望可以通过这些小办法实现哦'**
   String get wishWayTitle;
 
+  /// No description provided for @wishGoGrowthHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'去成长里面实现你的愿望吧'**
+  String get wishGoGrowthHint;
+
   /// No description provided for @wishWayCountBadge.
   ///
   /// In zh, this message translates to:

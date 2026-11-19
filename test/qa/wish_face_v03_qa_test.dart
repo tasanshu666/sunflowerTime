@@ -294,7 +294,7 @@ void main() {
   });
 
   group('③ S3 真实渲染', () {
-    testWidgets('S3 卡：「小办法 N 个」徽标 + S3 标题 + 进度条，且无「任务」字样',
+    testWidgets('S3 卡：「小办法 N 个」徽标 + 单句成长引导 + 进度条，且无「任务」字样',
         (WidgetTester tester) async {
       await _pumpCard(
         tester,
@@ -307,8 +307,10 @@ void main() {
       expect(find.byKey(const Key('wish_card_task_badge')), findsOneWidget);
       expect(find.text(zh.wishWayCountBadge(3)), findsOneWidget);
       expect(find.byKey(const Key('wish_card_way_title')), findsOneWidget);
-      expect(find.text(zh.wishWayTitle), findsOneWidget);
-      expect(find.byKey(const Key('wish_card_fruit_stage')), findsOneWidget);
+      expect(find.text(zh.wishGoGrowthHint), findsOneWidget);
+      // v0.4：原两行（旧标题 + 果实阶段行）已合并为单句，不得再渲染。
+      expect(find.text(zh.wishWayTitle), findsNothing);
+      expect(find.byKey(const Key('wish_card_fruit_stage')), findsNothing);
       expect(find.byType(WishProgressBar), findsOneWidget);
 
       // 孩子端一律「小办法」，绝不出现「任务」二字（D2）。
@@ -374,6 +376,7 @@ void main() {
         'wishTreeTabPool': zh.wishTreeTabPool(1),
         'wishWayCountBadge': zh.wishWayCountBadge(2),
         'wishWayTitle': zh.wishWayTitle,
+        'wishGoGrowthHint': zh.wishGoGrowthHint,
         'wishWayLabel': zh.wishWayLabel,
         'wishStateHangingHint': zh.wishStateHangingHint,
         'wishStateParentWorking': zh.wishStateParentWorking,

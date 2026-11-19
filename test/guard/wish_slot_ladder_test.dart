@@ -124,11 +124,11 @@ void main() {
         'lib/domain/services/wish_orchestration_service.dart',
         'lib/domain/services/wish_progress.dart',
         'lib/presentation/child/state/wish_state.dart',
-        'lib/presentation/parent/state/wish_state.dart',
         'lib/presentation/child/pages/wish_tree_page.dart',
         'lib/presentation/child/widgets/wish_compose_dialog.dart',
-        'lib/presentation/parent/widgets/wish_tree_section.dart',
         'lib/presentation/parent/widgets/wish_task_editor.dart',
+        // 家长端 state/wish_state.dart 与 wish_tree_section.dart 已随
+        // 「今日页愿望展示」整体移除（v0.4）。
         'lib/presentation/child/widgets/wish_card.dart',
       ];
       for (final String path in businessFiles) {

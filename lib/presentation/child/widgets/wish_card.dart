@@ -8,7 +8,7 @@
 /// |---|---|
 /// | [WishTreeFace.hanging] S1 | 原文 + 许愿日期 + 等待天数 + **不可点击**轻提示 |
 /// | [WishTreeFace.parentResponded] S2 | 原文 + 家长回信（空则兜底句）；**无**徽标 / 果实阶段 / 进度条 |
-/// | [WishTreeFace.hasWays] S3 | 原文 + 「小办法 {n} 个」徽标 + S3 标题 + 进度条 |
+/// | [WishTreeFace.hasWays] S3 | 原文 + 「小办法 {n} 个」徽标 + 单句成长引导 + 进度条 |
 ///
 /// ## 纪律
 ///  - 纯展示 widget：不读 provider、不写状态机。
@@ -197,7 +197,7 @@ class WishCard extends StatelessWidget {
     );
   }
 
-  /// 按三态追加主体（S1 轻提示 / S2 回信 / S3 标题 + 进度）。
+  /// 按三态追加主体（S1 轻提示 / S2 回信 / S3 单句成长引导 + 进度）。
   List<Widget> _faceBody(WishFruitStage stage) {
     switch (face) {
       case WishTreeFace.hanging:
@@ -241,22 +241,14 @@ class WishCard extends StatelessWidget {
           ),
         ];
       case WishTreeFace.hasWays:
-        // S3：标题 + 果实阶段 + 进度条（任务列表在详情卡展开）。
+        // S3：v0.4（玄参）将原两行「你的愿望可以通过这些小办法实现哦」+
+        // 「等爸爸妈妈设定目标」合并为单句「去成长里面实现你的愿望吧」。
+        // 徽标（卡级）、进度条、里程碑均保持不变。
         return <Widget>[
           const SizedBox(height: 8),
           Text(
-            t.wishWayTitle,
+            t.wishGoGrowthHint,
             key: const Key('wish_card_way_title'),
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF6B4E12),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            wishFruitStageLabel(stage, t),
-            key: const Key('wish_card_fruit_stage'),
             style: const TextStyle(
               fontSize: 13,
               color: Color(0xFF6B4E12),

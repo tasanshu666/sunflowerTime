@@ -14,33 +14,23 @@
 /// → 界面不刷新、异常被上层 catch 成「核销失败」（真机 BUG 复现）。
 library parent_today_page;
 
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
-import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/core/i18n/error_l10n.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
-import 'package:sunflower_time/domain/entities/check_in.dart';
+import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
-import 'package:sunflower_time/domain/entities/task.dart';
-import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
-import 'package:sunflower_time/domain/services/wish_orchestration_service.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
-import 'package:sunflower_time/presentation/parent/widgets/parent_wish_action_sheet.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
-import 'package:sunflower_time/presentation/parent/widgets/wish_task_editor.dart';
-import 'package:sunflower_time/presentation/parent/widgets/wish_tree_section.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
-import 'package:sunflower_time/core/i18n/error_l10n.dart';
-import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 
 /// 「今日」页：待确认的成长项 + 待核销奖励。
 class ParentTodayPage extends ConsumerStatefulWidget {
@@ -57,7 +47,7 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
   void initState() {
     super.initState();
     // 🔴 A21.2：家长端今日页原本零订阅 —— 必须 listenManual 订阅经济修订号，
-    //    否则孩子许愿 / 家长写操作后本页不刷新。
+    //    否则写操作后本页不刷新。
     // ⚠️ 必须 listenManual：ref.listen 在 initState 会抛断言。
     ref.listenManual(economyRevisionProvider, (_, __) {
       if (mounted) _reload();
@@ -76,85 +66,26 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
     });
   }
 
-  /// 并发拉取待确认成长项 + 待处理兑换列表与模板 + 许愿树数据，并构建映射。
+  /// 并发拉取待确认成长项 + 待处理兑换列表与模板，并构建映射。
   Future<_TodayData> _load() async {
     final List<dynamic> results = await Future.wait<dynamic>(<Future<dynamic>>[
       ref.read(taskCheckInServiceProvider).pendingCheckIns(),
       ref.read(redemptionOrchestrationServiceProvider).pendingList(),
       ref.read(rewardRepositoryProvider).templates(),
-      _loadWishDesk(),
     ]);
     final List<PendingCheckIn> pendingCheckIns =
         results[0] as List<PendingCheckIn>;
     final List<RedemptionRequest> requests =
         results[1] as List<RedemptionRequest>;
     final List<RewardTemplate> templates = results[2] as List<RewardTemplate>;
-    final _WishDeskData wishDesk = results[3] as _WishDeskData;
     final Map<String, RewardTemplate> templateMap =
         <String, RewardTemplate>{for (final RewardTemplate t in templates) t.id: t};
     return _TodayData(
       pendingCheckIns: pendingCheckIns,
       requests: requests,
       templates: templateMap,
-      wishEntries: wishDesk.entries,
-      selfFulfilled: wishDesk.selfFulfilled,
-      wishService: wishDesk.service,
       allPendingCheckIns: pendingCheckIns,
     );
-  }
-
-  /// 许愿树只读装配：树上愿望 + 每条的任务 / 待核销打卡 + 孩子自助达成列表。
-  ///
-  /// 待核销打卡从 [taskCheckInServiceProvider] 再取一次（同一份流水），按任务
-  /// 归属拆给各愿望；异常降级为空，今日页核心卡不受愿望数据影响。
-  Future<_WishDeskData> _loadWishDesk() async {
-    // 读服务本身也纳入降级：家长首页在部分测试桩里以简化的 task 仓储挂载，
-    // 愿望数据不可用时今日页核心卡（待核销 / 兑换）仍照常工作。
-    final WishOrchestrationService? service;
-    try {
-      service = ref.read(wishOrchestrationServiceProvider);
-    } catch (_) {
-      return const _WishDeskData(entries: <WishDeskEntry>[]);
-    }
-    try {
-      final WishOrchestrationService svc = service!;
-      final DateTime now = DateTime.now();
-      final List<Wish> wishes = await svc.parentDeskList(now);
-      final List<PendingCheckIn> pendingCheckIns =
-          await ref.read(taskCheckInServiceProvider).pendingCheckIns();
-      final List<WishDeskEntry> entries = <WishDeskEntry>[];
-      for (final Wish wish in wishes) {
-        final List<Task> tasks = await svc.tasksOf(wishId: wish.id, now: now);
-        final Set<String> taskIds =
-            tasks.map((Task task) => task.id).toSet();
-        final List<PendingCheckIn> pending = <PendingCheckIn>[
-          for (final PendingCheckIn p in pendingCheckIns)
-            if (p.task != null && taskIds.contains(p.task!.id)) p,
-        ];
-        final List<CheckIn> checkIns = <CheckIn>[
-          for (final PendingCheckIn p in pending) p.checkIn,
-        ];
-        entries.add(WishDeskEntry(
-          wish: wish,
-          tasks: tasks,
-          checkIns: checkIns,
-          pending: pending,
-        ));
-      }
-      // 「孩子说做到了」= 达成池里 fulfill_source = child 的愿望。
-      final List<Wish> pool = await svc.poolWishes();
-      final List<Wish> selfFulfilled = <Wish>[
-        for (final Wish w in pool)
-          if (w.fulfillSource == kWishFulfillSourceChild) w,
-      ];
-      return _WishDeskData(
-        entries: entries,
-        selfFulfilled: selfFulfilled,
-        service: service,
-      );
-    } catch (_) {
-      return _WishDeskData(entries: const <WishDeskEntry>[], service: service);
-    }
   }
 
   /// 单张待核销奖励卡（模板可能缺失 → 兜底「未知奖励」）。
@@ -174,238 +105,6 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
       template: template,
       onResolved: _reload,
     );
-  }
-
-  // ── 许愿树三动作 / 核销 / 撤销回调 ──────────────────────────────────────
-
-  void _snackWish(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  /// 动作①：设定目标 + 布置任务（WishTaskEditor 两页签弹层）。
-  Future<void> _openSetup(WishDeskEntry entry) async {
-    final bool? saved = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext ctx) => WishTaskEditor(
-        wish: entry.wish,
-        initialTasks: entry.tasks,
-        onSaved: () {
-          ref.read(economyRevisionProvider.notifier).state++;
-        },
-      ),
-    );
-    if (saved == true && mounted) _reload();
-  }
-
-  /// 动作③：贴标签 + 温柔回复（ParentWishActionSheet → tagWithReply）。
-  ///
-  /// v0.2.0（R-P0-07/08）：`showDialog` `barrierDismissible: false` —— 点遮罩
-  /// 不退出；弹层「取消」`pop()` 弹 null，此处用 `is! WishTagReplyResult`
-  /// 防御一切非契约值；整段 try/catch 保证异常不逃逸（否则会被 PopScope
-  /// 兜底成 `context.go('/')`，把家长踢出家长空间）。
-  Future<void> _openTag(WishDeskEntry entry) async {
-    try {
-      // 已有标签回填到表单（枚举 name → 枚举）。
-      WishTag? initialTag;
-      if (entry.wish.tagKey != null) {
-        for (final WishTag tag in WishTag.values) {
-          if (tag.name == entry.wish.tagKey) {
-            initialTag = tag;
-            break;
-          }
-        }
-      }
-      final WishTagReplyResult? result = await showDialog<WishTagReplyResult>(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext ctx) => ParentWishActionSheet(
-          wish: entry.wish,
-          initialTag: initialTag,
-          initialReply: entry.wish.parentReply,
-          onSetup: () {
-            Navigator.of(ctx).pop(null);
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) unawaited(_openSetup(entry));
-            });
-          },
-          onFulfill: () {
-            Navigator.of(ctx).pop(null);
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) unawaited(_confirmFulfill(entry.wish));
-            });
-          },
-          onTagReply: (WishTagReplyResult r) => Navigator.of(ctx).pop(r),
-        ),
-      );
-      // 防御 false / null / 其它非契约值：绝不访问 result.tag。
-      if (result is! WishTagReplyResult || !mounted) return;
-      final WishTagReplyResult reply = result;
-      // 未选标签、未填回信 ⇒ 无操作（表单允许全空跳过）。
-      if (reply.tag == null &&
-          (reply.reply == null || reply.reply!.isEmpty)) {
-        return;
-      }
-      final WishTag tag = reply.tag ?? WishTag.needMoreTime;
-      await ref.read(wishOrchestrationServiceProvider).tagWithReply(
-            id: entry.wish.id,
-            tag: tag,
-            reply: reply.reply,
-            now: DateTime.now(),
-          );
-      if (!mounted) return;
-      ref.read(economyRevisionProvider.notifier).state++;
-      _reload();
-    } catch (e) {
-      if (!mounted) return;
-      _snackWish('$e');
-    }
-  }
-
-  /// 动作②：直接实现（二次确认 → fulfill，写 fulfill_source=parentAction）。
-  Future<void> _confirmFulfill(Wish wish) async {
-    final AppLocalizations t = l10nOf(context);
-    final bool? ok = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: Text(t.parent_wish_action_fulfill),
-        content: Text(t.parent_wish_fulfill_confirm),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(t.shared_cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(t.parent_wish_action_fulfill),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    try {
-      await ref.read(wishOrchestrationServiceProvider).fulfill(
-            id: wish.id,
-            now: DateTime.now(),
-          );
-      if (!mounted) return;
-      _reload();
-    } catch (e) {
-      if (!mounted) return;
-      _snackWish('$e');
-    }
-  }
-
-  /// 撤销：「孩子说做到了」→ 退回树上（二次确认 → undoFulfill，唯一反向边）。
-  Future<void> _confirmUndo(Wish wish) async {
-    final AppLocalizations t = l10nOf(context);
-    final bool? ok = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: Text(t.parent_wish_undo),
-        content: Text(t.parent_wish_undo_confirm),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(t.shared_cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(t.parent_wish_undo),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    try {
-      await ref.read(wishOrchestrationServiceProvider).undoFulfill(
-            id: wish.id,
-            now: DateTime.now(),
-          );
-      if (!mounted) return;
-      ref.read(economyRevisionProvider.notifier).state++;
-      _reload();
-    } catch (e) {
-      if (!mounted) return;
-      _snackWish('$e');
-    }
-  }
-
-  /// 行为型愿望任务核销（走既有 check_ins 流水 → CAS + 推进进度）。
-  Future<void> _verifyWishTask(PendingCheckIn item) async {
-    final AppLocalizations t = l10nOf(context);
-    try {
-      final TaskCheckInOutcome outcome = await ref
-          .read(taskCheckInServiceProvider)
-          .verifyCheckIn(item.checkIn.id, DateTime.now());
-      if (!mounted) return;
-      final String granted = outcome.granted == outcome.granted.roundToDouble()
-          ? outcome.granted.toStringAsFixed(0)
-          : outcome.granted.toStringAsFixed(1);
-      _snackWish(t.parent_today_confirm_ok_snack(granted, ''));
-      ref.read(economyRevisionProvider.notifier).state++;
-      _reload();
-    } on TaskCheckInException catch (e) {
-      if (!mounted) return;
-      _snackWish(t.parent_today_confirm_fail_snack(taskCheckInErrorMessage(e, t)));
-    } catch (e) {
-      if (!mounted) return;
-      _snackWish(t.parent_today_confirm_fail_snack(e));
-    }
-  }
-
-  /// 行为型愿望任务驳回（原因必填 → rejectCheckIn）。
-  Future<void> _rejectWishTask(PendingCheckIn item) async {
-    final AppLocalizations t = l10nOf(context);
-    String reason = '';
-    final bool? ok = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: Text(t.parent_today_reject_title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            TextField(
-              decoration: InputDecoration(labelText: t.parent_today_reject_reason),
-              maxLines: 2,
-              onChanged: (String v) => reason = v,
-            ),
-          ],
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(t.shared_cancel),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (reason.trim().isEmpty) return; // 原因必填。
-              Navigator.of(ctx).pop(true);
-            },
-            child: Text(t.parent_today_reject_ok),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    try {
-      await ref.read(taskCheckInServiceProvider).rejectCheckIn(
-            item.checkIn.id,
-            note: reason.trim(),
-            now: DateTime.now(),
-          );
-      if (!mounted) return;
-      _snackWish(t.parent_today_rejected_snack);
-      ref.read(economyRevisionProvider.notifier).state++;
-      _reload();
-    } on TaskCheckInException catch (e) {
-      if (!mounted) return;
-      _snackWish(t.parent_today_reject_fail_snack(taskCheckInErrorMessage(e, t)));
-    } catch (e) {
-      if (!mounted) return;
-      _snackWish(t.parent_today_reject_fail_snack(e));
-    }
   }
 
   @override
@@ -442,11 +141,6 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
               final _TodayData data = snap.data!;
               final bool hasPending = data.pendingCheckIns.isNotEmpty;
               final bool hasRequests = data.requests.isNotEmpty;
-              final bool hasWishes =
-                  data.wishEntries.isNotEmpty || data.selfFulfilled.isNotEmpty;
-              // 🔴 v0.3.0：v0.2 的「0 条已授权愿望」空态卡已删除（PRD v0.3 §1.1
-              // #6 / R3-P1-04）—— 家长端恢复**全量可见**，无愿望时直接走既有
-              // `parent_today_empty` 空态，不再出现任何「已授权 / 分享」措辞。
 
               final List<Widget> cards = <Widget>[
                 if (hasPending)
@@ -454,23 +148,7 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
                     items: data.pendingCheckIns,
                     onResolved: _reload,
                   ),
-                // A21.1：许愿树区块 —— _PendingCheckInsCard 之后、兑换请求之前。
-                if (hasPending || hasWishes)
-                  const SizedBox(height: 20),
-                if (hasWishes)
-                  WishTreeSection(
-                    entries: data.wishEntries,
-                    service: data.wishService!,
-                    selfFulfilled: data.selfFulfilled,
-                    onSetup: (WishDeskEntry entry) => _openSetup(entry),
-                    onFulfill: (WishDeskEntry entry) =>
-                        _confirmFulfill(entry.wish),
-                    onTag: (WishDeskEntry entry) => unawaited(_openTag(entry)),
-                    onVerify: _verifyWishTask,
-                    onReject: _rejectWishTask,
-                    onUndo: _confirmUndo,
-                  ),
-                if ((hasPending || hasWishes) && hasRequests)
+                if (hasPending && hasRequests)
                   const SizedBox(height: 20),
                 for (final RedemptionRequest req in data.requests)
                   Padding(
@@ -478,7 +156,7 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
                     child: _requestCard(data, req),
                   ),
               ];
-              if (!hasPending && !hasRequests && !hasWishes) {
+              if (!hasPending && !hasRequests) {
                 cards.add(Padding(
                   padding: const EdgeInsets.symmetric(vertical: 32),
                   child: Center(
@@ -514,38 +192,19 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
   }
 }
 
-/// 「今日」页加载结果（待确认成长项 + 待处理申请 + 模板映射 + 许愿树数据）。
+/// 「今日」页加载结果（待确认成长项 + 待处理申请 + 模板映射）。
 class _TodayData {
   final List<PendingCheckIn> pendingCheckIns;
   final List<RedemptionRequest> requests;
   final Map<String, RewardTemplate> templates;
-  final List<WishDeskEntry> wishEntries;
-  final List<Wish> selfFulfilled;
-  final WishOrchestrationService? wishService;
   final List<PendingCheckIn> allPendingCheckIns;
 
   const _TodayData({
     required this.pendingCheckIns,
     required this.requests,
     required this.templates,
-    this.wishEntries = const <WishDeskEntry>[],
-    this.selfFulfilled = const <Wish>[],
-    this.wishService,
     this.allPendingCheckIns = const <PendingCheckIn>[],
   });
-}
-
-/// 许愿树装配中间结果。
-class _WishDeskData {
-  const _WishDeskData({
-    required this.entries,
-    this.selfFulfilled = const <Wish>[],
-    this.service,
-  });
-
-  final List<WishDeskEntry> entries;
-  final List<Wish> selfFulfilled;
-  final WishOrchestrationService? service;
 }
 
 /// 调试期临时开关卡（**仅 kDebugMode 渲染**，release 自动消失）。
@@ -650,8 +309,8 @@ class _PendingCheckInsCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
             Row(
               children: <Widget>[
                 const Icon(Icons.hourglass_top, color: Colors.orange),

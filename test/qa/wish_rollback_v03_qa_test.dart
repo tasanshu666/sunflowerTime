@@ -483,6 +483,7 @@ void main() {
       for (final String k in <String>[
         'wishWayCountBadge',
         'wishWayTitle',
+        'wishGoGrowthHint',
         'wishStateHangingHint',
         'wishStateParentWorking',
         'wishComposeCounter',

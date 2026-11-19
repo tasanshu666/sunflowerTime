@@ -2892,6 +2892,7 @@
   },
   "wishWayLabel": "little way",
   "wishWayTitle": "Here are some little ways to make your wish come true.",
+  "wishGoGrowthHint": "Go make your wish come true in the Growth tab",
   "wishWayCountBadge": "{count} little ways",
   "@wishWayCountBadge": {
     "placeholders": {"count": {"type": "int"}}

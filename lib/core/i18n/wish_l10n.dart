@@ -12,6 +12,8 @@ import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 /// Keys for all wish-tree UI strings.
 enum WishTextKey {
   wishNoTargetYet,
+  /// S3（已有小办法）单句成长引导（v0.4：合并原两行文案）。
+  wishGoGrowthHint,
   wishWaiting,
   wishGrowing,
   wishRipe,
@@ -35,6 +37,7 @@ enum WishTextKey {
 /// Canonical Chinese strings, keyed by [WishTextKey].
 const Map<WishTextKey, String> kWishZhTexts = <WishTextKey, String>{
   WishTextKey.wishNoTargetYet: '等爸爸妈妈设定目标',
+  WishTextKey.wishGoGrowthHint: '去成长里面实现你的愿望吧',
   WishTextKey.wishWaiting: '等待开始',
   WishTextKey.wishGrowing: '愿望的果实正在成长',
   WishTextKey.wishRipe: '愿望成真啦',

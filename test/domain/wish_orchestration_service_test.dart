@@ -347,7 +347,10 @@ void main() {
       wishes.rows['w1'] = seedWish();
       await expectLater(
           service.createWish(
-              text: 'second wish', category: WishCategory.toy, now: now),
+              text: 'second wish',
+              category: WishCategory.toy,
+              now: now,
+              maxTextLength: kWishTextMaxLengthZh),
           throwsA(isA<StateError>()));
       expect(wishes.rows['w1'], isNotNull);
       expect((await service.mountedWishes()).length, 1);
@@ -366,7 +369,10 @@ void main() {
       );
       expect(await lv40.currentWishSlotQuota(), 10);
       final Wish created = await lv40.createWish(
-          text: 'another wish', category: WishCategory.gift, now: now);
+          text: 'another wish',
+          category: WishCategory.gift,
+          now: now,
+          maxTextLength: kWishTextMaxLengthZh);
       expect(created.treeSlot, 1);
       expect(wishes.rows['w1']!.status, WishStatus.pending);
     });
@@ -599,7 +605,10 @@ void main() {
       final List<Future<Wish>> futures = <Future<Wish>>[
         for (int i = 0; i < 3; i++)
           wide.createWish(
-              text: 'wish number $i', category: WishCategory.other, now: now),
+              text: 'wish number $i',
+              category: WishCategory.other,
+              now: now,
+              maxTextLength: kWishTextMaxLengthZh),
       ];
       final List<Wish> created = await Future.wait(futures);
       expect(created.map((Wish w) => w.treeSlot).toSet().length, 3);

@@ -13,6 +13,7 @@ import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/core/i18n/enum_l10n.dart';
@@ -24,14 +25,24 @@ import 'package:sunflower_time/shared/responsive.dart';
 ///
 /// [initial] 为 null 表示新建；否则为编辑既有模板（保留其 id 与 isCustom 标记）。
 /// [onSave] 在通过校验后回调，由调用方执行仓储持久化。
+///
+/// ## v0.3.0 新增（R3-P1-05，玄参反馈 6 第二条路径）
+/// [wishes] 传入「可关联的愿望」列表（树上愿望，调用方 `mountedWishes()` 取好）：
+///  · 列表非空时渲染**可选**「关联愿望」下拉，默认「不关联」（= `null`）；
+///  · 选中后保存写 `tasks.wish_id`（字段已存在，**零 schema**）；
+///  · 该字段**不参与**任何必填校验；不选时任务行为与改造前**逐位一致**。
 class TaskEditorDialog extends ConsumerStatefulWidget {
   final Task? initial;
   final Future<void> Function(Task) onSave;
+
+  /// 可关联的愿望（空列表 ⇒ 不渲染该下拉，行为与 v0.2 完全一致）。
+  final List<Wish> wishes;
 
   const TaskEditorDialog({
     super.key,
     this.initial,
     required this.onSave,
+    this.wishes = const <Wish>[],
   });
 
   @override
@@ -47,6 +58,10 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
   int _minFocusMin = kTaskMinFocusDefault;
   int _reward = kTaskRewardDefault;
   RepeatRule _repeat = RepeatRule.none;
+
+  /// 关联愿望 id（`null` = 不关联；v0.3.0 / R3-P1-05）。
+  String? _wishId;
+
   String? _error;
   bool _saving = false;
 
@@ -73,7 +88,8 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
       _minFocusMin = t.minFocusMin;
       _reward = t.sunlightReward;
       _repeat = _ruleFrom(t.repeatRule);
-      _category = t.category;
+      _category = t.wishId != null ? TaskCategory.wish : t.category;
+      _wishId = t.wishId;
       // F179：预制种子任务的显示名要跟随当前语言（英文模式下不再显示 DB 里的中文
       // 默认名）。只改显示层 —— 字段初值走 [taskDisplayName]，保存逻辑 / 存储不变
       //（用户改过名 → [taskDisplayName] 回退 storedName，原样可编辑）。
@@ -165,7 +181,11 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
       return;
     }
     final String customSubject = _customSubjectCtrl.text.trim();
-    if (_subject == TaskSubject.custom && customSubject.isEmpty) {
+    // 玄参 v0.3 验收反馈 5(a)：关联愿望的任务不再要求科目 —— 既不强制选
+    // 内置科目，也不强制填自定义科目名。科目下拉本身在关联愿望时隐藏。
+    if (_wishId == null &&
+        _subject == TaskSubject.custom &&
+        customSubject.isEmpty) {
       setState(() => _error = t.parent_task_edit_err_subject);
       return;
     }
@@ -173,10 +193,11 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
       id: widget.initial?.id ?? const Uuid().v4(),
       name: name,
       subject: _subject,
-      category: _category,
+      // 关联愿望 ⇒ 分类自动归入「许愿」，孩子端按 wishId 分组展示。
+      category: _wishId != null ? TaskCategory.wish : _category,
       // 仅自定义科目落库科目名；切回内置科目时显式清空，避免残留旧文本。
       customSubject:
-          _subject == TaskSubject.custom ? customSubject : null,
+          _wishId == null && _subject == TaskSubject.custom ? customSubject : null,
       requiresFocus: _requiresFocus,
       minFocusMin: _minFocusMin,
       // 联动项奖励固定 = 专注分钟 × 40%（effectiveSunlightReward 只取该值）；
@@ -184,6 +205,8 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
       sunlightReward: _requiresFocus ? Task.rewardCapFor(_minFocusMin) : _reward,
       repeatRule: _ruleTo(_repeat),
       isCustom: widget.initial?.isCustom ?? true,
+      // v0.3.0（R3-P1-05）：关联愿望（null = 不关联）。不影响既有必填校验。
+      wishId: _wishId,
     );
     setState(() => _saving = true);
     try {
@@ -237,6 +260,9 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
                               labelText: t.parent_task_edit_name_label),
                         ),
                         const SizedBox(height: 8),
+                        // 玄参 v0.3 验收反馈 5(a)：关联愿望时科目不再必填，
+                        // 整段「科目选择 + 自定义科目」一起隐藏。
+                        if (_wishId == null) ...<Widget>[
                         // F178-fix：`isExpanded: true` —— 默认 false 时按钮宽取「最宽菜单项」
                         // 的内在宽，可用宽一收窄（卡片内距 / 平板 380×uiScaleOf 上限）就向下溢出。
                         DropdownButtonFormField<TaskSubject>(
@@ -278,6 +304,47 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
                               labelText: t.parent_task_edit_custom_label,
                               hintText: t.parent_task_edit_custom_hint,
                             ),
+                          ),
+                        ],
+                        ],
+                        // v0.3.0（R3-P1-05）：可选「关联愿望」下拉 —— 默认「不关联」。
+                        // 只在有可关联愿望时出现；不选 ⇒ `wish_id = null`，任务行为
+                        // 与改造前逐位一致（该字段不参与任何必填校验）。
+                        if (widget.wishes.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String?>(
+                            key: const Key('task_editor_wish_link'),
+                            isExpanded: true,
+                            // 🔴 `initialValue`（不是已废弃的 `value:`）：本下拉的
+                            // 变更只来自自身 onChanged ⇒ FormField 内部状态已同步，
+                            // 无需外部回灌；用 `value:` 会报 deprecated_member_use。
+                            initialValue: _wishId,
+                            decoration: InputDecoration(
+                              labelText: t.parent_task_wish_link,
+                            ),
+                            items: <DropdownMenuItem<String?>>[
+                              DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text(t.parent_task_wish_link_none),
+                              ),
+                              for (final Wish w in widget.wishes)
+                                DropdownMenuItem<String?>(
+                                  value: w.id,
+                                  child: Text(
+                                    w.text,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            onChanged: (String? v) => setState(() {
+                              _wishId = v;
+                              // 关联愿望 ⇒ 分类自动置为「许愿」；取消关联时回到
+                              // 原分类口径（other），提交处还会再钉一次。
+                              _category = v != null
+                                  ? TaskCategory.wish
+                                  : TaskCategory.other;
+                            }),
                           ),
                         ],
                         const SizedBox(height: 8),

@@ -62,6 +62,13 @@ dev_dependencies:
   # Drift 代码生成
   drift_dev: ^2.20.0
   build_runner: ^2.4.0
+  # QA 老库结构裸查（`test/qa/wish_rollback_v03_qa_test.dart` 的 v31→v32 迁移用例）：
+  # 用 `sqlite3.open()` 直接读老库的 `sqlite_master` / `PRAGMA table_info` /
+  # `PRAGMA user_version`，**必须绕开 `AppDatabase`** —— 打开 `AppDatabase` 本身就会
+  # 跑 `onUpgrade`，老库会被立刻迁移，前置断言恒假（这个坑实测踩过）。
+  # 版本跟随锁文件已解析的 3.5.2（与 drift 2.34 同一依赖图），不引入 sqlite3_flutter_libs，
+  # 故不影响 `hooks.user_defines.sqlite3`（source/system + name_android: sqlcipher）配置。
+  sqlite3: ^3.5.0
 
 flutter:
   # i18n（B1 批次）：启用 gen-l10n（配置见根目录 l10n.yaml，产物在 lib/l10n/generated）。

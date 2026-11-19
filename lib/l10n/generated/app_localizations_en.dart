@@ -1880,6 +1880,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get parent_task_config_title => 'Growth Setup';
 
   @override
+  String get parent_task_wish_link => 'Link to a wish (optional)';
+
+  @override
+  String get parent_task_wish_link_none => 'Not linked';
+
+  @override
   String get parent_task_config_list_title => 'Growth tasks';
 
   @override
@@ -2750,6 +2756,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shared_task_category_habit => 'Habit';
+
+  @override
+  String get shared_task_category_wish => 'Wish';
 
   @override
   String get shared_reward_content_other => 'Other';
@@ -3676,6 +3685,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String guard_no_battle_resource_hint(int cost, String focus) {
+    return 'No energy point and fewer than $cost sunlight. $focus first to earn energy or sunlight.';
+  }
+
+  @override
   String get guard_pill_free_ride => 'Sunnie is covering today — nothing to do';
 
   @override
@@ -3995,6 +4009,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wishTreeTitle => 'My Wish Tree';
 
   @override
+  String get gardenWishTreeEntryLabel => 'Wish Tree';
+
+  @override
   String wishTreeHanging(int mounted, int quota) {
     return '$mounted hung / $quota slots';
   }
@@ -4066,8 +4083,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String wishTreeTaskBadge(int count) {
-    return '$count tasks';
+    return '$count little ways';
   }
+
+  @override
+  String get wishWayLabel => 'little way';
+
+  @override
+  String get wishWayTitle =>
+      'Here are some little ways to make your wish come true.';
+
+  @override
+  String wishWayCountBadge(int count) {
+    return '$count little ways';
+  }
+
+  @override
+  String get wishStateHangingHint =>
+      'Need a hand? Show this wish to Mom or Dad.';
+
+  @override
+  String get wishStateParentWorking =>
+      'Mom and Dad are thinking of a way to make your wish come true…';
 
   @override
   String get wishTreeStaleHint => 'It\'s been a while';
@@ -4108,7 +4145,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String wishProgressTaskCount(int doneCount, int leftCount) {
-    return '$doneCount tasks done, $leftCount to go';
+    return '$doneCount little ways done, $leftCount to go';
   }
 
   @override

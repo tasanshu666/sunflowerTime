@@ -1,13 +1,21 @@
-/// 树上愿望卡（A-T04 / A22.1 / A24.7）——「树上」段单条卡片。
+/// 树上愿望卡（A-T04 / A22.1 / A24.7 + **v0.3.0 三态渲染**）——「树上」段单条卡片。
+///
+/// ## 三态（v0.3.0 / R3-P0-05 / D5）—— 判据**不在本文件**
+/// 卡片只读调用方传入的 [face]（由领域纯函数 `wishTreeFaceOf` 单出口算出）；
+/// 本文件**禁止**再散写 `tagKey == null && parentReply == null` 这类条件。
+///
+/// | 态 | 渲染 |
+/// |---|---|
+/// | [WishTreeFace.hanging] S1 | 原文 + 许愿日期 + 等待天数 + **不可点击**轻提示 |
+/// | [WishTreeFace.parentResponded] S2 | 原文 + 家长回信（空则兜底句）；**无**徽标 / 果实阶段 / 进度条 |
+/// | [WishTreeFace.hasWays] S3 | 原文 + 「小办法 {n} 个」徽标 + S3 标题 + 进度条 |
 ///
 /// ## 纪律
-///  - 纯展示 widget：不读 provider、不写状态机。判据（果实阶段 / 过期提醒 /
-///    进度）全部复用领域层纯函数与 [WishProgressBar]，本文件只排版 + 取 ARB 文案。
+///  - 纯展示 widget：不读 provider、不写状态机。
 ///  - 文案经 [t]（调用方在页级 `L10nScope` 内取好）传入，故可直接放进任意测试宿主。
-///  - [animate] 开关仅为 API 一致（本卡无循环动画），关掉不改变内容。
-///
-/// 关键判据导出为顶层纯函数（[wishCategoryEmoji] / [wishDisplayDate] /
-/// [wishFruitStageLabel]），测试可直接调用、不依赖 pump。
+///  - 🔴 **分类 emoji 已删除**（R3-P0-03③）：v0.3.0 起愿望无分类输入，
+///    历史数据的 `category` 列仍在，但界面不再渲染 emoji。
+///  - 🔴 孩子端一律叫「**小办法**」，不出现「任务」二字（D2）。
 library wish_card;
 
 import 'package:flutter/material.dart';
@@ -15,6 +23,7 @@ import 'package:flutter/material.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/wish.dart';
+import 'package:sunflower_time/domain/services/wish_face_state.dart';
 import 'package:sunflower_time/domain/services/wish_progress.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_progress_bar.dart';
@@ -27,21 +36,14 @@ const double kWishCardRadius = 22;
 const Color kWishTagRibbonBg = Color(0xFFFFF1C2);
 const Color kWishTagRibbonFg = Color(0xFF8D6E00);
 
-/// 愿望分类图标（emoji 是符号不走 ARB；switch 穷尽 6 类）。
-String wishCategoryEmoji(WishCategory category) => switch (category) {
-      WishCategory.other => '🌱',
-      WishCategory.gift => '🎁',
-      WishCategory.experience => '🎈',
-      WishCategory.toy => '🧸',
-      WishCategory.growth => '🌟',
-      WishCategory.companionship => '💛',
-    };
-
 /// 稳定日期文案（`yyyy-MM-dd`，复用 [dayKey] 单点，避免第二套格式）。
 String wishDisplayDate(DateTime date) => dayKey(date);
 
 /// 果实阶段文案（4 态穷尽）。`ripe` 理论上不出现在树上（成真即出池），
 /// 仅为 switch 穷尽保留，取「我自己做到的」徽标文案作兜底。
+///
+/// ⚠️ v0.3.0：S1 / S2 **不再渲染**本文案（R3-P0-05②③ 明确不显示
+/// 「等爸爸妈妈设定目标」）；仅 S3 的进度区使用。
 String wishFruitStageLabel(WishFruitStage stage, AppLocalizations t) =>
     switch (stage) {
       WishFruitStage.none => t.wishNoTargetYet,
@@ -50,7 +52,7 @@ String wishFruitStageLabel(WishFruitStage stage, AppLocalizations t) =>
       WishFruitStage.ripe => t.wishSelfFulfilledBadge,
     };
 
-/// 果实阶段图标（emoji 符号，各语言一致）。
+/// 果实阶段图标（emoji 符号，各语言一致）。仅 S3 使用。
 String wishFruitEmoji(WishFruitStage stage) => switch (stage) {
       WishFruitStage.none => '⏳',
       WishFruitStage.waiting => '🌰',
@@ -66,6 +68,7 @@ class WishCard extends StatelessWidget {
     required this.t,
     required this.taskCount,
     required this.waitDays,
+    this.face = WishTreeFace.hanging,
     this.milestoneCount = 0,
     this.onTap,
     this.animate = false,
@@ -75,11 +78,14 @@ class WishCard extends StatelessWidget {
   final Wish wish;
   final AppLocalizations t;
 
-  /// 归属任务条数（读侧派生，不落愿望列）。
+  /// 关联「小办法」条数（读侧派生，不落愿望列）。
   final int taskCount;
 
   /// 已等待天数（由页级用 `WishOrchestrationService.waitingDays` 算好）。
   final int waitDays;
+
+  /// 三态（唯一判据 `wishTreeFaceOf` 的返回值，由页级算出后下发）。
+  final WishTreeFace face;
 
   /// 已盖章数（达成池里程碑；树上只读展示）。
   final int milestoneCount;
@@ -116,11 +122,6 @@ class WishCard extends StatelessWidget {
           children: <Widget>[
             Row(
               children: <Widget>[
-                Text(
-                  wishCategoryEmoji(wish.category),
-                  style: const TextStyle(fontSize: 26),
-                ),
-                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     wish.text,
@@ -133,19 +134,29 @@ class WishCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                Text(
-                  wishFruitEmoji(stage),
-                  style: const TextStyle(fontSize: 22),
-                ),
+                // 果实 emoji 只在 S3（家长已布置小办法）出现；S1/S2 不显示。
+                if (face == WishTreeFace.hasWays) ...<Widget>[
+                  const SizedBox(width: 8),
+                  Text(
+                    wishFruitEmoji(stage),
+                    style: const TextStyle(fontSize: 22),
+                  ),
+                ],
               ],
             ),
-            if (wish.isTagged) ...<Widget>[
-              const SizedBox(height: 8),
-              _tagRibbon(),
-            ],
+            // 许愿日期 + 等待天数（三态共有）。
             const SizedBox(height: 8),
             Row(
               children: <Widget>[
+                Text(
+                  wishDisplayDate(wish.createdAt),
+                  key: const Key('wish_card_created_date'),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF8A7A66),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Text(
                   t.wishTreeWaitDays(waitDays),
                   key: const Key('wish_card_wait_days'),
@@ -166,84 +177,115 @@ class WishCard extends StatelessWidget {
                   ),
                 ],
                 const Spacer(),
-                Text(
-                  t.wishTreeTaskBadge(taskCount),
-                  key: const Key('wish_card_task_badge'),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF8A7A66),
-                    fontWeight: FontWeight.w600,
+                // 「小办法 n 个」徽标只在 S3 出现（S1/S2 明确不显示）。
+                if (face == WishTreeFace.hasWays)
+                  Text(
+                    t.wishWayCountBadge(taskCount),
+                    key: const Key('wish_card_task_badge'),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF8A7A66),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              wishFruitStageLabel(stage, t),
-              key: const Key('wish_card_fruit_stage'),
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF6B4E12),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            WishProgressBar(
-              mode: wish.targetMode,
-              targetValue: wish.targetValue,
-              progressValue: wish.progressValue,
-              animate: animate,
-            ),
-            if (milestoneCount > 0) ...<Widget>[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  t.wishTreeMilestone(milestoneCount),
-                  key: const Key('wish_card_milestone'),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF8D6E00),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
+            ..._faceBody(stage),
           ],
         ),
       ),
     );
   }
 
-  /// 非红色缎带 + 回信全文（空态走占位，默认展开）。
-  Widget _tagRibbon() => Container(
-        key: const Key('wish_card_tag_ribbon'),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: kWishTagRibbonBg,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              '🎗 ${t.wishTreeTagRibbon}',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: kWishTagRibbonFg,
-              ),
+  /// 按三态追加主体（S1 轻提示 / S2 回信 / S3 标题 + 进度）。
+  List<Widget> _faceBody(WishFruitStage stage) {
+    switch (face) {
+      case WishTreeFace.hanging:
+        // S1：一条**不可点击**的轻提示（12~13sp 灰）。不带 InkWell / GestureDetector，
+        // 也没有 onTap（R3-P0-07⑤ 断言该提示不可点击）。
+        // P2-01：挂树满 [kWishStateHintDays] 天后自动隐藏（不出现替代催促文案）。
+        if (waitDays >= kWishStateHintDays) return const <Widget>[];
+        return <Widget>[
+          const SizedBox(height: 8),
+          Text(
+            t.wishStateHangingHint,
+            key: const Key('wish_card_hanging_hint'),
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF8A7A66),
             ),
-            const SizedBox(height: 4),
-            Text(
-              wish.parentReply ?? t.wishTreeReplyEmpty,
-              key: const Key('wish_card_reply'),
+          ),
+        ];
+      case WishTreeFace.parentResponded:
+        // S2：家长回信（空则兜底句）；**不显示**徽标 / 果实阶段 / 进度条。
+        final String? reply = wish.parentReply;
+        return <Widget>[
+          const SizedBox(height: 8),
+          Container(
+            key: const Key('wish_card_parent_reply_box'),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: kWishTagRibbonBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              (reply != null && reply.isNotEmpty)
+                  ? reply
+                  : t.wishStateParentWorking,
+              key: const Key('wish_card_parent_reply'),
               style: const TextStyle(
                 fontSize: 13,
                 color: Color(0xFF5D4200),
               ),
             ),
+          ),
+        ];
+      case WishTreeFace.hasWays:
+        // S3：标题 + 果实阶段 + 进度条（任务列表在详情卡展开）。
+        return <Widget>[
+          const SizedBox(height: 8),
+          Text(
+            t.wishWayTitle,
+            key: const Key('wish_card_way_title'),
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF6B4E12),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            wishFruitStageLabel(stage, t),
+            key: const Key('wish_card_fruit_stage'),
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF6B4E12),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          WishProgressBar(
+            mode: wish.targetMode,
+            targetValue: wish.targetValue,
+            progressValue: wish.progressValue,
+            animate: animate,
+          ),
+          if (milestoneCount > 0) ...<Widget>[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                t.wishTreeMilestone(milestoneCount),
+                key: const Key('wish_card_milestone'),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF8D6E00),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ],
-        ),
-      );
+        ];
+    }
+  }
 }

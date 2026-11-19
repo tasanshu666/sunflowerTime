@@ -75,6 +75,7 @@ void main() {
           text: '想去海边',
           category: WishCategory.experience,
           now: DateTime(2026, 11, 20, 9),
+          maxTextLength: kWishTextMaxLengthZh,
         );
     expect(c.read(economyRevisionProvider), before + 1);
   });
@@ -90,6 +91,7 @@ void main() {
           text: '养一只小狗',
           category: WishCategory.gift,
           now: DateTime(2026, 11, 20, 10),
+          maxTextLength: kWishTextMaxLengthZh,
         );
     final List<Wish> tree = await c.read(wishTreeProvider.future);
     expect(tree.length, 1);

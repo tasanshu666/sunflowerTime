@@ -97,14 +97,17 @@ class AppDatabase extends _$AppDatabase {
           //       新表上）⇒ `createAll()` 对老库一直是幂等的；
           //       v32 首次给既有表 `tasks` 加了索引，打破了这一前提。
           //
-          //    修法：① 先补 `tasks.wish_id` 列；② 先 `DROP INDEX IF EXISTS` 掉
-          //    本批新增的 4 条索引；③ 再让 `m.createAll()` 按**当前 schema** 重建
-          //    （定义与生成物完全一致 ⇒ 无副作用；整个 `onUpgrade` 在 drift 的
-          //    迁移事务内 ⇒ 中途失败自动回滚，索引不会「掉一半」）。
+          //    修法：① 先补 `tasks.wish_id` 列（v32）—— 必须先于 createAll；
+          //    ② 先 `DROP INDEX IF EXISTS` 掉本批新增的 4 条索引；③ 再让
+          //    `m.createAll()` 按**当前 schema** 重建（定义与生成物完全一致 ⇒
+          //    无副作用；整个 `onUpgrade` 在 drift 的迁移事务内 ⇒ 中途失败
+          //    自动回滚，索引不会「掉一半」）。
           //
           //    🔴 全新库（表还不存在）时补列本步**静默跳过** —— 表随后由
           //    `createAll()` 按**新 schema** 建出，列与索引天然齐全；
           //    `DROP INDEX IF EXISTS` 对不存在的索引是 no-op，同样安全。
+          //    🔴 v33 的 `wishes.shared_to_parent` 已在 v0.3.0 回退（schema 回 32），
+          //    故本步只剩 `tasks.wish_id` 一列 + 既有 4 索引。
           await _ensureColumn(m, tasks, tasks.wishId);
           for (final String indexName in _v32NewIndexNames) {
             await customStatement('DROP INDEX IF EXISTS $indexName;');
@@ -866,6 +869,15 @@ class AppDatabase extends _$AppDatabase {
           //       `test/m3/migration_v32_test.dart`）。
           //    🔴 `tasks.wish_id` 的补列**已在本 onUpgrade 的 ⓿ 步完成**
           //      （必须先于 `createAll()`，否则 `idx_tasks_wish` 建索引时列还不存在）。
+
+          // 🔴 v0.3.0 回退（玄参 2026-11-19 批次，PRD v0.3 §1.1 #1）：
+          //    原 ㉝ v33 分支「`wishes` 加 `shared_to_parent`（22 → 23 列）」与其
+          //    ⓿ 步 `_ensureColumn` 补列**已整块删除** —— 推送机制作废，家长端
+          //    恢复全量可见，`schemaVersion` 回到 **32**、`wishes` 回到 **22 列**。
+          //    ⚠️ 真机已装 v0.2 调试包（user_version=33）的库**无法降级**，
+          //       处置为「卸载重装调试包」，**不写任何降级兼容分支**
+          //       （见 v0.3 架构设计 §2.6 / PRD Q5；v0.2 未发布、未进用户设备）。
+          //    ⇒ 迁移链恢复为唯一一跳 **v31 → v32**（见 `test/m3/migration_v32_test.dart`）。
         },
       );
 

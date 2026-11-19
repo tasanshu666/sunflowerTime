@@ -31,12 +31,26 @@ void main() {
     expect(kWishSlotMaxPremium, 20);
   });
 
-  test('M1/M2 数值（里程碑步长 / 软门槛 / 文本长度）', () {
+  test('M1/M2 数值（里程碑步长 / 软门槛 / 文本长度双阈值）', () {
     expect(kWishPoolMilestoneStep, 3);
     expect(kWishSoftGateMinPlants, 1);
     expect(kWishTextMinLength, 2);
-    expect(kWishTextMaxLength, 30);
+    // v0.3.0（R3-P0-04 / D1）：单阈值 30 作废，改双阈值（汉字 100 / 英文 300）。
+    expect(kWishTextMaxLengthZh, 100);
+    expect(kWishTextMaxLengthEn, 300);
     expect(kWishDuplicateLookbackDays, 30);
+  });
+
+  test('v0.3.0 字数上限单一取数函数（wishMaxTextLength）', () {
+    // 唯一取数入口：zh（及任何非 en 语言）= 100，en = 300。
+    expect(wishMaxTextLength('zh'), 100);
+    expect(wishMaxTextLength('en'), 300);
+    // 非 en 一律取 100（新增语言不会意外放宽到 300）。
+    expect(wishMaxTextLength('ja'), kWishTextMaxLengthZh);
+    expect(wishMaxTextLength(''), kWishTextMaxLengthZh);
+    // 反向用例（R3-P1-02③）：错值必须能被断言拦住。
+    expect(wishMaxTextLength('en'), isNot(100));
+    expect(wishMaxTextLength('zh'), isNot(300));
   });
 
   test('触发方字面量只出现在 prd_params.dart', () {

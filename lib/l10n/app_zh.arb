@@ -1593,6 +1593,8 @@
   "parent_task_edit_btn_save": "保存",
 
   "parent_task_config_title": "成长配置",
+  "parent_task_wish_link": "关联愿望（可选）",
+  "parent_task_wish_link_none": "不关联",
   "parent_task_config_list_title": "成长任务",
   "parent_task_config_empty": "还没有成长项，点右上角「新增成长项」创建一个吧",
   "parent_task_config_delete_title": "删除成长项？",
@@ -2174,6 +2176,7 @@
   "shared_task_category_sports": "运动",
   "shared_task_category_life": "生活",
   "shared_task_category_habit": "习惯",
+  "shared_task_category_wish": "许愿",
   "shared_reward_content_other": "其他",
   "shared_reward_content_snacks": "零食",
   "shared_reward_content_play": "游玩",
@@ -2872,6 +2875,18 @@
       },
       "description": "今日页守卫胶囊：余额不足提示（n = 还差多少阳光）。本批未上屏，第四批调试面板用"
   },
+  "guard_no_battle_resource_hint": "没有能量点，也没有 {cost} 阳光，先{focus}获得能量或阳光吧",
+  "@guard_no_battle_resource_hint": {
+      "placeholders": {
+          "cost": {
+              "type": "int"
+          },
+          "focus": {
+              "type": "String"
+          }
+      },
+      "description": "今日页守卫：没玩过（0 能量 0 余额）点「开始守卫」时的开战前提示。focus 复用 task_action_focus（去专注），cost 复用 kGuardPayCost"
+  },
   "guard_pill_free_ride": "小小葵自己顶班，今天不用管",
   "@guard_pill_free_ride": {
       "description": "今日页守卫胶囊：小小葵顶班（无能量且余额 < kGuardFreeRideBalance，当天免罚、不可点）"
@@ -3266,6 +3281,8 @@
   "guard_result_collect": "收下",
   "@guard_result_collect": {"description": "结算卡：收下按钮（🔴 claim() 在这里触发，不在战斗开始时 —— 观看/跳过不改变奖励，但发放必须落在「领取」动作上且只落一次）"},
   "wishTreeTitle": "我的许愿树",
+  "gardenWishTreeEntryLabel": "许愿树",
+  "@gardenWishTreeEntryLabel": {"description": "花园右上角许愿树入口的短标签（玄参 v0.3 真机反馈 1：96dp 内完整显示；与页面标题 wishTreeTitle 分离）"},
   "wishTreeHanging": "已挂 {mounted} / 额度 {quota}",
   "@wishTreeHanging": {
     "placeholders": {
@@ -3313,10 +3330,18 @@
   "@wishTreeWaitDays": {
     "placeholders": {"days": {"type": "int"}}
   },
-  "wishTreeTaskBadge": "{count} 个任务",
+  "wishTreeTaskBadge": "小办法 {count} 个",
   "@wishTreeTaskBadge": {
     "placeholders": {"count": {"type": "int"}}
   },
+  "wishWayLabel": "小办法",
+  "wishWayTitle": "你的愿望可以通过这些小办法实现哦",
+  "wishWayCountBadge": "小办法 {count} 个",
+  "@wishWayCountBadge": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishStateHangingHint": "想让爸爸妈妈帮帮忙？让他们看看你的愿望吧",
+  "wishStateParentWorking": "爸爸妈妈正在帮你想办法实现愿望……",
   "wishTreeStaleHint": "有点久了",
   "wishTreeReplyEmpty": "爸爸妈妈还没回信",
   "wishTreeTagRibbon": "暂时做不到",
@@ -3339,7 +3364,7 @@
       "leftMinutes": {"type": "int"}
     }
   },
-  "wishProgressTaskCount": "已完成 {doneCount} 个任务，还差 {leftCount} 个",
+  "wishProgressTaskCount": "已完成 {doneCount} 个小办法，还差 {leftCount} 个",
   "@wishProgressTaskCount": {
     "placeholders": {
       "doneCount": {"type": "int"},

@@ -22,6 +22,9 @@ abstract class WishRepository {
   Future<int> countByStatuses(Set<WishStatus> statuses);
 
   /// Milestone stamp count: count(status = fulfilled), including child source.
+  ///
+  /// 🔴 NO visibility filter: stamping is a child-private counter. v0.3.0 起
+  /// 可见性过滤已整体删除（家长端全量可见），本方法始终未过滤，保持原样。
   Future<int> countStampedAchieved();
 
   /// Slots currently occupied on the tree.

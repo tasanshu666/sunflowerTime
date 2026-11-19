@@ -14,6 +14,8 @@
 /// → 界面不刷新、异常被上层 catch 成「核销失败」（真机 BUG 复现）。
 library parent_today_page;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -197,49 +199,58 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
   }
 
   /// 动作③：贴标签 + 温柔回复（ParentWishActionSheet → tagWithReply）。
+  ///
+  /// v0.2.0（R-P0-07/08）：`showDialog` `barrierDismissible: false` —— 点遮罩
+  /// 不退出；弹层「取消」`pop()` 弹 null，此处用 `is! WishTagReplyResult`
+  /// 防御一切非契约值；整段 try/catch 保证异常不逃逸（否则会被 PopScope
+  /// 兜底成 `context.go('/')`，把家长踢出家长空间）。
   Future<void> _openTag(WishDeskEntry entry) async {
-    // 已有标签回填到表单（枚举 name → 枚举）。
-    WishTag? initialTag;
-    if (entry.wish.tagKey != null) {
-      for (final WishTag tag in WishTag.values) {
-        if (tag.name == entry.wish.tagKey) {
-          initialTag = tag;
-          break;
+    try {
+      // 已有标签回填到表单（枚举 name → 枚举）。
+      WishTag? initialTag;
+      if (entry.wish.tagKey != null) {
+        for (final WishTag tag in WishTag.values) {
+          if (tag.name == entry.wish.tagKey) {
+            initialTag = tag;
+            break;
+          }
         }
       }
-    }
-    final WishTagReplyResult? result = await showDialog<WishTagReplyResult>(
-      context: context,
-      builder: (BuildContext ctx) => ParentWishActionSheet(
-        wish: entry.wish,
-        initialTag: initialTag,
-        initialReply: entry.wish.parentReply,
-        onSetup: () {
-          Navigator.of(ctx).pop(null);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _openSetup(entry);
-          });
-        },
-        onFulfill: () {
-          Navigator.of(ctx).pop(null);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _confirmFulfill(entry.wish);
-          });
-        },
-        onTagReply: (WishTagReplyResult r) => Navigator.of(ctx).pop(r),
-      ),
-    );
-    if (result == null || !mounted) return;
-    // 未选标签、未填回信 ⇒ 无操作（表单允许全空跳过）。
-    if (result.tag == null && (result.reply == null || result.reply!.isEmpty)) {
-      return;
-    }
-    try {
-      final WishTag tag = result.tag ?? WishTag.needMoreTime;
+      final WishTagReplyResult? result = await showDialog<WishTagReplyResult>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext ctx) => ParentWishActionSheet(
+          wish: entry.wish,
+          initialTag: initialTag,
+          initialReply: entry.wish.parentReply,
+          onSetup: () {
+            Navigator.of(ctx).pop(null);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) unawaited(_openSetup(entry));
+            });
+          },
+          onFulfill: () {
+            Navigator.of(ctx).pop(null);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) unawaited(_confirmFulfill(entry.wish));
+            });
+          },
+          onTagReply: (WishTagReplyResult r) => Navigator.of(ctx).pop(r),
+        ),
+      );
+      // 防御 false / null / 其它非契约值：绝不访问 result.tag。
+      if (result is! WishTagReplyResult || !mounted) return;
+      final WishTagReplyResult reply = result;
+      // 未选标签、未填回信 ⇒ 无操作（表单允许全空跳过）。
+      if (reply.tag == null &&
+          (reply.reply == null || reply.reply!.isEmpty)) {
+        return;
+      }
+      final WishTag tag = reply.tag ?? WishTag.needMoreTime;
       await ref.read(wishOrchestrationServiceProvider).tagWithReply(
             id: entry.wish.id,
             tag: tag,
-            reply: result.reply,
+            reply: reply.reply,
             now: DateTime.now(),
           );
       if (!mounted) return;
@@ -433,6 +444,9 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
               final bool hasRequests = data.requests.isNotEmpty;
               final bool hasWishes =
                   data.wishEntries.isNotEmpty || data.selfFulfilled.isNotEmpty;
+              // 🔴 v0.3.0：v0.2 的「0 条已授权愿望」空态卡已删除（PRD v0.3 §1.1
+              // #6 / R3-P1-04）—— 家长端恢复**全量可见**，无愿望时直接走既有
+              // `parent_today_empty` 空态，不再出现任何「已授权 / 分享」措辞。
 
               final List<Widget> cards = <Widget>[
                 if (hasPending)
@@ -441,7 +455,8 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
                     onResolved: _reload,
                   ),
                 // A21.1：许愿树区块 —— _PendingCheckInsCard 之后、兑换请求之前。
-                if (hasWishes) const SizedBox(height: 20),
+                if (hasPending || hasWishes)
+                  const SizedBox(height: 20),
                 if (hasWishes)
                   WishTreeSection(
                     entries: data.wishEntries,
@@ -450,7 +465,7 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
                     onSetup: (WishDeskEntry entry) => _openSetup(entry),
                     onFulfill: (WishDeskEntry entry) =>
                         _confirmFulfill(entry.wish),
-                    onTag: (WishDeskEntry entry) => _openTag(entry),
+                    onTag: (WishDeskEntry entry) => unawaited(_openTag(entry)),
                     onVerify: _verifyWishTask,
                     onReject: _rejectWishTask,
                     onUndo: _confirmUndo,

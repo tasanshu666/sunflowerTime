@@ -1836,6 +1836,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get parent_task_config_title => '成长配置';
 
   @override
+  String get parent_task_wish_link => '关联愿望（可选）';
+
+  @override
+  String get parent_task_wish_link_none => '不关联';
+
+  @override
   String get parent_task_config_list_title => '成长任务';
 
   @override
@@ -2685,6 +2691,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shared_task_category_habit => '习惯';
+
+  @override
+  String get shared_task_category_wish => '许愿';
 
   @override
   String get shared_reward_content_other => '其他';
@@ -3554,6 +3563,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String guard_no_battle_resource_hint(int cost, String focus) {
+    return '没有能量点，也没有 $cost 阳光，先$focus获得能量或阳光吧';
+  }
+
+  @override
   String get guard_pill_free_ride => '小小葵自己顶班，今天不用管';
 
   @override
@@ -3850,6 +3864,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wishTreeTitle => '我的许愿树';
 
   @override
+  String get gardenWishTreeEntryLabel => '许愿树';
+
+  @override
   String wishTreeHanging(int mounted, int quota) {
     return '已挂 $mounted / 额度 $quota';
   }
@@ -3918,8 +3935,25 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String wishTreeTaskBadge(int count) {
-    return '$count 个任务';
+    return '小办法 $count 个';
   }
+
+  @override
+  String get wishWayLabel => '小办法';
+
+  @override
+  String get wishWayTitle => '你的愿望可以通过这些小办法实现哦';
+
+  @override
+  String wishWayCountBadge(int count) {
+    return '小办法 $count 个';
+  }
+
+  @override
+  String get wishStateHangingHint => '想让爸爸妈妈帮帮忙？让他们看看你的愿望吧';
+
+  @override
+  String get wishStateParentWorking => '爸爸妈妈正在帮你想办法实现愿望……';
 
   @override
   String get wishTreeStaleHint => '有点久了';
@@ -3959,7 +3993,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String wishProgressTaskCount(int doneCount, int leftCount) {
-    return '已完成 $doneCount 个任务，还差 $leftCount 个';
+    return '已完成 $doneCount 个小办法，还差 $leftCount 个';
   }
 
   @override

@@ -250,9 +250,20 @@ void main() {
       await tester.pumpWidget(pageHost(const ParentTodayPage()));
       await pumpFrames(tester, frames: 25);
 
+      // v0.3.0：v0.2 的「0 条已授权愿望」空态卡已删除（家长端恢复全量可见）⇒
+      // 无愿望时回到既有通用空态 `parent_today_empty`（ARB EN），中文清零。
       expect(find.text('Nothing waiting 🎉'), findsOneWidget,
-          reason: '空态文案（本例无待确认数据）');
+          reason: '空态回到既有通用文案（ARB EN）');
       expect(find.text('暂无待确认奖励 🎉'), findsNothing);
+      // v0.2 的分享空态文案已随键删除，不得再现。
+      expect(
+        find.text("No wishes shared yet. They'll show up here when your child is ready."),
+        findsNothing,
+      );
+      expect(
+        find.text('孩子还没有把愿望告诉爸爸妈妈。等孩子愿意分享，愿望会出现在这里。'),
+        findsNothing,
+      );
     });
 
     testWidgets('奖励页 ParentRewardPage', (WidgetTester tester) async {

@@ -394,30 +394,25 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                 // 🔴 B12：claimed（战斗胜利且已收下）⇒ 该格显示「已完成守卫」
                 // 徽标（玄参：「战斗完成后，在右边显示已完成守卫的方块标识」）。
                 // 图标块不占文本 ⇒ 不违反「卡内零文本」纪律；语义由 Semantics 承担。
+                //
+                // 🔴 玄参最终裁定（三套口径收敛）：旗帜**唯一**判据 =
+                // 「今天完成过一次守卫」= `status == claimed`，与能量 / 阳光
+                // 完全无关。`view.isActionable` 覆盖所有未 claimed 的有贼态
+                // （pendingFree / pendingPaid / freeRide）⇒ 一律画可点开始钮；
+                // 只有 claimed 走到下面的旗帜分支；fighting ⇒ 留空占位。
                 Positioned.fromRect(
                   rect: layout.rightClusterRect,
                   child: actionable
                       ? _startButton(t, widget.uiScale)
-                      : ((view.mode == GuardPillMode.claimed ||
-                              view.mode == GuardPillMode.freeRide)
+                      : (view.mode == GuardPillMode.claimed
                           // 🔴 B13：徽章含文字（旗子 +「成功守卫」），右簇槽位是
                           // 紧约束（窄卡内容区仅 ~30×40），文字会换行溢出 ——
                           // 用 FittedBox(scaleDown) 让整块徽章**等比缩**进槽位，
                           // 任何语言 / 字号 / 卡宽都不溢出（美术素材到位后整块替换）。
-                          // 🔴 2026-11-12（玄参「就两种视觉」）：freeRide（小雨顶班 /
-                          // 今日免守卫）原本右簇 `SizedBox.shrink()` 空白，iPad 上完全
-                          // 看不出状态；现归并到同一「胜利旗帜」视觉（Semantics 仍用
-                          // freeRide 文案，读屏准确）—— 守卫卡视觉从此只有
-                          // 「开始钮 / 旗帜」两种，消除空白。
                           ? Center(
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
-                                child: _claimedBadge(
-                                  t,
-                                  widget.uiScale,
-                                  isFreeRide:
-                                      view.mode == GuardPillMode.freeRide,
-                                ),
+                                child: _claimedBadge(t, widget.uiScale),
                               ),
                             )
                           : const SizedBox.shrink()),

@@ -344,18 +344,27 @@ void main() {
   });
 
   group('QA-G 源码守卫 · 花园入口 / 徽标逐字节 / 双参互斥 / 接线层未破坏', () {
-    test('QA-G1 花园入口追加在根 Stack 末尾 + 稳定 Key + 孩子端零购买入口', () {
+    test('QA-G1 花园入口收进右上角单簇 + 稳定 Key + 孩子端零购买入口', () {
       final String src = File('lib/presentation/child/pages/garden_page.dart').readAsStringSync();
-      expect(src, contains('kWishTreeHotspotKey'), reason: '稳定 Key');
-      expect(src, contains('WishTreeHotspot('), reason: '花园页挂入口');
+      // v0.3.0（R3-P0-11）：入口从「左下角木牌上方热点」收进右上角单簇。
+      expect(src, contains('kWishTreeTopClusterKey'), reason: '整簇稳定 Key');
+      expect('WishTopEntryCluster('.allMatches(src).length, 2,
+          reason: '簇只有两个：天气 + 许愿树（不得再有第三处并列定位）');
+      expect(src, isNot(contains('WishTreeHotspot(')),
+          reason: 'v0.3 减法：左下角旧热点已整体删除（Key 常量保留供旧断言引用）');
       expect(src, contains("context.push('/wish-tree')"), reason: '只 push 许愿树页');
       expect(src, isNot(contains('/parent/premium')), reason: '孩子端零购买入口');
       expect(src, isNot(contains('buyLifetime')));
-      // 入口 Positioned 是根 Stack children 的最后一项：其后紧接 children 收尾与 Stack 收尾。
-      final int pos = src.indexOf('key: kWishTreeHotspotKey');
-      final String tail = src.substring(pos, pos + 700);
-      expect(tail, contains('],'), reason: '入口后即 children 列表结束 ⇒ 追加在末尾');
-      expect(tail, contains('),'), reason: 'Positioned 闭合');
+      // 根因守卫：右上角必须是**单个 Positioned + Column**，
+      // 不允许再出现「多个并列 Positioned 各自用未缩放常量算 top」。
+      final int pos = src.indexOf('key: kWishTreeTopClusterKey');
+      expect(pos, greaterThan(0), reason: '簇的 Positioned 带 Key');
+      final int from = pos - 200 < 0 ? 0 : pos - 200;
+      final String around = src.substring(from, pos + 1200);
+      expect(around, contains('Positioned('), reason: '簇由单个 Positioned 定位');
+      expect(around, contains('Column('), reason: '堆叠交给 Column，不留给常量');
+      expect(src, isNot(contains('gardenDebugEntryTop(')),
+          reason: '旧「手工 top 偏移」函数已废弃（调试入口随簇自然顺延）');
     });
 
     test('QA-G2 wishId==null 徽标逐字节不变 + 异步补拉走 unawaited（回归修复落点）', () {
@@ -416,7 +425,9 @@ void main() {
         changed.any((String p) => p.endsWith('child/state/wish_state.dart') ||
             p.endsWith('parent/state/wish_state.dart')),
         isFalse,
-        reason: 'A-T03 接线层 state 文件不得被本批改动',
+        reason: 'A-T03 接线层 state 文件必须与 HEAD 逐字节一致：v0.3 回退已把 '
+            'v0.2 的 wishShareRevisionProvider watch 整体移除，两个文件内容回到 '
+            'HEAD 原样 ⇒ 工作区 diff 为空（本批应绿，不是豁免）',
       );
     });
 
@@ -429,7 +440,9 @@ void main() {
       );
       final String changed = diff.stdout as String;
       expect(changed.trim(), isEmpty,
-          reason: 'schemaVersion / 列 / 索引文件不得被本批改动（仍 22 列 / 4 索引）');
+          reason: 'schemaVersion / 列 / 索引文件由 v0.2→v0.3 批次合法改动'
+              '（回退到 22 列 / 4 索引 / schemaVersion 32）；'
+              '本断言校验 git diff HEAD，待新 HEAD 提交后自然复绿');
       final String routerSrc = File('lib/shared/app_router.dart').readAsStringSync();
       expect(routerSrc, contains("path: '/wish-tree'"), reason: '许愿树是 push 路由，不是新 tab');
     });

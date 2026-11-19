@@ -8421,8 +8421,11 @@ class WishRow extends DataClass implements Insertable<WishRow> {
   /// 归属孩子（C90 期 2 口径；写入落当前孩子）。
   final String childId;
 
-  /// 愿望原文（孩子自由输入；trim 后长度 ∈ [kWishTextMinLength, kWishTextMaxLength]，
-  /// 按 Unicode 码点计 —— emoji 不虚高）。
+  /// 愿望原文（孩子自由输入；trim 后长度 ∈ [kWishTextMinLength,
+  /// `wishMaxTextLength(lang)`]，按 Unicode 码点计 —— emoji 不虚高）。
+  ///
+  /// v0.3.0：上限按语言分档（中文 100 / 英文 300），判据单点在
+  /// `prd_params.dart` 的 `wishMaxTextLength()`；仓库层不做语言判断。
   ///
   /// 🔴 Drift 字段名 = `wishText`，**DB 列名 = `text`**（见类注释的 drift 冲突裁决）。
   final String wishText;

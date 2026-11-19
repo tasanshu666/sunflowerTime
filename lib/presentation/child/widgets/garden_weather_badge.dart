@@ -209,12 +209,18 @@ const double kGardenWeatherBadgeShelterGap = 7;
 ///    盒 56 → 72 + 位图按内容 bbox 撑到 64**，见 [_ShelterArtFilled]）。
 class GardenWeatherBadge extends StatelessWidget {
   /// 构造。
+  ///
+  /// v0.3.0（R3-P0-11）：[onTap] 改为**可选**。花园页把「图标 + 下方文字」收进
+  /// `WishTopEntryCluster` 后，热区由外层那一个 `InkWell` 统一承担（点文字等同
+  /// 点图标），徽标自身传 `null` 即不再注册手势 —— 点击仍由**祖先** InkWell 接住，
+  /// 不会出现「点了没反应」（祖孙链路恒有接住者）。独立使用（测试 / 其它宿主）
+  /// 时照旧传回调。
   const GardenWeatherBadge({
     super.key,
     required this.kind,
     required this.banner,
     required this.shelterBought,
-    required this.onTap,
+    this.onTap,
   });
 
   /// 今日日型（页面从 `todayWeatherProvider` 快照传入，本组件不自算天气）。
@@ -229,9 +235,12 @@ class GardenWeatherBadge extends StatelessWidget {
   /// 只表达「棚已买」，与 done（= 棚 + 动作齐）解耦。
   final bool shelterBought;
 
-  /// 点状态灯（宿主弹出天气对话框；`GestureDetector` 恒非 null，点了必须有响应
-  /// —— 与 F166「`onTap: null` 让孩子点了毫无反馈是缺陷」同一条结论）。
-  final VoidCallback onTap;
+  /// 点状态灯（宿主弹出天气对话框）。
+  ///
+  /// 独立使用时必须传（`GestureDetector` 恒非 null，点了必须有响应 —— 与 F166
+  /// 「`onTap: null` 让孩子点了毫无反馈是缺陷」同一条结论）；收进
+  /// `WishTopEntryCluster` 时传 `null`，热区由外层统一（见构造注释）。
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

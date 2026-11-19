@@ -45,16 +45,19 @@ import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/guard_chest.dart';
 import 'package:sunflower_time/domain/entities/guard_day_state.dart';
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
+import 'package:sunflower_time/domain/entities/guard_energy.dart';
 import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/bloom_reward_repository.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
+import 'package:sunflower_time/domain/repositories/guard_energy_store.dart';
 import 'package:sunflower_time/domain/repositories/guard_state_store.dart';
 import 'package:sunflower_time/domain/repositories/plant_repository.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/focus_validity.dart';
 import 'package:sunflower_time/domain/services/guard_chest.dart';
+import 'package:sunflower_time/domain/services/guard_day.dart';
 import 'package:sunflower_time/domain/services/guard_math.dart';
 import 'package:sunflower_time/domain/services/guard_voucher.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
@@ -322,17 +325,25 @@ class GuardService {
     // 这个分支；生产装配（providers.dart）**必须**注入，否则高级宝箱的碎片与
     // 种子会静默丢失（`guard_chest_grant_test.dart` 用真仓储钉死这条）。
     BloomRewardRepository? bloomRewards,
+    // 🔴 v0.3 玄参验收反馈 3：持久能量余额端口。缺省 null ⇒ 旧派生口径
+    // （老测试 / 老装配零改动）；生产 DI 必须注入，否则「攒的能量跨天消失」。
+    GuardEnergyStore? energyStore,
   })  : _store = store,
         _ledger = ledger,
         _focus = focus,
         _plants = plants,
         _growth = growth,
         _bloomRewards = bloomRewards,
+        _energyStore = energyStore,
         _childId = childId,
         _clock = clock ?? DateTime.now,
         _isPremium = isPremium;
 
   final GuardStateStore _store;
+
+  /// 🔴 v0.3：持久能量余额（与 [GuardStateStore] 分离，`expire()` 的 clear 不波及）。
+  final GuardEnergyStore? _energyStore;
+
   final SunlightRepository _ledger;
   final FocusRepository _focus;
   final PlantRepository _plants;
@@ -372,22 +383,84 @@ class GuardService {
   // 一、能量（从专注派生，零新表）
   // ═══════════════════════════════════════════════════════════════════════
 
-  /// 今天还能用几发能量（免费 0..[kGuardEnergyDailyMaxFree]、
-  /// 付费 0..[kGuardEnergyDailyMaxPremium]）。
+  /// 今天还能用几发能量（持久余额；未注入 [GuardEnergyStore] 时退回旧派生口径）。
   ///
-  /// `可用 = clamp(今日有效专注次数 × kGuardEnergyPerFocus, 0, 档位上限) − 今日已消耗`
-  ///（上限按权益档位取：免费 [kGuardEnergyDailyMaxFree] / 会员 [kGuardEnergyDailyMaxPremium]）。
-  ///
-  /// 🔴 「有效专注」走 `focus_validity.dart` 的单一真源（[isValidFocusSession]），
-  /// **绝不**用 `sessions.length`：后者包含「点开 3 分钟就退出」的会话，
-  /// 拿它发能量等于「玩一下就能刷满能量」。
+  /// 🔴 v0.3 玄参反馈 3：能量余额**只能消耗消失**，不能随天数更新消失。
+  /// 注入 store 后，可用值 = 持久余额（专注达标时入账、按 session id 幂等）；
+  /// 未注入时保持旧口径 `clamp(今日有效专注 × perFocus, 0, cap) − 今日已消耗`，
+  /// 以便老装配 / 老测试零改动。
   Future<int> energyAvailable({DateTime? now}) async {
-    final String today = dayKey(now ?? _clock());
-    final int earned = await _energyEarnedOn(today);
+    final GuardEnergyStore? energyStore = _energyStore;
+    if (energyStore == null) return _legacyEnergyAvailable(now: now);
+    return _creditAndReadEnergy(now ?? _clock());
+  }
+
+  /// 旧派生口径（仅 `_energyStore == null` 的兼容路径）。
+  Future<int> _legacyEnergyAvailable({DateTime? now}) async {
+    final DateTime at = now ?? _clock();
+    // 存档日界走守卫专用 6 点；专注会话仍按自然日存，查能量必须走自然日。
+    final String today = guardDayKey(at);
+    final int earned = await _energyEarnedOn(dayKey(at));
     final GuardDayState state = await _store.read(_childId());
     final int used = state.dayKey == today ? state.energyUsed : 0;
     final int left = earned - used;
     return left > 0 ? left : 0;
+  }
+
+  /// 余额回看窗口：防止孩子攒完能量当天没打开 App 而漏入账。
+  static const int kEnergyCreditLookbackDays = 7;
+
+  /// 把最近 [kEnergyCreditLookbackDays] 天尚未入账的有效专注计入持久余额。
+  ///
+  /// 幂等真源 = [GuardEnergy.creditedSessionIds]：同一 session id 重复调用
+  /// 只入账一次。上限钳制只向上补、不向下削减既有余额（权益降级不吞能量）。
+  Future<int> _creditAndReadEnergy(DateTime at) async {
+    final GuardEnergyStore store = _energyStore!;
+    final String childId = _childId();
+    GuardEnergy current = await store.read(childId);
+    final Set<String> creditedIds =
+        Set<String>.from(current.creditedSessionIds);
+    final List<FocusSession> fresh = <FocusSession>[];
+    // 🔴 这里刻意按**自然日** dayKey 回看，不用 guardDayKey：专注会话是按
+    // 自然日 0 点落库的，换成 6 点日界会把 00:00-05:59 的会话查到隔壁天，
+    // 导致能量漏入账。守卫的 6 点日界只用于存档 / 结算，不用于专注查询。
+    final DateTime todayStart = DateTime(at.year, at.month, at.day);
+    for (int back = 0; back < kEnergyCreditLookbackDays; back++) {
+      final String key =
+          dayKey(todayStart.subtract(Duration(days: back)));
+      final List<FocusSession> sessions = await _focus.sessionsOfDay(key);
+      for (final FocusSession session in sessions) {
+        if (creditedIds.contains(session.id)) continue;
+        if (!isValidFocusSession(session)) continue;
+        fresh.add(session);
+        creditedIds.add(session.id);
+      }
+    }
+    if (fresh.isNotEmpty) {
+      final int cap = _energyDailyCap;
+      final int raw = current.balance + fresh.length * kGuardEnergyPerFocus;
+      final int capped = raw > cap ? cap : raw;
+      final int nextBalance = capped > current.balance ? capped : current.balance;
+      current = current.copyWith(
+        balance: nextBalance,
+        creditedSessionIds: creditedIds,
+      );
+      await store.write(childId, current);
+    }
+    return current.balance;
+  }
+
+  /// 从持久余额扣减 [amount]（钳到 0，绝不出现负数）。
+  Future<void> _spendEnergy(int amount) async {
+    final GuardEnergyStore? store = _energyStore;
+    if (store == null || amount <= 0) return;
+    final String childId = _childId();
+    final GuardEnergy current = await store.read(childId);
+    final int next = current.balance - amount;
+    await store.write(
+      childId,
+      current.copyWith(balance: next > 0 ? next : 0),
+    );
   }
 
   /// 当前权益档位的每日能量上限（免费 1 / 会员 2，B13.8 档位制）。
@@ -413,7 +486,7 @@ class GuardService {
   /// 存档的 `dayKey != 今天` ⇒ 返回空白当日状态：昨天的贼 / 昨天的券 / 昨天的
   /// 能量消耗**一个都不许**出现在今天的今日页。真正的结算由 [expire] 完成。
   Future<GuardDayState> todayState({DateTime? now}) async {
-    final String today = dayKey(now ?? _clock());
+    final String today = guardDayKey(now ?? _clock());
     final GuardDayState state = await _store.read(_childId());
     return state.dayKey == today ? state : GuardDayState.empty(today);
   }
@@ -435,7 +508,7 @@ class GuardService {
   Future<GuardResolveResult> resolve({DateTime? now}) async {
     final DateTime at = now ?? _clock();
     final String childId = _childId();
-    final String today = dayKey(at);
+    final String today = guardDayKey(at);
     final GuardDayState stored = await _store.read(childId);
 
     // ①′ 跨天且昨天还没结算 → **拒绝覆盖**（先让调用方 expire()，见 [needsExpire]）。
@@ -594,7 +667,7 @@ class GuardService {
   /// 写失败一律吞掉：战斗是**给孩子看的**，存储抖动不该把浮层拦下来。
   /// 最坏结果是退回 `pending`（= 不调本方法的既有行为），不会更差。
   Future<void> markFighting({DateTime? now}) async {
-    final String today = dayKey(now ?? _clock());
+    final String today = guardDayKey(now ?? _clock());
     final String childId = _childId();
     final GuardDayState state = await _store.read(childId);
     if (state.dayKey != today) return;
@@ -625,7 +698,7 @@ class GuardService {
   /// 次日 `resolve()` 生成新存档时 `tutorialSeen` 回到缺省 false ⇒ 教学
   /// 「每天至多一次」的口径由存档的生命周期天然保证，零新增状态。
   Future<void> markTutorialSeen({DateTime? now}) async {
-    final String today = dayKey(now ?? _clock());
+    final String today = guardDayKey(now ?? _clock());
     final String childId = _childId();
     final GuardDayState state = await _store.read(childId);
     if (state.dayKey != today) return;
@@ -668,7 +741,7 @@ class GuardService {
   }) async {
     final DateTime at = now ?? _clock();
     final String childId = _childId();
-    final String today = dayKey(at);
+    final String today = guardDayKey(at);
     final GuardDayState state = await _store.read(childId);
     final int energy = await energyAvailable(now: at);
     final double balance = await _ledger.balance();
@@ -734,6 +807,9 @@ class GuardService {
     int paidSun = 0;
     if (free) {
       energyUsed += kGuardEnergyPerFocus;
+      // 🔴 v0.3：真正扣的是持久余额（`GuardDayState.energyUsed` 只留作
+      // 旧口径 / 展示兼容）。跨天 expire() 清当日存档也不会把扣掉的能量退回来。
+      await _spendEnergy(kGuardEnergyPerFocus);
     } else {
       // 余额钳制：扣到 0 为止，绝不出现负余额（PRD 决策 D6）。
       final double charge = math.min(kGuardPayCost.toDouble(), balance);
@@ -886,7 +962,7 @@ class GuardService {
   Future<int> recordBattleTheft({required int stolenSun, DateTime? now}) async {
     final DateTime at = now ?? _clock();
     final String childId = _childId();
-    final String today = dayKey(at);
+    final String today = guardDayKey(at);
     if (stolenSun <= 0) return 0;
     // ① 互斥去重（账本读判定，事实源）：同日已有 guard_stolen 行 ⇒ 空操作。
     final int existing = await _ledger.countByRefTypeAndRefIdOnDay(
@@ -947,7 +1023,7 @@ class GuardService {
   Future<int> recordNoFirePenalty({DateTime? now}) async {
     final DateTime at = now ?? _clock();
     final String childId = _childId();
-    final String today = dayKey(at);
+    final String today = guardDayKey(at);
     // ① 场次序号 = 当日已有惩罚行数（不依赖 battleAttempt —— 未开火场不产生
     //    guard_win 行、不占号，attempt 在调试连打下会重复，不能做序号）。
     final int penaltyRows = await _ledger.countByRefTypeAndRefIdOnDay(
@@ -1014,7 +1090,7 @@ class GuardService {
   Future<GuardExpireOutcome> expire({DateTime? now}) async {
     final DateTime at = now ?? _clock();
     final String childId = _childId();
-    final String today = dayKey(at);
+    final String today = guardDayKey(at);
     final GuardDayState stored = await _store.read(childId);
 
     // ① 同一天 → 空操作。
@@ -1203,7 +1279,7 @@ class GuardService {
     int? winSun,
     DateTime? now,
   }) async {
-    final String today = dayKey(now ?? _clock());
+    final String today = guardDayKey(now ?? _clock());
     // 🔴 B12 修复（玄参第七轮：「每次战斗完都没有增益 buff 卡片掉落」）：
     // 旧实现 `drop ?? none` —— 调试重置会把**今天自然摇到的掉落档覆盖成
     // 「无道具」**，之后每一场的结算卡都显示「什么都没捡到」。修法 =
@@ -1258,9 +1334,24 @@ class GuardService {
   /// 不抛异常：写失败一律吞掉。
   Future<void> exhaustEnergyForDebug({DateTime? now}) async {
     final DateTime at = now ?? _clock();
-    final String today = dayKey(at);
-    final int earned = await _energyEarnedOn(today);
+    final String today = guardDayKey(at);
+    final String naturalToday = dayKey(at); // 专注会话按自然日查询（例外）
     final String childId = _childId();
+    final GuardEnergyStore? store = _energyStore;
+    if (store != null) {
+      // 持久口径：先把最近窗口内的有效专注标记为「已入账」，再把余额归零。
+      // 否则下一次 energyAvailable() 会把刚用光的能量重新入账（调试按钮失效）。
+      await _creditAndReadEnergy(at);
+      final GuardEnergy credited = await store.read(childId);
+      try {
+        await store.write(
+          childId,
+          credited.copyWith(balance: 0),
+        );
+      } catch (_) {}
+      return;
+    }
+    final int earned = await _energyEarnedOn(naturalToday);
     final GuardDayState stored = await _store.read(childId);
     final GuardDayState base =
         stored.dayKey == today ? stored : GuardDayState.empty(today);
@@ -1287,7 +1378,7 @@ class GuardService {
   }) async {
     final GuardBuffState? buff = guardBuffFor(kind);
     if (buff == null) return; // 无道具档：没有券可发（空操作）
-    final String today = dayKey(now ?? _clock());
+    final String today = guardDayKey(now ?? _clock());
     final String childId = _childId();
     final GuardDayState stored = await _store.read(childId);
     final GuardDayState base =

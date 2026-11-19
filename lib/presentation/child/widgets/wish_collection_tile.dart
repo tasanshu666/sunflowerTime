@@ -45,26 +45,16 @@ class WishCollectionTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Text(
-                wishCategoryEmoji(wish.category),
-                style: const TextStyle(fontSize: 22),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  wish.text,
-                  key: Key('wish_collection_text_${wish.id}'),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
+          // 🔴 v0.3.0（R3-P0-03③ / R3-P1-01①）：分类 emoji 已下线，只剩原文。
+          Text(
+            wish.text,
+            key: Key('wish_collection_text_${wish.id}'),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 6),
           if (wish.isTagged)

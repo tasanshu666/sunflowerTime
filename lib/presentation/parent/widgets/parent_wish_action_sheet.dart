@@ -8,6 +8,13 @@
 ///  · 始终可见的回信输入框（预填所选预设词，可改）；
 ///  · 时机下拉（仅 `onOccasion` 预设时出现，5 选 1，不可自由输入）。
 ///
+/// ## v0.3.0 新增（R3-P0-10②③ / D4）
+/// 选中「无法实现」（[WishTag.notPossible]）时，回信框**预填**安慰话
+/// （复用既有键 `shared_wish_reply_hard_but_love`，零新增键）：
+///  · **可编辑、可清空**（预填只是初值，不是锁定）；
+///  · **不自动写库** —— 直到家长点「发送回复」才经 `onTagReply` 上抛；
+///  · 只在「回信框为空」时预填，不覆盖家长已写的内容。
+///
 /// 🔴 `parent_reply` 是唯一回信通道；不落 `reply_source`（PRD W21 无此列）。
 /// 写操作经回调上抛（页面接领域调用），本 widget 自含 [L10nScope]，纯展示可测。
 library parent_wish_action_sheet;
@@ -79,12 +86,19 @@ class _ParentWishActionSheetState extends State<ParentWishActionSheet> {
   /// `weSawIt` 恒在，保证非空）。若当前 preset 已不在新集合则重置为首位。
   List<WishReplyPreset> get _presets => wishPresetsForTag(_tag);
 
-  void _selectTag(WishTag? tag) {
+  void _selectTag(WishTag? tag, AppLocalizations t) {
     setState(() {
       _tag = tag;
       final List<WishReplyPreset> next = wishPresetsForTag(tag);
       if (_preset == null || !next.contains(_preset)) {
         _preset = next.first;
+      }
+      // v0.3.0（R3-P0-10② / D4）：「无法实现」⇒ 预填安慰话（既有 ARB 键）。
+      // 仅当回信框为空时预填 —— 绝不覆盖家长已经写下的内容；预填后仍可清空。
+      if (tag == WishTag.notPossible && _replyCtrl.text.trim().isEmpty) {
+        final String comfort = t.shared_wish_reply_hard_but_love;
+        _replyCtrl.text = comfort;
+        _replyCtrl.selection = TextSelection.collapsed(offset: comfort.length);
       }
     });
   }
@@ -151,33 +165,27 @@ class _ParentWishActionSheetState extends State<ParentWishActionSheet> {
                       ],
                     ),
                     const Divider(height: 20),
-                    Text(t.parent_wish_tag_hint,
-                        style: const TextStyle(fontSize: 13)),
-                    const SizedBox(height: 8),
-                    // 标签 6 选 1（可跳过）。
+                    // 标签 6 选 1（可跳过）——标题只由 InputDecoration.labelText
+                    // 承载（v0.2.0：删除原独立 Text 标题，消除双标题）。
                     DropdownButtonFormField<WishTag?>(
                       key: const Key('parent_wish_tag_picker'),
                       isExpanded: true,
                       initialValue: _tag,
                       decoration: InputDecoration(labelText: t.parent_wish_tag_hint),
                       items: <DropdownMenuItem<WishTag?>>[
-                        DropdownMenuItem<WishTag?>(
-                          value: null,
-                          child: Text(t.shared_cancel),
-                        ),
+                        // v0.2.0：删除 value:null 的「取消」项 —— items 恰好 6 项
+                        //（可跳过语义由 label「（可以跳过）」+ 不选直接提交承载）。
                         for (final WishTag tag in WishTag.values)
                           DropdownMenuItem<WishTag?>(
                             value: tag,
                             child: Text(wishTagText(tag, t)),
                           ),
                       ],
-                      onChanged: (WishTag? v) => _selectTag(v),
+                      onChanged: (WishTag? v) => _selectTag(v, t),
                     ),
                     const SizedBox(height: 12),
-                    Text(t.parent_wish_reply_preset,
-                        style: const TextStyle(fontSize: 13)),
-                    const SizedBox(height: 8),
-                    // 预设回复下拉（按标签过滤重排，推荐词首位）。
+                    // 预设回复下拉（按标签过滤重排，推荐词首位）——同样只用
+                    // InputDecoration.labelText 做单一标题（v0.2.0）。
                     DropdownButtonFormField<WishReplyPreset>(
                       key: const Key('parent_wish_reply_preset_picker'),
                       isExpanded: true,
@@ -227,7 +235,8 @@ class _ParentWishActionSheetState extends State<ParentWishActionSheet> {
             ),
             actions: <Widget>[
               TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
+                // v0.2.0：弹 null（不再弹 false）——调用方有 is-cast 守卫。
+                onPressed: () => Navigator.of(context).pop(),
                 child: Text(t.shared_cancel),
               ),
               FilledButton(

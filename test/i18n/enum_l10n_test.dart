@@ -52,6 +52,7 @@ void main() {
       TaskCategory.sports: '运动',
       TaskCategory.life: '生活',
       TaskCategory.habit: '习惯',
+      TaskCategory.wish: '许愿',
     };
     const Map<TaskCategory, String> enTable = <TaskCategory, String>{
       TaskCategory.other: 'Other',
@@ -59,6 +60,7 @@ void main() {
       TaskCategory.sports: 'Sports',
       TaskCategory.life: 'Life',
       TaskCategory.habit: 'Habit',
+      TaskCategory.wish: 'Wish',
     };
 
     for (final TaskCategory c in TaskCategory.values) {

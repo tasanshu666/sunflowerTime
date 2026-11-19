@@ -54,7 +54,8 @@ const String _yesterday = '2026-11-08';
 const String _tomorrow = '2026-11-10';
 
 DateTime _now() => DateTime(2026, 11, 9, 10, 30);
-DateTime _nowNextDay() => DateTime(2026, 11, 10, 0, 5);
+/// 次日 = 守卫 6 点日界之后的次日（00:05 仍属前一守卫日，不能当次日）。
+DateTime _nowNextDay() => DateTime(2026, 11, 10, 6, 5);
 
 // ────────────────────────────── 内存 Fake 仓储 ──────────────────────────────
 

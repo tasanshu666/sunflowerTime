@@ -31,6 +31,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/data/local/database/app_database.dart' as db;
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
@@ -785,6 +786,7 @@ void main() {
         text: '想要一只小仓鼠',
         category: WishCategory.other,
         now: t0,
+        maxTextLength: kWishTextMaxLengthZh,
       );
       // ② 家长首设目标（P0 路径）—— 真实 drift 落库。
       final Wish goalSet = await wishSvc.setGoal(

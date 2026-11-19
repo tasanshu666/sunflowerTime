@@ -164,16 +164,16 @@ void main() {
       );
     });
 
-    testWidgets('免费代劳态（freeRide）u=1.3：归并到胜利旗帜，不再空白',
+    testWidgets('免费代劳态（freeRide）0 能量 0 余额 u=1.3：画开始钮、不得画胜利旗帜',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(834, 1194);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(host(
-        const SizedBox(
+        SizedBox(
           width: 834,
           child: GuardSceneCard(
-            view: GuardTodayView(
+            view: const GuardTodayView(
               mode: GuardPillMode.freeRide,
               state: GuardDayState(
                 dayKey: '2026-11-12',
@@ -186,16 +186,22 @@ void main() {
             dayKey: '2026-11-12',
             childId: 'tablet-freeride',
             uiScale: 1.3,
+            // 🔴 真页面一定注入 onStart；没玩过场景因此 isActionable=true。
+            onStart: () {},
           ),
         ),
         const Size(834, 1194),
       ));
       await tester.pump();
       expect(tester.takeException(), isNull);
-      // 🔴 2026-11-12（玄参「就两种视觉」）：freeRide 原本右簇 shrink 空白，iPad 上
-      // 看不出状态；现归并到「胜利旗帜」视觉 ⇒ 旗标必须在树、且不得渲染开始钮。
-      expect(find.byKey(GuardSceneCard.claimedBadgeKey), findsOneWidget);
-      expect(find.byKey(GuardSceneCard.startButtonKey), findsNothing);
+      // 🔴 玄参 2026-11 裁定：没玩过 ⇒ 可点「开始守卫」钮，旗标是假胜利。
+      expect(find.byKey(GuardSceneCard.startButtonKey), findsOneWidget);
+      expect(find.byKey(GuardSceneCard.claimedBadgeKey), findsNothing);
+      expect(
+        tester.getRect(find.byKey(GuardSceneCard.startButtonKey)).width,
+        closeTo(64 * 1.3, 0.5),
+        reason: '命中盒仍按 rightClusterSize × uiScale 放大（B13.5 口径不变）',
+      );
     });
   });
 }

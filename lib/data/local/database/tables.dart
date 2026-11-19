@@ -476,7 +476,8 @@ class ChildProfiles extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// 许愿树 · 愿望（许愿树增量架构设计 **A15.3 · v0.5.1 定稿 · 22 列**）。
+/// 许愿树 · 愿望（许愿树增量架构设计 **A15.3 · v0.5.1 定稿 · 22 列**；
+/// v0.3.0 回退 v0.2 孩子推送机制 ⇒ **22 列 / schemaVersion 32**）。
 ///
 /// ## 表的定位
 /// 「孩子写、家长应」的自由文本承诺 —— 与 [RewardTemplates]（家长定目录、孩子选）
@@ -518,8 +519,11 @@ class Wishes extends Table {
   TextColumn get childId =>
       text().withDefault(const Constant(kChildIdDefault))();
 
-  /// 愿望原文（孩子自由输入；trim 后长度 ∈ [kWishTextMinLength, kWishTextMaxLength]，
-  /// 按 Unicode 码点计 —— emoji 不虚高）。
+  /// 愿望原文（孩子自由输入；trim 后长度 ∈ [kWishTextMinLength,
+  /// `wishMaxTextLength(lang)`]，按 Unicode 码点计 —— emoji 不虚高）。
+  ///
+  /// v0.3.0：上限按语言分档（中文 100 / 英文 300），判据单点在
+  /// `prd_params.dart` 的 `wishMaxTextLength()`；仓库层不做语言判断。
   ///
   /// 🔴 Drift 字段名 = `wishText`，**DB 列名 = `text`**（见类注释的 drift 冲突裁决）。
   TextColumn get wishText => text().named('text')();
@@ -583,6 +587,11 @@ class Wishes extends Table {
 
   /// 「放进愿望收藏箱」时间（**兼作树上态标记**：`!= null` ⇒ 不计入挂载数）。
   DateTimeColumn get releasedAt => dateTime().nullable()();
+
+  // 🔴 v0.3.0：v0.2 的 `sharedToParent`（第 23 列 / schemaVersion 33）已整体回退
+  // —— 玄参第 6 点推翻推送机制，家长端恢复**全量可见**，本表回到 **22 列**。
+  // 真实设备上已装 v0.2 调试包（user_version=33）**不写降级兼容分支**，
+  // 一律「卸载重装调试包」（见 v0.3 架构设计 §2.6 / PRD Q5）。
 
   @override
   Set<Column> get primaryKey => {id};

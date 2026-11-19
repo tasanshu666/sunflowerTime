@@ -430,13 +430,20 @@ void _groupModes() {
 
     for (final MapEntry<GuardPillMode, String> entry in labels.entries) {
       final GuardPillMode mode = entry.key;
-      final bool tappable =
-          mode == GuardPillMode.pendingFree || mode == GuardPillMode.pendingPaid;
+      final bool tappable = mode != GuardPillMode.absent &&
+          mode != GuardPillMode.fighting &&
+          mode != GuardPillMode.claimed;
 
       testWidgets('${mode.name} → 「${entry.value}」· ${tappable ? '可点' : '不可点'}',
           (WidgetTester tester) async {
         int taps = 0;
-        await _pumpCard(tester, _view(mode), onStart: () => taps++);
+        // 🔴 玄参最终裁定：可点只认「未 claimed 且有贼」，与资源无关；
+        //    这里给足资源只是保持夹具口径，0/0 的钮在下面单独钉住。
+        await _pumpCard(
+          tester,
+          _view(mode, energy: 2, balance: 100),
+          onStart: () => taps++,
+        );
 
         expect(_cardLabel(tester), contains(entry.value),
             reason: '${mode.name} 的状态文案必须活在卡的 Semantics.label 上（卡内零文本）');
@@ -458,6 +465,21 @@ void _groupModes() {
         }
       });
     }
+
+    testWidgets('freeRide 没玩过（0 能量 0 余额）：画可点「开始守卫」钮、不得画旗帜',
+        (WidgetTester tester) async {
+      int taps = 0;
+      await _pumpCard(
+        tester,
+        _view(GuardPillMode.freeRide, energy: 0, balance: 0),
+        onStart: () => taps++,
+      );
+      expect(find.byKey(GuardSceneCard.startButtonKey), findsOneWidget);
+      expect(find.byKey(GuardSceneCard.claimedBadgeKey), findsNothing);
+      await tester.tap(find.byKey(GuardSceneCard.startButtonKey));
+      await tester.pump();
+      expect(taps, 1, reason: '没玩过也能点，点了才有「还差 N 阳光」反馈');
+    });
 
     testWidgets('pendingPaid 尾标显示 −10 ☀（数字来自 kGuardPayCost）',
         (WidgetTester tester) async {

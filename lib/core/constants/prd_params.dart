@@ -2630,6 +2630,13 @@ const Duration kGuardVoucherReadTimeout = Duration(milliseconds: 600);
 /// childId 级；不带后缀会让「A 的小偷出现在 B 的今日页」。
 const String kGuardDayStatePrefPrefix = 'guard_day_state_v2_';
 
+/// 持久守卫能量余额的 prefs 键前缀（实际键 = 前缀 + childId）。
+///
+/// 🔴 与 [kGuardDayStatePrefPrefix] **刻意分离**：跨天结算 `expire()` 会
+/// clear 当日状态键；能量是「只能消耗、不能随天数消失」的余额，
+/// 不能挂在会被清掉的键上（玄参 v0.3 验收反馈 3）。
+const String kGuardEnergyPrefPrefix = 'guard_energy_v1_';
+
 /// 「守卫战教学浮层已看过」的 prefs 键（B7：教学从「每天一次」改为**永久一次**）。
 ///
 /// 🔴 为什么不再用 `GuardDayState.tutorialSeen`：那个字段活在**当日存档**里，
@@ -2906,10 +2913,19 @@ const double kGuardDodgeProbM2 = 0.25;
 /// m3（贪婪鼬）闪避概率。
 ///
 /// 🔴 B13.22（玄参 2026-11-14 第二轮：「贪婪鼬的闪避率修改为 50%」）：
-/// B13.21 的 0.45 → **0.50**。300ms 开火冷却下每只约挨 3 发，`0.5³ = 12.5%`
-/// 一发都打不中（m1 0.35 是 `0.65³ ≈ 27%`）——鼬是三档里最难打的稀有精英
-/// （出现权重仅 10%），0.50 让「精英感」名副其实；闪避区间锚随之 0.15~0.50。
-const double kGuardDodgeProbM3 = 0.50;
+/// B13.21 的 0.45 → **0.50**（**该值已被 2026-11-19 修订取代，见下**）。300ms 开火
+/// 冷却下每只约挨 3 发，`0.5³ = 12.5%` 一发都打不中（m1 0.35 是 `0.65³ ≈ 27%`）
+/// ——鼬是三档里最难打的稀有精英（出现权重仅 10%），0.50 让「精英感」名副其实；
+/// 闪避区间锚随之 0.15~0.50（**B13.22 当时的锚值**）。
+///
+/// 🔴 **2026-11-19 修订（玄参真机翻案 · 当前生效版 · 口径 C120-14 / bug F205）**：
+/// 玄参原话「将贪婪鼬的闪避率修改为 40%，因为实际测试下来，50% 的闪避率太高了，
+/// 有点难。闪避率，食叶虫 25%，馋光鼠 35%，贪婪鼬 40%。」⇒ 0.50 → **0.40**。
+/// 新值口径：三发全闪避 `0.4³ = 6.4%`（原 0.50 口径的 `0.5³ = 12.5%` 一并更正
+/// ⇒ 命中更容易、MISS 明显变少）；闪避区间锚随之 0.15~**0.40**。
+/// 历史沿革（留痕）：0.35 → 0.45（B13.21）→ 0.50（B13.22）→ **0.40（2026-11-19）**。
+/// 三档最终值：**馋光鼠 0.35 / 食叶虫 0.25 / 贪婪鼬 0.40**。
+const double kGuardDodgeProbM3 = 0.40;
 
 /// 子弹命中半径。单位：pt。自瞄前提下这是**容错圈**，不是瞄准难度。
 const double kGuardBulletHitRadius = 28;
@@ -3525,12 +3541,53 @@ const double kWishTargetUpscaleMaxRatioPerEdit = 0.5;
 
 /// M1 / M2 数值（许愿树最小规则集）。
 const int kWishTextMinLength = 2;
-const int kWishTextMaxLength = 30;
+
+/// 🔴 v0.3.0（R3-P0-04 / D1）：愿望字数**双阈值**（单位：码点 `runes.length`）。
+///
+/// 玄参反馈 3：「30 个限制，英文 30 个字母很难写下完整的话」⇒ 汉字放到 100，
+/// 英文再放宽到 300（≈ 50~60 词，与 100 汉字的信息量接近）。
+/// **取值按当前 App 语言**（不嗅探输入内容 —— 中英混输时内容判定不可测，
+/// 见 PRD Q4）：唯一取数入口 [wishMaxTextLength]。
+const int kWishTextMaxLengthZh = 100;
+const int kWishTextMaxLengthEn = 300;
+
+/// 字数上限的**唯一取数函数**（单一真源 / S2）。
+///
+/// 🔴 三处必须调用本函数、禁止各写常量，否则会出现「counter 显示可写、提交被拒」：
+///  ① 许愿弹层 counter `{count}/{max}`；② 弹层本地 `_tooLong` 校验；
+///  ③ 领域 `createWish(maxTextLength: ...)` 的入参（由展示层传入本函数结果）。
+///
+/// 仅 `en` 取 300，其余语言（含 zh / 未来新增语言）取 100。
+int wishMaxTextLength(String languageCode) =>
+    languageCode == 'en' ? kWishTextMaxLengthEn : kWishTextMaxLengthZh;
+
 const int kWishDuplicateLookbackDays = 30;
 const int kWishPendingAgeWarnDays = 7;
 const int kWishPoolMilestoneStep = 3;
 const int kWishSoftGateMinPlants = 1;
 const int kWishProgressPercentMax = 100;
+
+/// v0.2.0 · 花园右上角天气下方新入口数值单点（R-P0-05 / S8）。
+/// 热区 ≥ 40 逻辑像素；取 48 留真机误触余量。渲染时再乘 `uiScaleOf(context)`。
+const double kWishTreeWeatherEntrySize = 48;
+const double kWishTreeWeatherEntryIconSize = 26;
+
+/// 簇内相邻两个「图标+文字」组之间的纵向间距（v0.3 保留）。
+const double kGardenTopEntryGap = 12;
+
+/// 🔴 v0.3.0 新增（R3-P0-11②）：图标与其**下方单行文字**之间的间距。
+const double kGardenTopLabelGap = 4;
+
+/// 🔴 v0.3.0 新增（R3-P2-01）：S1「想让爸爸妈妈帮帮忙？让他们看看你的愿望吧」
+/// 轻提示的**显示窗口**（天）。挂树满这么多天后自动隐藏，且**不出现替代催促文案**。
+const int kWishStateHintDays = 7;
+
+// 🔴 v0.3.0 **已废弃**：`gardenDebugEntryTop(double weatherBadgeSize)`（原
+// 「12 + 徽标尺寸 + 新入口尺寸 + 2×gap」绝对偏移法）。根因：徽标实际渲染高是
+// `kGardenWeatherBadgeIconSize * uiScaleOf(context)`，而偏移量用的是**未缩放**
+// 常量 ⇒ `uiScale > 1`（平板 iPad 11″ = 1.3）时下方元素必被压住（玄参反馈 5）。
+// 现改为右上角**单个 `Positioned` + `Column` 簇**，堆叠由布局保证、无常量可漂移
+// （见 `presentation/child/widgets/wish_top_entry_cluster.dart`）。
 
 // ══════════════════════════════════════════════════════════════════
 // 许愿树 · 达成触发方（fulfill_source）—— 🔴 判定孪生铁律：同源常量

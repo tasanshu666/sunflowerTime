@@ -16,6 +16,8 @@
 /// 同一 stage 连续两次只播一次（纯函数 [shouldCelebrateMilestone] 便于测试）。
 library wish_tree_page;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,10 +28,12 @@ import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/entities/wish.dart';
+import 'package:sunflower_time/domain/services/wish_face_state.dart';
 import 'package:sunflower_time/domain/services/wish_orchestration_service.dart';
 import 'package:sunflower_time/domain/services/wish_progress.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/state/wish_state.dart';
+import 'package:sunflower_time/presentation/child/state/wish_tree_scene_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_anniversary_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_card.dart';
@@ -40,6 +44,9 @@ import 'package:sunflower_time/presentation/child/widgets/wish_pool_tile.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_task_card.dart';
 
 // ── 页级只读 provider（组合既有服务方法，不改接线层） ────────────────────────
+
+/// 愿望详情弹层可见卡片 Key（几何测试载体：Dialog 自身铺满，卡片才是矩形）。
+const Key kWishDetailDialogKey = Key('wish_detail_dialog');
 
 /// 收藏箱愿望（`boxedWishes()`；仓储已按 `createdAt` 倒序）。
 final wishBoxedProvider = FutureProvider.autoDispose<List<Wish>>((ref) async {
@@ -178,12 +185,54 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
 
   late final DateTime _now;
 
+  /// 场景闸门的 notifier 引用（initState 捕获，dispose 复用）。
+  ///
+  /// 🔴 不可在 `initState` / `dispose` 里 `ref.read(...notifier)` 后**立即**赋值：
+  /// Riverpod 2.6.1 的 `StateController.state` setter 会 `markNeedsBuild()`，而在
+  /// build / initState / dispose 阶段触发会抛
+  /// `FlutterError: Tried to modify a provider while the widget tree was building`
+  /// （WISH-V02-BUG-01：initState 抛 ⇒ dispose 不执行 ⇒ 闸门永久卡 true ⇒
+  /// 返回花园环境音不恢复）。照仓库既有 `ChildShellPage` 先例：
+  /// 先抓 controller 引用，上台延后到**帧后**、下台延后**一微任务**再写。
+  late final StateController<bool> _sceneGateCtrl;
+
   @override
   void initState() {
     super.initState();
     _now = DateTime.now();
+    // v0.2.0（R-P0-04）：树页占据台前 ⇒ 花园页 build 折入闸门后停播环境音。
+    // 🔴 本页**零 AudioService 代码**，只翻纯状态闸门；音频 API 冻结。
+    // 先只抓引用（读 provider 不触发 markNeedsBuild），写入延后到本帧结束。
+    _sceneGateCtrl = ref.read(wishTreeSceneActiveProvider.notifier);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // 帧前就被 pop 掉的极端情况：树页已不在树上，不得占台前。
+      if (!mounted) return;
+      _sceneGateCtrl.state = true;
+    });
     // 历史今日频次：展示那一刻即写今日日期（A26.10.4 ⑥）。
     _resolveAnniversary();
+  }
+
+  @override
+  void dispose() {
+    // 返回花园 ⇒ 解除闸门，花园既有 `_syncAmbientTimer()` 成对恢复播放。
+    //
+    // 🔴 两条硬约束（照 `child_shell_page.dart::_publishOnStage` 先例）：
+    //  1. `dispose` 阶段 `ref` 已不可靠（`ConsumerStatefulElement.unmount()` 先把
+    //     自己标 disposed 再调 `state.dispose()`）⇒ 必须用 initState 捕获的 controller；
+    //  2. **不能同步写**：`dispose` 发生在 `BuildOwner.finalizeTree()` 内，Riverpod 的
+    //     `_debugCanModifyProviders` 守卫在这里同样判为「build 期改 provider」并抛
+    //     `FlutterError`（WISH-V02-BUG-01 实测：同步写会让 dispose 炸掉 ⇒ 闸门卡 true）。
+    //     故延后一微任务发布：仍在下一帧之前完成，花园页下一帧 build 就能读到 false 并复播。
+    scheduleMicrotask(() {
+      try {
+        _sceneGateCtrl.state = false;
+      } catch (_) {
+        // ProviderScope / provider 已随页面一起销毁（退出 App / 测试收尾）：
+        // 无需也无法发布，静默即可（抛出去只会把 dispose 弄脏）。
+      }
+    });
+    super.dispose();
   }
 
   Future<void> _resolveAnniversary() async {
@@ -259,17 +308,24 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
       return;
     }
 
+    // v0.3.0（R3-P0-04 / S2）：字数上限的**唯一取数点**。同一变量既给弹层
+    // counter/本地校验，也给域层 createWish 校验 ⇒ 显示上限 == 提交上限。
+    final int maxLen =
+        wishMaxTextLength(Localizations.localeOf(context).languageCode);
     final WishComposeResult? result = await showWishComposeDialog(
       context: context,
       l10n: t,
+      maxTextLength: maxLen,
     );
     if (result == null || !mounted) return;
-    final int idx = result.categoryIndex.clamp(0, WishCategory.values.length - 1);
     try {
       await ref.read(wishOrchestrationServiceProvider).createWish(
             text: result.text,
-            category: WishCategory.values[idx],
+            // v0.3.0（R3-P0-03）：分类输入已下线 ⇒ 一律 other（category=0），
+            // 列保留供历史数据读取。
+            category: WishCategory.other,
             now: DateTime.now(),
+            maxTextLength: maxLen,
           );
     } catch (_) {
       if (!mounted) return;
@@ -330,32 +386,45 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
     if (_highlightWishId != null) {
       setState(() => _highlightWishId = null);
     }
-    showModalBottomSheet<void>(
+    // 玄参 v0.3 真机反馈 4：详情从贴底 BottomSheet 改为**居中 Dialog**，
+    // 几何口径照抄 wish_compose_dialog.dart 的已验证版本（24/40 inset、
+    // maxWidth 420 / maxHeight 85% 屏高、24 圆角、内部滚动）。
+    showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext ctx) => SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(ctx).bottom,
-          ),
+      builder: (BuildContext ctx) {
+        final Size screen = MediaQuery.sizeOf(ctx);
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
           child: Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFFBF0),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            key: kWishDetailDialogKey,
+            constraints: BoxConstraints(
+              maxWidth: 420,
+              maxHeight: screen.height * 0.85,
             ),
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-            child: _DetailBody(
-              wish: wish,
-              t: t,
-              now: _now,
-              onCollect: () => _collect(wish),
-              onChange: () => _change(wish, t),
-              onSelfFulfill: () => _selfFulfill(wish),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBF0),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                child: _DetailBody(
+                  wish: wish,
+                  t: t,
+                  now: _now,
+                  onCollect: () => _collect(wish),
+                  onChange: () => _change(wish, t),
+                  onSelfFulfill: () => _selfFulfill(wish),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -505,13 +574,20 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
             itemCount: sorted.length,
             itemBuilder: (BuildContext context, int index) {
               final Wish wish = sorted[index];
+              // v0.3.0（R3-P0-05 / S1）：`wayCount` = 关联「小办法」条数；
+              // 三态由领域纯函数 `wishTreeFaceOf` **单出口**判定，UI 不自写条件。
+              final int wayCount =
+                  ref.watch(wishTasksFamilyProvider(wish.id)).value?.length ?? 0;
+              final WishTreeFace face =
+                  wishTreeFaceOf(wish: wish, wayCount: wayCount);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: WishCard(
                   wish: wish,
                   t: t,
                   highlight: _highlightWishId == wish.id,
-                  taskCount: ref.watch(wishTasksFamilyProvider(wish.id)).value?.length ?? 0,
+                  face: face,
+                  taskCount: wayCount,
                   waitDays: WishOrchestrationService.waitingDays(
                     wish.createdAt,
                     _now,
@@ -610,6 +686,9 @@ class _DetailBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final List<Task> tasks =
         ref.watch(wishTasksFamilyProvider(wish.id)).value ?? <Task>[];
+    // v0.3.0：三态唯一判据（与树上卡片同源，禁止本处另写条件）。
+    final WishTreeFace face =
+        wishTreeFaceOf(wish: wish, wayCount: tasks.length);
     final bool canSelfFulfill = hasGoalTarget(wish.targetValue) &&
         wish.releasedAt == null &&
         !wish.isTerminal;
@@ -622,6 +701,7 @@ class _DetailBody extends ConsumerWidget {
           t: t,
           waitDays: WishOrchestrationService.waitingDays(wish.createdAt, now),
           taskCount: tasks.length,
+          face: face,
           canSelfFulfill: canSelfFulfill,
           confirmTitle: t.wishTreeSelfFulfillConfirm,
           confirmMessage: t.wishSelfFulfillConfirm,
@@ -636,7 +716,9 @@ class _DetailBody extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              t.wishTreeTaskBadge(tasks.length),
+              // 孩子端「小办法」（D2）；列表仅在 S3（有办法）时出现。
+              t.wishWayCountBadge(tasks.length),
+              key: const Key('wish_detail_way_list_title'),
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
             ),
           ),

@@ -356,11 +356,12 @@ void main() {
   // V5-5 五态可点性（B3 迁移：可点 = 「开始守卫」钮在树且回调触发）
   // ══════════════════════════════════════════════════════════════════════
   group('V5-5 卡可点性', () {
-    testWidgets('只有 pendingFree / pendingPaid 可点', (WidgetTester tester) async {
+    testWidgets('未 claimed 三态（pendingFree / pendingPaid / freeRide）可点；claimed/fighting 不可点',
+        (WidgetTester tester) async {
       final Map<GuardPillMode, bool> expected = <GuardPillMode, bool>{
         GuardPillMode.pendingFree: true,
         GuardPillMode.pendingPaid: true,
-        GuardPillMode.freeRide: false,
+        GuardPillMode.freeRide: true,
         GuardPillMode.fighting: false,
         GuardPillMode.claimed: false,
       };
@@ -386,6 +387,23 @@ void main() {
         expect(taps, e.value ? 1 : 0, reason: '${e.key} 可点性错误');
         expect(_view(e.key, energy: 2, balance: 100).isActionable, e.value);
       }
+    });
+
+    testWidgets('没玩过（freeRide + 0能量0余额）也可点：画钮、不画旗',
+        (WidgetTester tester) async {
+      int taps = 0;
+      await _pumpCard(
+        tester,
+        _view(GuardPillMode.freeRide, energy: 0, balance: 0),
+        onStart: () => taps++,
+      );
+      expect(find.byKey(GuardSceneCard.startButtonKey), findsOneWidget,
+          reason: '玄参裁定：没玩过也必须画「开始守卫」钮');
+      expect(find.byKey(GuardSceneCard.claimedBadgeKey), findsNothing,
+          reason: '0 资源画胜利旗是假胜利');
+      await tester.tap(find.byKey(GuardSceneCard.startButtonKey));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(taps, 1, reason: '按钮必须有真实回调，不能是空按钮');
     });
 
     test('纯函数 guardPillModeOf 的 5 态映射', () {

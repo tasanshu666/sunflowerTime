@@ -3173,6 +3173,18 @@ abstract class AppLocalizations {
   /// **'成长配置'**
   String get parent_task_config_title;
 
+  /// No description provided for @parent_task_wish_link.
+  ///
+  /// In zh, this message translates to:
+  /// **'关联愿望（可选）'**
+  String get parent_task_wish_link;
+
+  /// No description provided for @parent_task_wish_link_none.
+  ///
+  /// In zh, this message translates to:
+  /// **'不关联'**
+  String get parent_task_wish_link_none;
+
   /// No description provided for @parent_task_config_list_title.
   ///
   /// In zh, this message translates to:
@@ -4618,6 +4630,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'习惯'**
   String get shared_task_category_habit;
+
+  /// No description provided for @shared_task_category_wish.
+  ///
+  /// In zh, this message translates to:
+  /// **'许愿'**
+  String get shared_task_category_wish;
 
   /// No description provided for @shared_reward_content_other.
   ///
@@ -6209,6 +6227,12 @@ abstract class AppLocalizations {
   /// **'还差 {n} 阳光'**
   String guard_pill_no_balance(int n);
 
+  /// 今日页守卫：没玩过（0 能量 0 余额）点「开始守卫」时的开战前提示。focus 复用 task_action_focus（去专注），cost 复用 kGuardPayCost
+  ///
+  /// In zh, this message translates to:
+  /// **'没有能量点，也没有 {cost} 阳光，先{focus}获得能量或阳光吧'**
+  String guard_no_battle_resource_hint(int cost, String focus);
+
   /// 今日页守卫胶囊：小小葵顶班（无能量且余额 < kGuardFreeRideBalance，当天免罚、不可点）
   ///
   /// In zh, this message translates to:
@@ -6743,6 +6767,12 @@ abstract class AppLocalizations {
   /// **'我的许愿树'**
   String get wishTreeTitle;
 
+  /// 花园右上角许愿树入口的短标签（玄参 v0.3 真机反馈 1：96dp 内完整显示；与页面标题 wishTreeTitle 分离）
+  ///
+  /// In zh, this message translates to:
+  /// **'许愿树'**
+  String get gardenWishTreeEntryLabel;
+
   /// No description provided for @wishTreeHanging.
   ///
   /// In zh, this message translates to:
@@ -6848,8 +6878,38 @@ abstract class AppLocalizations {
   /// No description provided for @wishTreeTaskBadge.
   ///
   /// In zh, this message translates to:
-  /// **'{count} 个任务'**
+  /// **'小办法 {count} 个'**
   String wishTreeTaskBadge(int count);
+
+  /// No description provided for @wishWayLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'小办法'**
+  String get wishWayLabel;
+
+  /// No description provided for @wishWayTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'你的愿望可以通过这些小办法实现哦'**
+  String get wishWayTitle;
+
+  /// No description provided for @wishWayCountBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'小办法 {count} 个'**
+  String wishWayCountBadge(int count);
+
+  /// No description provided for @wishStateHangingHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'想让爸爸妈妈帮帮忙？让他们看看你的愿望吧'**
+  String get wishStateHangingHint;
+
+  /// No description provided for @wishStateParentWorking.
+  ///
+  /// In zh, this message translates to:
+  /// **'爸爸妈妈正在帮你想办法实现愿望……'**
+  String get wishStateParentWorking;
 
   /// No description provided for @wishTreeStaleHint.
   ///
@@ -6914,7 +6974,7 @@ abstract class AppLocalizations {
   /// No description provided for @wishProgressTaskCount.
   ///
   /// In zh, this message translates to:
-  /// **'已完成 {doneCount} 个任务，还差 {leftCount} 个'**
+  /// **'已完成 {doneCount} 个小办法，还差 {leftCount} 个'**
   String wishProgressTaskCount(int doneCount, int leftCount);
 
   /// No description provided for @wishFruitGrowing.

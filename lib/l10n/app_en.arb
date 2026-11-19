@@ -1593,6 +1593,8 @@
   "parent_task_edit_btn_save": "Save",
 
   "parent_task_config_title": "Growth Setup",
+  "parent_task_wish_link": "Link to a wish (optional)",
+  "parent_task_wish_link_none": "Not linked",
   "parent_task_config_list_title": "Growth tasks",
   "parent_task_config_empty": "No items yet — tap \"New growth item\" to add one",
   "parent_task_config_delete_title": "Delete this item?",
@@ -2174,6 +2176,7 @@
   "shared_task_category_sports": "Sports",
   "shared_task_category_life": "Life",
   "shared_task_category_habit": "Habit",
+  "shared_task_category_wish": "Wish",
   "shared_reward_content_other": "Other",
   "shared_reward_content_snacks": "Snacks",
   "shared_reward_content_play": "Play",
@@ -2696,6 +2699,18 @@
   "guard_pill_fighting": "Your guard is chasing it away…",
   "guard_pill_claimed": "Today's veggies are safe",
   "guard_pill_no_balance": "{n} more sunlight needed",
+  "guard_no_battle_resource_hint": "No energy point and fewer than {cost} sunlight. {focus} first to earn energy or sunlight.",
+  "@guard_no_battle_resource_hint": {
+      "placeholders": {
+          "cost": {
+              "type": "int"
+          },
+          "focus": {
+              "type": "String"
+          }
+      },
+      "description": "Child today page guard: pre-battle hint when there is no energy and no sunlight; focus reuses task_action_focus, cost reuses kGuardPayCost"
+  },
   "guard_pill_free_ride": "Sunnie is covering today — nothing to do",
   "guard_scene_start": "Start guard",
   "guard_scene_continue": "Resume guard",
@@ -2822,6 +2837,8 @@
   "guard_result_premium_hint": "With the full version, winning a guard battle can also drop a Premium Chest — richer rewards!",
   "guard_result_collect": "Collect",
   "wishTreeTitle": "My Wish Tree",
+  "gardenWishTreeEntryLabel": "Wish Tree",
+  "@gardenWishTreeEntryLabel": {"description": "Short label for the garden top-right wish tree entry; separate from the page title key wishTreeTitle."},
   "wishTreeHanging": "{mounted} hung / {quota} slots",
   "@wishTreeHanging": {
     "placeholders": {
@@ -2869,10 +2886,18 @@
   "@wishTreeWaitDays": {
     "placeholders": {"days": {"type": "int"}}
   },
-  "wishTreeTaskBadge": "{count} tasks",
+  "wishTreeTaskBadge": "{count} little ways",
   "@wishTreeTaskBadge": {
     "placeholders": {"count": {"type": "int"}}
   },
+  "wishWayLabel": "little way",
+  "wishWayTitle": "Here are some little ways to make your wish come true.",
+  "wishWayCountBadge": "{count} little ways",
+  "@wishWayCountBadge": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "wishStateHangingHint": "Need a hand? Show this wish to Mom or Dad.",
+  "wishStateParentWorking": "Mom and Dad are thinking of a way to make your wish come true…",
   "wishTreeStaleHint": "It's been a while",
   "wishTreeReplyEmpty": "No reply from Mom and Dad yet",
   "wishTreeTagRibbon": "Not possible for now",
@@ -2895,7 +2920,7 @@
       "leftMinutes": {"type": "int"}
     }
   },
-  "wishProgressTaskCount": "{doneCount} tasks done, {leftCount} to go",
+  "wishProgressTaskCount": "{doneCount} little ways done, {leftCount} to go",
   "@wishProgressTaskCount": {
     "placeholders": {
       "doneCount": {"type": "int"},

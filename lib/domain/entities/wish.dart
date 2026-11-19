@@ -86,7 +86,11 @@ enum WishEventKind {
   replaced,
 }
 
-/// Immutable wish value object (22 fields, A15.3).
+/// Immutable wish value object (**22 fields**, A15.3).
+///
+/// v0.3.0：v0.2 的 `sharedToParent` / `parentHasResponded` 已随推送机制整体回退
+/// （DB 同步回到 22 列 / schemaVersion 32），字段数以本类声明为准 —— 改字段时
+/// 请连同本行与 `tables.dart` 的列数注释一起改。
 class Wish {
   final String id;
   final String childId;

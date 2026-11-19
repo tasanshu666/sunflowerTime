@@ -65,6 +65,7 @@ import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/state/child_tab_refresh.dart';
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
+import 'package:sunflower_time/presentation/child/state/wish_tree_scene_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_reward_icons.dart';
 import 'package:sunflower_time/presentation/child/widgets/plant_artwork.dart';
@@ -86,7 +87,8 @@ import 'package:sunflower_time/presentation/child/widgets/garden_weather_badge.d
 import 'package:sunflower_time/presentation/child/widgets/garden_weather_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_weather_fx.dart';
 import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dart';
-import 'package:sunflower_time/presentation/child/widgets/wish_tree_hotspot.dart';
+import 'package:sunflower_time/presentation/child/widgets/wish_top_entry_cluster.dart';
+import 'package:sunflower_time/presentation/child/widgets/wish_tree_weather_entry.dart';
 import 'package:sunflower_time/presentation/shared/quota_notice.dart';
 import 'package:sunflower_time/shared/plant_rarity_style.dart';
 import 'package:sunflower_time/shared/responsive.dart';
@@ -121,9 +123,24 @@ const Key _kGrowthFxOverlayKey = ValueKey<String>('gardenGrowthFxOverlay');
 
 /// 许愿树入口浮层的稳定 Key（A7.6 S6）。
 ///
-/// 本浮层追加在根 Stack children **末尾**（S5）：既有节点 index 全不变；独立 Key
-/// 让条件渲染的养护 / 成长演出进出时不与其错位复用（C82 同款机制）。
+/// ⚠️ v0.3.0（R3-P0-01）：左下角那处热点**已删除**，本常量保留只为不波及其它
+/// 引用；widget 树中**不再出现**该节点（断言 `findsNothing(kWishTreeHotspotKey)`）。
 const Key kWishTreeHotspotKey = ValueKey<String>('wish-tree-hotspot');
+
+/// v0.2.0 天气徽标下方新入口的定位 Key（v0.3.0 起该节点在右上角簇内，
+/// 由 [kWishTreeTopClusterKey] 定位整簇；本 Key 保留供旧断言引用）。
+const Key kWishTreeWeatherEntrySlotKey =
+    ValueKey<String>('wish-tree-weather-entry-slot');
+
+/// v0.3.0（R3-P0-11）：右上角**整簇**的 Key（单个 `Positioned` + `Column`）。
+const Key kWishTreeTopClusterKey = ValueKey<String>('wish-tree-top-cluster');
+
+/// v0.3.0：天气图标正下方**文字**节点的 Key（测试量图标↔文字几何用）。
+const Key kGardenWeatherLabelKey = ValueKey<String>('garden-weather-label');
+
+/// v0.3.0：许愿树图标正下方**文字**节点的 Key。
+const Key kWishTreeWeatherEntryLabelKey =
+    ValueKey<String>('wish-tree-entry-label');
 
 /// 孩子端花园：植物养成主界面。
 ///
@@ -3306,8 +3323,15 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
         final bool gardenVisible = !widget.embedded ||
             (ref.watch(childShellOnStageProvider) &&
                 ref.watch(childShellTabIndexProvider) == kChildTabIndexOfGarden);
-        if (gardenVisible != _ambientActive) {
-          _ambientActive = gardenVisible;
+
+        // v0.2.0（R-P0-04）：许愿树是独立音频场景。树页 initState 把闸门置 true，
+        // 本页 build 重算 ⇒ ambientActive=false ⇒ 复用既有成对 [_syncAmbientTimer()]
+        // **取消 30s Timer.periodic 并 stop 播放器**（只 stop 会被下一 tick 复发）。
+        // 🔴 只改环境音局部判据，共享 `_gardenVisible` getter 与其余消费方零改动。
+        final bool ambientActive =
+            gardenVisible && !ref.watch(wishTreeSceneActiveProvider);
+        if (ambientActive != _ambientActive) {
+          _ambientActive = ambientActive;
           _syncAmbientTimer();
         }
 
@@ -3371,11 +3395,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                 today.observedAt.day + 1,
               ),
             ).kind;
-            // 调试入口的纵向位置（2026-11-07 第四批：右上角天气图标状态灯
-            // [GardenWeatherBadge] 占 top 12 → 12+56=68，入口再留 12 间距 ⇒ 80；
-            // 旧值 12 + kWeatherRowHeight + 6 = 50 会与新 badge 重叠，作废）。
-            const double debugEntryTop =
-                12 + kGardenWeatherBadgeIconSize + 12;
+            // 🔴 v0.3.0（R3-P0-11 / D3）：右上角**不再有任何手工 top 计算**。
+            // 三个入口（天气 / 许愿树 / 调试）折叠进**单个 `Positioned` + `Column`**
+            // 簇，堆叠由布局保证 ⇒ 与 `uiScale` / `textScaler` 完全解耦，
+            // 旧的「手工 top 偏移」函数随之废弃（见 prd_params.dart）。
             final Widget content;
             if (_loading) {
               content = const Center(child: CircularProgressIndicator());
@@ -3531,18 +3554,57 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                 //  · 仍是根 Stack 浮层，**不占布局高度**（`gardenGridVisibleHeight`
                 //    矮屏断言不受影响）。
                 if (_error == null) ...<Widget>[
+                  // ── 右上角**单簇**（v0.3.0 / R3-P0-11，玄参反馈 5）────────────
+                  // 结构折叠：一个 `Positioned` + 一个 `Column`，三组「图标 + 下方
+                  // 单行文字」依次纵排。堆叠由布局保证 ⇒ `uiScale ∈ {1.0,1.15,1.3}`
+                  // 与无障碍大字号下都**不可能重叠**（无常量可漂移）。
+                  //
+                  // 🔴 每个图标自身尺寸仍走 `uiScaleOf`（徽标既有、
+                  //    入口 `kWishTreeWeatherEntrySize * uiScaleOf`），文字走 textScaler，
+                  //    二者同源等比 ⇒ 观感一致。
                   Positioned(
+                    key: kWishTreeTopClusterKey,
                     right: 12,
                     top: 12,
-                    child: GardenWeatherBadge(
-                      kind: todayWeather.kind,
-                      banner: banner,
-                      // 第七批：已购棚 ⇒ 状态灯左侧并排盾牌位图（对话框内盾牌行
-                      // 已撤，盾牌语义移到这里 —— 玄参 2026-11-07）。
-                      shelterBought: _shelterBoughtToday,
-                      // build 顶层算好的明日日型直接传入（对话框「明天 · …」行）。
-                      onTap: () =>
-                          _showWeatherDialog(tomorrowKind: tomorrowKind),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: <Widget>[
+                        // ① 天气：图标 + 下方天气名（整簇一个热区 ⇒ 点文字＝点图标）。
+                        WishTopEntryCluster(
+                          icon: GardenWeatherBadge(
+                            kind: todayWeather.kind,
+                            banner: banner,
+                            // 第七批：已购棚 ⇒ 状态灯左侧并排盾牌位图。
+                            shelterBought: _shelterBoughtToday,
+                          ),
+                          label: weatherNameOf(todayWeather.kind, _t),
+                          labelKey: kGardenWeatherLabelKey,
+                          semanticLabel: weatherNameOf(todayWeather.kind, _t),
+                          onTap: () => _showWeatherDialog(
+                            tomorrowKind: tomorrowKind,
+                          ),
+                        ),
+                        const SizedBox(height: kGardenTopEntryGap),
+                        // ② 许愿树：图标 + 下方「许愿树」。
+                        //    花园页**唯一**的许愿树入口（左下角旧热点已删除）。
+                        WishTopEntryCluster(
+                          icon: WishTreeWeatherEntry(
+                            label: _t.gardenWishTreeEntryLabel,
+                          ),
+                          label: _t.gardenWishTreeEntryLabel,
+                          labelKey: kWishTreeWeatherEntryLabelKey,
+                          onTap: () => context.push('/wish-tree'),
+                        ),
+                        // ③ 调试入口（仅调试构建）：顺排在簇尾，天然不重叠。
+                        if (shouldShowDebugUi(
+                          debugMode: kDebugMode,
+                          hideForScreenshots: kHideDebugUi,
+                        )) ...<Widget>[
+                          const SizedBox(height: kGardenTopEntryGap),
+                          BloomDebugEntry(onTap: _openDebugPanel),
+                        ],
+                      ],
                     ),
                   ),
                   // 一键 FAB 出现条件不变：存活株 ≥ kOneClickMinPlants（「花园植物
@@ -3568,17 +3630,6 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                 // [shouldShowDebugUi] 单点判据（截图构建加 `--dart-define=HIDE_DEBUG_UI=true`
                 // 即可隐藏）；未加 define 时 `kHideDebugUi` 为 false → 行为**与修前逐位一致**，
                 // 日常调试能力不衰减。
-                if (shouldShowDebugUi(
-                      debugMode: kDebugMode,
-                      hideForScreenshots: kHideDebugUi,
-                    ) &&
-                    !_loading &&
-                    _error == null)
-                  Positioned(
-                    top: debugEntryTop,
-                    right: 12,
-                    child: BloomDebugEntry(onTap: _openDebugPanel),
-                  ),
                 // 养护成功动效：精确摆到对应花盆格之上（效果帧叠加 + 音频），有限时长，结束自移除。
                 //
                 // 🔴 C82 关键修复（玄参 2026-10-16 小米真机「盛开动画播两次」的真因）：本 Stack 的
@@ -3638,23 +3689,11 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                       },
                     ),
                   ),
-                // ── 许愿树入口（A-T04 / A7.6 S4~S7）────────────────────────
-                // 🔴 追加在根 Stack **children 末尾**：既有节点 index 全不变
-                //    （C82 按 index 复用坑不触发）；带稳定 Key；不进左上 chips 行
-                //    ⇒ weather_a3_banner_ui_test V6/V7/V8 逐像素零回归。
-                // 摆在木牌正上方（左侧空白带），与木牌同侧成组；不挡花盆 / FAB /
-                // 天气灯。孩子端零购买入口：本热点只 push 许愿树页。
-                Positioned(
-                  key: kWishTreeHotspotKey,
-                  left: 12,
-                  top: gardenSignScreenRect(size).top - 46 > 60
-                      ? gardenSignScreenRect(size).top - 46
-                      : 60,
-                  child: WishTreeHotspot(
-                    label: _t.wishTreeTitle,
-                    onTap: () => context.push('/wish-tree'),
-                  ),
-                ),
+                // 🔴 v0.3.0（R3-P0-01，玄参反馈 1）：左下角「木牌上方」的许愿树
+                // 热点 `WishTreeHotspot` **已整体删除** —— 花园页只保留右上角簇内
+                // 那一个入口（`findsNothing(kWishTreeHotspotKey)` 是本批断言）。
+                // 今日页底部速览卡 `child_today_wish_tree_entry` 已按
+                // 玄参 v0.3 真机反馈 6 删除 —— 花园右上角簇是唯一入口。
               ],
             );
           },

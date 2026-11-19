@@ -247,7 +247,6 @@ void main() {
     // 用今天的日期取今日必做（board 内部 dayKey(now)）。
     final DateTime now = DateTime(2026, 11, 20, 10);
     final int boardTotalBefore = (await f.service.board(now)).total;
-    final bool perfectBefore = (await f.service.board(now)).allDone;
 
     final Task outcomeTask = (await f.tasks.wishTaskById('tw'))!;
     await f.service.settleWishFocusTask(
@@ -274,7 +273,10 @@ void main() {
         monthlyBefore);
     final int boardTotalAfter = (await f.service.board(now)).total;
     expect(boardTotalAfter, boardTotalBefore);
-    expect((await f.service.board(now)).allDone, perfectBefore);
+    // v0.3 验收 5(c)：board 现在显式包含愿望任务，愿望任务核销后也会进
+    // 「已做」计数 ⇒ 原本为 false 的 allDone 在两件事都做完后变 true。
+    expect((await f.service.board(now)).allDone, isTrue,
+        reason: 'board 含愿望任务：tg 已打卡 + tw 已核销 ⇒ 全做完了');
   });
 
   test('⑱ 读侧隔离：allTasks 默认排除愿望任务，3 个既有调用点零改动', () async {
@@ -305,8 +307,17 @@ void main() {
       'Future<bool> _allDailySubmitted(',
     ]) {
       final int start = service.indexOf(marker);
-      final String body = service.substring(start, start + 900);
-      expect(body.contains('_tasks.tasks()'), isTrue, reason: marker);
+      final String body = service.substring(start, start + 1100);
+      // v0.3 验收 5(c)：只有 board 改为「优先走 WishTaskReadBridge，
+      // 拿不到 bridge 才降级 _tasks.tasks()」；其余既有调用点零改动。
+      expect(
+        marker.contains('board(')
+            ? (body.contains('allTasksIncludingWish()') &&
+                body.contains('_tasks.tasks()'))
+            : body.contains('_tasks.tasks()'),
+        isTrue,
+        reason: marker,
+      );
       expect(body.contains('includeWishTasks: true'), isFalse, reason: marker);
     }
     // 例外只在桥接实现里显式开启（家长待核销）。

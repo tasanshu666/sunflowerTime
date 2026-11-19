@@ -16,6 +16,9 @@ import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/domain/entities/wish.dart';
+import 'package:sunflower_time/domain/repositories/task_repository.dart';
+import 'package:sunflower_time/domain/repositories/wish_task_repository.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/growth_icons.dart';
 import 'package:sunflower_time/presentation/parent/widgets/task_editor_dialog.dart';
@@ -42,7 +45,26 @@ class ParentTaskConfigPage extends ConsumerStatefulWidget {
 }
 
 class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
+  /// **配额口径**的成长任务（`includeWishTasks = false`，仓储默认值）。
+  ///
+  /// 🔴 只给 `PremiumQuotaGate` 用（免费 5 条成长项）——愿望任务不得虚占配额
+  /// （R3-P0-09④），故这 4 处计数**一位都不许**换成 [_displayTasks]。
   List<Task> _tasks = <Task>[];
+
+  /// **展示口径**的任务（含愿望任务，`wish_id != null`）。
+  ///
+  /// v0.3.0（WISH-V03-BUG-01 修复）：列表原来读 `tasks()`（默认排除愿望任务），
+  /// 于是 `_taskCard` 里 `if (t.wishId != null)` 的「愿望任务 · {标题}」徽标
+  /// **永远不可达**（家长看不见自己布置的小办法）。改为两条读路径：
+  /// 展示读 [_displayTasks]（全量），配额读 [_tasks]（普通任务）。
+  List<Task> _displayTasks = <Task>[];
+
+  /// 可关联的愿望（树上愿望；供编辑器「关联愿望」下拉与列表标签取标题）。
+  List<Wish> _wishes = <Wish>[];
+
+  /// `wishId` → 愿望标题（列表项标签 `wishTaskBadgeOfWish` 用）。
+  Map<String, String> _wishTitles = <String, String>{};
+
   bool _loading = true;
 
   @override
@@ -54,7 +76,28 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
   Future<void> _reload() async {
     setState(() => _loading = true);
     try {
-      _tasks = await ref.read(taskRepositoryProvider).tasks();
+      final TaskRepository repo = ref.read(taskRepositoryProvider);
+      // ① 配额口径（默认 `includeWishTasks = false`）：原样不动。
+      _tasks = await repo.tasks();
+      // ② 展示口径：含愿望任务。仓储实现若未提供桥接能力，降级回 [_tasks]
+      //    （列表至少与改造前一致，不会白屏）。
+      _displayTasks = repo is WishTaskReadBridge
+          ? await (repo as WishTaskReadBridge).allTasksIncludingWish()
+          : _tasks;
+      // v0.3.0（R3-P0-09③ / R3-P1-05）：愿望标题映射 —— 只为标签展示与下拉，
+      // **不参与**任何任务口径计算（今日必做 / 完成率 / 阳光结算零影响）。
+      try {
+        final List<Wish> wishes =
+            await ref.read(wishOrchestrationServiceProvider).mountedWishes();
+        _wishes = wishes;
+        _wishTitles = <String, String>{
+          for (final Wish w in wishes) w.id: w.text,
+        };
+      } catch (_) {
+        // 愿望读取失败不影响成长任务主流程（降级为无标签）。
+        _wishes = <Wish>[];
+        _wishTitles = <String, String>{};
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -69,6 +112,7 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
       context: context,
       builder: (BuildContext ctx) => TaskEditorDialog(
         initial: initial,
+        wishes: _wishes,
         onSave: (Task t) async {
           await ref.read(taskRepositoryProvider).saveTask(t);
         },
@@ -147,7 +191,7 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
               children: <Widget>[
                 _headerBar(l10n, canAdd, tier),
-                if (_tasks.isEmpty)
+                if (_displayTasks.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 32),
                     child: Center(
@@ -155,9 +199,9 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                     ),
                   )
                 else
-                  for (int i = 0; i < _tasks.length; i++) ...<Widget>[
+                  for (int i = 0; i < _displayTasks.length; i++) ...<Widget>[
                     if (i > 0) const SizedBox(height: 8),
-                    _taskCard(l10n, _tasks[i]),
+                    _taskCard(l10n, _displayTasks[i]),
                   ],
               ],
             ),
@@ -199,7 +243,8 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                           fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      l10n.parent_today_count(_tasks.length),
+                      // 这里数的是「列表里有几项」（含愿望任务），不是配额。
+                      l10n.parent_today_count(_displayTasks.length),
                       style:
                           TextStyle(fontSize: 13, color: Colors.grey.shade600),
                     ),
@@ -355,6 +400,18 @@ class _ParentTaskConfigPageState extends ConsumerState<ParentTaskConfigPage> {
                         text: l10n.parent_task_config_focus_pill(t.minFocusMin),
                         bg: Colors.teal.shade50,
                         fg: Colors.teal.shade700,
+                      ),
+                    // v0.3.0（R3-P0-09③）：`wishId != null` ⇒ 「愿望任务 · {标题}」标签。
+                    // 🔴 只读展示：不改变 `allTasks()` 的 `includeWishTasks=false`
+                    // 默认值 ⇒ 今日必做 x/y、完成率、阳光结算均不含愿望任务。
+                    if (t.wishId != null)
+                      pillLabel(
+                        key: Key('parent_task_wish_badge_${t.id}'),
+                        text: l10n.wishTaskBadgeOfWish(
+                          _wishTitles[t.wishId] ?? '',
+                        ),
+                        bg: const Color(0xFFFFF1C2),
+                        fg: const Color(0xFF8D6E00),
                       ),
                   ],
                 ),

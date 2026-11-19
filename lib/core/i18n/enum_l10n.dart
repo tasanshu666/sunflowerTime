@@ -37,6 +37,8 @@ String taskCategoryLabel(TaskCategory category, AppLocalizations t) {
       return t.shared_task_category_life;
     case TaskCategory.habit:
       return t.shared_task_category_habit;
+    case TaskCategory.wish:
+      return t.shared_task_category_wish;
   }
 }
 

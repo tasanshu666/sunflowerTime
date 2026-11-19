@@ -61,8 +61,10 @@ enum GuardPillMode {
   /// 待处理 · 无能量但余额 ≥ [kGuardPayCost]：点击**先弹确认卡**，确认后才扣 [kGuardPayCost] ☀。
   pendingPaid,
 
-  /// 免罚档（`GuardDayStatus.short` 或「无能量且余额 < [kGuardFreeRideBalance]」）：
-  /// 当天小小葵自己顶班，胶囊不可点。
+  /// 免罚档（`GuardDayStatus.short` 或「无能量且余额 < [kGuardPayCost]」）：
+  /// 当天不结算损失，但**未 claimed ⇒ 未玩过 ⇒ 右簇仍画「开始守卫」钮**。
+  /// 🔴 玄参最终裁定：旗帜只认 `status == claimed`，与本档是否有资源无关；
+  /// 资源只在点击后决定开战还是弹「先去专注」提示。
   freeRide,
 
   /// 战斗中（动画回放期）：不可点。
@@ -273,9 +275,28 @@ class GuardTodayView {
   /// 胶囊是否要占位（`false` ⇒ 今日页**一项都不插**）。
   bool get isVisible => mode != GuardPillMode.absent;
 
-  /// 胶囊可点（`pendingFree` / `pendingPaid` 两种）。
+  /// **有没有可出战资源**（仅供点击时的开战/拦截判定，**不再参与绘制**）。
+  ///
+  /// 资源 = 专注能量点 ≥ [kGuardEnergyPerFocus]（免费打）**或**
+  /// 阳光余额 ≥ [kGuardPayCost]（花钱打）。玄参最终裁定：按钮 vs 旗帜只看
+  /// 「今天有没有完成过一次守卫」（`state.status == claimed`），与资源无关；
+  /// 资源只决定点按钮之后是开战还是弹「先去专注」提示。
+  ///
+  /// ⚠️ 这是**表现层快照**上的派生量：不落盘、不改 `resolve()` 的成本档，
+  /// 也绝不新增任何经济机制。
+  bool get hasBattleResource =>
+      energyAvailable >= kGuardEnergyPerFocus || balance >= kGuardPayCost;
+
+  /// 右簇「开始守卫」是否可点（`false` ⇒ 右簇留空 / 画旗帜）。
+  ///
+  /// 🔴 唯一语义 = 今天有贼、还没打完领奖、不在战斗中：
+  /// `pendingFree` / `pendingPaid` / `freeRide` 都可点，`claimed` 才是旗帜。
+  /// 「玩过」严格定义为 `status == claimed`（打完并收下奖励），不再按能量 /
+  /// 余额派生 —— 这样「专注完能量涨了就变旗帜」的串味口径彻底消失。
   bool get isActionable =>
-      mode == GuardPillMode.pendingFree || mode == GuardPillMode.pendingPaid;
+      mode != GuardPillMode.absent &&
+      mode != GuardPillMode.fighting &&
+      mode != GuardPillMode.claimed;
 
   /// 点击后是否需要**先弹确认卡**（= 要花阳光的那种）。
   bool get needsPayConfirm => mode == GuardPillMode.pendingPaid;

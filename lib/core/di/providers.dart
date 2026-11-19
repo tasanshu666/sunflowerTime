@@ -21,6 +21,7 @@ import 'package:sunflower_time/l10n/generated/app_localizations.dart'
 import 'package:sunflower_time/data/local/database/app_database.dart'
     hide Task, CheckIn;
 import 'package:sunflower_time/data/local/focus_level_prefs_store.dart';
+import 'package:sunflower_time/data/local/guard_energy_prefs_store.dart';
 import 'package:sunflower_time/data/local/guard_state_prefs_store.dart';
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/weekly_pool_local_repository.dart';
@@ -57,6 +58,7 @@ import 'package:sunflower_time/domain/repositories/task_repository.dart';
 import 'package:sunflower_time/domain/repositories/eye_care_log_repository.dart';
 import 'package:sunflower_time/domain/repositories/child_profile_repository.dart';
 import 'package:sunflower_time/domain/repositories/focus_level_store.dart';
+import 'package:sunflower_time/domain/repositories/guard_energy_store.dart';
 import 'package:sunflower_time/domain/repositories/guard_state_store.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/repositories/wish_repository.dart';
@@ -424,6 +426,14 @@ final guardStateStoreProvider = Provider<GuardStateStore>(
   (ref) => GuardStatePrefsStore(ref.watch(sharedPreferencesProvider)),
 );
 
+/// 持久守卫能量余额（键 = `guard_energy_v1_<childId>`）。
+///
+/// 🔴 与当日状态存储**分开注册**：`expire()` clear 当日状态键时，
+/// 攒下的能量必须原样留下（玄参 v0.3 验收反馈 3）。
+final guardEnergyStoreProvider = Provider<GuardEnergyStore>(
+  (ref) => GuardEnergyPrefsStore(ref.watch(sharedPreferencesProvider)),
+);
+
 /// 今日券服务（**券的唯一生效口**：券 → `PlantPerk` 的减免只经这里产出）。
 ///
 /// 页面**禁止**内联 `-1` / 「归零」；🔴 B13.20：免费券改「前 N 次免费、批量按
@@ -444,6 +454,7 @@ final guardVoucherProvider = Provider<GuardVoucherService>(
 final guardServiceProvider = Provider<GuardService>(
   (ref) => GuardService(
     store: ref.watch(guardStateStoreProvider),
+    energyStore: ref.watch(guardEnergyStoreProvider),
     ledger: ref.watch(sunlightRepositoryProvider),
     focus: ref.watch(focusRepositoryProvider),
     plants: ref.watch(plantRepositoryProvider),

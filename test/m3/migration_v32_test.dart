@@ -2,6 +2,7 @@
 ///
 /// 本批改动（schemaVersion 31 → 32）：
 ///  · 🆕 新表 `wishes`（**22 列** + 单列 uuid 主键 `id` + **3 条复合索引**）；
+///    🔴 v0.3.0：迁移链恢复为唯一一跳 **v31 → v32**（v33 已随推送机制整体回退）；
 ///  · 既有表 `tasks` **加一列** `wish_id`（`null` = 普通成长任务）+
 ///    **加一条索引** `idx_tasks_wish`；
 ///  · Drift 字段名 `text` → **`wishText`**（DB 列名仍是 `text`）——
@@ -222,7 +223,8 @@ void main() {
           reason: 'v32 必须建出 wishes（onUpgrade 首步 createAll）');
       expect(await _columnsOf(database, 'wishes'), _expectedWishColumns);
       expect(_expectedWishColumns.length, 22,
-          reason: '22 列是架构 A15.3 的权威清单，列数漂移即为契约破坏');
+          reason: '22 列（A15.3 定稿清单；v0.3.0 已回退 v0.2 的 shared_to_parent）'
+              '是权威契约，列数漂移即为契约破坏');
 
       // 主键 = 单列 uuid id（架构 A30.2 裁决：childId 只做过滤列，不进主键）。
       expect(await _primaryKeyOf(database, 'wishes'), <String>['id']);

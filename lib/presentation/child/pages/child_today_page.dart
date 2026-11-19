@@ -22,10 +22,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart'
     show showGuardPremiumHint;
-import 'package:go_router/go_router.dart';
-
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
@@ -43,6 +42,8 @@ import 'package:sunflower_time/domain/services/guard_battle_sim.dart'
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/state/shell_tab.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart'
+    show NoticeTone, showGoldNoticeDialog;
 import 'package:sunflower_time/presentation/child/widgets/guard_first_plant_dialog.dart';
 // B3（守卫战 v2）：战斗浮层（guard_battle_overlay.dart）已退役 —— 战斗本体
 // 在场景卡 L4（guard_battle_field.dart）跑；v1 胶囊（guard_pill.dart）同批删除，
@@ -66,6 +67,7 @@ import 'package:sunflower_time/domain/entities/guard_chest.dart'
 import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
+import 'package:sunflower_time/domain/services/guard_day.dart';
 import 'package:sunflower_time/domain/services/guard_service.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/presentation/child/widgets/focus_level_badge.dart';
@@ -129,6 +131,11 @@ const double kTodayBgPanelTargetRatio = 0.37;
 ///
 /// ⚠️ 两个 C67 冻结常量（0.40 / 0.37）**均未改动**；底图仍恒 topCenter，**零像素变化**。
 const double kTodayBreathingBandRatio = 0.03;
+
+/// 守卫「没玩过」（0 能量 0 余额）点「开始守卫」时的**开战前提示卡** Key。
+/// 真页面用例据此断言弹层出现，且战斗字段 / 结算卡始终不进树。
+const Key kGuardNoResourceHintDialogKey =
+    Key('guard_no_resource_hint_dialog');
 
 /// 孩子端「今日」状态卡。
 class ChildTodayPage extends ConsumerStatefulWidget {
@@ -493,12 +500,44 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   /// → 场景卡切入战斗态。战斗本体在**卡内 L4**跑（`GuardBattleField`，ticker
   /// 喂 sim）；终局（Victory / Retreat）由 [GuardSceneCard.onBattleFinished]
   /// 回调 [_onBattleFinished] 接结算卡 —— v1 的战斗浮层（dialog）已随 B3 退役。
+  ///
+  /// 🔴 玄参 2026-11 裁定：「没玩过」（0 能量 0 余额）也画「开始守卫」钮
+  /// （[GuardTodayView.isActionable] 已纳入可点），但**点了不许开战**：
+  /// 开战前用 [GuardTodayView.hasBattleResource] 拦截，只弹一张引导去专注的
+  /// 「知道啦」提示卡。玄参二次真机推翻了「打完再提示还差 N 阳光」—— 那是
+  /// 结算卡点了收下无响应的死胡同。这里**不新增**任何「首次免费守卫」
+  /// 之类的经济分支（`GuardService` 一行未改）。
   Future<void> _onGuardCardTap() async {
     if (_guardBusy || !mounted) return;
     final GuardTodayView view = ref.read(guardTodayProvider);
     final GuardThiefKind? thief = view.thief;
     final AppLocalizations? t = _l10n;
     if (!view.isActionable || thief == null || t == null) return;
+
+    // ⓪′ 资源闸门（玄参二次真机裁定）：没能量点也没 10 阳光 ⇒ 这模式今天
+    //     不能玩。判据复用 hasBattleResource（不新造第二套口径），且只在
+    //     freeRide「没玩过」态拦；有能量 / 余额 ≥ kGuardPayCost 的路一行不动。
+    //     🔴 必须在教学 / 确认卡 / markFighting 之前 return —— 否则孩子白打
+    //     一场还领不到奖（结算卡 insufficientBalance 的死胡同）。
+    if (view.mode == GuardPillMode.freeRide && !view.hasBattleResource) {
+      _guardBusy = true;
+      try {
+        await showGoldNoticeDialog(
+          context,
+          dialogKey: kGuardNoResourceHintDialogKey,
+          badgeIcon: Icons.lock_outline,
+          tone: NoticeTone.warn,
+          footerText: t.guard_no_battle_resource_hint(
+            kGuardPayCost,
+            t.task_action_focus,
+          ),
+          confirmLabel: t.shared_got_it,
+        );
+      } finally {
+        _guardBusy = false;
+      }
+      return;
+    }
 
     _guardBusy = true;
     try {
@@ -567,7 +606,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         final GuardBattleScript battleScript =
             ref.read(debugGuardBattleScriptOverrideProvider) ??
                 deriveGuardBattleScript(
-                  dayKey: dayKey(DateTime.now()),
+                  dayKey: guardDayKey(DateTime.now()),
                   childId: ref.read(accountServiceProvider).childId,
                 );
         await recordMetMonsterKinds(
@@ -1002,7 +1041,9 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                           view: guard,
                           // sim seed 入参：战局剧本 = f(dayKey, childId)，
                           // 与守卫存档 / 奖励口径同源（同日同孩逐位相同）。
-                          dayKey: dayKey(DateTime.now()),
+                          // 🔴 守卫专用 6 点日界（与 resolve 的 guardDayKey 同步）；
+                          // 天气 / 账本 / 专注仍走自然日，别把这行换回 dayKey。
+                          dayKey: guardDayKey(DateTime.now()),
                           childId: ref.read(accountServiceProvider).childId,
                           onStart: _onGuardCardTap,
                           onBattleFinished: _onBattleFinished,
@@ -1061,44 +1102,6 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                     _l10n!.child_today_growth_hint,
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 13, color: Color(0xFF8A7A66)),
-                  ),
-                  // A22.1 备注：今日页「许愿树」速览入口（跳 /wish-tree；
-                  // 与花园入口同款 push，孩子端零购买入口）。
-                  const SizedBox(height: 12),
-                  GestureDetector(
-                    key: const Key('child_today_wish_tree_entry'),
-                    onTap: () => context.push('/wish-tree'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF6DC),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0x4DE8A600)),
-                      ),
-                      child: Row(
-                        children: <Widget>[
-                          const Text('🌳', style: TextStyle(fontSize: 22)),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _l10n!.wishTreeTitle,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF6B4E12),
-                              ),
-                            ),
-                          ),
-                          const Icon(
-                            Icons.chevron_right,
-                            color: Color(0xFF8D6E00),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                 ],
               ),

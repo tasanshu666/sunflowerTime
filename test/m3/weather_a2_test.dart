@@ -30,6 +30,8 @@
 ///    **flutter_test 方块字体**口径下成立；真机字体更窄 ⇒ 落档更宽松。
 library weather_a2_test;
 
+import 'dart:math' as math;
+
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -1894,8 +1896,19 @@ void main() {
         final Finder badge = find.byKey(kGardenWeatherBadgeKey);
         expect(badge, findsOneWidget, reason: '天气图标状态灯必须渲染（温和日）');
         final Rect badgeRect = tester.getRect(badge);
-        expect(badgeRect.right, closeTo(390 - 12, 0.5),
-            reason: '状态灯右锚 12（右上角，与左上 chips 行对称）');
+        // 玄参 v0.3 反馈 1：天气标签改为居中（与许愿树标签同款簇），
+        // 因此「右锚 12」落在**簇内最宽子项**（标签）上；图标因居中会随
+        // 标签变宽而内收，不允许再拿图标右缘当锚点。
+        final Rect weatherLabelRect = tester.getRect(find.byKey(kGardenWeatherLabelKey));
+        // 「右锚 12」落在簇内**较宽**的那个子项上（图标 56 或标签）：
+        // zh 两字标签窄于 56 ⇒ 图标右缘贴 378；en 标签宽于 56 ⇒ 标签右缘贴 378。
+        expect(
+          math.max(badgeRect.right, weatherLabelRect.right),
+          closeTo(390 - 12, 1.0),
+          reason: '簇的整体右缘锚定 12（与左上 chips 行对称）');
+        expect((badgeRect.center.dx - weatherLabelRect.center.dx).abs(),
+            lessThanOrEqualTo(2.0),
+            reason: '天气图标与标签水平居中对齐');
         expect(badgeRect.top, closeTo(12, 0.5), reason: '状态灯贴顶 12');
         expect(badgeRect.width, closeTo(56, 0.5),
             reason: '状态灯宽 56（旧 72 白条已删，玄参 2026-11-07 拍板）');

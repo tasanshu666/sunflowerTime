@@ -72,6 +72,9 @@ String taskCategoryIconAsset(TaskCategory category) {
       return 'assets/ui/growth/life.webp';
     case TaskCategory.habit:
       return 'assets/ui/growth/habit.webp';
+    case TaskCategory.wish:
+      // 许愿分类复用默认成长图标（素材池暂无专用愿望图标）。
+      return 'assets/ui/growth/default_ui.webp';
     case TaskCategory.other:
       return 'assets/ui/growth/default_ui.webp';
   }

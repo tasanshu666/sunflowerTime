@@ -419,8 +419,17 @@ void main() {
       tester,
       () => find.byKey(kGardenWeatherDialogKey).evaluate().isNotEmpty,
     );
-    expect(find.text(weatherNameOf(realKind, zh)), findsOneWidget,
-        reason: '复位后对话框回到真实日型名（全链路刷新无需手动 invalidate）');
+    // v0.3.0（R3-P0-11）：右上角簇内新增了**可见天气名**（图标下方单行文字），
+    // 故页面上「阴天」会同时出现在簇内与对话框里 ⇒ 断言必须限定在对话框子树，
+    // 否则会把簇内天气名当成第二个命中（假红）。语义不变：对话框回到真实日型名。
+    expect(
+      find.descendant(
+        of: find.byKey(kGardenWeatherDialogKey),
+        matching: find.text(weatherNameOf(realKind, zh)),
+      ),
+      findsOneWidget,
+      reason: '复位后对话框回到真实日型名（全链路刷新无需手动 invalidate）',
+    );
 
     expect(tester.takeException(), isNull);
   });

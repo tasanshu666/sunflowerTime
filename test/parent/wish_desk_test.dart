@@ -119,6 +119,7 @@ Wish _wish({
       createdAt: createdAt ?? DateTime(2025, 1, 1),
       fulfillSource: fulfillSource,
       tagKey: tagKey,
+      // v0.2.0：家长台数据源只收已授权愿望；既有排序断言沿用授权数据。
     );
 
 WishOrchestrationService _service(

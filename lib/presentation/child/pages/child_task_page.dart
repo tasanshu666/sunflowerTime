@@ -596,7 +596,12 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
     int index = 0; // 跨分区递增，保证彩色图标块稳定轮换且不重复。
     for (final TaskCategory cat in kTaskCategoryOrder) {
       final List<TaskCheckInItem> group = items
-          .where((TaskCheckInItem i) => i.task.category == cat)
+          .where((TaskCheckInItem i) => cat == TaskCategory.wish
+              // 🔴 玄参 v0.3 验收 5(c)：存量愿望任务 category 还是旧值
+              // （other/learning...），必须同时按 wishId 判据进「许愿」栏。
+              ? (i.task.wishId != null ||
+                  i.task.category == TaskCategory.wish)
+              : (i.task.category == cat && i.task.wishId == null))
           .toList(growable: false);
       if (group.isEmpty) continue; // 空分类整体不渲染（含标题）
       if (children.length > 1) children.add(const SizedBox(height: 16));

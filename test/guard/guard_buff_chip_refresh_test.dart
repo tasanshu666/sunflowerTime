@@ -49,6 +49,7 @@ import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_buff_chip.dart';
 
+import '../helpers/in_memory_guard_energy_store.dart';
 import '../helpers/no_hit_random.dart';
 
 // ── 常量 ─────────────────────────────────────────────────────────────────────
@@ -256,6 +257,8 @@ Widget _hostGarden({
       focusRepositoryProvider.overrideWithValue(_NoFocusRepo()),
       plantRepositoryProvider.overrideWithValue(plants),
       guardStateStoreProvider.overrideWithValue(store),
+      guardEnergyStoreProvider
+          .overrideWithValue(InMemoryGuardEnergyStore()),
       bloomRewardRepositoryProvider
           .overrideWithValue(InMemoryBloomRewardRepository()),
       plantGrowthServiceProvider.overrideWith((Ref ref) => PlantGrowthService(

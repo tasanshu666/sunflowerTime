@@ -4,8 +4,10 @@
 /// 回信为空允许提交 / 文案走 ARB。期望值写死独立量。
 library wish_action_sheet_test;
 
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/core/i18n/wish_l10n.dart';
@@ -149,6 +151,115 @@ void main() {
       expect(names.contains('wishTaskAssigned'), isFalse);
       expect(names.contains('wishTaskCompleted'), isFalse);
       expect(names.contains('wishSelfFulfilled'), isFalse);
+    });
+  });
+
+  // ── v0.2.0 / R-P0-06~08：弹层三缺陷回归（testWidgets） ──────────────────
+  ParentWishActionSheet buildSheet() => ParentWishActionSheet(
+        wish: Wish(
+          id: 'w1',
+          childId: 'c1',
+          text: '愿望',
+          createdAt: DateTime(2026, 11, 18),
+        ),
+        onSetup: () {},
+        onFulfill: () {},
+        onTagReply: (_) {},
+      );
+
+  Widget buildHost({required VoidCallback onOpen}) => MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: ElevatedButton(
+              key: const Key('open_sheet'),
+              onPressed: onOpen,
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+
+  group('R-P0-06 双标题 / 重复取消项', () {
+    testWidgets('两个标题文案各恰好出现 1 次（只留 labelText）',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: buildSheet())));
+      expect(find.text(zh.parent_wish_tag_hint), findsOneWidget,
+          reason: '标签标题只由 InputDecoration.labelText 承载');
+      expect(find.text(zh.parent_wish_reply_preset), findsOneWidget,
+          reason: '预设回复标题只由 InputDecoration.labelText 承载');
+    });
+
+    testWidgets('标签下拉 items 恰好 6 项，无 value:null 取消项',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: buildSheet())));
+      await tester.tap(find.byKey(const Key('parent_wish_tag_picker')));
+      await tester.pumpAndSettle();
+      expect(find.byType(DropdownMenuItem<WishTag?>), findsNWidgets(6));
+      expect(
+        find.ancestor(
+          of: find.text(zh.shared_cancel),
+          matching: find.byType(DropdownMenuItem<WishTag?>),
+        ),
+        findsNothing,
+        reason: '取消不再作为下拉项混入（弹层底部按钮仍在）',
+      );
+    });
+  });
+
+  group('R-P0-07 取消返回契约', () {
+    testWidgets('点取消弹出 null，无异常、无类型错误',
+        (WidgetTester tester) async {
+      Future<WishTagReplyResult?>? result;
+      await tester.pumpWidget(buildHost(
+        onOpen: () {
+          result = showDialog<WishTagReplyResult>(
+            context: tester.element(find.byKey(const Key('open_sheet'))),
+            barrierDismissible: false,
+            builder: (_) => buildSheet(),
+          );
+        },
+      ));
+      await tester.tap(find.byKey(const Key('open_sheet')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('parent_wish_action_sheet')), findsOneWidget);
+
+      await tester.tap(find.text(zh.shared_cancel));
+      await tester.pumpAndSettle();
+      expect(await result, isNull, reason: '取消弹 null，不再弹 false');
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const Key('parent_wish_action_sheet')), findsNothing);
+    });
+  });
+
+  group('R-P0-08 点遮罩不退出', () {
+    test('生产调用点 showDialog 设 barrierDismissible: false', () {
+      final String src =
+          File('lib/presentation/parent/pages/parent_today_page.dart')
+              .readAsStringSync();
+      expect(src.contains('barrierDismissible: false'), isTrue,
+          reason: '点遮罩不得关闭弹层（防落入 PopScope 的 context.go("/")）');
+      expect(src.contains('result is! WishTagReplyResult'), isTrue,
+          reason: '调用方必须防御非契约返回值');
+    });
+
+    testWidgets('点弹层外空白后弹层仍在（barrierDismissible:false 语义）',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildHost(
+        onOpen: () {
+          unawaited(showDialog<WishTagReplyResult>(
+            context: tester.element(find.byKey(const Key('open_sheet'))),
+            barrierDismissible: false,
+            builder: (_) => buildSheet(),
+          ));
+        },
+      ));
+      await tester.tap(find.byKey(const Key('open_sheet')));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(12, 12));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('parent_wish_action_sheet')), findsOneWidget,
+          reason: '点遮罩不关闭；只能走显式按钮');
+      expect(tester.takeException(), isNull);
     });
   });
 }

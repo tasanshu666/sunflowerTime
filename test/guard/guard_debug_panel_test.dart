@@ -29,6 +29,7 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_stats.dart';
 import 'package:sunflower_time/domain/entities/guard_day_state.dart';
+import 'package:sunflower_time/domain/entities/guard_energy.dart';
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
 import 'package:sunflower_time/domain/entities/guard_thief.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
@@ -50,6 +51,7 @@ import 'package:sunflower_time/presentation/child/state/guard_debug_script.dart'
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart';
 
+import '../helpers/in_memory_guard_energy_store.dart';
 import '../helpers/no_hit_random.dart';
 
 // ── Fake 仓储 ────────────────────────────────────────────────────────────────
@@ -241,6 +243,7 @@ class _Harness {
   }
 
   final _GuardStore store = _GuardStore();
+  final InMemoryGuardEnergyStore energyStore = InMemoryGuardEnergyStore();
   final _Ledger ledger = _Ledger();
   final _Focus focus = _Focus();
   late final _Plants plants;
@@ -248,6 +251,7 @@ class _Harness {
   /// 断言用服务：与面板**共用同一批 Fake**（store 忽略 childId ⇒ 读到同一条）。
   GuardService get guard => GuardService(
         store: store,
+        energyStore: energyStore,
         ledger: ledger,
         focus: focus,
         plants: plants,
@@ -259,7 +263,7 @@ class _Harness {
           bloomRewards: InMemoryBloomRewardRepository(),
           weedRandom: NoHitRandom(),
         ),
-        childId: () => 'test-child',
+        childId: () => kChildIdDefault,
       );
 
   ProviderContainer container() {
@@ -275,6 +279,7 @@ class _Harness {
         bloomRewardRepositoryProvider
             .overrideWithValue(InMemoryBloomRewardRepository()),
         guardStateStoreProvider.overrideWithValue(store),
+        guardEnergyStoreProvider.overrideWithValue(energyStore),
         potDisturbanceRepositoryProvider.overrideWithValue(_Pots()),
         plantGrowthServiceProvider.overrideWith((Ref ref) => PlantGrowthService(
               plants: ref.watch(plantRepositoryProvider),
@@ -493,9 +498,13 @@ void main() {
     await tester.ensureVisible(find.text('用光今日能量'));
     await tester.pump();
     await tester.tap(find.text('用光今日能量'));
-    final bool drained =
-        await _pumpUntil(tester, () => h.store.state?.energyUsed == 1);
-    expect(drained, isTrue, reason: 'energyUsed 应被写成赚到的总量');
+    // v0.3：能量改为独立持久余额，调试按钮扣的是 store，不再写
+    // GuardDayState.energyUsed（旧字段只留兼容）。
+    final bool drained = await _pumpUntil(
+      tester,
+      () => h.energyStore.byChild.values.any((GuardEnergy e) => e.balance == 0),
+    );
+    expect(drained, isTrue, reason: '持久余额应被用光（且不被重复入账）');
 
     expect(await h.guard.energyAvailable(), 0);
   });

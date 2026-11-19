@@ -55,8 +55,16 @@ Widget macaronIconBlock({required String emoji, required Color bg}) => Container
     );
 
 /// 小胶囊标签（分类/状态用）：马卡龙色底 + 同组深字色，圆角。
-Widget pillLabel({required String text, required Color bg, required Color fg}) =>
+///
+/// [key] 可选 —— 列表项需要按条目定位标签时传入（如家长端「愿望任务 · {标题}」）。
+Widget pillLabel({
+  required String text,
+  required Color bg,
+  required Color fg,
+  Key? key,
+}) =>
     Container(
+      key: key,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: bg,

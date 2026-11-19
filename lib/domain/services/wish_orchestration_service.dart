@@ -161,7 +161,12 @@ class WishOrchestrationService {
     return wish;
   }
 
-  /// Parent desk: reminded first, then longest waiting first.
+  /// Parent desk: **all** wishes currently on the tree, reminded first, then
+  /// longest waiting first.
+  ///
+  /// v0.3.0：v0.2 的 `sharedToParent` 可见性过滤已整体作废（PRD v0.3 §1.1 #3
+  /// + Q2 裁决「家长端恢复全量可见」）—— 孩子不再有推送开关，隐私边界由
+  /// 「App 在同一台设备上」这一物理前提保证。
   Future<List<Wish>> parentDeskList(DateTime now) async {
     final List<Wish> rows = (await _wishes.byStatuses(_treeStatuses))
         .where((Wish w) => w.releasedAt == null)
@@ -243,15 +248,27 @@ class WishOrchestrationService {
       hasGoalTarget(wish.targetValue) && wish.progressValue > 0;
 
   // ── writes ───────────────────────────────────────────────────────────────
+  /// 许愿：写一句话即挂上树（v0.3.0 起无「选分类 / 选目标 / 告诉家长」中间步）。
+  ///
+  /// ## [maxTextLength] 为什么是**入参**而不是域内按 locale 取（R3-P0-04 / S2）
+  /// 域层是纯逻辑层，**不感知 locale 字符串分支**；由展示层把
+  /// `wishMaxTextLength(Localizations.localeOf(context).languageCode)` 的结果传进来，
+  /// 与输入框 counter 用的是**同一调用点的同一返回值** ⇒ 从构造上保证
+  /// 「counter 显示的上限 == 提交校验的上限」，不会出现「显示可写、提交被拒」。
+  ///
+  /// ## [category] 
+  /// v0.3.0 起分类选择 UI 已下线（R3-P0-03），调用方一律传
+  /// `WishCategory.other`（DB `category = 0` 列保留，供历史数据读取）。
   Future<Wish> createWish({
     required String text,
     required WishCategory category,
     required DateTime now,
+    required int maxTextLength,
   }) =>
       _serialized(() async {
         final String clean = text.trim();
         final int length = clean.runes.length;
-        if (length < kWishTextMinLength || length > kWishTextMaxLength) {
+        if (length < kWishTextMinLength || length > maxTextLength) {
           throw StateError('wish text length out of range');
         }
         final DateTime cutoff =

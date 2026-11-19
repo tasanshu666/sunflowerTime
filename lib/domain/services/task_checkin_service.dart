@@ -238,7 +238,15 @@ class TodayTaskBoard {
   int get doneCount => items.where((i) => i.isDaily && i.done).length;
 
   /// 每周任务数量（供表现层分区展示；不计入完成度）。
-  int get weeklyCount => items.where((i) => !i.isDaily).length;
+  ///
+  /// 🔴 愿望任务虽然进入 board 供孩子端「许愿」栏展示，但仍不污染
+  /// 成长链路的「每周任务」桶（v0.3 零污染口径保持不变）。
+  int get weeklyCount => items
+      .where((i) =>
+          !i.isDaily &&
+          i.task.wishId == null &&
+          i.task.category != TaskCategory.wish)
+      .length;
 
   /// 今日必做任务是否全部完成（必做数为 0 时视为未完成，避免空板误判为「全完成」）。
   bool get allDone => total > 0 && doneCount == total;
@@ -395,7 +403,13 @@ class TaskCheckInService {
   /// 只读入口，**不加**串行化闸门（避免把读也串起来拖慢界面）。
   Future<TodayTaskBoard> board(DateTime now) async {
     final String day = dayKey(now);
-    final List<Task> allTasks = await _tasks.tasks();
+    // 🔴 玄参 v0.3 验收反馈 5(c)：`_tasks.tasks()` 默认过滤掉 wish_id != null
+    // 的行（读侧隔离），导致家长端建了愿望任务孩子端看不到。这里优先走
+    // 桥接取全量，拿不到 bridge 时降级回原路径（同 pendingCheckIns 口径）。
+    final WishTaskReadBridge? boardBridge = _wishTasks;
+    final List<Task> allTasks = boardBridge == null
+        ? await _tasks.tasks()
+        : await boardBridge.allTasksIncludingWish();
     final List<CheckIn> checkIns = await _tasks.checkInsOfDay(day);
     final List<FocusSession> sessions = await _focus.sessionsOfDay(day);
 

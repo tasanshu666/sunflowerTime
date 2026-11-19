@@ -124,6 +124,7 @@ enum TaskCategory {
   sports, // 运动
   life, // 生活
   habit, // 习惯（C52 / 玄参 2026-10-10 追加；枚举追加向后兼容，历史行不受影响）
+  wish, // 许愿（v0.3 玄参验收：关联愿望的任务单独成栏；只能追加，index 0 MUST be other）
 }
 
 /// [TaskCategory] 展示扩展（占位图标）。
@@ -148,6 +149,8 @@ extension TaskCategoryX on TaskCategory {
         return '🪥';
       case TaskCategory.habit:
         return '🌟';
+      case TaskCategory.wish:
+        return '🌳';
     }
   }
 }
@@ -203,6 +206,7 @@ const List<TaskCategory> kTaskCategoryOrder = <TaskCategory>[
   TaskCategory.sports,
   TaskCategory.life,
   TaskCategory.habit,
+  TaskCategory.wish,
   TaskCategory.other,
 ];
 

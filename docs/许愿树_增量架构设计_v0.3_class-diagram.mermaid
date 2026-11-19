@@ -2,6 +2,9 @@
 %% 版本 v0.3.0 / 2026-11-19 / 高见远
 %% 基线：HEAD 7f19c61 + 工作区 v0.2 未提交增量（schemaVersion 33 / Wishes 23 列）
 %% 本批 = 回退 v0.2 推送机制（schema 33→32 / 23→22 列），新增三态/字数双阈值/小办法/居中/scale 布局。
+%% v0.4（玄参裁定）：家长端今日页愿望区整块移除 —— WishTreeSection / ParentWishCard /
+%% ParentWishActionSheet / parent/state/wish_state.dart 均已删除；成长任务关联愿望路径保留。
+%% v0.4：孩子端 S3 两行文案合并为单句 wishGoGrowthHint「去成长里面实现你的愿望吧」。
 classDiagram
     class Wish {
         +String id
@@ -89,6 +92,7 @@ classDiagram
     class WishCard {
         +WishTreeFace face
         +int wayCount
+        +String goGrowthHint «v0.4 wishGoGrowthHint»
     }
     class GardenPage {
         +Column 簇(天气/许愿树/调试)

@@ -2,6 +2,8 @@
 %% 版本 v0.3.0 / 2026-11-19 / 高见远
 %% 基线：HEAD 7f19c61 + 工作区 v0.2 未提交增量（schemaVersion 33 / Wishes 23 列）
 %% 四条流程：A 居中选择愿→直接挂树；B 树上三态渲染；C 家长布置小办法+现实类；D 回退闸门自证。
+%% v0.4（玄参裁定）：家长端今日页愿望区整块移除；流程 C 仅保留成长任务关联愿望路径。
+%% v0.4：S3 文案合并为单句「去成长里面实现你的愿望吧」(wishGoGrowthHint)。
 
 sequenceDiagram
     autonumber
@@ -60,29 +62,24 @@ sequenceDiagram
         CARD-->>P: 原文 + 家长回信 或 兜底「爸爸妈妈正在帮你想办法实现愿望……」
         Note over CARD: 不渲染 任务徽标/进度条/催促
     else S3 hasWays（家长给了小办法）
-        CARD-->>P: 原文 + 「你的愿望可以通过这些小办法实现哦」+ 小办法列表 + 进度
+        CARD-->>P: 原文 + 「去成长里面实现你的愿望吧」(wishGoGrowthHint) + 进度（小办法列表在详情卡）
     end
     end
 
     %% ===== 流程 C：家长布置「小办法」+ 现实类 =====
     rect rgb(240, 245, 252)
-    Note over PR,TSK: 流程 C · 家长布置小办法（愿望台主路径 / 成长编辑器 P1 第二路径）
+    Note over PR,TSK: 流程 C · 家长布置小办法（v0.4：仅成长任务关联愿望路径）
     participant PR as 家长
-    participant WED as WishTaskEditor(愿望台)
-    participant TED as TaskEditorDialog(成长编辑器 P1)
+    participant TED as TaskEditorDialog(成长编辑器 · 关联愿望)
     participant TR as TaskRepository
     participant TSK as Tasks(wish_id)
     participant TD as allTasks(includeWishTasks=false)
 
-    alt 主路径：愿望台布置
-        PR->>WED: 「设定目标+布置任务」
-        WED->>TR: saveTask + assignTasks(wishId=wish.id)
-    else P1 第二路径：成长任务编辑关联愿望
-        PR->>TED: 选「关联愿望」下拉（默认不关联=null）
-        TED->>TR: saveTask(wishId=选中 or null)
-    end
+    Note over PR,TSK: v0.4：愿望台主路径（WishTaskEditor）随今日页愿望区删除，不再入图
+    PR->>TED: 选「关联愿望」下拉（默认不关联=null）
+    TED->>TR: saveTask(wishId=选中 or null)
     TR->>TSK: 写 wish_id
-    Note over WED,TSK: 现实类办法 = requiresFocus=false + 自由文本 name（如「帮妈妈洗碗」），走既有「我做到了→家长核销」
+    Note over TED,TSK: 现实类办法 = requiresFocus=false + 自由文本 name（如「帮妈妈洗碗」），走既有「我做到了→家长核销」
     %% 隔离自证
     PR->>TD: 读今日必做列表
     TD-->>PR: 仅普通任务（愿望任务被 includeWishTasks=false 过滤）

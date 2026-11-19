@@ -5,6 +5,7 @@
 > **性质**：增量 PRD。仅描述相对基线的增量；未提及部分沿用既有口径。
 > **本次范围**：只写文档，不改 Dart。代码改动由架构师/工程师按本文执行。
 > **版本消歧**：`许愿树_增量PRD_v0.1.md` 正文里的「v0.2 修订 / v0.2.3」是该文档自身演进编号，与本文档版本号 `v0.3.0` 非同一序列。
+> **🔴 v0.4 变更（2026-11-19 · 玄参裁定）**：家长端「今日」tab **不再展示孩子的愿望**——愿望区整块移除，`WishTreeSection` / `ParentWishCard` / `ParentWishActionSheet` / 家长端 `state/wish_state.dart` 及其专属测试均已删除；家长端今日 tab 仅保留「待确认成长项 + 待核销奖励」。「家长端成长任务关联愿望」（`parent_task_config_page.dart` / `wish_task_editor.dart` / `task_editor_dialog.dart`）与领域服务 `WishOrchestrationService` **保留不动**。孩子端 S3 两行文案合并为单句「去成长里面实现你的愿望吧」（`wishGoGrowthHint`）。本文以下条目凡描述「家长端愿望台 / 今日页愿望区 / 三动作 / 贴标签弹层」者，**一律以本条为准作废**；历史正文保留不抹除。
 
 ---
 
@@ -88,10 +89,10 @@
 |---|---|---|---|
 | 13 | 花园右上角天气下方**新增**许愿树入口（R-P0-05） | **保留 + 改写** | 入口保留；新增**图标下文字「许愿树」**（反馈 5）；同时**删除左下角旧入口**（反馈 1）→ 见 R3-P0-01 / R3-P0-11 |
 | 14 | 许愿树页停播花园环境音的**场景闸门**方案（R-P0-04） | **保留** | 闸门实现与 v0.2 一致；`wish_tree_scene_state.dart` 保留 |
-| 15 | 家长端贴标签弹层三缺陷修复（R-P0-06 / R-P0-07 / R-P0-08：重复标题、取消无响应、点空白退家长空间） | **保留** | 已过 QA，本期零改动；回归测试保留 |
+| 15 | 家长端贴标签弹层三缺陷修复（R-P0-06 / R-P0-07 / R-P0-08：重复标题、取消无响应、点空白退家长空间） | **v0.4 作废** | 随家长端愿望区整块移除（`ParentWishActionSheet` 已删）；其回归测试同步删除 |
 | 16 | v0.2 参数单点 `kWishTreeWeatherEntrySize` / `kGardenTopEntryGap` / `gardenDebugEntryTop()` | **保留 + 改写** | 新增文字标签后需重算垂直偏移（见 R3-P0-11） |
 
-**作废条数：12 条机制/代码项；保留改写 4 条。**
+**作废条数：12 条机制/代码项；保留改写 3 条（v0.4 追加作废保留项 15）。**
 
 ---
 
@@ -102,7 +103,7 @@
 | # | 目标 | 可度量结果 |
 |---|---|---|
 | G1 | **许愿零负担**：许愿只需「写一句话」一步；不选分类、不被催目标、不被挂任务 | 许愿弹层必填输入 = 1 个文本框；提交路径点击数 ≤ 2；树上 S1 状态可见的「任务/目标/进度」元素数 = 0 |
-| G2 | **家长助力自由**：家长可「直接实现 / 关联愿望布置办法 / 安慰」三选一，办法可含非专注的现实事 | 家长端三动作均 1 次点击可达；任务支持 `requiresFocus=false` 的自由文本事项；办法与愿望关联率可通过 `tasks.wish_id != null` 断言 |
+| G2 | **家长助力自由**：家长可在成长任务里关联愿望布置「专注 15 分钟」或「帮妈妈洗碗」这类办法 | 家长端成长任务可关联愿望（`tasks.wish_id != null`）；任务支持 `requiresFocus=false` 的自由文本事项；今日必做 x/y 计数不受愿望任务影响 |
 | G3 | **界面清晰**：入口唯一、弹层居中、右上角图标与文字不重叠不歧义 | 花园页进入许愿树入口数 = 1；弹层中心偏差 ≤ 24dp；三档 `uiScale` 下两图标矩形不相交且间距 ≥ 8dp |
 
 三目标正交：G1 = 孩子端流程与信息量，G2 = 家长端能力面，G3 = 布局与可达性。
@@ -115,7 +116,7 @@
 | US2 | As a 孩子, I want 挂在树上的愿望安安静静待着、不显示「0 个任务」, so that 我不会因为「还没人管」而失落。 |
 | US3 | As a 孩子, I want 爸爸妈妈回应后看到「他们在想办法」和「我可以这样实现」, so that 我知道愿望有人在帮我。 |
 | US4 | As a 家长, I want 在成长系统里给某个愿望布置「专注 15 分钟」或「帮妈妈洗碗」这类办法, so that 不必把孩子想要的东西硬塞进专注任务。 |
-| US5 | As a 家长, I want 只做一次点击就能把某个愿望标成「现在做不到」并给出安慰, so that 我不必编一个假任务来敷衍孩子。 |
+| US5 | As a 家长, I want 在成长任务里关联某个愿望布置「帮妈妈洗碗」这类现实办法, so that 我用现实中的方式帮孩子实现愿望，而不必改孩子端的任务体系。 |
 
 ---
 
@@ -132,12 +133,12 @@
 | **R3-P0-02** | 许愿弹层改**居中**展示（反馈 2） | ① `wish_tree_page.dart` 不再使用 `showModalBottomSheet` 呈现许愿表单；② 弹层容器中心与屏幕垂直中心偏差 **≤ 24dp**（widget 测试取 `tester.getRect`）；③ 弹层底边距屏幕底 **≥ 80dp**（排除贴底）；④ 键盘弹起后输入框仍完整可见（`viewInsets.bottom > 0` 场景断言输入框底 ≤ 弹层底）；⑤ 内容超高时弹层内部可滚动，最大高度 ≤ 屏高 85% |
 | **R3-P0-03** | 删除许愿分类选择（反馈 3） | ① 弹层内**不存在**任何 `Key('wish_compose_category_*')` 节点（widget 测试 `findsNothing`）；② 提交写入 `category = 0`（`WishCategory.other`）；③ 愿望卡 / 详情卡 / 收藏箱 tile **不再渲染** `wishCategoryEmoji`（断言无该 emoji 文本节点）；④ **DB 列保留**：`Wishes` 仍 22 列、`category` 列不删、schemaVersion 仍 **32**、无新迁移；⑤ `WishCategory` 枚举与 `wishCategoryLabel` 保留（供历史数据与家长端兼容），仅输入侧下线 |
 | **R3-P0-04** | 放大愿望字数上限（反馈 3） | ① 上限按**当前 App 语言**取值：`zh` = **100 码点**、`en` = **300 码点**，下限仍 **2 码点**（`runes.length`，与现状口径一致）；② **单一取数函数**（如 `wishMaxTextLength(locale)`）同时供给 counter 与提交校验 —— 断言二者在同 locale 下取同一值；③ 中文输 100 字符可提交、101 字符被拦且**弹层不关闭**、草稿保留；④ 英文输 300 字符可提交、301 被拦；⑤ 输入框可见行数 3 → **5**（超出内部滚动）；⑥ 参数单点落地：新增 `kWishTextMaxLengthZh = 100` / `kWishTextMaxLengthEn = 300`，删除 `kWishTextMaxLength = 30` 并同步 `test/guard/wish_params_guard_test.dart` 断言 |
-| **R3-P0-05** | 许愿后直接挂树 + 树上三态渲染（反馈 3/4/6） | ① 提交成功即 `status = pending` 且挂载，无「选分类/选目标/告诉家长」中间步骤；② **S1（家长未回应）**：`wish_card_task_badge`、`wish_card_fruit_stage`（含「等爸爸妈妈设定目标」）、`WishProgressBar` 三者均 `findsNothing`；仅显示愿望原文 + 许愿日期 + 等待天数；③ **S2（家长已回应）**：显示家长回信原文；回信为空时显示 §5 的 S2 兜底文案；不显示任务徽标与进度条；④ **S3（家长已给办法）**：显示 S3 标题 + 「小办法」列表（每项含名称/专注分钟/状态），显示进度；⑤ 三态判据**唯一**：`S1 = tagKey.isEmpty && parentReply.isEmpty && 关联任务数==0 && status==pending`；`S2 = (tagKey 或 parentReply 非空) && 关联任务数==0`；`S3 = 关联任务数 ≥ 1`；断言同一 wish 数据只命中一态 |
+| **R3-P0-05** | 许愿后直接挂树 + 树上三态渲染（反馈 3/4/6） | ① 提交成功即 `status = pending` 且挂载，无「选分类/选目标/告诉家长」中间步骤；② **S1（家长未回应）**：`wish_card_task_badge`、`wish_card_fruit_stage`（含「等爸爸妈妈设定目标」）、`WishProgressBar` 三者均 `findsNothing`；仅显示愿望原文 + 许愿日期 + 等待天数；③ **S2（家长已回应）**：显示家长回信原文；回信为空时显示 §5 的 S2 兜底文案；不显示任务徽标与进度条；④ **S3（家长已给办法）**：显示单句引导文案「去成长里面实现你的愿望吧」（`wishGoGrowthHint`）+ 小办法列表（详情卡展开）+ 进度；⑤ 三态判据**唯一**：`S1 = tagKey.isEmpty && parentReply.isEmpty && 关联任务数==0 && status==pending`；`S2 = (tagKey 或 parentReply 非空) && 关联任务数==0`；`S3 = 关联任务数 ≥ 1`；断言同一 wish 数据只命中一态 |
 | **R3-P0-06** | 孩子端三态文案入 ARB（中英）（反馈 4/6） | ① §5 表中每个 key 在 `app_zh.arb` / `app_en.arb` 均存在且非空；② `en_switch_guard_test` 通过（无硬编码中文）；③ S2 兜底文案与家长回信互斥（不可同时出现两段）；④ 孩子端**任何**文案不含「任务」二字（全量 grep `任务` 断言仅出现在家长端 key） |
 | **R3-P0-07** | 移除孩子端「告诉爸爸妈妈」按钮与全部推送机制（反馈 6 优先） | ① 编译产物无 `wish_share_action.dart` 引用；② 孩子端不存在「告诉爸爸妈妈 / 已告诉爸爸妈妈 / 先不告诉了」文案；③ `Wish` 实体无 `sharedToParent` / `parentHasResponded` 成员；④ 家长端无「孩子还没有把愿望告诉爸爸妈妈」空态；⑤ S1 状态下孩子端存在**非按钮式**提示（反馈 6 要求「提示孩子让爸爸妈妈看看」），断言该提示**不可点击、无 onTap**；⑥ grep 全仓无 `sharedToParent` |
 | **R3-P0-08** | schema 回退 33 → 32（反馈 6 连带） | ① `schemaVersion == 32`；② `Wishes` 列数 **= 22**（`test/m3/migration_v32_test.dart` 断言）；③ `app_database.g.dart` 无 `sharedToParent`；④ v32→v33 迁移分支与其测试删除；⑤ **真机已装 v0.2 调试包（33 版库）的处置**：本期不提供降级兼容分支，采用**卸载重装**（v0.2 未发布、仅玄参/QA 调试机受影响）；⑥ 从 31 → 32 → 32 的链路迁移测试全绿 |
-| **R3-P0-09** | 家长端「愿望任务」形态：关联愿望 + 标签（反馈 4/6，推荐方案见 §4-D3） | ① 布置办法时写入 `tasks.wish_id`（复用既有 `wishId`，**零 schema 变更**）；② 家长端愿望台布置路径可用（既有 `WishTaskEditor`），产出的任务 `wishId == wish.id` 断言通过；③ 家长端任务列表项在 `wishId != null` 时显示标签 `wishTaskBadgeOfWish`＝「愿望任务 · {愿望标题}」；④ **成长链路零影响**：`allTasks()` 默认 `includeWishTasks=false` 不变 ⇒ 「今日必做 x/y」计数不含愿望任务（写 1 条愿望任务后该计数不变）；⑤ 打卡 / 核销 / 阳光结算逻辑**零改动**（既有测试全绿）；⑥ 支持现实类办法：`requiresFocus=false` + 自由文本名（如「帮妈妈洗碗」）可创建并在孩子端 S3 列表展示 |
-| **R3-P0-10** | 家长端三动作完整 + 「无法实现」安慰话（反馈 4） | ① 愿望卡上三动作均可达（`设定目标+布置任务` / `直接实现` / `贴标签+温柔回复`），点击一次进入对应流程；② 「贴标签」内选 `notPossible` 时**预填**安慰话（推荐值见 §4-D4）且可编辑、可清空；③ 预填文案不写入 DB 直到家长点「发送回复」；④ 家长未做任何动作时，孩子端不得出现 S2/S3 元素（与 R3-P0-05 联动断言） |
+| **R3-P0-09** | 家长端「愿望任务」形态：关联愿望 + 标签（反馈 4/6，推荐方案见 §4-D3） | ① 布置办法时写入 `tasks.wish_id`（复用既有 `wishId`，**零 schema 变更**）；② 家长端成长任务关联愿望路径可用（`wish_task_editor.dart` / `task_editor_dialog.dart` / `parent_task_config_page.dart` 保留资产），产出的任务 `wishId == wish.id` 断言通过；③ 家长端任务列表项在 `wishId != null` 时显示标签 `wishTaskBadgeOfWish`＝「愿望任务 · {愿望标题}」；④ **成长链路零影响**：`allTasks()` 默认 `includeWishTasks=false` 不变 ⇒ 「今日必做 x/y」计数不含愿望任务（写 1 条愿望任务后该计数不变）；⑤ 打卡 / 核销 / 阳光结算逻辑**零改动**（既有测试全绿）；⑥ 支持现实类办法：`requiresFocus=false` + 自由文本名（如「帮妈妈洗碗」）可创建并在孩子端 S3 列表展示 |
+| **R3-P0-10** | ~~家长端三动作完整 + 「无法实现」安慰话（反馈 4）~~ **v0.4 作废** | 家长端愿望区（三动作 / 贴标签弹层）整块移除，本条不再验收；`parent_wish_action_sheet.dart` 与其测试已删除。孩子端 S2 兜底 / 安慰话口径另见 §4-D4 与既有 ARB |
 | **R3-P0-11** | 右上角图标不重合 + 图标下文字提示（反馈 5） | ① 以 `uiScale ∈ {1.0, 1.15, 1.3}` 三档渲染 390×844 视口，天气徽标矩形与许愿树入口矩形**不相交**，且垂直间距 **≥ 8dp**（`getRect` 断言）；② 天气图标**正下方**有单行天气文字（取既有 `weather_*` 文案，如「多云」），与图标间距 4dp；③ 许愿树图标**正下方**有单行文字「许愿树」（`wishTreeTitle`）；④ 两处文字 `maxLines = 1`、`overflow` 处理不溢出（`RenderBox` 无 overflow 异常）；⑤ 文字与图标属同一热区组：点文字等同点图标（跳 `/wish-tree` / 弹天气框）；⑥ 两处热区均 ≥ 44×44；⑦ 调试入口（`BloomDebugEntry`）位置重算后与两者均不重叠 |
 
 **P0 合计 11 条。**
@@ -149,7 +150,7 @@
 | **R3-P1-01** | 收藏箱 / 达成所愿池与三态口径对齐 | ① 池内条目不显示分类 emoji、不显示「0 个任务」；② 已实现条目显示实现日期（既有 `wishTreePoolDateRange`），不带未实现态文案；③ 断言池内元素集合与树上 S1/S2/S3 元素集合无交叉错用 |
 | **R3-P1-02** | 回归测试补齐 | ① 新增/改写 widget 测试 ≥ 8 个：三态各 1、弹层居中 1、字数双阈值 2、入口唯一 1、图标布局 1、家长端愿望任务标签 1；② 现有 5 个 v0.2 作废测试文件删除后 `flutter test` 全绿；③ 参数 guard 测试更新为 100/300 且断言失败可复现（反向用例） |
 | **R3-P1-03** | 旧文档作废声明（不删历史） | ① `许愿树_增量PRD_v0.2.md`、`许愿树_增量架构设计_v0.2(.mermaid)` 文首各加一行「v0.3.0 作废：孩子推送/可见性机制按玄参第 6 点作废，见 `许愿树_增量PRD_v0.3.md` §1」；② 原正文不改写、不删除；③ §1 表格 12 条作废项逐条可对应到文件/类名 |
-| **R3-P1-04** | 家长端愿望台文案回退中性化 | ① 家长端不再出现「已授权 / 分享 / 未分享」类措辞；② 空态沿用「暂时没有需要处理的愿望」；③ ARB 中 v0.2 分享键全部删除（与 R3-P0-07 同批） |
+| **R3-P1-04** | ~~家长端愿望台文案回退中性化~~ **v0.4 作废** | 家长端今日 tab 已无愿望区（不再有任何愿望卡片 / 空态）；v0.2 分享键删除仍有效 |
 | **R3-P1-05** | 成长任务编辑器「关联愿望」可选字段（反馈 6 的第二条路径） | ① 家长端成长任务编辑页存在可选「关联愿望」选择器（默认「不关联」）；② 选中后保存写入 `wish_id`；③ 选「不关联」写 `null`；④ 该字段不影响既有任务必填校验（既有测试全绿）；⑤ 未选愿望时任务行为与改造前逐位一致 |
 
 **P1 合计 5 条。**
@@ -189,8 +190,8 @@
 | ② 一起做的事 | 一起做的事 | things we do | ⚠️ 专注算「一起」牵强 | ✅ | ✅ | 中 —— 仍偏「事」 | 备选 |
 | ③ 愿望小台阶 | 愿望小台阶 | little step | ✅ | ⚠️ 洗碗不像台阶 | ⚠️ | 低 | 备选（隐喻强、通用性弱） |
 
-- **裁决**：孩子端统一叫 **「小办法」**；标题句用「你的愿望可以通过这些小办法实现哦」；家长端仍叫「任务」（成人语境无压力）。
-- **ARB 落地**：新增 `wishWayLabel`（小办法 / little way）、`wishWayTitle`、`wishWayCountBadge`（小办法 {count} 个）；**改写**既有含「任务」的孩子端键：`wishTreeTaskBadge`（{count} 个任务 → 小办法 {count} 个）、`wishProgressTaskCount`（已完成…个任务 → 已完成…个小办法）、`wishTaskBadgeLabel`（家长端保留「愿望任务」）；`wishTaskGoFocus` / `wishTaskDidIt` 文案保留（无「任务」字样）。
+- **裁决**：孩子端统一叫 **「小办法」**；S3 卡片引导句自 v0.4 起用「**去成长里面实现你的愿望吧**」（`wishGoGrowthHint`）；旧 `wishWayTitle`（「你的愿望可以通过这些小办法实现哦」）保留供详情卡等其它落点；家长端仍叫「任务」（成人语境无压力）。
+- **ARB 落地**：新增 `wishWayLabel`（小办法 / little way）、`wishWayTitle`、`wishWayCountBadge`（小办法 {count} 个）；**改写**既有含「任务」的孩子端键：`wishTreeTaskBadge`（{count} 个任务 → 小办法 {count} 个）、`wishProgressTaskCount`（已完成…个任务 → 已完成…个小办法）、`wishTaskBadgeLabel`（家长端保留「愿望任务」）；`wishTaskGoFocus` / `wishTaskDidIt` 文案保留（无「任务」字样）。**v0.4 新增** `wishGoGrowthHint`（去成长里面实现你的愿望吧 / Go make your wish come true in the Growth tab），zh/en + generated 同步。
 - **理由**：三类办法（专注 / 现实家务 / 陪伴）都能自然套进「办法」；「办法」的语义终点是**愿望实现**而非**任务完成**，符合玄参「不能让孩子心理上就是去做任务」。
 
 ### D3 家长端愿望任务形态（反馈 6）
@@ -223,7 +224,7 @@
 |---|---|---|---|---|---|
 | **S1 刚挂上（家长未回应）** | `tagKey==null && parentReply==null && 关联办法数==0 && status==pending` | 愿望原文 + 许愿日期 + 等待天数 + 1 条**不可点击**轻提示 | 提示：「想让爸爸妈妈帮帮忙？让他们看看你的愿望吧」 | "Need a hand? Show this wish to Mom or Dad." | `wishStateHangingHint` |
 | **S2 家长已回应（正在想办法 / 暂时做不到）** | `(tagKey!=null \|\| parentReply!=null) && 关联办法数==0` | 愿望原文 + 家长回信原文（有则显示）；无回信时显示兜底句 | 兜底：「爸爸妈妈正在帮你想办法实现愿望……」 | "Mom and Dad are thinking of a way to make your wish come true…" | `wishStateParentWorking` |
-| **S3 家长给了办法** | `关联办法数 >= 1` | 愿望原文 + S3 标题 + 「小办法」列表 + 进度（复用 `wishProgressFocusMinutes`） | 标题：「你的愿望可以通过这些小办法实现哦」；列表项示例：「专注 15 分钟」「帮妈妈洗碗」；进度「已专注 {done} 分钟，还差 {left} 分钟」 | "Here are some little ways to make your wish come true." / "Focus for 15 minutes" / "Help Mom wash the dishes" | `wishWayTitle` / `wishWayLabel` / 任务名由家长自由文本提供 |
+| **S3 家长给了办法** | `关联办法数 >= 1` | 愿望原文 + 单句成长引导 + 「小办法」列表（详情卡）+ 进度（复用 `wishProgressFocusMinutes`） | 引导：「**去成长里面实现你的愿望吧**」；列表项示例：「专注 15 分钟」「帮妈妈洗碗」；进度「已专注 {done} 分钟，还差 {left} 分钟」 | "Go make your wish come true in the Growth tab" / "Focus for 15 minutes" / "Help Mom wash the dishes" | `wishGoGrowthHint` / `wishWayLabel` / 任务名由家长自由文本提供 |
 
 - **S1 明确不显示**：`{count} 个任务` 徽标、「等爸爸妈妈设定目标」、「等待开始」、进度条、任何「未回应」催促语。
 - **S2 明确不显示**：任务徽标、进度条、「催家长」倒计时/红点。
@@ -239,8 +240,9 @@
 | 花园页 · 右上角 | 天气徽标下方：许愿树入口**保留**，并新增**图标下文字**「许愿树」；天气徽标下方新增**天气文字** | 二者垂直排布需按 `uiScale` 动态计算（现状 `top = 12+56+12` 固定，徽标实际高 `56*uiScale`，`uiScale>1` 时重叠 → 反馈 5 的根因） |
 | 花园页 · 左侧木牌上方 | **删除**许愿树热点 `WishTreeHotspotKey` | 反馈 1；今日页速览卡处置见 Q1 |
 | 许愿树页 · 许愿表单 | `showModalBottomSheet` → **居中弹层**；**删除 6 个分类 chip**；输入框 3 → 5 行；counter 上限随语言 | 反馈 2/3；居中弹层需处理键盘（`viewInsets`）与超高滚动 |
-| 树上愿望卡 | 三态渲染；S1/S2 不显示徽标与进度条；S3 显示「小办法」列表 | 反馈 4/6；判据单点，禁止在 widget 里散写条件 |
-| 家长端 · 愿望台 | 恢复**全量可见**；三动作保留；「贴标签」`notPossible` 预填安慰话 | 反馈 4/6；v0.2 空态卡删除 |
+| 树上愿望卡 | 三态渲染；S1/S2 不显示徽标与进度条；S3 显示单句成长引导「去成长里面实现你的愿望吧」+「小办法」列表 | 反馈 4/6 + v0.4 文案合并；判据单点，禁止在 widget 里散写条件 |
+| 家长端 · 今日 tab | **v0.4：愿望区整块移除**，不再显示孩子的愿望；仅保留「待确认成长项 + 待核销奖励」 | 玄参裁定；`WishTreeSection` 等专属组件与测试同步删除 |
+| 家长端 · 成长任务 | 关联愿望路径保留（`parent_task_config_page.dart` / `wish_task_editor.dart` / `task_editor_dialog.dart`） | 反馈 6 第二路径，v0.4 不动 |
 | 家长端 · 任务列表 | `wishId != null` 显示「愿望任务 · {愿望标题}」标签 | 反馈 6；不计入今日必做计数 |
 | 家长端 · 成长任务编辑 | 新增可选「关联愿望」下拉（默认不关联） | 反馈 6 第二路径（P1） |
 
@@ -253,7 +255,7 @@
 | # | 问题 | 推荐 | 理由 | 影响范围 |
 |---|---|---|---|---|
 | **Q1** | 今日页底部许愿树速览卡（`child_today_wish_tree_entry`）是否保留？ | **保留** | 反馈 1 只说「左下角那个入口需要删除」，指向花园页左木牌上方热点；今日页是「今日任务完成后」的第三个入口，与「花园里 2 个入口重复」不是同一问题 | R3-P0-01 断言「花园页入口数 = 1」不变；今日页那处单列断言 |
-| **Q2** | 家长端是否恢复「全部愿望可见」（即撤回 v0.2 可见性过滤）？ | **恢复全量可见** | 第 6 点「爸爸妈妈看完后…」隐含家长能看到；不推送不等于不可见，隐私边界靠「App 是同一台设备」的物理前提 | R3-P0-07 回归口径；家长端空态回退 |
+| **Q2** | 家长端是否恢复「全部愿望可见」（即撤回 v0.2 可见性过滤）？ | **恢复全量可见**（领域服务口径；v0.4 起今日 tab 不再展示愿望区） | 第 6 点「爸爸妈妈看完后…」隐含家长能处理；不推送不等于不可见，隐私边界靠「App 是同一台设备」的物理前提 | R3-P0-07 回归口径；家长端空态随愿望区移除 |
 | **Q3** | 「无法实现」后愿望是否下树 / 进池？ | **保持在树上**（只落 S2 安慰态） | 反馈 4「愿望再不需要父母帮忙的时候，就挂在树上就好」；下树会让孩子觉得「愿望被删掉了」 | R3-P0-10 与 R3-P0-05 的 S2 断言 |
 | **Q4** | 字数上限按「当前 App 语言」还是按「输入内容」判定？ | **按 App 语言** | 内容判定需字符集嗅探，中英混输时判据不稳定、不可测；按语言是确定的 | R3-P0-04 实现口径 |
 | **Q5** | 玄参/QA 真机上已安装的 v0.2 调试包（DB schemaVersion=33）如何处置？ | **卸载重装**（不写降级兼容分支） | v0.2 未发布、未进任何用户设备；为一次性调试库写兼容代码会长期污染迁移链 | R3-P0-08；仅影响 2 台调试机 |
@@ -276,8 +278,9 @@
 | `test/guard/wish_params_guard_test.dart` | 字数常量断言 | 30 → 100/300 双阈值 |
 | `lib/l10n/app_zh.arb` / `app_en.arb` / `generated/*` | 分享键 5 个 / 分类键 6 个 / 含「任务」孩子端键 3 个 | 删除 / 保留 / 改写见 D2、§1.1 #8 |
 
-**代码落点提示（仅供架构师参考，本文档不写 Dart）**：`database/tables.dart`（Wishes 列）、`app_database.dart`（schemaVersion / `_ensureColumn` 33 分支）、`app_database.g.dart`、`domain/entities/wish.dart`（`sharedToParent` / `parentHasResponded`）、`wish_local_repository.dart`、`wish_orchestration_service.dart`（`createWish` / `parentDeskList` / `share*`）、`actions/wish_state.dart`（两端）、`child/pages/garden_page.dart`（右上角布局 + 删左下热点）、`child/pages/wish_tree_page.dart`（弹层居中 + 三态装配）、`child/widgets/wish_compose_dialog.dart`（删分类 + 5 行 + 双阈值）、`child/widgets/wish_card.dart` / `wish_card_detail.dart`（三态渲染）、`parent/pages/parent_today_page.dart`（空态回退 + 预填安慰话）、`parent/pages/parent_task_config_page.dart`（关联愿望下拉）、`core/constants/prd_params.dart`（字数与布局单点）。
+**代码落点提示（仅供架构师参考，本文档不写 Dart）**：`database/tables.dart`（Wishes 列）、`app_database.dart`（schemaVersion / `_ensureColumn` 33 分支）、`app_database.g.dart`、`domain/entities/wish.dart`（`sharedToParent` / `parentHasResponded`）、`wish_local_repository.dart`、`wish_orchestration_service.dart`（`createWish` / `parentDeskList` / `share*`）、`actions/wish_state.dart`（两端）、`child/pages/garden_page.dart`（右上角布局 + 删左下热点）、`child/pages/wish_tree_page.dart`（弹层居中 + 三态装配）、`child/widgets/wish_compose_dialog.dart`（删分类 + 5 行 + 双阈值）、`child/widgets/wish_card.dart` / `wish_card_detail.dart`（三态渲染）、`parent/pages/parent_today_page.dart`（v0.4：愿望区整块移除，仅保留待核销成长项 / 兑换卡）、`parent/pages/parent_task_config_page.dart`（关联愿望下拉）、`core/constants/prd_params.dart`（字数与布局单点）。
 
 ---
 
 **变更记录**：v0.3.0 / 2026-11-18 / 许清楚 —— 依玄参 v0.2 真机验收 6 条反馈创建；按第 6 点作废 v0.2 全部推送/可见性机制（12 条）；给出 5 个决策点推荐值与三态文案；需求池 18 条（P0 11 / P1 5 / P2 2）。
+**v0.4 / 2026-11-19 / 玄参裁定（工程同步）**：家长端今日 tab 愿望区整块移除（专属组件/provider/测试删除），成长任务关联愿望入口保留；孩子端 S3 两行文案合并为单句 `wishGoGrowthHint`。

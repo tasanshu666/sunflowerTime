@@ -1,0 +1,112 @@
+%% 许愿树 · 增量架构设计 v0.3 —— 时序图（简化许愿闭环 + 真机反馈修复）
+%% 版本 v0.3.0 / 2026-11-19 / 高见远
+%% 基线：HEAD 7f19c61 + 工作区 v0.2 未提交增量（schemaVersion 33 / Wishes 23 列）
+%% 四条流程：A 居中选择愿→直接挂树；B 树上三态渲染；C 家长布置小办法+现实类；D 回退闸门自证。
+
+sequenceDiagram
+    autonumber
+
+    %% ===== 流程 A：许愿（居中弹层 → 直接挂树）=====
+    rect rgb(245, 250, 240)
+    Note over C,DB: 流程 A · 许愿：居中弹层 → 直接挂树（R3-P0-02 / 03 / 04 / 05）
+    participant C as 孩子
+    participant W as WishTreePage
+    participant D as WishComposeDialog(居中)
+    participant L as wishMaxTextLength(locale)
+    participant O as WishOrchestrationService
+    participant DB as Wishes(schema 32 · 22列)
+    participant R as economyRevision
+
+    C->>W: 点「开始许愿」
+    W->>D: showDialog(barrierDismissible:false) 居中/85%高/内部滚动
+    D->>D: 无分类 chip（已删）；输入框 5 行
+    C->>D: 输入愿望文本
+    D->>L: wishMaxTextLength(localeName)
+    L-->>D: zh=100 / en=300
+    D->>D: counter {count}/{max}；_tooLong = runes.length > max
+    alt 超限
+        D-->>C: counter 标红，提交被拦，弹层不关闭，草稿保留
+    else 合规
+        D-->>W: WishComposeResult(text)
+        W->>O: createWish(text, category=WishCategory.other, now, maxTextLength=max)
+        O->>O: 校验 2 <= runes.length <= maxTextLength
+        O->>DB: INSERT status=pending, treeSlot 分配, category=0
+        DB-->>O: ok
+        O->>R: revision++（既有 economy 总线）
+        O-->>W: created Wish
+        Note over W,DB: 直接挂树；无分类/目标/告诉家长 中间步骤
+    end
+    end
+
+    %% ===== 流程 B：树上三态渲染 =====
+    rect rgb(250, 245, 240)
+    Note over P,F: 流程 B · 树上三态（S1/S2/S3，家长动作驱动 · 单一判据）
+    participant P as 孩子端
+    participant F as wishTreeFaceOf(wish, wayCount)
+    participant T as wishTasksFamilyProvider
+    participant CARD as WishCard
+    participant O as WishOrchestrationService
+
+    P->>T: 观察 wishTasksFamilyProvider(wish.id)
+    T->>O: tasksOf(wishId=wish.id)
+    O-->>T: ways (List~Task~)
+    T-->>F: wayCount = ways.length
+    F->>F: wayCount>=1 ? hasWays : (tagKey 或 parentReply 非空) ? parentResponded : (pending&&released==null) ? hanging : parentResponded
+    F-->>CARD: WishTreeFace
+    alt S1 hanging（家长未回应）
+        CARD-->>P: 原文 + 日期 + 等待天数 + 「让爸爸妈妈看看你的愿望吧」(不可点)
+        Note over CARD: 不渲染 任务徽标/进度条/「等爸爸妈妈设定目标」
+    else S2 parentResponded（家长已回应）
+        CARD-->>P: 原文 + 家长回信 或 兜底「爸爸妈妈正在帮你想办法实现愿望……」
+        Note over CARD: 不渲染 任务徽标/进度条/催促
+    else S3 hasWays（家长给了小办法）
+        CARD-->>P: 原文 + 「你的愿望可以通过这些小办法实现哦」+ 小办法列表 + 进度
+    end
+    end
+
+    %% ===== 流程 C：家长布置「小办法」+ 现实类 =====
+    rect rgb(240, 245, 252)
+    Note over PR,TSK: 流程 C · 家长布置小办法（愿望台主路径 / 成长编辑器 P1 第二路径）
+    participant PR as 家长
+    participant WED as WishTaskEditor(愿望台)
+    participant TED as TaskEditorDialog(成长编辑器 P1)
+    participant TR as TaskRepository
+    participant TSK as Tasks(wish_id)
+    participant TD as allTasks(includeWishTasks=false)
+
+    alt 主路径：愿望台布置
+        PR->>WED: 「设定目标+布置任务」
+        WED->>TR: saveTask + assignTasks(wishId=wish.id)
+    else P1 第二路径：成长任务编辑关联愿望
+        PR->>TED: 选「关联愿望」下拉（默认不关联=null）
+        TED->>TR: saveTask(wishId=选中 or null)
+    end
+    TR->>TSK: 写 wish_id
+    Note over WED,TSK: 现实类办法 = requiresFocus=false + 自由文本 name（如「帮妈妈洗碗」），走既有「我做到了→家长核销」
+    %% 隔离自证
+    PR->>TD: 读今日必做列表
+    TD-->>PR: 仅普通任务（愿望任务被 includeWishTasks=false 过滤）
+    Note over TD: 今日必做 x/y / 完成率 / 阳光结算 均不含愿望任务（零改动）
+    end
+
+    %% ===== 流程 D：回退闸门自证（v0.2 保留项）=====
+    rect rgb(252, 245, 240)
+    Note over G,W2: 流程 D · 树页场景闸门停播花园环境音（保留项自证，勿回退）
+    participant G as GardenPage
+    participant W2 as WishTreePage
+    participant S as wishTreeSceneActiveProvider
+    participant A as AudioService(API 冻结)
+    participant TI as Timer.periodic(30s)
+
+    G->>A: playGardenAmbient()（花园可见）
+    G->>TI: 启动 30s
+    W2->>S: initState 抓 _sceneGateCtrl；addPostFrameCallback 置 state=true
+    S-->>G: build 重算 ambientActive=false
+    G->>TI: cancel()
+    G->>A: stopGardenAmbient(reason:'wishTreeCover')
+    Note over TI,A: 停留 60s 无重新起播
+    W2->>S: dispose：scheduleMicrotask 置 state=false（避免 build 期改 provider 崩溃）
+    S-->>G: build 重算 ambientActive=true
+    G->>A: playGardenAmbient()
+    G->>TI: 重启 30s
+    end

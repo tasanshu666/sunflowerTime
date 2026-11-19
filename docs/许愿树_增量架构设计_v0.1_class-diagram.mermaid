@@ -600,3 +600,28 @@ classDiagram
     WishOrchestrationService ..> EconomyRevisionProvider : onChanged 自增（DI 装配）
     PendingWishEventIdsProvider ..> SettingsStore : 写已读集合（合并写）
     PendingWishEventIdsProvider ..> WishEventKind : 事件 id 的 kind 段
+
+    %% ===== 附录 V02 · v0.2.0 口径同步补丁（同属 v0.1 图，随 v0.2 一并执行）=====
+    %% 版本 v0.2.0 / 2026-11-18 / 高见远。历史正文保留不改写、不删行、不重排。
+    %% 权威增量图见并存的 许愿树_增量架构设计_v0.2_class-diagram.mermaid。
+    %% V02.1 列数：Wishes 22 → 23 列；新增列 sharedToParent（BoolColumn，DB INTEGER NOT NULL DEFAULT 0）。
+    %%   v0.1 图中 Wishes / Wish 实体的 22 列清单在 v0.2.0 语境下顺延为 23 列（末列 sharedToParent）。
+    %% V02.2 Wish 实体新增只读判据 parentHasResponded := tagKey != null || parentReply != null（Q1 撤回判据单一真源）。
+    %% V02.3 WishOrchestrationService 新增两方法：
+    %%   + shareWishToParent(String id, DateTime now) —— 写 sharedToParent=true，revision++；
+    %%   + withdrawShare(String id) —— 守卫 parentHasResponded，未回应才写 false（已回应置灰不写库）。
+    %% V02.4 parentDeskList() 读取追加过滤 where(sharedToParent == true)；countStampedAchieved() 不过滤（盖章与可见性解耦）。
+    %% V02.5 新增依赖：WishTreePage ..> wishTreeSceneActiveProvider : initState true / dispose false（音频闸门）；
+    %%   GardenPage ..> wishTreeSceneActiveProvider : watch（环境音 active = gardenVisible && !scene）；
+    %%   WishTreePage --> WishShareAction : 承载分享/撤回按钮。
+    %% V02.6 schemaVersion 32 → 33；不改索引清单（仍 4 条）；全仓 30 文件 / 78 处断言同步为 33。
+
+    %% ===== 附录 V03 · v0.3.0 作废并回退补丁（同属 v0.1 图，随 v0.3 一并执行）=====
+    %% 版本 v0.3.0 / 2026-11-19 / 高见远。历史正文与 V02 补丁保留不改写、不删行、不重排。
+    %% 权威增量图见并存的 许愿树_增量架构设计_v0.3_class-diagram.mermaid。
+    %% V03.1 回退 V02：schemaVersion 33 → 32；Wishes 23 → 22 列（删除 sharedToParent）；删 migration_v33。
+    %% V03.2 Wish 实体删 sharedToParent / parentHasResponded（v0.2 撤回判据不再需要）。
+    %% V03.3 WishOrchestrationService 删 shareWishToParent / withdrawShare；parentDeskList() 恢复全量可见（删 where(sharedToParent)）。
+    %% V03.4 删 wish_share_action.dart / wishShareRevisionProvider / 家长端「无可见愿望」空态卡 / 5 个分享 ARB 键。
+    %% V03.5 新增保留/重构（详见 v0.3 图）：wishTreeFaceOf(wish,wayCount) 三态纯函数；wishMaxTextLength(locale) 双阈值；
+    %%   Tasks 复用 wishId 承载「小办法」（零 schema）；garden 右上角 Column 簇（scale 感知 + 双文字标签）。

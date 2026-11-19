@@ -1,0 +1,115 @@
+%% 🔴【v0.3.0 作废：孩子推送/可见性机制按玄参第 6 点作废，见 docs/许愿树_增量PRD_v0.3.md §1】
+%% 许愿树 · 增量架构设计 v0.2 —— 时序图（孩子自主推送 + 真机反馈修复）
+%% 版本 v0.2.0 / 2026-11-18 / 高见远
+%% 基线：v0.7.0（HEAD 7f19c61，schemaVersion 32 / wishes 22 列）
+%% 相对 v0.1 时序图的增量：新增 ①点亮推送→家长可见 ②撤回 ③场景闸门停/复播 ④弹层取消/遮罩 四条；
+%%   家长端读取路径 parentDeskList 增加 sharedToParent==true 判断节点。旧图以 v0.1 文件保留，本图并存。
+
+sequenceDiagram
+    autonumber
+
+    %% ===== 流程 A：孩子点亮推送 → 家长端可见 =====
+    rect rgb(245, 250, 240)
+    Note over C,D: 流程 A · 孩子点亮「告诉爸爸妈妈」→ 家长端可见（R-P0-01 / R-P0-02）
+    participant C as 孩子（愿望卡）
+    participant S as WishShareAction
+    participant T as WishTreePage
+    participant O as WishOrchestrationService
+    participant R as WishLocalRepository
+    participant DB as Wishes(schema 33)
+    participant P as wishShareRevisionProvider
+    participant G as GardenPage(环境音)
+    participant D as 家长端 parentDeskList
+
+    C->>S: 点「告诉爸爸妈妈」
+    S->>T: onShare(wish.id)
+    T->>O: shareWishToParent(id, now)
+    O->>O: _serialized 串行化
+    O->>R: byId(id)
+    R-->>O: Wish(sharedToParent=false)
+    O->>R: save(wish.copyWith(sharedToParent=true))
+    R->>DB: UPDATE sharedToParent=1
+    DB-->>R: ok
+    O->>P: revision++ (state = state+1)
+    O-->>T: updated Wish
+    T->>S: 重绘为「已告诉爸爸妈妈」(Q2 中性，无倒计时)
+    P-->>D: parentWishDeskProvider 失效重算
+    D->>O: parentDeskList(now)
+    O->>R: byStatuses(treeStatuses)
+    R-->>O: rows
+    O->>O: where(releasedAt==null) AND where(sharedToParent==true)
+    O->>O: sort(remindedAt → waitDays → id)
+    O-->>D: 仅返回已授权愿望
+    Note over D: 0 条 ⇒ R-P1-03 空态文案
+    end
+
+    %% ===== 流程 B：撤回（Q1 判据）=====
+    rect rgb(250, 245, 240)
+    Note over C,D: 流程 B · 撤回（Q1 可撤回，家长已回应则置灰）
+    C->>S: 点「先不告诉了」
+    S->>S: canWithdraw = sharedToParent && !wish.parentHasResponded
+    alt 家长已回应 (tagKey!=null || parentReply!=null)
+        S-->>C: 按钮置灰 + tooltip「爸爸妈妈已经回应啦」(不写库)
+    else 家长未回应
+        S->>O: withdrawShare(id)
+        O->>R: byId(id)
+        R-->>O: Wish
+        O->>O: 守卫 if (wish.parentHasResponded) return
+        O->>R: save(wish.copyWith(sharedToParent=false))
+        R->>DB: UPDATE sharedToParent=0
+        O->>P: revision++
+        P-->>D: 列表重算 → 该愿望从家长端消失
+        Note over DB: tagKey / parentReply / taggedAt 一律不动
+        Note over DB: status 六态不变；盖章计数不受影响
+    end
+    end
+
+    %% ===== 流程 C：进入 / 退出许愿树的音频闸门 =====
+    rect rgb(240, 245, 252)
+    Note over C,A: 流程 C · 场景闸门停播花园环境音（R-P0-04）
+    participant GP as GardenPage
+    participant W as WishTreePage
+    participant G2 as wishTreeSceneActiveProvider
+    participant A as AudioService(既有单例，API 不变)
+    participant T2 as Timer.periodic(30s)
+
+    GP->>A: playGardenAmbient() (花园可见时)
+    GP->>T2: 启动 30s 周期
+    C->>W: 点新入口 / 旧入口 → context.push('/wish-tree')
+    W->>G2: initState: state = true
+    G2-->>GP: build 重算 ambientActive = gardenVisible && !true = false
+    GP->>T2: cancel()
+    GP->>A: stopGardenAmbient(reason:'wishTreeCover')
+    Note over T2,A: 停留 60s：定时器已取消，无任何重新起播 ⇒ isPlaying=false
+    C->>W: 返回（pop）
+    W->>G2: dispose: state = false
+    G2-->>GP: build 重算 ambientActive = true
+    GP->>A: playGardenAmbient()
+    GP->>T2: 重新 Timer.periodic(30s)
+    end
+
+    %% ===== 流程 D：弹层取消 / 点遮罩（三缺陷修复）=====
+    rect rgb(252, 245, 240)
+    Note over P1,PS: 流程 D · 弹层取消 / 点遮罩（R-P0-06/07/08）
+    participant P1 as 家长
+    participant SH as ParentWishActionSheet
+    participant N as Navigator
+    participant PT as ParentTodayPage
+    participant PS as 家长空间 (PopScope canPop:false)
+
+    P1->>SH: 打开贴标签弹层 (barrierDismissible:false)
+    SH-->>P1: 单一标题「选一个标签（可以跳过）」/「预设回复」；items=6 无 null
+    alt 点遮罩空白
+        N--xSH: 不 pop (barrierDismissible:false)
+        Note over P1,PS: 仍在家长空间，不触发 context.go('/')
+    else 点「取消」
+        SH->>N: pop() → null (不再弹 false)
+        N-->>PT: result = null
+        PT->>PT: if (result is! WishTagReplyResult) return
+        Note over P1,PS: 无 NoSuchMethodError，无未捕获异常，留在家长空间
+    else 点「应用」
+        SH->>N: pop(WishTagReplyResult(tag, reply, occasion))
+        N-->>PT: result is WishTagReplyResult
+        PT->>PT: tagWithReply(...) in try/catch
+    end
+    end

@@ -553,3 +553,29 @@ sequenceDiagram
     SVC->>TRK: track(wishUndo)（{'wish_id': String, 'actor': 'parent'}，type = TrackingType.metric；复用 tracking_events 表、零新增列）
     SVC->>BUS: onChanged() → state++（孩子端 / 家长端同步刷新）
     Note over BUS,PAR: 🔴 家长不处理 = 默认保留、系统不自动退回<br/>🔴 该反向边仅家长端显式操作触发，孩子端不得触发
+
+    %% ===== 附录 V02 · v0.2.0 口径同步补丁（同属 v0.1 图，随 v0.2 一并执行）=====
+    %% 版本 v0.2.0 / 2026-11-18 / 高见远。历史正文保留不改写、不删行、不重排。
+    %% 权威增量图见并存的 许愿树_增量架构设计_v0.2_sequence-diagram.mermaid。
+    %% V02.1 家长端读取流程（本图 L152 / L457 / L534 的 parentDeskList(now) 调用）在 v0.2.0 语境下追加可见性判断节点：
+    %%   SVC->>SVC: where(releasedAt==null) AND where(sharedToParent==true)；0 条 ⇒ 中性空态文案（R-P1-03）。
+    %%   Note: 过滤在数据源层完成，不在 UI 隐藏；remindedAt 排序与红点仅对已授权愿望生效。
+    %% V02.2 新增时序（完整版见 v0.2 图）：
+    %%   流程A 点亮推送：孩子点「告诉爸爸妈妈」→ shareWishToParent(id,now) → UPDATE sharedToParent=1
+    %%     → revision++ → 家长端 parentDeskList 重算 ⇒ 家长端可见（孩子端中性「已告诉爸爸妈妈」，无倒计时）。
+    %%   流程B 撤回：孩子点「先不告诉了」→ 判据 !wish.parentHasResponded（tagKey==null && parentReply==null）
+    %%     → withdrawShare(id) → UPDATE sharedToParent=0 → 家长端隐藏；已回应则置灰不写库；盖章计数不受影响。
+    %%   流程C 音频闸门：push('/wish-tree') → wishTreeSceneActiveProvider=true → 花园页 ambientActive=false
+    %%     → 取消 30s Timer + stopGardenAmbient；返回 dispose → false → 恢复播放（API 不变）。
+    %%   流程D 弹层修复：barrierDismissible:false；取消 pop()→null（不再弹 false）；调用方 is 守卫 + try/catch。
+    %% V02.3 countStampedAchieved() 调用链（本图 L1265）口径不变、禁止加可见性过滤（R-P0-03）。
+
+    %% ===== 附录 V03 · v0.3.0 作废并回退补丁（同属 v0.1 图，随 v0.3 一并执行）=====
+    %% 版本 v0.3.0 / 2026-11-19 / 高见远。历史正文与 V02 补丁保留不改写、不删行、不重排。
+    %% 权威增量图见并存的 许愿树_增量架构设计_v0.3_sequence-diagram.mermaid。
+    %% V03.1 作废 V02 的分享/可见性两条流程（点亮推送→家长可见 / 撤回）；改为不发推送、家长端全量可见。
+    %% V03.2 新增四流程（详见 v0.3 图）：
+    %%   A 居中选择愿→createWish(category=other,maxTextLength)→status=pending 直接挂树；
+    %%   B 树上三态 wishTreeFaceOf(wish,wayCount) → S1/S2/S3 渲染；
+    %%   C 家长布置小办法（愿望台主路径 / 成长编辑器 P1 关联下拉）→ tasks.wish_id；allTasks(includeWishTasks=false) 今日必做不变；
+    %%   D 树页场景闸门（保留项自证）postFrame/scheduleMicrotask 翻转 → 花园 _syncAmbientTimer() 成对停/复播。

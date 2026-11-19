@@ -1,0 +1,111 @@
+%% 许愿树 · 增量架构设计 v0.3 —— 类图（简化许愿闭环 + 真机反馈修复）
+%% 版本 v0.3.0 / 2026-11-19 / 高见远
+%% 基线：HEAD 7f19c61 + 工作区 v0.2 未提交增量（schemaVersion 33 / Wishes 23 列）
+%% 本批 = 回退 v0.2 推送机制（schema 33→32 / 23→22 列），新增三态/字数双阈值/小办法/居中/scale 布局。
+classDiagram
+    class Wish {
+        +String id
+        +String childId
+        +String text
+        +WishCategory category «列保留 / 输入下线»
+        +WishStatus status
+        +DateTime createdAt
+        +DateTime? fulfilledAt
+        +String? fulfillSource
+        +DateTime? parentReply
+        +String? tagKey
+        +DateTime? taggedAt
+        +DateTime? releasedAt
+        +int? treeSlot
+        +WishGoalMode targetMode
+        +int targetValue
+        +int progressValue
+        +bool isMounted
+        +bool isTagged
+        -bool sharedToParent «v0.3 已删»
+        -bool parentHasResponded «v0.3 已删»
+    }
+
+    class WishTreeFace {
+        <<enum · domain 纯函数>>
+        hanging
+        parentResponded
+        hasWays
+    }
+    class wishTreeFaceOf {
+        <<top-level pure fn>>
+        +wishTreeFaceOf(wish, wayCount) WishTreeFace
+    }
+
+    class Wishes {
+        <<Drift Table · schemaVersion 32 · 22 列>>
+        +IntColumn id
+        +TextColumn text
+        +IntColumn category «保留»
+        +IntColumn status
+        +TextColumn? tagKey
+        +TextColumn? parentReply
+        +DateTimeColumn? taggedAt
+        +DateTimeColumn? releasedAt
+    }
+
+    class WishRepository {
+        <<interface · 签名不变>>
+        +byStatuses(statuses) List~Wish~
+        +countStampedAchieved() int «不过滤»
+        +byId(id) Wish?
+        +save(wish) void
+    }
+    class WishOrchestrationService {
+        +parentDeskList(now) List~Wish~ «恢复全量可见»
+        +createWish(text, category, now, maxTextLength) Wish «+maxTextLength»
+        -shareWishToParent «v0.3 已删»
+        -withdrawShare «v0.3 已删»
+    }
+
+    class Tasks {
+        <<既有表 · 零 schema 变更>>
+        +TextColumn? wishId «关联愿望»
+        +BoolColumn requiresFocus «现实类=false»
+        +TextColumn name «自由文本»
+    }
+    class TaskRepository {
+        +allTasks() «includeWishTasks=false 不变»
+        +allTasksIncludingWish() «既有»
+    }
+
+    class wishMaxTextLength {
+        <<top-level pure fn>>
+        +wishMaxTextLength(langCode) int «zh=100/en=300»
+    }
+
+    class wishTreeSceneActiveProvider {
+        <<StateProvider~bool~ · 保留>>
+    }
+    class wishShareRevisionProvider {
+        <<v0.3 已删>>
+    }
+
+    class WishCard {
+        +WishTreeFace face
+        +int wayCount
+    }
+    class GardenPage {
+        +Column 簇(天气/许愿树/调试)
+        -_syncAmbientTimer() «保留成对启停»
+    }
+    class WishComposeDialog {
+        <<Dialog 居中 85% 内部滚动>>
+    }
+
+    Wish "1" -- "1" Wishes : mapped by
+    WishRepository <|.. WishLocalRepositoryImpl : implements
+    WishOrchestrationService --> WishRepository : uses
+    WishOrchestrationService --> Tasks : 愿望任务(wishId)
+    wishTreeFaceOf ..> WishTreeFace : returns
+    wishTreeFaceOf ..> Wish : reads
+    WishCard ..> wishTreeFaceOf : uses(唯一判据)
+    WishCard ..> WishTreeFace : renders by
+    GardenPage ..> wishTreeSceneActiveProvider : watches (ambient gate)
+    WishComposeDialog ..> wishMaxTextLength : counter == validation
+    WishOrchestrationService ..> wishMaxTextLength : createWish maxTextLength

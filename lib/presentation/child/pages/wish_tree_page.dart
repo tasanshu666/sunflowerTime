@@ -30,18 +30,17 @@ import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/domain/services/wish_face_state.dart';
 import 'package:sunflower_time/domain/services/wish_orchestration_service.dart';
-import 'package:sunflower_time/domain/services/wish_progress.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/state/wish_state.dart';
 import 'package:sunflower_time/presentation/child/state/wish_tree_scene_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_anniversary_card.dart';
-import 'package:sunflower_time/presentation/child/widgets/wish_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_card_detail.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_collection_box.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_compose_dialog.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_pool_tile.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_task_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/wish_tree_scene.dart';
 
 // ── 页级只读 provider（组合既有服务方法，不改接线层） ────────────────────────
 
@@ -412,13 +411,87 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
             child: SingleChildScrollView(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                child: _DetailBody(
+                child: WishDetailBody(
                   wish: wish,
                   t: t,
                   now: _now,
                   onCollect: () => _collect(wish),
                   onChange: () => _change(wish, t),
                   onSelfFulfill: () => _selfFulfill(wish),
+                  // 达成落库后关掉详情，孩子直接看到愿望已从树上移进愿望池。
+                  onRealized: () {
+                    if (ctx.mounted) Navigator.of(ctx).pop();
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 收藏箱 / 愿望池居中卡片弹窗（玄参 iPad 13 反馈 3）。
+  ///
+  /// 几何照抄 [_openDetail]：Dialog transparent + insetPadding(24,40) +
+  /// Container maxWidth420 / maxHeight 85% 屏高 + 圆角24 + SingleChildScrollView。
+  /// [content] 是已组装好的只读 body（[_boxContent] / [_poolContent]），
+  /// 与整页分段共用同一份实现，避免重复渲染逻辑。
+  void _openListDialog({
+    required Key key,
+    required String title,
+    required Widget content,
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) {
+        final Size screen = MediaQuery.sizeOf(ctx);
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: Container(
+            key: key,
+            constraints: BoxConstraints(
+              maxWidth: 420,
+              maxHeight: screen.height * 0.85,
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBF0),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF5A4321),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          key: const Key('wish_list_dialog_close'),
+                          icon: const Icon(Icons.close),
+                          tooltip: MaterialLocalizations.of(ctx).closeButtonTooltip,
+                          onPressed: () => Navigator.of(ctx).pop(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    content,
+                  ],
                 ),
               ),
             ),
@@ -434,7 +507,9 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
     return L10nScope(
       child: Scaffold(
         appBar: AppBar(
-          title: Text(t.wishTreeTitle),
+          // 玄参 2026-11-19 美术接入：页面标题改「美好愿望」；wishTreeTitle
+          // 保留供花园入口等其它复用点使用（key 本身不删，测试守卫仍绿）。
+          title: Text(t.wishPageTitle),
           leading: IconButton(
             key: const Key('wish_tree_back'),
             icon: const Icon(Icons.arrow_back),
@@ -465,8 +540,11 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
                     );
                   },
                 ),
-              _buildSectionSwitch(t),
-              _buildHangingRow(t),
+              // 🔴 玄参 2026-11-19 美术接入：树上段改沉浸场景（背景/大树/三态蛋/
+              // 三按钮），场景自带导航，故隐藏三段 chip 与悬浮许愿行；但两个
+              // 方法保留（box/pool 段仍用 chip，_buildHangingRow 守源码断言）。
+              if (_section != _WishSection.tree) _buildSectionSwitch(t),
+              if (_section != _WishSection.tree) _buildHangingRow(t),
               Expanded(child: _buildSection(t)),
             ],
           ),
@@ -548,6 +626,15 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
         _WishSection.pool => _buildPool(t),
       };
 
+  /// 树上愿望 → 场景蛋（三态唯一判据仍走领域 [wishTreeFaceOf]）。
+  ///
+  /// 🔴 玄参 2026-11-20 布局返工：tree 段**只有一个占满 body 的全屏沉浸场景**。
+  /// 背景 BoxFit.cover 铺满、大树真实树根像素压背景土坡、一愿望一蛋挂树冠下方；
+  /// 原 WishCard 列表已删除（box/pool 段不受影响）。
+  /// 三态选图：S1/S2 → 许愿蛋；S3 hasWays → 正在实现蛋；
+  /// 达成蛋 egg_done 仍只用于愿望池段，不动。
+  /// 🔴 iPad 13 反馈：蛋下不挂「小办法 N 个」青色角标；S3 办法证据下沉到
+  /// 详情浮层的办法列表（见 [WishDetailBody]），树上蛋只呈现蛋图。
   Widget _buildTree(AppLocalizations t) => Consumer(
         builder: (BuildContext context, WidgetRef ref, Widget? _) {
           final List<Wish> wishes = ref.watch(wishTreeProvider).value ?? <Wish>[];
@@ -555,73 +642,117 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
           final List<Wish> sorted = <Wish>[...wishes]
             ..sort((Wish a, Wish b) =>
                 (a.treeSlot ?? 0).compareTo(b.treeSlot ?? 0));
-          if (sorted.isEmpty) {
-            return Center(
-              key: const Key('wish_tree_empty_tree'),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  t.wishTreeEmptyTree,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 15, color: Color(0xFF8A7A66)),
-                ),
-              ),
-            );
+
+          final List<WishEgg> eggs = <WishEgg>[];
+          for (final Wish wish in sorted) {
+            final int wayCount =
+                ref.watch(wishTasksFamilyProvider(wish.id)).value?.length ?? 0;
+            final WishTreeFace face =
+                wishTreeFaceOf(wish: wish, wayCount: wayCount);
+            eggs.add(WishEgg(
+              asset: face == WishTreeFace.hasWays
+                  ? WishTreeArt.eggGrowing
+                  : WishTreeArt.eggWish,
+              label: wish.text,
+              onTap: () => _openDetail(wish, t),
+              // 接过真实页面测试的点击标识（原卡片载体 → 现在的蛋）。
+              key: Key('wish_card_${wish.id}'),
+            ));
           }
-          return ListView.builder(
-            key: const Key('wish_tree_list'),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            itemCount: sorted.length,
-            itemBuilder: (BuildContext context, int index) {
-              final Wish wish = sorted[index];
-              // v0.3.0（R3-P0-05 / S1）：`wayCount` = 关联「小办法」条数；
-              // 三态由领域纯函数 `wishTreeFaceOf` **单出口**判定，UI 不自写条件。
-              final int wayCount =
-                  ref.watch(wishTasksFamilyProvider(wish.id)).value?.length ?? 0;
-              final WishTreeFace face =
-                  wishTreeFaceOf(wish: wish, wayCount: wayCount);
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: WishCard(
-                  wish: wish,
-                  t: t,
-                  highlight: _highlightWishId == wish.id,
-                  face: face,
-                  taskCount: wayCount,
-                  waitDays: WishOrchestrationService.waitingDays(
-                    wish.createdAt,
-                    _now,
-                  ),
-                  onTap: () => _openDetail(wish, t),
+
+          return Stack(
+            children: <Widget>[
+              // 场景占满 Expanded 给到的全部空间（不再 0.56 切分）。
+              WishTreeScene(
+                key: const Key('wish_tree_scene'),
+                eggs: eggs,
+                onStartWish: () => _startWish(t),
+                // 🔴 iPad 13 反馈 3：收藏箱 / 愿望池改居中 Dialog 弹窗，
+                // 不再 setState 切走 tree 段 —— tree 段永远是全屏场景。
+                onOpenBox: () => _openListDialog(
+                  key: const Key('wish_box_dialog'),
+                  title: t.wishSceneBoxLabel,
+                  content: _boxContent(t),
                 ),
-              );
-            },
+                onOpenPool: () => _openListDialog(
+                  key: const Key('wish_pool_dialog'),
+                  title: t.wishScenePoolLabel,
+                  content: _poolContent(t),
+                ),
+                boxLabel: t.wishSceneBoxLabel,
+                poolLabel: t.wishScenePoolLabel,
+                startLabel: t.wishTreeStart,
+                boxCount: _boxedCount(),
+                poolCount: _poolCount(),
+              ),
+              // 空树提示浮在场景中部（不再依赖卡片列表位置）。
+              if (sorted.isEmpty)
+                Positioned.fill(
+                  child: Center(
+                    key: const Key('wish_tree_empty_tree'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xCCFFFBF0),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        t.wishTreeEmptyTree,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF8A7A66),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           );
         },
       );
 
-  Widget _buildBox(AppLocalizations t) => Consumer(
+  /// 整页分段用的收藏箱 body（外层给滚动容器）。
+  Widget _buildBox(AppLocalizations t) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        child: _boxContent(t),
+      );
+
+  /// 收藏箱只读内容：整页分段与居中弹窗共用同一份实现。
+  Widget _boxContent(AppLocalizations t) => Consumer(
         builder: (BuildContext context, WidgetRef ref, Widget? _) {
           final List<Wish> wishes = ref.watch(wishBoxedProvider).value ?? <Wish>[];
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            child: WishCollectionBox(
-              wishes: wishes,
-              t: t,
-              highlightWishId: _highlightWishId,
-              onRestore: (Wish wish) => _restore(wish, t),
-            ),
+          return WishCollectionBox(
+            wishes: wishes,
+            t: t,
+            highlightWishId: _highlightWishId,
+            onRestore: (Wish wish) => _restore(wish, t),
           );
         },
       );
 
-  Widget _buildPool(AppLocalizations t) => Consumer(
+  /// 整页分段用的愿望池 body（外层给滚动容器）。
+  Widget _buildPool(AppLocalizations t) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        child: _poolContent(t),
+      );
+
+  /// 愿望池只读内容：整页分段与居中弹窗共用同一份实现。
+  ///
+  /// 用 Column（有限高）而非 ListView，才能同时嵌进整页 SingleChildScrollView
+  /// 与弹窗的 SingleChildScrollView，避免无界高度溢出。
+  Widget _poolContent(AppLocalizations t) => Consumer(
         builder: (BuildContext context, WidgetRef ref, Widget? _) {
           final List<Wish> wishes = ref.watch(wishPoolProvider).value ?? <Wish>[];
           final int stamped = ref.watch(wishStampedCountProvider).value ?? 0;
           final int milestone =
               WishOrchestrationService.poolMilestoneCount(stamped);
           // 里程碑演出幂等：current > last 才播，且立即写回 last。
+          // 🔴 写回在 postFrame 完成，引用 mounted 守卫；弹窗与整页共用本 body
+          // 时 provider 是同一实例，第二次构建读到新的 last 即不再触发。
           final int last = ref.watch(wishLastMilestoneProvider);
           if (milestone > last) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -643,36 +774,66 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
               ),
             );
           }
-          return ListView.builder(
+          return Column(
             key: const Key('wish_tree_pool_list'),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            itemCount: wishes.length,
-            itemBuilder: (BuildContext context, int index) {
-              final Wish wish = wishes[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: WishPoolTile(
-                  wish: wish,
-                  t: t,
-                  milestoneCount: milestone,
-                  highlight: _highlightWishId == wish.id,
+            children: <Widget>[
+              for (final Wish wish in wishes)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: WishPoolTile(
+                    wish: wish,
+                    t: t,
+                    milestoneCount: milestone,
+                    highlight: _highlightWishId == wish.id,
+                  ),
                 ),
-              );
-            },
+            ],
           );
         },
       );
 }
 
+/// 详情里「实现了」的唯一入口归属。
+enum WishRealizeEntry {
+  /// 非树上愿望（收藏箱 / 已终态）：不渲染任何达成入口。
+  none,
+
+  /// 愿望级主按钮（无手动办法，或办法卡都不承载达成入口）。
+  wishCard,
+
+  /// 第一条手动办法卡上的方盒（玄参截图右下角那枚）。
+  firstManualTask,
+}
+
+/// 单一入口判据（纯函数，便于测试直接钉死）。
+///
+/// 玄参 iPad13 拍板：有手动办法时用办法卡那枚，没办法时用愿望主按钮；
+/// 两条路径都不再看 `targetValue`。收藏箱 / 终态愿望一律不给入口。
+WishRealizeEntry wishRealizeEntryOf({
+  required bool onTree,
+  required List<Task> tasks,
+}) {
+  if (!onTree) return WishRealizeEntry.none;
+  for (final Task task in tasks) {
+    if (!task.requiresFocus) return WishRealizeEntry.firstManualTask;
+  }
+  return WishRealizeEntry.wishCard;
+}
+
 /// 详情页主体（在浮层 scope 内构建，文案由页面取好经 [t] 传入）。
-class _DetailBody extends ConsumerWidget {
-  const _DetailBody({
+///
+/// 🔴 唯一达成入口：由 [wishRealizeEntryOf] 决定渲染办法卡方盒**或**愿望主按钮，
+/// 二者永不并存。确认后先落库（[onSelfFulfill]）再关详情（[onRealized]）。
+class WishDetailBody extends ConsumerWidget {
+  const WishDetailBody({
+    super.key,
     required this.wish,
     required this.t,
     required this.now,
     required this.onCollect,
     required this.onChange,
     required this.onSelfFulfill,
+    required this.onRealized,
   });
 
   final Wish wish;
@@ -680,7 +841,17 @@ class _DetailBody extends ConsumerWidget {
   final DateTime now;
   final VoidCallback onCollect;
   final VoidCallback onChange;
-  final VoidCallback onSelfFulfill;
+
+  /// 领域层自助达成（页面级 service 调用；只有二次确认通过才会触发）。
+  final Future<void> Function() onSelfFulfill;
+
+  /// 落库成功后关闭详情浮层，让孩子看到愿望已移入愿望池。
+  final VoidCallback onRealized;
+
+  Future<void> _realizeAndClose() async {
+    await onSelfFulfill();
+    onRealized();
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -689,9 +860,13 @@ class _DetailBody extends ConsumerWidget {
     // v0.3.0：三态唯一判据（与树上卡片同源，禁止本处另写条件）。
     final WishTreeFace face =
         wishTreeFaceOf(wish: wish, wayCount: tasks.length);
-    final bool canSelfFulfill = hasGoalTarget(wish.targetValue) &&
-        wish.releasedAt == null &&
-        !wish.isTerminal;
+    final WishRealizeEntry entry = wishRealizeEntryOf(
+      onTree: wish.releasedAt == null && !wish.isTerminal,
+      tasks: tasks,
+    );
+    final bool useManualTask = entry == WishRealizeEntry.firstManualTask;
+    final int firstManualIndex =
+        tasks.indexWhere((Task task) => !task.requiresFocus);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -702,41 +877,37 @@ class _DetailBody extends ConsumerWidget {
           waitDays: WishOrchestrationService.waitingDays(wish.createdAt, now),
           taskCount: tasks.length,
           face: face,
-          canSelfFulfill: canSelfFulfill,
-          confirmTitle: t.wishTreeSelfFulfillConfirm,
-          confirmMessage: t.wishSelfFulfillConfirm,
-          confirmLabel: t.wishSelfFulfill,
+          canSelfFulfill: entry == WishRealizeEntry.wishCard,
+          confirmTitle: t.wishRealizedCongrats,
+          confirmLabel: t.wishDetailRealized,
           cancelLabel: t.shared_cancel,
           onCollectToBox: onCollect,
           onChangeWish: onChange,
-          onSelfFulfill: onSelfFulfill,
+          onSelfFulfill: entry == WishRealizeEntry.wishCard
+              ? () => _realizeAndClose()
+              : null,
         ),
         if (tasks.isNotEmpty) ...<Widget>[
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              // 孩子端「小办法」（D2）；列表仅在 S3（有办法）时出现。
-              t.wishWayCountBadge(tasks.length),
-              key: const Key('wish_detail_way_list_title'),
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-            ),
-          ),
+          // 🔴 玄参 iPad13 反馈：「小办法 N 个」列表标题已删除，
+          // 办法证据直接由下面的 WishTaskCard 承载。
           const SizedBox(height: 8),
-          for (final Task task in tasks)
+          for (int taskIndex = 0; taskIndex < tasks.length; taskIndex++)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: WishTaskCard(
-                task: task,
+                task: tasks[taskIndex],
                 wishTitle: wish.text,
                 focusActionLabel: t.wishTaskGoFocus,
-                didItLabel: t.wishTaskDidIt,
-                confirmTitle: t.wishTaskGoFocus,
-                confirmMessage: t.wishTaskGoFocus,
+                didItLabel: t.wishDetailRealized,
+                confirmTitle: t.wishRealizedCongrats,
                 startFocusLabel: t.wishTaskGoFocus,
                 cancelLabel: t.shared_cancel,
                 doneLabel: t.wishTaskDone,
                 pendingLabel: t.wishTaskPending,
+                showDidIt: useManualTask && taskIndex == firstManualIndex,
+                onDidIt: useManualTask && taskIndex == firstManualIndex
+                    ? () => _realizeAndClose()
+                    : null,
               ),
             ),
         ],

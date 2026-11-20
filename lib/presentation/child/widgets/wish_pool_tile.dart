@@ -16,6 +16,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_card.dart';
+import 'package:sunflower_time/presentation/child/widgets/wish_tree_scene.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
 
 /// 达成池单条。
@@ -61,7 +62,18 @@ class WishPoolTile extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              const Text('🏆', style: TextStyle(fontSize: 22)),
+              // 玄参 2026-11-19 美术接入：达成奖杯 emoji → 达成蛋 PNG（缺失回退 emoji）。
+              Image.asset(
+                WishTreeArt.eggDone,
+                width: 34,
+                height: 34,
+                fit: BoxFit.contain,
+                key: const Key('wish_pool_done_egg'),
+                errorBuilder: (_, __, ___) => const Text(
+                  '🏆',
+                  style: TextStyle(fontSize: 22),
+                ),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(

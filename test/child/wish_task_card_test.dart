@@ -146,5 +146,23 @@ void main() {
       await tester.pumpAndSettle();
       expect(calls, 0, reason: '取消不落库');
     });
+
+    testWidgets('手动型「我做到了」确认 ⇒ 回调恰好一次',
+        (WidgetTester tester) async {
+      int calls = 0;
+      await tester.pumpWidget(_host(_card(
+        task: _task(focus: false),
+        onDidIt: () => calls++,
+      )));
+      await tester.tap(find.byKey(const Key('wish_task_did_it')));
+      await tester.pumpAndSettle();
+      // 确认卡主按钮文案沿用「我做到了」，用卡面限定避免与办法卡方盒同名。
+      await tester.tap(find.descendant(
+        of: find.byKey(const Key('child_confirm_card_surface')),
+        matching: find.text('我做到了'),
+      ));
+      await tester.pumpAndSettle();
+      expect(calls, 1, reason: '确认才落库，且只落一次');
+    });
   });
 }

@@ -2,7 +2,8 @@
 ///
 /// 与 `wish_face_state_test.dart` 分工：那个测**判据纯函数**，本文件测
 /// **判据落到 UI 上的元素集合**（S1/S2 必须 `findsNothing` 徽标 / 进度条 /
-/// 「等爸爸妈妈设定目标」，S3 必须有单句成长引导 + 计数 + 进度）。
+/// 「等爸爸妈妈设定目标」，S3 卡片必须有单句成长引导 + 计数 + 进度；
+/// 详情浮层 S3 只保留单句 + 进度，等待天数 / 回信区 / 果实阶段均已删除）。
 library wish_face_render_test;
 
 import 'package:flutter/material.dart';
@@ -177,13 +178,20 @@ void main() {
       expect(find.text(_t.wishStateParentWorking), findsNothing);
     });
 
-    testWidgets('详情卡 S2：显示回信区、无进度条', (WidgetTester tester) async {
+    testWidgets('详情卡 S2：无回信区 / 无回信正文 / 无进度条', (WidgetTester tester) async {
       await tester.pumpWidget(_hostDetail(
         _wish(tagKey: 'not_possible', parentReply: '记在心里了'),
         WishTreeFace.parentResponded,
       ));
-      expect(find.byKey(const Key('wish_detail_back')), findsOneWidget);
-      expect(find.text('记在心里了'), findsOneWidget);
+      expect(find.byKey(const Key('wish_detail_back')), findsNothing,
+          reason: '详情不再渲染回信区');
+      expect(find.byKey(const Key('wish_detail_reply')), findsNothing);
+      expect(find.text('记在心里了'), findsNothing,
+          reason: '回信正文已从详情移除');
+      expect(find.textContaining('🎗'), findsNothing,
+          reason: '「暂时做不到」缎带已从详情移除');
+      expect(find.text(_t.wishStateParentWorking), findsNothing,
+          reason: '有回信文本时也不显示兜底句');
       expect(find.byKey(const Key('wish_detail_fruit_stage')), findsNothing);
       expect(find.byType(WishProgressBar), findsNothing);
     });
@@ -210,17 +218,31 @@ void main() {
       expect(find.textContaining('任务'), findsNothing);
     });
 
-    testWidgets('详情卡 S3：「小办法」标题 + 计数 + 进度条',
+    testWidgets('详情卡 S3：单句成长引导 + 进度条，旧标题/计数/果实阶段/回信区全消失',
         (WidgetTester tester) async {
       await tester.pumpWidget(_hostDetail(
         _wish(targetValue: 30, progressValue: 30),
         WishTreeFace.hasWays,
         wayCount: 3,
       ));
+      // 单句文案保留（复用原 key 作锚点），进度条不动。
       expect(find.byKey(const Key('wish_detail_way_title')), findsOneWidget);
-      expect(find.text(_t.wishWayCountBadge(3)), findsOneWidget);
-      expect(find.byKey(const Key('wish_detail_fruit_stage')), findsOneWidget);
+      expect(find.text(_t.wishGoGrowthHint), findsOneWidget,
+          reason: 'S3 详情只保留一句成长引导');
       expect(find.byType(WishProgressBar), findsOneWidget);
+      // 玄参 iPad13 反馈：旧标题 / 计数 / 果实阶段 / 等待天数 / 回信区全部下线。
+      expect(find.text(_t.wishWayTitle), findsNothing);
+      expect(find.byKey(const Key('wish_detail_way_count')), findsNothing);
+      expect(find.text(_t.wishWayCountBadge(3)), findsNothing);
+      expect(find.byKey(const Key('wish_detail_fruit_stage')), findsNothing);
+      expect(find.byKey(const Key('wish_detail_back')), findsNothing);
+      expect(find.text(_t.wishTreeWaitDays(2)), findsNothing,
+          reason: '详情不再显示「等了 N 天」');
+      // 两个次级按钮换成短文案，按钮 key 不变。
+      expect(find.text(_t.wishDetailChangeWishShort), findsOneWidget);
+      expect(find.text(_t.wishDetailCollectShort), findsOneWidget);
+      expect(find.text(_t.wishTreeChangeWish), findsNothing);
+      expect(find.text(_t.wishCollectToBox), findsNothing);
       expect(find.textContaining('任务'), findsNothing);
     });
   });

@@ -3864,6 +3864,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wishTreeTitle => '我的许愿树';
 
   @override
+  String get wishPageTitle => '美好愿望';
+
+  @override
+  String get wishSceneBoxLabel => '收藏箱';
+
+  @override
+  String get wishScenePoolLabel => '愿望池';
+
+  @override
   String get gardenWishTreeEntryLabel => '许愿树';
 
   @override
@@ -3971,6 +3980,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wishTreeChangeWish => '换一个愿望';
 
   @override
+  String get wishDetailChangeWishShort => '换个愿望';
+
+  @override
+  String get wishDetailCollectShort => '放进收藏箱';
+
+  @override
   String get wishTreeSelfFulfillConfirm => '确定是你自己做到的吗？';
 
   @override
@@ -4016,6 +4031,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get wishSelfFulfill => '我做到了';
+
+  @override
+  String get wishDetailRealized => '实现了';
+
+  @override
+  String get wishRealizedCongrats => '恭喜，愿望实现啦！';
 
   @override
   String get wishSelfFulfillConfirm => '确定是你自己做到的吗？';

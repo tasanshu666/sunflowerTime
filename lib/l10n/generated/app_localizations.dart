@@ -6767,6 +6767,24 @@ abstract class AppLocalizations {
   /// **'我的许愿树'**
   String get wishTreeTitle;
 
+  /// No description provided for @wishPageTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'美好愿望'**
+  String get wishPageTitle;
+
+  /// No description provided for @wishSceneBoxLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏箱'**
+  String get wishSceneBoxLabel;
+
+  /// No description provided for @wishScenePoolLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'愿望池'**
+  String get wishScenePoolLabel;
+
   /// 花园右上角许愿树入口的短标签（玄参 v0.3 真机反馈 1：96dp 内完整显示；与页面标题 wishTreeTitle 分离）
   ///
   /// In zh, this message translates to:
@@ -6941,6 +6959,18 @@ abstract class AppLocalizations {
   /// **'换一个愿望'**
   String get wishTreeChangeWish;
 
+  /// No description provided for @wishDetailChangeWishShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'换个愿望'**
+  String get wishDetailChangeWishShort;
+
+  /// No description provided for @wishDetailCollectShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'放进收藏箱'**
+  String get wishDetailCollectShort;
+
   /// No description provided for @wishTreeSelfFulfillConfirm.
   ///
   /// In zh, this message translates to:
@@ -7018,6 +7048,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'我做到了'**
   String get wishSelfFulfill;
+
+  /// No description provided for @wishDetailRealized.
+  ///
+  /// In zh, this message translates to:
+  /// **'实现了'**
+  String get wishDetailRealized;
+
+  /// No description provided for @wishRealizedCongrats.
+  ///
+  /// In zh, this message translates to:
+  /// **'恭喜，愿望实现啦！'**
+  String get wishRealizedCongrats;
 
   /// No description provided for @wishSelfFulfillConfirm.
   ///

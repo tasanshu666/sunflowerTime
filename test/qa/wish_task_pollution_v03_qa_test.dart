@@ -478,22 +478,28 @@ void main() {
       }
       expect(tester.takeException(), isNull);
 
-      // 树上卡片必须已切到 S3（有办法）。
+      // 🔴 玄参 iPad 13 反馈 4：树上蛋不再挂「小办法 N 个」青色角标/文字。
+      // 树上证据改为「蛋在无角标」，S3 功能证据下沉到下面的详情办法列表
+      // （WishTaskCard + 帮妈妈洗碗），标题行已按玄参反馈删除，语义等价，
+      // 不是删断言的假绿。
       final Finder card = find.byKey(Key('wish_card_${wish.id}'));
-      expect(card, findsOneWidget, reason: '树上必须有该愿望卡');
-      expect(find.byKey(const Key('wish_card_task_badge')), findsOneWidget,
-          reason: '有 1 条小办法 ⇒ S3 徽标必须出现');
-      expect(find.text('小办法 1 个'), findsWidgets);
+      expect(card, findsOneWidget, reason: '树上必须有该愿望蛋（key 保住可点进详情）');
+      expect(find.byKey(const Key('wish_card_task_badge')), findsNothing,
+          reason: '树上蛋下不得再出现 S3 小办法角标');
+      expect(find.text('小办法 1 个'), findsNothing,
+          reason: '树上蛋下不得出现办法文字');
 
       // 点进详情 ⇒ S3 列表展示这条现实类小办法。
       await tester.tap(card);
       for (int i = 0; i < 16; i++) {
         await tester.pump(const Duration(milliseconds: 60));
       }
-      expect(find.byKey(const Key('wish_detail_way_list_title')), findsOneWidget,
-          reason: '详情浮层必须出现「小办法 N 个」列表标题');
+      expect(find.byKey(const Key('wish_detail_way_list_title')), findsNothing,
+          reason: '详情浮层不再渲染「小办法 N 个」列表标题');
+      expect(find.text('小办法 1 个'), findsNothing,
+          reason: '「小办法 1 个」标题文案已从详情消失');
       expect(find.byType(WishTaskCard), findsOneWidget,
-          reason: '详情浮层必须渲染 1 张办法卡');
+          reason: '详情浮层必须渲染 1 张办法卡（标题删除后功能证据不丢）');
       // 🔴 关键：requiresFocus=false 的现实类任务必须**可展示**（不被"仅专注型"过滤掉）。
       expect(find.textContaining('帮妈妈洗碗'), findsWidgets,
           reason: '现实类小办法（不走专注）必须出现在孩子端 S3 列表');

@@ -155,15 +155,18 @@ void main() {
     });
   });
 
-  group('⑩ 标签态卡片：缎带 + 回复展开 + 两按钮（源码守卫）', () {
-    test('详情页含缎带 / 换一个愿望 / 放进收藏箱', () {
+  group('⑩ 详情卡：两按钮保留、回信区/缎带下线（源码守卫）', () {
+    test('详情页按钮 key 保留，回信区与缎带源码引用已移除', () {
       final String src = File(
         'lib/presentation/child/widgets/wish_card_detail.dart',
       ).readAsStringSync();
-      expect(src.contains('wish_detail_tag_ribbon'), isTrue);
+      expect(src.contains('wish_detail_tag_ribbon'), isFalse);
       expect(src.contains('wish_detail_change'), isTrue);
       expect(src.contains('wish_detail_collect'), isTrue);
-      expect(src.contains('wish_detail_reply'), isTrue);
+      expect(src.contains('wish_detail_reply'), isFalse);
+      // 短文案 getter 确实接入（不是只加 key 不用）。
+      expect(src.contains('wishDetailChangeWishShort'), isTrue);
+      expect(src.contains('wishDetailCollectShort'), isTrue);
     });
   });
 

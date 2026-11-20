@@ -7,7 +7,7 @@
 ///   - post-undo milestone *demotion* 8 -> 2 (engineer used 10 rows so 10->9
 ///     never crosses a /3 boundary, hiding demotion);
 ///   - post-undo audit-trail retention (fulfilledAt / fulfillSource kept);
-///   - targetValue==0 "no-write" strong assertion (events/changes stay empty);
+///   - targetValue==0 自助达成放行（玄参 iPad13 拍板：行 / 池 / 盖章 / 埋点齐全）；
 ///   - cross-child guard on multiple entry points;
 ///   - upscale guard on the `setGoal` integration path, not just the pure fn;
 ///   - source-level single-point guards.
@@ -309,20 +309,20 @@ void main() {
   });
 
   group('QA · 失败路径与守卫', () {
-    test('QA5 targetValue==0「我做到了」强拒不落库（行/埋点/通知全不变）', () async {
+    test('QA5 targetValue==0 自助达成放行（落库 / 进池 / 盖章 / 埋点齐全）',
+        () async {
       final Wish original = seed(targetValue: 0);
       wishes.rows['w'] = original;
-      await expectLater(
-        service.selfFulfill(id: 'w', now: now),
-        throwsA(isA<StateError>()),
-      );
-      // Nothing may be persisted, emitted, or signalled.
-      expect(wishes.rows['w'], same(original));
-      expect(wishes.rows['w']!.status, WishStatus.pending);
-      expect(wishes.rows['w']!.fulfilledAt, isNull);
-      expect(wishes.rows['w']!.fulfillSource, isNull);
-      expect(tracking.events, isEmpty);
-      expect(changes, 0);
+      final Wish done = await service.selfFulfill(id: 'w', now: now);
+      expect(done.status, WishStatus.fulfilled);
+      expect(done.treeSlot, isNull);
+      expect(done.fulfillSource, kWishFulfillSourceChild);
+      expect((await service.poolWishes()).map((Wish x) => x.id), contains('w'));
+      expect(await service.stampedAchievedCount(), 1,
+          reason: 'child 自助达成计入盖章');
+      expect(tracking.events, hasLength(1));
+      expect(tracking.events.single.payload['kind'], 'selfFulfilled');
+      expect(changes, 1);
     });
 
     test('QA6 跨孩子守卫覆盖多个写入口且消息 ASCII', () async {

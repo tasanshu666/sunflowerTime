@@ -4,6 +4,17 @@
 %% 四条流程：A 居中选择愿→直接挂树；B 树上三态渲染；C 家长布置小办法+现实类；D 回退闸门自证。
 %% v0.4（玄参裁定）：家长端今日页愿望区整块移除；流程 C 仅保留成长任务关联愿望路径。
 %% v0.4：S3 文案合并为单句「去成长里面实现你的愿望吧」(wishGoGrowthHint)。
+%% 🔴 v0.5（2026-11-20）：以下新增交互时序已随 5 轮代码增量落地；遵「只追加不改写」未并入下方 sequenceDiagram 主体，列此为准：
+%% 新流程 E · 自助达成（唯一入口判据 wishRealizeEntryOf）：
+%%   孩子点「实现了」→ wishRealizeEntryOf({onTree,tasks}) 判入口：
+%%     · 有手动办法 → 首条办法卡方盒（WishTaskCard，showDidIt:true / onDidIt）
+%%     · 无办法或仅专注型 → 主按钮（onRealized）
+%%     · 收藏箱 / 终态 → 无入口
+%%   → showDialog 二次确认（单句标题 wishRealizedCongrats「恭喜，愿望实现啦！」）
+%%     · 取消 → 不落库，愿望仍在树上
+%%     · 确认 → _realizeAndClose()：await selfFulfill 落库（已去 hasGoalTarget 闸门，无目标亦可；盖章含 child + WishEventKind.selfFulfilled 埋点；releasedAt!=null 拒 / assertTransition）→ 进愿望池 → Navigator.pop 关详情
+%% 新流程 F · 循环帧动画：
+%%   _AnimatedWishTree initState → AnimationController(duration:10s)..repeat() → 每 tick 由 wishTreeFrameIndex(progress,51) 算帧号 → 仅帧号变才 setState → 渲染 frame001~051.png（cacheWidth/cacheHeight 限解码 + gaplessPlayback:true）→ dispose 清理；vsync 后台自动停。
 
 sequenceDiagram
     autonumber

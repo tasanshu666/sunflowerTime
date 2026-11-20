@@ -4009,6 +4009,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wishTreeTitle => 'My Wish Tree';
 
   @override
+  String get wishPageTitle => 'Beautiful Wishes';
+
+  @override
+  String get wishSceneBoxLabel => 'Keepsake Box';
+
+  @override
+  String get wishScenePoolLabel => 'Wish Pool';
+
+  @override
   String get gardenWishTreeEntryLabel => 'Wish Tree';
 
   @override
@@ -4123,6 +4132,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wishTreeChangeWish => 'Pick a different wish';
 
   @override
+  String get wishDetailChangeWishShort => 'Change wish';
+
+  @override
+  String get wishDetailCollectShort => 'Keep in box';
+
+  @override
   String get wishTreeSelfFulfillConfirm => 'Are you sure you did it yourself?';
 
   @override
@@ -4169,6 +4184,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wishSelfFulfill => 'I did it';
+
+  @override
+  String get wishDetailRealized => 'Done it';
+
+  @override
+  String get wishRealizedCongrats => 'Congrats, your wish came true!';
 
   @override
   String get wishSelfFulfillConfirm => 'Are you sure you did it yourself?';

@@ -76,13 +76,14 @@ class WishTaskCard extends StatelessWidget {
     required this.focusActionLabel,
     required this.didItLabel,
     required this.confirmTitle,
-    required this.confirmMessage,
+    this.confirmMessage,
     required this.startFocusLabel,
     required this.cancelLabel,
     required this.doneLabel,
     required this.pendingLabel,
     this.done = false,
     this.pending = false,
+    this.showDidIt = true,
     this.onDidIt,
   });
 
@@ -98,7 +99,12 @@ class WishTaskCard extends StatelessWidget {
 
   /// 确认卡标题 / 正文（专注型带分钟数占位已由调用方填好）。
   final String confirmTitle;
-  final String confirmMessage;
+
+  /// 确认卡正文（可选；null 时只显示标题）。
+  ///
+  /// 玄参 2026-11-20 iPad13 拍板：树上「实现了」确认卡改为单句祝贺标题，
+  /// 页面调用点不再传本参数；其它宿主传值时正文照旧显示。
+  final String? confirmMessage;
   final String startFocusLabel;
   final String cancelLabel;
   final String doneLabel;
@@ -107,6 +113,11 @@ class WishTaskCard extends StatelessWidget {
   /// 今日已完成 / 待家长确认（只读态）。
   final bool done;
   final bool pending;
+
+  /// 是否渲染手动型「我做到了」方盒（默认 true，保留成长页既有行为）。
+  /// 详情页用它保证「树上愿望有且只有一枚达成按钮」：多条手动办法时
+  /// 只有承载回调的那条渲染本盒，其余办法不重复给达成入口。
+  final bool showDidIt;
 
   /// 手动型「我做到了」确认后的回调（领域层核销由调用方负责）。
   final VoidCallback? onDidIt;
@@ -172,7 +183,7 @@ class WishTaskCard extends StatelessWidget {
             _statusCapsule(pending ? '⏳' : '✓', pending ? pendingLabel : doneLabel)
           else if (showFocus)
             _focusBox(context)
-          else
+          else if (showDidIt)
             _didItBox(context),
         ],
       ),
@@ -275,7 +286,7 @@ class WishTaskCard extends StatelessWidget {
     final bool? ok = await showChildConfirmCard(
       context: context,
       title: confirmTitle,
-      message: didItLabel,
+      message: confirmMessage,
       confirmLabel: didItLabel,
       cancelLabel: cancelLabel,
     );

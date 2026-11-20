@@ -1,19 +1,21 @@
 /// 愿望卡详情页（A-T04 / A24.7 / A22.1）——树上点卡片后的**背面**。
 ///
 /// ## 正面 / 背面（测试断言 ⑤ / ⑩）
-///  - 正面：原文 / 许愿日期 / 等待天数 / 进度条；
-///  - 背面：家长回信区 **空态也展示占位文案**（不隐藏整块）、有标签时**非红色缎带**；
-///  - 底部两个次级按钮「换一个愿望」「放进愿望收藏箱」（A24.7 ⑨）；
-///  - 主按钮「我做到了」（愿望级，与任务级不同）：
-///    🔴 入口闸门 = `hasGoalTarget(targetValue)` 且 `releasedAt == null`；
-///    不满足时**不渲染**（由调用方经 [canSelfFulfill] 传入），点击**先弹二次确认**，
+///  - 正文：原文 / 许愿日期 / 进度条；🔴 玄参 iPad13 反馈：详情不再显示
+///    「等了 N 天」与回信区（含「暂时做不到」缎带）；
+///  - 底部两个次级按钮「换个愿望」「放进收藏箱」（A24.7 ⑨，短文案）；
+///  - 主按钮「实现了」（愿望级，与任务级不同）：
+///    玄参 iPad13 拍板后**目标值不再是闸门**；调用方按
+///    `releasedAt == null && !isTerminal && 详情里没有其它达成入口` 传入
+///    [canSelfFulfill]。不满足时不渲染；点击**先弹二次确认**，
 ///    取消不落库（[onSelfFulfill] 只在确认后触发）。
 ///
 /// ## v0.3.0 三态（R3-P0-05 / D5）
 /// 判据唯一来自 [WishCardDetail.face]（领域纯函数 `wishTreeFaceOf` 的结果）：
-///  - S1：只显原文 + 日期 + 等待天数 + **不可点击**轻提示，**不显**果实阶段 / 进度条；
-///  - S2：显家长回信（空则兜底句），**不显**果实阶段 / 进度条；
-///  - S3：显 S3 标题 + 「小办法 n 个」+ 果实阶段 + 进度条。
+///  - S1：只显原文 + 日期 + **不可点击**轻提示；
+///  - S2：仅兜底句（回信正文不再在详情展示）；
+///  - S3：只显单句成长引导 `wishGoGrowthHint` + 进度条
+///    （旧标题 / 「小办法 n 个」/ 果实阶段行均不再渲染）。
 ///
 /// 🔴 分类 emoji 已删除（R3-P0-03③）；v0.2 的 `shareAction` 插槽已删除。
 ///
@@ -26,7 +28,6 @@ import 'package:flutter/material.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/domain/services/wish_face_state.dart';
-import 'package:sunflower_time/domain/services/wish_progress.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_card.dart';
@@ -41,7 +42,7 @@ class WishCardDetail extends StatelessWidget {
     required this.t,
     required this.waitDays,
     required this.confirmTitle,
-    required this.confirmMessage,
+    this.confirmMessage,
     required this.confirmLabel,
     required this.cancelLabel,
     this.taskCount = 0,
@@ -60,13 +61,18 @@ class WishCardDetail extends StatelessWidget {
   /// 三态（唯一判据 `wishTreeFaceOf` 的结果，由页级算出后下发）。
   final WishTreeFace face;
 
-  /// 「我做到了」入口闸门结果，由调用方按
-  /// `hasGoalTarget(targetValue) && releasedAt == null && !isTerminal` 算好。
+  /// 「实现了」入口开关，由调用方按
+  /// `releasedAt == null && !isTerminal && 没有其它达成入口` 算好。
   final bool canSelfFulfill;
 
   /// 二次确认卡文案（页面 scope 内取好传入）。
   final String confirmTitle;
-  final String confirmMessage;
+
+  /// 确认卡正文（可选；null 时确认卡只显示标题，避免同一句话出现两遍）。
+  ///
+  /// 玄参 2026-11-20 iPad13 拍板：树上「实现了」确认卡改为单句祝贺标题，
+  /// 页面调用点不再传本参数；其它宿主仍可传值，正文照旧显示。
+  final String? confirmMessage;
   final String confirmLabel;
   final String cancelLabel;
 
@@ -76,10 +82,6 @@ class WishCardDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final WishFruitStage stage = fruitStageOf(
-      targetValue: wish.targetValue,
-      progressValue: wish.progressValue,
-    );
     return Container(
       decoration: creamCardDecoration(),
       padding: const EdgeInsets.all(18),
@@ -102,18 +104,10 @@ class WishCardDetail extends StatelessWidget {
             key: const Key('wish_detail_wish_date'),
             style: const TextStyle(fontSize: 13, color: Color(0xFF8A7A66)),
           ),
-          const SizedBox(height: 4),
-          Text(
-            t.wishTreeWaitDays(waitDays),
-            style: const TextStyle(fontSize: 13, color: Color(0xFF8A7A66)),
-          ),
-          // ── 三态主体（S3 才显示果实阶段 / 进度条；S1 只显轻提示） ──────────
-          ..._faceBody(stage),
-          const SizedBox(height: 14),
-          // ── 背面：S2/S3 显示回信区（S1 不显示，避免「还没回信」的催促感） ────
-          if (face != WishTreeFace.hanging) _backSide(),
+          // ── 三态主体（S3 只显单句成长引导 + 进度条；S1 只显轻提示） ────────
+          ..._faceBody(),
           const SizedBox(height: 16),
-          // ── 主按钮「我做到了」（愿望级，闸门不满足不渲染） ──────────────────
+          // ── 主按钮「实现了」（愿望级；唯一入口由调用方保证） ────────────────
           if (canSelfFulfill)
             FilledButton.icon(
               key: const Key('wish_detail_self_fulfill'),
@@ -121,7 +115,7 @@ class WishCardDetail extends StatelessWidget {
                   ? null
                   : () => _confirmThen(context, onSelfFulfill!),
               icon: const Icon(Icons.emoji_events_outlined),
-              label: Text(t.wishSelfFulfill),
+              label: Text(t.wishDetailRealized),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 textStyle: const TextStyle(
@@ -138,7 +132,7 @@ class WishCardDetail extends StatelessWidget {
                 child: OutlinedButton(
                   key: const Key('wish_detail_change'),
                   onPressed: onChangeWish,
-                  child: Text(t.wishTreeChangeWish),
+                  child: Text(t.wishDetailChangeWishShort),
                 ),
               ),
               const SizedBox(width: 10),
@@ -146,7 +140,7 @@ class WishCardDetail extends StatelessWidget {
                 child: OutlinedButton(
                   key: const Key('wish_detail_collect'),
                   onPressed: onCollectToBox,
-                  child: Text(t.wishCollectToBox),
+                  child: Text(t.wishDetailCollectShort),
                 ),
               ),
             ],
@@ -156,11 +150,12 @@ class WishCardDetail extends StatelessWidget {
     );
   }
 
-  /// 三态主体（S1 轻提示 / S2 回信 / S3 标题 + 果实阶段 + 进度）。
+  /// 三态主体（S1 轻提示 / S2 兜底句 / S3 单句成长引导 + 进度条）。
   ///
-  /// ⚠️ 回信区（[_backSide]）由调用方按「非 S1」条件单独装配，避免 S1 出现
-  /// 「爸爸妈妈还没回信」这种变相催促。
-  List<Widget> _faceBody(WishFruitStage stage) {
+  /// 🔴 玄参 iPad13 反馈：详情不再渲染等待天数 / 回信区 / 果实阶段 /
+  /// 「小办法 n 个」计数；S3 只保留单句 [AppLocalizations.wishGoGrowthHint]
+  /// 与进度条，key `wish_detail_way_title` 复用保持测试锚点稳定。
+  List<Widget> _faceBody() {
     switch (face) {
       case WishTreeFace.hanging:
         // S1：一条**不可点击**的轻提示（无 InkWell / GestureDetector / onTap）。
@@ -174,7 +169,8 @@ class WishCardDetail extends StatelessWidget {
           ),
         ];
       case WishTreeFace.parentResponded:
-        // S2：兜底句（有回信时回信在 [_backSide] 显示）；**不显**果实阶段与进度条。
+        // S2：兜底句；回信正文 / 回信区已按玄参反馈从详情移除。
+        // **不显**果实阶段与进度条。
         final String? reply = wish.parentReply;
         if (reply != null && reply.isNotEmpty) return const <Widget>[];
         return <Widget>[
@@ -186,28 +182,12 @@ class WishCardDetail extends StatelessWidget {
           ),
         ];
       case WishTreeFace.hasWays:
-        // S3：标题 + 小办法计数 + 果实阶段 + 进度条。
+        // S3：v0.4 单句成长引导 + 进度条（旧标题 / 计数 / 果实阶段行全部下线）。
         return <Widget>[
           const SizedBox(height: 10),
           Text(
-            t.wishWayTitle,
+            t.wishGoGrowthHint,
             key: const Key('wish_detail_way_title'),
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B4E12),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            t.wishWayCountBadge(taskCount),
-            key: const Key('wish_detail_way_count'),
-            style: const TextStyle(fontSize: 12, color: Color(0xFF8A7A66)),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            wishFruitStageLabel(stage, t),
-            key: const Key('wish_detail_fruit_stage'),
             style: const TextStyle(
               fontSize: 14,
               color: Color(0xFF6B4E12),
@@ -223,42 +203,6 @@ class WishCardDetail extends StatelessWidget {
         ];
     }
   }
-
-  /// 背面区：有标签 → 非红色缎带 + 回信全文；无标签 → 回信占位（仍展示）。
-  Widget _backSide() => Container(
-        key: const Key('wish_detail_back'),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: wish.isTagged ? kWishTagRibbonBg : const Color(0xFFF6F1E6),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            if (wish.isTagged)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '🎗 ${t.wishTreeTagRibbon}',
-                  key: const Key('wish_detail_tag_ribbon'),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: kWishTagRibbonFg,
-                  ),
-                ),
-              ),
-            Text(
-              wish.parentReply ?? t.wishTreeReplyEmpty,
-              key: const Key('wish_detail_reply'),
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF5D4200),
-              ),
-            ),
-          ],
-        ),
-      );
 
   /// 误触保护：先弹确认卡，`ok != true` 绝不落库。
   Future<void> _confirmThen(BuildContext context, VoidCallback action) async {

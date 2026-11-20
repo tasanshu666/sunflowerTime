@@ -119,6 +119,46 @@ void main() {
     });
   });
 
+  group('④ 详情「实现了」专用文案（玄参 iPad13 拍板）', () {
+    test('zh/en ARB 齐备且 getter 已生成（旧 key 不删）', () {
+      expect(zh['wishDetailRealized'], '实现了');
+      expect(en['wishDetailRealized'], 'Done it');
+      expect(_cjk.hasMatch(en['wishDetailRealized'] as String), isFalse);
+      expect(zh.containsKey('wishSelfFulfill'), isTrue);
+      expect(en.containsKey('wishSelfFulfill'), isTrue);
+      for (final String path in <String>[
+        'lib/l10n/generated/app_localizations.dart',
+        'lib/l10n/generated/app_localizations_zh.dart',
+        'lib/l10n/generated/app_localizations_en.dart',
+      ]) {
+        expect(File(path).readAsStringSync(), contains('wishDetailRealized'),
+            reason: '$path 缺 generated getter');
+      }
+    });
+  });
+
+  group('⑤ 达成确认单句文案（玄参 2026-11-20 iPad13 拍板）', () {
+    test('zh/en ARB 值固定、英文零 CJK，三个 generated getter 存在且旧键不删', () {
+      expect(zh['wishRealizedCongrats'], '恭喜，愿望实现啦！');
+      expect(en['wishRealizedCongrats'], 'Congrats, your wish came true!');
+      expect(_cjk.hasMatch(en['wishRealizedCongrats'] as String), isFalse);
+
+      expect(zh.containsKey('wishTreeSelfFulfillConfirm'), isTrue);
+      expect(zh.containsKey('wishSelfFulfillConfirm'), isTrue);
+      expect(en.containsKey('wishTreeSelfFulfillConfirm'), isTrue);
+      expect(en.containsKey('wishSelfFulfillConfirm'), isTrue);
+
+      for (final String path in <String>[
+        'lib/l10n/generated/app_localizations.dart',
+        'lib/l10n/generated/app_localizations_zh.dart',
+        'lib/l10n/generated/app_localizations_en.dart',
+      ]) {
+        expect(File(path).readAsStringSync(), contains('wishRealizedCongrats'),
+            reason: '$path 缺 generated getter');
+      }
+    });
+  });
+
   group('③ 改写对（旧「任务」措辞已下线）', () {
     test('wishTreeTaskBadge = 「小办法 {count} 个」', () {
       expect(zh['wishTreeTaskBadge'], contains('小办法'));

@@ -408,17 +408,16 @@ class WishOrchestrationService {
         return updated;
       });
 
-  /// Child self-fulfilment. v0.7.0 anti-abuse gate: a goal must exist; a
-  /// boxed wish never renders the button; 100% progress is NOT a precondition.
+  /// Child self-fulfilment (玄参 iPad13 拍板：放开「必须有目标值」的限制)。
+  /// A boxed wish is still rejected, terminal statuses still fail the transition
+  /// guard, and 100% progress is NOT a precondition. Confirmation, stamping
+  /// (child source included) and parent undo remain untouched.
   Future<Wish> selfFulfill({
     required String id,
     required DateTime now,
   }) =>
       _serialized(() async {
         final Wish wish = await _requireWish(id);
-        if (!hasGoalTarget(wish.targetValue)) {
-          throw StateError('self fulfill requires a goal target');
-        }
         if (wish.releasedAt != null) {
           throw StateError('self fulfill is unavailable in the box');
         }

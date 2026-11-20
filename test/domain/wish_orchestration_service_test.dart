@@ -388,11 +388,17 @@ void main() {
       }
     });
 
-    test('自助达成：未设目标拒不落库', () async {
+    test('自助达成：无目标值也放行（落库 / 进池 / 盖章含 child）', () async {
       wishes.rows['w1'] = seedWish(targetValue: 0);
-      await expectLater(service.selfFulfill(id: 'w1', now: now),
-          throwsA(isA<StateError>()));
-      expect(wishes.rows['w1']!.status, WishStatus.pending);
+      final Wish w = await service.selfFulfill(id: 'w1', now: now);
+      expect(w.status, WishStatus.fulfilled);
+      expect(w.fulfillSource, kWishFulfillSourceChild);
+      expect(w.treeSlot, isNull);
+      expect((await service.poolWishes()).map((Wish x) => x.id), contains('w1'));
+      expect(await service.stampedAchievedCount(), 1,
+          reason: 'child 自助达成也盖章');
+      expect(tracking.events.single.payload['kind'], 'selfFulfilled');
+      expect(changes, 1);
     });
 
     test('自助达成：收藏箱内被拒', () async {

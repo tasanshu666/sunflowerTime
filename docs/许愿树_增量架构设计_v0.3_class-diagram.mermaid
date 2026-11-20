@@ -5,6 +5,24 @@
 %% v0.4（玄参裁定）：家长端今日页愿望区整块移除 —— WishTreeSection / ParentWishCard /
 %% ParentWishActionSheet / parent/state/wish_state.dart 均已删除；成长任务关联愿望路径保留。
 %% v0.4：孩子端 S3 两行文案合并为单句 wishGoGrowthHint「去成长里面实现你的愿望吧」。
+%% 🔴 v0.5（2026-11-20）：以下新增类/函数已随 5 轮代码增量落地；遵「只追加不改写」未并入下方 classDiagram 主体，列此为准：
+%% 新增 lib/presentation/child/widgets/wish_tree_scene.dart：
+%%   · WishTreeScene —— 纯展示 StatelessWidget 壳 + 数据装配回调（孩子端「美好愿望」页全屏沉浸场景）
+%%   · WishEgg{asset,label,onTap,key} —— 由页面装配；蛋 key 复用 wish_card_<id> 承接点击
+%%   · WishTreeArt —— 常量集中管理 assets/wish_tree/ 7 个路径(background/tree/egg_wish/egg_growing/egg_done/keepsake_box/wish_pool)；treeFrameAsset(index) 生成 frame001~051 路径
+%%   · WishTreeSceneLayout —— sceneYOfBackgroundFraction / treeTop=islandSceneY−treeRootFraction×treeHeight / eggSpots 8 点(x0.20~0.80,y0.63~0.73) / treeRootFraction 0.852→0.9323 / treeWidthHeightRatio=0.75 / treeHeight=min(sceneH×0.72, sceneW×1.48/0.75) / treeWidth=treeHeight×0.75 / 按钮直径 clamp 84~92dp
+%%   · _AnimatedWishTree —— StatefulWidget + SingleTickerProviderStateMixin + AnimationController(duration:10s)..repeat()；仅帧号变才 setState；cacheWidth/cacheHeight 限解码 + gaplessPlayback:true；dispose 清理、vsync 后台停
+%%   · wishTreeFrameIndex(double progress,int frameCount) -> int —— 顶层纯函数，含 clamp
+%% 领域 lib/domain/services/wish_orchestration_service.dart：
+%%   · selfFulfill 已删除 hasGoalTarget 闸门（无目标愿望也能自助达成）；保留 releasedAt!=null 拒 / assertTransition / kWishFulfillSourceChild / 盖章含 child / WishEventKind.selfFulfilled 埋点 / undoFulfill
+%%   · 若本图原有 selfFulfill「必须有目标值」闸门节点：作废，以本条为准（原节点不删改）
+%% 页面 wish_tree_page.dart：
+%%   · enum WishRealizeEntry{none, wishCard, firstManualTask}（新增）
+%%   · wishRealizeEntryOf({onTree,tasks}) —— 顶层纯函数，唯一入口判据
+%%   · WishDetailBody 公开化 + 新增 onRealized；_realizeAndClose() 先 await 落库再 Navigator.pop
+%% wish_task_card.dart：新增 showDidIt（默认 true，成长页零回归）
+%% confirmMessage：wish_card_detail.dart / wish_task_card.dart 改为可选 String?；确认卡调用处删传参，标题单句 wishRealizedCongrats「恭喜，愿望实现啦！」（旧 key 一个未删）
+%% schemaVersion 恒 32（未动）
 classDiagram
     class Wish {
         +String id

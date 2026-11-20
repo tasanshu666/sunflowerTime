@@ -142,6 +142,24 @@ const Key kGardenWeatherLabelKey = ValueKey<String>('garden-weather-label');
 const Key kWishTreeWeatherEntryLabelKey =
     ValueKey<String>('wish-tree-entry-label');
 
+/// 「玩法说明」弹窗宽度上限 = **600**（逻辑像素，玄参 2026-11-20 iPad 反馈）。
+///
+/// 旧实现在 `showGeneralDialog` 里硬编码 `maxWidth: 420`：iPhone 视口窄没有区别，
+/// 但 iPad 宽屏上 420 的卡片显得细长。600 比旧值大一档，既让平板明显变宽，
+/// 又比整页内容上限 `kGardenGridMaxWidth`（620）略收，避免说明文字行过长。
+/// 手机端不生效——实际宽度仍由视口减去左右 Padding 决定，观感逐点保持原样。
+const double kGardenHelpDialogMaxWidth = 600;
+
+/// 计算「玩法说明」弹窗的**实际宽度**（纯函数，便于单测）。
+///
+/// 结果直接传给 `SizedBox(width: ...)` 做 tight 约束——只当 `maxWidth` 用会
+/// 让 `SingleChildScrollView + Column(min)` 收缩到内容固有宽，iPad 依旧窄长。
+/// 减去 40 = 外层 `Padding(horizontal: 20)` 的左右留白之和：窄屏（如 iPhone
+/// 390 → 350）与旧实现观感一致；宽屏才由 600 封顶。
+/// 极端窄视口钳到 0，避免负值传给 `SizedBox`。
+double gardenHelpDialogWidth(double viewportWidth) =>
+    (viewportWidth - 40).clamp(0.0, kGardenHelpDialogMaxWidth).toDouble();
+
 /// 孩子端花园：植物养成主界面。
 ///
 /// [embedded] = true 时作为孩子端「花园」tab 的内容渲染（不叠加独立 Scaffold/AppBar，
@@ -1903,25 +1921,32 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                   child: ConstrainedBox(
+                    // 只保留高度上限：宽度必须**定死**，不能只给 maxWidth。
+                    // GardenHelpSheet = SingleChildScrollView + Column(min)，
+                    // 松约束下会收缩到内容固有宽（≈300pt），iPad 上仍是窄长条。
                     constraints: BoxConstraints(
-                      maxWidth: 420,
                       maxHeight: (viewport.maxHeight - 48).clamp(0.0, double.infinity),
                     ),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFFBEF),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: <BoxShadow>[
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.18),
-                            blurRadius: 24,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: GardenHelpSheet(
-                        capacity: _capacity,
-                        expandCost: _expandCost,
+                    child: SizedBox(
+                      // 玄参 2026-11-20 二次真机：给定宽，长文本在此宽度内正确换行。
+                      // iPhone(390) → 350（与旧观感一致）；iPad(834/1032) → 600。
+                      width: gardenHelpDialogWidth(viewport.maxWidth),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEF),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: GardenHelpSheet(
+                          capacity: _capacity,
+                          expandCost: _expandCost,
+                        ),
                       ),
                     ),
                   ),

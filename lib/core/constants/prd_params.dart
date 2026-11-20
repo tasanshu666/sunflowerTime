@@ -3569,9 +3569,21 @@ const int kWishSoftGateMinPlants = 1;
 const int kWishProgressPercentMax = 100;
 
 /// v0.2.0 · 花园右上角天气下方新入口数值单点（R-P0-05 / S8）。
-/// 热区 ≥ 40 逻辑像素；取 48 留真机误触余量。渲染时再乘 `uiScaleOf(context)`。
-const double kWishTreeWeatherEntrySize = 48;
-const double kWishTreeWeatherEntryIconSize = 26;
+///
+/// 玄参 2026-11-20 二次真机反馈：原 48 比天气徽标容器
+/// `kGardenWeatherBadgeIconSize`（56，定义在 presentation/widgets/
+/// garden_weather_badge.dart）小一圈，两个圆角方块视觉不等大。这里**对齐到 56**
+/// （core 常量层不反向 import presentation，故写同值并在此注明同源；测试断言两者相等
+/// 防漂移）。渲染时仍乘 `uiScaleOf(context)`，与天气徽标等比放大。
+const double kWishTreeWeatherEntrySize = 56;
+
+/// 许愿树位图的**显示盒边长**（× `uiScaleOf`）= **52**（原 26 太小太糊）。
+///
+/// `wish_tree_icon.png` 是 2048² 画布，树 alpha bbox 只占 70.7%×69.8%；
+/// 26 盒里树实际仅 ≈18dp。52 盒内树 ≈36dp，接近天气位图在 56 盒里的视觉主体
+/// （26~40dp），且 52 < 56 容器边长、透明留白保证不顶边。仍走 `BoxFit.contain` +
+/// 显式宽高，不走 C13 归一管线（UI 图标非植物盆图）。
+const double kWishTreeWeatherEntryIconSize = 52;
 
 /// 簇内相邻两个「图标+文字」组之间的纵向间距（v0.3 保留）。
 const double kGardenTopEntryGap = 12;

@@ -108,15 +108,16 @@ void main() {
 
     expect(find.text('选择头像'), findsOneWidget);
     expect(find.text('阳光'), findsOneWidget);
-    // 物种种子 10 种全部出现在面板（以代表性物种钉死）。
+    // 物种种子 11 种全部出现在面板（以代表性物种钉死）。
     expect(find.text('向日葵'), findsOneWidget);
     expect(find.text('月光兰'), findsOneWidget);
     expect(find.text('葡萄'), findsOneWidget);
     expect(find.text('玫瑰'), findsOneWidget);
     expect(find.text('荷花'), findsOneWidget);
     expect(find.text('蓝莓'), findsOneWidget);
-    // 未种植 → 全部 10 个物种加锁；阳光选项恒可选（当前选中打勾）。
-    expect(sheetLockCount(tester), 10);
+    expect(find.text('大王花'), findsOneWidget);
+    // 未种植 → 全部 11 个物种加锁；阳光选项恒可选（当前选中打勾）。
+    expect(sheetLockCount(tester), 11);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey<String>('child_avatar_dialog')),
@@ -174,7 +175,7 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
 
     // 已种 1 种 → 锁数 = 10 - 1 = 9（番茄解锁）。
-    expect(sheetLockCount(tester), 9, reason: '番茄已种植，必须解锁可选');
+    expect(sheetLockCount(tester), 10, reason: '番茄已种植，必须解锁可选');
 
     await tester
         .tap(find.byKey(const ValueKey<String>('avatar_option_species_tomato')));
@@ -213,8 +214,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('child_avatar_tap')));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
 
-    // B 视角：番茄也没种过 → 全部 10 种加锁（各用各的，不蹭 A 的已种记录）。
-    expect(sheetLockCount(tester), 10,
+    // B 视角：番茄也没种过 → 全部 11 种加锁（各用各的，不蹭 A 的已种记录）。
+    expect(sheetLockCount(tester), 11,
         reason: '切孩子后已种集合跟孩子走：B 未种过 → 全加锁');
 
     // 收面板（点遮罩关闭）→ B 头像保持默认阳光。
@@ -237,7 +238,7 @@ void main() {
     );
   });
 
-  /// 弹层全部选项的 ValueKey（阳光 + 10 物种 = 11 条）。
+  /// 弹层全部选项的 ValueKey（阳光 + 11 物种 = 12 条）。
   List<String> optionKeys() => <String>[
         'avatar_option_$kChildAvatarSun',
         'avatar_option_$kStarterSpeciesId',
@@ -250,6 +251,7 @@ void main() {
         'avatar_option_species_rose',
         'avatar_option_species_lotus',
         'avatar_option_species_blueberry',
+        'avatar_option_species_rafflesia',
       ];
 
   /// C91 二轮（玄参 iOS 模拟器反馈：网格不对称）：**固定每行恰 3 个**的对称
@@ -257,8 +259,9 @@ void main() {
   /// 水平居中。位置断言全部用真实渲染坐标（`tester.getCenter`，真实字体度量），
   /// 不写死任何高度。
   /// F153（2026-10-26）：物种 7→8（+玫瑰）→ 头像选项 8→9 项 = 3+3+3。
-  /// 2026-11-08：物种 8→10（+荷花+蓝莓）→ 头像选项 9→11 项 = 3+3+3+2（尾行 2 个居中）。
-  testWidgets('⑤ 网格对称：320 宽手机下每行恰 3 个、尾行（第 11 项前的 2 个）水平居中',
+  /// 2026-11-08：物种 8→10（+荷花+蓝莓）→ 头像选项 9→11 项 = 3+3+3+2。
+  /// 2026-11-20：物种 10→11（+大王花）→ 头像选项 11→12 项 = 3+3+3+3。
+  testWidgets('⑤ 网格对称：320 宽手机下每行恰 3 个、尾行（第 12 项所在行）水平居中',
       (tester) async {
     tester.view.physicalSize = const Size(320, 568);
     tester.view.devicePixelRatio = 1.0;
@@ -269,12 +272,12 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('child_avatar_tap')));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
 
-    // 11 个选项（阳光默认 + 10 物种）全部渲染。
+    // 12 个选项（阳光默认 + 11 物种）全部渲染。
     final List<Offset> centers = <Offset>[
       for (final String k in optionKeys())
         tester.getCenter(find.byKey(ValueKey<String>(k))),
     ];
-    expect(centers, hasLength(11));
+    expect(centers, hasLength(12));
 
     // 按 y 坐标分行（同行 y 差 < 1px）。
     final List<List<Offset>> rows = <List<Offset>>[];
@@ -292,8 +295,8 @@ void main() {
     }
     expect(
       rows.map((List<Offset> r) => r.length).toList(),
-      <int>[3, 3, 3, 2],
-      reason: '11 个条目必须固定 3+3+3+2 四行（窄屏手机不再折成 2 列，平板不漂移）',
+      <int>[3, 3, 3, 3],
+      reason: '12 个条目必须固定 3+3+3+3 四行（窄屏手机不再折成 2 列，平板不漂移）',
     );
 
     // 每行（含不满一行的尾行）都必须水平居中于弹窗。
@@ -315,9 +318,9 @@ void main() {
     }
   });
 
-  /// 平板（800×600 测试默认视口）下行结构与手机**完全一致**（3+3+3+2、尾行居中、
+  /// 平板（800×600 测试默认视口）下行结构与手机**完全一致**（3+3+3+3、尾行居中、
   /// 条目尺寸 / 间距统一）—— 钉死「平板与手机一致美观」。
-  testWidgets('⑥ 平板视口：行结构与手机一致（3+3+3+2），条目尺寸统一', (tester) async {
+  testWidgets('⑥ 平板视口：行结构与手机一致（3+3+3+3），条目尺寸统一', (tester) async {
     await pumpPage(tester);
     await tester.tap(find.byKey(const ValueKey<String>('child_avatar_tap')));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
@@ -341,8 +344,8 @@ void main() {
     }
     expect(
       rows.map((List<Offset> r) => r.length).toList(),
-      <int>[3, 3, 3, 2],
-      reason: '平板视口同样固定 3+3+3+2（行结构不随屏宽漂移）',
+      <int>[3, 3, 3, 3],
+      reason: '平板视口同样固定 3+3+3+3（行结构不随屏宽漂移）',
     );
 
     // 两视口下条目尺寸完全一致（窄屏 72pt 格 → 平板同款）。

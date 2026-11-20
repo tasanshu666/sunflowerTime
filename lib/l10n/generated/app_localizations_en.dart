@@ -2809,6 +2809,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shared_species_blueberry => 'Blueberry';
 
   @override
+  String get shared_species_rafflesia => 'Rafflesia';
+
+  @override
   String get shared_weekday_mon => 'Mon';
 
   @override
@@ -3257,6 +3260,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get species_lore_blueberry_story =>
       'A blueberry\'s color comes from its skin, and from a thin white coating on top. That coating works like sunscreen, blocking the strongest sun. So when you pick blueberries, try not to rub it off — the more coating it keeps, the fresher the berry.';
+
+  @override
+  String get species_lore_rafflesia_intro => 'A flower as big as a table';
+
+  @override
+  String get species_lore_rafflesia_story =>
+      'Rafflesia blooms are among the biggest flowers in the world — one can cover a small table. It has no leaves and makes no food from sunlight; instead it lives inside a vine and takes nutrients from its host. When it opens, it gives off a strong smell that invites tiny flies to help it pollinate, and the bloom lasts only a short while.';
 
   @override
   String get species_lore_fallback_intro => 'A little garden plant';

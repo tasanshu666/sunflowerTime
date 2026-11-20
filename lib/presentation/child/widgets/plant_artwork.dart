@@ -17,12 +17,12 @@
 /// ⑥ 以上都没有 → 回退到内置自绘简笔（[PlantPlaceholderArt]）
 /// ```
 /// 其中：
-/// - `{speciesId}` = `PlantSpecies.id`（现为 `species_sunflower` 等 6 种，见 `plant_seed.dart`）
+/// - `{speciesId}` = `PlantSpecies.id`（现为 `species_sunflower` 等 11 种，见 `plant_seed.dart`）
 /// - `{dir}` = 物种子目录 = `{speciesId}` 去掉 `species_` 前缀（如 `species_sunflower` → `sunflower`）
 /// - `{stage}` = `seed` / `sprout` / `adult`
 /// - `{status}` = `growing` / `bloomed` / `wilting` / `dead`
 ///
-/// ## 物种中文名 ↔ 子目录对照（2026-10-08，与 `docs/美术资源清单_花园植物.md` §0.8 同步）
+/// ## 物种中文名 ↔ 子目录对照（2026-10-08 建立，2026-11-20 增至 11 种；与 `docs/美术资源清单_花园植物.md` §0.8 同步）
 ///
 /// | 中文名 | speciesId | 子目录 |
 /// |---|---|---|
@@ -36,6 +36,7 @@
 /// | 玫瑰 | `species_rose` | `rose/`（F153，普通档） |
 /// | 荷花 | `species_lotus` | `lotus/`（2026-11-08，精英档） |
 /// | 蓝莓 | `species_blueberry` | `blueberry/`（2026-11-08，普通档） |
+/// | 大王花 | `species_rafflesia` | `rafflesia/`（2026-11-20，精英档） |
 ///
 /// 说明：④/⑤ 的「通用级」（`shared_*`）供**跨物种共用的阶段图**使用 —— 种子期各物种
 /// 形态相近，**全物种只出 3 张通用图**即可覆盖所有物种的种子期：

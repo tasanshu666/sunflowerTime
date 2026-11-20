@@ -103,8 +103,8 @@ Future<int> _plantCount(db.AppDatabase database) async {
 PlantSpecies _sp(String id) =>
     kSeedPlantSpecies.firstWhere((PlantSpecies s) => s.id == id);
 
-// 10 物种 id（顺序 = 展示顺序；2026-10-08 删星辰花/虹影蕨，F151 增葡萄、F153 增玫瑰，
-// 2026-11-08 增荷花 / 蓝莓）。
+// 11 物种 id（顺序 = 展示顺序；2026-10-08 删星辰花/虹影蕨，F151 增葡萄、F153 增玫瑰，
+// 2026-11-08 增荷花 / 蓝莓，2026-11-20 增大王花）。
 const List<String> _kAllIds = <String>[
   'species_sunflower',
   'species_moon_orchid',
@@ -116,12 +116,13 @@ const List<String> _kAllIds = <String>[
   'species_rose',
   'species_lotus',
   'species_blueberry',
+  'species_rafflesia',
 ];
 
 void main() {
   // ── 计价矩阵 ────────────────────────────────────────────────────────────
-  group('D1 · plantCost / fragmentCostOf 10 物种矩阵（与口径逐条对齐）', () {
-    test('物种表恰 10 种、顺序 = 展示顺序、无 daisy/cactus', () {
+  group('D1 · plantCost / fragmentCostOf 11 物种矩阵（与口径逐条对齐）', () {
+    test('物种表恰 11 种、顺序 = 展示顺序、无 daisy/cactus', () {
       expect(kSeedPlantSpecies.map((PlantSpecies s) => s.id).toList(), _kAllIds);
       final Set<String> ids =
           kSeedPlantSpecies.map((PlantSpecies s) => s.id).toSet();
@@ -146,6 +147,7 @@ void main() {
         'species_rose': (PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
         'species_lotus': (PlantCostKind.fragments, kSpeciesFragmentCostPremium),
         'species_blueberry': (PlantCostKind.sunlight, kSpeciesSunlightCostCommon),
+        'species_rafflesia': (PlantCostKind.fragments, kSpeciesFragmentCostPremium),
       };
       for (final MapEntry<String, (PlantCostKind, int)> e in expectLow.entries) {
         final PlantCost low = await ctx.svc.plantCost(_sp(e.key), AgeTier.low);
@@ -174,6 +176,7 @@ void main() {
         'species_jade_hydrangea',
         'species_grape',
         'species_lotus',
+        'species_rafflesia',
       ]) {
         expect(ctx.svc.fragmentCostOf(_sp(id)), kSpeciesFragmentCostPremium,
             reason: '$id 为 rare → 档位派生 15（F144：10 → 15）');

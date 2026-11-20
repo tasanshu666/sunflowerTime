@@ -9,7 +9,7 @@
 ///
 /// 本文件把文案整体搬到 ARB（`species_lore_{id}_intro/_story` +
 /// `species_lore_fallback_intro/_story`，F153 起 8 物种共 18 条；2026-11-08 增
-/// 荷花 / 蓝莓 → 10 物种共 22 条），并按 id 取用
+/// 荷花 / 蓝莓 → 10 物种共 22 条；2026-11-20 增大王花 → 11 物种共 24 条），并按 id 取用
 /// —— 与 `title_l10n.dart::focusLevelTitleRowL10n` **同构**：
 ///  · **zh 逐字节不变**：18 条 ARB zh 值与迁移前 `kSpeciesLore` /
 ///    `kFallbackSpeciesLore` 完全一致（新物种锚点随批追加；守卫见
@@ -81,6 +81,10 @@ SpeciesLore speciesLoreL10n(String speciesId, AppLocalizations t) {
       return SpeciesLore(
           intro: t.species_lore_blueberry_intro,
           story: t.species_lore_blueberry_story);
+    case 'species_rafflesia':
+      return SpeciesLore(
+          intro: t.species_lore_rafflesia_intro,
+          story: t.species_lore_rafflesia_story);
     default:
       return SpeciesLore(
           intro: t.species_lore_fallback_intro,

@@ -12,7 +12,7 @@
 /// UI 经 `core/i18n/species_lore_l10n.dart::speciesLoreL10n` 取用。
 ///
 /// ## 本文件锁四条
-///  ① **zh 逐字节不变**：10 物种 × 2（intro/story）+ 2 条兜底 = 22 条 ARB zh 值
+///  ① **zh 逐字节不变**：11 物种 × 2（intro/story）+ 2 条兜底 = 24 条 ARB zh 值
 ///     与迁移前 `kSpeciesLore` / `kFallbackSpeciesLore` 宪法原文完全一致（F151
 ///     增葡萄、F153 增玫瑰、2026-11-08 增荷花 / 蓝莓时按当时 ARB 原文追加锚点）；
 ///  ② **en 无 CJK**：14 条英文全部非空且不含任何汉字（英文模式不再显中文）；
@@ -73,6 +73,10 @@ const Map<String, List<String>> _constitutionZh = <String, List<String>>{
     '蓝色的小圆球',
     '蓝莓的蓝，一半来自果皮本身，一半来自表面那层薄薄的白霜。白霜像给果子穿的防晒衣，能挡住最烈的太阳。所以摘蓝莓的时候别把它搓掉——白霜越完整，果子越新鲜。',
   ],
+  'species_rafflesia': <String>[
+    '比小桌子还大的花',
+    '大王花是世界上最大的花之一，一朵就能铺满小桌面。它没有叶子，也不自己晒太阳，而是住在藤蔓里，借藤蔓送来的养分长大。开花时它会散出特别的气味，引来小苍蝇帮它传粉；花期很短，能遇见它盛开可要好好看看哦。',
+  ],
   '__fallback__': <String>[
     '花园里的小植物',
     '每种植物都有自己的小故事，等着你去发现哦。',
@@ -87,7 +91,7 @@ void main() {
   final AppLocalizations en = AppLocalizationsEn();
 
   group('① zh 逐字节不变（零回归）', () {
-    test('10 物种 × 2 + 兜底 2 = 22 条 zh 值与宪法原文逐字节一致', () {
+    test('11 物种 × 2 + 兜底 2 = 24 条 zh 值与宪法原文逐字节一致', () {
       for (final MapEntry<String, List<String>> entry
           in _constitutionZh.entries) {
         final SpeciesLore lore = entry.key == '__fallback__'
@@ -102,7 +106,7 @@ void main() {
   });
 
   group('② en 译文：非空 + 无 CJK', () {
-    test('22 条 en 全部不含汉字且非空（英文模式不再显中文）', () {
+    test('24 条 en 全部不含汉字且非空（英文模式不再显中文）', () {
       for (final String id in _constitutionZh.keys) {
         final SpeciesLore lore = speciesLoreL10n(
             id == '__fallback__' ? 'no_such_species' : id, en);
@@ -115,7 +119,7 @@ void main() {
       }
     });
 
-    test('10 条 en intro 简短（≤ 8 词，儿童友好口径）', () {
+    test('11 条 en intro 简短（≤ 8 词，儿童友好口径）', () {
       const List<String> ids = <String>[
         'species_sunflower',
         'species_tomato',
@@ -127,6 +131,7 @@ void main() {
         'species_rose',
         'species_lotus',
         'species_blueberry',
+        'species_rafflesia',
       ];
       for (final String id in ids) {
         final String intro = speciesLoreL10n(id, en).intro;

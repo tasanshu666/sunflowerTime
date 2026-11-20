@@ -3310,13 +3310,14 @@ const List<String> kGuardSeedSpeciesCommon = <String>[
   'species_blueberry',
 ];
 
-/// 精英档种子池（5 种，对应 `rarity: Rarity.rare`）。
+/// 精英档种子池（6 种，对应 `rarity: Rarity.rare`；2026-11-20 增大王花）。
 const List<String> kGuardSeedSpeciesPremium = <String>[
   'species_moon_orchid',
   'species_coral_orchid',
   'species_jade_hydrangea',
   'species_grape',
   'species_lotus',
+  'species_rafflesia', // 2026-11-20 大王花（精英档）
 ];
 
 // ── 确定性通道名（🔴 一经写入即冻结）──────────────────────────────────────

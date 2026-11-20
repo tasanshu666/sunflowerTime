@@ -93,6 +93,8 @@ flutter:
     # 2026-11-08 新物种（玄参交付，静态图 1440×2000 已归一化）：荷花（精英）/ 蓝莓（普通）。
     - assets/plants/lotus/
     - assets/plants/blueberry/
+    # 2026-11-20 大王花（玄参交付，精英档；静态图 1440×2000 已归一化，7 张）。
+    - assets/plants/rafflesia/
     - assets/plants/shared/
     # 花盆美术资源（2026-09-23）：通用空花盆 pot.png，缺失时回退内置 CustomPaint 自绘。
     - assets/pots/
@@ -173,6 +175,10 @@ flutter:
     - assets/fx/grow/blueberry/seed_to_sprout/
     - assets/fx/grow/blueberry/sprout_to_adult/
     - assets/fx/grow/blueberry/adult_to_bloomed/
+    # 2026-11-20 大王花（精英档）：3 段 × 27 帧 WebP（q95，原 PNG 已移出包体）。
+    - assets/fx/grow/rafflesia/seed_to_sprout/
+    - assets/fx/grow/rafflesia/sprout_to_adult/
+    - assets/fx/grow/rafflesia/adult_to_bloomed/
     - assets/fx/care/water/
     - assets/fx/care/fertilize/
     # 除草 / 除虫效果帧（2026-10-03 玄参交付，各 27 帧）：点干扰物播放，禁止归一化。

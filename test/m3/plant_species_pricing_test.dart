@@ -250,7 +250,7 @@ void main() {
       }
     });
 
-    t.test('精英档（5 种）→ 精英档碎片价（F144：10 → 20）', () async {
+    t.test('精英档（6 种）→ 精英档碎片价（F144：10 → 20）', () async {
       for (final String id in <String>[
         'species_moon_orchid',
         'species_coral_orchid',
@@ -274,9 +274,9 @@ void main() {
           reason: '月光兰为 rare（精英档），碎片价按档位派生 = kSpeciesFragmentCostPremium（F144：10 → 20）');
     });
 
-    t.test('物种表：恰 10 种、顺序 = 展示顺序、移除 daisy/cactus', () {
-      t.expect(kSeedPlantSpecies.length, 10,
-          reason: '2026-11-08 起为 10 种（+葡萄+玫瑰+荷花+蓝莓）');
+    t.test('物种表：恰 11 种、顺序 = 展示顺序、移除 daisy/cactus', () {
+      t.expect(kSeedPlantSpecies.length, 11,
+          reason: '2026-11-20 起为 11 种（+葡萄+玫瑰+荷花+蓝莓+大王花）');
       t.expect(
         kSeedPlantSpecies.map((PlantSpecies s) => s.id).toList(),
         <String>[
@@ -290,6 +290,7 @@ void main() {
           'species_rose',
           'species_lotus',
           'species_blueberry',
+          'species_rafflesia',
         ],
       );
       final Set<String> ids =
@@ -791,7 +792,7 @@ void main() {
       t.expect(find.text('普通'), findsWidgets,
           reason: '普通档（番茄 / 草莓）卡片显示「普通」标签');
       t.expect(find.text('精英'), findsWidgets,
-          reason: '精英档（月光兰等 5 种）卡片显示「精英」标签');
+          reason: '精英档（月光兰等 6 种）卡片显示「精英」标签');
       t.expect(find.text('免费'), findsOneWidget, reason: '向日葵 = 免费');
       // 2026-10-05 玄参美化口径：价格=「素材图标 + 数字」，不再写「N 阳光」文字。
       t.expect(find.text('300'), findsWidgets,
@@ -973,7 +974,7 @@ void main() {
   });
 }
 
-// ── 弹窗用例的假仓储（返回真实 10 物种种子表）─────────────────────────────────
+// ── 弹窗用例的假仓储（返回真实 11 物种种子表）─────────────────────────────────
 
 class _FakeSettingsRepo implements SettingsRepository {
   @override

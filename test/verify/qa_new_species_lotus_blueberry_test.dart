@@ -12,7 +12,7 @@
 ///  A. AssetManifest 打包实测：14 张静态图 / 6 个成长帧叶子目录各 27 帧连续 / 6 段 mp3；
 ///  B. 定价与成长时长单点派生：species_lotus / species_blueberry 的档位、时长与种下价；
 ///  C. 头像卡溢出（本轮 lib 改动最需独立验）：320×568 / 800×600 无溢出，
-///     1024×1366 卡片不得被 `Flexible` 拉满（含实测高度数值），11 项均可滚动触达；
+///     1024×1366 卡片不得被 `Flexible` 拉满（含实测高度数值），12 项均可滚动触达；
 ///  D. i18n 无残留：头像卡 10 物种英文全命中、选种卡背面图鉴英文无 CJK、zh 与 ARB 逐字一致；
 ///  E. 成长音效回退链：`growSfxAssetCandidates` 第一候选是物种专属且文件真实存在，
 ///     第二候选才是通用兜底。
@@ -82,8 +82,8 @@ const List<String> _kTransitionDirs = <String>[
 /// 每段成长帧帧数（玄参交付 27 帧；写死 > 从实现常量取）。
 const int _kFramesPerTransition = 27;
 
-/// 头像卡选项 = 阳光 + 10 物种 = 11。
-const int _kAvatarOptionCount = 11;
+/// 头像卡选项 = 阳光 + 11 物种 = 12。
+const int _kAvatarOptionCount = 12;
 
 /// 英文物种名（10 种；硬写 ARB en 期望值，防止实现漏 i18n 也一起「自洽」）。
 const Map<String, String> _kEnglishSpeciesName = <String, String>{
@@ -284,18 +284,18 @@ Future<void> _pumpAvatarCard(
       reason: '头像卡未打开：装配失败（后续断言会假绿，必须先卡住）');
 }
 
-/// 断言「第 11 项（蓝莓）」在当前视口下可经滚动触达：能 `ensureVisible` 到屏内、
+/// 断言「第 12 项（大王花）」在当前视口下可经滚动触达：能 `ensureVisible` 到屏内、
 /// 且真的可命中（不是被裁掉的半截）。
 Future<void> _expectLastOptionReachable(
   WidgetTester tester, {
   required double viewportHeight,
 }) async {
   final Finder last =
-      find.byKey(const ValueKey<String>('avatar_option_species_blueberry'));
-  expect(last, findsOneWidget, reason: '第 11 项（蓝莓）不在树内');
+      find.byKey(const ValueKey<String>('avatar_option_species_rafflesia'));
+  expect(last, findsOneWidget, reason: '第 12 项（大王花）不在树内');
   await tester.ensureVisible(last);
   await tester.pump(const Duration(milliseconds: 100));
-  expect(tester.takeException(), isNull, reason: '滚到第 11 项时不应抛异常');
+  expect(tester.takeException(), isNull, reason: '滚到第 12 项时不应抛异常');
 
   final Rect r = tester.getRect(last);
   // ignore: avoid_print
@@ -305,7 +305,7 @@ Future<void> _expectLastOptionReachable(
   expect(r.bottom, lessThanOrEqualTo(viewportHeight),
       reason: '滚到眼前后不得超出屏幕底部：bottom=${r.bottom}（视口 $viewportHeight）');
   expect(last.hitTestable(), findsOneWidget,
-      reason: '第 11 项滚到眼前后必须可命中（≥44pt 触点且在视口内）');
+      reason: '第 12 项滚到眼前后必须可命中（≥44pt 触点且在视口内）');
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -546,8 +546,8 @@ void main() {
           reason: '蓝莓不是初始物种，不得出现免费选项');
     });
 
-    test('B5 · 新物种不污染既有物种：物种表 10 种且顺序末尾为 荷花 → 蓝莓', () {
-      expect(kSeedPlantSpecies.length, 10);
+    test('B5 · 新物种不污染既有物种：物种表 11 种且顺序末尾为 荷花 → 蓝莓 → 大王花', () {
+      expect(kSeedPlantSpecies.length, 11);
       expect(
         kSeedPlantSpecies.map((PlantSpecies s) => s.id).toList(),
         <String>[
@@ -561,6 +561,7 @@ void main() {
           'species_rose',
           'species_lotus',
           'species_blueberry',
+          'species_rafflesia',
         ],
       );
     });
@@ -575,7 +576,7 @@ void main() {
           for (final PlantSpecies s in kSeedPlantSpecies) 'avatar_option_${s.id}',
         ];
 
-    testWidgets('C1 · 窄屏 320×568：无 RenderFlex 溢出，11 个选项全部在树内',
+    testWidgets('C1 · 窄屏 320×568：无 RenderFlex 溢出，12 个选项全部在树内',
         (WidgetTester tester) async {
       await _pumpAvatarCard(
         tester,
@@ -598,7 +599,7 @@ void main() {
       expect(tester.takeException(), isNull, reason: '窄屏滚动后仍不得溢出');
     });
 
-    testWidgets('C2 · 默认 800×600：无 RenderFlex 溢出，11 项同样可触达',
+    testWidgets('C2 · 默认 800×600：无 RenderFlex 溢出，12 项同样可触达',
         (WidgetTester tester) async {
       await _pumpAvatarCard(
         tester,
@@ -610,7 +611,7 @@ void main() {
       for (final String k in allOptionKeys()) {
         expect(find.byKey(ValueKey<String>(k)), findsOneWidget, reason: '$k 缺失');
       }
-      // 800×600 也要求「第 11 项可触达」（此视口下可能已经一屏放下，仍走同一断言）。
+      // 800×600 也要求「第 12 项可触达」（此视口下可能已经一屏放下，仍走同一断言）。
       await _expectLastOptionReachable(tester, viewportHeight: 600);
     });
 
@@ -649,7 +650,7 @@ void main() {
               '（设计值 ≈ 卡内 padding-bottom 22）');
     });
 
-    testWidgets('C4 · 任意视口下第 11 项（蓝莓）可经滚动触达并可点',
+    testWidgets('C4 · 任意视口下第 12 项（大王花）可经滚动触达并可点',
         (WidgetTester tester) async {
       await _pumpAvatarCard(
         tester,
@@ -658,7 +659,7 @@ void main() {
       );
 
       final Finder last =
-          find.byKey(const ValueKey<String>('avatar_option_species_blueberry'));
+          find.byKey(const ValueKey<String>('avatar_option_species_rafflesia'));
       // 未种植 → 锁定态；先确认它在滚动视图内可被滚到眼前。
       await _expectLastOptionReachable(tester, viewportHeight: 568);
 
@@ -666,7 +667,7 @@ void main() {
       await tester.tap(last);
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text(kChildAvatarLockedHint), findsOneWidget,
-          reason: '第 11 项必须可交互（锁定态点击应给出提示）');
+          reason: '第 12 项必须可交互（锁定态点击应给出提示）');
     });
   });
 

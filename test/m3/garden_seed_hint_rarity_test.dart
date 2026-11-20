@@ -36,15 +36,16 @@ import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_en.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 
-/// 10 个物种的中英文名 —— 提示文案里**一个都不许出现**。
+/// 11 个物种的中英文名 —— 提示文案里**一个都不许出现**。
 const List<String> _speciesNames = <String>[
   '向日葵', '月光兰', '番茄', '草莓', '珊瑚岭兰', '翡翠绣球', '葡萄', '玫瑰', //
-  '荷花', '蓝莓', //
+  '荷花', '蓝莓', '大王花', //
   'Sunflower', 'Moon Orchid', 'Tomato', 'Strawberry',
   'Coral Ridge Orchid', 'Jade Hydrangea', 'Grape', 'Rose', 'Lotus', 'Blueberry',
+  'Rafflesia',
 ];
 
-/// 覆盖**全部 10 个物种 id**（2026-11-08 起）+ 2 个历史已删物种 id（验证「找不到 → 普通档」）。
+/// 覆盖**全部 11 个物种 id**（2026-11-20 起）+ 2 个历史已删物种 id（验证「找不到 → 普通档」）。
 const List<String> _allSpeciesIds = <String>[
   'species_sunflower',
   'species_moon_orchid',
@@ -56,6 +57,7 @@ const List<String> _allSpeciesIds = <String>[
   'species_rose',
   'species_lotus',
   'species_blueberry',
+  'species_rafflesia',
   // 2026-10-08 玄参删除的两种（老库里仍可能有残留券/种子）。
   'species_star_flower',
   'species_rainbow_fern',
@@ -143,7 +145,7 @@ void main() {
       }
     });
 
-    test('档位映射与 isPremium 严格同源（普通 5 种 / 精英 5 种，2026-11-08 起为 10 种）', () {
+    test('档位映射与 isPremium 严格同源（普通 5 种 / 精英 6 种，2026-11-20 起为 11 种）', () {
       int common = 0;
       int premium = 0;
       for (final PlantSpecies sp in kSeedPlantSpecies) {
@@ -158,8 +160,8 @@ void main() {
       }
       expect(common, 5,
           reason: '2026-11-08：蓝莓入普通档（向日葵/番茄/草莓/玫瑰/蓝莓）');
-      expect(premium, 5,
-          reason: '2026-11-08：荷花入精英档（月光兰/珊瑚岭兰/翡翠绣球/葡萄/荷花）');
+      expect(premium, 6,
+          reason: '2026-11-20：大王花入精英档（月光兰/珊瑚岭兰/翡翠绣球/葡萄/荷花/大王花）');
       // 兜底常量仍在（kStarterSpeciesId = 免费向日葵，不进本提示）。
       expect(kStarterSpeciesId, 'species_sunflower');
     });

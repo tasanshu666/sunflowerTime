@@ -150,6 +150,7 @@ const Map<String, List<String>> _kPremiumSpeciesNames =
   'species_moon_orchid': <String>['Moon Orchid', '月光兰'],
   'species_grape': <String>['Grape', '葡萄'], // F151（2026-10-23）第 4 精英
   'species_lotus': <String>['Lotus', '荷花'], // 2026-11-08 第 5 精英
+  'species_rafflesia': <String>['Rafflesia', '大王花'], // 2026-11-20 第 6 精英
 };
 
 /// 普通物种的**渲染名**（en / zh 两套；QA 补测：守卫原本只探精英卡，普通卡
@@ -226,8 +227,8 @@ Future<void> _pumpPickPlantDialog(
 
   // 防假绿：弹窗必须真的打开（标题在 zh / en 下不同，按 rarity chip 锚定）。
   final String premiumLabel = lang == AppLanguage.en ? 'Premium' : '精英';
-  expect(find.text(premiumLabel), findsNWidgets(5),
-      reason: '选种弹窗必须打开且 5 个精英物种卡都在场（防装配失败假绿）');
+  expect(find.text(premiumLabel), findsNWidgets(6),
+      reason: '选种弹窗必须打开且 6 个精英物种卡都在场（防装配失败假绿）');
 }
 
 /// 逐个把精英物种卡滚到眼前并断言无布局异常。
@@ -261,7 +262,7 @@ Future<void> _expectNoOverflowOnCards(
 
 void main() {
   group('F147 · 手机端（390×844）选种弹窗精英卡无溢出', () {
-    testWidgets('en + textScale 1.0：四个精英卡逐个可见、无异常',
+    testWidgets('en + textScale 1.0：六个精英卡逐个可见、无异常',
         (WidgetTester tester) async {
       await _pumpPickPlantDialog(
         tester,
@@ -273,7 +274,7 @@ void main() {
       await _expectNoOverflowOnPremiumCards(tester, AppLanguage.en);
     });
 
-    testWidgets('en + textScale 1.3（大字号）：四个精英卡逐个可见、无异常',
+    testWidgets('en + textScale 1.3（大字号）：六个精英卡逐个可见、无异常',
         (WidgetTester tester) async {
       await _pumpPickPlantDialog(
         tester,
@@ -285,7 +286,7 @@ void main() {
       await _expectNoOverflowOnPremiumCards(tester, AppLanguage.en);
     });
 
-    testWidgets('zh + textScale 1.0：四个精英卡逐个可见、无异常',
+    testWidgets('zh + textScale 1.0：六个精英卡逐个可见、无异常',
         (WidgetTester tester) async {
       await _pumpPickPlantDialog(
         tester,
@@ -297,7 +298,7 @@ void main() {
       await _expectNoOverflowOnPremiumCards(tester, AppLanguage.zh);
     });
 
-    testWidgets('zh + textScale 1.3（大字号）：四个精英卡逐个可见、无异常',
+    testWidgets('zh + textScale 1.3（大字号）：六个精英卡逐个可见、无异常',
         (WidgetTester tester) async {
       await _pumpPickPlantDialog(
         tester,

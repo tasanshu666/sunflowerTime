@@ -4733,6 +4733,12 @@ abstract class AppLocalizations {
   /// **'蓝莓'**
   String get shared_species_blueberry;
 
+  /// No description provided for @shared_species_rafflesia.
+  ///
+  /// In zh, this message translates to:
+  /// **'大王花'**
+  String get shared_species_rafflesia;
+
   /// No description provided for @shared_weekday_mon.
   ///
   /// In zh, this message translates to:
@@ -5488,6 +5494,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'蓝莓的蓝，一半来自果皮本身，一半来自表面那层薄薄的白霜。白霜像给果子穿的防晒衣，能挡住最烈的太阳。所以摘蓝莓的时候别把它搓掉——白霜越完整，果子越新鲜。'**
   String get species_lore_blueberry_story;
+
+  /// 物种图鉴 · 大王花一句话介绍（选种卡背面，2026-11-20 新增）
+  ///
+  /// In zh, this message translates to:
+  /// **'比小桌子还大的花'**
+  String get species_lore_rafflesia_intro;
+
+  /// 物种图鉴 · 大王花小故事（选种卡背面，2026-11-20 新增）
+  ///
+  /// In zh, this message translates to:
+  /// **'大王花是世界上最大的花之一，一朵就能铺满小桌面。它没有叶子，也不自己晒太阳，而是住在藤蔓里，借藤蔓送来的养分长大。开花时它会散出特别的气味，引来小苍蝇帮它传粉；花期很短，能遇见它盛开可要好好看看哦。'**
+  String get species_lore_rafflesia_story;
 
   /// 物种图鉴 · 未知物种兜底一句话介绍（F147 自 species_lore.dart 迁入）
   ///

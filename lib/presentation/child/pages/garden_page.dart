@@ -1877,14 +1877,80 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 打开「玩法说明」弹窗（容量 / 种植 / 养护 / 生长 / 枯萎开花 / 扩容）。
   ///
   /// 全部数字取自 prd_params 常量或当前 state（见 [GardenHelpSheet]），无裸字面量。
+  ///
+  /// 形态修订（底部抽屉 → 屏幕居中卡片）：照 `guard_tutorial_sheet` /
+  /// `guard_intro_dialog` 的现成先例改 `showGeneralDialog`，转场 fade + scale
+  /// 0.92→1.0（200ms easeOutCubic），点遮罩可关。[GardenHelpSheet] 自身已包
+  /// `L10nScope` 并在内部上下文取文案，dialog builder 在页级 scope 之外亦可用。
   Future<void> _showGardenHelp() {
-    return showModalBottomSheet<void>(
+    return showGeneralDialog<void>(
       context: context,
-      showDragHandle: true,
-      builder: (BuildContext ctx) => GardenHelpSheet(
-        capacity: _capacity,
-        expandCost: _expandCost,
-      ),
+      barrierDismissible: true,
+      barrierLabel: _t.ghelp_title,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (
+        BuildContext dialogCtx,
+        Animation<double> animation,
+        Animation<double> secondaryAnimation,
+      ) {
+        return LayoutBuilder(
+          builder: (BuildContext layoutCtx, BoxConstraints viewport) {
+            return Center(
+              child: Material(
+                color: Colors.transparent,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: 420,
+                      maxHeight: (viewport.maxHeight - 48).clamp(0.0, double.infinity),
+                    ),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEF),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.18),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: GardenHelpSheet(
+                        capacity: _capacity,
+                        expandCost: _expandCost,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+      transitionBuilder: (
+        BuildContext transitionCtx,
+        Animation<double> animation,
+        Animation<double> secondaryAnimation,
+        Widget child,
+      ) {
+        final CurvedAnimation curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            // 0.92 → 1.0：只给「浮现」暗示，不做夸张弹跳。
+            scale: Tween<double>(begin: 0.92, end: 1.0).animate(curved),
+            child: child,
+          ),
+        );
+      },
     );
   }
 

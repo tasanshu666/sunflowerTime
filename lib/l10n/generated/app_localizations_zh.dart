@@ -2744,6 +2744,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shared_species_blueberry => '蓝莓';
 
   @override
+  String get shared_species_rafflesia => '大王花';
+
+  @override
   String get shared_weekday_mon => '周一';
 
   @override
@@ -3178,6 +3181,13 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get species_lore_blueberry_story =>
       '蓝莓的蓝，一半来自果皮本身，一半来自表面那层薄薄的白霜。白霜像给果子穿的防晒衣，能挡住最烈的太阳。所以摘蓝莓的时候别把它搓掉——白霜越完整，果子越新鲜。';
+
+  @override
+  String get species_lore_rafflesia_intro => '比小桌子还大的花';
+
+  @override
+  String get species_lore_rafflesia_story =>
+      '大王花是世界上最大的花之一，一朵就能铺满小桌面。它没有叶子，也不自己晒太阳，而是住在藤蔓里，借藤蔓送来的养分长大。开花时它会散出特别的气味，引来小苍蝇帮它传粉；花期很短，能遇见它盛开可要好好看看哦。';
 
   @override
   String get species_lore_fallback_intro => '花园里的小植物';

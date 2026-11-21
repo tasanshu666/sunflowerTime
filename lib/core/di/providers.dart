@@ -23,6 +23,7 @@ import 'package:sunflower_time/data/local/database/app_database.dart'
 import 'package:sunflower_time/data/local/focus_level_prefs_store.dart';
 import 'package:sunflower_time/data/local/guard_energy_prefs_store.dart';
 import 'package:sunflower_time/data/local/guard_state_prefs_store.dart';
+import 'package:sunflower_time/data/local/guard_ultimate_energy_prefs_store.dart';
 import 'package:sunflower_time/data/local/repositories/focus_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/weekly_pool_local_repository.dart';
 import 'package:sunflower_time/data/local/repositories/reward_local_repository.dart';
@@ -43,6 +44,7 @@ import 'package:sunflower_time/domain/entities/child_profile.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
+import 'package:sunflower_time/domain/entities/guard_ultimate_energy.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/domain/repositories/entitlement_repository.dart';
@@ -60,11 +62,13 @@ import 'package:sunflower_time/domain/repositories/child_profile_repository.dart
 import 'package:sunflower_time/domain/repositories/focus_level_store.dart';
 import 'package:sunflower_time/domain/repositories/guard_energy_store.dart';
 import 'package:sunflower_time/domain/repositories/guard_state_store.dart';
+import 'package:sunflower_time/domain/repositories/guard_ultimate_energy_store.dart';
 import 'package:sunflower_time/domain/repositories/tracking_repository.dart';
 import 'package:sunflower_time/domain/repositories/wish_repository.dart';
 import 'package:sunflower_time/domain/repositories/wish_task_repository.dart';
 import 'package:sunflower_time/domain/services/focus_level_service.dart';
 import 'package:sunflower_time/domain/services/guard_service.dart';
+import 'package:sunflower_time/domain/services/guard_ultimate_service.dart';
 import 'package:sunflower_time/domain/services/guard_voucher.dart';
 import 'package:sunflower_time/domain/services/plant_perk.dart';
 import 'package:sunflower_time/domain/services/sunlight_service.dart';
@@ -209,11 +213,19 @@ final sunlightServiceProvider = Provider<SunlightService>(
       // 券服务建不出来（无 prefs / 无存储）⇒ 无券注入，专注结算不受影响。
       guardVouchers = null;
     }
+    // 守卫大招能量 writer：可选增强，与券服务同款降级（无 prefs 时 null）。
+    UltimateFocusWriter? ultimateFocusWriter;
+    try {
+      ultimateFocusWriter = ref.watch(guardUltimateServiceProvider);
+    } catch (_) {
+      ultimateFocusWriter = null;
+    }
     return SunlightService(
       ledger: ref.watch(sunlightRepositoryProvider),
       focus: ref.watch(focusRepositoryProvider),
       guardVouchers: guardVouchers,
       childId: () => ref.read(accountServiceProvider).childId,
+      ultimateFocusWriter: ultimateFocusWriter,
     );
   },
 );
@@ -432,6 +444,31 @@ final guardStateStoreProvider = Provider<GuardStateStore>(
 /// 攒下的能量必须原样留下（玄参 v0.3 验收反馈 3）。
 final guardEnergyStoreProvider = Provider<GuardEnergyStore>(
   (ref) => GuardEnergyPrefsStore(ref.watch(sharedPreferencesProvider)),
+);
+
+/// 守卫大招能量持久存储（键 = `guard_ultimate_v1_<childId>` + 独立去重键）。
+///
+/// 🔴 与 [guardEnergyStoreProvider] **分开注册**：旧入场券能量与大招能量
+/// 物理隔离（口径 1 / C3 / 架构 §8-S1），schemaVersion 恒 32。
+final guardUltimateEnergyStoreProvider = Provider<GuardUltimateEnergyStore>(
+  (ref) => GuardUltimateEnergyPrefsStore(ref.watch(sharedPreferencesProvider)),
+);
+
+/// 守卫大招能量服务（累计落库 + 释放扣格，串行闸门 + sessionId 幂等）。
+///
+/// 可选注入到 [sunlightServiceProvider] 作累计 writer；释放时由场景卡经
+/// `spendCell()` 扣 1 格。domain 零权益命名空间（门控判定在 shared 层）。
+final guardUltimateServiceProvider = Provider<GuardUltimateService>(
+  (ref) => GuardUltimateService(
+    store: ref.watch(guardUltimateEnergyStoreProvider),
+    childId: () => ref.read(accountServiceProvider).childId,
+  ),
+);
+
+/// 大招能量可监听流：专注结算 credit / 释放 spend 后即时发射 ⇒ 能量条即时刷新
+/// （P0-03②，无需重启页面）。孩子端 `ref.watch` 本 provider 只拿实体 + bool。
+final guardUltimateEnergyProvider = StreamProvider<UltimateEnergy>(
+  (ref) => ref.watch(guardUltimateServiceProvider).watchEnergy(),
 );
 
 /// 今日券服务（**券的唯一生效口**：券 → `PlantPerk` 的减免只经这里产出）。

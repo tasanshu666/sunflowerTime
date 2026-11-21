@@ -39,6 +39,8 @@ const Set<FeatureKey> _tightenedInPhase4 = <FeatureKey>{
   FeatureKey.titlePerks,
   FeatureKey.multiChildProfile,
   FeatureKey.wishSlot, // 许愿树：满级天花板登记，实际额度随专注等级派生
+  // 守卫大招：一次性买断解锁（免费关闭 / 买断开启），真门控。
+  FeatureKey.guardUltimate,
 };
 
 void main() {

@@ -24,7 +24,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sunflower_time/presentation/shared/premium_gate.dart'
-    show showGuardPremiumHint;
+    show showGuardPremiumHint, guardUltimateUnlocked;
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
@@ -62,6 +62,8 @@ import 'package:sunflower_time/presentation/child/widgets/sun_burst.dart';
 import 'package:sunflower_time/presentation/child/widgets/tab_background.dart';
 import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/focus_level.dart';
+import 'package:sunflower_time/domain/entities/guard_ultimate_energy.dart'
+    show UltimateEnergy;
 import 'package:sunflower_time/domain/entities/guard_chest.dart'
     show GuardChestTier;
 import 'package:sunflower_time/domain/entities/guard_thief.dart';
@@ -193,6 +195,26 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   /// `_onBattleFinished` 用完即清 —— v1 用局部变量承载，B3 战斗改在卡内跑，
   /// 终局跨方法回调，故升为字段）。
   GuardTodayView? _battleView;
+
+  /// 🔴 C133（覆盖安装复现「未点开始自动开战」）：本会话是否**真的点击进入
+  /// 过**战斗。
+  ///
+  /// ## 为什么需要它（缺陷链路）
+  /// `markFighting()` 把当日存档落成 `fighting`（「落骰已定，只回放结果」），
+  /// 但战局本体只活在会话内存里（`GuardBattleSim` 零落盘）。覆盖安装 / 强杀
+  /// 后冷启动：存档幸存 → `resolve()` 原样回放 → `guardPillModeOf` 派生
+  /// fighting → 卡片挂 L4 战斗层 → ticker 自动重放一场**孩子根本没参与的
+  /// 战斗**并超时撤退（玄参真机：「未点开始守卫战自己开打并超时撤退」）。
+  ///
+  /// 本标志 = **纯表现层内存态**（不持久化、不新增 prefs 键 / 表列）：
+  ///  · 冷启动恒 false → [_refreshGuard] 撞见 fighting 时不挂战斗层，改走
+  ///    [_settleResidualBattle] 直接推进宝箱/结算演出（惩罚兜底：该路径
+  ///    **绝不**触发 recordNoFirePenalty / recordBattleTheft）；
+  ///  · 本会话点「开始守卫」（[_onGuardCardTap] 确认后）置 true → 战斗期间
+  ///    的任何 `_refreshGuard` 重入（economyRevision bump / 切 tab）仍按 B3
+  ///    既定行为放行 fighting，零回归；
+  ///  · 页面销毁即消失 —— 下个会话重新判定，语义自洽。
+  bool _enteredBattleThisSession = false;
 
   /// 阳光胶囊点击教学（B13.26，玄参 2026-11-16：「孩子并不了解阳光胶囊是
   /// 哪个，需要在前 3 次战斗的时候对阳光胶囊的位置进行提醒」）：
@@ -445,6 +467,18 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
     }
     if (!mounted) return;
     if (token == _guardRefreshToken) {
+      // 🔴 C133：冷启动撞见残留 fighting（非本会话战斗）⇒ 不挂战斗层自顾自
+      //    重放（战局本体只活在上一会话内存里），改走 [_settleResidualBattle]
+      //    直接推进宝箱/结算演出。本会话点击进入过（flag true）⇒ 战斗期间
+      //    的刷新重入按 B3 既定行为放行，零回归。
+      //    注：此分支下「昨日 expire 报告」不可能同时有新闻 —— 有新闻 ⇒
+      //    resolve 的 needsExpire 闸门会把 view 判成 absent（mode ≠ fighting），
+      //    故提前 return 不会吞掉次日结算报告。
+      if (view.mode == GuardPillMode.fighting &&
+          !_enteredBattleThisSession) {
+        await _settleResidualBattle(view);
+        return;
+      }
       ref.read(guardTodayProvider.notifier).state = view;
     }
     // 次日结算报告（🔴 在 token 检查**之外**：结算只发生这一次，若本次刷新的
@@ -621,6 +655,9 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
       // 结算卡用**进入战斗前的快照**：`claim()` 的奖品由 `resolve()` 定死，
       // 与战局输赢无关（v1 ④ 同口径，搬到终局回调里用）。
       _battleView = view;
+      // 🔴 C133：本会话**真实进入**了战斗 —— 置位后，战斗期间的任何
+      // `_refreshGuard` 重入撞见 fighting 都按既有行为放行（见字段文档）。
+      _enteredBattleThisSession = true;
       // 🔴 B13.26 胶囊教学（玄参 2026-11-16）：开战时判定是否显示引导气泡
       //（前 [kGuardPillTeachMaxBattles] 场；读失败按 0 = 显示，绝不阻断开战）。
       _pillTeachVisible = _pillTeachCountInPrefs() < kGuardPillTeachMaxBattles;
@@ -646,10 +683,12 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
   /// [battleStolenSun] = sim 终局报告的实际被偷合计（含 30s 到点时刻的钳制值；
   /// 取数链路：sim 报告 → 本方法 → 结算卡）。
   ///
-  /// [hasFired] = 本场**是否开过火**（B13.26，玄参 2026-11-16：未开火场不发
-  /// 必得阳光 —— sim `hasFired` 透传，进 [showGuardResultCard] 显示红色 −N、
-  /// 进 `claim(hasFired:)` 短路 `guard_win` 账本行）。
-  Future<void> _onBattleFinished(int battleStolenSun, bool hasFired) async {
+  /// [didAttack] = 本场**是否参与过攻击**（B13.26 基础上 🔴 C128 扩口径：
+  /// 开过火 **或** 大招清过怪均算参战，L4 field 判定后透传 —— 只用大招通关的
+  /// 场不再误标「未参战」，否则结算卡错误显示「守卫失败」并误扣 −3）。仍
+  /// 进 [showGuardResultCard] 显示红色 −N、进 `claim(hasFired:)` 短路
+  /// `guard_win` 账本行（domain 参数名保留 hasFired 历史口径，语义已扩）。
+  Future<void> _onBattleFinished(int battleStolenSun, bool didAttack) async {
     if (_guardBusy || !mounted) return;
     final GuardTodayView? view = _battleView;
     final AppLocalizations? t = _l10n;
@@ -675,7 +714,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
       //    时账本实扣 <3 的边缘见口径表 C120-13）。
       int stolenCharged = 0;
       try {
-        if (hasFired) {
+        if (didAttack) {
           stolenCharged = await ref
               .read(guardServiceProvider)
               .recordBattleTheft(stolenSun: battleStolenSun);
@@ -685,7 +724,7 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
           stolenCharged = await ref
               .read(guardServiceProvider)
               .recordNoFirePenalty();
-          debugPrint('[Guard] 未开火惩罚落账（恒 $kGuardWinSunMin ☀）: '
+          debugPrint('[Guard] 未参战惩罚落账（恒 $kGuardWinSunMin ☀）: '
               '实扣=$stolenCharged');
         }
       } catch (e) {
@@ -736,12 +775,12 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
         context,
         view: view,
         l10n: t,
-        stolenSun: hasFired ? stolenCharged : kGuardWinSunMin,
-        // 🔴 B13.26：未开火场 ⇒ 结算卡阳光卡显示红色 −N（被怪偷走了）。
-        hasFired: hasFired,
+        stolenSun: didAttack ? stolenCharged : kGuardWinSunMin,
+        // 🔴 B13.26：未参战场 ⇒ 结算卡阳光卡显示红色 −N（被怪偷走了）。
+        didAttack: didAttack,
         onCollect: () => ref
             .read(guardServiceProvider)
-            .claim(hasFired: hasFired),
+            .claim(hasFired: didAttack),
         showPremiumHint: showGuardPremiumHint(context),
         uiScale: uiScaleOf(context),
       );
@@ -768,6 +807,104 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
       _guardBusy = false;
       _battleView = null;
       // 无论成功、失败还是中途退出，都以存储为事实源校正一次卡态。
+      if (mounted) await _refreshGuard();
+    }
+  }
+
+  /// C133：残留 fighting（**非本会话战斗**）的跳过回放收尾 —— 直接推进
+  /// 「宝箱 → 结算卡」演出并 claim，绝不挂 L4 战斗层。
+  ///
+  /// ## 为什么落点在「宝箱 → 结算卡」而不是静默 claim
+  /// 上一场战斗在 `resolve()` 时奖励已定死并落盘（`winSun` / 券 / 宝箱六字段）；
+  /// `expire()` 的 fighting 分支语义就是「补发必得阳光、不结算损失」—— 本方法
+  /// 与其**同构**，只是把「补发」交给孩子点「收下」（claim 是唯一记账触发点，
+  /// PRD 红线）。跳过战斗回放是因为战局无法在表现层恢复：`GuardBattleSim`
+  /// 零落盘，上一会话的 sim 内存已随进程消失。
+  ///
+  /// ## 🔴 零被偷/惩罚落账（惩罚兜底，验收红线）
+  ///  · **不调** `recordBattleTheft` —— 被偷额只活在上一会话的 sim 内存里，
+  ///    本会话没有可落账的战局（账本不得出现 `guard_stolen` 新行）；
+  ///  · **不调** `recordNoFirePenalty` —— 无法证明孩子没开火（也可能他上一场
+  ///    打得正酣才被杀进程），惩罚只对本会话真实发生的未开火场成立
+  ///    （C120-13 语义）；本方法开头置 [_enteredBattleThisSession] = true，
+  ///    同时让 finally 的 [_refreshGuard] 重入时按「本会话战斗」放行既有路径，
+  ///    防「跳过 → 刷新 → 跳过」死循环；
+  ///  · `claim(hasFired: true)` 发必得阳光 + 券；**成本照扣**（能量路径不扣
+  ///    阳光；无能量时扣 [kGuardPayCost]）—— 与本会话正常结算的领取口径
+  ///    **逐位一致**（孩子确实打过这场战斗，成本该付）。跨天走 `expire()` 的
+  ///    fighting 分支（只补发、不扣成本）是另一条领域口径，两者各自成立。
+  ///
+  /// ## 生命周期与边缘
+  ///  · `_l10n` 为 null（首刷早于 build 赋值）⇒ 等一帧；仍 null ⇒ **不置标志**
+  ///    直接返回，允许下次刷新（build 完成后）重试；
+  ///  · claim 失败（`insufficientBalance`：付费残留局 + 余额后来被花光）⇒
+  ///    不动 provider：当日剩余会话里至多重放一次既有战斗（与修复前
+  ///    「每次挂载都重放」相比已收敛），经济侧由次日 `expire()` 的 fighting
+  ///    补发分支自愈（必得阳光照发）。
+  Future<void> _settleResidualBattle(GuardTodayView view) async {
+    // 等首帧落完：[_l10n] 在 build 里赋值，首刷可能早于它（与 [_refreshGuard]
+    // 的次日结算报告同一范式）。
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    final AppLocalizations? t = _l10n;
+    if (t == null) return; // 不置标志：下次刷新重试
+    _enteredBattleThisSession = true;
+    _guardBusy = true;
+    try {
+      // 宝箱演出（与 [_onBattleFinished] ③¾ 同构：已领取态不演；纯表演不
+      // 落盘，档位取存档定死值 + 调试覆盖只换演出档）。
+      if (guardStageAfterBattle(view) == GuardShowStage.chestDrop) {
+        final GuardChestTier showTier = ref.read(
+              debugGuardChestTierOverrideProvider,
+            ) ??
+            view.chestTier;
+        try {
+          await showGuardChestOverlay(
+            context,
+            tier: showTier,
+            l10n: t,
+            uiScale: uiScaleOf(context),
+          );
+        } catch (e) {
+          // 演出异常绝不阻断结算卡（与 [_onBattleFinished] 同范式）。
+          debugPrint('[Guard] 残留局宝箱演出异常（不阻断结算卡）：$e');
+        }
+        if (!mounted) return;
+      }
+      // 结算卡：卡面「未被偷」（stolenSun = 0 —— 本会话没有可落账的战局）、
+      // didAttack: true（不显示红色 −N；claim(hasFired: true) 补发必得阳光，
+      // = expire() fighting 分支「补发不罚」口径）。「收下」触发 claim。
+      final GuardClaimOutcome? outcome = await showGuardResultCard(
+        context,
+        view: view,
+        l10n: t,
+        stolenSun: 0,
+        didAttack: true,
+        onCollect: () =>
+            ref.read(guardServiceProvider).claim(hasFired: true),
+        showPremiumHint: showGuardPremiumHint(context),
+        uiScale: uiScaleOf(context),
+      );
+      if (outcome == null) return;
+      if (outcome.ok) {
+        ref.read(guardTodayProvider.notifier).state =
+            GuardTodayView.fromClaim(outcome, perk: view.perk);
+        // 跨页刷新总线（同 [_onBattleFinished] ④）。
+        ref.read(economyRevisionProvider.notifier).state++;
+        ref.read(guardBuffRevisionProvider.notifier).state++;
+        debugPrint('[Guard] C133 残留局收尾 claim ok: '
+            'drop=${outcome.drop.name}（跳过回放，零被偷/惩罚落账）');
+      } else {
+        // 见方法文档「生命周期与边缘」：交给 expire() 自愈，不动 provider。
+        debugPrint('[Guard] C133 残留局 claim 失败: ${outcome.failure}'
+            '（交给 expire 自愈）');
+      }
+    } catch (e) {
+      // 领取异常不弹错误框（同 [_onBattleFinished] 范式）。
+      debugPrint('[Guard] 残留局收尾失败（明天 expire 兜底）：$e');
+    } finally {
+      _guardBusy = false;
+      _battleView = null;
       if (mounted) await _refreshGuard();
     }
   }
@@ -1056,6 +1193,13 @@ class _ChildTodayPageState extends ConsumerState<ChildTodayPage>
                           // provider（release 恒 null ⇒ 走真实 seed 派生，零感知）。
                           debugScriptOverride:
                               ref.watch(debugGuardBattleScriptOverrideProvider),
+                          // 守卫大招能量 + 门控 bool（中性 helper 派生）由页面
+                          // 注入 ⇒ 孩子端零权益 token、能量条即时刷新（P0-03②）。
+                          ultimateEnergy: ref
+                                  .watch(guardUltimateEnergyProvider)
+                                  .value ??
+                              UltimateEnergy.empty,
+                          ultimateUnlocked: guardUltimateUnlocked(context),
                         ),
                       ),
                     ),

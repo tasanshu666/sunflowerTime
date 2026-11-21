@@ -4,6 +4,7 @@
 /// 组装成 [Entitlement] 实体，反之亦然。组装口径单点收口于此。
 library entitlement_local_repository;
 
+import 'package:sunflower_time/core/constants/iap_product_ids.dart';
 import 'package:sunflower_time/data/local/secure_entitlement_store.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/repositories/entitlement_repository.dart';
@@ -20,6 +21,22 @@ class EntitlementLocalRepository implements EntitlementRepository {
       if (productId == null || productId.isEmpty) {
         return Entitlement.free; // 无票据 → 安全默认 free
       }
+
+      // 🔴 C125-4 / C126-5 健壮性修复：productId 必须**精确等于**合法买断商品 ID。
+      // 旧实现「非空即 lifetime」会把覆盖安装后钥匙串残留的调试假票据
+      // （`debug.simulated.unlock`）或任意脏字符串当成已购，冷启动直接误放会员
+      // （iPad13 模拟器实证：3 条残留票据让免费设备变会员）。
+      // 只做**判定**，不删除票据（C69：不静默删用户数据）——脏票据原样留着，
+      // 由调试面板的「清除会员票据」入口显式清理，或由正式购买流程覆盖。
+      if (productId != kIapProductIdLifetime) {
+        return Entitlement.free;
+      }
+
+      // 边界说明（JWS）：`iap.jws` 已由 `SecureEntitlementStore` 落库，但项目当前
+      // **没有离线签名校验实现**，且本 App 单机无后端、不联网复验；本轮只做
+      // productId 白名单，能挡住「伪造 / 残留的未知商品号」，挡不住越狱后把
+      // productId 改写成合法 id 的定向篡改。该剩余风险已登记；后续若接入
+      // StoreKit 复验，就在本函数同一处补 JWS 校验（判定收敛点不扩散）。
       final String? acquiredRaw = await _store.readAcquiredAtRaw();
       return Entitlement.lifetime(
         productId: productId,

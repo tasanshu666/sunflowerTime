@@ -452,8 +452,8 @@ class _FocusPageState extends ConsumerState<FocusPage>
   /// 同日晚 F100 由 3s 改 5s）。
   ///
   /// 仍保持横屏，全屏文字提示 + 5-4-3-2-1 倒计时 + 5 秒倒计时配音（fire-and-forget，
-  /// 受 soundOn 保护，失败静默不影响主流程）；走完由调用方接续护眼卡（同样横屏
-  /// 播放，护眼结束才转竖屏进结算）。
+  /// **不受音效开关 soundOn 影响**——玄参拍板该开关只管收集阳光音，失败静默不影响主流程）；
+  /// 走完由调用方接续护眼卡（同样横屏播放，护眼结束才转竖屏进结算）。
   ///
   /// C51：场内触发（[inSession] = true）也复用本缓冲——文案区分：场末「🌻 专注
   /// 结束啦 / 让眼睛休息一下吧」、场内「🌻 让眼睛休息一下吧 / 休息完继续加油哦」。
@@ -462,7 +462,7 @@ class _FocusPageState extends ConsumerState<FocusPage>
     if (!mounted) return;
     if (mounted) setState(() => _endingInSession = inSession);
     // 倒计时开始 → 5 秒倒计时配音（玄参 2026-10-08 晚交付 `5s_countdown.mp3`，
-    // 替代此前的系统「叮」；fire-and-forget，受 soundOn 保护，失败静默不影响主流程）。
+    // 替代此前的系统「叮」；fire-and-forget，**不受 soundOn 影响**，失败静默不影响主流程）。
     // 🔴 B13.24（2026-11-15 玄参）：音量 1.0 → 0.5（「降低一半，声音有点大」）。
     ref.read(audioServiceProvider)
         .playSfx(AudioCue.focusEndCountdown, volume: kFocusEndCountdownVolume);
@@ -526,8 +526,12 @@ class _FocusPageState extends ConsumerState<FocusPage>
         _pulseParticle();
         _showBubble(event.textKey);
         // 🔴 B13.24（2026-11-15 玄参）：音量 1.0 → 0.5（「降低一半」）。
-        ref.read(audioServiceProvider)
-            .playSfx(AudioCue.focusCollect, volume: kFocusCollectVolume); // 收集阳光序列帧配音
+        // 玄参拍板：音效开关只管这一个「收集阳光」提示音，其余 SFX 一律不受管。
+        ref.read(audioServiceProvider).playSfx(
+              AudioCue.focusCollect,
+              volume: kFocusCollectVolume, // 收集阳光序列帧配音
+              respectSoundSwitch: true,
+            );
       case FeedbackLevel.lvl3:
         setState(() {
           _level = FeedbackLevel.lvl3;

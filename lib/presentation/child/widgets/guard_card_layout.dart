@@ -48,20 +48,35 @@ library guard_card_layout;
 import 'dart:math' as math;
 import 'dart:ui' show Rect;
 
+import 'dart:ui' show Offset;
+
 import 'package:sunflower_time/core/constants/prd_params.dart'
     show
         kGuardCardHouseHeight,
         kGuardCardPadBottom,
         kGuardCardPadTop,
+        kGuardCastAnchorFrameBottomPx,
+        kGuardCastAnchorFrameCenterXPx,
+        kGuardCastAnchorFrameHeightPx,
+        kGuardCastFramePx,
+        kGuardCastVisualOffsetX,
+        kGuardCastVisualOffsetY,
+        kGuardCastVisualScale,
         kGuardEnergyDotAnchorDx,
         kGuardMonsterAreaFactorByKind,
         kGuardSceneCardHeight,
         kGuardSceneEnergyDotTop,
         kGuardSceneFireButtonSize,
         kGuardSoldierStateAspectRatios,
-        kGuardSoldierStateCentroidX;
+        kGuardSoldierStateCentroidX,
+        kUltimateBarAboveGap,
+        kUltimateBarCellHeight,
+        kUltimateBarCellWidth,
+        kUltimateBarGap,
+        kUltimateFxFallbackDx;
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart'
     show
+        GuardBattleMonsterSnapshot,
         kGuardBattleFieldTravelPt,
         kGuardBattleLaneBottomPt,
         kGuardBattleLaneTopPt;
@@ -522,4 +537,127 @@ class GuardCardLayout {
 
   /// 子弹纵向映射（与怪同尺）。
   double mapBulletY(double simY) => mapMonsterY(simY);
+
+  // ── 向日葵守卫 · 大招几何（增量，锚点复用既有体系，不复用旧能量点）──────
+
+  /// 战士头顶大招能量条第 [index] 格矩形（0=左、1=右）。
+  ///
+  /// 🔴 玄参真机验收（2026-11-20）：大招能量格必须**紧贴向日葵战士头顶正上方**，
+  /// 且与旧入场券能量球（[energyDotRect]，灰白空心圆）**明显错开**。
+  /// * 横向：锚 = [soldierRect] 中轴（不再是能量点的房子中轴 + 20）——
+  ///   390 屏战士中轴 ≈ 188pt vs 能量点 ≈ 98pt，X 相距 ≈ 90pt，
+  ///   两条能量链路并存、零复用（口径 1），能量格不再夹在能量球下方；
+  /// * 纵向：底边 = `soldierRect.top − kUltimateBarAboveGap*e`
+  ///   —— **明确在战士头顶之上**（P0-03① 不与战士脸/身体重叠），随 e 缩放；
+  /// * 横向总宽 `2*cellW + gap` 恒小于战士绘制宽 ⇒ 不越卡（320/iPad 同款）。
+  Rect ultimateBarRect(int index) {
+    final double s = e;
+    final double cellW = kUltimateBarCellWidth * s;
+    final double cellH = kUltimateBarCellHeight * s;
+    final double gap = kUltimateBarGap * s;
+    final double anchor = soldierRect.center.dx;
+    final double total = cellW * 2 + gap;
+    final double left = anchor - total / 2 + index * (cellW + gap);
+    final double top = soldierRect.top - kUltimateBarAboveGap * s - cellH;
+    return Rect.fromLTWH(left, top, cellW, cellH);
+  }
+
+  /// 大招**释放动作帧**的绘制矩形 = 战士本体原位 [soldierRect]（玄参 2026-11-20：
+  /// 「向日葵战士应该在原位置播放释放大招的动画帧，而不是在战场上又出现一个」）。
+  ///
+  /// 🔴 与 [ultimateFxAnchor] 物理分离：cast 段画在这里（战士位），fx 段画在
+  /// 怪物聚集区 anchor（绝不落在战士脚下）——两段-logic 见
+  /// `guard_ultimate_fx.dart` / `guard_scene_card.dart`。纯几何 getter，可单测。
+  Rect get ultimateCastRect => soldierRect;
+
+  // ── 大招释放帧绘制框（🔴 C130 不裁切 + C131 锚点帧补偿基准）────────────
+
+  /// 大招**释放动作帧**的绘制高度。单位：pt。
+  ///
+  /// 🔴 C130（玄参「你不要给我切割」+「放大招的时候战士变小了」）：统一帧
+  /// **不再裁边**（720² 全画布，见 [kGuardCastFramePx]），战士实体只占画高
+  /// ~35% ⇒ 同一个 60pt 框下战士只有待机的一半大。改由**绘制框补偿**：
+  ///
+  /// ```text
+  /// castPaintHeight = soldierRect.height × 720 / 238（≈ 3.025 倍）
+  /// 锚点帧（frame006）实体渲染高 = castPaintHeight × 238/720 = soldierRect.height
+  /// 待机实体渲染高 = soldierRect.height × 1.0（待机实体并集 = 全画布 362×372）
+  /// ```
+  ///
+  /// 🔴 C131（玄参复验否决 C130「向日葵释放大招时还是变小了」）：补偿基准从
+  /// 「实体并集最大张态」（frame009，255px）改为**蓄力主体帧 frame006**
+  /// （238px，见 [kGuardCastAnchorFrameHeightPx] 的完整推导）。统一素材是
+  /// 「蓄力→爆发→收尾」动作、实体每帧变化极大（148 → 255 → 光效铺满），
+  /// 并集基准会让蓄力帧 001..008 只有 35~59pt（玄参按下大招立即看到「小
+  /// 战士」）；主体帧基准下：按下段 frame005..008 渲染 58~63pt ≈ 待机同大，
+  /// 峰值 frame009 = 64.3pt（+7%，动作爆发感，观感口径可接受），
+  /// 起手 frame001..003 = 37~49pt（素材本身的蓄力下蹲动作，非缩放缺陷）。
+  ///
+  /// 🔴 C132（玄参拍板走视觉调优旋钮路线）：乘上 [kGuardCastVisualScale] = 1.5
+  /// （目测初值 1.8 → 玄参真机初调回调 1.5，「再大点 / 小点」只改那一个常量）。
+  ///
+  /// 三档实测（× 1.5 后）：390 档 **272.27** / 窄卡 320 **231.43** /
+  /// iPad×1.3 **353.95**。锚点恒等式对系数**代数不变**（见
+  /// [ultimateCastAlignOffset]），越界量随系数放大（卡顶被 ListView 裁
+  /// ~104pt / 卡底越界 ~111pt，占比数字见 C132 报告）。
+  double get ultimateCastPaintHeight =>
+      soldierRect.height *
+      (kGuardCastFramePx / kGuardCastAnchorFrameHeightPx) *
+      kGuardCastVisualScale;
+
+  /// 大招释放画布的**锚点配准位移**（卡内坐标）。单位：pt。
+  ///
+  /// 🔴 C131 锚点口径（从 C130 的「实体中心配准」改为「**基准帧底边踩地面**」，
+  /// 玄参「战士站地面，不漂浮不下沉」）；🔴 C132 乘 [kGuardCastVisualScale]
+  /// 后公式**不变** —— 绘制高项随系数自动跟随，锚点恒等式对本值代数不变：
+  /// `dy + (底边/720 − 0.5) × 绘制高 = soldierRect.height/2` 对任意绘制高
+  /// 逐位成立（三档 ×1.5 复验：几何 dy 翻负，画布**上移**让更大的画布底边仍踩
+  /// 基线，见测试）。
+  /// * **y**：锚点帧（frame006）实体底边（[kGuardCastAnchorFrameBottomPx] =
+  ///   454/720）对齐 soldierRect **底边**（= 基线）—— 画布经 OverflowBox
+  ///   居中在 soldierRect 中心后，再平移
+  ///   `soldierRect.height/2 + (0.5 − 454/720) × 绘制高`
+  ///   （390 档几何 ≈ **−5.55pt**，画布上移；窄卡 −4.71 / iPad −7.21），
+  ///   再叠加 [kGuardCastVisualOffsetY]（C132-e 下移，玄参拍板 +4 → **+6**）
+  ///   ⇒ 390 档最终 dy ≈ **+0.45**（画布净下移）；
+  /// * **x**：锚点帧实体中心（[kGuardCastAnchorFrameCenterXPx] = 340/720）
+  ///   对齐 soldierRect 中心 x —— 平移 `(0.5 − 340/720) × 绘制高`
+  ///   （390 档 ×1.5 ≈ **+7.56pt**；窄卡 +6.43 / iPad +9.83），再加
+  ///   [kGuardCastVisualOffsetX]（C132-b 视觉修正，玄参三轮拍板 ⇒ 定稿
+  ///   **−13pt**；390 档最终 dx ≈ **−5.44** / 窄卡 −6.57 / iPad −3.17）。
+  ///
+  /// 手算恒等式（390 档，×1.5 后）：底边−画布中心 = 60×94/238×1.5 = 35.55，
+  /// 几何 dy = 30 − 35.55 = **−5.55**（画布上移）⇒ 锚点帧底边 = 基线；
+  /// C132-e 视觉下移 +6 后净 dy = **+0.45**（底边有意落在基线下方 6pt）。
+  Offset get ultimateCastAlignOffset {
+    final double h = ultimateCastPaintHeight;
+    final double dx =
+        (0.5 - kGuardCastAnchorFrameCenterXPx / kGuardCastFramePx) * h +
+            kGuardCastVisualOffsetX;
+    final double dy = soldierRect.height / 2 +
+        (0.5 - kGuardCastAnchorFrameBottomPx / kGuardCastFramePx) * h +
+        kGuardCastVisualOffsetY;
+    return Offset(dx, dy);
+  }
+
+  /// 大招特效挂点（怪物聚集区，架构 §8-S8 / P0-07 / 口径 9）。
+  ///
+  /// 取当前 [walking] 怪 sim 坐标 (x, y) 的**均值**，经 [mapMonsterX] /
+  /// [mapMonsterY] 同系换算 ⇒ 落在横向通道的怪物聚集区，**绝不落在
+  /// [soldierRect] 中心**（战士脚下）。无 walking 怪时回退到
+  /// `channelLeft + kUltimateFxFallbackDx`（仍在横向通道内）。
+  Offset ultimateFxAnchor(Iterable<GuardBattleMonsterSnapshot> walking) {
+    double sumX = 0;
+    double sumY = 0;
+    int count = 0;
+    for (final GuardBattleMonsterSnapshot m in walking) {
+      sumX += m.x;
+      sumY += m.y;
+      count++;
+    }
+    if (count == 0) {
+      return Offset(channelLeft + kUltimateFxFallbackDx * e, soldierCenterY);
+    }
+    return Offset(mapMonsterX(sumX / count), mapMonsterY(sumY / count));
+  }
 }

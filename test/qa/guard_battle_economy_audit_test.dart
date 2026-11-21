@@ -456,7 +456,7 @@ void main() {
       WidgetTester tester, {
       required int stolenSun,
       required Locale locale,
-      bool hasFired = true,
+      bool didAttack = true,
     }) async {
       const GuardDayState state = GuardDayState(
         dayKey: '2026-11-09',
@@ -490,7 +490,7 @@ void main() {
                   l10n: l10n,
                   onCollect: () async => throw UnimplementedError(),
                   stolenSun: stolenSun,
-                  hasFired: hasFired,
+                  didAttack: didAttack,
                 ),
               ),
             );
@@ -528,19 +528,19 @@ void main() {
           reason: '🔴 不许出现「偷走 0 阳光」');
     });
 
-    testWidgets('B13.26：未开火（hasFired=false）⇒ 阳光卡红色 −N、绝不显示 +winSun',
+    testWidgets('B13.26：未参战（didAttack=false）⇒ 阳光卡红色 −N、绝不显示 +winSun',
         (WidgetTester tester) async {
-      // 存档 winSun=2（正常场会显示 +2）：未开火 ⇒ 必须显示红色 −2（被偷合计），
+      // 存档 winSun=2（正常场会显示 +2）：未参战 ⇒ 必须显示红色 −2（被偷合计），
       // 绝不能把「本该发的 2」画成 +2 误导孩子。
       await pumpCard(
         tester,
         stolenSun: 2,
         locale: const Locale('zh'),
-        hasFired: false,
+        didAttack: false,
       );
       expect(find.text('−2'), findsOneWidget,
-          reason: '🔴 未开火场显示红色 −N（N = 被偷合计）');
-      expect(find.text('+2'), findsNothing, reason: '未开火场绝不显示 +winSun');
+          reason: '🔴 未参战场显示红色 −N（N = 被偷合计）');
+      expect(find.text('+2'), findsNothing, reason: '未参战场绝不显示 +winSun');
       // 阳光卡描边同样转红（整卡是「没拿到反而被偷」的红色语义）。
       final Container card = tester.widget<Container>(
         find.byKey(GuardResultCard.sunRewardKey),

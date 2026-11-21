@@ -161,7 +161,7 @@ Future<_FieldSession> _pumpField(
   WidgetTester tester, {
   String dayKey = '2026-01-01',
   required String childId,
-  void Function(int stolenSun, bool hasFired)? onFinished,
+  void Function(int stolenSun, bool didAttack)? onFinished,
   bool english = false,
   double textScale = 1.0,
 }) async {

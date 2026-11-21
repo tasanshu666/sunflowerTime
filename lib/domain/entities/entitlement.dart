@@ -70,6 +70,15 @@ enum FeatureKey {
   ///
   /// 🔴 实际额度随专注等级派生，唯一入口 = `wishSlotQuotaFor`。
   wishSlot,
+
+  // ── 向日葵守卫 · 大招（一次性买断解锁，门控判定全下沉 premium_gate.dart）──
+
+  /// 守卫战斗点击向日葵战士释放大招（免费关闭 / 买断开启）。
+  ///
+  /// 门控唯一判定 = `guardUltimateUnlocked`（`premium_gate.dart`，白名单内）；
+  /// 孩子端不出现本枚举值（实体标识符只在白名单文件内，守卫白名单不动）。
+  /// 攒能量不是付费功能，只有「释放」被门控（PRD §3 口径 1+12）。
+  guardUltimate,
 }
 
 /// 一次（永久）买断的权益快照。

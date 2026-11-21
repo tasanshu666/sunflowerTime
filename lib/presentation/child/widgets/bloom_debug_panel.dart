@@ -36,6 +36,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
+import 'package:sunflower_time/data/local/secure_entitlement_store.dart';
 import 'package:sunflower_time/core/di/today_weather.dart'
     show debugWeatherOverrideProvider, todayWeatherProvider;
 import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
@@ -43,6 +44,8 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/guard_chest.dart'
     show GuardChestTier;
 import 'package:sunflower_time/domain/entities/guard_drop.dart';
+import 'package:sunflower_time/domain/entities/guard_ultimate_energy.dart'
+    show UltimateEnergy;
 import 'package:sunflower_time/domain/entities/pending_bloom_reward.dart';
 import 'package:sunflower_time/domain/entities/plant.dart';
 import 'package:sunflower_time/domain/entities/plant_species.dart';
@@ -65,6 +68,22 @@ import 'package:sunflower_time/presentation/child/widgets/guard_debug_labels.dar
 import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dart'
     show weatherArtOf, weatherNameOf;
 import 'package:sunflower_time/presentation/shared/consent_page.dart';
+
+/// 「清除会员票据」按钮的测试定位 key。
+///
+/// 🔴 刻意定义在**本文件**而非 `guard_debug_script.dart`：后者由守卫大招并行改动，
+/// 新 key 放这里可彻底避免撞车（Key 只是 widget 测试锚点，不参与业务）。
+const String kDebugClearEntitlementTicketKey = 'debug_clear_entitlement_ticket';
+
+/// 清除票据动作回执文本的测试定位 key（C62：点了必须有可见反馈）。
+const String kDebugEntitlementFeedbackTextKey =
+    'debug_entitlement_feedback_text';
+
+/// 「大招 · 调试」分组内「当前能量」常显行的测试定位 key。
+const String kDebugUltimateEnergyTextKey = 'debug_ultimate_energy_text';
+
+/// 大招能量调试动作回执文本的测试定位 key（C62）。
+const String kDebugUltimateFeedbackTextKey = 'debug_ultimate_feedback_text';
 
 /// 花园页右上角「花期调试」浮层入口（**紧凑圆形按钮**）。
 ///
@@ -187,6 +206,12 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
   /// **面板内**（就在按钮下方，手指落点旁边）；`_busy` 闸门与 `finally`
   /// 里的 `setState` 保证回执在动作**收尾后**才落到树上。
   String _guardFeedback = '';
+
+  /// 权益调试区「上次操作」回执（与守卫回执分开，避免两区块互相覆盖）。
+  String _entitlementFeedback = '';
+
+  /// 大招调试区「上次操作」回执（同样独立，避免互相覆盖）。
+  String _ultimateFeedback = '';
 
   @override
   void initState() {
@@ -602,6 +627,55 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
         _resetTodayPill();
       });
 
+  // ── 权益调试动作（会员票据）─────────────────────────────────────────────
+  //
+  // 背景：钥匙串不随覆盖安装清除，残留的假票据会让冷启动把免费档误判成会员。
+  // 本入口专用于**显式**清掉这类脏数据（正常上架路径无票据 ⇒ 本来就是 free）。
+
+  /// 清除会员票据三件套 → 同时刷新 UI 层与领域层的权益内存态。
+  ///
+  /// 🔴 为什么直接用 [SecureEntitlementStore]：`clear()` 只按三个固定键删除
+  /// （`iap.productId` / `iap.jws` / `iap.acquiredAt`），与生产仓储共用同一套键；
+  /// 直接调用可避免在调试面板里写出权益标识符（付费墙源码守卫
+  /// `entitlement_gate_guard_test` 把标识符钉死在白名单文件内，本面板不在其中）。
+  ///
+  /// 刷新链路：`debugSetPremiumUnlock(ref, false)` 是项目既有的「调试态 → 权益态」
+  /// 唯一转换点，一次调用同时写 UI 快照、调试开关与领域层内存态 —— 只删存储
+  /// 不刷新会出现「点了没反应」（C62）。
+  Future<void> _clearEntitlementTicket() async {
+    bool cleared = false;
+    await _run(() async {
+      await SecureEntitlementStore().clear();
+      debugSetPremiumUnlock(ref, false);
+      cleared = true;
+    });
+    if (!mounted) return;
+    setState(() {
+      _entitlementFeedback = cleared
+          ? '会员票据已清除（三键已删），权益已刷新为免费档'
+          : '清除失败：请查看提示后重试';
+    });
+  }
+
+  // ── 大招调试动作（大招能量）─────────────────────────────────────────────
+
+  /// 「大招能量 +1 格」/「大招能量充满」：走大招线既有的调试 API
+  /// （[debugGrantUltimateCellsProvider]），面板只画按钮，不复制加格 / 封顶 /
+  /// 写库逻辑 —— 真源是 `GuardUltimateService.grantCellForDebug`（串行闸门 +
+  /// read→write→emit 全在那层），emit 后能量条当帧刷新。
+  ///
+  /// [cells] 传 1 = 加一格，传 2 = 连加两格（服务内循环调用，钳到满格）。
+  Future<void> _grantUltimateCells(int cells) => _run(() async {
+        final UltimateEnergy energy =
+            await ref.read(debugGrantUltimateCellsProvider)(cells);
+        if (!mounted) return;
+        setState(() {
+          _ultimateFeedback = cells == 2
+              ? '大招能量已充满 → ${energy.filledCells}/${UltimateEnergy.maxCells} 格'
+              : '已加 1 格 → 当前 ${energy.filledCells}/${UltimateEnergy.maxCells} 格';
+        });
+      });
+
   // ── 守卫战 v2 · 强制剧本（B5a，仅 debug）────────────────────────────────
   //
   // 为什么走「显式覆盖」而不是搜 seed：`deriveGuardBattleScript` 的 kind_<i>
@@ -795,8 +869,14 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
               const SizedBox(height: 12),
               _weatherSection(),
               const SizedBox(height: 12),
-              // 第四批 B：守卫调试（同样必须留在列表最末尾，见 [_guardSection] 注释）。
+              // 第四批 B：守卫调试（见 [_guardSection] 的 offset 纪律）。
               _guardSection(),
+              const SizedBox(height: 12),
+              // 权益调试：新区块一律**追加在守卫之后**，既有条目 offset 不变。
+              _entitlementSection(),
+              const SizedBox(height: 12),
+              // 大招调试：继续追加在最末尾，既有条目 offset 不变。
+              _ultimateSection(),
             ]
             else ...<Widget>[
               // ── 植物选择 ──────────────────────────────────────────────
@@ -971,8 +1051,14 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
               const SizedBox(height: 12),
               _weatherSection(),
               const SizedBox(height: 12),
-              // 第四批 B：守卫调试（同样必须留在列表最末尾，见 [_guardSection] 注释）。
+              // 第四批 B：守卫调试（见 [_guardSection] 的 offset 纪律）。
               _guardSection(),
+              const SizedBox(height: 12),
+              // 权益调试：新区块一律**追加在守卫之后**，既有条目 offset 不变。
+              _entitlementSection(),
+              const SizedBox(height: 12),
+              // 大招调试：继续追加在最末尾，既有条目 offset 不变。
+              _ultimateSection(),
             ],
           ],
         ),
@@ -1429,6 +1515,143 @@ class _BloomDebugSheetState extends ConsumerState<BloomDebugSheet> {
             Text(
               '✓ $_guardFeedback',
               key: const ValueKey<String>(kDebugGuardFeedbackTextKey),
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 权益调试区块（追加在守卫区块之后，位置纪律与 [_guardSection] 相同；
+  /// 更新的区块一律继续往列表末尾追加）。
+  ///
+  /// 只做一件事：清掉钥匙串里残留的调试 / 伪造票据并立刻把权益刷回免费档 ——
+  /// 覆盖安装不清钥匙串时，残留票据会让冷启动被判成会员（iPad13 实证）。
+  Widget _entitlementSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F0FF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFD6CCF5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            '权益 · 会员票据',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '覆盖安装不会清钥匙串：残留的假票据会让免费档被误判成会员',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.tonal(
+            key: const ValueKey<String>(kDebugClearEntitlementTicketKey),
+            onPressed: _busy ? null : _clearEntitlementTicket,
+            child: const Text('清除会员票据（恢复免费档）'),
+          ),
+          // 回执写在按钮正下方（面板内可见，C62 不静默失败）。
+          if (_entitlementFeedback.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              _entitlementFeedback,
+              key: const ValueKey<String>(kDebugEntitlementFeedbackTextKey),
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 大招调试区块（追加在权益区块之后 = 列表最末尾，offset 纪律同上）。
+  ///
+  /// 只负责画按钮：加格 / 封顶 / 写库全走 [debugGrantUltimateCellsProvider] 背后的
+  /// [GuardUltimateService]；「当前能量」常显行直接 watch
+  /// `guardUltimateEnergyProvider`（服务 emit 即当帧刷新，面板不维护能量状态）。
+  Widget _ultimateSection() {
+    final UltimateEnergy? energy =
+        ref.watch(guardUltimateEnergyProvider).valueOrNull;
+    final String energyLabel = energy == null
+        ? '读取中…'
+        : '${energy.filledCells}/${UltimateEnergy.maxCells} 格';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7E0),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFF0DCB4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            '大招 · 调试',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '给大招能量条加格（走 GuardUltimateService 串行闸门，当帧刷新）',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 6),
+          // 当前能量常显行：直接从 provider 派生 ⇒ 任何加格动作收尾即变。
+          Text(
+            '当前能量：$energyLabel',
+            key: const ValueKey<String>(kDebugUltimateEnergyTextKey),
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF8A5A00),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              Semantics(
+                key: const Key(kDebugUltimateGrantCellKey),
+                button: true,
+                child: FilledButton.tonal(
+                  onPressed:
+                      _busy ? null : () => _grantUltimateCells(1),
+                  child: const Text('大招能量 +1 格'),
+                ),
+              ),
+              Semantics(
+                key: const Key(kDebugUltimateFillKey),
+                button: true,
+                child: FilledButton.tonal(
+                  onPressed:
+                      _busy ? null : () => _grantUltimateCells(2),
+                  child: const Text('大招能量充满'),
+                ),
+              ),
+            ],
+          ),
+          // 回执写在按钮正下方（面板内可见，C62 不静默失败）。
+          if (_ultimateFeedback.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              _ultimateFeedback,
+              key: const ValueKey<String>(kDebugUltimateFeedbackTextKey),
               style: const TextStyle(
                 fontSize: 12,
                 height: 1.35,

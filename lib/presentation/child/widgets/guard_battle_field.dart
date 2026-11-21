@@ -55,7 +55,7 @@
 /// `l10nOf(context)`（裸测试宿主自动回落 zh，与场景卡同口径）。
 library guard_battle_field;
 
-import 'dart:async' show unawaited;
+import 'dart:async' show Timer, unawaited;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -81,17 +81,23 @@ import 'package:sunflower_time/core/constants/prd_params.dart'
         kGuardMissFxMs,
         kGuardMonsterEntrySlideMs,
         kGuardMonsterEntrySlidePt,
+        kGuardMonsterSpeedM1,
+        kGuardMonsterSpeedM2,
+        kGuardMonsterSpeedM3,
         kGuardSoldierHitVolume,
         kGuardSunDropFxMs,
         kGuardSunRiseFadeStart,
         kGuardSunRiseFadeStartOpacity,
-        kGuardSunRisePt;
+        kGuardSunRisePt,
+        kUltimateFxDurationMs;
 import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_art.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_card_layout.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_ultimate_fx.dart'
+    show GuardUltimateFx;
 
 /// 开火手柄：**页面**持有（阳光胶囊在卡外），经 [GuardSceneCard] 传给本层；
 /// 点击经它把「按」递进 sim。
@@ -102,6 +108,15 @@ import 'package:sunflower_time/presentation/child/widgets/guard_card_layout.dart
 class GuardBattleHandle {
   VoidCallback? _fire;
 
+  /// 大招清场请求（field 接线；孩子端点战士 → 门控放行后调 [requestUltimate]）。
+  VoidCallback? _ultimate;
+
+  /// 战士本体 cast 段播完通知（**卡 → field 反向**（玄参 2026-11-20 两段串行））。
+  ///
+  /// 卡在 `soldier_ultimate` 27 帧 + cast 音轨**都收尾**后调 [notifyUltimateCastDone]，
+  /// field 才在怪物聚集区挂 fx 段 —— 两段绝不重叠、fx 音轨不抢跑。
+  VoidCallback? _ultimateCastDone;
+
   /// 战局已收场（field 在 onFinished 时置位）：之后的开火请求一律 no-op ——
   /// B1 R3 的 UI 面体现：结束后提交的开火在 sim 里会被静默丢弃，
   /// 这里从源头就不递。
@@ -111,6 +126,24 @@ class GuardBattleHandle {
   void fire() {
     if (_over) return;
     _fire?.call();
+  }
+
+  /// 请求大招清场（战局结束后 no-op；未接线时 no-op）。
+  ///
+  /// 与 [fire] 同构：把「点战士」转成一次请求交给 field，由 field 在下一帧
+  /// 用当前 sim 时刻调 `castUltimate` 并消费事件（表现层零权益 token、
+  /// sim 仍是 field 私有状态）。
+  void requestUltimate() {
+    if (_over) return;
+    _ultimate?.call();
+  }
+
+  /// 战士本体 cast 段（动作 + 音轨）已播完 → 通知 field 启动 fx 段（两段串行）。
+  ///
+  /// 卡在 cast `onComplete` + cast 音轨计时都完成后调用；field unmount 时回调
+  /// 被置 null ⇒ 迟到通知天然 no-op（不会在已卸载的 field 上 setState）。
+  void notifyUltimateCastDone() {
+    _ultimateCastDone?.call();
   }
 }
 
@@ -233,10 +266,11 @@ class GuardBattleField extends StatefulWidget {
   /// 取数链路（§5.3 裁决 B）：sim 报告 → 页面（`recordBattleTheft` 落账）
   /// → 结算卡。本层只报数，**零写库**。
   ///
-  /// 🔴 B13.26（玄参 2026-11-16）：第二参 = 本场**是否开过火**（sim
-  /// `hasFired`，见 guard_battle_sim.dart）—— 页面据此在 `claim()` 里短路
-  /// 必得阳光（未开火场不发 +3 ☀）。取值在**调度时**定格（与 stolenSun 同一口径）。
-  final void Function(int stolenSun, bool hasFired)? onFinished;
+  /// 🔴 B13.26（玄参 2026-11-16）：第二参 = 本场**是否参与过攻击**（开过火
+  /// **或**大招清过怪 —— 🔴 C128：只用大招通关的场不算「未参战」，否则
+  /// 结算卡误判「守卫失败」并误扣 −3 惩罚）。取值在**调度时**定格
+  /// （与 stolenSun 同一口径）。
+  final void Function(int stolenSun, bool didAttack)? onFinished;
 
   /// 战士**受击**回调（B13.26，玄参 2026-11-16：怪接触战士要有反馈）。
   ///
@@ -331,6 +365,102 @@ class _GuardBattleFieldState extends State<GuardBattleField>
   /// 🔴 随机漂移量的 `math.Random()` 只允许活在本 Fx 层 —— 绝不进 sim / 领域层。
   final List<_SunDropFx> _sunDrops = <_SunDropFx>[];
 
+  // ── 大招清场（纯演出层；sim / 结算 / seed 零感知）─────────────────────
+
+  /// 待处理的大招清场请求（点战士 → handle.requestUltimate → 置 true；
+  /// 下一帧 tick 用当前 sim 时刻调 castUltimate 并消费事件）。
+  bool _pendingUltimate = false;
+
+  /// 当前挂载的大招 **fx 段**演出（锚点 + 序号）；序号变化 = 一场多次释放时重播。
+  _UltimateFxSlot? _ultimateFx;
+
+  /// cast 那一刻抓取的怪物聚集区锚点（**先抓、等 cast 播完再挂 fx**）。
+  ///
+  /// 🔴 为什么不在 cast 时刻直接挂 fx：玄参要求两段严格串行。锚点必须在 cast
+  /// 之前取（cast 后怪全 dead 取不到 walking），故先存这里，等
+  /// [GuardBattleHandle.notifyUltimateCastDone] 再消费。重开战局随 [_restartBattle] 清空。
+  Offset? _pendingUltimateFxAnchor;
+
+  // ── 🔴 2026-11-21：大招清怪「延迟消费」演出账本（玄参时序反馈）─────────
+  //
+  // sim 的 `dead` / `ultimateKill` 是**战局事实**，castUltimate 那一帧必须立即
+  // 置（判胜 / A5 战果 / 确定性全靠它），一个字节不能延后；但 field 的 [_deaths]
+  // 是**纯渲染账本**（见它的注释：sim 零感知），完全可以延迟消费。旧实现同帧
+  // 把 ultimateKill 喂给 [_deaths] ⇒ 怪在 cast 段开始 800ms 就没了，而 fx 段
+  // 4s 后才播（玄参「怪先消失、技能特效后出来」）。现在把这些事件缓存到
+  // fx 段效果落地帧再记账 ⇒ 怪活到技能效果出来的那一刻才开始逃。
+
+  /// cast 帧缓存的 `ultimateKill` 事件（等 fx 效果落地帧才喂 [_deaths]）。
+  ///
+  /// 只存事件本身（含 monsterIndex / tMs）；真正记死亡时刻用**触发时的
+  /// [fxClockMs]** 而非事件 tMs —— 事件 tMs 是 cast 时刻（4s 前），拿它记账
+  /// 又会让怪在 fx 段一上树就消失。重开战局随 [_restartBattle] 清空。
+  final List<GuardBattleEvent> _pendingUltimateKills = <GuardBattleEvent>[];
+
+  /// 被大招清掉、但还在等 fx 效果落地帧的怪：`怪序号 → 被 cast 清掉的时刻
+  /// （战局时间轴 ms）`（**纯表现层标记**）。
+  ///
+  /// sim 已把这些怪置 `dead`（必须），旧渲染分支 `_monsterSlot` 一看 dead 就走
+  /// 「冻结尸体 / 逃跑」演出 ⇒ 怪在 cast 段就被冻住甚至消失。本集合让这批怪
+  /// 在效果落地前**仍按行走态渲染**（`_monsterSlot` 的 `!dead` 分支），sim 一个
+  /// 字节不动。落地帧从 [_deaths] 记账后从这里移除 ⇒ 平滑切到逃跑演出。
+  ///
+  /// 🔴 C128（玄参 2026-11-22 真机反馈「大招动画期间全场怪都冻结不动」）：
+  /// sim 对 `dead` 怪的坐标**冻结在被清时刻**（确定性口径，不许动）⇒ 只加
+  /// 行走态标记不够 —— 位置还是死的。故记录被清时刻，渲染时按该怪档位速度
+  /// **纯表现层外推**继续前进（见 [_ultimateHeldWalkX]）；未被命中的怪走 sim
+  /// 本就照常。外推是「快照冻结值 + prd 常量 + 渲染时钟」的纯函数 ⇒ 确定性
+  /// 零破口（与死亡演出「同一 deathT 同一轨迹」同纪律）。
+  final Map<int, int> _ultimateHeldMonsters = <int, int>{};
+
+  /// 【纯函数】被大招命中的怪在渲染时刻的**继续行走 x**（sim 域）。
+  ///
+  /// 从被清时刻 [killMs] 的冻结坐标 [frozenX] 起，按该怪档位速度继续直线前进
+  /// （与 sim `_monsterXAt` 同一条直线轨迹：`x = speed × (t − spawn)/1000` 的
+  /// 差分等价形式），钳到 `kGuardBattleFieldTravelPt` —— 走到门口（战士脚边）
+  /// 就停住，绝不穿门/压战士（sim 事实是它已 dead，只是演出还没让它消失）。
+  ///
+  /// 🔴 y 不外推：纵摆/换道公式的 spec 参数不在快照里，保持被清时刻的 y ——
+  /// 水平主行进已满足「怪物还得正常往前跑」，纵摆停住肉眼不可感。
+  static double _ultimateHeldWalkX({
+    required String kindId,
+    required double frozenX,
+    required int killMs,
+    required int renderMs,
+  }) {
+    final double speed = switch (kindId) {
+      'm1' => kGuardMonsterSpeedM1,
+      'm2' => kGuardMonsterSpeedM2,
+      'm3' => kGuardMonsterSpeedM3,
+      _ => 0, // 未知档位：保持冻结位（防御分支，与旧表现一致）
+    };
+    final int walkMs = renderMs > killMs ? renderMs - killMs : 0;
+    final double x = frozenX + speed * walkMs / 1000.0;
+    if (x < 0) return 0;
+    return x > kGuardBattleFieldTravelPt ? kGuardBattleFieldTravelPt : x;
+  }
+
+  /// 大招两段演出是否仍在进行（cast 帧锚点已抓 → fx 段 onComplete 收尾）。
+  ///
+  /// 终局判定（castUltimate 常一帧清完最后一只怪 ⇒ `_sim.isOver` 立即为 true）
+  /// 若此时就按 900ms 交回页面，结算卡会在 fx 段还在播时弹出。本标记为 true
+  /// 期间终局交回挂起（[_deferredFinish]），等 fx 播完再结算。
+  bool _ultimateActive = false;
+
+  /// 挂起的终局交回（大招演出未收尾时暂存，演出结束再真正 onFinished）。
+  _DeferredFinish? _deferredFinish;
+
+  /// 终局补时期是否因等待大招演出而**不自动停表**（补时窗口另行撑足）。
+  bool _postEndHoldForUltimate = false;
+
+  /// fx 段收尾的兜底定时器：帧素材缺失 / onComplete 迟到时保证演出仍会收尾
+  /// （否则 [_ultimateActive] 恒 true、结算卡永不出）。正常路径由 fx
+  /// `onComplete` 提前取消。
+  Timer? _fxDoneSafetyTimer;
+
+  /// 最近一次 build 拿到的卡宽（供 tick 回调里换算大招锚点，无需 BuildContext）。
+  double _lastCardWidth = 0;
+
   /// 阳光精灵漂移量的随机源（仅 Fx 层消费；影响演出轨迹，不影响战局）。
   final math.Random _fxRandom = math.Random();
 
@@ -377,6 +507,8 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     _sim = _buildSim();
     _snap = _sim.snapshot();
     widget.handle._fire = _fireNow;
+    widget.handle._ultimate = _requestUltimate;
+    widget.handle._ultimateCastDone = _onUltimateCastDone;
     // 🔴 B10/B3：**每次挂载都要把「战局已收场」的闸门放开**。
     // 手柄是页面级长生命周期对象（`_guardBattleHandle`），上一场在终局时把它
     // 置了 `_over = true`；本 State 重新挂载（换卡 / 调试重置后重开）时若不
@@ -446,6 +578,17 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     _misses.clear();
     _deaths.clear();
     _sunDrops.clear();
+    _pendingUltimate = false;
+    _ultimateFx = null;
+    _pendingUltimateFxAnchor = null;
+    // 大招延迟消费状态一并复位（调试重开时旧场演出不得污染新场）。
+    _fxDoneSafetyTimer?.cancel();
+    _fxDoneSafetyTimer = null;
+    _pendingUltimateKills.clear();
+    _ultimateHeldMonsters.clear();
+    _ultimateActive = false;
+    _deferredFinish = null;
+    _postEndHoldForUltimate = false;
     _hitFlashes.clear();
     _bulletDirs.clear();
     _bulletLastX.clear();
@@ -457,8 +600,10 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     _postEndFxStartRawMs = null;
     _postEndFxElapsedMs = 0;
     _postEndFxEndRawMs = null;
-    // ⑤ 手柄重绑：`_fire` 可能被上一场的 dispose 置 null；`_over` 必须是 false。
+    // ⑤ 手柄重绑：`_fire` / `_ultimate` 可能被上一场的 dispose 置 null；`_over` 必须是 false。
     widget.handle._fire = _fireNow;
+    widget.handle._ultimate = _requestUltimate;
+    widget.handle._ultimateCastDone = _onUltimateCastDone;
     widget.handle._over = false;
     // ⑥ 重新起表。
     _ticker.start();
@@ -467,9 +612,15 @@ class _GuardBattleFieldState extends State<GuardBattleField>
 
   @override
   void dispose() {
+    // 🔴 大招 fx 收尾兜底计时器：卸载必取消（迟到的 onComplete 不得在已 dispose
+    // 的 State 上 setState / 触发交回）。
+    _fxDoneSafetyTimer?.cancel();
+    _fxDoneSafetyTimer = null;
     // 🔴 B7：开火入口已搬到卡外的阳光胶囊 —— 战斗层卸载后（如切到 claimed）
     // 手柄必须**断开**，否则一次误触会让已 dispose 的 State 收到 fire。
     widget.handle._fire = null;
+    widget.handle._ultimate = null;
+    widget.handle._ultimateCastDone = null;
     // 🔴 B13.6：战斗层卸载（战局结束交回 / 换卡）→ 战斗背景音必须停，
     // 否则底噪会漏到结算卡甚至花园页（BGM 泄漏 = 玄参抓过的同类问题）。
     unawaited(AudioService.instance.stopGuardBattleBgm());
@@ -498,6 +649,126 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     widget.onFireAccepted?.call();
   }
 
+  /// 点战士 → 手柄 → 这里：挂起一次大招清场请求，下一帧 tick 在**当前 sim 时刻**
+  /// 执行 `castUltimate`（与开火同款「滞后最多一帧」口径，确定性零破口）。
+  void _requestUltimate() {
+    if (!mounted) return;
+    if (_sim.isOver) return;
+    _pendingUltimate = true;
+  }
+
+  /// cast 那一刻**抓取** fx 段锚点（由 layout 从 walking 怪聚集区换算，非战士脚下）。
+  ///
+  /// 🔴 玄参 2026-11-20：这里**只存不挂** —— fx 段必须等战士本体 cast 段
+  /// （27 帧 + 音轨）播完，经 [_onUltimateCastDone] 才上树；两段严格串行。
+  /// 必须在 cast 之前抓（cast 后怪全 dead，取不到 walking）。
+  void _captureUltimateFxAnchor(List<GuardBattleMonsterSnapshot> walking) {
+    final GuardCardLayout layout =
+        GuardCardLayout(_lastCardWidth, widget.uiScale);
+    _pendingUltimateFxAnchor = layout.ultimateFxAnchor(walking);
+  }
+
+  /// 卡通知「战士本体 cast 段播完」⇒ 消费抓取的锚点，挂 fx 段（第二段启动）。
+  ///
+  /// 序号递增 ⇒ 一场多次释放每次都重播（`playToken` 语义）。无待挂锚点
+  /// （cast 没产生事件 / 战局已重开）⇒ no-op，绝不在怪物区凭空冒出特效。
+  void _onUltimateCastDone() {
+    final Offset? anchor = _pendingUltimateFxAnchor;
+    if (!mounted || anchor == null) return;
+    _pendingUltimateFxAnchor = null;
+    // fx 段起点：启动「收尾兜底定时器」—— 帧素材缺失时 FrameSequencePlayer
+    // 走空帧分支且不回调 onComplete，没有它就永远卡在演出中（结算卡不出）。
+    // 正常路径 fx onComplete 会提前 cancel（见 _onUltimateFxDone）。
+    _fxDoneSafetyTimer?.cancel();
+    _fxDoneSafetyTimer = Timer(
+      const Duration(milliseconds: kUltimateFxDurationMs + kGuardEndBannerDwellMs),
+      () {
+        if (mounted && _ultimateActive) _onUltimateFxDone();
+      },
+    );
+    setState(() {
+      _ultimateFx = _UltimateFxSlot(
+        anchor: anchor,
+        seq: (_ultimateFx?.seq ?? 0) + 1,
+      );
+    });
+  }
+
+  /// 把上一轮未消费的 ultimateKill 立即记账（仅「新一轮大招打断了上一轮 fx
+  /// 效果落地帧」时兜底：否则那批怪会永远停在 [_ultimateHeldMonsters] 行走态）。
+  /// 正常一轮里本方法无-op。用当前 [fxClockMs] 记账，之后照常走 800ms 逃跑。
+  void _flushStaleUltimateKills() {
+    if (_pendingUltimateKills.isEmpty) return;
+    final int now = fxClockMs;
+    for (final GuardBattleEvent e in _pendingUltimateKills) {
+      if (e.monsterIndex < 0) continue;
+      _deaths.putIfAbsent(e.monsterIndex, () => now);
+      _ultimateHeldMonsters.remove(e.monsterIndex);
+    }
+    _pendingUltimateKills.clear();
+  }
+
+  /// fx 段播到「技能效果落地」帧 ⇒ 此刻才把缓存的 ultimateKill 记入 [_deaths]。
+  ///
+  /// 🔴 时序核心（玄参 2026-11-21）：`deathT` 用**触发时的 [fxClockMs]**（特效
+  /// 正在播的真实渲染时刻），不是事件 tMs（那是 4s 前的 cast 时刻）—— 否则
+  /// 怪又会在 fx 一上树就消失。记账后从 [_ultimateHeldMonsters] 摘除 ⇒ 本帧起
+  /// `_monsterSlot` 走既有逃跑 / 淡出 / 800ms 摘除分支，与技能效果同步。
+  /// 纯渲染层：sim 的 dead / 坐标 / 战果一个字节未动，也绝不发 kill（D-2 零掉落）。
+  void _onUltimateFxEffectFrame() {
+    if (!mounted || _pendingUltimateKills.isEmpty) return;
+    final int now = fxClockMs;
+    final List<int> killed = <int>[];
+    for (final GuardBattleEvent e in _pendingUltimateKills) {
+      if (e.monsterIndex < 0) continue;
+      _deaths.putIfAbsent(e.monsterIndex, () => now);
+      killed.add(e.monsterIndex);
+    }
+    _pendingUltimateKills.clear();
+    for (final int index in killed) {
+      _ultimateHeldMonsters.remove(index);
+    }
+    setState(() {});
+    // 若终局已挂起且 fx 已收尾（兜底先到），这里补一次交回判定。
+    _maybeFinishDeferred();
+  }
+
+  /// fx 段收尾（onComplete 或兜底定时器）⇒ 演出结束，允许挂起的终局交回。
+  void _onUltimateFxDone() {
+    _fxDoneSafetyTimer?.cancel();
+    _fxDoneSafetyTimer = null;
+    if (!_ultimateActive) return;
+    _ultimateActive = false;
+    if (mounted) setState(() {});
+    _maybeFinishDeferred();
+  }
+
+  /// 尝试把挂起的终局交回页面（fx 段播完 + 大招死亡演出播完 两条件齐备）。
+  ///
+  /// 由三条路径共同驱动（任一满足即再判一次）：fx `onComplete` /
+  /// 兜底定时器 [_onUltimateFxDone]、效果落地帧 [_onUltimateFxEffectFrame]、
+  /// 补时期每帧 tick。缺一不可 —— 提前交回 ⇒ 结算卡抢在技能特效前弹出；
+  /// 不交回 ⇒ 卡死在终局横幅。交回后照旧停留 [kGuardEndBannerDwellMs]，
+  /// 代际号闸门（E2）保证调试重开时旧场结果作废。
+  void _maybeFinishDeferred() {
+    final _DeferredFinish? d = _deferredFinish;
+    if (d == null || _ultimateActive) return;
+    // 效果落地帧记账后还有 800ms 逃跑淡出 —— 等它播完再弹结算卡。
+    if (_deathFxRemainMs() > 0) return;
+    _deferredFinish = null;
+    _postEndHoldForUltimate = false;
+    if (_ticker.isActive) _ticker.stop();
+    final int gen = d.gen;
+    Future<void>.delayed(
+      const Duration(milliseconds: kGuardEndBannerDwellMs),
+      () {
+        if (mounted && gen == _battleGen) {
+          widget.onFinished?.call(d.stolenSun, d.didAttack);
+        }
+      },
+    );
+  }
+
   /// 渲染时钟：死亡演出 / MISS 的「现在」。单位：ms（战局时间轴）。
   ///
   /// 平时 = `_snap.elapsedMs`；终局补时（[`_postEndFxStartRawMs`] 非空）期间
@@ -511,6 +782,15 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     if (_endHandled) {
       final int? startRaw = _postEndFxStartRawMs;
       final int? endRaw = _postEndFxEndRawMs;
+      if (_postEndHoldForUltimate) {
+        // 大招演出等待期：sim 已冻结，只推进渲染时钟（怪的死亡淡出靠
+        // fxClockMs 走），逐帧问一次「演出收尾 + 死亡演出播完 ⇒ 交回」。
+        if (startRaw != null) _postEndFxElapsedMs = _rawMs - startRaw;
+        _pruneSunDrops();
+        _maybeFinishDeferred();
+        if (mounted) setState(() {});
+        return;
+      }
       if (startRaw == null || endRaw == null) {
         // 无补时（到点撤退 / 中止）：ticker 早已停在终局那一帧。
         _ticker.stop();
@@ -526,11 +806,49 @@ class _GuardBattleFieldState extends State<GuardBattleField>
       return;
     }
     final int ms = _rawMs - _simZeroMs;
-    if (ms <= _sim.elapsedMs && _pendingFires.isEmpty) return;
+    if (ms <= _sim.elapsedMs && _pendingFires.isEmpty && !_pendingUltimate) {
+      return;
+    }
     final List<int> fires = List<int>.of(_pendingFires);
     _pendingFires.clear();
-    final GuardBattleStepReport report = _sim.step(ms, fires);
+    GuardBattleStepReport report = _sim.step(ms, fires);
     _snap = _sim.snapshot();
+    // ── 大招清场（D-2 / 架构 §8-S9）─────────────────────────────────────
+    // 在当前 sim 时刻执行清场；castUltimate 产出的 ultimateKill 延迟到 fx 效果
+    // 落地帧消费（见下方缓存），ultimateCast 并入本帧事件流。**不发 kill**
+    // ⇒ 阳光掉落零误触发。
+    if (_pendingUltimate) {
+      _pendingUltimate = false;
+      // 锚点取 cast **之前**的 walking 怪聚集区（cast 后全变 dead，取不到了）。
+      final List<GuardBattleMonsterSnapshot> walking = _snap.monsters
+          .where((GuardBattleMonsterSnapshot m) =>
+              m.phaseId == GuardBattleMonsterPhase.walking.id)
+          .toList();
+      final List<GuardBattleEvent> ultEvents = <GuardBattleEvent>[];
+      // 新一轮大招先兜底清掉上一轮未落地的 event（fx 被打断时防怪卡在行走态）。
+      _flushStaleUltimateKills();
+      _sim.castUltimate(ms, ultEvents);
+      _snap = _sim.snapshot(); // cast 后重取（怪变 dead / 可能判胜）
+      _ultimateActive = true;
+      // 🔴 2026-11-21：sim 的 dead / 判胜已在 castUltimate 里**立即**落定
+      // （战局事实不能延后）；但 ultimateKill 是纯演出素材 —— 缓存到 fx 段
+      // 效果落地帧才喂 [_deaths]，怪才能活到技能效果出来的那一刻。
+      for (final GuardBattleEvent e in ultEvents) {
+        if (e.type != GuardBattleEventType.ultimateKill) continue;
+        _pendingUltimateKills.add(e);
+        if (e.monsterIndex >= 0) {
+          // 记录被清时刻（战局时间轴）：渲染层据此外推继续行走（C128）。
+          _ultimateHeldMonsters[e.monsterIndex] = ms;
+        }
+      }
+      if (ultEvents.isNotEmpty) {
+        report = GuardBattleStepReport(
+          events: <GuardBattleEvent>[...report.events, ...ultEvents],
+          endReason: _sim.endReason,
+        );
+        _captureUltimateFxAnchor(walking);
+      }
+    }
     _collectMissFx(report);
     _collectDeathFx(report);
     _collectSunDropFx(report);
@@ -545,30 +863,54 @@ class _GuardBattleFieldState extends State<GuardBattleField>
       widget.handle._over = true;
       // 🔴 B13.6：战局收场 → 战斗背景音即刻停（横幅/补时期间不再有底噪）。
       unawaited(AudioService.instance.stopGuardBattleBgm());
-      // 被偷合计 / 是否开过火在**调度时**定格（战局已冻结，之后 step 也逐位
+      // 被偷合计 / 是否参与攻击在**调度时**定格（战局已冻结，之后 step 也逐位
       // 不变；显式取值避免延迟回调里再读可变字段）。
+      // 🔴 C128（真机：两次大招零普攻通关 → 结算卡误显示「守卫失败」）：
+      // 参战判定 = 开过火 **或** 大招清过怪（`ultimateKillCount > 0`）。sim 的
+      // `hasFired` 只覆盖开火，大招参战不计数 → 纯表现层补齐判据；sim 域
+      // （hasFired / 计分 / 判胜负）一个字节不动。
       final int stolenSun = _sim.stolenSun;
-      final bool hasFired = _sim.hasFired;
-      // 🔴 B10/D1：终局由「打死最后一只怪」触发 ⇒ 逃跑演出还没播完 ⇒
-      // ticker 多活 `补时 = 800 − 已播`，播完（800ms）才交回页面；
-      // 到点撤退 / 中止没有死亡演出 ⇒ 补时 0，照旧 900ms 横幅停留。
-      final int fxRemainMs = _deathFxRemainMs();
-      final int delayMs =
-          fxRemainMs > 0 ? fxRemainMs : kGuardEndBannerDwellMs;
-      if (fxRemainMs > 0) {
+      final bool didAttack = _sim.hasFired || _sim.ultimateKillCount > 0;
+      if (_ultimateActive) {
+        // 🔴 2026-11-21：castUltimate 常一帧清完最后一只怪 ⇒ sim 此刻立即判胜，
+        // 但两段演出（cast 4s + fx 4s）还没播。旧逻辑延迟 900ms 就交回 ⇒
+        // 结算卡抢在技能特效前面弹出。这里挂起交回，ticker 继续跑撑足整段，
+        // 等 fx onComplete 后由 [_maybeFinishDeferred] 真正交回。
+        _deferredFinish = _DeferredFinish(
+          stolenSun: stolenSun,
+          didAttack: didAttack,
+          gen: _battleGen,
+        );
+        _postEndHoldForUltimate = true;
         _postEndFxStartRawMs = _rawMs;
-        _postEndFxEndRawMs = _rawMs + fxRemainMs;
         _postEndFxElapsedMs = 0;
+        // 撑足：cast 剩余(≤4s) + fx 4s + 死亡淡出 800 + 900ms 横幅停留。
+        _postEndFxEndRawMs = _rawMs +
+            kUltimateFxDurationMs * 2 +
+            kGuardDeathFleeMs +
+            kGuardEndBannerDwellMs;
       } else {
-        _ticker.stop();
-      }
-      // 代际号闸门（E2）：窗口期内若调试覆盖触发重开，旧战局的结果作废。
-      final int gen = _battleGen;
-      Future<void>.delayed(Duration(milliseconds: delayMs), () {
-        if (mounted && gen == _battleGen) {
-          widget.onFinished?.call(stolenSun, hasFired);
+        // 🔴 B10/D1：终局由「打死最后一只怪」触发 ⇒ 逃跑演出还没播完 ⇒
+        // ticker 多活 `补时 = 800 − 已播`，播完（800ms）才交回页面；
+        // 到点撤退 / 中止没有死亡演出 ⇒ 补时 0，照旧 900ms 横幅停留。
+        final int fxRemainMs = _deathFxRemainMs();
+        final int delayMs =
+            fxRemainMs > 0 ? fxRemainMs : kGuardEndBannerDwellMs;
+        if (fxRemainMs > 0) {
+          _postEndFxStartRawMs = _rawMs;
+          _postEndFxEndRawMs = _rawMs + fxRemainMs;
+          _postEndFxElapsedMs = 0;
+        } else {
+          _ticker.stop();
         }
-      });
+        // 代际号闸门（E2）：窗口期内若调试覆盖触发重开，旧战局的结果作废。
+        final int gen = _battleGen;
+        Future<void>.delayed(Duration(milliseconds: delayMs), () {
+          if (mounted && gen == _battleGen) {
+            widget.onFinished?.call(stolenSun, didAttack);
+          }
+        });
+      }
     }
     setState(() {});
   }
@@ -579,7 +921,11 @@ class _GuardBattleFieldState extends State<GuardBattleField>
   /// 钳到 `[0, kGuardDeathFleeMs]`。到点撤退 / 中止 / 没有击杀 ⇒ 0。
   int _deathFxRemainMs() {
     if (_deaths.isEmpty) return 0;
-    final int now = _snap.elapsedMs;
+    // 🔴 用 [fxClockMs] 而非 `_snap.elapsedMs`：终局补时期 sim 冻结、快照时刻
+    // 不动，但死亡淡出靠 fxClockMs 推进（B10/D1 同款口径）。大招效果落地帧
+    // 记 deathT 时也可能已进补时期 ⇒ 这里的「现在」必须同尺，否则剩余时长
+    // 算错（要么卡死不交回，要么提前交回）。
+    final int now = fxClockMs;
     int maxDeathT = -1;
     for (final int deathT in _deaths.values) {
       if (deathT > maxDeathT) maxDeathT = deathT;
@@ -671,6 +1017,11 @@ class _GuardBattleFieldState extends State<GuardBattleField>
   /// 用事件自带的 `tMs`（sim 时间轴，精确到毫秒）而不是「当前快照时刻」：
   /// 与帧率无关 ⇒ 同 seed 两遍的死亡时刻逐位相同，演出轨迹也逐位相同。
   /// `putIfAbsent`：同一只怪不会被重复记账（重复 kill 不改首帧时刻）。
+  ///
+  /// 🔴 2026-11-21：`ultimateKill` **不再**在这里记账 —— 它缓存到
+  /// [_pendingUltimateKills]，等 fx 段效果落地帧由 [_onUltimateFxEffectFrame]
+  /// 用当时的 [fxClockMs] 记账（否则怪在 cast 那一帧就开始消失，比技能特效
+  /// 早 4s）。阳光掉落 [_collectSunDropFx] 仍只认 `kill`（大招零掉落，D-2）。
   void _collectDeathFx(GuardBattleStepReport report) {
     for (final GuardBattleEvent e in report.events) {
       if (e.type != GuardBattleEventType.kill) continue;
@@ -778,6 +1129,7 @@ class _GuardBattleFieldState extends State<GuardBattleField>
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final GuardCardLayout layout = GuardCardLayout(constraints.maxWidth, widget.uiScale);
+        _lastCardWidth = constraints.maxWidth;
 
         return Stack(
           key: GuardBattleField.fieldKey,
@@ -848,6 +1200,27 @@ class _GuardBattleFieldState extends State<GuardBattleField>
                   ),
                 ),
               ),
+
+            // ── 大招 fx 段（D-2 / P0-06/07）：cast 播完才上树，锚定怪物聚集区 ──
+            // 🔴 cast 段（战士原位 27 帧）在场景卡；这里只挂纯特效帧 + fx 音轨。
+            //    纯渲染层，sim / 结算 / seed 零感知；播完自行回调移除。
+            if (_ultimateFx != null)
+              Positioned.fill(
+                child: GuardUltimateFx(
+                  key: ValueKey<int>(_ultimateFx!.seq),
+                  anchor: _ultimateFx!.anchor,
+                  uiScale: widget.uiScale,
+                  // 效果落地帧 ⇒ 此刻才清怪（与技能特效 / 音轨同步）。
+                  onEffectFrame: _onUltimateFxEffectFrame,
+                  onComplete: () {
+                    if (mounted) {
+                      // 先收尾演出态（可能触发挂起的终局交回），再摘 fx 组件。
+                      _onUltimateFxDone();
+                      setState(() => _ultimateFx = null);
+                    }
+                  },
+                ),
+              ),
           ],
         );
       },
@@ -874,14 +1247,34 @@ class _GuardBattleFieldState extends State<GuardBattleField>
   Widget _monsterSlot(GuardCardLayout layout, GuardBattleMonsterSnapshot m) {
     final bool dead = m.phaseId == GuardBattleMonsterPhase.dead.id;
     final int? deathT = _deaths[m.index];
+    // 🔴 2026-11-21：被大招清掉、但 fx 效果落地帧还没到的怪 —— sim 已置 dead
+    // （战局事实不动），这里用纯表现层标记让它**继续按行走态渲染**，绝不
+    // 提前冻成尸体 / 逃跑 / 消失。落地帧 [_onUltimateFxEffectFrame] 记账后
+    // 从集合移除 ⇒ 本帧平滑切到既有逃跑淡出，与技能特效同步。
+    final bool ultHeld = _ultimateHeldMonsters.containsKey(m.index);
     // 🔴 B10/C3：每只怪按**自己的**等面积宽高占位（m1 49.42×39.19 /
     // m2 44×44 / m3 60.93×31.77），中心锚在 (mapMonsterX, mapMonsterY)。
     final double w = layout.monsterWidthOf(m.kindId);
     final double h = layout.monsterHeightOf(m.kindId);
-    final double baseLeft = layout.mapMonsterX(m.x) - w / 2;
+    // 🔴 C128（玄参「大招动画期间怪还得正常往前跑」）：被清怪在 sim 里的坐标
+    // 冻结在被清时刻 ⇒ 直接用会原地定住。渲染层用 [_ultimateHeldWalkX] 从
+    // 冻结值按档位速度**纯外推**继续行走（y 车道不变，到门口钳 330）；
+    // 未被命中的怪走 sim 坐标本就照常。确定性零破口：外推是纯函数。
+    double baseLeft = layout.mapMonsterX(m.x) - w / 2;
+    if (ultHeld) {
+      baseLeft = layout.mapMonsterX(
+            _ultimateHeldWalkX(
+              kindId: m.kindId,
+              frozenX: m.x,
+              killMs: _ultimateHeldMonsters[m.index]!,
+              renderMs: fxClockMs,
+            ),
+          ) -
+          w / 2;
+    }
     final double top = layout.mapMonsterY(m.y) - h / 2;
 
-    if (!dead || deathT == null) {
+    if (!dead || deathT == null || ultHeld) {
       // 🔴 B13.26（玄参 2026-11-16「怪物出现的位置有点太靠左」）：**入场滑入**
       // —— 怪出场后前 [kGuardMonsterEntrySlideMs] 内渲染 x 额外偏移
       // `+Δ × (1 − elapsed/400)`（向右为正；Δ 随场景缩放 `layout.e`，与怪
@@ -1181,4 +1574,34 @@ class _SunDropFx {
 
   /// 横向漂移总量（pt；生成时由 Fx 层 `math.Random()` 抽定的 ±12）。
   final double driftDx;
+}
+
+/// 大招演出槽位（纯渲染层）：锚点 + 播放序号（序号变 ⇒ widget key 变 ⇒ 重播）。
+class _UltimateFxSlot {
+  const _UltimateFxSlot({required this.anchor, required this.seq});
+
+  final Offset anchor;
+  final int seq;
+}
+
+/// 挂起的终局交回参数（大招两段演出未收尾时暂存）。
+///
+/// 仿 `_MissFx` / `_SunDropFx`：演出层自己的纯记录，sim / 结算 / seed 零感知。
+/// 战果（stolenSun / didAttack）在判胜那一刻定格（sim 已冻结，之后逐位不变），
+/// 与既有终局回调同一口径，只是延后投递时机。
+class _DeferredFinish {
+  const _DeferredFinish({
+    required this.stolenSun,
+    required this.didAttack,
+    required this.gen,
+  });
+
+  /// 本场被偷合计（判胜时定格）。
+  final int stolenSun;
+
+  /// 本场是否参与过攻击（开火或大招清怪，判胜时定格，C128 判据）。
+  final bool didAttack;
+
+  /// 代际号（E2）：延迟回调据此作废旧战局结果。
+  final int gen;
 }

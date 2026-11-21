@@ -2637,6 +2637,156 @@ const String kGuardDayStatePrefPrefix = 'guard_day_state_v2_';
 /// 不能挂在会被清掉的键上（玄参 v0.3 验收反馈 3）。
 const String kGuardEnergyPrefPrefix = 'guard_energy_v1_';
 
+// ── 向日葵守卫 · 大招能量（增量，仅追加不改既有值）─────────────────────────
+
+/// 大招能量 prefs 键前缀（实际状态键 = 前缀 + childId；去重键 =
+/// 前缀 + `credited_` + childId）。
+///
+/// 🔴 与 [kGuardEnergyPrefPrefix] **物理隔离**：两套能量完全并存、互不读写
+/// （口径 1 / C3 / 架构 §8-S1）。同为设备级 prefs + childId 后缀策略（B5）。
+const String kGuardUltimatePrefPrefix = 'guard_ultimate_v1_';
+
+/// 攒满 1 格大招能量所需的累计在场专注分钟（架构 §1.2）。
+const int kMinPerUltimateCell = 30;
+
+/// 大招能量格数上限（架构 §1.2；满 2 格零头强制归 0）。
+const int kMaxUltimateCells = 2;
+
+/// 头顶大招能量条顶边相对战士 [GuardCardLayout.soldierRect.top] 的上移间距
+/// （× 卡片 e），保证能量条悬在战士头顶、不与战士重叠（架构 §8-S8）。
+const double kUltimateBarAboveGap = 5.0;
+
+/// 头顶大招能量条单格宽（× e）。
+const double kUltimateBarCellWidth = 20.0;
+
+/// 头顶大招能量条高（× e）。
+const double kUltimateBarCellHeight = 6.0;
+
+/// 头顶大招能量条两格间隙（× e）。
+const double kUltimateBarGap = 3.0;
+
+/// 大招特效无 walking 怪时的回退横向偏移（加在 `channelLeft` 上，× e；
+/// 落在横向通道内，绝不落在战士脚下；架构 §8-S8）。
+const double kUltimateFxFallbackDx = 24.0;
+
+/// 大招**单段**演出时长（ms）= 该段音轨时长（cast / fx 各约 4s）。
+///
+/// 🔴 玄参 2026-11-20 验收：两段**严格串行**——cast 段（战士本体 27 帧 + 音轨）
+/// 播完才进 fx 段（怪物区 27 帧 + 音轨）；两段各用本常量作帧序列时长，
+/// 音轨与帧同起点启动 ⇒ `onComplete` 时「动作 + 音轨」均收尾（无抢跑 delay）。
+const int kUltimateFxDurationMs = 4000;
+
+/// 大招**释放动作帧**目录（🔴 C129 玄参拍板：中英**统一一套帧**，语言无关；
+/// 战士本体原位播 27 帧；与 fx 段分离）。
+///
+/// 🔴 C130（玄参「你不要给我切割」）：源「统一大招动画帧」720² **不裁切**，
+/// 保留原始全画布导出（光效帧 012..026 铺满画布，任何裁窗都会把光效切出硬边）。
+/// 「战士与待机大小一致」由**绘制框按实体占比补偿**实现（见
+/// [kGuardCastFramePx] / `guard_card_layout.ultimateCastPaintHeight`）。亮度按
+/// 战士实体帧子集对齐待机 luma（156.77，增益 1.1027）。语言区别只在 cast
+/// 音效（`kUltimateFxCastSfxZh` 保留）。
+const String kUltimateFxCastDir = 'assets/guard/soldier_ultimate';
+
+/// 大招动作帧数（统一版源 27 帧，🔴 C130 起保留原始 720² 全画布）。
+const int kUltimateFxCastFrames = 27;
+
+/// 统一大招帧**画布边长**（像素）。🔴 C130：素材一概不裁切（玄参
+/// 「你不要给我切割」），导入导出均为 720² 全画布；绘制框按本值与
+/// [kGuardCastAnchorFrameHeightPx] 反解（`720/238 ≈ 3.025` 倍补偿）。
+const double kGuardCastFramePx = 720;
+
+/// **锚点基准帧**（🔴 C131 = frame006，蓄力主体张态）的实体（alpha>128）
+/// 包围盒**高**（像素；管线实测 238，bbox = (216,216,464,454)）。
+///
+/// 🔴 C131（玄参复验否决 C130「向日葵释放大招时还是变小了」）：统一素材是
+/// 「蓄力→爆发→收尾」动作，战士实体每帧变化极大（frame001 148px → frame009
+/// 255px → 光效帧铺满）。C130 以**并集最大张态**（frame009，255px）为基准 ⇒
+/// 蓄力帧 001..008 渲染只有 35~59pt，玄参按下大招立即看到「小战士」。补偿
+/// 基准改为**蓄力主体帧 frame006（238px）**：按下大招的主体段（frame005..008）
+/// 渲染 ≈ 待机同大（58~63pt），爆发峰值 frame009 比待机大 ~7%（动作爆发感，
+/// 玄参「大小一致」观感口径下可接受）。绘制框补偿公式：
+/// `castPaintHeight = 待机绘制高 × [kGuardCastFramePx] / 本值`，使**锚点帧**
+/// 实体渲染高逐位等于待机（待机实体并集 = 全画布 362×372）。换素材必须跑
+/// 管线重测并同步本值。
+const double kGuardCastAnchorFrameHeightPx = 238;
+
+/// 锚点基准帧（frame006）实体包围盒**底边**（画布 y 坐标；实测 454，即
+/// bbox 下边界，像素 [216..453] 的开区间端点）。cast 画布经 OverflowBox
+/// 居中后再平移「让锚点帧底边踩 soldierRect 底边（基线）」的位移 ——
+/// 战士站地面、不漂浮不下沉（C131 锚点从「实体中心配准」改为此口径）。
+const double kGuardCastAnchorFrameBottomPx = 454;
+
+/// 锚点基准帧（frame006）实体包围盒**中心 x**（画布坐标；实测 340.0，
+/// 非画布几何中心 360）。x 仍按「锚点帧实体中心对齐 soldierRect 中心 x」
+/// 配准（纵向锚点已由底边接管，见 [kGuardCastAnchorFrameBottomPx]）。
+const double kGuardCastAnchorFrameCenterXPx = 340;
+
+/// 🔴 C132 大招 cast 段**视觉调优旋钮**（玄参 2026-11-23 拍板：放弃精确计算
+/// 路线，「你要是计算不清楚，就先放大，然后我再视觉上配合你调试」）。
+///
+/// 依据：主理人目测两张真机截图（大招中 vs 待机）——待机战士约占守卫卡高
+/// 8 成、大招战士约一半出头，比值 ≈ 1.8；🔴 玄参真机初调反馈 1.8 偏大，
+/// 回调 **1.5**（2026-11-21）。本系数乘在 C131 几何基准
+/// （`soldierRect.height × 720 / [kGuardCastAnchorFrameHeightPx]`）之上：
+/// `castPaintHeight = soldierRect.height × 720/238 × 本值`（390 档
+/// 181.51 × 1.5 ≈ **272.27**）。
+///
+/// 🔴 视觉调优旋钮 —— 玄参配合真机调试用，「再大点 / 小点」**只改此值**；
+/// 锚点恒等式（frame006 底边踩基线、实体中心 x 对齐槽位中心）对本值
+/// **代数不变**（dy/dx 公式里的绘制高项随系数自动成立，见
+/// `guard_card_layout.ultimateCastAlignOffset`），测试期望按
+/// `× 本值` 重算（`guard_cast_size_alignment_test.dart`）。后续多轮微调时
+/// 改动面收敛在「1 常量 + 测试期望」。非 cast 姿态（idle/attack）与 fx
+/// 特效层零触碰 —— 本系数只作用于 cast 段绘制框。
+const double kGuardCastVisualScale = 1.5;
+
+/// C132-b（玄参真机初调第 2 项）：大招人物**水平位置**视觉微调旋钮。单位 pt，
+/// 正 = 右移 / 负 = 左移。
+///
+/// 依据：玄参真机反馈「放大招的位置比待机偏右」。理论接线正确（锚点帧
+/// frame006 的实体 bbox 中心 x=340/720 对齐槽位中心 x），但 bbox 含权杖、
+/// 盾牌等**非对称元素** ⇒ bbox 中心 ≠ 人物视觉中心，且释放动作帧间人物
+/// 本身左右摆动（实测各帧实体中心 x ≈ 340~369）。初值 −6pt，玄参三轮复验
+/// （「再往左 5pt」→「改到 −12」→「改为 −13」）⇒ **−13pt**（2026-11-21）。
+/// 「偏左/偏右」只改此值。
+const double kGuardCastVisualOffsetX = -13.0;
+
+/// C132-e（玄参真机初调第 3 项）：大招人物**纵向位置**视觉微调旋钮。单位 pt，
+/// 正 = 下移 / 负 = 上移。
+///
+/// 依据：玄参真机反馈「上下的位置，还需要再往下放一些，大概往下移动 4pt」
+/// 初值 +4pt，玄参复验再调 ⇒ **+6pt**（2026-11-21）。
+/// 注意这会**有意偏离** C131「底边踩基线」几何恒等式（人物基线观感与素材
+/// bbox 底边的偏差由视觉拍板）。
+const double kGuardCastVisualOffsetY = 6.0;
+
+/// cast 段音轨（英文 / 中文；fx 音轨中英通用，见 `guard_ultimate_fx.dart`）。
+const String kUltimateFxCastSfx = 'assets/audio/sfx/guard_ultimate_cast.mp3';
+const String kUltimateFxCastSfxZh =
+    'assets/audio/sfx/guard_ultimate_cast_zh.mp3';
+
+/// 大招特效帧的**视觉重心纵向位置**（占绘制盒高的比例）。
+///
+/// 🔴 玄参 2026-11-21「技能特效有点靠下，没看清」：fx 素材 1470×630 的 alpha
+/// 加权视觉重心在帧高 68%~79%（不是几何中心 50%），旧 `top = anchor.dy - h/2`
+/// 把几何中心放在怪物中心 ⇒ 视觉重心落在卡底。改为
+/// `top = anchor.dy - kUltimateFxVisualCenterY * h`（上移 ~0.18h ≈ 20pt）。
+/// X / 宽 / 高 / uiScale 一律不动。
+const double kUltimateFxVisualCenterY = 0.68;
+
+/// 大招**特效**帧目录（怪物聚集区 1470×630 纯特效，不含战士形象）。
+const String kUltimateFxEffectDir = 'assets/guard/ultimate_fx';
+
+/// 大招特效帧数（源 `大招特效/frame001..027.png`，1470×630）。
+const int kUltimateFxEffectFrames = 27;
+
+/// 大招能量条 / 🔒 的语义标签 i18n key（P1-02；领域层零 CJK）。
+const String kUltimateEnergySemanticsKey = 'guard_ultimate_energy_semantics';
+const String kUltimateLockSemanticsKey = 'guard_ultimate_lock_semantics';
+
+/// 免费档点战士 / 能量为 0 时的 i18n 提示 key（B2 / C62）。
+const String kUltimateEmptyHintKey = 'guard_ultimate_empty_hint';
+
 /// 「守卫战教学浮层已看过」的 prefs 键（B7：教学从「每天一次」改为**永久一次**）。
 ///
 /// 🔴 为什么不再用 `GuardDayState.tutorialSeen`：那个字段活在**当日存档**里，

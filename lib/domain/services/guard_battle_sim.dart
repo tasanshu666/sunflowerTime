@@ -650,6 +650,15 @@ enum GuardBattleEventType {
 
   /// 子弹落空（目标已退场 / 偏离容错圈）。
   fizzle,
+
+  /// 大招释放锚点（演出动作帧 / 特效帧 / 音轨的起点；`monsterIndex = -1`）。
+  ///
+  /// 🔴 与 `kill` 完全分离：大招清场**只发** `ultimateCast` / `ultimateKill`，
+  /// 绝不发 `kill` ⇒ 表现层阳光掉落 VFX 零误触发（口径 8 / P0-05③ / 架构 §8-S3）。
+  ultimateCast,
+
+  /// 大招逐怪击杀（表现层并入死亡演出，绝不触发掉落）。
+  ultimateKill,
 }
 
 /// 一条演出事件（不可变）。
@@ -875,6 +884,7 @@ class GuardBattleSim {
   int _stealCapLeft;
   int? _lastFireMs; // null = 从没开过火（首发起火恒过闸门；不用哨兵 int 防 64 位溢出）
   int _bulletSeq = 0;
+  int _ultimateKillCount = 0; // 大招击杀计数（只读派生，不改状态机 / 快照）
 
   /// 当前阶段。
   GuardBattlePhase get phase => _phase;
@@ -899,6 +909,48 @@ class GuardBattleSim {
   /// **一个字节不动** —— 冷却闸门与确定性零感知；表现层在终局回调里读它，
   /// 传给结算链路（`GuardService.claim(hasFired: …)`）。
   bool get hasFired => _lastFireMs != null;
+
+  /// 大招累计击杀数（只读派生计数，便于 A5「战果记 5」断言）。
+  ///
+  /// 🔴 不改 sim 状态机 / 时间轴 / 快照结构：击杀记账仍是 `phase = dead`
+  /// （`_checkVictory` 已能读到），本计数只是「大招清了多少只」的旁路统计
+  /// （架构 D-1 / U-3）。
+  int get ultimateKillCount => _ultimateKillCount;
+
+  /// 大招清场出口（口径 7 / 8 / P0-05 / B3）。
+  ///
+  /// 仅 [phase] 为 `fighting` 时生效（非战斗态 no-op，P0-04②）：
+  /// * 遍历 [_monsters] 取 `phase == walking` 者 ⇒ 置 `dead`，并把 x/y 冻结
+  ///   在 [atMs]（与子弹击杀同款冻结，确定性零破口）；
+  /// * 每只发一条 [GuardBattleEventType.ultimateKill] 事件（供死亡演出），
+  ///   累计 [_ultimateKillCount]；**绝不发 `kill`**（阳光掉落零误触发）；
+  /// * 再发一条 [GuardBattleEventType.ultimateCast] 事件（演出锚点）；
+  /// * [_clearBullets] 清在飞子弹，最后复用 [_checkVictory] 判胜；
+  /// * **不改**波次调度 / `_retreatAll` / 闪避 / 子弹路径（B3：只清当前
+  ///   walking 怪，后续波次照常 spawn，通关仍按既有「全怪 dead」判定）。
+  void castUltimate(int atMs, List<GuardBattleEvent> events) {
+    if (_phase != GuardBattlePhase.fighting) return;
+    for (final _MonsterRt m in _monsters) {
+      if (m.phase != GuardBattleMonsterPhase.walking) continue;
+      m.phase = GuardBattleMonsterPhase.dead;
+      // 冻结在被清时刻的位置（纯函数，理由与子弹击杀同）。
+      m.x = _monsterXAt(m.spec, atMs.toDouble());
+      m.y = _monsterYAt(m.spec, atMs.toDouble());
+      events.add(GuardBattleEvent(
+        type: GuardBattleEventType.ultimateKill,
+        tMs: atMs,
+        monsterIndex: m.spec.index,
+      ));
+      _ultimateKillCount += 1;
+    }
+    // 释放锚点事件（无论是否清到怪都发一条，供动作帧 / 特效 / 音轨演出）。
+    events.add(GuardBattleEvent(
+      type: GuardBattleEventType.ultimateCast,
+      tMs: atMs,
+    ));
+    _clearBullets();
+    _checkVictory(atMs);
+  }
 
   /// 推进到 [elapsedMs]，处理其间 [newFireEventsMs] 的开火（含冷却闸门）。
   ///

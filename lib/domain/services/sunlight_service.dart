@@ -40,6 +40,7 @@ import 'package:sunflower_time/domain/entities/focus_session.dart';
 import 'package:sunflower_time/domain/entities/guard_day_state.dart';
 import 'package:sunflower_time/domain/entities/sunlight_entry.dart';
 import 'package:sunflower_time/domain/repositories/focus_repository.dart';
+import 'package:sunflower_time/domain/repositories/guard_ultimate_energy_store.dart';
 import 'package:sunflower_time/domain/repositories/sunlight_repository.dart';
 import 'package:sunflower_time/domain/services/focus_engine.dart';
 import 'package:sunflower_time/domain/services/guard_voucher.dart';
@@ -118,11 +119,16 @@ class SunlightService {
     // 生产装配（providers.dart）注入后加成自动生效。
     GuardVoucherService? guardVouchers,
     String Function()? childId,
+    // 🔴 守卫大招能量累计 writer（缺省 null = 老构造点 / Fake / 旧测试零改动；
+    //    生产在 providers.dart 注入真实 GuardUltimateService）。落库点在 settle()
+    //    的 saveSession 之后 —— 到时 / 手动 / 打断三条结束路径的唯一汇聚点。
+    UltimateFocusWriter? ultimateFocusWriter,
   })  : _ledger = ledger,
         _focus = focus,
         _uuid = idGenerator ?? const Uuid(),
         _guardVouchers = guardVouchers,
-        _childId = childId;
+        _childId = childId,
+        _ultimateFocusWriter = ultimateFocusWriter;
 
   final SunlightRepository _ledger;
   final FocusRepository _focus;
@@ -131,6 +137,9 @@ class SunlightService {
   /// 🔴 B13.20：守卫券服务（`null` = 专注加成券停用）。
   final GuardVoucherService? _guardVouchers;
   final String Function()? _childId;
+
+  /// 守卫大招能量累计 writer（`null` = 不累计，旧行为逐位不变）。
+  final UltimateFocusWriter? _ultimateFocusWriter;
 
   /// 专注产出的账本类型（额度只按它聚合）。
   static const String focusRefType = 'focus_session';
@@ -253,6 +262,25 @@ class SunlightService {
       sunlightEarned: net,
       createdAt: end,
     ));
+
+    // 🔴 守卫大招能量累计（定死点①）：紧跟 saveSession（唯一汇聚点，三条结束
+    //    路径都过这里）。刻意 **不看 status / 不设 15min 门槛**（C4：门槛只服务
+    //    旧入场券）——中途退出只要引擎产出 actualFocusMin 就照常计入（B4）。
+    //    守卫战斗时长不经过本点 ⇒ 天然满足「战斗不产能量」（B4）。
+    //    writer 缺省 null ⇒ 老构造点 / Fake / 旧测试零改动、行为逐位不变。
+    //    累计是锦上添花，失败绝不拖垮已成功的专注结算（与券服务同降级口径）。
+    final UltimateFocusWriter? ultimateWriter = _ultimateFocusWriter;
+    if (ultimateWriter != null) {
+      try {
+        await ultimateWriter.creditFocus(
+          sessionId: sessionId,
+          childId: _childId?.call() ?? 'unknown',
+          actualFocusMin: outcome.actualFocusMin,
+        );
+      } catch (_) {
+        // 累计抖动静默降级：专注主链路已成功落库。
+      }
+    }
 
     // 🔴 B13.20：专注加成券（放在 saveSession 之后 —— 加餐券的「当日累计分钟」
     // 必须包含刚落库的这一场；放大券按截断后的净额乘算，也要求净额已定）。

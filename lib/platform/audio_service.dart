@@ -416,7 +416,13 @@ class AudioService {
   /// 已触发的失败重试次数（成功起播 / stop / dispose 复位）。
   int _ambientRetryCount = 0;
 
-  /// 应用设置：决定 SFX / BGM 是否生效。
+  /// 应用设置：同步音效开关 / 背景类音频开关。
+  ///
+  /// ⚠️ 语义（玄参拍板）：[soundOn] **只拦截「专注中收集阳光」提示音**
+  /// （`AudioCue.focusCollect`，唯一显式传 `respectSoundSwitch: true` 的调用点）；
+  /// 其余所有 SFX（结束倒计时 / 升级 / 结算 / 护眼 / 花园 / 守卫战斗与大招等）
+  /// 一律不受它影响，关闭后照常播放。[bgmOn] 只管背景类音频（BGM / 花园氛围音），
+  /// 不碰任何 SFX。
   ///
   /// 若关闭 BGM 且正在播放，则立即停止；开启由调用方在 [startBgm] 触发。
   /// 花园氛围音（[_ambientPlayer]）同样受 [_bgmOn] 控制：关闭时立即停止。
@@ -529,25 +535,40 @@ class AudioService {
 
   /// 播放一次性音效（fire-and-forget，非阻塞）。
   ///
-  /// 受 [_soundOn] 保护；内部异步加载与播放，任何失败均静默忽略。
+  /// 默认**不受** [_soundOn] 影响；仅当 [respectSoundSwitch] 为 true 时（当前只有
+  /// 「专注中收集阳光」`AudioCue.focusCollect` 一个调用点）才在音效开关关闭时静默跳过。
+  /// 内部异步加载与播放，任何失败均静默忽略。
   /// [volume] ∈ [0,1]，默认 1.0（B13.7：击中音效降到 0.25，「稍微有个声音
   /// 能听见就行」——玄参原话）。
   /// ⚠️ 多路并发时的胜负由 [_sfxGeneration] 决定（F116：**后发起者赢**，先发起者过期即让位）。
-  void playSfx(AudioCue cue, {double volume = 1.0}) =>
-      playSfxPaths(<String>[cue.assetPath], volume: volume);
+  void playSfx(
+    AudioCue cue, {
+    double volume = 1.0,
+    bool respectSoundSwitch = false,
+  }) =>
+      playSfxPaths(
+        <String>[cue.assetPath],
+        volume: volume,
+        respectSoundSwitch: respectSoundSwitch,
+      );
 
   /// 播放一次性音效，**按 [paths] 顺序依次回退**（fire-and-forget，非阻塞）。
   ///
   /// 用于「物种专属 → 通用兜底」这类多候选场景（成长过渡音，口径 C59；候选由
   /// `growSfxAssetCandidates` 生成）：前一个候选资源缺失 / 加载失败 → 试下一个；
   /// 全部失败 → 静默（与「素材缺失」的既有降级口径一致：不崩、不刷日志）。
-  /// 受 [_soundOn] 保护；[paths] 为空直接返回。
+  /// 默认**不受** [_soundOn] 影响；仅 [respectSoundSwitch]=true 时受控（见 [playSfx]）。
+  /// [paths] 为空直接返回。
   ///
   /// ⚠️ **F116（玄参 2026-10-13）**：SFX 只有一个共享播放器，两路请求**相距极近**地发起时
   /// （真机事故：手动结束 → 结算页 `focus_settle` 与护眼卡 `eyecare`）会互相 `stop()`。
   /// 由 [_sfxGeneration] 保证「**后发起者赢**；先发起者过期即让位，**绝不回头停别人**」。
-  void playSfxPaths(List<String> paths, {double volume = 1.0}) {
-    if (!_soundOn || paths.isEmpty) return;
+  void playSfxPaths(
+    List<String> paths, {
+    double volume = 1.0,
+    bool respectSoundSwitch = false,
+  }) {
+    if ((respectSoundSwitch && !_soundOn) || paths.isEmpty) return;
     unawaited(_playSfxPaths(paths, volume: volume));
   }
 
@@ -582,9 +603,14 @@ class AudioService {
   ///
   /// 与 [playSfx] 的区别：不共享单播放器、**不打断**任何在播音效——供战斗
   /// 高频短音效（发射 / 击中 / 宝箱落地 / 开箱）使用；连点时每支都能完整出声。
-  /// 受 [_soundOn] 保护；音量语义与 [playSfx] 一致；失败静默降级。
-  void playSfxOverlap(AudioCue cue, {double volume = 1.0}) {
-    if (!_soundOn) return;
+  /// 默认**不受** [_soundOn] 影响（守卫战斗 / 宝箱音效关闭音效开关后照常播放）；
+  /// 音量语义与 [playSfx] 一致；失败静默降级。
+  void playSfxOverlap(
+    AudioCue cue, {
+    double volume = 1.0,
+    bool respectSoundSwitch = false,
+  }) {
+    if (respectSoundSwitch && !_soundOn) return;
     unawaited(_playSfxOverlap(cue.assetPath, volume: volume));
   }
 

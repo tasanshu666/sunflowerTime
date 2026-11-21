@@ -103,9 +103,10 @@ void main() {
     expect('[1, 5, 10, 15, 20, 25, 30, 35, 40]'.allMatches(params).length, 1);
   });
 
-  test('FeatureKey 只新增 wishSlot 一个（无按日限条数 key）', () {
-    expect(FeatureKey.values.length, 12);
-    expect(FeatureKey.values.last, FeatureKey.wishSlot);
+  test('FeatureKey 含 wishSlot；守卫大招为追加在末尾的新枚举（无按日限条数 key）', () {
+    expect(FeatureKey.values, contains(FeatureKey.wishSlot));
+    expect(FeatureKey.values.length, 13);
+    expect(FeatureKey.values.last, FeatureKey.guardUltimate);
     expect(params.contains('kWishDaily'), isFalse);
   });
 }

@@ -68,10 +68,11 @@ import 'package:sunflower_time/presentation/child/widgets/guard_buff_chip.dart'
 /// [onCollect] 由调用方注入而不是本文件 import `GuardService`：结算卡只管
 /// 「什么时候发」，不关心「怎么发」；`claim()` 的幂等与账本口径全部留在领域层。
 ///
-/// [hasFired] = 本场**是否开过火**（B13.26，玄参 2026-11-16：未开火场不发
-/// 必得阳光，阳光卡显示红色 `−N`（N = 被偷合计）+ 底部馋光鼠被偷行；
-/// 缺省 true = 正常场，显示 `+winSunToGrant`，逐位不变）。
-/// 🔴 B13.27 增量（C120-13「惩罚必达」）：未开火场的 N = 固定惩罚
+/// [didAttack] = 本场**是否参与过攻击**（B13.26 基础上 🔴 C128 扩口径：开过火
+/// **或**大招清过怪均算参战；未参战场不发必得阳光，阳光卡显示红色 `−N`（N =
+/// 被偷合计）+ 底部馋光鼠被偷行；缺省 true = 正常场，显示 `+winSunToGrant`，
+/// 逐位不变）。
+/// 🔴 B13.27 增量（C120-13「惩罚必达」）：未参战场的 N = 固定惩罚
 /// [kGuardWinSunMin]=3（宿主恒传，见 [showGuardResultCard] 调用方契约），
 /// 标题同步切失败文案 [AppLocalizations.guard_result_title_defeat]。
 ///
@@ -87,7 +88,7 @@ Future<GuardClaimOutcome?> showGuardResultCard(
   required AppLocalizations l10n,
   required Future<GuardClaimOutcome> Function() onCollect,
   int stolenSun = 0,
-  bool hasFired = true,
+  bool didAttack = true,
   bool showPremiumHint = false,
   double uiScale = 1.0,
 }) {
@@ -109,7 +110,7 @@ Future<GuardClaimOutcome?> showGuardResultCard(
         l10n: l10n,
         onCollect: onCollect,
         stolenSun: stolenSun,
-        hasFired: hasFired,
+        didAttack: didAttack,
         showPremiumHint: showPremiumHint,
         uiScale: uiScale,
       ),
@@ -168,9 +169,10 @@ class GuardResultCard extends StatefulWidget {
   /// 本场账本实扣的被偷额（☀；<= 0 时不渲染被偷行 —— 见文件头契约）。
   final int stolenSun;
 
-  /// 本场**是否开过火**（B13.26；false = 未开火 ⇒ 阳光卡显示红色 `−stolenSun`，
-  /// 见 [_sunRewardCard]。缺省 true = 正常场）。
-  final bool hasFired;
+  /// 本场**是否参与过攻击**（B13.26；🔴 C128 扩口径：开火**或**大招清怪；
+  /// false = 未参战 ⇒ 阳光卡显示红色 `−stolenSun`，见 [_sunRewardCard]。
+  /// 缺省 true = 正常场）。
+  final bool didAttack;
 
   /// 是否显示「完整版有高级宝箱」引导行（B13.16 玄参：打赢的文案里加
   /// 「完整版还会有高级宝箱掉落，奖励会更丰富」提示）。
@@ -194,7 +196,7 @@ class GuardResultCard extends StatefulWidget {
     required this.l10n,
     required this.onCollect,
     this.stolenSun = 0,
-    this.hasFired = true,
+    this.didAttack = true,
     this.showPremiumHint = false,
     this.uiScale = 1.0,
   });
@@ -285,11 +287,11 @@ class _GuardResultCardState extends State<GuardResultCard>
     final GuardTodayView view = widget.view;
     // 🔴 2026-11-12 玄参裁定：怪物同场交叉后，出场的怪不再恒等于贼种，
     //    标题改通用文案（l10n guard_result_title），不再指名 guardThiefName。
-    // 🔴 B13.27 增量（C120-13「惩罚必达」）：未开火场 = 守卫失败 ⇒ 标题改
+    // 🔴 B13.27 增量（C120-13「惩罚必达」）：未参战场 = 守卫失败 ⇒ 标题改
     //    失败文案（guard_result_title_defeat），不再用「花园守卫成功」误导。
     final bool isZh =
         Localizations.localeOf(context).languageCode.startsWith('zh');
-    final bool noFireTitle = !widget.hasFired;
+    final bool noFireTitle = !widget.didAttack;
     // 🔴 Guard-B13.11：高级宝箱的附加奖励各占一张卡；普通宝箱**一张都不渲染**
     //    （绝不出现「空槽」或「+0 片」这种把孩子当傻子的占位）。
     final bool premium = view.isPremiumChest;
@@ -562,11 +564,11 @@ class _GuardResultCardState extends State<GuardResultCard>
   /// 高级宝箱在这里显示翻倍后的数字，并用一行小字说明「为什么是 8 而不是 4」——
   /// 否则孩子会以为卡面算错了。
   ///
-  /// 🔴 **B13.26（玄参 2026-11-16）**：未开火场（[GuardResultCard.hasFired]
+  /// 🔴 **B13.26（玄参 2026-11-16）**：未参战场（[GuardResultCard.didAttack]
   /// == false）**没有阳光到账**（被怪偷走了）⇒ 显示红色 `−N`（N = 被偷合计
   /// = 账本 `guard_stolen` 行），图标仍是阳光素材；「高级宝箱翻倍说明」小字
   /// 一并隐藏（对 −N 解释翻倍是自相矛盾）。正常场逐位不变。
-  /// 🔴 **B13.27 增量（C120-13「惩罚必达」）**：未开火场的 N = **固定惩罚**
+  /// 🔴 **B13.27 增量（C120-13「惩罚必达」）**：未参战场的 N = **固定惩罚**
   /// [kGuardWinSunMin]（宿主恒传 3，与账本实扣 `min(3, 余额)` 解耦 —— 余额
   /// 不足时账本实扣 <3 而卡面仍恒 −3，拍板口径优先，边缘见口径表）。
   Widget _sunRewardCard(
@@ -574,10 +576,10 @@ class _GuardResultCardState extends State<GuardResultCard>
     GuardTodayView view,
     bool premium,
   ) {
-    // 未开火场：红色 −N（B13.27 增量 C120-13：宿主恒传 kGuardWinSunMin=3 ⇒
+    // 未参战场：红色 −N（B13.27 增量 C120-13：宿主恒传 kGuardWinSunMin=3 ⇒
     // 恒显示「−3」；stolenSun 为 0 的脏入参防御 = 显示无符号「0」，绝不显示
     // −0/+winSunToGrant 误导）。
-    final bool noFire = !widget.hasFired;
+    final bool noFire = !widget.didAttack;
     final int shownStolen = widget.stolenSun < 0 ? 0 : widget.stolenSun;
     return Container(
       key: GuardResultCard.sunRewardKey,

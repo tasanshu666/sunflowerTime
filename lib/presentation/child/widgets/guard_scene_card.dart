@@ -51,12 +51,23 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/di/providers.dart'
+    show guardUltimateServiceProvider;
+import 'package:sunflower_time/core/i18n/app_locale_controller.dart'
+    show AppLocaleController;
 import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
+import 'package:sunflower_time/domain/entities/guard_ultimate_energy.dart'
+    show UltimateEnergy;
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart'
     show GuardBattlePhase, GuardBattleScript, GuardBattleSnapshot;
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+import 'package:sunflower_time/platform/audio_service.dart'
+    show AudioService;
+import 'package:sunflower_time/presentation/shared/premium_gate.dart'
+    show onGuardUltimateTap;
 import 'package:sunflower_time/presentation/child/state/guard_today_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/gold_notice_dialog.dart'
     show GoldNoticeItem, showGoldNoticeDialog;
@@ -64,6 +75,12 @@ import 'package:sunflower_time/presentation/child/widgets/guard_art.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_battle_field.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_card_layout.dart';
 import 'package:sunflower_time/presentation/child/widgets/guard_intro_dialog.dart';
+import 'package:sunflower_time/presentation/child/widgets/guard_ultimate_energy_bar.dart'
+    show GuardUltimateEnergyBar;
+import 'package:sunflower_time/presentation/child/widgets/guard_ultimate_fx.dart'
+    show canStartFxStage, guardUltimateCastSfxForLocale;
+import 'package:sunflower_time/presentation/child/widgets/guard_ultimate_help_dialog.dart'
+    show showGuardUltimateHelpDialog;
 
 /// 守卫场景卡（纯展示 + 「开始守卫」回调，**不碰任何服务 / 账本**；
 /// 教学浮层与确认卡由页面在回调里编排 —— 与 v1 胶囊同一接线形状）。
@@ -151,9 +168,10 @@ class GuardSceneCard extends StatefulWidget {
   /// B4 起携带本场实际被偷合计（sim 终局 `stolenSun`，由 L4 field 透传；
   /// 页面据此调 `recordBattleTheft` 落账后再弹结算卡）。卡只转发，不落账。
   ///
-  /// 🔴 B13.26：第二参 = 本场**是否开过火**（sim `hasFired` 透传，页面据此
-  /// 在 `claim()` 里短路必得阳光）。卡只转发。
-  final void Function(int stolenSun, bool hasFired)? onBattleFinished;
+  /// 🔴 B13.26：第二参 = 本场**是否参与过攻击**（开火或大招清怪，L4 field
+  /// 判定后透传；🔴 C128：只用大招通关的场不再误标「未参战」）。页面据此
+  /// 在 `claim()` 里短路必得阳光。卡只转发。
+  final void Function(int stolenSun, bool didAttack)? onBattleFinished;
 
   /// 调试剧本覆盖（B5a，仅 kDebugMode 有非空值；页面从
   /// `debugGuardBattleScriptOverrideProvider` 读来透传，本卡只转发）。
@@ -171,6 +189,14 @@ class GuardSceneCard extends StatefulWidget {
   /// 等比放大（`GuardCardLayout` 据此乘同倍率）。默认 1.0 ⇒ 手机零回归。
   final double uiScale;
 
+  /// 大招能量快照（由页面 `ref.watch(guardUltimateEnergyProvider)` 注入；
+  /// 缺省 empty ⇒ 无 ProviderScope 的旧 widget 测试零改动、能量条显示两格空）。
+  final UltimateEnergy ultimateEnergy;
+
+  /// 大招是否已解锁（由页面经中性 helper 派生后注入；缺省 false ⇒ 免费档 🔒）。
+  /// 🔴 孩子端只吃 bool，不读任何权益 provider（门控下沉 shared 层）。
+  final bool ultimateUnlocked;
+
   const GuardSceneCard({
     super.key,
     required this.view,
@@ -181,6 +207,8 @@ class GuardSceneCard extends StatefulWidget {
     this.debugScriptOverride,
     this.battleHandle,
     this.uiScale = 1.0,
+    this.ultimateEnergy = UltimateEnergy.empty,
+    this.ultimateUnlocked = false,
   });
 
   @override
@@ -212,9 +240,28 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
   /// 结算卡上屏，肉眼不可见，可接受）。
   int? _hitStartMs;
 
+  // ── 大招 cast 段（战士本体原位 27 帧 + cast 音轨；玄参 2026-11-20）───────
+  /// 是否正在播战士本体释放动作（true 时 `_soldierArt` 切到 `soldierUltimate` 帧）。
+  bool _soldierCasting = false;
+
+  /// 重复释放的重播令牌（同一场多次放大招每次都从头播 27 帧）。
+  int _castPlayToken = 0;
+
+  /// cast 段「动作播完」/「音轨播完」两路完成信号（两者都到才进 fx 段）。
+  bool _castFramesDone = false;
+  bool _castAudioDone = false;
+
+  /// cast 音轨计时器（与帧序列同起点、同 [kUltimateFxDurationMs] 长度）。
+  ///
+  /// 🔴 AudioService 只提供 fire-and-forget 的 `playSfxPaths`，没有完成回调；
+  /// 用同长度的 Timer 作为音轨收尾信号，与帧 `onComplete` 走 `Future.wait`
+  /// 同款判据（[canStartFxStage]），而不是「猜一个 delay 抢跑 fx 段」。
+  Timer? _castAudioTimer;
+
   @override
   void dispose() {
     _attackTimer?.cancel();
+    _castAudioTimer?.cancel();
     super.dispose();
   }
 
@@ -240,12 +287,85 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
     setState(() => _hitStartMs = _battleSnap?.elapsedMs ?? 0);
   }
 
+  /// 点战士：门控放行后扣 1 格并请求 sim 清场（中性链路，零权益 token）。
+  /// 扣格是 async：先 await 服务落库，再启动 cast 段 + 请战斗层下一帧清场。
+  Future<void> _castUltimate() async {
+    // cast 段未播完时重复点击：直接吞掉（避免两段演出互相掐断 / 重复扣格）。
+    if (_soldierCasting) return;
+    // 🔴 只在**点击时**读 provider（裸 MaterialApp 的旧 widget 测试不点战士 ⇒
+    //    不触碰 ProviderScope，零改动通过）。生产容器里正常扣格。
+    //    防御：即便中性 helper 在无 ProviderScope 的裸宿主中被直接放行，也只
+    //    no-op，不把 StateError 冒泡成 widget 测试失败。
+    final ProviderContainer container;
+    try {
+      container = ProviderScope.containerOf(context, listen: false);
+    } on StateError {
+      return;
+    }
+    await container.read(guardUltimateServiceProvider).spendCell();
+    if (!mounted) return;
+    // ── cast 段启动：战士本体原位 27 帧 + cast 音轨，同起点、同长 ──────────
+    _castFramesDone = false;
+    _castAudioDone = false;
+    setState(() {
+      _soldierCasting = true;
+      _castPlayToken++;
+    });
+    // 🔴 cast 音轨按生效语言二选一（与 GuardArt.soldierUltimateCast 的帧目录
+    // 同一判据）；fx 音轨中英通用，跟着 cast 播完再上树。
+    final String castSfx = guardUltimateCastSfxForLocale(
+      AppLocaleController.current.languageCode == 'en',
+    );
+    AudioService.instance.playSfxPaths(<String>[castSfx]);
+    _castAudioTimer?.cancel();
+    _castAudioTimer = Timer(
+      const Duration(milliseconds: kUltimateFxDurationMs),
+      _onCastAudioDone,
+    );
+    // sim 清场请求（下一帧 tick 执行 castUltimate；锚点在 cast 前抓取）。
+    _battleHandle.requestUltimate();
+  }
+
+  /// cast 帧序列播完（`FrameSequencePlayer.onComplete`）⇒ 记动作完成信号。
+  void _onCastFrameDone() {
+    _castFramesDone = true;
+    _maybeEnterFxStage();
+  }
+
+  /// cast 音轨计时到点 ⇒ 记音轨完成信号。
+  void _onCastAudioDone() {
+    _castAudioDone = true;
+    _maybeEnterFxStage();
+  }
+
+  /// 两段串行的唯一推进点：**动作播完 + 音轨播完两者都完成**才进 fx 段。
+  ///
+  /// 任一路先到只记信号、不启动第二段（玄参「动作/音效被卡断」的根因就是
+  /// 旧实现 `Future.delayed(duration~/2)` 抢跑 fx 音轨）。战士恢复常态后经
+  /// [GuardBattleHandle.notifyUltimateCastDone] 通知 field 在怪物区挂纯特效段。
+  void _maybeEnterFxStage() {
+    if (!_soldierCasting || !mounted) return;
+    if (!canStartFxStage(
+      castFramesDone: _castFramesDone,
+      castAudioDone: _castAudioDone,
+    )) {
+      return;
+    }
+    _castAudioTimer?.cancel();
+    setState(() => _soldierCasting = false);
+    _battleHandle.notifyUltimateCastDone();
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations t = l10nOf(context);
     final GuardTodayView view = widget.view;
     final bool actionable = view.isActionable && widget.onStart != null;
     final bool fighting = view.mode == GuardPillMode.fighting;
+    // 大招能量 + 门控 bool 由页面注入（build 期零 ProviderScope 依赖）——
+    // 孩子端只吃实体 + bool，零权益 token。
+    final UltimateEnergy ultimateEnergy = widget.ultimateEnergy;
+    final bool ultimateUnlocked = widget.ultimateUnlocked;
     // 倒计时细线：绑 sim 剩余窗口（0..1，终局冻结在结束值）。
     final double countdownValue = fighting
         ? (_battleSnap?.remainingWindowMs ?? kGuardBattleWindowMs) /
@@ -275,7 +395,16 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                 GuardCardLayout(constraints.maxWidth, widget.uiScale);
 
             return Stack(
-              clipBehavior: Clip.hardEdge,
+              // 🔴 C130（玄参「你不要给我切割」）：卡根不再裁切 —— cast 段绘制框
+              // 补偿后约 169.41pt（超出卡高 112，上下各溢出 ~8.5/49pt），光效帧
+              // 本就铺满 720² 画布，若 hardEdge 会把光效切出硬边。改 Clip.none
+              // 让 cast 光效越界绘制；卡内其余子层全部 Positioned 在界内、
+              // 战斗层 / fx 层各自自裁，行为零变化。实测：卡底以下光效带几乎
+              // 为空（27 帧 alpha>128 占比 0~5% 淡火花），不会压脏下方统计卡；
+              // 卡顶以上还有 ~8.5pt 超出 ListView 视口顶边（卡顶 == 视口顶），
+              // 该带仍被视口裁掉 —— 见报告；若玄参目检仍觉顶部有硬边，下一步
+              // 是给 ListView 开 clipBehavior: none（本报告已预留该选项）。
+              clipBehavior: Clip.none,
               children: <Widget>[
                 // ── L1 草地板（程序化、横向无限拉伸 + 透明素材兜底）──────
                 const Positioned.fill(
@@ -337,15 +466,71 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                 // 78pt，绝不会出现「一开火就变小」。
                 Positioned.fromRect(
                   rect: layout.soldierRect,
-                  child: SizedBox(
-                    key: GuardSceneCard.soldierKey,
-                    child: OverflowBox(
-                      alignment: Alignment.center,
-                      minWidth: layout.soldierDrawWidth,
-                      maxWidth: layout.soldierDrawWidth,
-                      minHeight: layout.soldierRect.height,
-                      maxHeight: layout.soldierRect.height,
-                      child: _soldierArt(fighting),
+                  child: Semantics(
+                    button: true,
+                    label: ultimateUnlocked
+                        ? t.guard_ultimate_energy_semantics(
+                            '${ultimateEnergy.filledCells}', '${ultimateEnergy.fractionMin}')
+                        : '${t.guard_ultimate_energy_semantics('${ultimateEnergy.filledCells}', '${ultimateEnergy.fractionMin}')} ${t.guard_ultimate_lock_semantics}',
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      // 🔴 C62：不出现 onTap: null —— 门控判定全在中性 helper 内；
+                      //    非战斗态 onAllowed 为空（P0-04② no-op），但免费档
+                      //    任何态点战士仍走买断引导（helper 内部先判门控）。
+                      onTap: () {
+                        // 🔴 玄参 2026-11-20：待机态点战士 = 弹**居中用法说明卡**
+                        // （免费 / 买断都弹，先讲玩法；不是轻提示）；仅战斗态才
+                        // 走门控 helper（免费 → 买断引导 / 有能量 → 释放 /
+                        // 无能量 → 1s 淡出轻提示）。C62：onTap 恒非 null。
+                        if (!fighting) {
+                          _showUltimateHelp(t);
+                          return;
+                        }
+                        onGuardUltimateTap(
+                          context,
+                          hasEnergy: ultimateEnergy.filledCells > 0,
+                          onAllowed: _castUltimate,
+                        );
+                      },
+                      child: SizedBox(
+                        key: GuardSceneCard.soldierKey,
+                        child: OverflowBox(
+                          alignment: Alignment.center,
+                          // 🔴 C130：cast 段绘制框按实体占比补偿放大到
+                          // [GuardCardLayout.ultimateCastPaintHeight]
+                          // （390 屏 169.41²，保持正方形画布），使战士实体渲染高
+                          // 逐位 = 待机；其余姿态维持原口径（宽 = 横向溢出宽
+                          // [GuardCardLayout.soldierDrawWidth]、高 = 布局框高）。
+                          // OverflowBox 只放行尺寸、不裁切；越界绘制由卡根
+                          // Stack Clip.none 放行（见上）。
+                          minWidth: _soldierCasting
+                              ? layout.ultimateCastPaintHeight
+                              : layout.soldierDrawWidth,
+                          maxWidth: _soldierCasting
+                              ? layout.ultimateCastPaintHeight
+                              : layout.soldierDrawWidth,
+                          minHeight: _soldierCasting
+                              ? layout.ultimateCastPaintHeight
+                              : layout.soldierRect.height,
+                          maxHeight: _soldierCasting
+                              ? layout.ultimateCastPaintHeight
+                              : layout.soldierRect.height,
+                          child: _soldierArt(fighting, layout),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // ── 战士头顶大招能量条（两格 / 百分比 / 点亮 / 🔒，零 token）──
+                // 能量条 widget 自己按全卡宽 LayoutBuilder 定位到 soldierRect 上方
+                // （GuardCardLayout.ultimateBarRect），与旧能量点并存不复用。
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: GuardUltimateEnergyBar(
+                      energy: ultimateEnergy,
+                      unlocked: ultimateUnlocked,
+                      uiScale: widget.uiScale,
                     ),
                   ),
                 ),
@@ -367,11 +552,11 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                       onSoldierHit: _flashSoldierHit,
                       // 平板放大倍率透传（与卡同把尺子）。
                       uiScale: widget.uiScale,
-                      // B4：终局把 sim 的被偷合计 + 是否开过火透传给页面
+                      // B4：终局把 sim 的被偷合计 + 是否参与攻击透传给页面
                       // （取数链路 sim 报告 → 页面 → 结算卡 / claim；本卡只
                       // 转发、不落账）。
-                      onFinished: (int stolenSun, bool hasFired) =>
-                          widget.onBattleFinished?.call(stolenSun, hasFired),
+                      onFinished: (int stolenSun, bool didAttack) =>
+                          widget.onBattleFinished?.call(stolenSun, didAttack),
                       // B5a：调试剧本覆盖（仅 debug 有非空值；null = 真实派生）。
                       debugScriptOverride: widget.debugScriptOverride,
                     ),
@@ -446,6 +631,21 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
     );
   }
 
+  /// 待机态点战士 → 弹**屏幕居中**的大招用法说明卡（玄参 2026-11-20 拍板：
+  /// 「居中卡片 + 知道了按钮」，不是轻提示）。免费 / 买断都弹 —— 先讲玩法，
+  /// 买断引导仍只在**战斗态**点战士的路径里（门控下沉白名单文件，口径 12 不变）。
+  void _showUltimateHelp(AppLocalizations t) {
+    showGuardUltimateHelpDialog(
+      context,
+      title: t.guard_ultimate_help_title,
+      body: t.guard_ultimate_help_body(
+        '$kMinPerUltimateCell',
+        '$kMaxUltimateCells',
+      ),
+      confirmLabel: t.guard_ultimate_help_confirm,
+    );
+  }
+
   // ── 常驻战士的四态素材 ─────────────────────────────────────────────────
 
   /// 待机 / 战斗 / 开火 / 受击四态（玄参 B7 原话逐条落地 + B13.26 受击）：
@@ -454,7 +654,26 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
   ///   攻击帧进行中同时被贴，按玄参「受击要有反馈」的语义先演受击）；
   /// * 战斗进行中 ⇒ **静止站立**（`soldier_stand.webp` 定格，不循环 —— 不闲晃）；
   /// * 待机 / 战斗收场（Victory / Retreat）⇒ 待机 19 帧**循环**。
-  Widget _soldierArt(bool fighting) {
+  Widget _soldierArt(bool fighting, GuardCardLayout layout) {
+    // 🔴 玄参 2026-11-20：cast 段 = **战士本体原位**播 soldier_ultimate 27 帧，
+    // 不另起形象、不移到怪物区；播完 onComplete 驱动两段串行推进。
+    // 优先级高于攻击 / 受击 / 站立（放大招时不再被其它姿态覆盖）。
+    //
+    // 🔴 C130（玄参「你不要给我切割」「放大招战士变小了」）：未裁切 720² 画布
+    // 经 OverflowBox 放大到 [GuardCardLayout.ultimateCastPaintHeight]，再按
+    // [GuardCardLayout.ultimateCastAlignOffset] 平移，使**战士实体中心**逐位
+    // 落回 [GuardCardLayout.soldierRect] 中心（实体底边也踩回基线）—— 不因
+    // 画布变大而偏移。Transform.translate 只影响绘制、不消耗布局（与 B11
+    // 质心配准同一手法）。
+    if (_soldierCasting) {
+      return Transform.translate(
+        offset: layout.ultimateCastAlignOffset,
+        child: GuardArt.soldierUltimateCast(
+          playToken: _castPlayToken,
+          onComplete: _onCastFrameDone,
+        ),
+      );
+    }
     final bool over = fighting &&
         _battleSnap != null &&
         _battleSnap!.phaseId != GuardBattlePhase.fighting.id;

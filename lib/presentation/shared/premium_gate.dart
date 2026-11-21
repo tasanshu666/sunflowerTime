@@ -38,6 +38,8 @@ import 'package:sunflower_time/l10n/generated/app_localizations_zh.dart';
 // 后续若要在 `shared/` 长期使用，可把卡壳迁到 `shared/`（需同步改所有调用方）。
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart'
     show showChildConfirmCard;
+import 'package:sunflower_time/presentation/shared/brief_notice.dart'
+    show showBriefNotice;
 import 'package:sunflower_time/presentation/shared/quota_notice.dart';
 
 /// 能力点的展示名（付费引导文案用，i18n B2 经 ARB 取）。
@@ -69,6 +71,8 @@ String _featureLabel(AppLocalizations t, FeatureKey f) {
     // switch 穷尽性，避免漏登记新枚举值时静默走旧分支。
     case FeatureKey.wishSlot:
       return 'wishSlot';
+    case FeatureKey.guardUltimate:
+      return t.premium_gate_feature_guard_ultimate;
   }
 }
 
@@ -209,6 +213,75 @@ bool showGuardPremiumHint(BuildContext context) {
   final ProviderContainer container =
       ProviderScope.containerOf(context, listen: false);
   return !container.read(entitlementProvider).isPremium;
+}
+
+// ── 向日葵守卫 · 大招门控 helper（孩子端零权益 token，判定全在本白名单文件）──
+//
+// 🔴 纪律：孩子端 `guard_scene_card.dart` 只出现 `guardUltimateUnlocked` /
+//    `onGuardUltimateTap` 两个**中性命名** + bool + 回调，绝不含任何权益标识符
+//    （`entitlement_gate_guard_test` 白名单不动；架构 §1.3 / §8-S4）。
+
+/// 读取大招解锁态；**无 ProviderScope 的裸 widget 宿主返回 null**。
+///
+/// 生产路径一定挂在 ProviderScope 下；返回 null 只服务于既有 widget 级夹具
+/// （裸 `MaterialApp` 直接 pump `GuardSceneCard`）——这些夹具只验布局 / 可点性，
+/// 不应因为大招点击入口而被强制改造成 Riverpod 宿主。
+bool? _guardUltimateUnlockedOrAbsent(BuildContext context) {
+  final ProviderContainer container;
+  try {
+    container = ProviderScope.containerOf(context, listen: false);
+  } on StateError {
+    return null;
+  }
+  return featureAllowedFor(
+    FeatureKey.guardUltimate,
+    container.read(entitlementProvider).tier,
+  );
+}
+
+/// 大招是否已解锁（中性命名；默认安全回退免费档）。
+///
+/// 读 `entitlementProvider` 的安全默认（票据读不到 / 平台异常 ⇒ Entitlement.free
+/// ⇒ `featureAllowedFor(guardUltimate, free) == false` ⇒ 按免费处理，A9）。
+/// 无 ProviderScope 时同样按免费处理（false）。
+bool guardUltimateUnlocked(BuildContext context) =>
+    _guardUltimateUnlockedOrAbsent(context) ?? false;
+
+/// 点击向日葵战士的统一入口（中性命名）。
+///
+/// * 未解锁 → `showPremiumUpsell`（买断引导，口径 12 / P0-09②，不消耗能量）；
+/// * 已解锁但 0 格 → i18n 轻提示（B2，C62：不可点 ≠ 静默失败）；
+/// * 已解锁且有能量 → [onAllowed]（由调用方扣格 + 清场）。
+///
+/// 无 ProviderScope 的裸 widget 宿主直接 no-op：生产路径不可达，仅避免既有
+/// 布局 / 可点性夹具被 Riverpod 容器缺失误伤；不弹窗、不扣格、不触发清场。
+void onGuardUltimateTap(
+  BuildContext context, {
+  required bool hasEnergy,
+  required VoidCallback onAllowed,
+}) {
+  final bool? unlocked = _guardUltimateUnlockedOrAbsent(context);
+  if (unlocked == null) return;
+  if (!unlocked) {
+    showPremiumUpsell(context, FeatureKey.guardUltimate);
+    return;
+  }
+  if (!hasEnergy) {
+    _showGuardUltimateEmptyHint(context);
+    return;
+  }
+  onAllowed();
+}
+
+/// 战斗态能量为 0 时的**1s 淡出轻提示**（玄参 2026-11-20：「轻轻的弹文字
+/// 『请专注去获得能量吧』，1 秒后淡出消失」；B2 / C62，i18n 走 ARB）。
+///
+/// 🔴 不再用 [showQuotaNotice] 的 2.8s 常驻卡片（那是配额提示口径）：
+/// 改走 `showBriefNotice` 自绘 Overlay（淡入 180ms → 保持 1s → 淡出自清），
+/// 不回退带 action 的 SnackBar（F165 黑条常驻坑）。
+void _showGuardUltimateEmptyHint(BuildContext context) {
+  final AppLocalizations t = l10nOf(context);
+  showBriefNotice(context, message: t.guard_ultimate_empty_hint_light);
 }
 
 /// 付费引导卡片（未开通时由 [`PremiumGate`] 展示）。

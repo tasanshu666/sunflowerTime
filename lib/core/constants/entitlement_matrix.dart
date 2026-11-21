@@ -199,6 +199,17 @@ const Map<FeatureKey, FeatureRule> kEntitlementMatrix = <FeatureKey, FeatureRule
     freeQuota: kWishSlotMaxFree,
     premiumQuota: kWishSlotMaxPremium,
   ),
+  // ── 向日葵守卫 · 大招（真门控）：免费关闭（能量照常攒 / 点击弹买断引导），
+  //    买断开启（已攒能量立即可用）。只拦「释放」这一个动作，攒能量免费。
+  //    判定唯一入口 = featureAllowedFor(guardUltimate, tier)，经白名单内的
+  //    guardUltimateUnlocked 下沉给孩子端（孩子端零权益 token）。
+  //    🔴 不进 unlockRowsFor 卖点表（口径 13 / P0-10）：此处仅为矩阵里唯一一条 rule。
+  FeatureKey.guardUltimate: FeatureRule(
+    key: FeatureKey.guardUltimate,
+    freeEnabled: false,
+    freeQuota: kUnlimitedQuota,
+    premiumQuota: kUnlimitedQuota,
+  ),
 };
 
 /// 便捷判定：给定能力点与档位，是否允许（未登记 = 不门控，安全放行）。

@@ -283,6 +283,7 @@ class FrameSequencePlayer extends StatefulWidget {
     this.holdLastFrame = false,
     this.playToken,
     this.onComplete,
+    this.onFrameReached,
     this.fit = BoxFit.contain,
   });
 
@@ -313,6 +314,18 @@ class FrameSequencePlayer extends StatefulWidget {
 
   /// 整段（播放 + 渐隐）结束回调，供调用方移除本组件（循环模式不触发）。
   final VoidCallback? onComplete;
+
+  /// 可选**逐帧到达回调**：播放段推进到每个新的帧下标时回调一次（单调递增，
+  /// 同一帧只回调一次；循环 / 定格模式不触发）。
+  ///
+  /// 🔴 2026-11-21 大招演出用：fx 段第 N 帧（技能效果落地）才让小怪开始
+  /// 逃跑淡出 —— 没有逐帧回调能力就只能靠整段 `onComplete`（4s 后）或
+  /// 外部猜一个 delay，均无法与画面帧同步。
+  ///
+  /// 回调在 `addPostFrameCallback` 里派发（避免 build 期 setState 父层）；
+  /// 仅**新到达**的帧触发，帧号因掉帧跳过时按「最后看到的帧号」补判一次
+  /// （调用方用 `index >= 阈值` 判定即可，不会漏触发）。无回调调用方零开销。
+  final ValueChanged<int>? onFrameReached;
 
   /// 帧图的绘制方式。默认 [BoxFit.contain]（帧画布是方形，居中铺满）。
   ///
@@ -376,6 +389,9 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
   /// 最近一次渲染的帧下标（供窗口推进判断；null = 尚未渲染）。
   int? _lastIdx;
 
+  /// 最近一次**已回调**的帧下标（逐帧回调单调递增闸门；null = 尚未回调）。
+  int? _lastReportedFrame;
+
   bool get _isLargeGroup => widget.frames.length > _wholeGroupMax;
 
   void _maybePrecache() {
@@ -425,6 +441,23 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
     }
   }
 
+  /// 逐帧回调（[FrameSequencePlayer.onFrameReached]）：单调递增、同一帧仅一次。
+  ///
+  /// 在 build 的 AnimatedBuilder 里同步更新闸门、但把真正的回调投递到
+  /// post-frame —— 调用方常在本回调里 `setState`（如大招 fx 落地清怪），
+  /// build 期直接调会炸 `setState() or markNeedsBuild() called during build`。
+  /// 循环 / 定格模式不触发（idle 循环帧没有「到达某帧」语义）。
+  void _maybeReportFrame(int idx, {required bool steady}) {
+    final ValueChanged<int>? cb = widget.onFrameReached;
+    if (cb == null || steady) return;
+    final int? last = _lastReportedFrame;
+    if (last != null && idx <= last) return;
+    _lastReportedFrame = idx;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onFrameReached?.call(idx);
+    });
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -444,11 +477,13 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
         widget.fadeOutMs != oldWidget.fadeOutMs ||
         !listEquals<String>(widget.frames, oldWidget.frames);
     if (!restart) return;
-    _ctrl.duration = Duration(
+      _ctrl.duration = Duration(
       milliseconds: widget.durationMs +
           (widget.loop || widget.holdLastFrame ? 0 : widget.fadeOutMs),
     );
     _maybePrecache();
+    // 重播时重置逐帧回调闸门（同一场多次释放 / 同帧组连播都从头计帧）。
+    _lastReportedFrame = null;
     if (widget.loop) {
       _ctrl.repeat();
     } else {
@@ -498,6 +533,7 @@ class _FrameSequencePlayerState extends State<FrameSequencePlayer>
           }
           // C43：大帧组滑动窗口推进（前沿领先不足时预热下一批；小组 no-op）。
           _ensureWindowAhead(idx);
+          _maybeReportFrame(idx, steady: steady);
           return SizedBox.expand(
             child: Opacity(
               opacity: opacity,

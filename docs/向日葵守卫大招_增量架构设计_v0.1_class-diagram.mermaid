@@ -1,0 +1,215 @@
+classDiagram
+    %% ===== domain: 大招能量实体与纯函数 =====
+    class UltimateEnergy {
+        +int filledCells
+        +int fractionMin
+        +int maxCells = 2
+        +int minutesPerCell = 30
+        +UltimateEnergy empty$
+        +isFull() bool
+        +toJson() Map~String, Object?~
+        +fromJson(json) UltimateEnergy$
+        +lockSemanticsKey() String
+    }
+    note for UltimateEnergy "不变量: 0<=filledCells<=2; 0<=fractionMin<=29; filledCells==2 => fractionMin==0"
+
+    class UltimateEnergyFns {
+        +credit(e UltimateEnergy, focusMin double) UltimateEnergy$
+        +spend(e UltimateEnergy) UltimateEnergy$
+        +fillPercent(e UltimateEnergy, cellIndex int) double$
+        +isValid(e UltimateEnergy) bool$
+    }
+
+    %% ===== domain: 抽象 =====
+    class GuardUltimateEnergyStore {
+        <<interface>>
+        +read(childId String) Future~UltimateEnergy~
+        +write(childId String, energy UltimateEnergy) Future~void~
+        +readCreditedSessionIds(childId String) Future~Set~String~~
+        +writeCreditedSessionIds(childId String, ids Set~String~) Future~void~
+    }
+    class UltimateFocusWriter {
+        <<interface>>
+        +creditFocus(sessionId String, childId String, actualFocusMin double) Future~bool~
+    }
+
+    %% ===== domain: 服务 =====
+    class GuardUltimateService {
+        -GuardUltimateEnergyStore _store
+        -String Function() _childId
+        +read() Future~UltimateEnergy~
+        +creditFocus(sessionId String, childId String, actualFocusMin double) Future~bool~
+        +spendCell() Future~UltimateEnergy~
+        -serialized(action) Future
+    }
+    class SunlightService {
+        -SunlightRepository _ledger
+        -FocusRepository _focus
+        -GuardVoucherService? _guardVouchers
+        -UltimateFocusWriter? _ultimateFocusWriter
+        +settle(...) Future~SunlightSettlement~
+        +saveSession(session FocusSession) Future~void~
+    }
+    class GuardBattleSim {
+        -List~_MonsterRt~ _monsters
+        -int _ultimateKillCount
+        +step(elapsedMs int, newFireEventsMs List~int~) GuardBattleStepReport
+        +castUltimate(atMs int, events List~GuardBattleEvent~) void
+        +ultimateKillCount() int
+        -processBulletArrival(bulletIndex int, events List~GuardBattleEvent~) void
+        -checkVictory(atMs int) void
+        -retreatAll(events List~GuardBattleEvent~) void
+        -dodgeUniform(...) double
+        -clearBullets() void
+    }
+    note for GuardBattleSim "新增: castUltimate + ultimateKill 事件; step/_processBulletArrival/_checkVictory/_retreatAll/_dodgeUniform 不改"
+
+    class GuardBattleEvent {
+        +GuardBattleEventType type
+        +int tMs
+        +int monsterIndex
+        +int bulletIndex
+        +int amount
+    }
+    class GuardBattleEventType {
+        <<enumeration>>
+        spawn
+        fireGranted
+        fireDropped
+        hit
+        dodge
+        kill
+        theft
+        retreat
+        fizzle
+        ultimateCast
+        ultimateKill
+    }
+    class GuardBattleStepReport {
+        +List~GuardBattleEvent~ events
+        +GuardBattleEndReason endReason
+    }
+
+    %% ===== domain: 专注结算产出 =====
+    class FocusEngine {
+        +actualFocusMin() double
+        +finish(reason FocusEndReason) void
+    }
+    class FocusOutcome {
+        +double actualFocusMin
+        +FocusStatus status
+        +FocusEndReason endReason
+    }
+    class FocusSession {
+        +String id
+        +double actualFocusMin
+        +FocusStatus status
+    }
+
+    %% ===== data =====
+    class GuardUltimateEnergyPrefsStore {
+        -SharedPreferences _prefs
+        +keyOf(childId String) String$
+        +creditedKeyOf(childId String) String$
+        +read(childId String) Future~UltimateEnergy~
+        +write(childId String, energy UltimateEnergy) Future~void~
+        +readCreditedSessionIds(childId String) Future~Set~String~~
+        +writeCreditedSessionIds(childId String, ids Set~String~) Future~void~
+    }
+    note for GuardUltimateEnergyPrefsStore "key = guard_ultimate_v1_<childId>; credited = guard_ultimate_v1_credited_<childId>; 与 guard_energy_v1_* 完全隔离"
+
+    %% ===== core: 门控 =====
+    class FeatureKey {
+        <<enumeration>>
+        oneClickCare
+        titlePerks
+        wishSlot
+        guardUltimate
+    }
+    class FeatureRule {
+        +FeatureKey key
+        +bool freeEnabled
+        +int freeQuota
+        +bool premiumEnabled
+        +int premiumQuota
+        +isEnabledFor(tier EntitlementTier) bool
+    }
+    class EntitlementMatrix {
+        +kEntitlementMatrix Map~FeatureKey, FeatureRule~$
+        +featureAllowedFor(feature FeatureKey, tier EntitlementTier) bool$
+        +unlockRowsFor() List~PremiumUnlockRow~$
+    }
+    note for EntitlementMatrix "guardUltimate: freeEnabled=false / premiumEnabled=true; unlockRowsFor 显式6行不改"
+
+    %% ===== presentation/shared: 门控 helper (白名单) =====
+    class PremiumGateShared {
+        +guardUltimateUnlocked(context BuildContext) bool$
+        +onGuardUltimateTap(context BuildContext, hasEnergy bool, onAllowed VoidCallback) void$
+        -showGuardPremiumHint(context BuildContext) bool$
+        -showPremiumUpsell(context BuildContext, feature FeatureKey) Future$
+        -featureLabel(t, f FeatureKey) String$
+        -showGuardUltimateEmptyHint(context BuildContext) void$
+    }
+    note for PremiumGateShared "全部定义于 lib/presentation/shared/premium_gate.dart (守卫白名单内); 孩子端只吃 bool + 回调"
+
+    %% ===== presentation/child =====
+    class GuardCardLayout {
+        +soldierRect() Rect
+        +energyDotRect(index int) Rect
+        +mapMonsterX(simX double) double
+        +mapMonsterY(simY double) double
+        +ultimateBarRect(index int) Rect
+        +ultimateFxAnchor(walking Iterable~GuardBattleMonsterSnapshot~) Offset
+        +channelLeft() double
+    }
+    class GuardUltimateEnergyBar {
+        +UltimateEnergy energy
+        +bool unlocked
+        +build() Widget
+    }
+    class GuardUltimateFx {
+        +Offset anchor
+        +playCast() void
+        +playFx() void
+    }
+    class GuardSceneCard {
+        -UltimateEnergy energy
+        -bool unlocked
+        +onSoldierTap() void
+    }
+    note for GuardSceneCard "onTap -> onGuardUltimateTap(context, hasEnergy, onAllowed); 零权益 token"
+
+    class GuardBattleField {
+        -Map~int,int~ _deaths
+        -List~_SunDropFx~ _sunDrops
+        -collectDeathFx(report GuardBattleStepReport) void
+        -collectSunDropFx(report GuardBattleStepReport) void
+        -handleUltimateCast(e GuardBattleEvent) void
+        -handleUltimateKill(e GuardBattleEvent) void
+    }
+    note for GuardBattleField "死亡演出=kill ∪ ultimateKill; 阳光掉落=仅 kill (不改)"
+
+    %% ===== 关系 =====
+    UltimateEnergyFns ..> UltimateEnergy : 纯函数
+    GuardUltimateService ..|> UltimateFocusWriter : implements
+    GuardUltimateService --> GuardUltimateEnergyStore : 依赖
+    GuardUltimateEnergyPrefsStore ..|> GuardUltimateEnergyStore : implements
+    SunlightService o-- UltimateFocusWriter : 可选注入(null安全)
+    SunlightService --> FocusSession : saveSession
+    FocusEngine ..> FocusOutcome : finish 产出
+    FocusOutcome ..> FocusSession : 结算字段
+    GuardBattleSim ..> GuardBattleEvent : 产出
+    GuardBattleSim ..> GuardBattleStepReport : step 返回
+    GuardBattleEvent --> GuardBattleEventType : type
+    GuardBattleStepReport o-- GuardBattleEvent : events
+    FeatureRule --> FeatureKey : key
+    EntitlementMatrix o-- FeatureRule : kEntitlementMatrix
+    FeatureKey <.. PremiumGateShared : featureAllowedFor(guardUltimate)
+    PremiumGateShared ..> GuardSceneCard : 提供 bool + 回调(下沉)
+    GuardSceneCard *-- GuardUltimateEnergyBar : 组合
+    GuardSceneCard ..> GuardUltimateService : spendCell
+    GuardSceneCard ..> GuardBattleSim : castUltimate
+    GuardCardLayout <.. GuardUltimateEnergyBar : ultimateBarRect
+    GuardCardLayout <.. GuardBattleField : ultimateFxAnchor
+    GuardBattleField *-- GuardUltimateFx : 组合
+    GuardBattleField ..> GuardBattleEvent : 消费事件

@@ -155,6 +155,12 @@ class GuardArt {
   /// 测试读法：`tester.widget<Opacity>(find.byKey(idleLayerKey)).opacity`。
   static const Key idleLayerKey = Key('guardSoldierIdleLayer');
 
+  /// 战士**原位释放大招 27 帧**播放器 Key（玄参 2026-11-20 验收）。
+  ///
+  /// 测试读法：`find.byKey(GuardArt.ultimateCastKey)` —— 断言 cast 段挂在
+  /// 战士本体位（`soldierRect`），而**不是**战斗层怪物聚集区（另一个 Key）。
+  static const Key ultimateCastKey = Key('guardSoldierUltimateCast');
+
   /// 某个**素材状态层**的质心配准位移 `Transform` 的 Key（B11/C4）。
   ///
   /// [state] ∈ `'idle'` / `'attack'` / `'win'`（= `kGuardSoldierStateCentroidX`
@@ -299,6 +305,69 @@ class GuardArt {
         fit: BoxFit.fitHeight);
   }
 
+  /// 战士**原位释放大招** 27 帧（玄参 2026-11-20：「在原位置播放释放大招的
+  /// 动画帧，而不是在战场上又出现一个」）。
+  ///
+  /// 🔴 只把帧序列交给**调用方给的绘制框**（场景卡的 `soldierRect` /
+  /// `OverflowBox` 绘制框，见 `GuardSceneCard._soldierArt`）——本方法**不**指定
+  /// 任何坐标、不挂 Stack、不另起形象 ⇒ 战场上不会多出一个战士。
+  /// `BoxFit.fitHeight` 与三态站立同口径。
+  ///
+  /// 🔴 2026-11-21（玄参「放大招时战士被缩小」根因修复）：源 27 帧是 720²
+  /// **未裁边**画布（战士实体仅 ~51% 画高，光效帧才铺满），
+  /// 同一个 60pt 框下战士只有待机（362×372 已裁边、实体占 ~99%）的一半大。
+  ///
+  /// 🔴 2026-11-23 C129（玄参拍板「大招动画帧中英统一一套，区别只在音效」）：
+  /// 恒用统一目录 [kUltimateFxCastDir]，**语言分支移除**（原按生效语言选
+  /// zh 帧目录的逻辑与 zh 帧目录一并退役）。语言区别只在 cast
+  /// 音效（`guardUltimateCastSfxForLocale`，由卡的状态机负责，本方法零感知）。
+  ///
+  /// 🔴 2026-11-23 C130/C131/C132（玄参四轮口径：「你不要给我切割」→「放大招
+  /// 战士变小了」→「还是变小了」→「先放大，我再视觉上配合你调试」）：统一帧
+  /// **不再裁边**（C129 曾裁 277×266，光效帧超窗部分被切出硬边），保留原始
+  /// 720² 全画布导出（亮度口径不变：战士实体帧子集 luma = 156.77 = 待机参考）。
+  /// 「战士与待机大小一致 / 位置一致」改由**绘制框侧补偿**（本方法仍只管交
+  /// 帧序列给调用方给的绘制框，几何零感知）：
+  ///  · 绘制高 = `guard_card_layout.ultimateCastPaintHeight` =
+  ///    待机绘制高 × 720/**238** × [kGuardCastVisualScale **1.8**] ≈
+  ///    **326.72pt**（@390 屏）—— C131 补偿基准为**蓄力主体帧 frame006**
+  ///    （238px，`kGuardCastAnchorFrameHeightPx`）；C132 玄参拍板放弃精确
+  ///    计算路线，乘视觉调优旋钮 1.8（真机截图目测比值），「再大点/小点」
+  ///    只改 `kGuardCastVisualScale` 一个常量；
+  ///  · 配准位移 = `ultimateCastAlignOffset`（锚点 =「基准帧底边踩基线 +
+  ///    中心 x 对齐槽位」，对系数代数不变：y ≈ −12.66pt 画布上移让 frame006
+  ///    底边仍对齐 soldierRect 底边；x ≈ +9.08pt 让 frame006 实体中心对齐
+  ///    槽位中心 x）—— 战士站地面，不因画布变大而偏移、不漂浮不下沉；
+  ///  · 越界绘制由卡根 Stack `Clip.none` 放行（光效帧铺满画布，不能裁；
+  ///    ×1.8 后越界量随系数放大，数字见 C132 报告）。
+  /// 源备份 `assets/_originals/soldier_ultimate_unified/`，管线
+  /// `convert_guard_ultimate_assets.py`。
+  ///
+  /// [playToken] 由调用方传（同一统一目录下点几次大招由 `_castPlayToken`
+  /// 驱动重播；语言切换不再参与 token —— 帧列表语言无关，无重启诉求）。
+  ///
+  /// 一次性播放：帧时长 = 音轨时长 [kUltimateFxDurationMs]（与 cast 音轨同起点
+  /// 启动 ⇒ [onComplete] 时两者都收尾）；播完回调 [onComplete] 由调用方切回常态
+  /// 并**串行**启动 fx 段。素材缺失时 `FrameSequencePlayer` 自带空帧兜底，不崩。
+  static Widget soldierUltimateCast({
+    required Object playToken,
+    required VoidCallback onComplete,
+  }) {
+    return FrameSequencePlayer(
+      key: ultimateCastKey,
+      frames: fxFrameAssets(
+        kUltimateFxCastDir,
+        kUltimateFxCastFrames,
+        ext: kGrowFxFrameExt,
+      ),
+      durationMs: kUltimateFxDurationMs,
+      fadeOutMs: 0,
+      fit: BoxFit.fitHeight,
+      playToken: playToken,
+      onComplete: onComplete,
+    );
+  }
+
   /// 素材位：怪物行走帧。
   ///
   /// B9/D2 起 **m1（馋光鼠）/ m2（食叶虫）/ m3（贪婪鼬）三种怪都有真实 7 帧
@@ -373,6 +442,31 @@ class GuardArt {
       child: const SizedBox.expand(),
     );
   }
+
+  /// 头顶大招能量条单格配色（可复用 [energyDot] 的金色系；架构 T04）。
+  ///
+  /// 点亮 = 金色实心 + 深金描边；未满 = 半透明白底 + 灰色描边。
+  /// [GuardUltimateEnergyBar] 据 [lit] 取色，动效由调用方的 `AnimatedContainer` 承担。
+  static BoxDecoration ultimateEnergyCellDecoration({
+    required bool lit,
+    required double radius,
+  }) {
+    return BoxDecoration(
+      color: lit ? _soldierGold : const Color(0x55FFFFFF),
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: lit ? const Color(0xFFB37400) : const Color(0xFFB9AE96),
+        width: 1.2,
+      ),
+    );
+  }
+
+  /// 免费档能量格的 🔒 叠加图标（口径 12；不清数据、不隐藏能量）。
+  static const Icon ultimateLockBadge = Icon(
+    Icons.lock,
+    size: 11,
+    color: Color(0xFF6B6252),
+  );
 
   /// 静态素材位通用实现：`Image.asset` + 缺失回退色块。
   static Widget _staticAsset(String path, Color fallbackColor,

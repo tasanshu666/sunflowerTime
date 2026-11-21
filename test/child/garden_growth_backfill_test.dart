@@ -19,9 +19,12 @@
 /// `pump(Duration)` 推进，避免与被测页面的周期定时器纠缠。
 library garden_growth_backfill_test;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sunflower_time/core/constants/app_constants.dart';
@@ -51,6 +54,107 @@ import 'package:sunflower_time/presentation/child/widgets/growth_fx_overlay.dart
 
 import '../helpers/no_hit_random.dart';
 
+// ── no-op 假 just_audio 平台：让「静音开关不再拦的成长音效」在 headless 安静完成 ──
+
+class _NoopPlayer extends AudioPlayerPlatform {
+  _NoopPlayer(super.id);
+  final StreamController<PlaybackEventMessage> _events =
+      StreamController<PlaybackEventMessage>.broadcast();
+
+  @override
+  Stream<PlaybackEventMessage> get playbackEventMessageStream => _events.stream;
+
+  @override
+  Future<LoadResponse> load(LoadRequest request) async {
+    scheduleMicrotask(
+      () => _events.add(
+        PlaybackEventMessage(
+          processingState: ProcessingStateMessage.ready,
+          updateTime: DateTime.now(),
+          updatePosition: Duration.zero,
+          bufferedPosition: Duration.zero,
+          duration: const Duration(seconds: 4),
+          icyMetadata: null,
+          currentIndex: 0,
+          androidAudioSessionId: null,
+        ),
+      ),
+    );
+    return LoadResponse(duration: const Duration(seconds: 4));
+  }
+
+  @override
+  Future<PlayResponse> play(PlayRequest request) async => PlayResponse();
+  @override
+  Future<PauseResponse> pause(PauseRequest request) async => PauseResponse();
+  @override
+  Future<SeekResponse> seek(SeekRequest request) async => SeekResponse();
+  @override
+  Future<SetVolumeResponse> setVolume(SetVolumeRequest request) async =>
+      SetVolumeResponse();
+  @override
+  Future<SetSpeedResponse> setSpeed(SetSpeedRequest request) async =>
+      SetSpeedResponse();
+  @override
+  Future<SetPitchResponse> setPitch(SetPitchRequest request) async =>
+      SetPitchResponse();
+  @override
+  Future<SetSkipSilenceResponse> setSkipSilence(
+          SetSkipSilenceRequest request) async =>
+      SetSkipSilenceResponse();
+  @override
+  Future<SetLoopModeResponse> setLoopMode(SetLoopModeRequest request) async =>
+      SetLoopModeResponse();
+  @override
+  Future<SetShuffleModeResponse> setShuffleMode(
+          SetShuffleModeRequest request) async =>
+      SetShuffleModeResponse();
+  @override
+  Future<SetShuffleOrderResponse> setShuffleOrder(
+          SetShuffleOrderRequest request) async =>
+      SetShuffleOrderResponse();
+  @override
+  Future<SetAutomaticallyWaitsToMinimizeStallingResponse>
+      setAutomaticallyWaitsToMinimizeStalling(
+          SetAutomaticallyWaitsToMinimizeStallingRequest request) async =>
+          SetAutomaticallyWaitsToMinimizeStallingResponse();
+  @override
+  Future<SetCanUseNetworkResourcesForLiveStreamingWhilePausedResponse>
+      setCanUseNetworkResourcesForLiveStreamingWhilePaused(
+          SetCanUseNetworkResourcesForLiveStreamingWhilePausedRequest
+              request) async =>
+          SetCanUseNetworkResourcesForLiveStreamingWhilePausedResponse();
+  @override
+  Future<SetPreferredPeakBitRateResponse> setPreferredPeakBitRate(
+          SetPreferredPeakBitRateRequest request) async =>
+      SetPreferredPeakBitRateResponse();
+  @override
+  Future<SetAllowsExternalPlaybackResponse> setAllowsExternalPlayback(
+          SetAllowsExternalPlaybackRequest request) async =>
+      SetAllowsExternalPlaybackResponse();
+  @override
+  Future<SetAndroidAudioAttributesResponse> setAndroidAudioAttributes(
+          SetAndroidAudioAttributesRequest request) async =>
+      SetAndroidAudioAttributesResponse();
+  @override
+  Future<DisposeResponse> dispose(DisposeRequest request) async =>
+      DisposeResponse();
+}
+
+class _NoopPlatform extends JustAudioPlatform {
+  @override
+  Future<AudioPlayerPlatform> init(InitRequest request) async =>
+      _NoopPlayer(request.id);
+  @override
+  Future<DisposePlayerResponse> disposePlayer(
+          DisposePlayerRequest request) async =>
+      DisposePlayerResponse.fromMap(<dynamic, dynamic>{});
+  @override
+  Future<DisposeAllPlayersResponse> disposeAllPlayers(
+          DisposeAllPlayersRequest request) async =>
+      DisposeAllPlayersResponse.fromMap(<dynamic, dynamic>{});
+}
+
 // ── 假仓储（与 garden_care_repro 同款最小集）──────────────────────────────
 
 const PlantSpecies _sunflower = PlantSpecies(
@@ -62,7 +166,12 @@ const PlantSpecies _sunflower = PlantSpecies(
   growthHoursPerStage: 240,
 );
 
-/// 关掉全部音频：本文件只关心「演出有没有上屏」，不接音频平台假实现。
+/// 关掉 BGM（音效开关已不拦花园成长 cue）：本文件只关心「演出有没有上屏」。
+/// ⚠️ 2026-11-21 静音开关精确化后 `soundOn:false` **不再**掐掉成长音效（PRD：
+///    只管「专注收集阳光」）——真实 AudioPlayer 会在 headless 环境触发
+///    MissingPluginException / 遗留 loadAssetBounded 定时器。故本文件在
+///    [main] 的 setUpAll 注入 no-op 假 just_audio 平台（见 _NoopPlatform），
+///    让「照常发声」在非音频测试中安静地完成。
 AppSettings _settings() => const AppSettings(
       ageTier: AgeTier.low,
       dailyFocusCap: 90,
@@ -368,6 +477,10 @@ Future<void> _finishOverlay(WidgetTester tester) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    JustAudioPlatform.instance = _NoopPlatform();
+  });
 
   late SharedPreferences sp;
 

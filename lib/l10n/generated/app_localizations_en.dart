@@ -126,6 +126,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get premium_gate_feature_title_perks => 'Title perks';
 
   @override
+  String get premium_gate_feature_guard_ultimate => 'Guard Ultimate';
+
+  @override
+  String get guard_ultimate_empty_hint =>
+      'Not enough energy — focus to earn more.';
+
+  @override
+  String get guard_ultimate_empty_hint_light => 'Focus to earn energy!';
+
+  @override
+  String get guard_ultimate_help_title =>
+      'How does the Sunflower Ultimate work?';
+
+  @override
+  String guard_ultimate_help_body(String minutes, String cells) {
+    return 'Focus for $minutes minutes to earn 1 energy cell, up to $cells cells. During a guard battle, tap the sunflower soldier to unleash the ultimate — it ignores dodges and clears every monster on screen!';
+  }
+
+  @override
+  String get guard_ultimate_help_confirm => 'Got it';
+
+  @override
+  String get guard_ultimate_lock_semantics => 'Available after lifetime unlock';
+
+  @override
+  String guard_ultimate_energy_semantics(String cell, String percent) {
+    return 'Ultimate energy $cell: $percent%';
+  }
+
+  @override
   String premium_gate_upsell_title(String name) {
     return 'Unlock \"$name\"';
   }
@@ -418,7 +448,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get child_entry_sound => 'Sound cues';
 
   @override
-  String get child_entry_sound_hint => 'Play gentle sounds while focusing';
+  String get child_entry_sound_hint =>
+      'Sound when you collect sunlight while focusing';
 
   @override
   String get child_entry_bgm => 'Background music';
@@ -2051,7 +2082,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get parent_settings_section_sound => 'Sound & ambience';
 
   @override
-  String get parent_settings_switch_sound => 'Sound effects';
+  String get parent_settings_switch_sound => 'Sunlight collection sound';
 
   @override
   String get parent_settings_switch_bgm => 'Background music';

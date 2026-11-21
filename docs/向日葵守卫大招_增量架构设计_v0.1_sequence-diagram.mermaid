@@ -1,0 +1,100 @@
+sequenceDiagram
+    autonumber
+    actor Child as 孩子/专注页
+    participant FE as FocusEngine
+    participant FP as focus_page
+    participant SS as SunlightService
+    participant UW as UltimateFocusWriter<br/>(GuardUltimateService)
+    participant ST as GuardUltimateEnergyPrefsStore
+    participant GS as GuardSceneCard
+    participant PG as premium_gate<br/>(shared helper)
+    participant ENT as entitlementProvider
+    participant SIM as GuardBattleSim
+    participant BF as GuardBattleField
+    participant FX as GuardUltimateFx
+
+    %% ====== 链 A：专注结算 → 攒能量（定死点①累计落库） ======
+    rect rgb(235,245,255)
+    Note over Child,ST: 链 A · 攒能量（跨会话累计 + sessionId 幂等）
+    Child->>FE: 专注进行中（在场计时）
+    FE->>FE: _focusSeconds 累加（含恢复回满窗口）
+    Child->>FE: finish(manual / timedOut / interrupted)
+    FE->>FE: actual = _focusSeconds / 60
+    FE-->>FP: FocusEvent(isFinished, outcome{actualFocusMin,status,endReason})
+    FP->>FP: _handleOutcome(outcome)
+    FP->>SS: settle(... outcome, sessionId)
+    SS->>SS: saveSession(FocusSession(id=sessionId,<br/>actualFocusMin=outcome.actualFocusMin))
+    Note right of SS: 落库点在 saveSession 之后<br/>(L246)；三条结束路径唯一汇聚点
+    alt ultimateFocusWriter != null（生产装配）
+        SS->>UW: creditFocus(sessionId, childId, actualFocusMin)
+        UW->>ST: readCreditedSessionIds(childId)
+        ST-->>UW: Set<String> creditedIds
+        alt sessionId 已计入（幂等命中）
+            UW-->>SS: false（跳过，不重复累加）
+        else sessionId 未计入
+            UW->>ST: read(childId) → UltimateEnergy{filledCells,fractionMin}
+            ST-->>UW: 当前能量状态
+            UW->>UW: credit(e, actualFocusMin)<br/>floor→进位→满2格丢弃溢出归0
+            UW->>ST: write(childId, 新状态) +<br/>writeCreditedSessionIds(childId, ids+sessionId)
+            ST-->>UW: 写入完成（同批）
+            UW-->>SS: true（已计入）
+        end
+    else writer == null（老构造点/Fake）
+        Note right of SS: 零改动，行为逐位不变
+    end
+    SS-->>FP: SunlightSettlement
+    FP->>FP: 能量条 ref 监听 → 即时刷新百分比/点亮
+    end
+
+    %% ====== 链 B：点击释放 → 门控 → 扣格 → sim 清场 → 演出 ======
+    rect rgb(255,243,230)
+    Note over GS,FX: 链 B · 释放（门控下沉 + 零掉落清场）
+    Child->>GS: 点击 soldierRect（战斗中）
+    GS->>PG: guardUltimateUnlocked(context)
+    PG->>ENT: read(entitlementProvider)
+    ENT-->>PG: Entitlement{tier}
+    PG->>PG: featureAllowedFor(guardUltimate, tier)<br/>读失败→free→false（安全回退 A9）
+    PG-->>GS: bool unlocked
+    GS->>GS: 能量条按 unlocked 叠加/移除 🔒
+    GS->>PG: onGuardUltimateTap(context, hasEnergy, onAllowed)
+    alt 未解锁（免费档 / 回退）
+        PG->>PG: showPremiumUpsell(context, guardUltimate)
+        Note right of PG: 弹买断引导，不消耗能量<br/>(口径12 / P0-09② / C62)
+    else 已解锁但 filledCells == 0
+        PG->>PG: _showGuardUltimateEmptyHint（i18n 轻提示）
+    else 已解锁且有能量
+        PG->>GS: onAllowed() → _castUltimate
+        GS->>UW: spendCell()（扣 1 格，fractionMin 不动）
+        UW->>ST: write(childId, spend 后状态)
+        ST-->>UW: 完成
+        UW-->>GS: UltimateEnergy（扣后）
+        GS->>SIM: castUltimate(atMs, events)
+        SIM->>SIM: 遍历 _monsters 取 phase==walking 者:<br/>phase=dead + 冻结 x/y(atMs)
+        SIM->>SIM: events.add(ultimateKill(tMs, monsterIndex)) ×N
+        SIM->>SIM: _ultimateKillCount += N
+        SIM->>SIM: events.add(ultimateCast(tMs))
+        SIM->>SIM: _clearBullets() + _checkVictory(atMs)
+        Note right of SIM: 不走 _processBulletArrival<br/>⇒ 绕开 _dodgeUniform 闪避<br/>不改波次 / 不改 _retreatAll
+        SIM-->>GS: （events 由表现层 step 消费）
+        GS->>BF: 派发 ultimateCast / ultimateKill 事件
+        BF->>BF: collectDeathFx: kill ∪ ultimateKill → 死亡演出
+        BF->>BF: collectSunDropFx: 仅 kill → 大招零掉落
+        BF->>BF: walking 怪 → ultimateFxAnchor(mapMonsterX/Y 均值)
+        BF->>FX: handleUltimateCast(anchor)
+        FX->>FX: 播动作帧(27, webp) → 特效帧(27, webp)
+        FX->>FX: 同步两段音轨(192k/44.1k/2ch)
+        BF->>BF: endReason==allDead ? 通关（大招战果可读）
+    end
+    end
+
+    %% ====== 链 C：买断即兑现（A8） ======
+    rect rgb(232,250,235)
+    Note over Child,GS: 链 C · 买断后能量立即可用（不清数据）
+    Child->>ENT: 完成一次性买断 → tier=premium
+    GS->>PG: guardUltimateUnlocked(context) 重新判定
+    PG->>ENT: read → premium
+    ENT-->>PG: premium
+    PG-->>GS: true → 🔒 移除
+    GS->>UW: read()（读既有 filledCells/fractionMin）
+    UW-->>GS: 买断前已攒格数/零头（原值，无需重攒）
+    end

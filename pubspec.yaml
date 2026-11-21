@@ -130,6 +130,17 @@ flutter:
     # 战士受击单帧（B13.26，2026-11-16 玄参交付：受击.png 2048² → 487²，与
     # soldier_stand.webp 同高 487；音效 assets/audio/sfx/guard_soldier_hit.mp3）。
     - assets/guard/soldier_hit/
+    # 守卫大招素材（玄参交付；管线 tools/convert_guard_ultimate_assets.py）：
+    #  · soldier_ultimate/    释放大招 27 帧 **统一版**（C129 玄参拍板：中英同一套帧，
+    #                         区别只在音效；C130 玄参「你不要给我切割」：720×720 全画布
+    #                         不裁切 + 战士实体亮度对齐待机 luma）
+    #  · ultimate_fx/         大招特效 27 帧（源 1470×630 → WebP q92，横向通道；
+    #                         中英通用，不随语言切换）
+    # 音轨 guard_ultimate_cast.mp3 / _cast_zh.mp3（🔴 音效仍分语言，保留）/
+    # _fx.mp3 落 assets/audio/sfx/（父目录已声明）。
+    # ⚠️ 目录声明不递归，叶子目录必须逐行列出。
+    - assets/guard/soldier_ultimate/
+    - assets/guard/ultimate_fx/
     # 宝箱开箱序列帧（2026-11-11 玄参交付；管线 tools/convert_guard_chest.py，
     # PNG 720² → WebP 512²，两档合计 7.73MB ≤ 8MB 预算）：
     #  · chest_normal/   普通宝箱 30 帧 q90（1.76MB）→ 5s 开箱演出 / 静态展示帧 frame001

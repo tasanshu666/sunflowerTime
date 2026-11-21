@@ -43,6 +43,26 @@
   "premium_gate_feature_memoir_export": "Memoir export",
   "premium_gate_feature_family_sharing": "Family sharing",
   "premium_gate_feature_title_perks": "Title perks",
+  "premium_gate_feature_guard_ultimate": "Guard Ultimate",
+  "guard_ultimate_empty_hint": "Not enough energy — focus to earn more.",
+  "guard_ultimate_empty_hint_light": "Focus to earn energy!",
+  "guard_ultimate_help_title": "How does the Sunflower Ultimate work?",
+  "guard_ultimate_help_body": "Focus for {minutes} minutes to earn 1 energy cell, up to {cells} cells. During a guard battle, tap the sunflower soldier to unleash the ultimate — it ignores dodges and clears every monster on screen!",
+  "@guard_ultimate_help_body": {
+    "placeholders": {
+      "minutes": {"type": "String"},
+      "cells": {"type": "String"}
+    }
+  },
+  "guard_ultimate_help_confirm": "Got it",
+  "guard_ultimate_lock_semantics": "Available after lifetime unlock",
+  "guard_ultimate_energy_semantics": "Ultimate energy {cell}: {percent}%",
+  "@guard_ultimate_energy_semantics": {
+    "placeholders": {
+      "cell": {"type": "String"},
+      "percent": {"type": "String"}
+    }
+  },
   "premium_gate_upsell_title": "Unlock \"{name}\"",
   "@premium_gate_upsell_title": {
     "placeholders": {
@@ -318,7 +338,7 @@
   "child_entry_dnd": "Block notifications (DND)",
   "child_entry_dnd_hint": "Mute messages and calls while focusing",
   "child_entry_sound": "Sound cues",
-  "child_entry_sound_hint": "Play gentle sounds while focusing",
+  "child_entry_sound_hint": "Sound when you collect sunlight while focusing",
   "child_entry_bgm": "Background music",
   "child_entry_bgm_hint": "Loop soft music while focusing",
   "child_entry_minutes": "{minutes} min",
@@ -1692,7 +1712,7 @@
   "parent_settings_switch_eyecare_skip": "Allow skipping eye-care",
   "parent_settings_eyecare_skip_subtitle": "When off, kids must finish the break — the skip button does nothing",
   "parent_settings_section_sound": "Sound & ambience",
-  "parent_settings_switch_sound": "Sound effects",
+  "parent_settings_switch_sound": "Sunlight collection sound",
   "parent_settings_switch_bgm": "Background music",
   "parent_settings_switch_dark": "Dark theme",
   "parent_settings_section_lock": "Parent lock & gifts",

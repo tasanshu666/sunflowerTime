@@ -20,6 +20,7 @@ library wish_top_entry_cluster;
 import 'package:flutter/material.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 「图标 + 下方单行文字」簇。
 ///
@@ -65,27 +66,41 @@ class WishTopEntryCluster extends StatelessWidget {
         // 故簇自身贴边不会导致热区互相覆盖。
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          // 居中：两簇共用本 widget，「阴天」2 字与「许愿树」3 字都必须
-          // 在图标正下方居中完整显示（玄参 v0.3 真机反馈 1：旧右对齐
-          // 让 5 字的「我的许愿树」右贴并被 96dp 截断）。
-          crossAxisAlignment: CrossAxisAlignment.center,
+          // 🔴 对齐锚（C129 修订，玄参 iPad13 反馈「天气文字没在天气图标正下方
+          //    ——不要把保护罩算进去」）：改为 **CrossAxisAlignment.end**，配合
+          //    文字框定宽 = 图标本体宽（见下），使「文字框右缘 == 簇右缘 ==
+          //    图标本体右缘」⇒ 文字中心 x 恒等于**图标本体**中心 x。
+          //    为什么 center 不行：天气徽章 `GardenWeatherBadge` 在已购保护罩时
+          //    是 Row[罩 72 + gap 7 + 图标 56]（宽 135×s），center 会把文字对到
+          //    整个 Row 的中心（左偏 (72+7)/2×s）；end + 定宽框则天然对齐图标
+          //    本体、罩显隐 / 语言切换零分支。两处入口图标本体恒为
+          //    `kWishTreeWeatherEntrySize × s`（天气框与许愿树框同 56，PRD 口径）。
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: <Widget>[
             icon,
             // 🔴 图标与其文字的间距走常量单点（R3-P0-11②：4dp）。
             const SizedBox(height: kGardenTopLabelGap),
             // 单行、超长省略：不换行 ⇒ 文字高度恒定，不会把下方簇推走。
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 96),
-              child: Text(
-                label,
-                key: labelKey,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF5D4A2A),
+            // 🔴 C129：框宽从「maxWidth ≤ 图标宽」收紧为**定宽 = 图标本体宽**
+            //    `kWishTreeWeatherEntrySize × uiScaleOf(context)` —— 定宽 +
+            //    crossAxis.end ⇒ 文字框中心 = 图标本体中心（保护罩不参与）。
+            //    内层 `FittedBox(scaleDown)` 沿用 C128：英文长词整串缩放
+            //    （绝不 ellipsis 截半）、中文短词直通（不放大不缩小）。
+            SizedBox(
+              width: kWishTreeWeatherEntrySize * uiScaleOf(context),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  key: labelKey,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5D4A2A),
+                  ),
                 ),
               ),
             ),

@@ -314,6 +314,54 @@ abstract class AppLocalizations {
   /// **'称号专属属性'**
   String get premium_gate_feature_title_perks;
 
+  /// No description provided for @premium_gate_feature_guard_ultimate.
+  ///
+  /// In zh, this message translates to:
+  /// **'守卫大招'**
+  String get premium_gate_feature_guard_ultimate;
+
+  /// No description provided for @guard_ultimate_empty_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'能量不足，专注可以攒能量哦'**
+  String get guard_ultimate_empty_hint;
+
+  /// No description provided for @guard_ultimate_empty_hint_light.
+  ///
+  /// In zh, this message translates to:
+  /// **'请专注去获得能量吧'**
+  String get guard_ultimate_empty_hint_light;
+
+  /// No description provided for @guard_ultimate_help_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'向日葵大招怎么用？'**
+  String get guard_ultimate_help_title;
+
+  /// No description provided for @guard_ultimate_help_body.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注 {minutes} 分钟攒 1 格能量，最多 {cells} 格。守卫战斗中点向日葵战士释放大招，无视闪避、清空当前所有怪物！'**
+  String guard_ultimate_help_body(String minutes, String cells);
+
+  /// No description provided for @guard_ultimate_help_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'知道了'**
+  String get guard_ultimate_help_confirm;
+
+  /// No description provided for @guard_ultimate_lock_semantics.
+  ///
+  /// In zh, this message translates to:
+  /// **'买断后可用'**
+  String get guard_ultimate_lock_semantics;
+
+  /// No description provided for @guard_ultimate_energy_semantics.
+  ///
+  /// In zh, this message translates to:
+  /// **'大招能量 {cell}：{percent}%'**
+  String guard_ultimate_energy_semantics(String cell, String percent);
+
   /// No description provided for @premium_gate_upsell_title.
   ///
   /// In zh, this message translates to:
@@ -797,7 +845,7 @@ abstract class AppLocalizations {
   /// No description provided for @child_entry_sound_hint.
   ///
   /// In zh, this message translates to:
-  /// **'专注时播放轻提示音'**
+  /// **'专注收集阳光时的提示音'**
   String get child_entry_sound_hint;
 
   /// No description provided for @child_entry_bgm.
@@ -3470,7 +3518,7 @@ abstract class AppLocalizations {
   /// No description provided for @parent_settings_switch_sound.
   ///
   /// In zh, this message translates to:
-  /// **'音效'**
+  /// **'收集阳光提示音'**
   String get parent_settings_switch_sound;
 
   /// No description provided for @parent_settings_switch_bgm.

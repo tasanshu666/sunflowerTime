@@ -43,6 +43,26 @@
   "premium_gate_feature_memoir_export": "纪念册导出",
   "premium_gate_feature_family_sharing": "家庭共享",
   "premium_gate_feature_title_perks": "称号专属属性",
+  "premium_gate_feature_guard_ultimate": "守卫大招",
+  "guard_ultimate_empty_hint": "能量不足，专注可以攒能量哦",
+  "guard_ultimate_empty_hint_light": "请专注去获得能量吧",
+  "guard_ultimate_help_title": "向日葵大招怎么用？",
+  "guard_ultimate_help_body": "专注 {minutes} 分钟攒 1 格能量，最多 {cells} 格。守卫战斗中点向日葵战士释放大招，无视闪避、清空当前所有怪物！",
+  "@guard_ultimate_help_body": {
+    "placeholders": {
+      "minutes": {"type": "String"},
+      "cells": {"type": "String"}
+    }
+  },
+  "guard_ultimate_help_confirm": "知道了",
+  "guard_ultimate_lock_semantics": "买断后可用",
+  "guard_ultimate_energy_semantics": "大招能量 {cell}：{percent}%",
+  "@guard_ultimate_energy_semantics": {
+    "placeholders": {
+      "cell": {"type": "String"},
+      "percent": {"type": "String"}
+    }
+  },
   "premium_gate_upsell_title": "解锁「{name}」",
   "@premium_gate_upsell_title": {
     "placeholders": {
@@ -318,7 +338,7 @@
   "child_entry_dnd": "屏蔽通知（勿扰）",
   "child_entry_dnd_hint": "专注时屏蔽短信/来电等打扰",
   "child_entry_sound": "提示音效",
-  "child_entry_sound_hint": "专注时播放轻提示音",
+  "child_entry_sound_hint": "专注收集阳光时的提示音",
   "child_entry_bgm": "背景音乐",
   "child_entry_bgm_hint": "专注时循环轻柔背景乐",
   "child_entry_minutes": "{minutes} 分钟",
@@ -1692,7 +1712,7 @@
   "parent_settings_switch_eyecare_skip": "允许孩子跳过护眼",
   "parent_settings_eyecare_skip_subtitle": "关掉后孩子只能完成休息，跳过按钮不生效",
   "parent_settings_section_sound": "环境与音效",
-  "parent_settings_switch_sound": "音效",
+  "parent_settings_switch_sound": "收集阳光提示音",
   "parent_settings_switch_bgm": "背景音乐",
   "parent_settings_switch_dark": "深色主题",
   "parent_settings_section_lock": "家长锁与赠予",

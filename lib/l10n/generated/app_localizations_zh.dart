@@ -121,6 +121,34 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premium_gate_feature_title_perks => '称号专属属性';
 
   @override
+  String get premium_gate_feature_guard_ultimate => '守卫大招';
+
+  @override
+  String get guard_ultimate_empty_hint => '能量不足，专注可以攒能量哦';
+
+  @override
+  String get guard_ultimate_empty_hint_light => '请专注去获得能量吧';
+
+  @override
+  String get guard_ultimate_help_title => '向日葵大招怎么用？';
+
+  @override
+  String guard_ultimate_help_body(String minutes, String cells) {
+    return '专注 $minutes 分钟攒 1 格能量，最多 $cells 格。守卫战斗中点向日葵战士释放大招，无视闪避、清空当前所有怪物！';
+  }
+
+  @override
+  String get guard_ultimate_help_confirm => '知道了';
+
+  @override
+  String get guard_ultimate_lock_semantics => '买断后可用';
+
+  @override
+  String guard_ultimate_energy_semantics(String cell, String percent) {
+    return '大招能量 $cell：$percent%';
+  }
+
+  @override
   String premium_gate_upsell_title(String name) {
     return '解锁「$name」';
   }
@@ -409,7 +437,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get child_entry_sound => '提示音效';
 
   @override
-  String get child_entry_sound_hint => '专注时播放轻提示音';
+  String get child_entry_sound_hint => '专注收集阳光时的提示音';
 
   @override
   String get child_entry_bgm => '背景音乐';
@@ -2003,7 +2031,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get parent_settings_section_sound => '环境与音效';
 
   @override
-  String get parent_settings_switch_sound => '音效';
+  String get parent_settings_switch_sound => '收集阳光提示音';
 
   @override
   String get parent_settings_switch_bgm => '背景音乐';

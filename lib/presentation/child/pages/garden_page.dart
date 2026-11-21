@@ -1472,7 +1472,8 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
   /// 精确摆到花盆上。若此时花盆未布局（context 为空，极端情况）则静默跳过，不抛错。
   ///
   /// 2026-09-28 起：效果帧序列（`assets/fx/care/{water|fertilize}`）+ 对应音频，
-  /// 「帧速 = 音频时长」（玄参口径）；音频经 [AudioService.playSfx]（受「音效」开关控制）。
+  /// 「帧速 = 音频时长」（玄参口径）；音频经 [AudioService.playSfx] 播放——**不受
+  /// 「音效」开关影响**（玄参拍板该开关只管专注中收集阳光音）。
   /// 2026-10-03 扩展除草 / 除虫（`{weed|pest}`，27 帧），并支持 [onFinished] 业务收尾。
   void _playCareEffect(
     int potIndex,

@@ -197,6 +197,8 @@ void main() {
       FeatureKey.multiChildProfile,
       // 许愿树挂载位：矩阵登记的是满级天花板，实际额度随等级派生。
       FeatureKey.wishSlot,
+      // 守卫大招：一次性买断解锁（免费关闭 / 买断开启），真门控。
+      FeatureKey.guardUltimate,
     };
 
     test('矩阵覆盖全部 FeatureKey', () {

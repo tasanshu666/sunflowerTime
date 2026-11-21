@@ -12,7 +12,8 @@
 /// ——C43 起恒为单段；**F152（2026-10-25）起按语言选段**：en → 英文段
 /// （594 帧 WebP + 配音 59.4547s，[kEyeCareSegmentEn]），其余回退中文段
 /// （640 帧 WebP + 配音 63.974s，[kEyeCareSegment]）——**帧速 = 帧数 ÷ 音频时长**
-/// （项目既有契约），音频经 [AudioService.playSfx]（受「音效」开关控制）。完整休息给
+/// （项目既有契约），音频经 [AudioService.playSfx] 播放——**不受「音效」开关影响**
+/// （玄参拍板该开关只管专注中收集阳光音）。完整休息给
 /// +[kEyeCareRewardSunlight] 阳光（`refType='eye_care_break'`）。
 ///
 /// ⚠️ C43 播放器预热已改**滑动窗口**（640 帧 × 2.07MB ≈ 1.3GB 禁止整组预热），

@@ -30,8 +30,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart';
+import 'package:sunflower_time/core/di/providers.dart'
+    show guardUltimateServiceProvider;
 import 'package:sunflower_time/domain/entities/guard_chest.dart';
+import 'package:sunflower_time/domain/entities/guard_ultimate_energy.dart'
+    show UltimateEnergy;
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
+import 'package:sunflower_time/domain/services/guard_ultimate_service.dart'
+    show GuardUltimateService;
 
 /// 调试剧本覆盖（null = 跟随真实 seed 派生）。
 ///
@@ -64,6 +70,47 @@ final StateProvider<GuardBattleScript?>
 /// 逐位不变。
 final StateProvider<GuardChestTier?> debugGuardChestTierOverrideProvider =
     StateProvider<GuardChestTier?>((Ref ref) => null);
+
+// ── 大招能量调试动作（按钮由 bloom_debug_panel 挂载；本文件只备可调用 API）────
+
+/// 调试动作签名：`cells = 1` 加一格，`cells = 2` 直接充满两格；返回最新能量快照。
+///
+/// ⚠️ 面板只负责画按钮 + 调这个 action，**不复制**加格 / 封顶 / 写库逻辑 ——
+/// 真源是 [GuardUltimateService.grantCellForDebug]（串行闸门 + emit 全在那层）。
+typedef DebugGrantUltimateCells = Future<UltimateEnergy> Function(int cells);
+
+/// 大招调试动作入口（**只读 Provider，返回一个闭包**，面板无需写状态）。
+///
+/// 调用示例（会员工程师在 `bloom_debug_panel.dart` 的守卫调试区挂按钮）：
+/// ```dart
+/// final energy = await ref.read(debugGrantUltimateCellsProvider)(1); // 加一格
+/// await ref.read(debugGrantUltimateCellsProvider)(2);               // 充满两格
+/// ```
+/// 读能量条用 `ref.watch(guardUltimateEnergyProvider)`（stream，服务 `_emit` 后
+/// 当帧刷新）；面板自己不需要再 setState 维护能量值。
+///
+/// release 安全：本 provider 所在文件只在 `kDebugMode` 的调试面板被引用；闭包内
+/// 另有 `kDebugMode` 断言，生产路径零调用。⚠️ 免费档点战士仍会被 premium_gate
+/// 拦住，验收前请先切到会员态（或用现成 debug override）。
+final Provider<DebugGrantUltimateCells> debugGrantUltimateCellsProvider =
+    Provider<DebugGrantUltimateCells>((Ref ref) {
+  return (int cells) async {
+    assert(kDebugMode,
+        'debug grant ultimate cells must be called in debug builds only');
+    assert(cells == 1 || cells == 2,
+        'cells must be 1 (one cell) or 2 (fill both cells)');
+    final GuardUltimateService service = ref.read(guardUltimateServiceProvider);
+    UltimateEnergy energy = await service.grantCellForDebug();
+    for (int i = 1; i < cells; i++) {
+      energy = await service.grantCellForDebug();
+    }
+    return energy;
+  };
+});
+
+/// 「加一格大招能量」按钮 Key（面板 / 行为测试共用，防字符串漂移）。
+const String kDebugUltimateGrantCellKey = 'debug_ultimate_grant_cell';
+const String kDebugUltimateFillKey = 'debug_ultimate_fill';
 
 // ── 宝箱档位按钮 Key（调试面板与行为测试共用同一组常量，防字符串漂移）────────
 

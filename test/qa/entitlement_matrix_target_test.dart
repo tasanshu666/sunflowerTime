@@ -24,6 +24,7 @@ const Set<FeatureKey> _tightenedInPhase4 = <FeatureKey>{
   FeatureKey.deepReport,
   FeatureKey.titlePerks,
   FeatureKey.wishSlot, // 许愿树：登记的是满级天花板 10/20，实际额度走 wishSlotQuotaFor
+  FeatureKey.guardUltimate, // 守卫大招：一次性买断解锁（free 关闭 / premium 开启）
 };
 
 /// 「功能尚未实现」的键：🔴 本批**不接门控**（Apple 3.1.1/2.3.1 拒审风险），

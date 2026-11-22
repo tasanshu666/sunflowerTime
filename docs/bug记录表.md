@@ -1259,4 +1259,4 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 | **非 Bug（1 项 · 定性）** | 玄参报「重装 APP 首次进家长端输 PIN 后直接进、密码一直 123456」。**定性非 bug**：iOS Keychain（`flutter_secure_storage`）卸载 App 不清，PIN 保留是**防孩子卸载重装绕过家长锁的安全特性**（同 C127 残留机制）；未改 PIN 逻辑，仅改隐私文案如实告知。 |
 | **纯素材/体验（4 项）** | ⑤ 统一技能特效替换（27 帧 1470×630 + 音轨换源 `统一技能特效.mp4`，4.086s/md5 `33b3d6b0…`，纯素材替换零代码改动）；⑥ 能量条去两把锁 + 免费档改灰色虚线空框（`_DashedCellPainter`，买断档亮色路径保留）；⑦ 文案「小小葵」→「向日葵战士」（胶囊 + 教学）；⑧ cast 美术换「大招动作优化」27 帧 720²（增益 1.1027→1.0586，只换美术几何/代码不动）。 |
 | **测试** | 全量 **5588 全绿 / 0 败**（5582→+6；2026-11-22 实测）；analyze **0e/0w/76i**。QA 增量守卫 `qa_bugfix5_independent_test.dart`（S1~S7 20+ 例）/ `qa_guard_ultimate_differential_test.dart`（免费档 1s 提示不弹购买卡）/ `qa_ultimate_timing_differential_test.dart`（补时/lead/触发帧 13/音轨不掐 cast/增益 1.0586）/ `guard_ui_boundary_test.dart`（参战+被偷 3⇒失败标题）；受控变异全转红、md5 恢复一致，主理人独立复算采信。 |
-| **状态** | ✅ 代码 + 测试 + 素材 + 文档已同步；✅ **玄参真机逐条验收全通过并点头提交**（2026-11-22，提交号以 `git log --oneline -1` 为准）。 |
+| **状态** | ✅ 代码 + 测试 + 素材 + 文档已同步；✅ **玄参真机逐条验收全通过并点头提交**（2026-11-22，提交 `86b0801`）。 |

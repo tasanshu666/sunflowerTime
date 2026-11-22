@@ -85,6 +85,39 @@ WishTextKey _fruitStageKey(WishFruitStage stage) {
   }
 }
 
+/// 孩子端「爸爸妈妈回应你啦」通知卡的副标题 —— **kind → 文案的唯一映射点**
+/// （C136 需求 1，玄参 2026-11-25 真机反馈）。
+///
+/// ## 为什么只保留两类
+/// 玄参原话：「愿望处理了之后，不管是放入愿望池还是收藏箱，这个卡片是干啥的？
+/// 不需要吧，把这个卡片提醒机制删除吧」。原先孩子端把**全部 13 种**
+/// [WishEventKind] 都弹成一张卡，且副标题直接打印英文枚举名
+/// （`fulfilled` / `selfFulfilled` / `released` …），孩子看不懂也不知道要做什么。
+///
+/// 裁剪后只保留家长**回应**类（需要孩子做出反应的两条）：
+///  · [WishEventKind.taskVerified] → 「爸爸妈妈确认你做到啦」；
+///  · [WishEventKind.taskRejected] → 「爸爸妈妈说这个再试试」（须体现要重做）。
+/// 其余 11 种状态类事件（fulfilled / selfFulfilled / released / restored /
+/// abandoned / committed / replaced / tagged / untagged / taskAssigned / goalSet）
+/// 一律**不再打扰**孩子 —— 它们的结果孩子在自己操作的那一侧已经看到了。
+///
+/// ## 为什么「过滤」和「文案」必须是同一个函数
+/// 过滤口径与文案口径如果分成两处（一处 `if (kind != …) continue`、一处 switch），
+/// 加一个新 kind 时极易只改一处：要么弹出一张没有文案的空行卡，要么该弹的卡被
+/// 静默吞掉。故此处**返回 null 即代表不弹卡**，调用方只判断 null，不再自写条件。
+///
+/// ⚠️ 被过滤的事件**仍必须写入已读**（调用方负责）：否则它们永远停在未读集合里，
+/// 每次孩子端外壳首帧都要全表扫描 tracking events，事件越多越慢。
+String? wishReplyNoticeSubtitleOf(String kind, AppLocalizations t) {
+  if (kind == WishEventKind.taskVerified.name) {
+    return t.wishNoticeTaskVerified;
+  }
+  if (kind == WishEventKind.taskRejected.name) {
+    return t.wishNoticeTaskRejected;
+  }
+  return null;
+}
+
 /// A24.2 文案出口：标签枚举 → ARB 文案（`shared_wish_tag_*`）。
 ///
 /// 标签落库用枚举 `name`（text 列，不落 index），展示名一律经本函数取。

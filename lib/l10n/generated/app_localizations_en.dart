@@ -4251,6 +4251,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wishSelfFulfilledBadge => 'I did it myself';
 
   @override
+  String get wishParentFulfilledBadge => 'Mom and Dad helped me do it';
+
+  @override
+  String get wishNoticeReplyTitle => 'Mom and Dad replied to your wish';
+
+  @override
+  String get wishNoticeTaskVerified => 'Mom and Dad confirmed you did it';
+
+  @override
+  String get wishNoticeTaskRejected => 'Mom and Dad say let\'s try this again';
+
+  @override
   String get wishBoxFullHint =>
       'The tree is full — fulfill one before taking it back';
 

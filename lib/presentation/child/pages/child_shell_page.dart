@@ -821,14 +821,28 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
   /// [didPopNext]。**绝不**监听 [economyRevisionProvider] —— 家长仍在家长端
   /// 操作时弹卡会挡住家长。`taskRejected` 与 `taskVerified` 走同一条路。
   /// 任何异常静默降级，不阻塞孩子端首页。
+  ///
+  /// ## C136 需求 1（玄参真机反馈）：卡片裁剪到「家长回应」两条
+  /// 原实现把 13 种 [WishEventKind] 全弹出来，副标题还是英文枚举名
+  /// （`fulfilled` / `released` …），孩子看不懂「这卡片是干啥的」。现改为：
+  ///  · 只有 [wishReplyNoticeSubtitleOf] 返回非 null 的 kind（`taskVerified` /
+  ///    `taskRejected`）才进卡 —— 过滤口径与文案口径都在那一个函数里；
+  ///  · 卡片标题同步改成「爸爸妈妈回应你啦」（不再用「愿望的果实正在成长」）；
+  ///  · **被过滤掉的事件也必须写已读**，否则它们永远未读，每次首帧都要全表扫描
+  ///    tracking events 累积变慢；过滤后一条都不剩时**静默写已读、不弹卡**；
+  ///  · 弹卡场景下写已读仍放在**弹窗关闭之后**（「未看先读」会永久吞掉通知）。
   Future<void> _checkWishNotices() async {
     try {
       final List<WishPendingEvent> unread =
           await ref.read(pendingWishEventsProvider.future);
       if (unread.isEmpty || !mounted) return;
 
+      final AppLocalizations l10n = _l10n ?? AppLocalizationsZh();
       final List<GoldNoticeItem> items = <GoldNoticeItem>[];
       for (final WishPendingEvent event in unread) {
+        // 🔴 单点判据：null ⇒ 该 kind 不打扰孩子（过滤与文案同一个函数）。
+        final String? subtitle = wishReplyNoticeSubtitleOf(event.kind, l10n);
+        if (subtitle == null) continue;
         String wishText = '';
         try {
           wishText = (await ref
@@ -843,18 +857,23 @@ class _ChildShellPageState extends ConsumerState<ChildShellPage>
           name: wishText.isEmpty
               ? wishTextOf(WishTextKey.wishGrowing)
               : wishText,
-          subtitle: event.kind,
+          subtitle: subtitle,
         ));
       }
-      if (!mounted) return;
-      await showGoldNoticeDialog(
-        context,
-        title: wishTextOf(WishTextKey.wishGrowing),
-        items: items,
-        confirmLabel: (_l10n ?? AppLocalizationsZh()).shared_got_it,
-      );
+
+      if (items.isNotEmpty) {
+        if (!mounted) return;
+        await showGoldNoticeDialog(
+          context,
+          title: l10n.wishNoticeReplyTitle,
+          items: items,
+          confirmLabel: l10n.shared_got_it,
+        );
+      }
 
       // 弹窗关闭后才写已读（「未看先读」会永久吞掉通知）；合并一次写入。
+      // ⚠️ 写的是**本次扫到的全部未读**（含被过滤的状态类事件）：被裁掉的通知
+      // 不弹卡，但不能滞留在未读集合里拖慢每次首帧的全表扫描。
       final String childId = _currentChildId();
       final SettingsStore store = ref.read(settingsStoreProvider);
       final List<String> acked =

@@ -36,6 +36,10 @@ import 'package:sunflower_time/domain/services/wish_progress.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/state/wish_state.dart';
 import 'package:sunflower_time/presentation/child/state/wish_tree_scene_state.dart';
+// C136 需求 2：复用花园「玩法说明」弹窗的宽度上限常量
+// `kGardenHelpDialogMaxWidth`（600），禁止在许愿树侧另写一个孪生数字。
+import 'package:sunflower_time/presentation/child/pages/garden_page.dart'
+    show kGardenHelpDialogMaxWidth;
 import 'package:sunflower_time/presentation/child/widgets/child_confirm_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_anniversary_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_card_detail.dart';
@@ -186,6 +190,30 @@ final wishAnniversaryProvider =
 
 /// 页内分段枚举（不是 tab）。
 enum _WishSection { tree, box, pool }
+
+/// 收藏箱 / 愿望池弹窗的**实际宽度**（纯函数，便于单测；C136 需求 2）。
+///
+/// ## 为什么需要它（玄参 2026-11-25 真机反馈原文）
+/// 「许愿树里面愿望池和收藏箱，点击后弹出来的卡片，卡片宽度没有对 ipad 进行适配，
+/// 现在显示的有点窄啊」。旧实现把 `maxWidth: 420` 写死在
+/// `Container.constraints` 里 —— iPad 13″（逻辑宽 1032）上弹窗依旧只有 420 宽，
+/// 两侧大片留白，显得窄长。
+///
+/// ## 为什么必须是 tight（`SizedBox(width:)`）而不是 `maxWidth`
+/// 与花园「玩法说明」弹窗同一个坑（见 `garden_page.dart` 的
+/// `kGardenHelpDialogMaxWidth` 注释）：本弹窗内容是
+/// `SingleChildScrollView + Column(mainAxisSize.min)`，只给**松**的 `maxWidth`
+/// 时 Column 会收缩到内容固有宽 —— 把 420 改成 600 也是假修，依旧窄长。
+/// 故本函数返回的数值必须喂给 `SizedBox(width:)` 做 tight 约束。
+///
+/// ## 数值口径
+/// 复用花园弹窗**同一个**上限常量 [kGardenHelpDialogMaxWidth]（600；禁止再写一个
+/// 孪生 600）。减去 48 = 本弹窗 `insetPadding` 的 horizontal 之和（左右各 24）：
+///  · iPhone 390 → 342（旧实现 390 − 48 = 342 且 < 420，**逐点与现状一致**）；
+///  · iPad 11″ 834 / 13″ 1032 → 封顶 600，明显变宽；
+///  · 极端窄视口钳到 0，绝不把负宽传给 `SizedBox`。
+double wishListDialogWidth(double viewportWidth) =>
+    (viewportWidth - 48).clamp(0.0, kGardenHelpDialogMaxWidth).toDouble();
 
 /// 许愿树页。
 class WishTreePage extends ConsumerStatefulWidget {
@@ -466,7 +494,20 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
                   wish: wish,
                   t: t,
                   now: _now,
-                  onCollect: () => _collect(wish),
+                  // C136 需求 4（玄参真机反馈）：放进收藏箱后**自动关闭**详情卡。
+                  // 原实现只落库不 pop，卡片留在原地，孩子还能继续点「换个愿望」
+                  // /「实现了」—— 已经收进收藏箱的愿望不该再出现这些入口（箱内
+                  // 只能「取回」，由 `wish_collection_box.dart` 的取回按钮承载）。
+                  // 照抄下方 `onRealized` 的范式：落库**成功后**才关，失败保持不动
+                  // （避免网络/库异常时误关，孩子看不到失败提示）。
+                  onCollect: () async {
+                    try {
+                      await _collect(wish);
+                    } catch (_) {
+                      return; // 落库失败：详情卡不关，孩子可重试。
+                    }
+                    if (ctx.mounted) Navigator.of(ctx).pop();
+                  },
                   onChange: () => _change(wish, t),
                   onSelfFulfill: () => _selfFulfill(wish),
                   onDidIt: _didIt,
@@ -488,9 +529,13 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
   /// 收藏箱 / 愿望池居中卡片弹窗（玄参 iPad 13 反馈 3）。
   ///
   /// 几何照抄 [_openDetail]：Dialog transparent + insetPadding(24,40) +
-  /// Container maxWidth420 / maxHeight 85% 屏高 + 圆角24 + SingleChildScrollView。
+  /// maxHeight 85% 屏高 + 圆角24 + SingleChildScrollView。
   /// [content] 是已组装好的只读 body（[_boxContent] / [_poolContent]），
   /// 与整页分段共用同一份实现，避免重复渲染逻辑。
+  ///
+  /// 🔴 C136 需求 2：宽度不再写死 420，改由 [wishListDialogWidth] 按视口算并交给
+  /// `SizedBox(width: ...)` 做 **tight** 约束（只当 maxWidth 用会收缩到内容固有宽）。
+  /// ⚠️ 树上愿望的详情卡（[_openDetail]）玄参没提，保持 420 不动。
   void _openListDialog({
     required Key key,
     required String title,
@@ -505,47 +550,49 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
           elevation: 0,
           insetPadding:
               const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-          child: Container(
-            key: key,
-            constraints: BoxConstraints(
-              maxWidth: 420,
-              maxHeight: screen.height * 0.85,
-            ),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFBF0),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF5A4321),
+          child: SizedBox(
+            width: wishListDialogWidth(screen.width),
+            child: Container(
+              key: key,
+              constraints: BoxConstraints(
+                maxHeight: screen.height * 0.85,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBF0),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF5A4321),
+                              ),
                             ),
                           ),
-                        ),
-                        IconButton(
-                          key: const Key('wish_list_dialog_close'),
-                          icon: const Icon(Icons.close),
-                          tooltip: MaterialLocalizations.of(ctx).closeButtonTooltip,
-                          onPressed: () => Navigator.of(ctx).pop(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    content,
-                  ],
+                          IconButton(
+                            key: const Key('wish_list_dialog_close'),
+                            icon: const Icon(Icons.close),
+                            tooltip: MaterialLocalizations.of(ctx).closeButtonTooltip,
+                            onPressed: () => Navigator.of(ctx).pop(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      content,
+                    ],
+                  ),
                 ),
               ),
             ),

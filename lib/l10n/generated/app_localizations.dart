@@ -7157,6 +7157,30 @@ abstract class AppLocalizations {
   /// **'我自己做到的'**
   String get wishSelfFulfilledBadge;
 
+  /// No description provided for @wishParentFulfilledBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'爸爸妈妈帮我做到的'**
+  String get wishParentFulfilledBadge;
+
+  /// No description provided for @wishNoticeReplyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'爸爸妈妈回应你啦'**
+  String get wishNoticeReplyTitle;
+
+  /// No description provided for @wishNoticeTaskVerified.
+  ///
+  /// In zh, this message translates to:
+  /// **'爸爸妈妈确认你做到啦'**
+  String get wishNoticeTaskVerified;
+
+  /// No description provided for @wishNoticeTaskRejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'爸爸妈妈说这个再试试'**
+  String get wishNoticeTaskRejected;
+
   /// No description provided for @wishBoxFullHint.
   ///
   /// In zh, this message translates to:

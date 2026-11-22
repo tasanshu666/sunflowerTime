@@ -4092,6 +4092,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wishSelfFulfilledBadge => '我自己做到的';
 
   @override
+  String get wishParentFulfilledBadge => '爸爸妈妈帮我做到的';
+
+  @override
+  String get wishNoticeReplyTitle => '爸爸妈妈回应你啦';
+
+  @override
+  String get wishNoticeTaskVerified => '爸爸妈妈确认你做到啦';
+
+  @override
+  String get wishNoticeTaskRejected => '爸爸妈妈说这个再试试';
+
+  @override
   String get wishBoxFullHint => '树上已经挂满啦，先实现一个再取回';
 
   @override

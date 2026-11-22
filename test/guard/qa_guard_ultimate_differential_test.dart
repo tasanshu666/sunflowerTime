@@ -4,7 +4,7 @@
 ///  · 【头号陷阱】门控真实行为必须在**带 ProviderScope、可控制 entitlementProvider
 ///    档位**的宿主内验证（裸 MaterialApp 宿主会恒走免费/no-op 分支而假绿）。
 ///    这里分别注入 free / premium，直接驱动 guardUltimateUnlocked / onGuardUltimateTap，
-///    观测「弹买断引导 / 执行 onAllowed / 0 格轻提示」三种真实分支。
+///    观测「锁定轻提示 / 执行 onAllowed / 0 格轻提示」三种真实分支。
 ///  · D-2 零掉落锚点：castUltimate 只发 ultimateKill/ultimateCast，零 kill/theft/dodge。
 ///    （受控变异 ultimateKill→kill 时此组必转红。）
 ///  · 累计能量幂等 / 满 2 格归零 / fillPercent 独立写死期望值锚点。
@@ -87,23 +87,31 @@ void main() {
           reason: '买断档必须放行');
     });
 
-    testWidgets('A7 免费档 + 有能量点战士 → 弹买断引导，能量不被消耗（onAllowed 不跑）',
+    testWidgets('A7 免费档 + 有能量点战士 → 1s 轻提示，不弹购买卡、能量不被消耗',
         (WidgetTester tester) async {
       final BuildContext ctx =
           await _pumpGateHost(tester, entitlement: Entitlement.free);
 
       int allowedCalls = 0;
       onGuardUltimateTap(ctx, hasEnergy: true, onAllowed: () => allowedCalls++);
-      await tester.pumpAndSettle();
+      // showBriefNotice 保持 1s + 淡出 180ms：这里只 pump 短时长，不 pumpAndSettle。
+      await tester.pump(const Duration(milliseconds: 250));
 
       expect(allowedCalls, 0, reason: '免费档绝不执行释放回调');
-      expect(find.byType(ChildConfirmCard), findsOneWidget,
-          reason: '必须弹买断引导卡（不静默、不无响应，口径 12 / P0-09②）');
+      expect(find.byType(ChildConfirmCard), findsNothing,
+          reason: '孩子端零购买入口：不得弹买断引导卡');
       expect(
         find.text(AppLocalizationsZh().premium_gate_upsell_dialog_title),
-        findsOneWidget,
-        reason: '弹的是升级解锁引导',
+        findsNothing,
+        reason: '不得出现「升级解锁」购买引导',
       );
+      expect(
+        find.text(AppLocalizationsZh().guard_ultimate_locked_hint),
+        findsOneWidget,
+        reason: '只给一行 1s 淡出轻提示（真机反馈 3）',
+      );
+      hideBriefNotice(); // 清理浮层，避免污染后续用例
+      await tester.pumpAndSettle();
     });
 
     testWidgets('A5/P0-04 买断档 + 有能量点战士 → 直接执行 onAllowed（不弹引导）',
@@ -160,8 +168,9 @@ void main() {
         hasEnergy: energyBefore.filledCells > 0,
         onAllowed: () => allowedCalls++,
       );
+      hideBriefNotice(); // 免费档走 1s 轻提示：撤掉浮层定时器，避免残留 pending timer
       await tester.pumpAndSettle();
-      expect(allowedCalls, 0, reason: '买断前点战士只弹引导');
+      expect(allowedCalls, 0, reason: '买断前点战士只给轻提示（不弹购买卡）');
 
       // 买断：仅切 entitlementProvider 档位，不写任何能量状态。
       ProviderScope.containerOf(ctx, listen: false)
@@ -192,9 +201,17 @@ void main() {
 
       int allowedCalls = 0;
       onGuardUltimateTap(ctx, hasEnergy: true, onAllowed: () => allowedCalls++);
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(allowedCalls, 0, reason: '安全回退：不放行、走轻提示');
+      expect(find.byType(ChildConfirmCard), findsNothing,
+          reason: '孩子端零购买入口：免费档不弹买断引导卡');
+      expect(
+        find.text(AppLocalizationsZh().guard_ultimate_locked_hint),
+        findsOneWidget,
+        reason: '安全回退给的是 i18n 锁定轻提示',
+      );
+      hideBriefNotice(); // 清理浮层，避免污染后续用例
       await tester.pumpAndSettle();
-      expect(allowedCalls, 0, reason: '安全回退：不放行、走引导');
-      expect(find.byType(ChildConfirmCard), findsOneWidget);
     });
   });
 

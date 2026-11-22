@@ -2671,10 +2671,19 @@ const double kUltimateFxFallbackDx = 24.0;
 
 /// 大招**单段**演出时长（ms）= 该段音轨时长（cast / fx 各约 4s）。
 ///
-/// 🔴 玄参 2026-11-20 验收：两段**严格串行**——cast 段（战士本体 27 帧 + 音轨）
-/// 播完才进 fx 段（怪物区 27 帧 + 音轨）；两段各用本常量作帧序列时长，
-/// 音轨与帧同起点启动 ⇒ `onComplete` 时「动作 + 音轨」均收尾（无抢跑 delay）。
+/// 两段各用本常量作帧序列时长，音轨与帧同起点启动。
+/// 🔴 2026-11-24 真机反馈 4（8s → 6s）：cast 仍播满 4000ms，fx 段在 cast
+/// 起播 [kUltimateFxCastLeadMs] 后提前上树（两段重叠 2s，总演出 6s）；
+/// fx 音轨走叠加池，不掐断仍未播完的 cast 音轨。
 const int kUltimateFxDurationMs = 4000;
+
+/// 大招 cast 段起播后，**提前挂 fx 段**的提前量（ms）。
+///
+/// 🔴 2026-11-24 真机反馈 4：旧「cast 4s + fx 4s = 8s」太长；改为 cast
+/// 第 2 秒就让 fx 上树，总演出 = 4000 + (4000 − 2000) = **6000ms**。
+/// 仅驱动表现层挂 fx widget（+ 发一次 castDone 通知），**不喂 sim**：
+/// `castUltimate` 仍点击后下一帧立即执行，战果逐位不变。
+const int kUltimateFxCastLeadMs = 2000;
 
 /// 大招**释放动作帧**目录（🔴 C129 玄参拍板：中英**统一一套帧**，语言无关；
 /// 战士本体原位播 27 帧；与 fx 段分离）。
@@ -2683,7 +2692,9 @@ const int kUltimateFxDurationMs = 4000;
 /// 保留原始全画布导出（光效帧 012..026 铺满画布，任何裁窗都会把光效切出硬边）。
 /// 「战士与待机大小一致」由**绘制框按实体占比补偿**实现（见
 /// [kGuardCastFramePx] / `guard_card_layout.ultimateCastPaintHeight`）。亮度按
-/// 战士实体帧子集对齐待机 luma（156.77，增益 1.1027）。语言区别只在 cast
+/// 战士实体帧子集对齐待机 luma（156.77）。增益随素材重校准：旧「统一大招动画帧」
+/// 原 luma 144.49 → 1.1027；2026-11-22 新「大招动作优化」原 luma 149.39 →
+/// 1.0586（见 `tools/convert_guard_ultimate_assets.py`）。语言区别只在 cast
 /// 音效（`kUltimateFxCastSfxZh` 保留）。
 const String kUltimateFxCastDir = 'assets/guard/soldier_ultimate';
 
@@ -2770,9 +2781,12 @@ const String kUltimateFxCastSfxZh =
 /// 🔴 玄参 2026-11-21「技能特效有点靠下，没看清」：fx 素材 1470×630 的 alpha
 /// 加权视觉重心在帧高 68%~79%（不是几何中心 50%），旧 `top = anchor.dy - h/2`
 /// 把几何中心放在怪物中心 ⇒ 视觉重心落在卡底。改为
-/// `top = anchor.dy - kUltimateFxVisualCenterY * h`（上移 ~0.18h ≈ 20pt）。
+/// `top = anchor.dy - kUltimateFxVisualCenterY * h`。
+/// 🔴 2026-11-24 真机反馈「打在半空没落地」：新素材的视觉爆发重心更靠下，
+/// 本值 0.68 → **0.52**（特效整体下移 ~0.16h ≈ 18pt，更贴怪物站位）。
+/// 刻意仍 > 0.5，保持 `box.top < anchor.dy - 0.5h` 的「高于几何中心」方向不变。
 /// X / 宽 / 高 / uiScale 一律不动。
-const double kUltimateFxVisualCenterY = 0.68;
+const double kUltimateFxVisualCenterY = 0.52;
 
 /// 大招**特效**帧目录（怪物聚集区 1470×630 纯特效，不含战士形象）。
 const String kUltimateFxEffectDir = 'assets/guard/ultimate_fx';

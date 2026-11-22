@@ -191,7 +191,7 @@ abstract class AppLocalizations {
   /// No description provided for @consent_data_local.
   ///
   /// In zh, this message translates to:
-  /// **'全部加密存储在本机，卸载即彻底删除'**
+  /// **'全部加密存储在本机，卸载后本机数据删除；家长 PIN 存于系统安全区，重装后仍保留'**
   String get consent_data_local;
 
   /// No description provided for @consent_data_none.
@@ -332,10 +332,16 @@ abstract class AppLocalizations {
   /// **'请专注去获得能量吧'**
   String get guard_ultimate_empty_hint_light;
 
+  /// No description provided for @guard_ultimate_locked_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要解锁完整版才能释放专属技能'**
+  String get guard_ultimate_locked_hint;
+
   /// No description provided for @guard_ultimate_help_title.
   ///
   /// In zh, this message translates to:
-  /// **'向日葵大招怎么用？'**
+  /// **'向日葵技能怎么用'**
   String get guard_ultimate_help_title;
 
   /// No description provided for @guard_ultimate_help_body.
@@ -349,6 +355,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'知道了'**
   String get guard_ultimate_help_confirm;
+
+  /// No description provided for @guard_ultimate_help_premium_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'完整版可解锁向日葵战士技能'**
+  String get guard_ultimate_help_premium_hint;
 
   /// No description provided for @guard_ultimate_lock_semantics.
   ///
@@ -6302,7 +6314,7 @@ abstract class AppLocalizations {
   /// 今日页守卫胶囊：小小葵顶班（无能量且余额 < kGuardFreeRideBalance，当天免罚、不可点）
   ///
   /// In zh, this message translates to:
-  /// **'小小葵自己顶班，今天不用管'**
+  /// **'向日葵战士自己顶班，今天不用管'**
   String get guard_pill_free_ride;
 
   /// 守卫战 v2 场景卡 L3：待处理态的主按钮（pendingFree / pendingPaid 两态共用；付费确认卡由页面负责）
@@ -6464,7 +6476,7 @@ abstract class AppLocalizations {
   /// 阳光胶囊点击教学（B13.26，玄参 2026-11-16：前 3 场战斗在胶囊上方显示引导气泡，首次点击即消失；孩子并不了解阳光胶囊是哪个）
   ///
   /// In zh, this message translates to:
-  /// **'点这个阳光胶囊，帮小小葵发射阳光打跑小偷！'**
+  /// **'点这个阳光胶囊，帮向日葵战士发射阳光打跑小偷！'**
   String get guard_pill_teach_text;
 
   /// 结算卡：有掉落时的券名（drop = guard_drop_name_* 的译文）

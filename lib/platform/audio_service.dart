@@ -572,6 +572,17 @@ class AudioService {
     unawaited(_playSfxPaths(paths, volume: volume));
   }
 
+  /// 播放单支音效（**叠加池通道**，fire-and-forget）。
+  ///
+  /// 与 [playSfxPaths] 的「后起掐先播」单播放器互斥语义不同：本入口直接复用
+  /// [playSfxOverlap] 的 4 槽池（[kSfxOverlapPoolSize]，F203），起播前只停
+  /// **自己那一槽**，不碰正在播的其它音效。给「两段演出重叠」场景使用：
+  /// cast 音轨仍走单播放器，2s 后 fx 音轨走本入口 ⇒ fx 不掐断未播完的 cast。
+  /// 默认不受 [_soundOn] 影响（与叠加池现有口径一致）；失败静默降级。
+  void playSfxPathsOverlap(String path, {double volume = 1.0}) {
+    unawaited(_playSfxOverlap(path, volume: volume));
+  }
+
   // ── SFX 叠加池（F203；玄参 2026-11-14 真机反馈）───────────────────────────
   //
   // 🔴 症状：战斗里快速连点阳光胶囊时，发射 / 击中 / 宝箱落地 / 开箱音效**全部

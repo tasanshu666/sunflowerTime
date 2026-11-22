@@ -243,7 +243,7 @@ void main() {
     });
   });
 
-  group('fx 视觉重心上移（玄参「有点靠下，没看清」）', () {
+  group('fx 视觉重心贴地（0.68 → 0.52，玄参「打在半空没落地」）', () {
     testWidgets('top = anchor.dy − 0.68h；left 仍按几何中心', (WidgetTester tester) async {
       const Offset anchor = Offset(240, 70);
       const double uiScale = 1.0;
@@ -260,8 +260,8 @@ void main() {
           tester.widget<Positioned>(find.byKey(GuardUltimateFx.fxKey));
       const double h = kGuardSceneCardHeight * uiScale;
       const double w = h * kUltimateFxAspectRatio;
-      expect(kUltimateFxVisualCenterY, 0.68);
-      expect(box.top, closeTo(anchor.dy - 0.68 * h, 0.01));
+      expect(kUltimateFxVisualCenterY, 0.52);
+      expect(box.top, closeTo(anchor.dy - 0.52 * h, 0.01));
       expect(box.top! < anchor.dy - 0.5 * h, isTrue,
           reason: '必须比旧的几何中心公式更靠上');
       expect(box.left, closeTo(anchor.dx - w / 2, 0.01),

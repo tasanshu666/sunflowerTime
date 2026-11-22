@@ -159,8 +159,10 @@ void main() {
     //    效果落地帧后怪 0 记死亡、切 800ms 逃跑淡出、到点摘除。──
     handle.notifyUltimateCastDone();
     // 🔴 分帧推进（fx 4000ms + 效果落地帧 post-frame 回调 + 800ms 逃跑淡出）：
-    //    效果落地帧在 post-frame 回调里记账 —— 单个大 pump 会停在「记账那一帧」，
-    //    逃跑还没开始就被断言 ⇒ 必须分帧给足 4000 + 800 + 余量。
+    //    阈值 6 → 13 后效果落地 ≈ 13/27×4000 ≈ 1926ms（原 ≈889ms）；
+    //    现有 12×500ms = 6000ms 的泵量仍完整覆盖「1926ms 记账 + 800ms 淡出」，
+    //    无需缩减。效果落地帧在 post-frame 回调里记账 —— 单个大 pump 会停在
+    //    「记账那一帧」，逃跑还没开始就被断言 ⇒ 必须分帧给足 4000 + 800 + 余量。
     for (int i = 0; i < 12; i++) {
       await tester.pump(const Duration(milliseconds: 500));
     }

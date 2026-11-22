@@ -1,17 +1,20 @@
 /// 大招**第二段**演出组件（P0-06 / P0-07 / A12）：怪物聚集区 27 帧纯特效 + fx 音轨。
 ///
 /// 🔴 **纯渲染层**：不进 sim / 结算 / seed（确定性零破口，架构 §8-S9）。
-/// 由 `guard_battle_field` 在「战士本体 cast 段播完」后挂到 [anchor]（怪物聚集区，
-/// 经 `GuardCardLayout.ultimateFxAnchor` 换算），播完 [onComplete] 自行移除。
+/// 由 `guard_battle_field` 在「cast 第 2 秒」（`kUltimateFxCastLeadMs`）提前挂到
+/// [anchor]（怪物聚集区，经 `GuardCardLayout.ultimateFxAnchor` 换算），
+/// 播完 [onComplete] 自行移除。
 ///
-/// ## 🔴 玄参 2026-11-20 验收：两段严格串行
+/// ## 🔴 玄参 2026-11-20 验收 / 2026-11-24 真机反馈 4（8s → 6s）
 /// * **cast 段**已搬到 `GuardArt.soldierUltimateCast` —— 战士本体在**原位置**播
 ///   27 帧释放动作（战场上不再凭空多出一个大号战士）；本组件**只含 fx 段**，
 ///   帧素材 1470×630 是纯特效、不含任何战士形象（确认无 cast 帧混入）。
-/// * **启动时机**：由 cast 段的 `onComplete`（动作 + 音轨都收尾）驱动本组件上树，
-///   不再用 `Future.delayed(kUltimateFxDurationMs ~/ 2)` 抢跑 fx 音轨。
+/// * **启动时机**：由卡侧 `kUltimateFxCastLeadMs`（cast 第 2 秒）提前驱动上树；
+///   cast 帧仍播满 4s，两段重叠 2s，总演出 6s。cast 段正常收尾时的判据调用
+///   仅作兜底（同一处闸门去重），不会二次挂树。
 /// * **音轨对齐**：fx 音轨在本组件 `initState` 随 fx 帧**同起点**启动，帧时长 =
-///   [kUltimateFxDurationMs]（≈ 音轨时长）⇒ 帧播完时音轨也收尾。
+///   [kUltimateFxDurationMs]（≈ 音轨时长）⇒ 帧播完时音轨也收尾。走叠加池
+///   [AudioService.playSfxPathsOverlap]，不掐断尚未播完的 cast 音轨。
 /// * 素材缺失时 `FrameSequencePlayer` 自带回退，不白屏不 crash。
 library guard_ultimate_fx;
 
@@ -41,17 +44,15 @@ const String kGuardUltimateFxSfx = 'assets/audio/sfx/guard_ultimate_fx.mp3';
 String guardUltimateCastSfxForLocale(bool isEn) =>
     isEn ? kGuardUltimateCastSfx : kGuardUltimateCastSfxZh;
 
-/// fx 段「技能效果落地 ⇒ 小怪同步被清除」的触发帧（**0 基**帧下标，= 第 7 帧
-/// `frame007`）。选自 fx 素材实测（27 帧 1470×630 横向金环特效）：
-/// * `frame001~003`：光束从天而降，地面还没起效；
-/// * `frame004~006`：光束触地、地面金色法阵开始铺开；
-/// * 🔴 `frame007`：法阵第一圈**完整炸开 + 火花四溅** —— 这就是「大招效果出来
-///   的那一刻」（也与 fx 音轨的重音落点契合），选它作清怪触发帧；
-/// * `frame008~027`：法阵持续扩散 / 收束 / 淡出（怪此时已在逃跑淡出）。
+/// fx 段「技能效果落地 ⇒ 小怪同步被清除」的触发帧（**0 基**帧下标，= 第 14 帧
+/// `frame014`）。🔴 2026-11-24 真机反馈 4：新素材（27 帧，光效落地整体后移）
+/// 的视觉爆发/重音落在 `frame012~019`，旧第 7 帧（`frame007`）怪会在半空提前消失。
+/// 改选 0 基 **13**（= `frame014`，≈13/27×4000ms ≈ 1926ms）作清怪触发帧，
+/// 让「怪消失」与「特效真正落地」同帧。
 ///
 /// 用 0 基下标与 [FrameSequencePlayer.onFrameReached] 的 `index` 同口径；
 /// 调用方按 `index >= kUltimateFxKillTriggerFrame` 判定（掉帧跳号也不漏触发）。
-const int kUltimateFxKillTriggerFrame = 6;
+const int kUltimateFxKillTriggerFrame = 13;
 
 /// 大招 fx 素材宽高比（1470×630 ≈ 2.333）；绘制盒按「视觉高 = 守卫卡高」反推宽。
 const double kUltimateFxAspectRatio = 1470 / 630;
@@ -115,9 +116,10 @@ class _GuardUltimateFxState extends State<GuardUltimateFx> {
   @override
   void initState() {
     super.initState();
-    // 🔴 fx 音轨随 fx 段起点播（cast 已收尾才走到这里；没有抢跑 delay）。
+    // 🔴 fx 音轨随 fx 段起点播（cast 第 2 秒已提前上树；没有抢跑 delay）。
+    // 走叠加池而非单播放器：cast 音轨还有 ~2s 没播完，不能被后起的 fx 掐断。
     // fire-and-forget，失败静默降级，绝不影响战局确定性。
-    AudioService.instance.playSfxPaths(<String>[kGuardUltimateFxSfx]);
+    AudioService.instance.playSfxPathsOverlap(kGuardUltimateFxSfx);
   }
 
   @override

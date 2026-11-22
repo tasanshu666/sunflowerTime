@@ -22,7 +22,7 @@
   "consent_data_title": "这个应用里有哪些数据",
   "consent_data_focus": "专注计时与任务打卡记录",
   "consent_data_garden": "花园植物与孩子资料（昵称、头像）",
-  "consent_data_local": "全部加密存储在本机，卸载即彻底删除",
+  "consent_data_local": "全部加密存储在本机，卸载后本机数据删除；家长 PIN 存于系统安全区，重装后仍保留",
   "consent_data_none": "无账号、无广告、无追踪，不联网上传",
   "privacy_policy_title": "隐私政策",
   "privacy_policy_load_failed": "政策内容加载失败，请重试。",
@@ -46,7 +46,8 @@
   "premium_gate_feature_guard_ultimate": "守卫大招",
   "guard_ultimate_empty_hint": "能量不足，专注可以攒能量哦",
   "guard_ultimate_empty_hint_light": "请专注去获得能量吧",
-  "guard_ultimate_help_title": "向日葵大招怎么用？",
+  "guard_ultimate_locked_hint": "需要解锁完整版才能释放专属技能",
+  "guard_ultimate_help_title": "向日葵技能怎么用",
   "guard_ultimate_help_body": "专注 {minutes} 分钟攒 1 格能量，最多 {cells} 格。守卫战斗中点向日葵战士释放大招，无视闪避、清空当前所有怪物！",
   "@guard_ultimate_help_body": {
     "placeholders": {
@@ -55,6 +56,7 @@
     }
   },
   "guard_ultimate_help_confirm": "知道了",
+  "guard_ultimate_help_premium_hint": "完整版可解锁向日葵战士技能",
   "guard_ultimate_lock_semantics": "买断后可用",
   "guard_ultimate_energy_semantics": "大招能量 {cell}：{percent}%",
   "@guard_ultimate_energy_semantics": {
@@ -2916,7 +2918,7 @@
       },
       "description": "今日页守卫：没玩过（0 能量 0 余额）点「开始守卫」时的开战前提示。focus 复用 task_action_focus（去专注），cost 复用 kGuardPayCost"
   },
-  "guard_pill_free_ride": "小小葵自己顶班，今天不用管",
+  "guard_pill_free_ride": "向日葵战士自己顶班，今天不用管",
   "@guard_pill_free_ride": {
       "description": "今日页守卫胶囊：小小葵顶班（无能量且余额 < kGuardFreeRideBalance，当天免罚、不可点）"
   },
@@ -3044,7 +3046,7 @@
       },
       "description": "结算卡（守卫战 v2 B4）：本场被偷的阳光（sun = recordBattleTheft 的账本实扣额；0 时整行不渲染，卡面 N 恒 == 账本 guard_stolen 行）。B13.26（玄参 2026-11-16）：加「了」更口语；图标换成馋光鼠静态首帧"
   },
-  "guard_pill_teach_text": "点这个阳光胶囊，帮小小葵发射阳光打跑小偷！",
+  "guard_pill_teach_text": "点这个阳光胶囊，帮向日葵战士发射阳光打跑小偷！",
   "@guard_pill_teach_text": {
       "description": "阳光胶囊点击教学（B13.26，玄参 2026-11-16：前 3 场战斗在胶囊上方显示引导气泡，首次点击即消失；孩子并不了解阳光胶囊是哪个）"
   },

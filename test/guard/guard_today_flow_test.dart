@@ -423,7 +423,7 @@ void _groupModes() {
     final Map<GuardPillMode, String> labels = <GuardPillMode, String>{
       GuardPillMode.pendingFree: '用专注能量赶跑它（免费）',
       GuardPillMode.pendingPaid: '偷菜贼来了，现在赶跑它吧',
-      GuardPillMode.freeRide: '小小葵自己顶班，今天不用管',
+      GuardPillMode.freeRide: '向日葵战士自己顶班，今天不用管',
       GuardPillMode.fighting: '守卫正在赶走它…',
       GuardPillMode.claimed: '今天的菜守住了',
     };

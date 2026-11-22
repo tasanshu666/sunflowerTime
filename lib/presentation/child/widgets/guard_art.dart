@@ -138,6 +138,10 @@ class GuardArt {
   /// 序列 frame001，缺失时 `_ResultLine` 回退原 Icon）。
   static const String monsterM1Still = _GuardAssetPaths.monsterM1Still;
 
+  /// 战士**站立静态**素材路径（玄参 2026-11-20 真机反馈：帮助卡图标从 🌻
+  /// emoji 换成战士 UI 形象，与本路径同源；素材缺失由调用方 errorBuilder 兜底）。
+  static const String soldierStand = _GuardAssetPaths.soldierStand;
+
   /// 战士**攻击帧覆盖层**的 Key（B7）。
   ///
   /// 攻击帧是盖在待机帧序列**上面**的一层（帧序列一直挂在树里，见

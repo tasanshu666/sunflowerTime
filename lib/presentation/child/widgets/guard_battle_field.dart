@@ -89,6 +89,7 @@ import 'package:sunflower_time/core/constants/prd_params.dart'
         kGuardSunRiseFadeStart,
         kGuardSunRiseFadeStartOpacity,
         kGuardSunRisePt,
+        kUltimateFxCastLeadMs,
         kUltimateFxDurationMs;
 import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
 import 'package:sunflower_time/domain/services/guard_battle_sim.dart';
@@ -884,9 +885,11 @@ class _GuardBattleFieldState extends State<GuardBattleField>
         _postEndHoldForUltimate = true;
         _postEndFxStartRawMs = _rawMs;
         _postEndFxElapsedMs = 0;
-        // 撑足：cast 剩余(≤4s) + fx 4s + 死亡淡出 800 + 900ms 横幅停留。
+        // 撑足：cast 剩余(≤4s) + fx 4s − 重叠起跑 2s + 死亡淡出 800
+        // + 900ms 横幅停留。总演出 4s + (4s − 2s) = 6s，故不再多拖 2s
+        // 才停 ticker；交回仍由 fx onComplete 驱动，不会卡死。
         _postEndFxEndRawMs = _rawMs +
-            kUltimateFxDurationMs * 2 +
+            (kUltimateFxDurationMs * 2 - kUltimateFxCastLeadMs) +
             kGuardDeathFleeMs +
             kGuardEndBannerDwellMs;
       } else {

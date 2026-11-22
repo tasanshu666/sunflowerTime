@@ -23,6 +23,7 @@ library qa_bugfix5_independent_test;
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderCustomPaint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart'
     show AppLocalizations;
@@ -30,7 +31,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sunflower_time/core/constants/prd_params.dart'
-    show kUltimateFxDurationMs;
+    show kUltimateFxCastLeadMs, kUltimateFxDurationMs;
 import 'package:sunflower_time/core/di/providers.dart' show entitlementProvider;
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/entities/guard_day_state.dart'
@@ -146,24 +147,35 @@ void main() {
   group('S2 · cast→fx 状态机源码接线（防假绿）', () {
     final String card = _src('lib/presentation/child/widgets/guard_scene_card.dart');
 
-    test('T02 notifyUltimateCastDone 只在 _maybeEnterFxStage 判据后调用一次', () {
-      // cast 启动段绝不允许通知 field（否则 fx 抢跑）。
+    test('T02 notify 由 2s timer 或 4s 判据兜底驱动，仍只发一次', () {
+      // cast 启动段只允许**预约**通知，绝不允许直接通知 field（否则 fx 抢跑）。
       final String castFn = _between(card, 'Future<void> _castUltimate() async {', 'void _onCastFrameDone()');
       expect(castFn, isNotEmpty, reason: '_castUltimate 必须存在');
       expect(castFn.contains('notifyUltimateCastDone'), isFalse,
-          reason: 'cast 启动即通知 = fx 抢跑：notify 只能在两路信号都完成后发');
+          reason: 'cast 启动即通知 = fx 抢跑：notify 只能走 _onFxStartDue 单点');
+      expect(castFn.contains('const Duration(milliseconds: kUltimateFxCastLeadMs)'), isTrue,
+          reason: '必须在 cast 第 2 秒预约提前挂 fx');
+      expect(castFn.contains('_onFxStartDue'), isTrue,
+          reason: '预约的回调必须是唯一的 notify 发点');
 
-      // _maybeEnterFxStage：判据在前、通知在后，且全局只发一次。
+      // _onFxStartDue：闸门去重 + 唯一通知发点。
+      final String startFn = _between(card, 'void _onFxStartDue() {', 'void _maybeEnterFxStage() {');
+      expect(startFn.contains('if (_fxStageStarted || !mounted) return;'), isTrue,
+          reason: '闸门去重：timer 与兜底判据同场只放行一次');
+      expect(startFn.contains('_battleHandle.notifyUltimateCastDone();'), isTrue,
+          reason: '经 handle 反向通知 field 挂 fx');
+
+      // _maybeEnterFxStage 保留 4s 收尾判据，通知改为兜底调用同一方法。
       final String gateFn = _between(card, 'void _maybeEnterFxStage() {', '@override\n  Widget build');
       expect(gateFn.contains('canStartFxStage('), isTrue,
-          reason: '推进点必须经 canStartFxStage 判据');
-      expect(gateFn.contains('_battleHandle.notifyUltimateCastDone();'), isTrue,
-          reason: '判据通过后经 handle 反向通知 field 挂 fx');
+          reason: 'cast 4s 收尾仍须经 canStartFxStage 判据');
+      expect(gateFn.contains('_onFxStartDue();'), isTrue,
+          reason: '兜底也走同一个去重发点，不得再写第二处 notify');
       final int gateAt = gateFn.indexOf('canStartFxStage(');
-      final int notifyAt = gateFn.indexOf('notifyUltimateCastDone()');
+      final int fallbackAt = gateFn.indexOf('_onFxStartDue();');
       expect(gateAt, greaterThanOrEqualTo(0));
-      expect(notifyAt, greaterThan(gateAt),
-          reason: '判据调用必须写在通知之前（顺序不可倒置）');
+      expect(fallbackAt, greaterThan(gateAt),
+          reason: '判据调用必须写在兜底通知之前（顺序不可倒置）');
       final int calls = 'X$card'.split('_battleHandle.notifyUltimateCastDone();').length - 1;
       expect(calls, 1, reason: '全文件只允许一处反向通知，杜绝第二处提前触发');
     });
@@ -175,10 +187,14 @@ void main() {
       expect(frameFn.contains('_maybeEnterFxStage()'), isTrue);
       expect(audioFn.contains('_castAudioDone = true'), isTrue);
       expect(audioFn.contains('_maybeEnterFxStage()'), isTrue);
-      // cast 音轨 Timer 与帧序列同用一个时长常量；没有 ~/2 抢跑。
+      // cast 音轨 Timer 与帧序列仍同用一个 4s 时长常量；没有 ~/2 抢跑。
       expect(card.contains('const Duration(milliseconds: kUltimateFxDurationMs)'), isTrue);
       expect(card.contains('kUltimateFxDurationMs ~/ 2'), isFalse,
           reason: '旧实现 Future.delayed(duration~/2) 抢跑 fx 音轨，已删除');
+      expect(kUltimateFxCastLeadMs, 2000,
+          reason: '2026-11-24 真机反馈 4：总演出 6s = 4s + (4s − 2s)');
+      expect(card.contains('const Duration(milliseconds: kUltimateFxCastLeadMs)'), isTrue,
+          reason: 'cast 第 2 秒提前挂 fx 的单点常量必须真的接线');
       final String fxSrc = _codeOnly(
           _src('lib/presentation/child/widgets/guard_ultimate_fx.dart'));
       expect(fxSrc.contains('Future.delayed'), isFalse,
@@ -388,12 +404,73 @@ void main() {
       expect(hasOrange, isFalse, reason: '不得出现橙黄 0xFFF5B301（与旧能量球混淆）');
     });
 
+    testWidgets('T12b widget：免费档两格只画灰色虚线框，无亮色填充（真机反馈 2）',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 390,
+              height: 112,
+              child: GuardUltimateEnergyBar(
+                energy: UltimateEnergy(filledCells: 1, fractionMin: 0),
+                unlocked: false,
+                uiScale: 1.0,
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+      // 免费档不得残留青绿百分比条 / 金色实心（灰框里不能有亮色填充）。
+      final List<Color> colors = <Color>[];
+      for (final Element el in find.byType(Container).evaluate()) {
+        final Object w = el.widget;
+        if (w is Container && w.decoration is BoxDecoration) {
+          final Color? c = (w.decoration! as BoxDecoration).color;
+          if (c != null) colors.add(c);
+        }
+      }
+      for (final Color c in colors) {
+        expect((c.toARGB32() & 0xFFFFFF) == 0x3FB6A8, isFalse,
+            reason: '免费档灰框内不得残留青绿填充');
+      }
+      // 两格各一个虚线画板，且尺寸非零（不留白、不塌缩）。
+      final List<RenderCustomPaint> painters = find
+          .descendant(
+            of: find.byType(GuardUltimateEnergyBar),
+            matching: find.byType(CustomPaint),
+          )
+          .evaluate()
+          .map((Element e) => e.renderObject! as RenderCustomPaint)
+          .toList();
+      expect(painters.length, 2, reason: '免费档两格各画一个虚线框');
+      for (final RenderCustomPaint p in painters) {
+        expect(p.size, isNot(Size.zero), reason: '虚线框必须有非零尺寸');
+      }
+    });
+
     test('T13 源码：能量条文件 _litFill=0xFF3FB6A8，无 0xFFF5B301', () {
       final String bar = _codeOnly(_src(
           'lib/presentation/child/widgets/guard_ultimate_energy_bar.dart'));
       expect(bar.contains('Color(0xFF3FB6A8)'), isTrue);
       expect(bar.contains('0xFFF5B301'), isFalse,
           reason: '橙黄是入场券能量球配色，大招能量格必须冷调青绿');
+    });
+
+    test('T13b 源码：免费档灰色虚线空框，买断档亮色路径保留（真机反馈 2）', () {
+      final String bar = _codeOnly(_src(
+          'lib/presentation/child/widgets/guard_ultimate_energy_bar.dart'));
+      // 免费档改走自绘虚线画师 + 中性灰，旧「Opacity 0.55 虚化」已弃用。
+      expect(bar.contains('class _DashedCellPainter extends CustomPainter'),
+          isTrue);
+      expect(bar.contains('Color(0xFF9E9E9E)'), isTrue,
+          reason: '免费档描边必须是中性灰，不得带金 / 青绿亮色');
+      expect(bar.contains('opacity: unlocked ? 1.0 : 0.55'), isFalse,
+          reason: '纯虚化观感不佳，真机反馈 2 已弃用');
+      // 买断档原样路径必须还在（零回归）。
+      expect(bar.contains('? _cell(context, t, layout, i)'), isTrue);
+      expect(bar.contains(': _lockedCell(context, t, layout, i)'), isTrue);
     });
   });
 

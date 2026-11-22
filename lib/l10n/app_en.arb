@@ -22,7 +22,7 @@
   "consent_data_title": "What data lives in this app",
   "consent_data_focus": "Focus timers and task check-in records",
   "consent_data_garden": "Garden plants and child profile (nickname, avatar)",
-  "consent_data_local": "All encrypted on this device only; uninstalling deletes everything",
+  "consent_data_local": "All encrypted on this device only; local data is removed on uninstall, but the parent PIN lives in the system keychain and survives reinstall",
   "consent_data_none": "No account, no ads, no tracking, nothing uploaded",
   "privacy_policy_title": "Privacy Policy",
   "privacy_policy_load_failed": "Failed to load the policy. Please try again.",
@@ -46,7 +46,8 @@
   "premium_gate_feature_guard_ultimate": "Guard Ultimate",
   "guard_ultimate_empty_hint": "Not enough energy — focus to earn more.",
   "guard_ultimate_empty_hint_light": "Focus to earn energy!",
-  "guard_ultimate_help_title": "How does the Sunflower Ultimate work?",
+  "guard_ultimate_locked_hint": "Unlock the full version to use this special skill",
+  "guard_ultimate_help_title": "How does the Sunflower Soldier skill work?",
   "guard_ultimate_help_body": "Focus for {minutes} minutes to earn 1 energy cell, up to {cells} cells. During a guard battle, tap the sunflower soldier to unleash the ultimate — it ignores dodges and clears every monster on screen!",
   "@guard_ultimate_help_body": {
     "placeholders": {
@@ -55,6 +56,7 @@
     }
   },
   "guard_ultimate_help_confirm": "Got it",
+  "guard_ultimate_help_premium_hint": "Unlock the Sunflower Soldier skill in the full version",
   "guard_ultimate_lock_semantics": "Available after lifetime unlock",
   "guard_ultimate_energy_semantics": "Ultimate energy {cell}: {percent}%",
   "@guard_ultimate_energy_semantics": {
@@ -2734,7 +2736,7 @@
       },
       "description": "Child today page guard: pre-battle hint when there is no energy and no sunlight; focus reuses task_action_focus, cost reuses kGuardPayCost"
   },
-  "guard_pill_free_ride": "Sunnie is covering today — nothing to do",
+  "guard_pill_free_ride": "Sunflower Soldier is covering today — nothing to do",
   "guard_scene_start": "Start guard",
   "guard_scene_continue": "Resume guard",
   "guard_scene_done": "Guard won",
@@ -2764,7 +2766,7 @@
   "guard_result_title_defeat": "Guard failed — the monsters stole the sunlight!",
   "guard_result_gain": "Got back {sun} sunlight",
   "guard_result_stolen": "The sneaky thief stole {sun} sunlight",
-  "guard_pill_teach_text": "Tap the sunlight capsule to help Sunny shoot the thieves!",
+  "guard_pill_teach_text": "Tap the sunlight capsule to help the sunflower soldier shoot the thieves!",
   "@guard_pill_teach_text": {
       "description": "Sunlight capsule tap tutorial (B13.26: shown above the capsule for the first 3 battles; disappears on first tap)"
   },

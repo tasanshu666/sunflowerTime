@@ -58,7 +58,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get consent_data_garden => '花园植物与孩子资料（昵称、头像）';
 
   @override
-  String get consent_data_local => '全部加密存储在本机，卸载即彻底删除';
+  String get consent_data_local => '全部加密存储在本机，卸载后本机数据删除；家长 PIN 存于系统安全区，重装后仍保留';
 
   @override
   String get consent_data_none => '无账号、无广告、无追踪，不联网上传';
@@ -130,7 +130,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guard_ultimate_empty_hint_light => '请专注去获得能量吧';
 
   @override
-  String get guard_ultimate_help_title => '向日葵大招怎么用？';
+  String get guard_ultimate_locked_hint => '需要解锁完整版才能释放专属技能';
+
+  @override
+  String get guard_ultimate_help_title => '向日葵技能怎么用';
 
   @override
   String guard_ultimate_help_body(String minutes, String cells) {
@@ -139,6 +142,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get guard_ultimate_help_confirm => '知道了';
+
+  @override
+  String get guard_ultimate_help_premium_hint => '完整版可解锁向日葵战士技能';
 
   @override
   String get guard_ultimate_lock_semantics => '买断后可用';
@@ -3606,7 +3612,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get guard_pill_free_ride => '小小葵自己顶班，今天不用管';
+  String get guard_pill_free_ride => '向日葵战士自己顶班，今天不用管';
 
   @override
   String get guard_scene_start => '开始守卫';
@@ -3697,7 +3703,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get guard_pill_teach_text => '点这个阳光胶囊，帮小小葵发射阳光打跑小偷！';
+  String get guard_pill_teach_text => '点这个阳光胶囊，帮向日葵战士发射阳光打跑小偷！';
 
   @override
   String guard_result_drop(String drop) {

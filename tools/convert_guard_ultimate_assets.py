@@ -28,12 +28,16 @@
   * 「释放大招」旧英文 27 帧（720×720）→ 裁 (150,152,562,532)=412×380、增益
       1.2228（历史口径，已被统一帧取代）；「中文大招」27 帧同理退役（原窗口
       (150,152,612,532)=462×380、增益 1.1607，备份留在 assets/_originals/）。
-  * 「大招特效」27 帧 PNG（1470×630）→ assets/guard/ultimate_fx/frame001..027.webp
-      （产物已在仓时跳过重转，保持入仓字节稳定）。
-  * 两段 mp4 抽 AAC→mp3（192k / 44.1k / 2ch）；产物已在仓时跳过（不重编码）。
+  * 🔴 2026-11-22 玄参「替换现有大招特效」：特效段 27 帧源由「大招特效」
+      （旧版）改为**「统一技能特效」**（新版，1470×630，画面/音轨与旧版
+      不同）；路径 assets/guard/ultimate_fx/ 与帧数 27、音轨时长 4.086s、
+      所有 Dart 常量均不变 ⇒ 纯素材替换，代码零改动。
+      `python3 tools/convert_guard_ultimate_assets.py --force-fx` 强制重转 FX
+      帧 + 重抽 FX 音轨（默认仍「已在仓跳过」以保持入仓字节稳定）。
+  * 三段 mp4 抽 AAC→mp3（192k / 44.1k / 2ch）；产物已在仓时跳过（不重编码）。
       - 释放大招.mp4 → assets/audio/sfx/guard_ultimate_cast.mp3
       - 中文大招.mp4 → assets/audio/sfx/guard_ultimate_cast_zh.mp3（音效分语言，保留）
-      - 大招特效.mp4 → assets/audio/sfx/guard_ultimate_fx.mp3
+      - 统一技能特效.mp4 → assets/audio/sfx/guard_ultimate_fx.mp3（2026-11-22 换源）
   * 🔴 不套 normalize_plant_art.py（1440×2000 植物专用，C13）；这里只做
     PNG→WebP 有损压缩（q92），保留原始尺寸与透明通道（🔴 C130 起不裁切）。
   * 其余待机 / 受击 / 胜利 / 未命名 mp4 素材零改动。
@@ -60,8 +64,11 @@ FRAME_COUNT = 27
 FRAME_QUALITY = 92
 
 # 🔴 大招特效帧（横向通道素材）：产物已在仓（27 帧连号）时跳过重转。
-FX_SRC_DIR = SOURCE_DIR / "大招特效"
+# 2026-11-22 换源：旧「大招特效」→「统一技能特效」（玄参拍板替换）。
+FX_SRC_DIR = SOURCE_DIR / "统一技能特效"
 FX_DST_DIR = REPO_ROOT / "assets/guard/ultimate_fx"
+# --force-fx：强制重转 FX 帧 + 重抽 FX 音轨（换源替换时用）。
+FORCE_FX = "--force-fx" in sys.argv
 
 # 🔴 统一大招帧（C129 接入 / 🔴 C130 玄参「你不要给我切割」）：**不裁切**。
 # 统一帧保留原始 720×720 全画布（光效帧 012..026 铺满画布，任何裁窗都会把
@@ -69,8 +76,11 @@ FX_DST_DIR = REPO_ROOT / "assets/guard/ultimate_fx"
 # （guard_card_layout.ultimateCastPaintHeight，实测口径：战士实体帧子集
 # 001..009/027 的 alpha>128 并集 bbox = (215,214,468,469) = 253×255，
 # 实体中心 (341.5, 341.5)/720 —— 与待机 362×372 实体并集=全画布对齐）。
-CAST_SRC_DIR = SOURCE_DIR / "统一大招动画帧"
-CAST_BACKUP_DIR = REPO_ROOT / "assets/_originals/soldier_ultimate_unified"
+# 🔴 2026-11-22 玄参「替换向日葵大招动作美术」（只换美术、其余零改动）：
+#   源由「统一大招动画帧」改为「大招动作优化」27 帧 720×720；几何/音轨/
+#   fx/代码一律不动。旧源备份 soldier_ultimate_unified 保留不删，新源备份另起。
+CAST_SRC_DIR = SOURCE_DIR / "大招动作优化"
+CAST_BACKUP_DIR = REPO_ROOT / "assets/_originals/soldier_ultimate_actionopt"
 
 # 🔴 亮度增益（RGB 乘后截断到 255；alpha 不动）。待机实测 luminance
 # （alpha>128 掩码）= 156.77。统一素材**战士实体帧子集**（001..009/027）全画布
@@ -78,7 +88,10 @@ CAST_BACKUP_DIR = REPO_ROOT / "assets/_originals/soldier_ultimate_unified"
 # 156.77（= 待机，逐位对齐；裁切与否不影响 alpha>128 掩码内的亮度统计）。
 # 🔴 不按 27 帧均值对齐：统一素材光效更亮，27 帧均值口径会反解出 <1 增益把
 # 战士压暗（违背「战士亮度与待机对齐」本意）。
-CAST_BRIGHTNESS_GAIN = 1.1027
+# 🔴 2026-11-22 新素材「大招动作优化」实体帧原始 luma = 149.39（比旧 144.49 更亮），
+#   沿用 1.1027 会导出 162.26（偏亮）；按同款「乘后截断」模型二分反解增益
+#   1.0586 ⇒ 实体帧导出 156.77（= 待机，逐位对齐）。自检判据不变。
+CAST_BRIGHTNESS_GAIN = 1.0586
 IDLE_LUMA_REFERENCE = 156.77  # 待机 19 帧实测均值（对账用，不参与导出）
 
 # 亮度校准用的**战士实体帧**下标（0 基；001..009 + 027）。导出自检按此子集
@@ -100,7 +113,8 @@ AUDIO_GROUPS: tuple[tuple[Path, Path], ...] = (
     # 🔴 中文大招音效单独抽（AAC 4.06s，参数与英文/特效一致）。C129：帧统一了，
     # 音效仍分语言 ⇒ 本音轨保留。
     (SOURCE_DIR / "中文大招.mp4", REPO_ROOT / "assets/audio/sfx/guard_ultimate_cast_zh.mp3"),
-    (SOURCE_DIR / "大招特效.mp4", REPO_ROOT / "assets/audio/sfx/guard_ultimate_fx.mp3"),
+    # 🔴 2026-11-22 换源：音轨从「统一技能特效.mp4」提取（旧「大招特效.mp4」退役）。
+    (SOURCE_DIR / "统一技能特效.mp4", REPO_ROOT / "assets/audio/sfx/guard_ultimate_fx.mp3"),
 )
 
 
@@ -231,11 +245,13 @@ def measure_cast_frames(dst_dir: Path) -> None:
     )
 
 
-def extract_audio(src_mp4: Path, dst_mp3: Path) -> None:
-    if dst_mp3.is_file() and dst_mp3.stat().st_size >= 1000:
+def extract_audio(src_mp4: Path, dst_mp3: Path, force: bool = False) -> None:
+    if not force and dst_mp3.is_file() and dst_mp3.stat().st_size >= 1000:
         # 音效分语言保留口径：已在仓的 mp3 不重编码，保持入仓字节稳定。
         print(f"SKIP audio (already present): {dst_mp3.name}")
         return
+    if force:
+        print(f"FORCE audio: {dst_mp3.name} <- {src_mp4.name}")
     if not src_mp4.is_file():
         fail(f"源 mp4 不存在（源盘未挂载？）: {src_mp4}")
     dst_mp3.parent.mkdir(parents=True, exist_ok=True)
@@ -266,7 +282,7 @@ def main() -> None:
         fail("源盘未挂载，终止（禁止臆造素材）")
     # 特效帧 1470×630 横向通道素材保持原尺寸（宽高比 2.333 由
     # GuardUltimateFx 绘制盒反推，不在此裁 / 不做语言切换）；已在仓时跳过。
-    if dir_has_full_frames(FX_DST_DIR):
+    if dir_has_full_frames(FX_DST_DIR) and not FORCE_FX:
         print(f"SKIP frames (already present): {FX_DST_DIR}")
     else:
         convert_frames(FX_SRC_DIR, FX_DST_DIR)
@@ -274,8 +290,9 @@ def main() -> None:
         backup_source_frames(src, backup_dir)
         convert_frames(src, dst, brightness_gain=gain)
         measure_cast_frames(dst)
-    for src, dst in AUDIO_GROUPS:
-        extract_audio(src, dst)
+    for idx, (src, dst) in enumerate(AUDIO_GROUPS):
+        # FX 音轨（末项）在 --force-fx 下强制重抽；cast 两版永不重编码。
+        extract_audio(src, dst, force=FORCE_FX and idx == len(AUDIO_GROUPS) - 1)
     print("ALL DONE.")
 
 

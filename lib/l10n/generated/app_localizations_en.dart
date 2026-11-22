@@ -60,7 +60,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get consent_data_local =>
-      'All encrypted on this device only; uninstalling deletes everything';
+      'All encrypted on this device only; local data is removed on uninstall, but the parent PIN lives in the system keychain and survives reinstall';
 
   @override
   String get consent_data_none =>
@@ -136,8 +136,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get guard_ultimate_empty_hint_light => 'Focus to earn energy!';
 
   @override
+  String get guard_ultimate_locked_hint =>
+      'Unlock the full version to use this special skill';
+
+  @override
   String get guard_ultimate_help_title =>
-      'How does the Sunflower Ultimate work?';
+      'How does the Sunflower Soldier skill work?';
 
   @override
   String guard_ultimate_help_body(String minutes, String cells) {
@@ -146,6 +150,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get guard_ultimate_help_confirm => 'Got it';
+
+  @override
+  String get guard_ultimate_help_premium_hint =>
+      'Unlock the Sunflower Soldier skill in the full version';
 
   @override
   String get guard_ultimate_lock_semantics => 'Available after lifetime unlock';
@@ -3731,7 +3739,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get guard_pill_free_ride => 'Sunnie is covering today — nothing to do';
+  String get guard_pill_free_ride =>
+      'Sunflower Soldier is covering today — nothing to do';
 
   @override
   String get guard_scene_start => 'Start guard';
@@ -3829,7 +3838,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get guard_pill_teach_text =>
-      'Tap the sunlight capsule to help Sunny shoot the thieves!';
+      'Tap the sunlight capsule to help the sunflower soldier shoot the thieves!';
 
   @override
   String guard_result_drop(String drop) {

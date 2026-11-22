@@ -1249,3 +1249,14 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 | **修复** | ① 领域层 `selfFulfill` 删除目标值闸门（玄参拍板放开，详见裁定表 **C122-3**）；详情入口收敛为唯一一枚「实现了」（纯函数 `wishRealizeEntryOf`：有手动办法→首条办法卡方盒；无办法→主按钮），接「弹二次确认→确认落库进愿望池→自动关详情」；保留二次确认/撤销/盖章含 child。② 确认卡 `confirmTitle` 改新 key「恭喜，愿望实现啦！」(`wishRealizedCongrats`)、不再传 `confirmMessage`（正文消失），`confirmMessage` 参数改可选 `String?` 兼容其它调用点。③ 本轮同批换 3 蛋美术 + 51 帧循环树动画（详见 C122-4 + 美术规范 0-pre.4）。🔴 schemaVersion 恒 32 未动。 |
 | **测试** | 新增 `test/child/wish_detail_realize_test.dart`（唯一入口/取消不落库/确认进池/单句文案）、`test/child/wish_tree_scene_animation_test.dart`（帧索引边界/51帧落盘/10s周期/几何常量）等；改写 domain/qa/i18n 相关断言（非删测试）。QA 4 变异全被抓、md5 恢复一致。全量 **5375 全绿 / 0 败**；analyze **0e/0w/76i**（2026-11-20 实测）。 |
 | **状态** | ✅ 代码 + 测试 + 文档已同步；✅ **玄参 iPad13 真机已验收通过并点头提交**（2026-11-20）。 |
+
+## F207 · 🔴 守卫大招两轮真机反馈 9 项（结算矛盾/孩子端购买卡/演出滞后等 · 已修复 · 已验收）
+
+| 项 | 内容 |
+|---|---|
+| **发现** | 2026-11-22，`ba79510`（C124~C133）装机后玄参两轮真机反馈：先接入「统一技能特效」，再 5 条（帮助卡 / 能量条去锁 / PIN / 演出 8s→6s / 文案），再 5 条（隐私文案 / 虚线能量条 / 免费点战士弹购买卡 / 结算标题矛盾 / 换 cast 美术）。详见裁定表 **C134**。 |
+| **真 Bug（4 项）** | ① **结算标题自相矛盾**：开火但被偷（`didAttack=true`、`stolenSun>0`）仍标「守卫成功」，与卡面「被偷 N 阳光」行打架——账本正确（`+4` 参战奖 + 真扣 `−3` 并存），仅标题判据漏被偷条件 ⇒ `noFireTitle = !didAttack \|\| stolenSun > 0`。② **孩子端弹购买卡**：免费档战斗态点战士走 `showPremiumUpsell` 买断引导卡，违反「孩子端零购买入口」⇒ 改 1s 淡出轻提示（`showBriefNotice`「需要解锁完整版才能释放专属技能」）。③ **大招演出滞后/怪消失太早/特效打半空**：cast 4s + fx 4s 严格串行 8s 太长、fx 视觉重心偏下半空、清怪触发帧第 7 帧远早于新素材落地帧 ⇒ 第 2s 提前挂 fx 总 6s、`kUltimateFxVisualCenterY` 0.68→0.52、触发帧 6→13(0 基)、fx 音轨走叠加池不掐 cast。④ **iPad 英文首登文案/图标不符**：帮助卡标题改「向日葵技能怎么用」、🌻→战士站立 UI、免费档加小字；「卸载即彻底删除」措辞不实（PIN Keychain 保留）改文案。 |
+| **非 Bug（1 项 · 定性）** | 玄参报「重装 APP 首次进家长端输 PIN 后直接进、密码一直 123456」。**定性非 bug**：iOS Keychain（`flutter_secure_storage`）卸载 App 不清，PIN 保留是**防孩子卸载重装绕过家长锁的安全特性**（同 C127 残留机制）；未改 PIN 逻辑，仅改隐私文案如实告知。 |
+| **纯素材/体验（4 项）** | ⑤ 统一技能特效替换（27 帧 1470×630 + 音轨换源 `统一技能特效.mp4`，4.086s/md5 `33b3d6b0…`，纯素材替换零代码改动）；⑥ 能量条去两把锁 + 免费档改灰色虚线空框（`_DashedCellPainter`，买断档亮色路径保留）；⑦ 文案「小小葵」→「向日葵战士」（胶囊 + 教学）；⑧ cast 美术换「大招动作优化」27 帧 720²（增益 1.1027→1.0586，只换美术几何/代码不动）。 |
+| **测试** | 全量 **5588 全绿 / 0 败**（5582→+6；2026-11-22 实测）；analyze **0e/0w/76i**。QA 增量守卫 `qa_bugfix5_independent_test.dart`（S1~S7 20+ 例）/ `qa_guard_ultimate_differential_test.dart`（免费档 1s 提示不弹购买卡）/ `qa_ultimate_timing_differential_test.dart`（补时/lead/触发帧 13/音轨不掐 cast/增益 1.0586）/ `guard_ui_boundary_test.dart`（参战+被偷 3⇒失败标题）；受控变异全转红、md5 恢复一致，主理人独立复算采信。 |
+| **状态** | ✅ 代码 + 测试 + 素材 + 文档已同步；✅ **玄参真机逐条验收全通过并点头提交**（2026-11-22，提交号以 `git log --oneline -1` 为准）。 |

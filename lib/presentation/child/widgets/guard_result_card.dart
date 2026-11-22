@@ -291,7 +291,11 @@ class _GuardResultCardState extends State<GuardResultCard>
     //    失败文案（guard_result_title_defeat），不再用「花园守卫成功」误导。
     final bool isZh =
         Localizations.localeOf(context).languageCode.startsWith('zh');
-    final bool noFireTitle = !widget.didAttack;
+    // 🔴 真机反馈 4：标题判据补「被偷」条件 —— 玩家开过火但被偷（战斗以 retreat
+    //    结束）时 didAttack=true，旧判据仍判「守卫成功」，与卡面被偷行
+    //    「被偷菜贼偷走了 N 阳光」自相矛盾。被偷也算「没守住」⇒ 一律走失败
+    //    标题；打赢且未被偷仍走成功标题，零回归（账本 / domain 均不受影响）。
+    final bool noFireTitle = !widget.didAttack || widget.stolenSun > 0;
     // 🔴 Guard-B13.11：高级宝箱的附加奖励各占一张卡；普通宝箱**一张都不渲染**
     //    （绝不出现「空槽」或「+0 片」这种把孩子当傻子的占位）。
     final bool premium = view.isPremiumChest;

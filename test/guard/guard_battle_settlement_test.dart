@@ -459,7 +459,7 @@ void main() {
       // 内、绘制先于胶囊），且矩形完整落在屏幕内、位于胶囊**下方**。
       {
         final Finder teach = find.text(
-            '点这个阳光胶囊，帮小小葵发射阳光打跑小偷！');
+            '点这个阳光胶囊，帮向日葵战士发射阳光打跑小偷！');
         expect(teach, findsOneWidget,
             reason: '🔴 首场（prefs 计数 0）战斗态必显示胶囊教学气泡');
         final RenderBox teachBox = tester.renderObject<RenderBox>(teach);

@@ -258,10 +258,21 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
   /// 同款判据（[canStartFxStage]），而不是「猜一个 delay 抢跑 fx 段」。
   Timer? _castAudioTimer;
 
+  /// 2026-11-24 真机反馈 4：cast 第 2 秒提前通知 field 挂 fx 段的计时器。
+  ///
+  /// 只驱动**表现层**挂 fx widget，不喂 sim、不进 sim 时间轴；sim 的
+  /// `castUltimate` 仍在点击后下一帧立即执行。cast 帧继续播满 4s。
+  Timer? _fxStartTimer;
+
+  /// fx 段提前启动通知的闸门：一次大招只发一次（timer 与收尾判据共用）。
+  bool _fxStageStarted = false;
+
   @override
   void dispose() {
     _attackTimer?.cancel();
     _castAudioTimer?.cancel();
+    _fxStartTimer?.cancel();
+    _fxStageStarted = false;
     super.dispose();
   }
 
@@ -291,6 +302,9 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
   /// 扣格是 async：先 await 服务落库，再启动 cast 段 + 请战斗层下一帧清场。
   Future<void> _castUltimate() async {
     // cast 段未播完时重复点击：直接吞掉（避免两段演出互相掐断 / 重复扣格）。
+    // ⚠️ 这里**不取消** `_fxStartTimer`：本轮 cast 仍在进行，吞掉一次多余点击
+    // 不应把「第 2 秒提前挂 fx」推迟到 4s 收尾兜底。真正的状态清理放在
+    // `dispose` 与下面「新一轮 cast 真正启动」处（防上一轮残留计时器串场）。
     if (_soldierCasting) return;
     // 🔴 只在**点击时**读 provider（裸 MaterialApp 的旧 widget 测试不点战士 ⇒
     //    不触碰 ProviderScope，零改动通过）。生产容器里正常扣格。
@@ -305,6 +319,10 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
     await container.read(guardUltimateServiceProvider).spendCell();
     if (!mounted) return;
     // ── cast 段启动：战士本体原位 27 帧 + cast 音轨，同起点、同长 ──────────
+    // 新一轮先清上一轮的提前启动计时器 / 闸门（重开战局卡 State 不重建）。
+    _fxStartTimer?.cancel();
+    _fxStartTimer = null;
+    _fxStageStarted = false;
     _castFramesDone = false;
     _castAudioDone = false;
     setState(() {
@@ -322,6 +340,13 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
       const Duration(milliseconds: kUltimateFxDurationMs),
       _onCastAudioDone,
     );
+    // 🔴 2026-11-24 真机反馈 4：cast 第 2 秒就通知 field 挂 fx 段，总演出 6s。
+    // 与 cast 音轨 Timer **并列**起跑；不 cancel `_castAudioTimer`（音轨继续到 4s），
+    // 也不动 `_soldierCasting`（战士 cast 帧继续播满 4s）。
+    _fxStartTimer = Timer(
+      const Duration(milliseconds: kUltimateFxCastLeadMs),
+      _onFxStartDue,
+    );
     // sim 清场请求（下一帧 tick 执行 castUltimate；锚点在 cast 前抓取）。
     _battleHandle.requestUltimate();
   }
@@ -338,11 +363,28 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
     _maybeEnterFxStage();
   }
 
-  /// 两段串行的唯一推进点：**动作播完 + 音轨播完两者都完成**才进 fx 段。
+  /// cast 第 [kUltimateFxCastLeadMs] 到点 ⇒ 通知 field 提前挂 fx 段。
   ///
-  /// 任一路先到只记信号、不启动第二段（玄参「动作/音效被卡断」的根因就是
-  /// 旧实现 `Future.delayed(duration~/2)` 抢跑 fx 音轨）。战士恢复常态后经
-  /// [GuardBattleHandle.notifyUltimateCastDone] 通知 field 在怪物区挂纯特效段。
+  /// 🔴 全文件**唯一**的 `_battleHandle.notifyUltimateCastDone()` 发点：
+  /// timer 到点走这里，cast 4s 收尾判据也兜底走这里。[_fxStageStarted]
+  /// 闸门保证一次大招只通知一次。只驱动表现层，不碰 sim / 不进 sim 时间轴，
+  /// 也不停 cast 帧与 cast 音轨（两者继续播满 4s）。
+  void _onFxStartDue() {
+    if (_fxStageStarted || !mounted) return;
+    _fxStageStarted = true;
+    _fxStartTimer?.cancel();
+    _fxStartTimer = null;
+    _battleHandle.notifyUltimateCastDone();
+  }
+
+  /// cast 段 4s 收尾判据：**动作播完 + 音轨播完两者都完成**。
+  ///
+  /// 仅负责把 `_soldierCasting` 收回 false（战士恢复待机）；提前挂 fx 的通知
+  /// 由 [_onFxStartDue] 发出，这里只做兜底调用（timer 异常漏发时仍不卡演出）。
+  ///
+  /// 任一路先到只记信号、不落收尾（玄参「动作/音效被卡断」的根因就是
+  /// 旧实现 `Future.delayed(duration~/2)` 抢跑 fx 音轨）。fx 段已在 cast 第 2 秒
+  /// 经 [_onFxStartDue] 提前挂树，本判据只做 cast 段 4s 收尾 + 通知兜底。
   void _maybeEnterFxStage() {
     if (!_soldierCasting || !mounted) return;
     if (!canStartFxStage(
@@ -353,7 +395,9 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
     }
     _castAudioTimer?.cancel();
     setState(() => _soldierCasting = false);
-    _battleHandle.notifyUltimateCastDone();
+    // 兜底：正常路径 timer 已在第 2 秒发过通知，这里被闸门吞掉；
+    // 只有 timer 异常漏发时才会在此补发，保证全文件仍只有一处 notify。
+    _onFxStartDue();
   }
 
   @override
@@ -643,6 +687,8 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
         '$kMaxUltimateCells',
       ),
       confirmLabel: t.guard_ultimate_help_confirm,
+      // 仅免费档在正文下方追加灰色小字；买断档不出现（玄参真机反馈 1）。
+      premiumHint: widget.view.isPremium ? null : t.guard_ultimate_help_premium_hint,
     );
   }
 

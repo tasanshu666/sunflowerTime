@@ -107,7 +107,7 @@ void main() {
       expect(find.text('这个应用里有哪些数据'), findsOneWidget);
       expect(find.text('专注计时与任务打卡记录'), findsOneWidget);
       expect(find.text('花园植物与孩子资料（昵称、头像）'), findsOneWidget);
-      expect(find.text('全部加密存储在本机，卸载即彻底删除'), findsOneWidget);
+      expect(find.text('全部加密存储在本机，卸载后本机数据删除；家长 PIN 存于系统安全区，重装后仍保留'), findsOneWidget);
       expect(find.text('无账号、无广告、无追踪，不联网上传'), findsOneWidget);
       expect(find.byKey(kConsentUpdateNoticeKey), findsNothing,
           reason: '首启（从未同意）不得显示「政策已更新」提示条');

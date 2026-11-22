@@ -249,7 +249,7 @@ bool guardUltimateUnlocked(BuildContext context) =>
 
 /// 点击向日葵战士的统一入口（中性命名）。
 ///
-/// * 未解锁 → `showPremiumUpsell`（买断引导，口径 12 / P0-09②，不消耗能量）；
+/// * 未解锁 → **1s 淡出轻提示**（孩子端零购买入口，不弹买断引导卡、不消耗能量）；
 /// * 已解锁但 0 格 → i18n 轻提示（B2，C62：不可点 ≠ 静默失败）；
 /// * 已解锁且有能量 → [onAllowed]（由调用方扣格 + 清场）。
 ///
@@ -263,7 +263,9 @@ void onGuardUltimateTap(
   final bool? unlocked = _guardUltimateUnlockedOrAbsent(context);
   if (unlocked == null) return;
   if (!unlocked) {
-    showPremiumUpsell(context, FeatureKey.guardUltimate);
+    // 🔴 真机反馈 3：孩子端零购买入口 —— 免费档只给 1s 轻提示，
+    // 绝不弹 showPremiumUpsell 买断引导卡（含跳购买页的「解锁全部功能」）。
+    _showGuardUltimateLockedHint(context, l10nOf(context));
     return;
   }
   if (!hasEnergy) {
@@ -282,6 +284,15 @@ void onGuardUltimateTap(
 void _showGuardUltimateEmptyHint(BuildContext context) {
   final AppLocalizations t = l10nOf(context);
   showBriefNotice(context, message: t.guard_ultimate_empty_hint_light);
+}
+
+/// 免费档点战士的 **1s 淡出轻提示**（真机反馈 3：孩子端零购买入口）。
+///
+/// 与 [_showGuardUltimateEmptyHint] 同款自绘 Overlay（淡入 180ms → 保持 1s →
+/// 淡出自清）；文案在调用方上下文取好传入，浮层 builder 不直调 `AppLocalizations.of`。
+/// 🔴 绝不走 `showPremiumUpsell` —— 那是家长端买断引导卡，孩子端不得出现购买入口。
+void _showGuardUltimateLockedHint(BuildContext context, AppLocalizations t) {
+  showBriefNotice(context, message: t.guard_ultimate_locked_hint);
 }
 
 /// 付费引导卡片（未开通时由 [`PremiumGate`] 展示）。

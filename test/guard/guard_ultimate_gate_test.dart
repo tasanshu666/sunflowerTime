@@ -106,7 +106,12 @@ void main() {
       expect(src.contains('FeatureKey.guardUltimate'), isTrue);
       expect(src.contains('guardUltimateUnlocked'), isTrue);
       expect(src.contains('onGuardUltimateTap'), isTrue);
-      expect(src.contains('showPremiumUpsell(context, FeatureKey.guardUltimate)'), isTrue);
+      expect(src.contains('showPremiumUpsell(context, FeatureKey.guardUltimate)'), isFalse,
+          reason: '孩子端零购买入口：免费档点战士不得弹买断引导卡');
+      expect(src.contains('_showGuardUltimateLockedHint('), isTrue);
+      expect(src.contains('guard_ultimate_locked_hint'), isTrue);
+      expect(src.contains('showBriefNotice('), isTrue,
+          reason: '免费档改走 1s 淡出轻提示');
     });
   });
 }

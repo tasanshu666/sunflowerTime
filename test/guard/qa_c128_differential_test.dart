@@ -86,8 +86,13 @@ void main() {
 
       final String result = _codeOnly(
           _src('lib/presentation/child/widgets/guard_result_card.dart'));
-      expect(result.contains('final bool noFireTitle = !widget.didAttack;'), isTrue,
-          reason: '结算卡失败标题判据 = 未参战（反转即「参战场误弹失败」回归）');
+      expect(
+        result.contains(
+            'final bool noFireTitle = !widget.didAttack || widget.stolenSun > 0;'),
+        isTrue,
+        reason: '结算卡失败标题判据 = 未参战 或 被偷（真机反馈 4：开火但被偷也要'
+            '判失败，否则与卡面被偷行自相矛盾；反转即回归）',
+      );
       expect(result.contains('final bool noFire = !widget.didAttack;'), isTrue,
           reason: '未参战 −3 红色行同口径');
     });

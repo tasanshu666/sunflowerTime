@@ -223,9 +223,11 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════
   group('QA-T1 · FrameSequencePlayer 逐帧回调（fx 清怪时序的前置能力）', () {
     testWidgets('回调单调递增、同帧仅一次、末帧可达', (WidgetTester tester) async {
+      // 🔴 阈值升到 0 基 13 后，8 帧样本最高只能报到 7（永假）⇒ 改用完整
+      // 27 帧 / 4000ms 真实节奏，才有能力越过高阈值。
       final List<String> frames = fxFrameAssets(
         'assets/guard/ultimate_fx',
-        8,
+        27,
         ext: 'webp',
       );
       final List<int> reported = <int>[];
@@ -238,7 +240,7 @@ void main() {
               height: 120,
               child: FrameSequencePlayer(
                 frames: frames,
-                durationMs: 800,
+                durationMs: 4000,
                 fadeOutMs: 0,
                 onFrameReached: reported.add,
               ),
@@ -246,8 +248,8 @@ void main() {
           ),
         ),
       );
-      for (int i = 0; i < 14; i++) {
-        await tester.pump(const Duration(milliseconds: 80));
+      for (int i = 0; i < 30; i++) {
+        await tester.pump(const Duration(milliseconds: 150));
       }
 
       expect(reported, isNotEmpty, reason: '逐帧回调必须真的发生');
@@ -262,19 +264,19 @@ void main() {
       expect(reported.toSet().length, reported.length, reason: '无重复帧号');
       expect(
         reported.last,
-        greaterThanOrEqualTo(6),
-        reason: '必须能越过 kUltimateFxKillTriggerFrame=6 这一帧',
+        greaterThanOrEqualTo(13),
+        reason: '必须能越过 kUltimateFxKillTriggerFrame=13 这一帧',
       );
     });
   });
 
   group('QA-T2 · GuardUltimateFx 效果落地帧（M-C 阈值改永假必转红）', () {
-    testWidgets('frame007（0 基 6）到达时 onEffectFrame 恰好触发一次',
+    testWidgets('frame014（0 基 13）到达时 onEffectFrame 恰好触发一次',
         (WidgetTester tester) async {
       expect(
         kUltimateFxKillTriggerFrame,
-        6,
-        reason: '触发帧独立写死 = 6（frame007 效果爆发帧）',
+        13,
+        reason: '触发帧独立写死 = 13（frame014 新素材落地帧）',
       );
       int calls = 0;
       await tester.pumpWidget(
@@ -294,9 +296,9 @@ void main() {
       );
 
       // 🔴 必须同时验「何时触发」：只数调用次数是假绿——把判定反转成
-      // `index >= 6` 会在 frame001 就触发，次数照样是 1。
-      // 6/27 × 4000ms ≈ 889ms ⇒ 800ms 时仍在 frame006 之前，必须 0 次。
-      for (int i = 0; i < 8; i++) {
+      // `index >= 13` 会在 frame001 就触发，次数照样是 1。
+      // 13/27 × 4000ms ≈ 1926ms ⇒ 1900ms 时仍在 frame013 之前，必须 0 次。
+      for (int i = 0; i < 19; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(
@@ -305,8 +307,8 @@ void main() {
         reason: '效果帧到达前怪不得消失（M-C 判定反转成 >= 时在首帧就触发 → 转红）',
       );
 
-      // 再泵到 1200ms，确保越过 frame007（0 基 6）。
-      for (int i = 0; i < 4; i++) {
+      // 再泵到 2100ms，确保越过 frame014（0 基 13，≈1926ms）。
+      for (int i = 0; i < 2; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(
@@ -402,7 +404,7 @@ void main() {
       final String terminal = _between(
         field,
         'if (_sim.isOver && !_endHandled)',
-        'kUltimateFxDurationMs * 2',
+        'kUltimateFxDurationMs * 2 - kUltimateFxCastLeadMs',
       );
       expect(terminal, isNotEmpty, reason: '必须定位到终局判定分支');
       expect(terminal, contains('if (_ultimateActive)'));
@@ -458,10 +460,62 @@ void main() {
       final String fx = _codeOnly(
         _src('lib/presentation/child/widgets/guard_ultimate_fx.dart'),
       );
-      expect(fx, contains('const int kUltimateFxKillTriggerFrame = 6'));
+      expect(fx, contains('const int kUltimateFxKillTriggerFrame = 13'));
       expect(fx, contains('index < kUltimateFxKillTriggerFrame'));
       expect(fx, contains('_effectFired = true'));
       expect(fx, contains('widget.onEffectFrame?.call()'));
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ②-b 真机反馈 4：8s → 6s（cast 第 2 秒提前挂 fx + 音轨不互掐）
+  // ══════════════════════════════════════════════════════════════════════
+  group('QA-T5 · 6s 演出 / 2s 提前量 / fx 音轨叠加池（源码守卫）', () {
+    test('提前量 2000ms、补时减 2000ms、fx 音轨不再走单播放器掐 cast', () {
+      final String params = _codeOnly(_src('lib/core/constants/prd_params.dart'));
+      final String card = _codeOnly(
+        _src('lib/presentation/child/widgets/guard_scene_card.dart'),
+      );
+      final String field = _codeOnly(
+        _src('lib/presentation/child/widgets/guard_battle_field.dart'),
+      );
+      final String fx = _codeOnly(
+        _src('lib/presentation/child/widgets/guard_ultimate_fx.dart'),
+      );
+      final String audio = _codeOnly(_src('lib/platform/audio_service.dart'));
+
+      // 总演出 4s + (4s − 2s) = 6s。
+      expect(params, contains('const int kUltimateFxCastLeadMs = 2000'));
+      expect(card, contains('const Duration(milliseconds: kUltimateFxCastLeadMs)'));
+      expect(
+        card,
+        contains('const Duration(milliseconds: kUltimateFxDurationMs)'),
+        reason: 'cast 音轨/帧仍须播满 4s',
+      );
+      expect(field, contains('kUltimateFxDurationMs * 2 - kUltimateFxCastLeadMs'));
+
+      // 通知单点：timer 与 cast 收尾兜底都走同一个去重方法。
+      expect(card, contains('void _onFxStartDue()'));
+      expect(card, contains('if (_fxStageStarted || !mounted) return;'));
+      expect(
+        'X$card'.split('_battleHandle.notifyUltimateCastDone();').length - 1,
+        1,
+        reason: '全文件只允许一处 notify',
+      );
+
+      // fx 音轨走叠加池；cast 音轨仍走互斥单播放器（语义不变）。
+      expect(
+        fx,
+        contains('AudioService.instance.playSfxPathsOverlap(kGuardUltimateFxSfx)'),
+      );
+      expect(fx, isNot(contains('playSfxPaths(<String>[kGuardUltimateFxSfx])')));
+      expect(audio, contains('void playSfxPathsOverlap(String path'));
+      expect(audio, contains('unawaited(_playSfxOverlap(path, volume: volume))'));
+      expect(
+        card,
+        contains('AudioService.instance.playSfxPaths(<String>[castSfx])'),
+        reason: 'cast 音轨不得改走 overlap，互斥语义保持',
+      );
     });
   });
 
@@ -528,8 +582,10 @@ void main() {
       );
       expect(
         script,
-        contains('CAST_BRIGHTNESS_GAIN = 1.1027'),
-        reason: '亮度归一口径不变（战士实体帧子集校准，luma 对齐待机 156.77）',
+        contains('CAST_BRIGHTNESS_GAIN = 1.0586'),
+        reason: '亮度归一口径不变（战士实体帧子集校准，luma 对齐待机 156.77；'
+            '2026-11-22 新「大招动作优化」素材原 luma 149.39，'
+            '旧统一帧 144.49 对应 1.1027，沿用会偏亮）',
       );
     });
 

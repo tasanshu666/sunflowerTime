@@ -7,9 +7,16 @@
 /// 在页内取好经参数槽位传入，本文件零中文硬编码、零权益 token。
 /// 形态照 `garden_page._showGardenHelp` 的先例：`showGeneralDialog` + Center +
 /// fade/scale 0.92→1.0（200ms）+ 点遮罩可关 + 定宽（iPad 不窄长条）。
+///
+/// 玄参真机反馈 1：标题措辞改「技能」、顶部图标从 🌻 emoji 换成战士站立
+/// UI 形象（`GuardArt.soldierStand`）；免费档在正文下追加灰色小字提示，
+/// 文案同样经 [premiumHint] 槽位由调用方传入（本文件仍零中文硬编码）。
 library guard_ultimate_help_dialog;
 
 import 'package:flutter/material.dart';
+
+import 'package:sunflower_time/presentation/child/widgets/guard_art.dart'
+    show GuardArt;
 
 /// 说明卡根 Key（widget 测试断言「待机态点战士弹说明卡」用）。
 const Key guardUltimateHelpKey = Key('guardUltimateHelpCard');
@@ -19,12 +26,14 @@ const Key guardUltimateHelpConfirmKey = Key('guardUltimateHelpConfirm');
 
 /// 弹出大招用法说明卡（居中，点「知道了」或遮罩关闭）。
 ///
-/// [title] / [body] / [confirmLabel] 全部已本地化，由调用方经 `l10nOf` 取好传入。
+/// [title] / [body] / [confirmLabel] / [premiumHint] 全部已本地化，由调用方经
+/// `l10nOf` 取好传入。[premiumHint] 为空时不渲染该行（买断档）。
 Future<void> showGuardUltimateHelpDialog(
   BuildContext context, {
   required String title,
   required String body,
   required String confirmLabel,
+  String? premiumHint,
 }) {
   return showGeneralDialog<void>(
     context: context,
@@ -68,6 +77,7 @@ Future<void> showGuardUltimateHelpDialog(
                       title: title,
                       body: body,
                       confirmLabel: confirmLabel,
+                      premiumHint: premiumHint,
                     ),
                   ),
                 ),
@@ -99,17 +109,21 @@ Future<void> showGuardUltimateHelpDialog(
   );
 }
 
-/// 说明卡内容（标题 + 正文 + 「知道了」按钮；零权益、零跳转）。
+/// 说明卡内容（图标 + 标题 + 正文 + 可选免费提示 + 「知道了」按钮；零权益、零跳转）。
 class _GuardUltimateHelpCard extends StatelessWidget {
   const _GuardUltimateHelpCard({
     required this.title,
     required this.body,
     required this.confirmLabel,
+    this.premiumHint,
   });
 
   final String title;
   final String body;
   final String confirmLabel;
+
+  /// 免费档专属灰色小字（买断档为 null ⇒ 整行不渲染）。
+  final String? premiumHint;
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +133,21 @@ class _GuardUltimateHelpCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Text('🌻', style: TextStyle(fontSize: 40)),
+            // 战士 UI 形象替代原 🌻 emoji：60 逻辑像素、contain，缺图回退
+            // 太阳图标（不用 emoji，保持零中文硬编码 + 缺图不崩）。
+            SizedBox(
+              width: 60,
+              height: 60,
+              child: Image.asset(
+                GuardArt.soldierStand,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.sunny,
+                  size: 44,
+                  color: Color(0xFF6B5A3E),
+                ),
+              ),
+            ),
             const SizedBox(height: 10),
             Text(
               title,
@@ -140,6 +168,19 @@ class _GuardUltimateHelpCard extends StatelessWidget {
                 color: Color(0xFF7A6E58),
               ),
             ),
+            // 免费档专属小字：正文与按钮之间，12pt 灰色居中。
+            if (premiumHint != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  premiumHint!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF9A8F78),
+                  ),
+                ),
+              ),
             const SizedBox(height: 18),
             FilledButton(
               key: guardUltimateHelpConfirmKey,

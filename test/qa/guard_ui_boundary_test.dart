@@ -555,5 +555,21 @@ void main() {
       expect(find.text('花园守卫成功，赶走了贪吃的小动物'), findsOneWidget,
           reason: '🔴 参战场标题不变（成功文案）');
     });
+
+    testWidgets('参战 + 被偷 3（真机反馈 4）⇒ 标题走失败文案，不再自相矛盾',
+        (WidgetTester tester) async {
+      await pump(
+        tester,
+        _view(GuardPillMode.pendingFree, winSun: 4),
+        stolenSun: 3,
+        didAttack: true,
+      );
+      expect(find.text('守卫失败，怪物偷走了阳光！'), findsOneWidget,
+          reason: '🔴 真机反馈 4：开过火但被偷也算没守住，标题必须与下方被偷行一致');
+      expect(find.textContaining('守卫成功，赶走了贪吃的小动物'), findsNothing,
+          reason: '🔴 不能再出现「守卫成功」与被偷行并存的矛盾文案');
+      expect(find.text('被偷菜贼偷走了 3 阳光'), findsOneWidget,
+          reason: '被偷行照常渲染，账本不受影响');
+    });
   });
 }

@@ -1,0 +1,59 @@
+sequenceDiagram
+    autonumber
+    %% ═══════════════ 图 1：门控判定（唯一判据·两处收口）═══════════════
+    rect rgb(238,245,255)
+    Note over OS,DB: 图 1-A 领域收口：_complete 前统一走 _tryComplete（覆盖 5 条 →fulfilled 路径）
+    participant C as 调用入口<br/>(setGoal/fulfill/selfFulfill<br/>registerCheckIn/advanceProgress)
+    participant OS as WishOrchestrationService
+    participant WP as wish_progress 纯函数
+    participant WTR as WishTaskRepository
+    participant DB as 本地 DB
+    C->>OS: 请求达成（updated wish, source, now）
+    OS->>OS: _tryComplete(updated, source, now)
+    OS->>WTR: tasksOfWish(wishId)
+    WTR-->>OS: List<Task>（现存关联任务；删除的不返回）
+    alt 任务数==0（无任务愿望 · Q2 逐字节不变）
+        OS->>OS: _complete(直接放行，source 原样)
+    else 有任务
+        OS->>WTR: checkInsOfTaskIds(taskIds)
+        WTR-->>OS: List<CheckIn>
+        OS->>WP: wishTasksAllDone(tasks, checkIns, now)
+        WP->>WP: 每条现存任务 wishTaskStageOf()==done<br/>(一次性:≥1 verified / 每天:当日 verified)
+        WP-->>OS: true / false
+        alt 全部 done
+            OS->>OS: _complete(写 status=fulfilled)
+        else 有未完成
+            OS-->>C: 拦截·不写 fulfilled（愿望留树/进度照常保存）
+        end
+    end
+    OS->>DB: save(updated) + emit(按 status 决定是否 fulfilled 事件)
+    end
+
+    rect rgb(255,246,232)
+    Note over TCS,DB2: 图 1-B data 事务收口：settleWishFocus（专注型愿望任务·第六条路径）
+    participant F as 专注页
+    participant TCS as TaskCheckInService
+    participant LR as TaskLocalRepository
+    participant WP2 as wish_progress 纯函数
+    participant DB2 as 本地 DB(Tx)
+    F->>TCS: settleWishFocusTask(task, session, now)
+    TCS->>TCS: 四道守卫 + _settleWishLinkedFocus
+    TCS->>LR: settleWishFocus(wishId, checkIn, creditedMinutes, now)
+    activate LR
+    LR->>DB2: BEGIN 事务：写 checkIn(verified,0 阳光)
+    LR->>DB2: 读 wish → 累加 progressValue → fruitStageOf 判 ripe
+    alt ripe
+        LR->>DB2: 事务内读该 wish 全部 tasks + checkIns
+        LR->>WP2: wishTasksAllDone(tasks, checkIns, now)
+        WP2-->>LR: true / false
+        alt 门控通过
+            LR->>DB2: 写 status=fulfilled/fulfillSource=progress/盖章列
+        else 门控未通过
+            LR->>DB2: 仅写 progressValue，不写 fulfilled
+        end
+    end
+    LR->>DB2: COMMIT
+    deactivate LR
+    LR-->>TCS: ripe 是否真正成真
+    TCS-->>F: outcome（0 阳光）
+    end

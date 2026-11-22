@@ -199,6 +199,48 @@ WishTaskStage wishTaskStageOf({
   return WishTaskStage.pending;
 }
 
+/// Fulfilment precondition (R6-P0-01): are **all currently existing** tasks of
+/// a wish finished?
+///
+/// - No tasks at all ⇒ `true` (a wish without growth tasks is never gated).
+/// - Every task must derive to [WishTaskStage.done] via the single existing
+///   stage judgement [wishTaskStageOf] (once: at least one verified check-in;
+///   daily/weekly: a verified check-in in the current repeat window).
+/// - Deleted tasks are physically removed from `tasks`, so they are absent
+///   from [tasks] and automatically excluded from the judgement.
+///
+/// Pure and IO-free: the caller owns data fetching. The domain orchestration
+/// service uses `WishTaskRepository`; the data-layer transaction uses its own
+/// in-transaction queries. Both share this **one** implementation.
+bool wishTasksAllDone({
+  required List<Task> tasks,
+  required List<CheckIn> checkIns,
+  required DateTime now,
+}) {
+  if (tasks.isEmpty) return true;
+  return tasks.every(
+    (Task task) => wishTaskStageOf(task: task, checkIns: checkIns, now: now) ==
+        WishTaskStage.done,
+  );
+}
+
+/// Collection-box derived visibility (R6-P0-04): should a task be rendered?
+///
+/// - Ordinary growth task (`wishId == null`) ⇒ always `true` (byte-for-byte
+///   unchanged legacy behaviour).
+/// - Wish task ⇒ visible only while its parent wish has no `releasedAt`.
+///   A missing parent is treated as visible (safe default). Terminal-state
+///   greying is a separate concern owned by `effectiveStatusOf`.
+bool isWishTaskVisible({
+  required Task task,
+  required Map<String, Wish> wishById,
+}) {
+  final String? wishId = task.wishId;
+  if (wishId == null) return true;
+  final Wish? parent = wishById[wishId];
+  return parent == null || parent.releasedAt == null;
+}
+
 /// Downward goal change is clamped to the already-completed amount (R4).
 int clampedGoalAfterDecrease({
   required int requestedTarget,

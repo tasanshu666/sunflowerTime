@@ -36,6 +36,7 @@ import 'package:sunflower_time/presentation/child/pages/wish_tree_page.dart';
 import 'package:sunflower_time/presentation/child/state/wish_tree_scene_state.dart';
 import 'package:sunflower_time/presentation/child/widgets/bloom_debug_panel.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_weather_badge.dart';
+import 'package:sunflower_time/presentation/child/widgets/wish_top_entry_cluster.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_tree_weather_entry.dart';
 
 class _OfflineIap implements IapAdapter {
@@ -279,8 +280,19 @@ void main() {
     final Rect entryRect = tester.getRect(entry);
     final Rect debugRect = tester.getRect(debug);
 
-    expect(entryRect.width, greaterThanOrEqualTo(48));
-    expect(entryRect.height, greaterThanOrEqualTo(48));
+    // R7-P0-03：手机侧图标本体视觉缩到 56×0.8=44.8（架构 §6.2 预期值），
+    // 无障碍热区由外层簇的 ConstrainedBox(min 48) 兜底 —— 断言热区而非视觉本体。
+    expect(entryRect.width, closeTo(56 * kPhoneEntryScale, 0.5),
+        reason: '手机入口视觉 44.8（iPhone 单侧缩放）');
+    expect(entryRect.height, closeTo(56 * kPhoneEntryScale, 0.5),
+        reason: '手机入口视觉 44.8（iPhone 单侧缩放）');
+    for (final Element e in find.byType(WishTopEntryCluster).evaluate()) {
+      final Rect hit = tester.getRect(find.byWidget(e.widget));
+      expect(hit.width, greaterThanOrEqualTo(48),
+          reason: '整簇点击热区宽 ≥48（无障碍底线）');
+      expect(hit.height, greaterThanOrEqualTo(48),
+          reason: '整簇点击热区高 ≥48（无障碍底线）');
+    }
 
     // v0.3.0（R3-P0-11）：图标下方多了**单行可见文字**，两段间距各走一个常量：
     //   徽标底 → 天气名   = kGardenTopLabelGap

@@ -26,10 +26,13 @@ import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/core/utils/datetime_ext.dart';
+import 'package:sunflower_time/domain/entities/check_in.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/entities/wish.dart';
+import 'package:sunflower_time/domain/services/task_checkin_service.dart';
 import 'package:sunflower_time/domain/services/wish_face_state.dart';
 import 'package:sunflower_time/domain/services/wish_orchestration_service.dart';
+import 'package:sunflower_time/domain/services/wish_progress.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/child/state/wish_state.dart';
 import 'package:sunflower_time/presentation/child/state/wish_tree_scene_state.dart';
@@ -41,6 +44,7 @@ import 'package:sunflower_time/presentation/child/widgets/wish_compose_dialog.da
 import 'package:sunflower_time/presentation/child/widgets/wish_pool_tile.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_task_card.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_tree_scene.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 // ── 页级只读 provider（组合既有服务方法，不改接线层） ────────────────────────
 
@@ -105,6 +109,25 @@ final wishTasksFamilyProvider =
         );
   } catch (_) {
     return <Task>[];
+  }
+});
+
+/// 单条愿望任务打卡流水（只读，按 `wishId` family）。
+///
+/// 详情页据此派生「等家长确认」胶囊与「已完成」态；纯函数判据仍唯一落在
+/// [wishTaskStageOf]。打卡落库后页面自增 economyRevision ⇒ 本 provider 重算。
+final wishTaskCheckInsFamilyProvider =
+    FutureProvider.autoDispose.family<List<CheckIn>, String>((ref, wishId) async {
+  ref.watch(childProfileRevisionProvider);
+  ref.watch(economyRevisionProvider);
+  try {
+    final List<Task> tasks = await ref.read(wishTasksFamilyProvider(wishId).future);
+    if (tasks.isEmpty) return <CheckIn>[];
+    return await ref.read(wishTaskRepositoryProvider).checkInsOfTaskIds(
+          taskIds: tasks.map((Task task) => task.id).toList(),
+        );
+  } catch (_) {
+    return <CheckIn>[];
   }
 });
 
@@ -362,6 +385,34 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
         .selfFulfill(id: wish.id, now: DateTime.now());
   }
 
+  /// R7-P0-01：孩子显式「放进愿望池」——复用领域薄入口 putIntoPool。
+  ///
+  /// 手动任务型愿望 targetValue==0 被 registerCheckIn 的 hasGoalTarget 闸门拦住，
+  /// 家长确认后不自动进池，改由本入口经 _tryComplete → _complete 收口。
+  Future<void> _putIntoPool(Wish wish) async {
+    await ref
+        .read(wishOrchestrationServiceProvider)
+        .putIntoPool(id: wish.id, now: DateTime.now());
+  }
+
+  /// 有任务愿望的任务卡「我做到了」（R6-P0-02③）。
+  ///
+  /// 不再走 `selfFulfill` 即时进池：复用成长任务打卡链落 pending，
+  /// 由家长核销后经 `registerCheckIn` 的门控决定是否成真。
+  /// 经济隔离（0 阳光 / 不进完美日）由 [TaskCheckInService] 的唯一 helper 保证。
+  Future<void> _didIt(Task task) async {
+    try {
+      await ref
+          .read(taskCheckInServiceProvider)
+          .checkIn(task: task, now: DateTime.now());
+      // 精准失效本愿望的打卡 provider，任务卡切到「等家长确认」胶囊。
+      // 不触碰 economyRevisionProvider 总线（A-T03 接线层只读订阅契约）。
+      ref.invalidate(wishTaskCheckInsFamilyProvider(task.wishId ?? ''));
+    } on TaskCheckInException catch (_) {
+      // 已提交 / 重复提交：静默降级，卡片只读态由下一次刷新呈现。
+    }
+  }
+
   Future<void> _restore(Wish wish, AppLocalizations t) async {
     try {
       await ref
@@ -418,6 +469,9 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
                   onCollect: () => _collect(wish),
                   onChange: () => _change(wish, t),
                   onSelfFulfill: () => _selfFulfill(wish),
+                  onDidIt: _didIt,
+                  // R7-P0-01：显式进池走领域薄入口（source=Progress，不经目标闸门）。
+                  onPutInPool: () => _putIntoPool(wish),
                   // 达成落库后关掉详情，孩子直接看到愿望已从树上移进愿望池。
                   onRealized: () {
                     if (ctx.mounted) Navigator.of(ctx).pop();
@@ -645,14 +699,25 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
 
           final List<WishEgg> eggs = <WishEgg>[];
           for (final Wish wish in sorted) {
-            final int wayCount =
-                ref.watch(wishTasksFamilyProvider(wish.id)).value?.length ?? 0;
+            final List<Task> tasks =
+                ref.watch(wishTasksFamilyProvider(wish.id)).value ??
+                    <Task>[];
+            final int wayCount = tasks.length;
+            // R7-P0-02：蛋联动与 face 正交，复用唯一门控纯函数 wishTasksAllDone。
+            final List<CheckIn> checkIns =
+                ref.watch(wishTaskCheckInsFamilyProvider(wish.id)).value ??
+                    <CheckIn>[];
+            final bool tasksAllDone = wishTasksAllDone(
+              tasks: tasks,
+              checkIns: checkIns,
+              now: _now,
+            );
             final WishTreeFace face =
                 wishTreeFaceOf(wish: wish, wayCount: wayCount);
+            final WishTreeEgg egg =
+                wishTreeEggOf(face: face, tasksAllDone: tasksAllDone);
             eggs.add(WishEgg(
-              asset: face == WishTreeFace.hasWays
-                  ? WishTreeArt.eggGrowing
-                  : WishTreeArt.eggWish,
+              asset: wishTreeEggAssetOf(egg),
               label: wish.text,
               onTap: () => _openDetail(wish, t),
               // 接过真实页面测试的点击标识（原卡片载体 → 现在的蛋）。
@@ -666,6 +731,8 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
               WishTreeScene(
                 key: const Key('wish_tree_scene'),
                 eggs: eggs,
+                // R7-P0-03 图3：底部三圆形按钮按手机系数缩，iPad 恒 1.0。
+                actionScale: compactScaleOf(context),
                 onStartWish: () => _startWish(t),
                 // 🔴 iPad 13 反馈 3：收藏箱 / 愿望池改居中 Dialog 弹窗，
                 // 不再 setState 切走 tree 段 —— tree 段永远是全屏场景。
@@ -809,6 +876,10 @@ enum WishRealizeEntry {
 ///
 /// 玄参 iPad13 拍板：有手动办法时用办法卡那枚，没办法时用愿望主按钮；
 /// 两条路径都不再看 `targetValue`。收藏箱 / 终态愿望一律不给入口。
+///
+/// 🔴 R6-P0-02⑤（成长任务闭环）：只要愿望挂了成长任务，就不再给愿望级
+/// 「直接进池」主按钮（`wishCard`）——手动任务走「我做到了」提交链，
+/// 纯专注任务由专注结算闭环。无任务愿望保持 v0.5 自助实现（Q2 逐字节不变）。
 WishRealizeEntry wishRealizeEntryOf({
   required bool onTree,
   required List<Task> tasks,
@@ -817,8 +888,53 @@ WishRealizeEntry wishRealizeEntryOf({
   for (final Task task in tasks) {
     if (!task.requiresFocus) return WishRealizeEntry.firstManualTask;
   }
+  if (tasks.isNotEmpty) return WishRealizeEntry.none;
   return WishRealizeEntry.wishCard;
 }
+
+// ── R7-P0-01 / R7-P0-02 单一派生纯函数（玄参真机反馈，v0.2） ────────────────
+
+/// 详情卡「放进愿望池」按钮形态（R7-P0-01，单一判据）。
+///
+/// - [onTree]==false（收藏箱 / 终态）⇒ none（无进池入口，原样）；
+/// - [hasManualTask] && [tasksAllDone] ⇒ putInPool（单个「放进愿望池」，隐藏两次级按钮）；
+/// - 其余（含纯专注型 hasManualTask==false、无任务、有未完成任务）⇒ changeAndCollect（现状两按钮）。
+///
+/// [tasksAllDone] 由唯一纯函数 [wishTasksAllDone] 派生，本函数不再散写任务判据。
+enum WishPoolButton { none, changeAndCollect, putInPool }
+
+WishPoolButton wishPoolButtonOf({
+  required bool onTree,
+  required bool hasManualTask,
+  required bool tasksAllDone,
+}) {
+  if (!onTree) return WishPoolButton.none;
+  if (hasManualTask && tasksAllDone) return WishPoolButton.putInPool;
+  return WishPoolButton.changeAndCollect;
+}
+
+/// 树上蛋形态（R7-P0-02，单一派生判据，face × 任务完成正交）。
+///
+/// - face != hasWays（hanging / parentResponded：无任务 / 家长未布置办法）⇒ wish（逐字节不变）；
+/// - face == hasWays && !tasksAllDone ⇒ growing（现状）；
+/// - face == hasWays && tasksAllDone ⇒ done（新增 eggDone）。
+enum WishTreeEgg { wish, growing, done }
+
+WishTreeEgg wishTreeEggOf({
+  required WishTreeFace face,
+  required bool tasksAllDone,
+}) {
+  if (face == WishTreeFace.hasWays && tasksAllDone) return WishTreeEgg.done;
+  if (face == WishTreeFace.hasWays) return WishTreeEgg.growing;
+  return WishTreeEgg.wish;
+}
+
+/// 蛋 → asset 映射留在展示层（复用 L7 `WishTreeArt`，不加图片资源）。
+String wishTreeEggAssetOf(WishTreeEgg egg) => switch (egg) {
+      WishTreeEgg.wish => WishTreeArt.eggWish,
+      WishTreeEgg.growing => WishTreeArt.eggGrowing,
+      WishTreeEgg.done => WishTreeArt.eggDone,
+    };
 
 /// 详情页主体（在浮层 scope 内构建，文案由页面取好经 [t] 传入）。
 ///
@@ -833,7 +949,9 @@ class WishDetailBody extends ConsumerWidget {
     required this.onCollect,
     required this.onChange,
     required this.onSelfFulfill,
+    required this.onDidIt,
     required this.onRealized,
+    this.onPutInPool,
   });
 
   final Wish wish;
@@ -845,6 +963,15 @@ class WishDetailBody extends ConsumerWidget {
   /// 领域层自助达成（页面级 service 调用；只有二次确认通过才会触发）。
   final Future<void> Function() onSelfFulfill;
 
+  /// R7-P0-01：显式「放进愿望池」领域薄入口（页面级 service 调用；
+  /// 由 WishCardDetail 的二次确认把住，取消不触发）。可空：非 putInPool 态不传。
+  final Future<void> Function()? onPutInPool;
+
+  /// R6-P0-02③：手动愿望任务「我做到了」→ `checkIn` 落 pending。
+  ///
+  /// 与 [onSelfFulfill] 是两条不同行为路径，不得互换。
+  final Future<void> Function(Task task) onDidIt;
+
   /// 落库成功后关闭详情浮层，让孩子看到愿望已移入愿望池。
   final VoidCallback onRealized;
 
@@ -855,18 +982,40 @@ class WishDetailBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // R6-P0-04：收藏箱里的愿望，其关联任务在详情也一并隐藏（派生，零写入）。
     final List<Task> tasks =
-        ref.watch(wishTasksFamilyProvider(wish.id)).value ?? <Task>[];
+        (ref.watch(wishTasksFamilyProvider(wish.id)).value ?? <Task>[])
+            .where(
+              (Task task) => isWishTaskVisible(
+                task: task,
+                wishById: <String, Wish>{wish.id: wish},
+              ),
+            )
+            .toList();
+    final List<CheckIn> checkIns =
+        ref.watch(wishTaskCheckInsFamilyProvider(wish.id)).value ?? <CheckIn>[];
     // v0.3.0：三态唯一判据（与树上卡片同源，禁止本处另写条件）。
     final WishTreeFace face =
         wishTreeFaceOf(wish: wish, wayCount: tasks.length);
+    // R7-P0-01：onTree 判据一处算出，wishRealizeEntryOf 与 wishPoolButtonOf 共用。
+    final bool onTree = wish.releasedAt == null && !wish.isTerminal;
     final WishRealizeEntry entry = wishRealizeEntryOf(
-      onTree: wish.releasedAt == null && !wish.isTerminal,
+      onTree: onTree,
       tasks: tasks,
     );
     final bool useManualTask = entry == WishRealizeEntry.firstManualTask;
-    final int firstManualIndex =
-        tasks.indexWhere((Task task) => !task.requiresFocus);
+    // R7-P0-01①：任务全完成判据复用唯一纯函数，手动任务型才显进池按钮。
+    final bool tasksAllDone = wishTasksAllDone(
+      tasks: tasks,
+      checkIns: checkIns,
+      now: now,
+    );
+    final bool hasManualTask = tasks.any((Task task) => !task.requiresFocus);
+    final WishPoolButton poolButton = wishPoolButtonOf(
+      onTree: onTree,
+      hasManualTask: hasManualTask,
+      tasksAllDone: tasksAllDone,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -878,6 +1027,15 @@ class WishDetailBody extends ConsumerWidget {
           taskCount: tasks.length,
           face: face,
           canSelfFulfill: entry == WishRealizeEntry.wishCard,
+          // R7-P0-01①：putInPool 态下发单按钮开关 + 文案 + 落库回调。
+          canPutInPool: poolButton == WishPoolButton.putInPool,
+          putInPoolLabel: t.wishDetailPutInPool,
+          onPutInPool: poolButton == WishPoolButton.putInPool
+              ? () async {
+                  await onPutInPool?.call();
+                  onRealized();
+                }
+              : null,
           confirmTitle: t.wishRealizedCongrats,
           confirmLabel: t.wishDetailRealized,
           cancelLabel: t.shared_cancel,
@@ -891,22 +1049,37 @@ class WishDetailBody extends ConsumerWidget {
           // 🔴 玄参 iPad13 反馈：「小办法 N 个」列表标题已删除，
           // 办法证据直接由下面的 WishTaskCard 承载。
           const SizedBox(height: 8),
-          for (int taskIndex = 0; taskIndex < tasks.length; taskIndex++)
+          for (final Task task in tasks)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: WishTaskCard(
-                task: tasks[taskIndex],
+                task: task,
                 wishTitle: wish.text,
                 focusActionLabel: t.wishTaskGoFocus,
-                didItLabel: t.wishDetailRealized,
-                confirmTitle: t.wishRealizedCongrats,
+                // R6-P0-02①：有任务愿望的按钮文案 = 「我做到了」，复用既有 key。
+                didItLabel: t.wishTaskDidIt,
+                // R6-P0-02②/③：确认卡改为「提交后等家长确认…」，
+                // 不再预告「愿望实现」（那时还没经家长核销）。
+                confirmTitle: task.requiresFocus
+                    ? t.wishRealizedCongrats
+                    : t.wishTaskSubmitConfirm,
                 startFocusLabel: t.wishTaskGoFocus,
                 cancelLabel: t.shared_cancel,
                 doneLabel: t.wishTaskDone,
                 pendingLabel: t.wishTaskPending,
-                showDidIt: useManualTask && taskIndex == firstManualIndex,
-                onDidIt: useManualTask && taskIndex == firstManualIndex
-                    ? () => _realizeAndClose()
+                // 每条手动任务都有提交入口（门控要求全部任务 verified）；
+                // 「唯一入口」由 wishRealizeEntryOf 在愿望级把住，不再有
+                // 任何「直接进池」按钮与这些提交按钮并存。
+                showDidIt: useManualTask && !task.requiresFocus,
+                // R6-P0-02④：pending / done 由打卡流水派生，卡片显示只读胶囊。
+                done: wishTaskStageOf(
+                        task: task, checkIns: checkIns, now: now) ==
+                    WishTaskStage.done,
+                pending: wishTaskStageOf(
+                        task: task, checkIns: checkIns, now: now) ==
+                    WishTaskStage.awaitingVerify,
+                onDidIt: useManualTask && !task.requiresFocus
+                    ? () => onDidIt(task)
                     : null,
               ),
             ),

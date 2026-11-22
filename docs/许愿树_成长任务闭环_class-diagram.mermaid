@@ -1,0 +1,145 @@
+classDiagram
+    %% ══════════════ 领域实体（既有，22 列不变，6 态不变）══════════════
+    class Wish {
+        +String id
+        +WishStatus status
+        +String? fulfillSource
+        +int treeSlot
+        +DateTime? releasedAt
+        +DateTime? fulfilledAt
+        +int targetValue
+        +int progressValue
+        +bool isTerminal
+    }
+    class Task {
+        +String id
+        +String? wishId
+        +bool requiresFocus
+        +String? repeatRule
+        +String name
+    }
+    class CheckIn {
+        +String id
+        +String taskId
+        +CheckInStatus status
+        +DateTime completedAt
+    }
+    class WishStatus {
+        <<enumeration>>
+        pending_0
+        tagged_1
+        committed_2
+        fulfilled_3
+        replaced_4
+        abandoned_5
+    }
+    class CheckInStatus {
+        <<enumeration>>
+        pending
+        verified
+        rejected
+    }
+    class WishTaskStage {
+        <<enumeration>>
+        awaitingVerify
+        done
+        pending
+        notScheduled
+    }
+
+    %% ══════════════ 新增纯函数（本次唯一新增逻辑）══════════════
+    class WishProgressPure {
+        <<pure · wish_progress.dart>>
+        +wishTaskStageOf(Task task, List~CheckIn~ checkIns, DateTime now) WishTaskStage
+        +wishTasksAllDone(List~Task~ tasks, List~CheckIn~ checkIns, DateTime now) bool  «NEW»
+        +fruitStageOf(int targetValue, int progressValue) WishFruitStage
+    }
+    class VisibilityPure {
+        <<pure · wish_progress.dart>>
+        +isWishTaskVisible(Task task, Map~String,Wish~ wishById) bool  «NEW»
+    }
+
+    %% ══════════════ 领域服务（既有，改守卫）══════════════
+    class WishOrchestrationService {
+        -WishRepository _wishes
+        -WishTaskRepository _wishTasks
+        -_complete(Wish wish, String source, DateTime now) Wish  «既有唯一收口»
+        -_tryComplete(Wish wish, String source, DateTime now) Future~Wish~  «NEW 门控守卫»
+        +setGoal(...) Future~Wish~  «调用点:362»
+        +fulfill(...) Future~Wish~  «调用点:400»
+        +selfFulfill(...) Future~Wish~  «调用点:425»
+        +registerCheckIn(...) Future~Wish~  «调用点:634»
+        +advanceProgress(...) Future~Wish~  «调用点:666»
+        +undoFulfill(...) Future~Wish~  «反向边·原样复用»
+        +collectToBox(...) Future~Wish~
+        +restoreFromBox(...) Future~Wish~
+        +effectiveStatusOf(...) Future~WishTaskStage~
+    }
+    class TaskCheckInService {
+        -WishTaskReadBridge? _wishTasks
+        -_isWishLinkedTask(Task task) bool  «既有经济隔离唯一 helper»
+        +checkIn(Task task, DateTime now) Future~TaskCheckInOutcome~  «按钮改走此处»
+        +verifyCheckIn(String id, DateTime now) Future~TaskCheckInOutcome~
+        +pendingCheckIns() Future~List~PendingCheckIn~~
+        +settleWishFocusTask(...) Future~TaskCheckInOutcome~
+        -_settleWishLinkedFocus(...) Future~TaskCheckInOutcome~  «:759 调 writer»
+    }
+
+    %% ══════════════ 仓储（既有，data 层加门控）══════════════
+    class WishTaskRepository {
+        <<interface>>
+        +tasksOfWish(String wishId) Future~List~Task~~
+        +checkInsOfTaskIds(List~String~ taskIds) Future~List~CheckIn~~
+    }
+    class WishFocusSettlementWriter {
+        <<interface>>
+        +settleWishFocus(String wishId, CheckIn checkIn, int creditedMinutes, DateTime now) Future~bool~
+    }
+    class TaskLocalRepository {
+        +settleWishFocus(...) Future~bool~  «:174 事务内直接写 fulfilled · 加门控»
+    }
+
+    %% ══════════════ 展示层（既有，改接线）══════════════
+    class WishTreePage {
+        +wishRealizeEntryOf(bool onTree, List~Task~ tasks) WishRealizeEntry  «:812 唯一入口判据·扩展»
+        -_didIt(Task task) Future~void~  «NEW checkIn 提交»
+    }
+    class WishTaskCard {
+        +didItLabel  «改 wishTaskDidIt»
+        +pendingLabel  «wishTaskPending»
+        +showDidIt bool
+        +onDidIt VoidCallback
+    }
+    class ParentTodayPage {
+        +pendingCheckIns  «愿望任务卡变体 + 买礼物提示»
+    }
+    class ChildTaskPage {
+        +「许愿」栏  «加 isWishTaskVisible 过滤»
+    }
+
+    %% ══════════════ 关系 ══════════════
+    Wish "1" --> "*" Task : wishId 关联
+    Task "1" --> "*" CheckIn : taskId
+    Wish --> WishStatus : status
+    CheckIn --> CheckInStatus : status
+    WishProgressPure ..> Task : 读取
+    WishProgressPure ..> CheckIn : 读取
+    WishProgressPure ..> WishTaskStage : 产出
+    VisibilityPure ..> Task : 读取
+    VisibilityPure ..> Wish : 读 releasedAt
+    WishOrchestrationService --> WishTaskRepository : tasksOfWish/checkIns
+    WishOrchestrationService ..> WishProgressPure : _tryComplete 调 wishTasksAllDone
+    WishOrchestrationService --> WishTaskCheckInBridge : registerCheckIn 回调
+    TaskCheckInService --> WishFocusSettlementWriter : :759 事务结算
+    TaskLocalRepository ..|> WishFocusSettlementWriter
+    TaskLocalRepository ..> WishProgressPure : 事务内调 wishTasksAllDone «关键:第六条路径»
+    WishTreePage --> WishTaskCard : 装配
+    WishTreePage ..> VisibilityPure : 详情任务列表过滤
+    ChildTaskPage ..> VisibilityPure : 许愿栏过滤
+    ParentTodayPage ..> VisibilityPure : 待确认愿望段过滤
+    TaskCheckInService ..> WishOrchestrationService : _onWishCheckInVerified 回调
+
+    class WishTaskCheckInBridge {
+        <<DI 接线·providers.dart>>
+        +onWishCheckInVerified(task, checkIn, now) Future
+    }

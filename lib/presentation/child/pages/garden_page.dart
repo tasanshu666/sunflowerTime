@@ -3404,6 +3404,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
       child: Builder(
         builder: (BuildContext context) {
           _l10n = AppLocalizations.of(context);
+          // R7-P0-03 图2：手机单侧紧凑系数读一次，仅传给顶部两枚入口
+          // （天气徽标 + 许愿树入口）；浇水壶 / 一键 FAB 不传、保持不动。
+          // iPad 恒 1.0 ⇒ 平铺几何 ×1.0 逐字节不变。
+          final double compact = compactScaleOf(context);
         // 经济修订号监听已上移至 build() 顶层（Riverpod 断言要求，见上方 ref.listen）。
 
         // 花园氛围音可见性（玄参 2026-09-28；F71 2026-10-05 修订；F138 2026-10-19 再修订）。
@@ -3663,12 +3667,15 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: <Widget>[
                         // ① 天气：图标 + 下方天气名（整簇一个热区 ⇒ 点文字＝点图标）。
+                        // R7-P0-03：仅此枚 + 下方许愿树枚按手机系数等比缩（iPad ×1.0）。
                         WishTopEntryCluster(
+                          scale: compact,
                           icon: GardenWeatherBadge(
                             kind: todayWeather.kind,
                             banner: banner,
                             // 第七批：已购棚 ⇒ 状态灯左侧并排盾牌位图。
                             shelterBought: _shelterBoughtToday,
+                            scale: compact,
                           ),
                           label: weatherNameOf(todayWeather.kind, _t),
                           labelKey: kGardenWeatherLabelKey,
@@ -3681,8 +3688,10 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
                         // ② 许愿树：图标 + 下方「许愿树」。
                         //    花园页**唯一**的许愿树入口（左下角旧热点已删除）。
                         WishTopEntryCluster(
+                          scale: compact,
                           icon: WishTreeWeatherEntry(
                             label: _t.gardenWishTreeEntryLabel,
+                            scale: compact,
                           ),
                           label: _t.gardenWishTreeEntryLabel,
                           labelKey: kWishTreeWeatherEntryLabelKey,

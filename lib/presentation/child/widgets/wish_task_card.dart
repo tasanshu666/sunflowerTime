@@ -6,7 +6,10 @@
 ///    （F177 / C105 硬契约），确认后才
 ///    `context.go('/focus?minutes=...&dnd=1&wishTask=<tasks.id>')`；取消即止。
 ///  - **手动型**：「我做到了」方盒——同样先弹确认（防误触），确认后回调 [onDidIt]
-///    交给领域层核销（本 widget 不自行落库）。
+///    交给领域层核销（本 widget 不自行落库）。R6-P0-02：愿望任务的这一枚
+///    按钮走 `TaskCheckInService.checkIn` 落 pending，不再是 `selfFulfill`
+///    即时进池；文案由调用方传 `wishTaskDidIt`，确认卡正文传
+///    `wishTaskSubmitConfirm`，提交后以 `wishTaskPending` 胶囊呈现只读态。
 ///  - 🌟 **愿望任务徽标 + 归属愿望短名**（A24.6 ①）：判定 = `task.wishId != null`。
 ///
 /// 本 widget 不读 provider：文案由调用方在页级 scope 内取好经参数传入（弹窗 builder

@@ -33,6 +33,7 @@ class WishTopEntryCluster extends StatelessWidget {
     required this.labelKey,
     this.onTap,
     this.semanticLabel,
+    this.scale = 1.0,
   });
 
   /// 图标本体（尺寸由调用方决定，建议 ≥44×44 以满足触控热区）。
@@ -50,61 +51,57 @@ class WishTopEntryCluster extends StatelessWidget {
   /// 无障碍标签（默认退化用 [label]）。
   final String? semanticLabel;
 
+  /// R7-P0-03 手机单侧缩放系数（页面传 `compactScaleOf`）：手机 0.8 / iPad 1.0。
+  /// 文字框宽 `× uiScaleOf × scale`（FittedBox 令文字等比缩），默认 1.0 零变化。
+  final double scale;
+
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: onTap != null,
-      label: semanticLabel ?? label,
-      child: InkWell(
-        // 图标与文字同属一个热区：点文字等同点图标（R3-P0-11⑤）。
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        // 🔴 本簇**不加任何外边距**：整簇由外层 `Positioned(right: 12, top: 12)`
-        // 定位，簇内再补水平内边距会把图标的右缘推离 `right: 12` 锚点
-        // （历史基线断言「状态灯 right == 屏宽 − 12」会整体偏移 2dp）。
-        // 相邻簇的间距由外层 `SizedBox(height: kGardenTopEntryGap)` 负责，
-        // 故簇自身贴边不会导致热区互相覆盖。
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          // 🔴 对齐锚（C129 修订，玄参 iPad13 反馈「天气文字没在天气图标正下方
-          //    ——不要把保护罩算进去」）：改为 **CrossAxisAlignment.end**，配合
-          //    文字框定宽 = 图标本体宽（见下），使「文字框右缘 == 簇右缘 ==
-          //    图标本体右缘」⇒ 文字中心 x 恒等于**图标本体**中心 x。
-          //    为什么 center 不行：天气徽章 `GardenWeatherBadge` 在已购保护罩时
-          //    是 Row[罩 72 + gap 7 + 图标 56]（宽 135×s），center 会把文字对到
-          //    整个 Row 的中心（左偏 (72+7)/2×s）；end + 定宽框则天然对齐图标
-          //    本体、罩显隐 / 语言切换零分支。两处入口图标本体恒为
-          //    `kWishTreeWeatherEntrySize × s`（天气框与许愿树框同 56，PRD 口径）。
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: <Widget>[
-            icon,
-            // 🔴 图标与其文字的间距走常量单点（R3-P0-11②：4dp）。
-            const SizedBox(height: kGardenTopLabelGap),
-            // 单行、超长省略：不换行 ⇒ 文字高度恒定，不会把下方簇推走。
-            // 🔴 C129：框宽从「maxWidth ≤ 图标宽」收紧为**定宽 = 图标本体宽**
-            //    `kWishTreeWeatherEntrySize × uiScaleOf(context)` —— 定宽 +
-            //    crossAxis.end ⇒ 文字框中心 = 图标本体中心（保护罩不参与）。
-            //    内层 `FittedBox(scaleDown)` 沿用 C128：英文长词整串缩放
-            //    （绝不 ellipsis 截半）、中文短词直通（不放大不缩小）。
-            SizedBox(
-              width: kWishTreeWeatherEntrySize * uiScaleOf(context),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  label,
-                  key: labelKey,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF5D4A2A),
+    return ConstrainedBox(
+      // R7-P0-03⑤：视觉可缩至 ≈44.8dp，但点击热区恒 ≥48dp（Material 底线）。
+      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      child: Semantics(
+        button: onTap != null,
+        label: semanticLabel ?? label,
+        child: InkWell(
+          // 图标与文字同属一个热区：点文字等同点图标（R3-P0-11⑤）。
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          // 🔴 本簇**不加任何外边距**：整簇由外层 `Positioned(right: 12, top: 12)`
+          // 定位，簇内再补水平内边距会把图标的右缘推离 `right: 12` 锚点
+          // （历史基线断言「状态灯 right == 屏宽 − 12」会整体偏移 2dp）。
+          // 相邻簇的间距由外层 `SizedBox(height: kGardenTopEntryGap)` 负责，
+          // 故簇自身贴边不会导致热区互相覆盖。
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            // 🔴 对齐锚（C129 修订）：CrossAxisAlignment.end + 文字框定宽 = 图标本体宽，
+            // 使「文字框右缘 == 簇右缘 == 图标本体右缘」⇒ 文字中心 x 恒等于图标本体中心。
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              icon,
+              // 🔴 图标与其文字的间距走常量单点（R3-P0-11②：4dp，不随 scale 变）。
+              const SizedBox(height: kGardenTopLabelGap),
+              // 单行、超长省略：定宽 = 图标本体宽 × scale，FittedBox(scaleDown) 等比缩字。
+              SizedBox(
+                width: kWishTreeWeatherEntrySize * uiScaleOf(context) * scale,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    key: labelKey,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF5D4A2A),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

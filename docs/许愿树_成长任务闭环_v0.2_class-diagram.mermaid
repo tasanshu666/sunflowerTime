@@ -1,0 +1,67 @@
+classDiagram
+    class Wish {
+        +String id
+        +WishStatus status
+        +String? fulfillSource
+        +int targetValue
+        +int? treeSlot
+    }
+    class Task {
+        +String id
+        +String? wishId
+        +bool requiresFocus
+    }
+    class CheckIn {
+        +String id
+        +String taskId
+        +CheckInStatus status
+    }
+    class WishProgressPure {
+        <<pure · wish_progress.dart>>
+        +wishTasksAllDone(tasks, checkIns, now) bool  复用
+        +hasGoalTarget(targetValue) bool  复用
+    }
+    class WishFaceState {
+        <<pure · wish_face_state.dart>>
+        +wishTreeFaceOf(wish, wayCount) WishTreeFace  复用·零改
+    }
+    class WishTreePagePure {
+        <<pure · wish_tree_page.dart · NEW>>
+        +wishPoolButtonOf(onTree, hasManualTask, tasksAllDone) WishPoolButton  NEW
+        +wishTreeEggOf(face, tasksAllDone) WishTreeEgg  NEW
+        +wishTreeEggAssetOf(egg) String  NEW
+        +wishRealizeEntryOf(onTree, tasks) WishRealizeEntry  复用
+    }
+    class WishOrchestrationService {
+        -_complete(wish, source, now) Wish  既有唯一收口
+        -_tryComplete(wish, source, now) Future~Wish~  既有门控守卫
+        +putIntoPool(id, now) Future~Wish~  NEW 薄入口 source=Progress
+        +undoFulfill / collectToBox(...)  复用·零改
+    }
+    class WishCardDetail {
+        +bool canPutInPool  NEW 可选参数
+        +VoidCallback? onPutInPool  NEW
+        +String? putInPoolLabel  NEW
+        -_confirmThen(ctx, action)  复用二次确认
+    }
+    class WishTreeScene {
+        +double actionScale  NEW 默认1.0
+        -_buildActionBar(ctx, actionSize)  三按钮共用
+    }
+    class Responsive {
+        <<pure · responsive.dart>>
+        +compactScaleOf(ctx) double  NEW 手机0.8/iPad1.0
+        +isTabletOf / uiScaleOf  复用
+    }
+    class WishTreeArt {
+        <<asset 常量>>
+        +eggWish / eggGrowing / eggDone  复用·零改
+    }
+    WishOrchestrationService ..> WishProgressPure : putIntoPool→_tryComplete 调 wishTasksAllDone
+    WishTreePagePure ..> WishProgressPure : 按钮/蛋判据调 wishTasksAllDone
+    WishTreePagePure ..> WishFaceState : wishTreeEggOf 入参 face
+    WishTreePagePure ..> WishTreeArt : eggAsset 映射
+    WishCardDetail ..> WishTreePagePure : canPutInPool 判据由页面下发
+    WishTreeScene ..> Responsive : actionScale 由页面传 compact
+    Wish "1" --> "*" Task : wishId
+    Task "1" --> "*" CheckIn : taskId

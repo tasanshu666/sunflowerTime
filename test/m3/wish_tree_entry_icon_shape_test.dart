@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sunflower_time/core/constants/prd_params.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_weather_badge.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_tree_weather_entry.dart';
+import 'package:sunflower_time/shared/responsive.dart';
 
 /// 只渲染入口本体，避免花园页其它热区干扰 Finder。
 Widget _entryHarness() {
@@ -132,6 +133,72 @@ void main() {
           BorderRadius.circular(kGardenWeatherBadgeIconContainerRadius);
       expect(_entryMaterial(tester).borderRadius, expected);
       expect(_entryInkWell(tester).borderRadius, expected);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('R7-P0-03 手机单侧缩放：系数单点 + iPad 逐字节不变', () {
+    test('compactScaleFor 真值表：手机 0.8 / iPad 1.0，系数单点常量 = 0.8', () {
+      expect(kPhoneEntryScale, 0.8);
+      expect(compactScaleFor(isTablet: false), closeTo(0.8, 0.001));
+      expect(compactScaleFor(isTablet: true), 1.0,
+          reason: 'iPad 恒 1.0，逐字节不变');
+    });
+
+    testWidgets('手机传 scale=0.8：容器/位图按系数缩，圆角仍固定 12dp',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: WishTreeWeatherEntry(
+          label: '许愿树',
+          scale: compactScaleFor(isTablet: false),
+          onTap: () {},
+        ),
+      ));
+
+      final Image image = tester.widget<Image>(find
+          .descendant(
+            of: find.byKey(kWishTreeWeatherEntryKey),
+            matching: find.byType(Image),
+          )
+          .first);
+      expect(image.width, closeTo(52.0 * 0.8, 0.01));
+      expect(image.height, closeTo(52.0 * 0.8, 0.01));
+      final SizedBox box = _entryBox(tester);
+      expect(box.width, closeTo(56.0 * 0.8, 0.01));
+      expect(box.height, closeTo(56.0 * 0.8, 0.01));
+      // 圆角常量不乘 scale。
+      expect(_entryMaterial(tester).borderRadius,
+          BorderRadius.circular(kGardenWeatherBadgeIconContainerRadius));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('iPad 传 scale=1.0：与不传 scale 逐字节一致（56×1.3 / 52×1.3）',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(834, 1194);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: WishTreeWeatherEntry(
+          label: '许愿树',
+          scale: compactScaleFor(isTablet: true),
+          onTap: () {},
+        ),
+      ));
+
+      final Image image = tester.widget<Image>(find
+          .descendant(
+            of: find.byKey(kWishTreeWeatherEntryKey),
+            matching: find.byType(Image),
+          )
+          .first);
+      expect(image.width, closeTo(52.0 * 1.3, 0.01));
+      expect(image.height, closeTo(52.0 * 1.3, 0.01));
+      final SizedBox box = _entryBox(tester);
+      expect(box.width, closeTo(56.0 * 1.3, 0.01));
+      expect(box.height, closeTo(56.0 * 1.3, 0.01));
       expect(tester.takeException(), isNull);
     });
   });

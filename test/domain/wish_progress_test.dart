@@ -300,6 +300,176 @@ void main() {
     });
   });
 
+  group('R6-P0-01 门控单一判据 wishTasksAllDone', () {
+    Task gatedTask({
+      String id = 'gw',
+      String? repeatRule,
+    }) =>
+        _task(id: id, requiresFocus: false, repeatRule: repeatRule)
+            .copyWith(wishId: 'wish-1');
+
+    test('无任务愿望 ⇒ true（逐字节不变，不受门控）', () {
+      expect(
+        wishTasksAllDone(
+          tasks: const <Task>[],
+          checkIns: const <CheckIn>[],
+          now: now,
+        ),
+        isTrue,
+      );
+    });
+
+    test('全部任务 verified（once）⇒ true', () {
+      expect(
+        wishTasksAllDone(
+          tasks: <Task>[gatedTask()],
+          checkIns: <CheckIn>[
+            _checkIn(id: 'gc1', taskId: 'gw', completedAt: now),
+          ],
+          now: now,
+        ),
+        isTrue,
+      );
+    });
+
+    test('存在未 verified 任务 ⇒ false（留树不进池）', () {
+      expect(
+        wishTasksAllDone(
+          tasks: <Task>[gatedTask(id: 'gw1'), gatedTask(id: 'gw2')],
+          checkIns: <CheckIn>[
+            _checkIn(id: 'gc1', taskId: 'gw1', completedAt: now),
+          ],
+          now: now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('pending 打卡优先 ⇒ false（等家长确认不算完成）', () {
+      expect(
+        wishTasksAllDone(
+          tasks: <Task>[gatedTask()],
+          checkIns: <CheckIn>[
+            _checkIn(
+              id: 'gc1',
+              taskId: 'gw',
+              status: CheckInStatus.pending,
+              completedAt: now,
+            ),
+          ],
+          now: now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('daily 任务跨日 ⇒ false（当日无 verified 打卡）', () {
+      expect(
+        wishTasksAllDone(
+          tasks: <Task>[gatedTask(repeatRule: 'daily')],
+          checkIns: <CheckIn>[
+            _checkIn(
+              id: 'gc1',
+              taskId: 'gw',
+              completedAt: DateTime(2026, 11, 16, 9),
+            ),
+          ],
+          now: now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('被删除的任务不在 tasks 中 ⇒ 不计入判据', () {
+      // 只剩一条已完成任务，另一条物理删除后不出现在 tasks 参数里。
+      expect(
+        wishTasksAllDone(
+          tasks: <Task>[gatedTask(id: 'alive')],
+          checkIns: <CheckIn>[
+            _checkIn(id: 'gc1', taskId: 'alive', completedAt: now),
+            _checkIn(id: 'gc2', taskId: 'deleted', completedAt: now),
+          ],
+          now: now,
+        ),
+        isTrue,
+      );
+    });
+  });
+
+  group('R6-P0-04 收藏箱派生显隐 isWishTaskVisible', () {
+    Wish parentWish({DateTime? releasedAt}) => Wish(
+          id: 'wish-1',
+          childId: 'c',
+          text: 'wish',
+          createdAt: now,
+          releasedAt: releasedAt,
+        );
+
+    test('普通成长任务（wishId==null）恒可见', () {
+      expect(
+        isWishTaskVisible(
+          task: _task(id: 'normal'),
+          wishById: <String, Wish>{
+            'wish-1': parentWish(releasedAt: now),
+          },
+        ),
+        isTrue,
+      );
+    });
+
+    test('父愿望未进箱 ⇒ 愿望任务可见', () {
+      expect(
+        isWishTaskVisible(
+          task: _task().copyWith(wishId: 'wish-1'),
+          wishById: <String, Wish>{'wish-1': parentWish()},
+        ),
+        isTrue,
+      );
+    });
+
+    test('父愿望进箱 ⇒ 愿望任务隐藏（零任务表写入）', () {
+      expect(
+        isWishTaskVisible(
+          task: _task().copyWith(wishId: 'wish-1'),
+          wishById: <String, Wish>{
+            'wish-1': parentWish(releasedAt: now),
+          },
+        ),
+        isFalse,
+      );
+    });
+
+    test('拿出收藏箱（releasedAt=null）⇒ 自动重现', () {
+      final Wish boxed = parentWish(releasedAt: now);
+      final Task task = _task().copyWith(wishId: 'wish-1');
+      expect(
+        isWishTaskVisible(
+          task: task,
+          wishById: <String, Wish>{'wish-1': boxed},
+        ),
+        isFalse,
+      );
+      final Wish restored = boxed.copyWith(releasedAt: Wish.kClear);
+      expect(
+        isWishTaskVisible(
+          task: task,
+          wishById: <String, Wish>{'wish-1': restored},
+        ),
+        isTrue,
+      );
+    });
+
+    test('父愿望查不到 ⇒ 安全默认可见', () {
+      expect(
+        isWishTaskVisible(
+          task: _task().copyWith(wishId: 'wish-1'),
+          wishById: const <String, Wish>{},
+        ),
+        isTrue,
+      );
+    });
+  });
+
   group('A20.1 落列 == 实时聚合（两条独立用例）', () {
     test('① focusMinutes: floor/封顶求和 == progress_value（18）', () {
       final List<Task> tasks = <Task>[

@@ -31,6 +31,19 @@ bool isTabletShortestSide(double shortestSide) =>
 bool isTabletOf(BuildContext context) =>
     isTabletShortestSide(MediaQuery.sizeOf(context).shortestSide);
 
+/// 手机单侧紧凑缩放系数（R7-P0-03）：手机 = [kPhoneEntryScale]，iPad 恒 1.0。
+///
+/// 纯函数（[isTablet] 为入参），可被无宿主单测直接覆盖真值表。iPad 恒 1.0 保证
+/// 所有乘该系数的尺寸在平板上 `× 1.0` 逐位相等（逐字节不变）。
+double compactScaleFor({required bool isTablet}) =>
+    isTablet ? 1.0 : kPhoneEntryScale;
+
+/// 从 `BuildContext` 派生手机紧凑缩放系数（与 [isTabletOf] 同源判定）。
+///
+/// 只用于图2 顶部两枚入口 + 图3 许愿树底部三圆形按钮；浇水壶不调用、保持不动。
+double compactScaleOf(BuildContext context) =>
+    compactScaleFor(isTablet: isTabletOf(context));
+
 /// 平板 UI 放大倍率（F129：**随屏短边线性放大**，取代原固定 1.3）。
 ///
 /// 锚点 = [kTabletUiScaleBaseShortestSide]（834 → 1.3，iPad 11″ 零回归）；

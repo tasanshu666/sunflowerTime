@@ -883,8 +883,28 @@ class TaskCheckInService {
     if (wishTask) {
       // 愿望任务：核销只推进愿望进度（mode 1 = +1 / mode 0 = floor 分钟）；
       // 事件由编排服务的 registerCheckIn 发出（taskVerified）。
+      //
+      // 🔴 R6-P0-03②：CAS 只改库里的行，`c` 仍是抢占前读到的 pending 对象。
+      // 直接把 `c` 回调给编排服务会让 progressDeltaOf 因 status != verified
+      // 返回 0 ⇒ 家长确认后愿望永远不推进 / 不成真。这里显式构造核销后的
+      // 快照再回调（零新增接口、零 schema 变更），并让 registerCheckIn 的
+      // taskVerified 埋点不再被误判成 taskRejected。
+      final CheckIn resolved = CheckIn(
+        id: c.id,
+        taskId: c.taskId,
+        date: c.date,
+        completedAt: c.completedAt,
+        sessionId: c.sessionId,
+        isPerfectDay: c.isPerfectDay,
+        status: CheckInStatus.verified,
+        sunlightGross: c.sunlightGross,
+        sunlightGranted: rewardCap.grant,
+        resolvedAt: now,
+        parentNote: c.parentNote,
+        actualFocusMin: c.actualFocusMin,
+      );
       try {
-        await _onWishCheckInVerified?.call(linked, c, now);
+        await _onWishCheckInVerified?.call(linked, resolved, now);
       } catch (_) {
         // 进度失败不回滚已完成的核销（CAS 已落库），异常静默降级。
       }

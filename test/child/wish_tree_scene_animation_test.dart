@@ -13,7 +13,8 @@ import 'package:sunflower_time/presentation/child/widgets/wish_tree_scene.dart';
 
 const Key _treeKey = Key('wish_scene_tree');
 
-Widget _host(Size size, {double dpr = 1}) => MaterialApp(
+Widget _host(Size size, {double dpr = 1, double actionScale = 1.0}) =>
+    MaterialApp(
       home: Scaffold(
         body: MediaQuery(
           data: MediaQueryData(size: size, devicePixelRatio: dpr),
@@ -21,6 +22,7 @@ Widget _host(Size size, {double dpr = 1}) => MaterialApp(
             width: size.width,
             height: size.height,
             child: WishTreeScene(
+              actionScale: actionScale,
               eggs: <WishEgg>[
                 WishEgg(
                   asset: WishTreeArt.eggWish,
@@ -181,6 +183,40 @@ void main() {
         closeTo(503.2 / WishTreeSceneLayout.treeWidthHeightRatio, 1e-6),
         reason: '高度由封顶宽度反推',
       );
+    });
+  });
+
+  group('R7-P0-03 图3 底部三圆形按钮单侧缩放', () {
+    /// 读收藏箱圆形按钮 Container 的边长按场景宽 390 计算：
+    /// raw = 390×0.22 = 85.8 → clamp(84,92)=85.8 → ×actionScale。
+    double boxButtonSize(WidgetTester tester) {
+      final Container c = tester.widget<Container>(find
+          .descendant(
+            of: find.byKey(const Key('wish_scene_box_button')),
+            matching: find.byType(Container),
+          )
+          .first);
+      return c.constraints!.maxWidth;
+    }
+
+    testWidgets('手机 actionScale=0.8：三按钮按系数缩，85.8×0.8≈68.6dp ≥48',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(_host(
+        const Size(390, 844),
+        actionScale: 0.8,
+      ));
+      expect(boxButtonSize(tester), closeTo(85.8 * 0.8, 0.01),
+          reason: '先 clamp(84,92)=85.8 再 ×0.8');
+      expect(85.8 * 0.8, greaterThanOrEqualTo(48), reason: '热区底线');
+    });
+
+    testWidgets('iPad actionScale=1.0：按钮 85.8 逐字节不变（默认参数同）',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(_host(
+        const Size(390, 844),
+        actionScale: 1.0,
+      ));
+      expect(boxButtonSize(tester), closeTo(85.8, 0.01));
     });
   });
 }

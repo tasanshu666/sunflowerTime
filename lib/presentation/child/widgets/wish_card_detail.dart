@@ -9,6 +9,10 @@
 ///    `releasedAt == null && !isTerminal && 详情里没有其它达成入口` 传入
 ///    [canSelfFulfill]。不满足时不渲染；点击**先弹二次确认**，
 ///    取消不落库（[onSelfFulfill] 只在确认后触发）。
+///    R6-P0-02（Q2）：本按钮只服务**无成长任务**的愿望，仍走 v0.5 自助实现；
+///    有任务的愿望由 `wishRealizeEntryOf` 关掉本入口，改走任务卡「我做到了」
+///    提交链。确认卡标题 / 正文 / 按钮文案全部由调用方经参数下发，
+///    本组件不写死任何一句，故两种语义共用同一实现。
 ///
 /// ## v0.3.0 三态（R3-P0-05 / D5）
 /// 判据唯一来自 [WishCardDetail.face]（领域纯函数 `wishTreeFaceOf` 的结果）：
@@ -51,6 +55,9 @@ class WishCardDetail extends StatelessWidget {
     this.onCollectToBox,
     this.onChangeWish,
     this.onSelfFulfill,
+    this.canPutInPool = false,
+    this.putInPoolLabel,
+    this.onPutInPool,
   });
 
   final Wish wish;
@@ -80,6 +87,19 @@ class WishCardDetail extends StatelessWidget {
   final VoidCallback? onChangeWish;
   final VoidCallback? onSelfFulfill;
 
+  /// R7-P0-01：显式「放进愿望池」单按钮开关（由页面 `wishPoolButtonOf` 下发）。
+  ///
+  /// 为 true 时：只渲染单个进池按钮，「换个愿望」「放进收藏箱」两次级按钮隐藏；
+  /// 「实现了」主按钮也隐藏（有手动任务的愿望不走自助达成）。默认 false 保证
+  /// 其它宿主逐字节不变。
+  final bool canPutInPool;
+
+  /// 进池按钮文案（页面 scope 内取好，通常为 `wishDetailPutInPool`）。
+  final String? putInPoolLabel;
+
+  /// 进池落库回调（由 WishCardDetail 的 `_confirmThen` 把住二次确认，取消不触发）。
+  final VoidCallback? onPutInPool;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -107,15 +127,22 @@ class WishCardDetail extends StatelessWidget {
           // ── 三态主体（S3 只显单句成长引导 + 进度条；S1 只显轻提示） ────────
           ..._faceBody(),
           const SizedBox(height: 16),
-          // ── 主按钮「实现了」（愿望级；唯一入口由调用方保证） ────────────────
-          if (canSelfFulfill)
+          // ── R7-P0-01 两态互斥 ───────────────────────────────────────────────
+          // canPutInPool（手动任务全 verified）⇒ 只显单个「放进愿望池」按钮，
+          // 「实现了」主按钮 + 两次级按钮**同时隐藏**（撤销/其它态由调用方复用既有）。
+          if (canPutInPool) ...<Widget>[
             FilledButton.icon(
-              key: const Key('wish_detail_self_fulfill'),
-              onPressed: onSelfFulfill == null
+              key: const Key('wish_detail_put_in_pool'),
+              onPressed: onPutInPool == null
                   ? null
-                  : () => _confirmThen(context, onSelfFulfill!),
+                  : () => _confirmThen(
+                        context,
+                        onPutInPool!,
+                        confirmLabelOverride:
+                            putInPoolLabel ?? t.wishDetailPutInPool,
+                      ),
               icon: const Icon(Icons.emoji_events_outlined),
-              label: Text(t.wishDetailRealized),
+              label: Text(putInPoolLabel ?? t.wishDetailPutInPool),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 textStyle: const TextStyle(
@@ -124,27 +151,46 @@ class WishCardDetail extends StatelessWidget {
                 ),
               ),
             ),
-          if (canSelfFulfill) const SizedBox(height: 10),
-          // ── 两个次级按钮 ────────────────────────────────────────────────────
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: OutlinedButton(
-                  key: const Key('wish_detail_change'),
-                  onPressed: onChangeWish,
-                  child: Text(t.wishDetailChangeWishShort),
+          ] else ...<Widget>[
+            // ── 主按钮「实现了」（愿望级；唯一入口由调用方保证） ──────────────
+            if (canSelfFulfill)
+              FilledButton.icon(
+                key: const Key('wish_detail_self_fulfill'),
+                onPressed: onSelfFulfill == null
+                    ? null
+                    : () => _confirmThen(context, onSelfFulfill!),
+                icon: const Icon(Icons.emoji_events_outlined),
+                label: Text(t.wishDetailRealized),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton(
-                  key: const Key('wish_detail_collect'),
-                  onPressed: onCollectToBox,
-                  child: Text(t.wishDetailCollectShort),
+            if (canSelfFulfill) const SizedBox(height: 10),
+            // ── 两个次级按钮 ──────────────────────────────────────────────────
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: OutlinedButton(
+                    key: const Key('wish_detail_change'),
+                    onPressed: onChangeWish,
+                    child: Text(t.wishDetailChangeWishShort),
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    key: const Key('wish_detail_collect'),
+                    onPressed: onCollectToBox,
+                    child: Text(t.wishDetailCollectShort),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -205,12 +251,19 @@ class WishCardDetail extends StatelessWidget {
   }
 
   /// 误触保护：先弹确认卡，`ok != true` 绝不落库。
-  Future<void> _confirmThen(BuildContext context, VoidCallback action) async {
+  ///
+  /// [confirmLabelOverride] 仅进池按钮传入（文案用「放进愿望池」）；标题仍复用
+  /// [confirmTitle]（页面已传 `wishRealizedCongrats`，不加新 i18n key）。
+  Future<void> _confirmThen(
+    BuildContext context,
+    VoidCallback action, {
+    String? confirmLabelOverride,
+  }) async {
     final bool? ok = await showChildConfirmCard(
       context: context,
       title: confirmTitle,
       message: confirmMessage,
-      confirmLabel: confirmLabel,
+      confirmLabel: confirmLabelOverride ?? confirmLabel,
       cancelLabel: cancelLabel,
     );
     if (ok != true) return;

@@ -40,6 +40,7 @@ class WishTreeWeatherEntry extends StatelessWidget {
     super.key = kWishTreeWeatherEntryKey,
     required this.label,
     this.onTap,
+    this.scale = 1.0,
   });
 
   /// 入口文案（ARB，调用方取好）。
@@ -51,11 +52,16 @@ class WishTreeWeatherEntry extends StatelessWidget {
   /// 那一个 `InkWell` 统一（点文字等同点图标），本 widget 传 `null` 只做视觉。
   final VoidCallback? onTap;
 
+  /// R7-P0-03 手机单侧缩放系数（页面传 `compactScaleOf`）：手机 0.8 / iPad 1.0。
+  /// `side` 与位图尺寸 `× uiScaleOf × scale`，默认 1.0 保证其它宿主逐字节不变。
+  final double scale;
+
   @override
   Widget build(BuildContext context) {
-    // v0.3.0：与天气徽标同源等比（徽标自身即 `56 * uiScaleOf`）。
-    final double scale = uiScaleOf(context);
-    final double side = kWishTreeWeatherEntrySize * scale;
+    // v0.3.0：与天气徽标同源等比（徽标自身即 `56 * uiScaleOf`）；
+    // R7-P0-03：再乘手机紧凑系数，二者始终同源。
+    final double s = uiScaleOf(context) * scale;
+    final double side = kWishTreeWeatherEntrySize * s;
     // 圆角方形：与天气徽标同半径、同样不乘 scale（对齐两个入口的观感）。
     final BorderRadius radius =
         BorderRadius.circular(kGardenWeatherBadgeIconContainerRadius);
@@ -75,8 +81,8 @@ class WishTreeWeatherEntry extends StatelessWidget {
               // 显式宽高 + contain：loose 约束下不写尺寸会被 2048 源图撑爆。
               child: Image.asset(
                 kWishTreeWeatherEntryIconAsset,
-                width: kWishTreeWeatherEntryIconSize * scale,
-                height: kWishTreeWeatherEntryIconSize * scale,
+                width: kWishTreeWeatherEntryIconSize * s,
+                height: kWishTreeWeatherEntryIconSize * s,
                 fit: BoxFit.contain,
                 // 资产已声明，真机不会走此分支；部分 widget 测试 mock 掉
                 // `flutter/assets` 通道（避免序列帧解码 OOM），空占位兜底，

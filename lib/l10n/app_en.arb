@@ -2933,6 +2933,7 @@
   "wishTreeChangeWish": "Pick a different wish",
   "wishDetailChangeWishShort": "Change wish",
   "wishDetailCollectShort": "Keep in box",
+  "wishDetailPutInPool": "Put into wish pool",
   "wishTreeSelfFulfillConfirm": "Are you sure you did it yourself?",
   "wishTreeBoxFullHint": "The tree is full — fulfill one before taking it back",
   "wishTreeMilestone": "{count} stamps earned",
@@ -3004,6 +3005,13 @@
   "wishTaskDidIt": "I did it",
   "wishTaskDone": "Done",
   "wishTaskPending": "Waiting for approval",
+  "wishTaskSubmitConfirm": "Mom and Dad will confirm it. Your wish comes true once they agree.",
+  "parentWishTaskBuyGift": "Confirming makes the wish come true · Please get for the child: {wishText}",
+  "@parentWishTaskBuyGift": {
+    "placeholders": {
+      "wishText": {"type": "String"}
+    }
+  },
   "wishCategoryOther": "Other",
   "wishCategoryGift": "Gift",
   "wishCategoryExperience": "An experience",

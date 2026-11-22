@@ -21,6 +21,8 @@
 /// （prefs / 库 / 账号服务）与 IAP 适配器（离线假件，不碰真实 StoreKit）。
 library en_switch_guard_test;
 
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -329,6 +331,43 @@ void main() {
     expect(resolved.shared_cancel, 'Cancel');
   });
 
+  testWidgets('③b R6-P1-01 两条新文案 key：en 下解析英文且无 CJK',
+      (WidgetTester tester) async {
+    late final AppLocalizations resolved;
+    await tester.pumpWidget(
+      host(
+        Builder(
+          builder: (BuildContext context) {
+            resolved = AppLocalizations.of(context);
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      resolved.wishTaskSubmitConfirm,
+      'Mom and Dad will confirm it. Your wish comes true once they agree.',
+      reason: '孩子确认卡正文必须来自 ARB en',
+    );
+    expect(
+      resolved.parentWishTaskBuyGift('a toy plane'),
+      'Confirming makes the wish come true · Please get for the child: a toy plane',
+      reason: '家长买礼物提示的占位符必须逐字替换',
+    );
+    for (final String text in <String>[
+      resolved.wishTaskSubmitConfirm,
+      resolved.parentWishTaskBuyGift('a toy plane'),
+    ]) {
+      expect(RegExp(r'[\u4e00-\u9fff]').hasMatch(text), isFalse,
+          reason: 'en 文案不得残留中文：「$text」');
+    }
+    // 复用的既有 key 仍可解析（不重复造 key）。
+    expect(resolved.wishTaskDidIt, 'I did it');
+    expect(resolved.wishTaskPending, 'Waiting for approval');
+  });
+
   // ───────────────── ④ B3 · T04/T05 新接线的 EN 取证 ─────────────────
   //
   // ## 为什么要专门再立一套宿主
@@ -419,6 +458,24 @@ void main() {
       expect(text, isNot(contains('小时')));
       expect(RegExp(r'\d+\s*h\b').hasMatch(text), isTrue,
           reason: '240 分钟 = 4 小时，en 应输出 `4 h`（当前：「$text」）');
+    });
+
+    test('R7-P1-01① 进池按钮 key zh/en/generated 三处齐备，无硬编码中文', () {
+      final String zh = File('lib/l10n/app_zh.arb').readAsStringSync();
+      final String en = File('lib/l10n/app_en.arb').readAsStringSync();
+      final String gen = File('lib/l10n/generated/app_localizations.dart')
+          .readAsStringSync();
+      final String genZh =
+          File('lib/l10n/generated/app_localizations_zh.dart').readAsStringSync();
+      final String genEn =
+          File('lib/l10n/generated/app_localizations_en.dart').readAsStringSync();
+      expect(zh.contains('"wishDetailPutInPool": "放进愿望池"'), isTrue);
+      expect(en.contains('"wishDetailPutInPool": "Put into wish pool"'), isTrue);
+      expect(gen.contains('String get wishDetailPutInPool;'), isTrue);
+      expect(genZh.contains("wishDetailPutInPool => '放进愿望池'"), isTrue);
+      expect(genEn.contains("wishDetailPutInPool => 'Put into wish pool'"), isTrue);
+      // en 侧不得残留中文文案。
+      expect(en.contains('放进愿望池'), isFalse);
     });
 
     testWidgets('T05 默认孩子名：en 下 providers 注入 Child（不再写死「孩子」）',

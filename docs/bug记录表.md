@@ -1260,3 +1260,24 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 | **纯素材/体验（4 项）** | ⑤ 统一技能特效替换（27 帧 1470×630 + 音轨换源 `统一技能特效.mp4`，4.086s/md5 `33b3d6b0…`，纯素材替换零代码改动）；⑥ 能量条去两把锁 + 免费档改灰色虚线空框（`_DashedCellPainter`，买断档亮色路径保留）；⑦ 文案「小小葵」→「向日葵战士」（胶囊 + 教学）；⑧ cast 美术换「大招动作优化」27 帧 720²（增益 1.1027→1.0586，只换美术几何/代码不动）。 |
 | **测试** | 全量 **5588 全绿 / 0 败**（5582→+6；2026-11-22 实测）；analyze **0e/0w/76i**。QA 增量守卫 `qa_bugfix5_independent_test.dart`（S1~S7 20+ 例）/ `qa_guard_ultimate_differential_test.dart`（免费档 1s 提示不弹购买卡）/ `qa_ultimate_timing_differential_test.dart`（补时/lead/触发帧 13/音轨不掐 cast/增益 1.0586）/ `guard_ui_boundary_test.dart`（参战+被偷 3⇒失败标题）；受控变异全转红、md5 恢复一致，主理人独立复算采信。 |
 | **状态** | ✅ 代码 + 测试 + 素材 + 文档已同步；✅ **玄参真机逐条验收全通过并点头提交**（2026-11-22，提交 `86b0801`）。 |
+
+## F208 · 🔴 许愿树「成长任务闭环」两个隐藏缺陷（家长确认不生效 / 门控第 6 路径绕过 · 已修复 · 已验收）
+
+| 项 | 内容 |
+|---|---|
+| **背景** | 玄参 2026-11-22 提出闭环需求：有成长任务的愿望 **未完成任务就不能进愿望池**；任务卡按钮「实现了」→「我做到了」，走「孩子提交 → 家长确认 → 愿望实现」；进收藏箱任务一起收起来、拿出直接显示；换愿望不用处理。详见裁定表 **C135** / PRD `许愿树_成长任务闭环_增量PRD_v0.1.md` / 架构 `…_架构设计_v0.1.md`。 |
+| **真 Bug ①（家长确认后愿望永不推进）** | `task_checkin_service.dart:verifyCheckIn` 在 CAS（`pending→verified`）成功后，回调 `onWishCheckInVerified` 时传的是**抢占前读到的 pending CheckIn 对象**。编排服务 `progressDeltaOf` 判 `status != verified` ⇒ 恒返 0 ⇒ 家长确认后愿望**不推进、永久停在 pending**；且会**误发 `taskRejected`** 埋点。<br>**修法**：CAS 后显式构造 `status: CheckInStatus.verified` 的 `resolved` 快照再回调（零新增接口 / 列 / 常量）。<br>**发现方式**：工程师实现中实证发现（架构 v0.1 原把它列为「仅核对不改」）。QA 双重证明必要性——同进程对照（改回 pending 快照则愿望停 pending、progress=0）+ 受控变异 M3（`status: verified`→`c.status`）用例全 RED。 |
+| **真 Bug ②（门控第 6 条路径绕过）** | 全部 `→fulfilled` 写入原以为只收口在领域 `wish_orchestration_service._complete()`（5 个调用点）。实际 **data 层 `task_local_repository.dart:174 settleWishFocus()`** 在 Drift 事务内**直接写 `status: fulfilled`**（:200-217），完全绕过 `_complete`。若门控只挂 `_complete` 一处，孩子用「专注型愿望任务」把进度刷满即可**跳过「全部任务 verified」门控** —— 直接架空玄参的核心需求。<br>**修法**：单一判据纯函数 `wishTasksAllDone({tasks,checkIns,now})`（`wish_progress.dart`，全库仅 1 处定义）+ **两类收口各挂一次**：领域 `_tryComplete()` 覆盖 5 条、data 事务 `settleWishFocus` 内 `_wishTasksAllDoneInTx` 覆盖第 6 条。<br>**发现方式**：架构师 grep 实证发现，主理人复核确认属实（**主理人初审只 grep 了 `lib/domain/`、漏了 data 层，是自己的盲点**）。QA 受控变异 M1（摘 data 门控）/ M2（摘 `_tryComplete`）分别使「专注刷满不进池」「selfFulfill 不得成真」用例 RED。 |
+| **测试** | 全量 **5653 全绿 / 0 败**（5588→+65；2026-11-22 实测）；analyze **0e/0w/76i**。QA 独立用例 `test/qa/wish_growth_loop_independent_qa_test.dart`（25 例，真实 `NativeDatabase.memory()` + 真实仓储装配，不复用工程师 Fake）；4 处受控变异全 RED 并 SHA256 逐字节还原。 |
+| **状态** | ✅ 代码 + 测试 + 文档已同步；✅ **玄参真机验收通过并点头提交**（2026-11-22，与 F209 合并提交）。 |
+
+## F209 · 🔴 许愿树 v0.2 真机 3 条反馈 + 花园背景音定性（已修复 · 已验收）
+
+| 项 | 内容 |
+|---|---|
+| **发现** | 2026-11-22，许愿树闭环装机后玄参真机反馈 3 条：①「家长已审批通过成长任务，但没有按钮把它放进愿望池」+ 蛋应换实现蛋；② iPhone 花园右侧 2 个图标偏大遮挡花园；③ iPhone 许愿树底部 3 个按钮偏大。详见裁定表 **C135** / PRD `…_增量PRD_v0.2.md` / 架构 `…_架构设计_v0.2.md`。 |
+| **真 Bug（1 项）** | **手动任务型愿望打卡成功却不进池**。`wish_orchestration_service.dart:640` `if (!hasGoalTarget(wish.targetValue)) return wish;` —— 「我做到了」手动任务型愿望通常 `targetValue==0`，命中该闸门**直接 return** ⇒ 打卡虽 verified（任务显示「已完成」），愿望**不推进、不进池**，卡在半路无出口。<br>⇒ v0.1 的「家长确认后自动进池」口径对**手动任务型愿望实际未生效**（`hasGoalTarget` 三处闸门 :244/:640/:692 同源）。<br>**修法（翻案）**：新增领域薄入口 `putIntoPool({id,now})`，复用 `_tryComplete(source=Progress) → _complete` **唯一收口**（**不是新写入路径**）、绕过 `hasGoalTarget` 闸门；孩子端详情卡在「全部任务 verified」时把「换个愿望 + 放进收藏箱」两按钮**换成单个「放进愿望池」**，二次确认后进池。v0.1「自动进池」对 `targetValue>=1` 的愿望**仍成立、旧断言全保留不改**。 |
+| **非 Bug（1 项 · 定性）** | 玄参报「iPad 13 模拟器花园页背景音不响（浇水施肥音效正常）」。**定性非代码 bug**：家长端**「背景音乐」开关当时是关闭状态**，玄参打开后即有声音。🔴 连带结论：上一轮基于「`_suspendedForBackground` 挂起残留」假设所加的 `_healStaleBackgroundSuspension` 修复**前提不成立**，已在提交前**整段剔除**（连同 `test/m3/audio_stale_background_suspend_test.dart`），不留无对应缺陷的代码（备份于 `/tmp/audio_fix_backup_1735.dart`）。 |
+| **纯体验（2 项）** | ② iPhone 花园顶部簇**天气徽标 + 许愿树入口**两枚按 `kPhoneEntryScale=0.8` 缩（视觉 56→44.8dp，整簇 `ConstrainedBox(min48)` 保热区；**浇水壶不动**）；③ iPhone 许愿树底部**三个圆形大按钮** `wish_tree_scene.dart` 先 `clamp(84,92)` 再 ×0.8（85.8→68.6dp）。**iPad 恒 ×1.0、逐字节不变**。蛋联动：`face==hasWays && tasksAllDone ⇒ eggDone`（实现蛋），池段 `wish_pool_tile.dart` 零改动、无新增图片。 |
+| **测试** | 全量 **5694 全绿 / 0 败**（剔除音频 5 例后实测；含许愿树两批共 +101；2026-11-22）；analyze **0e/0w/76i**。QA 独立用例 `test/qa/wish_v02_yan_independent_test.dart`（20 例，真实 Drift）；6 条断言全 PASS，**4 组变异全 RED 并 SHA256 还原**（putIntoPool 门控 / emit 守卫 / 蛋判据 `tasksAllDone` / `compactScaleFor` iPad 分支）。三个天气测试期望值改动逐 hunk 审查：**只改手机档、iPad 逐字节不变、断言强度反而上升**。 |
+| **状态** | ✅ 代码 + 测试 + 文档已同步；✅ **玄参真机验收通过并点头提交**（2026-11-22，与 F208 合并提交）。 |

@@ -577,6 +577,9 @@ void main() {
 
     test('registerCheckIn 进度满自动成真且来源 progress', () async {
       wishTasks.tasks['t1'] = seedTask(wishId: 'w1');
+      // R6-P0-01 门控读仓储中的现存打卡：真实回调链里 verifyCheckIn 会先
+      // CAS 落 verified 再调 registerCheckIn，Fake 也必须如实落这一行。
+      wishTasks.checkIns.add(seedCheckIn(id: 'c9', actualFocusMin: 30));
       final Task longFocus = seedTask().copyWith(minFocusMin: 30);
       final Wish w = await service.registerCheckIn(
           wishId: 'w1',

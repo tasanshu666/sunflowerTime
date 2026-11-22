@@ -4030,6 +4030,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wishDetailCollectShort => '放进收藏箱';
 
   @override
+  String get wishDetailPutInPool => '放进愿望池';
+
+  @override
   String get wishTreeSelfFulfillConfirm => '确定是你自己做到的吗？';
 
   @override
@@ -4165,6 +4168,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get wishTaskPending => '等家长确认';
+
+  @override
+  String get wishTaskSubmitConfirm => '提交后等爸爸妈妈确认，通过后愿望就实现啦';
+
+  @override
+  String parentWishTaskBuyGift(String wishText) {
+    return '确认后愿望将实现 · 请给小朋友买：$wishText';
+  }
 
   @override
   String get wishCategoryOther => '其他';

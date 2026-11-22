@@ -258,6 +258,7 @@ class WishTreeScene extends StatelessWidget {
     required this.startLabel,
     this.boxCount = 0,
     this.poolCount = 0,
+    this.actionScale = 1.0,
   });
 
   /// 树上愿望蛋（按 treeSlot 升序传入）。
@@ -274,6 +275,12 @@ class WishTreeScene extends StatelessWidget {
   /// 收藏箱 / 愿望池条数（角标，0 不显示）。
   final int boxCount;
   final int poolCount;
+
+  /// R7-P0-03：底部三圆形按钮的单侧缩放系数（由页面传 `compactScaleOf`）。
+  ///
+  /// 默认 1.0（iPad / 其它宿主逐字节不变）；手机 0.8 在 actionSize 计算末尾乘入，
+  /// 三按钮共用一处覆盖。85.8 × 0.8 ≈ 68.6dp ≥ 48dp 热区底线。
+  final double actionScale;
 
   /// 蛋在**树冠下方**的相对锚点（x, y ∈ 0~1，相对树图框）。
   ///
@@ -326,11 +333,13 @@ class WishTreeScene extends StatelessWidget {
         final double treeTop = islandSceneY -
             WishTreeSceneLayout.treeRootFraction * treeHeight;
         final double eggSize = size.width * WishTreeSceneLayout.eggSizeRatio;
+        // R7-P0-03：先 clamp 再乘系数 —— iPad 恒 ×1.0 逐位不变；
+        // 手机 85.8×0.8≈68.6dp（≥48 热区）。三按钮共用本值，一处覆盖。
         final double actionSize =
             (size.width * WishTreeSceneLayout.actionButtonWidthRatio).clamp(
           WishTreeSceneLayout.actionButtonMin,
           WishTreeSceneLayout.actionButtonMax,
-        );
+        ) * actionScale;
 
         return Stack(
           children: <Widget>[

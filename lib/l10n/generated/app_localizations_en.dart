@@ -4188,6 +4188,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wishDetailCollectShort => 'Keep in box';
 
   @override
+  String get wishDetailPutInPool => 'Put into wish pool';
+
+  @override
   String get wishTreeSelfFulfillConfirm => 'Are you sure you did it yourself?';
 
   @override
@@ -4325,6 +4328,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wishTaskPending => 'Waiting for approval';
+
+  @override
+  String get wishTaskSubmitConfirm =>
+      'Mom and Dad will confirm it. Your wish comes true once they agree.';
+
+  @override
+  String parentWishTaskBuyGift(String wishText) {
+    return 'Confirming makes the wish come true · Please get for the child: $wishText';
+  }
 
   @override
   String get wishCategoryOther => 'Other';

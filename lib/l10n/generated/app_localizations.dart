@@ -7049,6 +7049,12 @@ abstract class AppLocalizations {
   /// **'放进收藏箱'**
   String get wishDetailCollectShort;
 
+  /// No description provided for @wishDetailPutInPool.
+  ///
+  /// In zh, this message translates to:
+  /// **'放进愿望池'**
+  String get wishDetailPutInPool;
+
   /// No description provided for @wishTreeSelfFulfillConfirm.
   ///
   /// In zh, this message translates to:
@@ -7294,6 +7300,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'等家长确认'**
   String get wishTaskPending;
+
+  /// No description provided for @wishTaskSubmitConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'提交后等爸爸妈妈确认，通过后愿望就实现啦'**
+  String get wishTaskSubmitConfirm;
+
+  /// No description provided for @parentWishTaskBuyGift.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认后愿望将实现 · 请给小朋友买：{wishText}'**
+  String parentWishTaskBuyGift(String wishText);
 
   /// No description provided for @wishCategoryOther.
   ///

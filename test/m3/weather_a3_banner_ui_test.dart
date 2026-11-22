@@ -437,8 +437,11 @@ void main() {
     final Rect badgeRect = tester.getRect(badge);
     expect(badgeRect.right, closeTo(390 - 12, 0.5), reason: '状态灯右锚 12');
     expect(badgeRect.top, closeTo(12, 0.5), reason: '状态灯贴顶 12');
-    expect(badgeRect.width, closeTo(56, 0.5), reason: '状态灯宽 56（无白条全宽）');
-    expect(badgeRect.height, closeTo(56, 0.5), reason: '状态灯高 56（白条已删）');
+    // R7-P0-03：手机侧顶部天气徽标按 kPhoneEntryScale 缩（iPad 不受影响）。
+    expect(badgeRect.width, closeTo(56 * kPhoneEntryScale, 0.5),
+        reason: '状态灯宽 56×0.8=44.8（手机单侧缩放）');
+    expect(badgeRect.height, closeTo(56 * kPhoneEntryScale, 0.5),
+        reason: '状态灯高 56×0.8=44.8（手机单侧缩放）');
 
     // 底部提示框已撤（第五批玄参拍板）：kGardenWeatherTickerKey 在树里不存在
     // ——「今日 / 明日」信息全部收进天气对话框（点状态灯弹出）。
@@ -510,8 +513,11 @@ void main() {
     final Rect rect = tester.getRect(badge);
     expect(rect.right, closeTo(390 - 12, 0.5), reason: '状态灯右锚 12');
     expect(rect.top, closeTo(12, 0.5), reason: '状态灯贴顶 12');
-    expect(rect.width, closeTo(56, 0.5), reason: '状态灯宽 56（无白条全宽）');
-    expect(rect.height, closeTo(56, 0.5), reason: '状态灯高 56（白条已删）');
+    // R7-P0-03：手机侧顶部天气徽标按 kPhoneEntryScale 缩。
+    expect(rect.width, closeTo(56 * kPhoneEntryScale, 0.5),
+        reason: '状态灯宽 56×0.8=44.8（手机单侧缩放）');
+    expect(rect.height, closeTo(56 * kPhoneEntryScale, 0.5),
+        reason: '状态灯高 56×0.8=44.8（手机单侧缩放）');
 
     // 底部提示框已撤（第五批）：极端日也不再有底部警示条目。
     expect(find.byKey(const ValueKey<String>('garden_weather_ticker')),
@@ -565,8 +571,11 @@ void main() {
     final Rect rect = tester.getRect(find.byKey(kGardenWeatherBadgeKey));
     // standalone 有 AppBar：坐标以 **body** 为基准（AppBar 之下）。
     final double bodyTop = tester.getRect(find.byType(AppBar)).bottom;
-    expect(rect.width, closeTo(56, 0.5), reason: '状态灯宽 56');
-    expect(rect.height, closeTo(56, 0.5), reason: '状态灯高 56（白条已删）');
+    // R7-P0-03：手机侧顶部天气徽标按 kPhoneEntryScale 缩。
+    expect(rect.width, closeTo(56 * kPhoneEntryScale, 0.5),
+        reason: '状态灯宽 56×0.8=44.8（手机单侧缩放）');
+    expect(rect.height, closeTo(56 * kPhoneEntryScale, 0.5),
+        reason: '状态灯高 56×0.8=44.8（手机单侧缩放）');
     expect(rect.right, closeTo(390 - 12, 0.5), reason: '状态灯右锚 12');
     expect(rect.top - bodyTop, closeTo(12, 0.5),
         reason: 'standalone 状态灯贴 body 顶（top:12）');

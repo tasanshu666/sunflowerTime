@@ -359,7 +359,11 @@ class WishOrchestrationService {
         if (fruitStageOf(
                 targetValue: next, progressValue: wish.progressValue) ==
             WishFruitStage.ripe) {
-          updated = _complete(updated, kWishFulfillSourceProgress, now);
+          updated = await _tryComplete(
+            updated,
+            kWishFulfillSourceProgress,
+            now,
+          );
         }
         await _wishes.save(updated);
         await _emit(updated, WishEventKind.goalSet, now);
@@ -397,13 +401,16 @@ class WishOrchestrationService {
       _serialized(() async {
         final Wish wish = await _requireWish(id);
         assertTransition(wish.status, WishStatus.fulfilled);
-        final Wish updated = _complete(
+        final Wish updated = await _tryComplete(
           wish.copyWith(parentReply: reply ?? wish.parentReply),
           kWishFulfillSourceParentAction,
           now,
         );
         await _wishes.save(updated);
-        await _emit(updated, WishEventKind.fulfilled, now);
+        // emit 防误报：门控拦截时 status 未变，不得发达成埋点。
+        if (updated.status == WishStatus.fulfilled) {
+          await _emit(updated, WishEventKind.fulfilled, now);
+        }
         _changed();
         return updated;
       });
@@ -422,9 +429,41 @@ class WishOrchestrationService {
           throw StateError('self fulfill is unavailable in the box');
         }
         assertTransition(wish.status, WishStatus.fulfilled);
-        final Wish updated = _complete(wish, kWishFulfillSourceChild, now);
+        final Wish updated =
+            await _tryComplete(wish, kWishFulfillSourceChild, now);
         await _wishes.save(updated);
-        await _emit(updated, WishEventKind.selfFulfilled, now);
+        // emit 防误报：门控拦截时 status 未变，不得发孩子自助达成埋点。
+        if (updated.status == WishStatus.fulfilled) {
+          await _emit(updated, WishEventKind.selfFulfilled, now);
+        }
+        _changed();
+        return updated;
+      });
+
+  /// 孩子显式「放进愿望池」（R7-P0-01④⑤，玄参真机反馈）。
+  ///
+  /// 与 [fulfill] / [selfFulfill] 同构的薄入口：source = [kWishFulfillSourceProgress]
+  /// （不误挂「我自己做到的」徽标），emit [WishEventKind.fulfilled]，
+  /// 复用 [_tryComplete] → [_complete] 唯一收口，**不经 hasGoalTarget 闸门**
+  /// （手动任务型 targetValue == 0 也能进池）。门控未过则 status 不变、不发埋点。
+  /// 不新增 status / index / schemaVersion / source 常量。
+  Future<Wish> putIntoPool({
+    required String id,
+    required DateTime now,
+  }) =>
+      _serialized(() async {
+        final Wish wish = await _requireWish(id);
+        assertTransition(wish.status, WishStatus.fulfilled);
+        final Wish updated = await _tryComplete(
+          wish,
+          kWishFulfillSourceProgress,
+          now,
+        );
+        await _wishes.save(updated);
+        // emit 防误报：门控拦截时 status 未变，不得发达成埋点。
+        if (updated.status == WishStatus.fulfilled) {
+          await _emit(updated, WishEventKind.fulfilled, now);
+        }
         _changed();
         return updated;
       });
@@ -470,6 +509,26 @@ class WishOrchestrationService {
         _changed();
         return reverted;
       });
+
+  /// Unified precondition guard in front of [_complete] (R6-P0-01).
+  ///
+  /// All five domain paths that can reach `fulfilled` (setGoal / fulfill /
+  /// selfFulfill / registerCheckIn / advanceProgress) go through here. A wish
+  /// without tasks keeps the legacy byte-for-byte behaviour; a wish with tasks
+  /// is fulfilled only when [wishTasksAllDone] agrees. On rejection the wish
+  /// is returned unchanged so progress and other fields still persist, while
+  /// `status` stays on the tree.
+  Future<Wish> _tryComplete(Wish wish, String source, DateTime now) async {
+    final List<Task> tasks = await _wishTasks.tasksOfWish(wishId: wish.id);
+    if (tasks.isEmpty) return _complete(wish, source, now);
+    final List<CheckIn> checkIns = await _wishTasks.checkInsOfTaskIds(
+      taskIds: tasks.map((Task task) => task.id).toList(),
+    );
+    if (!wishTasksAllDone(tasks: tasks, checkIns: checkIns, now: now)) {
+      return wish;
+    }
+    return _complete(wish, source, now);
+  }
 
   Wish _complete(Wish wish, String source, DateTime now) {
     assertTransition(wish.status, WishStatus.fulfilled);
@@ -631,7 +690,11 @@ class WishOrchestrationService {
                 targetValue: updated.targetValue,
                 progressValue: updated.progressValue) ==
             WishFruitStage.ripe) {
-          updated = _complete(updated, kWishFulfillSourceProgress, now);
+          updated = await _tryComplete(
+            updated,
+            kWishFulfillSourceProgress,
+            now,
+          );
         }
         await _wishes.save(updated);
         await _emit(
@@ -663,7 +726,11 @@ class WishOrchestrationService {
                 targetValue: updated.targetValue,
                 progressValue: updated.progressValue) ==
             WishFruitStage.ripe) {
-          updated = _complete(updated, kWishFulfillSourceProgress, now);
+          updated = await _tryComplete(
+            updated,
+            kWishFulfillSourceProgress,
+            now,
+          );
         }
         await _wishes.save(updated);
         _changed();

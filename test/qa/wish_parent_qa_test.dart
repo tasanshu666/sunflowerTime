@@ -826,6 +826,18 @@ void main() {
         taskIds: <String>[taskId],
         now: t0,
       );
+      // R6-P0-01：门控要求「全部现存任务 verified」才允许家长 fulfill。
+      // 补一条**昨日**的 verified 打卡：once 任务窗口恒匹配（门控通过），
+      // 又不占用今日打卡位，下面 ⑤ 的手动核销链路仍可照常落 pending。
+      // mode0(focusMinutes) + 行为型任务 ⇒ progressDelta 恒 0，进度断言不变。
+      await tasks.checkIn(CheckIn(
+        id: 'qa-real-gate-checkin',
+        taskId: taskId,
+        date: t0.subtract(const Duration(days: 1)),
+        completedAt: t0.subtract(const Duration(days: 1)),
+        isPerfectDay: false,
+        status: CheckInStatus.verified,
+      ));
 
       // 基线快照（**逐位**对比用）。
       final int ledgerRowsBefore = await _countRows(database, 'sunlight_ledgers');

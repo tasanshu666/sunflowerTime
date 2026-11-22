@@ -35,6 +35,7 @@ import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/task.dart';
 import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
+import 'package:sunflower_time/domain/services/wish_progress.dart';
 import 'package:sunflower_time/shared/responsive.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
@@ -202,6 +203,9 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
   /// 普通成长任务 `wishId == null`，查不到也不渲染徽标（逐字节不变）。
   final Map<String, String> _wishTitles = <String, String>{};
 
+  /// 愿望 id → 愿望实体（R6-P0-04 收藏箱派生显隐用，零任务表写入）。
+  final Map<String, Wish> _wishById = <String, Wish>{};
+
   /// 当前页文案（build 期在 L10nScope 内赋值；异步回调经 [_t] 取，
   /// 尚未 build 过的极端早回调回退中文，与迁移前行为一致）。
   AppLocalizations? _l10n;
@@ -247,7 +251,7 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
     }
   }
 
-  /// 异步补拉愿望标题并局部刷新（不触发整页 loading）。
+  /// 异步补拉愿望标题 / 实体并局部刷新（不触发整页 loading）。
   Future<void> _loadWishTitlesThenSet() async {
     final Map<String, String> titles = await _loadWishTitles();
     if (!mounted) return;
@@ -255,27 +259,39 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
       _wishTitles
         ..clear()
         ..addAll(titles);
+      _wishById
+        ..clear()
+        ..addAll(_loadedWishById);
     });
   }
 
-  /// 读三段愿望，构造 `id → 短名` 表（A24.6 徽标）。零新增服务方法。
+  /// 读四段愿望，构造 `id → 短名` 表（A24.6 徽标）；同时旁路产出
+  /// `id → 愿望` 表（R6-P0-04 派生显隐）。零新增服务方法、零任务表写入。
+  ///
+  /// 返回类型保持 `Future<Map<String, String>>`，与既有 QA 源码守卫一致。
   Future<Map<String, String>> _loadWishTitles() async {
     final Map<String, String> out = <String, String>{};
+    _loadedWishById = <String, Wish>{};
     try {
       final service = ref.read(wishOrchestrationServiceProvider);
       final List<Wish> all = <Wish>[
         ...await service.mountedWishes(),
         ...await service.boxedWishes(),
         ...await service.poolWishes(),
+        ...await service.abandonedWishes(),
       ];
       for (final Wish w in all) {
         out[w.id] = wishTaskShortTitle(w.text);
+        _loadedWishById[w.id] = w;
       }
     } catch (_) {
       // 静默降级：愿望数据失败不影响成长任务页主流程。
     }
     return out;
   }
+
+  /// [_loadWishTitles] 的旁路产物（含 releasedAt，派生显隐判据读它）。
+  Map<String, Wish> _loadedWishById = <String, Wish>{};
 
   /// 非联动项「我做到了」的**误触保护**（玄参 2026-11-06：与联动项 F177 同款）——
   /// 先弹 [showChildConfirmCard] 确认，确认后才真正走 [_checkIn] 落待家长确认；
@@ -599,8 +615,11 @@ class _ChildTaskPageState extends ConsumerState<ChildTaskPage>
           .where((TaskCheckInItem i) => cat == TaskCategory.wish
               // 🔴 玄参 v0.3 验收 5(c)：存量愿望任务 category 还是旧值
               // （other/learning...），必须同时按 wishId 判据进「许愿」栏。
+              // 🔴 R6-P0-04：父愿望进收藏箱(releasedAt!=null) ⇒ 关联任务
+              // 从「许愿」栏派生隐藏；普通成长任务(wishId==null)仍走原分支逐字节不变。
               ? (i.task.wishId != null ||
-                  i.task.category == TaskCategory.wish)
+                      i.task.category == TaskCategory.wish) &&
+                  isWishTaskVisible(task: i.task, wishById: _wishById)
               : (i.task.category == cat && i.task.wishId == null))
           .toList(growable: false);
       if (group.isEmpty) continue; // 空分类整体不渲染（含标题）

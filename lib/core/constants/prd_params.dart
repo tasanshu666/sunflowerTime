@@ -1248,6 +1248,13 @@ const String kEyeCareEarlyFinishQuitLabel = '确定结束';
 /// 平板判定阈值：`shortestSide >= 600` 即平板（= M3 的 Compact/Medium 分界）。
 const double kTabletShortestSideThreshold = 600;
 
+/// 手机单侧紧凑缩放系数（R7-P0-03 / 玄参真机反馈「iPhone 图标按钮偏大」）。
+///
+/// 仅用于图2 顶部两枚入口（天气徽标 + 许愿树入口）与图3 许愿树底部三圆形按钮，
+/// 手机 `shortestSide < 600` 乘 0.8，iPad 恒 1.0（逐字节不变）。
+/// 系数单点可调（0.8~0.9），由 [compactScaleFor] 统一派生，页面不得内联。
+const double kPhoneEntryScale = 0.8;
+
 /// 成长演出卡**最大宽度**上限（先按 `kGrowFxCardWidthRatio` 算再钳制）。
 ///
 /// 手机 390：390 × 0.78 ≈ 304 < 360 → 不受影响。

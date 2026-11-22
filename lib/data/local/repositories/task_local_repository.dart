@@ -201,17 +201,24 @@ class TaskLocalRepository
                 targetValue: wish.targetValue,
                 progressValue: next) ==
             WishFruitStage.ripe;
+        // 🔴 第六条达成路径门控（R6-P0-01）：专注型愿望任务在本事务内绕过
+        // 领域 `_complete` 直接写 fulfilled，必须在同一事务内挂同一纯函数判据，
+        // 否则孩子靠专注刷满进度即可绕过「全部任务 verified」的门控。
+        final bool gate = ripe
+            ? await _wishTasksAllDoneInTx(wishId: wishId, now: now)
+            : false;
+        final bool didFulfill = ripe && gate;
         final db.WishesCompanion companion = db.WishesCompanion(
           progressValue: Value(next),
-          status: ripe
+          status: didFulfill
               ? Value(WishStatus.fulfilled.index)
               : const Value.absent(),
-          fulfilledAt: ripe ? Value(now) : const Value.absent(),
-          fulfillSource: ripe
+          fulfilledAt: didFulfill ? Value(now) : const Value.absent(),
+          fulfillSource: didFulfill
               ? const Value<String>(kWishFulfillSourceProgress)
               : const Value.absent(),
-          treeSlot: ripe ? const Value<int?>(null) : const Value.absent(),
-          parentSeenAt: ripe
+          treeSlot: didFulfill ? const Value<int?>(null) : const Value.absent(),
+          parentSeenAt: didFulfill
               ? Value(wish.parentSeenAt ?? now)
               : const Value.absent(),
         );
@@ -219,8 +226,33 @@ class TaskLocalRepository
               ..where((db.$WishesTable t) =>
                   t.id.equals(wishId) & t.childId.equals(_childId)))
             .write(companion);
-        return ripe;
+        return didFulfill;
       });
+
+  /// Read the owning wish's live tasks + check-ins **inside the same
+  /// transaction** and feed them to the single pure gate judgement.
+  ///
+  /// Delegating to the domain repository would start a second transaction and
+  /// break atomicity (A18 R20); reusing the existing [_toTask] / [_toCheckIn]
+  /// mappers keeps the judgement implementation unique.
+  Future<bool> _wishTasksAllDoneInTx({
+    required String wishId,
+    required DateTime now,
+  }) async {
+    final List<db.Task> taskRows = await (_db.select(_db.tasks)
+          ..where((db.$TasksTable t) =>
+              t.childId.equals(_childId) & t.wishId.equals(wishId)))
+        .get();
+    if (taskRows.isEmpty) return true;
+    final List<Task> tasks = taskRows.map(_toTask).toList();
+    final List<String> taskIds = tasks.map((Task task) => task.id).toList();
+    final List<db.CheckIn> checkInRows = await (_db.select(_db.checkIns)
+          ..where((db.$CheckInsTable t) =>
+              t.childId.equals(_childId) & t.taskId.isIn(taskIds)))
+        .get();
+    final List<CheckIn> checkIns = checkInRows.map(_toCheckIn).toList();
+    return wishTasksAllDone(tasks: tasks, checkIns: checkIns, now: now);
+  }
 }
 
 /// [db.Task] → 领域 [Task]。

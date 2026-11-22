@@ -1,0 +1,60 @@
+%% R7-P0-01 显式进池闭环
+sequenceDiagram
+    autonumber
+    participant P as 家长端·今日tab
+    participant C as 孩子端·愿望详情
+    participant OS as WishOrchestrationService
+    participant DB as 本地DB
+    P->>DB: verifyCheckIn(愿望任务) → verified（0阳光）
+    Note over P,C: 手动任务型 targetValue==0 ⇒ registerCheckIn:640 闸门拦，愿望仍挂树（v0.1自动进池未生效）
+    C->>C: 下次进详情 → wishTasksAllDone==true ⇒ wishPoolButtonOf=putInPool
+    C->>C: 渲染单按钮「放进愿望池」(wishDetailPutInPool)，两次级按钮隐藏
+    C->>C: 点按钮 → _confirmThen 二次确认（取消则不落库、不发埋点）
+    C->>OS: putIntoPool(id, now)
+    OS->>OS: _tryComplete(wish, Progress, now) → wishTasksAllDone 门控
+    alt 门控通过（全部任务 verified）
+        OS->>DB: _complete → status=fulfilled / source=progress / treeSlot=null / 盖章+1
+        OS->>DB: emit WishEventKind.fulfilled
+    else 门控未过（防御：UI 判据已保证全完成）
+        OS-->>C: status 不变、不发埋点
+    end
+    OS-->>C: onRealized → Navigator.pop → 愿望从树上移入达成池（池段蛋不变）
+
+%% R7-P0-02 蛋联动判据（face 与 tasksAllDone 正交）
+sequenceDiagram
+    autonumber
+    participant T as _buildTree
+    participant WP as wish_progress 纯函数
+    participant WF as wish_face_state
+    participant TP as wish_tree_page 派生纯函数
+    participant SC as WishTreeScene
+    T->>T: 每条 wish 取 wayCount / tasks / checkIns / _now
+    T->>WF: wishTreeFaceOf(wish, wayCount) → face
+    T->>WP: wishTasksAllDone(tasks, checkIns, now) → tasksAllDone
+    T->>TP: wishTreeEggOf(face, tasksAllDone) → egg
+    alt face==hasWays && tasksAllDone
+        TP-->>T: done ⇒ eggDone（新增）
+    else face==hasWays && !tasksAllDone
+        TP-->>T: growing ⇒ eggGrowing（现状）
+    else face!=hasWays（无任务/pending）
+        TP-->>T: wish ⇒ eggWish（逐字节不变）
+    end
+    T->>SC: eggAsset 作为 WishEgg.asset 传入（页面选图）
+    Note over T,SC: 撤销 undoFulfill 后 task 仍 verified ⇒ tasksAllDone=true ⇒ 仍 eggDone
+
+%% R7-P0-03 iPhone 缩放接线
+sequenceDiagram
+    autonumber
+    participant GP as garden_page
+    participant R as responsive
+    participant B as GardenWeatherBadge / WishTreeWeatherEntry / WishTopEntryCluster
+    participant TP as wish_tree_page
+    participant SC as WishTreeScene
+    GP->>R: compactScaleOf(context)
+    R-->>GP: iPad=1.0 / 手机=0.8
+    GP->>B: scale=compact（仅顶部两枚；浇水壶不传）
+    B->>B: 视觉尺寸 ×uiScaleOf×scale；文字框宽×scale；热区 ConstrainedBox(min48)
+    TP->>R: compactScaleOf(context) → compact
+    TP->>SC: actionScale=compact
+    SC->>SC: actionSize = (w×0.22).clamp(84,92) × actionScale（三按钮共用）
+    Note over GP,SC: iPad 恒 ×1.0 逐字节不变；iPhone 底部按钮 85.8×0.8=68.6dp≥48dp

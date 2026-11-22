@@ -27,7 +27,10 @@ import 'package:sunflower_time/core/i18n/seed_l10n.dart';
 import 'package:sunflower_time/domain/entities/enums.dart';
 import 'package:sunflower_time/domain/entities/redemption_request.dart';
 import 'package:sunflower_time/domain/entities/reward_template.dart';
+import 'package:sunflower_time/domain/entities/task.dart';
+import 'package:sunflower_time/domain/entities/wish.dart';
 import 'package:sunflower_time/domain/services/task_checkin_service.dart';
+import 'package:sunflower_time/domain/services/wish_progress.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/verification_card.dart';
 import 'package:sunflower_time/presentation/shared/cream_card.dart';
@@ -66,26 +69,50 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
     });
   }
 
-  /// 并发拉取待确认成长项 + 待处理兑换列表与模板，并构建映射。
+  /// 并发拉取待确认成长项 + 待处理兑换列表与模板 + 愿望映射，并构建数据。
   Future<_TodayData> _load() async {
     final List<dynamic> results = await Future.wait<dynamic>(<Future<dynamic>>[
       ref.read(taskCheckInServiceProvider).pendingCheckIns(),
       ref.read(redemptionOrchestrationServiceProvider).pendingList(),
       ref.read(rewardRepositoryProvider).templates(),
+      _loadWishById(),
     ]);
     final List<PendingCheckIn> pendingCheckIns =
         results[0] as List<PendingCheckIn>;
     final List<RedemptionRequest> requests =
         results[1] as List<RedemptionRequest>;
     final List<RewardTemplate> templates = results[2] as List<RewardTemplate>;
+    final Map<String, Wish> wishById = results[3] as Map<String, Wish>;
     final Map<String, RewardTemplate> templateMap =
         <String, RewardTemplate>{for (final RewardTemplate t in templates) t.id: t};
     return _TodayData(
       pendingCheckIns: pendingCheckIns,
       requests: requests,
       templates: templateMap,
+      wishById: wishById,
       allPendingCheckIns: pendingCheckIns,
     );
+  }
+
+  /// 读四段愿望构造 `id → 愿望` 映射：R6-P0-03 买礼物提示要愿望文本，
+  /// R6-P0-04 收藏箱派生显隐要 `releasedAt`。只读、零任务表写入。
+  Future<Map<String, Wish>> _loadWishById() async {
+    final Map<String, Wish> out = <String, Wish>{};
+    try {
+      final service = ref.read(wishOrchestrationServiceProvider);
+      final List<Wish> all = <Wish>[
+        ...await service.mountedWishes(),
+        ...await service.boxedWishes(),
+        ...await service.poolWishes(),
+        ...await service.abandonedWishes(),
+      ];
+      for (final Wish wish in all) {
+        out[wish.id] = wish;
+      }
+    } catch (_) {
+      // 静默降级：愿望数据失败不影响家长端其它待办。
+    }
+    return out;
   }
 
   /// 单张待核销奖励卡（模板可能缺失 → 兜底「未知奖励」）。
@@ -139,13 +166,22 @@ class _ParentTodayPageState extends ConsumerState<ParentTodayPage> {
               }
 
               final _TodayData data = snap.data!;
-              final bool hasPending = data.pendingCheckIns.isNotEmpty;
+              // R6-P0-04：父愿望进收藏箱 ⇒ 其关联任务从「待确认」段派生隐藏。
+              // 普通成长任务（wishId==null）恒 true，逐字节不变。
+              final List<PendingCheckIn> visiblePending =
+                  data.pendingCheckIns.where((PendingCheckIn item) {
+                final Task? task = item.task;
+                return task == null ||
+                    isWishTaskVisible(task: task, wishById: data.wishById);
+              }).toList();
+              final bool hasPending = visiblePending.isNotEmpty;
               final bool hasRequests = data.requests.isNotEmpty;
 
               final List<Widget> cards = <Widget>[
                 if (hasPending)
                   _PendingCheckInsCard(
-                    items: data.pendingCheckIns,
+                    items: visiblePending,
+                    wishById: data.wishById,
                     onResolved: _reload,
                   ),
                 if (hasPending && hasRequests)
@@ -197,12 +233,16 @@ class _TodayData {
   final List<PendingCheckIn> pendingCheckIns;
   final List<RedemptionRequest> requests;
   final Map<String, RewardTemplate> templates;
+
+  /// 愿望 id → 愿望（买礼物提示 + 收藏箱派生显隐）。
+  final Map<String, Wish> wishById;
   final List<PendingCheckIn> allPendingCheckIns;
 
   const _TodayData({
     required this.pendingCheckIns,
     required this.requests,
     required this.templates,
+    this.wishById = const <String, Wish>{},
     this.allPendingCheckIns = const <PendingCheckIn>[],
   });
 }
@@ -296,10 +336,17 @@ class _DebugCapSwitchCardState extends ConsumerState<_DebugCapSwitchCard> {
 class _PendingCheckInsCard extends StatelessWidget {
   final List<PendingCheckIn> items;
 
+  /// R6-P0-03：愿望文本上下文（买礼物提示）由父愿望映射派生。
+  final Map<String, Wish> wishById;
+
   /// 处理完一条后的回调（父列表刷新，使该条消失）。
   final VoidCallback? onResolved;
 
-  const _PendingCheckInsCard({required this.items, this.onResolved});
+  const _PendingCheckInsCard({
+    required this.items,
+    required this.wishById,
+    this.onResolved,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -328,7 +375,11 @@ class _PendingCheckInsCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             for (final PendingCheckIn p in items)
-              _PendingCheckInTile(item: p, onResolved: onResolved),
+              _PendingCheckInTile(
+                item: p,
+                wishById: wishById,
+                onResolved: onResolved,
+              ),
           ],
         ),
       ),
@@ -342,9 +393,14 @@ class _PendingCheckInsCard extends StatelessWidget {
 /// 不能拿它当「待核销」判据）。确认发放后由服务按当日软顶差额入账。
 class _PendingCheckInTile extends ConsumerStatefulWidget {
   final PendingCheckIn item;
+  final Map<String, Wish> wishById;
   final VoidCallback? onResolved;
 
-  const _PendingCheckInTile({required this.item, this.onResolved});
+  const _PendingCheckInTile({
+    required this.item,
+    required this.wishById,
+    this.onResolved,
+  });
 
   @override
   ConsumerState<_PendingCheckInTile> createState() => _PendingCheckInTileState();
@@ -502,6 +558,23 @@ class _PendingCheckInTileState extends ConsumerState<_PendingCheckInTile> {
           const SizedBox(height: 4),
           Text(t.parent_today_submitted_at(submitted),
               style: Theme.of(context).textTheme.bodySmall),
+          // R6-P0-03①：愿望任务专属上下文 —— 愿望文本 + 买礼物提示。
+          // 普通成长任务（wishId==null）不渲染本行，逐字节不变。
+          if (p.task != null && p.task!.wishId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                t.parentWishTaskBuyGift(
+                  widget.wishById[p.task!.wishId]?.text ?? '',
+                ),
+                key: const Key('parent_wish_task_buy_gift'),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF8D6E00),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           const SizedBox(height: 8),
           Row(
             children: <Widget>[

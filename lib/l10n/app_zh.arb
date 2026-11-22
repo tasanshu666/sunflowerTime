@@ -3383,6 +3383,7 @@
   "wishTreeChangeWish": "换一个愿望",
   "wishDetailChangeWishShort": "换个愿望",
   "wishDetailCollectShort": "放进收藏箱",
+  "wishDetailPutInPool": "放进愿望池",
   "wishTreeSelfFulfillConfirm": "确定是你自己做到的吗？",
   "wishTreeBoxFullHint": "树上已经挂满啦，先实现一个再取回",
   "wishTreeMilestone": "已盖 {count} 枚章",
@@ -3454,6 +3455,13 @@
   "wishTaskDidIt": "我做到了",
   "wishTaskDone": "已完成",
   "wishTaskPending": "等家长确认",
+  "wishTaskSubmitConfirm": "提交后等爸爸妈妈确认，通过后愿望就实现啦",
+  "parentWishTaskBuyGift": "确认后愿望将实现 · 请给小朋友买：{wishText}",
+  "@parentWishTaskBuyGift": {
+    "placeholders": {
+      "wishText": {"type": "String"}
+    }
+  },
   "wishCategoryOther": "其他",
   "wishCategoryGift": "礼物",
   "wishCategoryExperience": "一次体验",

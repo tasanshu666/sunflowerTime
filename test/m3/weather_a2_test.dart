@@ -65,7 +65,8 @@ import 'package:sunflower_time/presentation/child/pages/garden_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_sign_hotspot.dart';
 import 'package:sunflower_time/presentation/child/widgets/garden_weather_badge.dart';
 import 'package:sunflower_time/presentation/child/widgets/weather_status_bar.dart';
-import 'package:sunflower_time/shared/responsive.dart' show uiScaleOf;
+import 'package:sunflower_time/shared/responsive.dart'
+    show compactScaleOf, uiScaleOf;
 
 import '../helpers/no_hit_random.dart';
 
@@ -1910,10 +1911,12 @@ void main() {
             lessThanOrEqualTo(2.0),
             reason: '天气图标与标签水平居中对齐');
         expect(badgeRect.top, closeTo(12, 0.5), reason: '状态灯贴顶 12');
-        expect(badgeRect.width, closeTo(56, 0.5),
-            reason: '状态灯宽 56（旧 72 白条已删，玄参 2026-11-07 拍板）');
-        expect(badgeRect.height, closeTo(56, 0.5),
-            reason: '状态灯高 56（白条已删，不再全宽）');
+        // R7-P0-03：手机侧顶部两枚入口按 kPhoneEntryScale 缩（iPad 仍 56×s）。
+        // 390×844 手机 s=1.0 ⇒ 56×0.8=44.8（架构 §6.2 明确预期值）。
+        expect(badgeRect.width, closeTo(56 * kPhoneEntryScale, 0.5),
+            reason: '状态灯宽 56×0.8=44.8（手机单侧缩放，玄参 R7-P0-03）');
+        expect(badgeRect.height, closeTo(56 * kPhoneEntryScale, 0.5),
+            reason: '状态灯高 56×0.8=44.8（手机单侧缩放，白条已删）');
         expect(find.byKey(kGardenWeatherBadgeIconKey), findsOneWidget,
             reason: '56×56 天气图标状态灯在场');
         // 2026-11-06 第二轮简化：短语文字层整体撤除（玄参：「不需要描述性的文字」）。
@@ -2286,10 +2289,12 @@ void main() {
         final BuildContext ctx =
             tester.element(find.byKey(kGardenWeatherBadgeIconKey));
         final double s = uiScaleOf(ctx);
+        // R7-P0-03：仅手机（compact=0.8）缩到 44.8；iPad（compact=1.0）仍 56×s。
+        final double compact = compactScaleOf(ctx);
         final double badgeW =
             tester.getRect(find.byKey(kGardenWeatherBadgeKey)).width;
-        expect(badgeW, closeTo(56 * s, 0.5),
-            reason: '状态灯随倍率（56×s，K27 口径），实测 $badgeW，s=$s');
+        expect(badgeW, closeTo(56 * s * compact, 0.5),
+            reason: '状态灯随倍率（56×s×compact），实测 $badgeW，s=$s，compact=$compact');
         expect(tester.takeException(), isNull);
       });
     }

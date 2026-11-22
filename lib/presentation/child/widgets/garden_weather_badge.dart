@@ -221,6 +221,7 @@ class GardenWeatherBadge extends StatelessWidget {
     required this.banner,
     required this.shelterBought,
     this.onTap,
+    this.scale = 1.0,
   });
 
   /// 今日日型（页面从 `todayWeatherProvider` 快照传入，本组件不自算天气）。
@@ -242,9 +243,13 @@ class GardenWeatherBadge extends StatelessWidget {
   /// `WishTopEntryCluster` 时传 `null`，热区由外层统一（见构造注释）。
   final VoidCallback? onTap;
 
+  /// R7-P0-03 手机单侧缩放系数（页面传 `compactScaleOf`）：手机 0.8 / iPad 1.0。
+  /// 所有几何 `× uiScaleOf × scale`，默认 1.0 保证其它宿主逐字节不变。
+  final double scale;
+
   @override
   Widget build(BuildContext context) {
-    final double s = uiScaleOf(context);
+    final double s = uiScaleOf(context) * scale;
 
     // mood 只决定状态灯：none → 绿底无角标；todo → 红底 + 叹号；done → 绿底 + 对勾。
     // （三态结论依旧由页面 `resolveWeatherBanner` / `_rememberWeatherBannerDone`

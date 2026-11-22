@@ -13,8 +13,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sunflower_time/domain/entities/wish.dart';
+import 'package:sunflower_time/domain/services/wish_face_state.dart';
 import 'package:sunflower_time/domain/services/wish_progress.dart';
+import 'package:sunflower_time/presentation/child/pages/wish_tree_page.dart';
 import 'package:sunflower_time/presentation/child/widgets/wish_progress_bar.dart';
+import 'package:sunflower_time/presentation/child/widgets/wish_tree_scene.dart';
 
 Widget _host(Widget child) => MaterialApp(home: Scaffold(body: child));
 
@@ -167,6 +170,106 @@ void main() {
       // 短文案 getter 确实接入（不是只加 key 不用）。
       expect(src.contains('wishDetailChangeWishShort'), isTrue);
       expect(src.contains('wishDetailCollectShort'), isTrue);
+    });
+  });
+
+  group('R7-P0-01①⑧ wishPoolButtonOf 进池按钮两态互斥（单一判据）', () {
+    test('树上 + 手动任务 + 全完成 ⇒ putInPool（单按钮，隐藏两次级）', () {
+      expect(
+        wishPoolButtonOf(
+          onTree: true,
+          hasManualTask: true,
+          tasksAllDone: true,
+        ),
+        WishPoolButton.putInPool,
+      );
+    });
+
+    test('有未完成任务 ⇒ changeAndCollect（维持现状两按钮）', () {
+      expect(
+        wishPoolButtonOf(
+          onTree: true,
+          hasManualTask: true,
+          tasksAllDone: false,
+        ),
+        WishPoolButton.changeAndCollect,
+      );
+    });
+
+    test('纯专注型（无手动任务）/ 无任务愿望 ⇒ changeAndCollect（不显进池按钮）', () {
+      expect(
+        wishPoolButtonOf(
+          onTree: true,
+          hasManualTask: false,
+          tasksAllDone: true,
+        ),
+        WishPoolButton.changeAndCollect,
+        reason: 'Q2 纯专注型不显进池按钮',
+      );
+      expect(
+        wishPoolButtonOf(
+          onTree: true,
+          hasManualTask: false,
+          tasksAllDone: true,
+        ),
+        WishPoolButton.changeAndCollect,
+        reason: 'Q3 无任务愿望维持「实现了」自助',
+      );
+    });
+
+    test('非树上（收藏箱 / 终态）⇒ none', () {
+      expect(
+        wishPoolButtonOf(
+          onTree: false,
+          hasManualTask: true,
+          tasksAllDone: true,
+        ),
+        WishPoolButton.none,
+      );
+    });
+  });
+
+  group('R7-P0-02①④⑤ wishTreeEggOf / wishTreeEggAssetOf 蛋联动四态', () {
+    test('face==hasWays && tasksAllDone ⇒ done ⇒ eggDone（实现蛋）', () {
+      final WishTreeEgg egg = wishTreeEggOf(
+        face: WishTreeFace.hasWays,
+        tasksAllDone: true,
+      );
+      expect(egg, WishTreeEgg.done);
+      expect(wishTreeEggAssetOf(egg), WishTreeArt.eggDone);
+    });
+
+    test('face==hasWays && !tasksAllDone（含 pending）⇒ growing ⇒ eggGrowing', () {
+      final WishTreeEgg egg = wishTreeEggOf(
+        face: WishTreeFace.hasWays,
+        tasksAllDone: false,
+      );
+      expect(egg, WishTreeEgg.growing);
+      expect(wishTreeEggAssetOf(egg), WishTreeArt.eggGrowing);
+    });
+
+    test('face!=hasWays（hanging / parentResponded ⇒ 无任务/未布置办法）⇒ wish ⇒ eggWish 逐字节不变', () {
+      for (final WishTreeFace face in <WishTreeFace>[
+        WishTreeFace.hanging,
+        WishTreeFace.parentResponded,
+      ]) {
+        // 即使 tasksAllDone 为 true（空任务派生），face!=hasWays 也不误判 eggDone。
+        final WishTreeEgg egg =
+            wishTreeEggOf(face: face, tasksAllDone: true);
+        expect(egg, WishTreeEgg.wish);
+        expect(wishTreeEggAssetOf(egg), WishTreeArt.eggWish);
+      }
+    });
+
+    test('Q4 撤销后 task 仍 verified ⇒ tasksAllDone=true ⇒ 仍 eggDone', () {
+      // 判据纯函数对同一输入恒定，无额外状态；撤销不改 tasks/checkIns ⇒ 仍 done。
+      expect(
+        wishTreeEggOf(
+          face: WishTreeFace.hasWays,
+          tasksAllDone: true,
+        ),
+        WishTreeEgg.done,
+      );
     });
   });
 

@@ -34,6 +34,8 @@ import 'package:sunflower_time/domain/services/wish_face_state.dart';
 import 'package:sunflower_time/domain/services/wish_orchestration_service.dart';
 import 'package:sunflower_time/domain/services/wish_progress.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
+// C137：许愿树页专属背景音（独立播放器，与花园氛围音互不干扰）。
+import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/presentation/child/state/wish_state.dart';
 import 'package:sunflower_time/presentation/child/state/wish_tree_scene_state.dart';
 // C136 需求 2：复用花园「玩法说明」弹窗的宽度上限常量
@@ -251,13 +253,19 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
     super.initState();
     _now = DateTime.now();
     // v0.2.0（R-P0-04）：树页占据台前 ⇒ 花园页 build 折入闸门后停播环境音。
-    // 🔴 本页**零 AudioService 代码**，只翻纯状态闸门；音频 API 冻结。
     // 先只抓引用（读 provider 不触发 markNeedsBuild），写入延后到本帧结束。
+    // C137 起本页**有且仅有**自己的专属背景音（独立播放器，见下面帧后回调）；
+    // 花园那边仍是「页面只翻纯状态闸门、由花园页自己成对启停」的老分工，一字不动。
     _sceneGateCtrl = ref.read(wishTreeSceneActiveProvider.notifier);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 帧前就被 pop 掉的极端情况：树页已不在树上，不得占台前。
+      // 帧前就被 pop 掉的极端情况：树页已不在树上，不得占台前、也不得起播。
       if (!mounted) return;
       _sceneGateCtrl.state = true;
+      // C137（玄参 2026-11-22）：「给许愿树页面接入背景音效……播放一次然后停 30s，
+      // 然后再播放。仅在许愿树这个界面播放，其他界面不播放。」
+      // 「播一次 → 静默 30s → 再播」的循环由 AudioService 内部协程负责（幂等：
+      // 重复进入不会叠出第二条循环）；本页只负责「进入即起播 / 离开即停」的成对语义。
+      unawaited(AudioService.instance.startWishTreeAmbient());
     });
     // 历史今日频次：展示那一刻即写今日日期（A26.10.4 ⑥）。
     _resolveAnniversary();
@@ -282,6 +290,11 @@ class _WishTreePageState extends ConsumerState<WishTreePage> {
         // 无需也无法发布，静默即可（抛出去只会把 dispose 弄脏）。
       }
     });
+    // C137：离开本页立即停专属背景音（「仅在许愿树这个界面播放，其他界面不播放」）。
+    // ⚠️ 音频服务是**单例**、与 widget 树无关，故可同步调用（内部 stop 是
+    // fire-and-forget）：既不触碰 provider（不受上面「build 期不得改 provider」约束），
+    // 也不 new 任何依赖 `ref` 的对象（`ref` 在 dispose 阶段已不可靠）。
+    AudioService.instance.stopWishTreeAmbient(reason: 'leave');
     super.dispose();
   }
 

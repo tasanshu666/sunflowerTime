@@ -260,7 +260,7 @@ void main() {
     expect(popEx, isNull, reason: 'pop 不得抛生命周期异常: $popEx');
   });
 
-  testWidgets('真实渲染几何：新入口在天气徽标正下方、48×48、与调试入口不重叠',
+  testWidgets('真实渲染几何：新入口在天气徽标正下方、视觉 44.8（手机档）、整簇热区 ≥48、与调试入口不重叠',
       (WidgetTester tester) async {
     // 手机视口：garden scale s==1，徽标恰为 56 高，top 12 ⇒ 底 68，新入口 top 80。
     tester.view.physicalSize = const Size(390, 844);

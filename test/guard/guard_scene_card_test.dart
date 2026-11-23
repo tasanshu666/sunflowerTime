@@ -368,8 +368,8 @@ void main() {
   });
 
   // ── B13.8 能量档位制（免费 1 颗/天 · 付费 2 颗/天）──────────────────────
-  group('B13.8 能量档位制（免费锁标 / 付费照常）', () {
-    testWidgets('免费档：第 1 颗照常两态，第 2 颗恒锁标（B13.9 小字已删）',
+  group('B13.8 能量档位制（C139 灰色虚线空槽 / 付费照常）', () {
+    testWidgets('免费档：第 1 颗照常两态，第 2 颗恒灰色虚线空槽（C139，不再锁标）',
         (WidgetTester tester) async {
       await _pumpCard(tester, _view(GuardPillMode.pendingFree, energy: 1));
 
@@ -383,16 +383,24 @@ void main() {
       expect((dot0.decoration as BoxDecoration).color,
           const Color(0xFFFFC93C), reason: '第 1 颗攒满 = 金色实心');
 
-      // 第 2 颗：锁标（免费档恒锁，cap = kGuardEnergyDailyMaxFree）；
-      // 🔴 B13.9：锁标下不再有「会员双能量」小字（已删，不许回来）。
-      expect(find.byIcon(Icons.lock_rounded), findsOneWidget,
-          reason: '免费档第 2 颗必须显示锁标');
+      // 第 2 颗：C139 起改画灰色虚线空槽（与战士头顶能量条免费档同款），不再是锁标；
+      // 权限 / 能量累计 / 点按提示逻辑一概未变。
+      expect(find.byIcon(Icons.lock_rounded), findsNothing,
+          reason: 'C139：免费档第 2 颗不得再显示锁标');
+      expect(
+        find.descendant(
+          of: find.byKey(GuardSceneCard.energyDotKey(1)),
+          matching: find.byType(CustomPaint),
+        ),
+        findsOneWidget,
+        reason: 'C139：免费档第 2 颗应画灰色虚线空槽（CustomPaint 纯绘制）',
+      );
       expect(find.text('会员双能量'), findsNothing,
           reason: '🔴 B13.9：小字已删，卡内零文本');
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('免费档：点锁标 → 只弹提示卡（C81：无购买入口、不跳转）',
+    testWidgets('免费档：点第 2 颗虚线空槽 → 只弹提示卡（C81：无购买入口、不跳转）',
         (WidgetTester tester) async {
       await _pumpCard(tester, _view(GuardPillMode.pendingFree, energy: 1));
 
@@ -400,7 +408,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.byKey(GuardSceneCard.energyLockedHintKey), findsOneWidget,
-          reason: '锁标点按必须弹 C81 提示卡');
+          reason: '免费档第 2 颗（虚线空槽）点按必须弹 C81 提示卡');
       expect(find.text('完整版每天有 2 颗能量点哦'), findsOneWidget,
           reason: '提示卡正文 = guard_energy_locked_hint（B13.9 措辞统一完整版）');
       // 🔴 C81：无购买入口 —— 卡仍在原页（无路由跳转）。

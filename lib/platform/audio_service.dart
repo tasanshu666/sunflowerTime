@@ -27,6 +27,32 @@ const int _kAmbientFailureRetryDelayMs = 1500;
 /// 氛围音失败后**额外**重试次数上限（避免首进失败后一直干等 30s 定时器 / 切 tab）。
 const int _kAmbientFailureRetryAttempts = 3;
 
+/// 许愿树音「等待本遍播完」的**兜底上界**：曲长未知时按此值估算。
+///
+/// 实测本曲 10.083250 s；给 15s 是「即使 `duration` 拿不到（平台未上报）也够放完
+/// 一遍」的安全估计，不参与任何音质/节奏判定。
+const Duration _kWishAmbientDefaultTrackLength = Duration(seconds: 15);
+
+/// 许愿树音「等待本遍播完」的**超时余量**（叠加在曲长之上）。
+///
+/// 见 `_awaitWishAmbientCompleted`：真机存在「哑起播」（F86：`playing == true`
+/// 却从不渲染、也不发 `completed`），无界等待会把循环永久挂住，故留 5s 余量作上界。
+const Duration _kWishAmbientCompletionSlack = Duration(seconds: 5);
+
+/// 许愿树音某一轮**失败**后的重试间隔（照花园 [kAmbientRetryDelayMs] 口径：
+/// 够平台就绪，又不拖沓）。
+const Duration _kWishAmbientRetryGap = Duration(milliseconds: kAmbientRetryDelayMs);
+
+/// 许愿树音**连续失败**上限：达上限即静默放弃本轮循环（页面重进会重建），
+/// 避免「每 30s 无意义地空转重试」。
+const int _kWishAmbientMaxConsecutiveFailures = 3;
+
+/// C138（玄参真机反馈）：许愿树背景音的播放音量 —— 原满音量 1.0，现减半。
+///
+/// 🔴 只作用于许愿树**独立播放器** [_wishAmbientPlayer] 的每轮起播设置；花园氛围音
+/// [_ambientPlayer]（含 SFX ducking / 恢复）与所有音效音量一概不受影响。
+const double kWishTreeAmbientVolume = 0.5;
+
 /// 音效提示（SFX）枚举。每个 cue 映射到 `assets/audio/sfx/<name>`。
 ///
 /// 2026-09-28 新增 5 个 mp3 cue（成长过渡 3 段 + 养护 2 段）；2026-09-29 新增专注页
@@ -254,6 +280,16 @@ class AudioService {
   AudioPlayer? _sfxPlayer;
   AudioPlayer? _bgmPlayer;
   AudioPlayer? _ambientPlayer;
+
+  /// 许愿树页专属背景音播放器（C137）。
+  ///
+  /// 🔴 **必须是独立实例**，绝不复用 [_ambientPlayer]：花园氛围音有一整套防护
+  /// （[_ambientStarting] 重入闸门 / [_ambientGeneration] 代际 / F133 iPad 僵尸门 /
+  /// SFX ducking 音量恢复 / 自愈监听），两套音共用一个播放器会互相 `stop()`、
+  /// 互相覆盖 `setAsset`、互相把对方的状态事件判成「被打断」——必然出 bug。
+  /// 两个 `AudioPlayer` 各自持有独立的平台播放器（`_RecPlayer` / 原生 id 不同），
+  /// 因此「一方的 stop / setAsset 不影响另一方」是**结构保证**，不靠时序运气。
+  AudioPlayer? _wishAmbientPlayer;
   bool _soundOn = true;
   bool _bgmOn = false;
   bool _bgmPlaying = false;
@@ -295,6 +331,9 @@ class AudioService {
 
   /// 暂停前氛围音是否应播（回前台据此恢复；花园 tab 可见时才为 true）。
   bool _ambientShouldPlayBeforeBackground = false;
+
+  /// 暂停前许愿树音是否应播（C137；回前台据此恢复；停在许愿树页时才为 true）。
+  bool _wishAmbientShouldPlayBeforeBackground = false;
 
   /// [isSuspendedForBackground]（测试可见性）。
   @visibleForTesting
@@ -416,6 +455,92 @@ class AudioService {
   /// 已触发的失败重试次数（成功起播 / stop / dispose 复位）。
   int _ambientRetryCount = 0;
 
+  // ── 许愿树页专属背景音（C137 建立，C138 对齐花园时序）─────────────────────────
+  //
+  // 需求原文：「给许愿树页面接入背景音效……播放一次然后停 30s，然后再播放。仅在许愿树
+  // 这个界面播放，其他界面不播放。」
+  //
+  // C138 实测花园真实口径：`garden_page._syncAmbientTimer()` 用 `Timer.periodic(30s)`
+  // 每 [kGardenAmbientIntervalSeconds] 秒**触发一次起播**，播放器 LoopMode.off、曲长约
+  // 10s ⇒ 实际是「响 10s + 静默约 20s」，两次起播间隔恒 30s。
+  // 许愿树原是「播完再静默 30s」（一轮约 40s），比花园慢约 10s。今对齐：仍用
+  // 「播放完成事件 → 等待剩余周期 → 再播」的顺序协程（不是 Timer.periodic，代际 /
+  // 后台 / 意图 / 幂等四重防护全部保留），但等待 = 30s − 本轮曲长占时 ⇒ 起播同花园 30s。
+
+  /// 许愿树音的**代际**计数器：每次 [stopWishTreeAmbient] / [dispose] / [resetForTest]
+  /// 递增。循环协程在每个 `await` 间隙后校验代际，过期即让位退出——
+  /// 防「已被 stop 却又被静默间隔 / 平台事件唤醒继续播」。
+  int _wishAmbientGeneration = 0;
+
+  /// 「页内应播」**意图**标记（与花园的 [_ambientShouldPlay] 同构）。
+  ///
+  /// 语义 = 页面认为自己可见且要播（[startWishTreeAmbient] 记 true，
+  /// [stopWishTreeAmbient] 记 false）。它**不受** [_bgmOn] 影响：设置关 BGM 时只停播、
+  /// 不清意图（`keepIntent`），这样重新打开「背景音乐」时 [applySettings] 能补播。
+  bool _wishAmbientShouldPlay = false;
+
+  /// 循环协程**是否正在跑**（幂等闸门 + [applySettings] 的补播判据）。
+  ///
+  /// ⚠️ 这是「**整条 while 循环**在跑」，不是「此刻正在发声」：静默间隔期间它同样为 true
+  /// （所以重复调用 [startWishTreeAmbient] 不会叠出第二条循环）。
+  bool _wishAmbientLooping = false;
+
+  /// 许愿树音**起播请求**累计次数（测试可见性，口径照 [_gardenAmbientPlayCalls]）。
+  ///
+  /// 生产路径每一次 [startWishTreeAmbient] 调用都会 +1（**入口处同步递增**，先于任何
+  /// `await`），因此不受开关状态 / 起播成败 / 是否被幂等闸门挡下影响，是「页面认为自己
+  /// 可见」最直接、最不受时序干扰的观测点。⚠️ 只增不减；由 [resetForTest] 复位。
+  @visibleForTesting
+  int get wishTreeAmbientPlayCalls => _wishAmbientPlayCalls;
+
+  int _wishAmbientPlayCalls = 0;
+
+  /// [_wishAmbientLooping]（测试可见性）：循环协程是否在跑。
+  @visibleForTesting
+  bool get wishTreeAmbientLooping => _wishAmbientLooping;
+
+  /// [_wishAmbientShouldPlay]（测试可见性）：「页内应播」意图标记。
+  @visibleForTesting
+  bool get wishTreeAmbientShouldPlay => _wishAmbientShouldPlay;
+
+  /// 许愿树音代际计数（C137，测试可见性）：每次 `stop` / `dispose` / `resetForTest`
+  /// 递增一次。用例据此断言「stop 确实作废了在途流程」，而非只看最终是否安静。
+  @visibleForTesting
+  int get wishTreeAmbientGeneration => _wishAmbientGeneration;
+
+  /// 许愿树音**静默间隔**（默认 [kWishTreeAmbientGapSeconds] 秒）。
+  ///
+  /// 单独提成字段只为可测：真实 30s 无法在用例里等，故给 [debugSetWishTreeAmbientGap]
+  /// 一个 `@visibleForTesting` 的缩短入口（生产路径**永不**调用它）。
+  Duration _wishAmbientGap = const Duration(seconds: kWishTreeAmbientGapSeconds);
+
+  /// 缩短许愿树音的静默间隔（**仅供测试**；用 [resetForTest] 复位回生产值）。
+  @visibleForTesting
+  void debugSetWishTreeAmbientGap(Duration gap) {
+    _wishAmbientGap = gap;
+  }
+
+  /// 静默间隔的等待器（[Timer] + [Completer] 而非裸 `Future.delayed`）。
+  ///
+  /// 为什么要可取消：离开页面（[stopWishTreeAmbient]）必须**立刻**结束等待并退出循环，
+  /// 否则①语义上晚 30s 才真正收尾；②`flutter_test` 里残留 Timer 会直接判用例失败
+  /// （"A Timer is still pending even after the widget tree was disposed"）。
+  Timer? _wishAmbientGapTimer;
+  Completer<void>? _wishAmbientGapCompleter;
+
+  /// 「本遍**播完**」的等待器与事件订阅（见 [_awaitWishAmbientCompleted]）。
+  Completer<void>? _wishAmbientPlayDone;
+  StreamSubscription<ProcessingState>? _wishAmbientDoneSub;
+
+  /// 最近一次 `stop()` 的在途收尾（[startWishTreeAmbient] 起播前会先等它落地）。
+  ///
+  /// 为什么需要：`AudioPlayer.stop()` 内部要完整走一遍 `_setPlatformActive(false)`
+  /// （释放平台播放器 + 重建 idle 播放器，几百 ms 级）。若紧接着 `setAsset` 激活，
+  /// just_audio 的 `_activationCount` 会被交叉推进 → 在途加载被判定「被打断」而抛
+  /// `PlatformException(abort, Loading interrupted)`，本轮彻底无声。
+  /// 真机典型触发：许愿树页里把「背景音乐」关掉又立刻打开。
+  Future<void>? _wishAmbientPendingStop;
+
   /// 应用设置：同步音效开关 / 背景类音频开关。
   ///
   /// ⚠️ 语义（玄参拍板）：[soundOn] **只拦截「专注中收集阳光」提示音**
@@ -446,6 +571,21 @@ class AudioService {
     // 窗口标记，稳态恒 false），否则每次设置同步都会把氛围音**从头重启**（QA 同源②反证）。
     if (lateRepay) {
       unawaited(_playGardenAmbient());
+    }
+    // C137：许愿树页专属背景音同样受 [_bgmOn] 控制（与花园氛围音**同源**，
+    // 因为设置里只有「背景音乐」这一个开关）。
+    // · 关：立即停播，但**保留**「页内应播」意图（`keepIntent: true`）——
+    //   否则用户只是临时关一下、再打开时本页不会开新 `initState`，就再也补不回来了。
+    // · 开：按「迟到补播」口径重启（照抄上面花园 `lateRepay` 的写法与判据形状）。
+    if (!_bgmOn && _wishAmbientLooping) {
+      stopWishTreeAmbient(reason: 'bgmOff', keepIntent: true);
+    }
+    final bool wishTreeLateRepay = bgmOn &&
+        !_suspendedForBackground &&
+        _wishAmbientShouldPlay &&
+        !_wishAmbientLooping;
+    if (wishTreeLateRepay) {
+      unawaited(startWishTreeAmbient());
     }
   }
 
@@ -486,6 +626,18 @@ class AudioService {
     _ambientPlayer ??= _createBackground();
     await _clearStaleAssetCacheOnce();
     return _ambientPlayer;
+  }
+
+  /// 取许愿树音播放器（懒加载，C137）。
+  ///
+  /// 走与 [_ambient] **完全相同**的三步（会话声明 → 构造 → 清陈旧资产缓存），但落在
+  /// **另一个字段** [_wishAmbientPlayer] 上——两个 `AudioPlayer` 各自持有独立的平台
+  /// 播放器，故互不覆盖 `setAsset`、互不 `stop()`。
+  Future<AudioPlayer?> get _wishAmbient async {
+    await _ensureAudioSessionConfigured(); // D1-v2：冷启动首次播放卡 ready 的根因修复
+    _wishAmbientPlayer ??= _createBackground(); // 背景类：handleInterruptions:false
+    await _clearStaleAssetCacheOnce();
+    return _wishAmbientPlayer;
   }
 
   /// 资产拷贝缓存**是否已清过**（一次即可；失败也置 true——清不掉只是可能命中陈旧拷贝，
@@ -1445,6 +1597,275 @@ class AudioService {
     }
   }
 
+  // ── 许愿树页专属背景音（C137，玄参 2026-11-22）────────────────────────────────
+
+  /// 起播许愿树页专属背景音（**幂等**：已在循环中则直接返回）。
+  ///
+  /// 循环语义（C138 对齐花园：每 30s 起播一次）：
+  ///
+  /// ```text
+  /// while (未停) {
+  ///   setAsset → setVolume(kWishTreeAmbientVolume) → play() → 等「本遍播完」
+  ///   → 静默 (kWishTreeAmbientGapSeconds − 本轮曲长占时) 秒 → 再播
+  /// }
+  /// ```
+  ///
+  /// 与花园 [kGardenAmbientIntervalSeconds] 同口径：起播间隔恒为 30s。实现上仍是
+  /// 「播放完成事件 → 等待 → 再播」的顺序协程（非 `Timer.periodic`），四重防护保留。
+  ///
+  /// 三重防护（照花园既有口径，但落点是本音**自己的**代际 / 标记，不碰花园那一套）：
+  /// 1. **幂等闸门** [_wishAmbientLooping]：重复调用（重复进入 / 设置同步多次）不叠第二条循环；
+  /// 2. **代际** [_wishAmbientGeneration]：每个 `await` 间隙后校验，被 [stopWishTreeAmbient]
+  ///    作废的在途流程一律让位退出，**绝不**在过期后继续 `setAsset` / `play`；
+  /// 3. **意图** [_wishAmbientShouldPlay]：页面离开即 false，循环据此收尾。
+  ///
+  /// 异常一律 try/catch 静默（音频失败绝不能阻塞页面）；播放器构造失败（无音频后端）
+  /// 直接放弃本轮循环，静默降级。
+  Future<void> startWishTreeAmbient() async {
+    // 测试可见的「起播请求」计数（入口处同步递增，与开关 / 幂等 / 成败无关）。
+    _wishAmbientPlayCalls++;
+    if (_wishAmbientLooping) {
+      return; // 幂等：循环已在跑（可能正处于静默间隔）
+    }
+    // 意图**先于**开关判定记录（照 [playGardenAmbientAndWait] 的 F82-b 口径）：
+    // 冷启动时 [_bgmOn] 还是默认 false，若此处不留痕迹，之后设置变 true 也无人补播。
+    _wishAmbientShouldPlay = true;
+    if (!_bgmOn) {
+      return; // 开关未允许：不发声，等 [applySettings] 补播
+    }
+    if (_suspendedForBackground) {
+      return; // 退后台 / 锁屏：不记循环，回前台由 [resumeFromBackground] 续播
+    }
+    _wishAmbientLooping = true;
+    final int gen = ++_wishAmbientGeneration;
+    try {
+      // 上一次 stop 的平台侧收尾可能还在飞（`AudioPlayer.stop()` →
+      // `_setPlatformActive(false)`，几百 ms 级）。等它落地再起播，避免 just_audio 内部
+      // activation 序列被交叉打断：真实现里会抛
+      // `PlatformException(abort, Loading interrupted)`（本轮无声，等下一轮自愈）。
+      // 场景：用户在许愿树页把「背景音乐」关掉又立刻打开。
+      final Future<void>? pendingStop = _wishAmbientPendingStop;
+      _wishAmbientPendingStop = null;
+      if (pendingStop != null) {
+        try {
+          await pendingStop;
+        } catch (_) {
+          // 上一次 stop 失败无意义：本就在停止路径上。
+        }
+      }
+      await _runWishTreeAmbientLoop(gen);
+    } catch (_) {
+      // 兜底静默：本方法由页面 `unawaited(...)` 调用，任何外抛都会变成未捕获的
+      // 异步异常（页面侧不该因音频失败而受影响），故这里一律吞掉。
+    } finally {
+      // ⚠️ 只在「代际仍属于本循环」时复位：停播后立刻重进页面会起新循环（新代际），
+      // 旧循环的 finally 绝不能把新循环的闸门关掉。
+      if (gen == _wishAmbientGeneration) {
+        _wishAmbientLooping = false;
+      }
+    }
+  }
+
+  /// 许愿树音的主循环体（由 [startWishTreeAmbient] 串行化后调用）。
+  ///
+  /// [gen] = 本次循环的代际号；任何 `await` 之后都必须用 [_wishAmbientHalted] 校验，
+  /// 过期立即 `break`（连静默间隔都不进）。
+  Future<void> _runWishTreeAmbientLoop(int gen) async {
+    // 连续失败计数：本轮失败时改走**短间隔**重试（照花园 F82 首播重试口径），
+    // 达上限即静默放弃（等下次进页面重来），不无限重试、也不留残响。
+    int failures = 0;
+    while (true) {
+      if (_wishAmbientHalted(gen)) break;
+      // C138：记本轮**起播时刻**。对齐花园「每 30s 触发一次」——等待须扣除本轮曲长
+      // 占时（真机 10.08s），使两次 play() 起点间隔恒 30s，而非原「播完再等 30s」的
+      // 40s 周期。测试里 emitCompleted 近乎即时 ⇒ played≈0，原时序断言仍成立。
+      final DateTime roundStartedAt = DateTime.now();
+      final AudioPlayer? player = await _wishAmbient;
+      if (player == null) break; // 播放器构造失败：静默放弃（无音频后端）
+      if (_wishAmbientHalted(gen)) break;
+      bool roundOk = false;
+      try {
+        // 🔴 每轮先 `stop()`（与花园 `start()` 里 `await p.stop()` 同一理由，必做）：
+        // just_audio 在「播完（completed）」后 **`playing` 仍是 true**，不 stop 就直接
+        // `play()` 会被 `play()` 开头的 `if (playing) return;` 静默挡掉 —— 表现为
+        // 「播一遍之后再也不响」。`stop()` 同时把平台播放器复位（playCompleter / 位置 /
+        // 状态流），下一遍才是干净的从头播。
+        await player.stop();
+        if (_wishAmbientHalted(gen)) break;
+        // F133 同源：`setAsset` 的 Future **只在拿到 ready 时完成**，加载途中被 `stop()`
+        // 打断会被平台丢弃（既不完成也不抛错）。若不加界，本循环会永久挂住
+        // ⇒ [_wishAmbientLooping] 卡 true ⇒ 本进程内再也起不来（只能杀 App）。
+        // 复用手边既有的有界加载器，超时即当本轮失败。
+        final bool loaded = await loadAssetBounded(
+          () => player.setAsset(kWishTreeAmbientAsset),
+        );
+        if (_wishAmbientHalted(gen)) break;
+        if (!loaded) {
+          // 卡在 `loading` 的播放器会继续占着共享音频会话（连 SFX 都可能被堵）：
+          // 丢弃它，下一轮 `await _wishAmbient` 会重建（宁可重建也不留僵尸体）。
+          _discardWishAmbientPlayer(player);
+        } else {
+          await player.seek(Duration.zero);
+          // C138：许愿树音音量减半（1.0 → 0.5）；只改本播放器，花园 / SFX 音量不动。
+          await player.setVolume(kWishTreeAmbientVolume);
+          if (_wishAmbientHalted(gen)) break;
+          // ⚠️ just_audio 0.9.46 的 `play()` **不等待播完**（`_sendPlayRequest` 里平台
+          // play 请求一返回就 `complete()`，见 `just_audio.dart:998-1005`），因此
+          // 「播完」必须另行等待 [ProcessingState.completed]（见下）。
+          await player.play();
+          await _awaitWishAmbientCompleted(player);
+          // ⚠️ 必须马上再校验一次：被 stop 时 [_cancelWishAmbientWait] 会**提前完成**
+          // 上面这个等待器，流程会从这里醒来；此时绝不能继续走「静默间隔」分支
+          // （否则会挂出一个无人认领的 Timer）。
+          if (_wishAmbientHalted(gen)) break;
+          roundOk = true;
+        }
+      } catch (_) {
+        // 静默降级：加载 / 播放失败（含「加载被 stop 打断」的 PlatformException）退到下一轮。
+      }
+      if (_wishAmbientHalted(gen)) break;
+      if (roundOk) {
+        failures = 0;
+        // C138：对齐花园「每 30s 播一次」——等待 = 周期 − 本轮播放占时。
+        // 真机曲 10.08s ⇒ 静默约 20s，两次起播间隔恒 30s（原本静默满 30s = 40s 周期）。
+        final Duration played = DateTime.now().difference(roundStartedAt);
+        final Duration remaining = _wishAmbientGap > played
+            ? _wishAmbientGap - played
+            : _kWishAmbientRetryGap; // 曲长异常超过周期：留一个短间隔，避免空转
+        await _waitWishAmbientGap(remaining);
+      } else {
+        failures++;
+        if (failures >= _kWishAmbientMaxConsecutiveFailures) {
+          break; // 连续失败：静默放弃本轮循环（下次进页面重建，不无限刷）
+        }
+        await _waitWishAmbientGap(_kWishAmbientRetryGap);
+      }
+      if (_wishAmbientHalted(gen)) break;
+    }
+  }
+
+  /// 「本遍已播完」的等待器：听 `processingStateStream` 等
+  /// [ProcessingState.completed]（被 stop / dispose 打断时由
+  /// [_cancelWishAmbientWait] 提前完成）。
+  ///
+  /// ⚠️ **有界**（本曲时长 + 5s 余量）：真机存在「哑起播」风险（F86：`playing == true`
+  /// 却从不渲染、也永远不发 `completed`），无界等待会让循环永久挂住、页面重进也无法重播。
+  /// 超时即视作本轮结束 → 进入静默间隔 → 下一轮自愈。
+  Future<void> _awaitWishAmbientCompleted(AudioPlayer player) {
+    final Completer<void> done = Completer<void>();
+    _wishAmbientPlayDone = done;
+    final StreamSubscription<ProcessingState> sub =
+        player.processingStateStream.listen(
+      (ProcessingState state) {
+        if (state == ProcessingState.completed && !done.isCompleted) {
+          done.complete();
+        }
+      },
+      onError: (Object _) {
+        if (!done.isCompleted) done.complete(); // 平台事件流出错：当作本轮结束
+      },
+    );
+    _wishAmbientDoneSub = sub;
+    final Duration bound = (player.duration ?? _kWishAmbientDefaultTrackLength) +
+        _kWishAmbientCompletionSlack;
+    return done.future
+        .timeout(bound, onTimeout: () {
+          // 见上：哑起播 / 平台未上报 completed → 有界放弃本轮。
+        })
+        .whenComplete(() {
+          unawaited(sub.cancel());
+          if (identical(_wishAmbientDoneSub, sub)) _wishAmbientDoneSub = null;
+          if (identical(_wishAmbientPlayDone, done)) _wishAmbientPlayDone = null;
+        });
+  }
+
+  /// 静默 [gap]（C138：生产值 = 周期 30s − 本轮曲长占时，可被
+  /// [stopWishTreeAmbient] 立即打断；失败重试时传 [_kWishAmbientRetryGap]）。
+  Future<void> _waitWishAmbientGap(Duration gap) {
+    final Completer<void> done = Completer<void>();
+    _wishAmbientGapCompleter = done;
+    _wishAmbientGapTimer = Timer(gap, () {
+      _wishAmbientGapTimer = null;
+      if (!done.isCompleted) done.complete();
+    });
+    return done.future;
+  }
+
+  /// 中断并清空「静默间隔」与「等待播完」两个等待器（stop / dispose 用）。
+  ///
+  /// 两者都用 [Completer] 承载：完成它 → 对应 `await` 醒来看 [_wishAmbientHalted] → 退出，
+  /// 且**不遗留任何 Timer**（否则 widget 测试会因 pending timer 判失败）。
+  void _cancelWishAmbientWait() {
+    _wishAmbientGapTimer?.cancel();
+    _wishAmbientGapTimer = null;
+    final Completer<void>? gap = _wishAmbientGapCompleter;
+    _wishAmbientGapCompleter = null;
+    if (gap != null && !gap.isCompleted) gap.complete();
+
+    unawaited(_wishAmbientDoneSub?.cancel() ?? Future<void>.value());
+    _wishAmbientDoneSub = null;
+    final Completer<void>? played = _wishAmbientPlayDone;
+    _wishAmbientPlayDone = null;
+    if (played != null && !played.isCompleted) played.complete();
+  }
+
+  /// 本循环是否该收尾退出（代际过期 / 已停 / 意图撤销 / 退后台）。
+  bool _wishAmbientHalted(int gen) =>
+      !_wishAmbientLooping ||
+      gen != _wishAmbientGeneration ||
+      !_wishAmbientShouldPlay ||
+      _suspendedForBackground;
+
+  /// 丢弃一个**卡死**的许愿树音播放器（F133 同源；不复用花园的
+  /// [_discardAmbientPlayer]，那条是花园播放器专用、还带自愈订阅清理）。
+  void _discardWishAmbientPlayer(AudioPlayer player) {
+    if (!identical(_wishAmbientPlayer, player)) return; // 绝不误杀已重建的新实例
+    _wishAmbientPlayer = null;
+    unawaited(_disposeQuietly(player)); // fire-and-forget：卡住的 dispose 不能 await
+  }
+
+  /// 停止许愿树音（离开许愿树页 / 设置关 BGM / 退后台 / dispose 时调用）。
+  ///
+  /// 顺序**固定**：先递增代际（作废在途加载与等待）→ 翻 _wishAmbientLooping / 意图 →
+  /// 中断等待器 → 最后才 `stop()` 播放器。反过来会让在途流程醒来后「看起来仍应播」
+  /// 而继续 `setAsset` / `play`（花园 F71 v3 的同源教训）。
+  ///
+  /// ## [reason]（真机诊断）
+  /// 各调用点传入便于日志区分：`'leave'`（离开许愿树页）/ `'bgmOff'`（设置关 BGM）/
+  /// `'suspend'`（退后台 / 锁屏）/ `'dispose'` / `'test'`。
+  ///
+  /// ## [keepIntent]
+  /// `true` = 只停播、**保留**「页内应播」意图（[_wishAmbientShouldPlay] 不动）。
+  /// 用于「设置里临时关掉背景音乐」：用户还在许愿树页，重新打开时必须补播，
+  /// 而本页不会再次 `initState`，只能靠意图 + [applySettings] 补播。
+  void stopWishTreeAmbient({String reason = '', bool keepIntent = false}) {
+    _wishAmbientGeneration++;
+    _wishAmbientLooping = false;
+    if (!keepIntent) {
+      _wishAmbientShouldPlay = false;
+    }
+    _cancelWishAmbientWait();
+    final AudioPlayer? player = _wishAmbientPlayer;
+    if (player == null) return;
+    // fire-and-forget：stop() 内部会 `_setPlatformActive(false)`（几百 ms 级平台调用），
+    // 页面 dispose 路径绝不能 await 它（会拖住卸载）。但把 Future 记下来，供紧接着的
+    // [startWishTreeAmbient] 起播前等待（见 [_wishAmbientPendingStop]）。
+    _wishAmbientPendingStop = _stopWishAmbientPlayerQuietly(player, reason);
+    unawaited(_wishAmbientPendingStop);
+  }
+
+  /// 静默 `stop()`（失败无意义：停止路径本身已是终态，不刷日志）。
+  static Future<void> _stopWishAmbientPlayerQuietly(
+    AudioPlayer player,
+    String reason,
+  ) async {
+    try {
+      await player.stop();
+    } catch (_) {
+      // 静默降级（[reason] 仅为真机诊断留痕用）。
+    }
+  }
+
   /// 释放所有播放器（专注页 [dispose] 时调用；下次使用懒加载重建）。
   Future<void> dispose() async {
     _ambientRetryTimer?.cancel();
@@ -1460,6 +1881,7 @@ class AudioService {
       await _sfxPlayer?.dispose();
       await _bgmPlayer?.dispose();
       await _ambientPlayer?.dispose();
+      await _wishAmbientPlayer?.dispose();
       await _battlePlayer?.dispose();
       for (final AudioPlayer? p in _sfxPool) {
         await p?.dispose();
@@ -1470,9 +1892,17 @@ class AudioService {
     _sfxPlayer = null;
     _bgmPlayer = null;
     _ambientPlayer = null;
+    _wishAmbientPlayer = null;
     _battlePlayer = null;
     _sfxPool.clear();
     _sfxPoolCursor = 0;
+    // C137：许愿树音一并作废（代际递增 ⇒ 在途循环醒来即退出；等待器全部中断）。
+    _wishAmbientGeneration++;
+    _wishAmbientLooping = false;
+    _wishAmbientShouldPlay = false;
+    _wishAmbientShouldPlayBeforeBackground = false;
+    _wishAmbientPendingStop = null;
+    _cancelWishAmbientWait();
     _ambientGeneration++; // F71 v3：作废一切在途氛围音加载/启动
     _bgmPlaying = false;
     _ambientPlaying = false;
@@ -1510,6 +1940,7 @@ class AudioService {
       _sfxPlayer,
       _bgmPlayer,
       _ambientPlayer,
+      _wishAmbientPlayer, // C137：许愿树音独立播放器一并释放
       _battlePlayer,
       ..._sfxPool, // F203：叠加池槽位一并释放
     ]) {
@@ -1518,6 +1949,7 @@ class AudioService {
     _sfxPlayer = null;
     _bgmPlayer = null;
     _ambientPlayer = null;
+    _wishAmbientPlayer = null;
     _battlePlayer = null;
     _sfxPool.clear();
     _sfxPoolCursor = 0;
@@ -1544,6 +1976,15 @@ class AudioService {
     _ambientStartingSince = null; // F133：闸门置位时刻（与 dispose 字段清单对齐）
     _ambientGeneration++;
     _gardenAmbientPlayCalls = 0; // F138：起播请求计数（跨用例必须复位）
+    // C137：许愿树音的全部跨用例残留态（字段清单与 [dispose] 对齐，避免漂移）。
+    _cancelWishAmbientWait();
+    _wishAmbientGeneration++;
+    _wishAmbientLooping = false;
+    _wishAmbientShouldPlay = false;
+    _wishAmbientShouldPlayBeforeBackground = false;
+    _wishAmbientPlayCalls = 0;
+    _wishAmbientPendingStop = null;
+    _wishAmbientGap = const Duration(seconds: kWishTreeAmbientGapSeconds);
     _sessionConfigured = false;
     _sessionConfigFuture = null;
     _assetCacheCleared = false;
@@ -1576,9 +2017,13 @@ class AudioService {
     _bgmWasPlayingBeforeBackground = _bgmPlaying;
     _battleWasPlayingBeforeBackground = _battlePlaying;
     _ambientShouldPlayBeforeBackground = _ambientShouldPlay;
+    // C137：许愿树音同样要随退后台停掉（否则锁屏后还在响 —— 正是 F70 的 bug 本体）。
+    // 记录「暂停前是否应播」，回前台由 [resumeFromBackground] 续播。
+    _wishAmbientShouldPlayBeforeBackground = _wishAmbientShouldPlay;
     await stopBgm();
     await stopGuardBattleBgm();
     await stopGardenAmbient(reason: 'suspend');
+    stopWishTreeAmbient(reason: 'suspend');
   }
 
   /// **回前台**：恢复暂停前在播的通道（幂等；无在播通道则什么都不做）。
@@ -1600,6 +2045,11 @@ class AudioService {
     if (_ambientShouldPlayBeforeBackground) {
       _ambientShouldPlayBeforeBackground = false;
       unawaited(_playGardenAmbient());
+    }
+    // C137：许愿树音若在退后台前应播（用户仍停在许愿树页）→ 回前台续播一轮。
+    if (_wishAmbientShouldPlayBeforeBackground) {
+      _wishAmbientShouldPlayBeforeBackground = false;
+      unawaited(startWishTreeAmbient());
     }
   }
 }

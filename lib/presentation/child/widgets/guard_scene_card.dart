@@ -478,10 +478,11 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
                 // ── 能量点 ×2（B8 回归：房子右侧 / 栅栏上方，亮·灭两态）───
                 // 位置由 layout 算，垂直**不越出房顶一个直径** ⇒ 不需要额外
                 // 顶部空间（这也是卡高能压到 108 的原因）。
-                // 🔴 B13.8 档位制：免费档第 2 颗恒显示**锁标**（不可点亮），
-                //    点按弹 C81 提示卡（无购买入口）；付费档两颗照常亮/灭。
-                //    🔴 B13.9：锁标下的小字已删（玄参「第二个能量锁上就可以了」）
-                //    —— 卡内回归零文本，措辞统一「完整版」口径。
+                // 🔴 B13.8 档位制：免费档第 2 颗不可点亮，点按弹 C81 提示卡（无购买入口）；
+                //    付费档两颗照常亮/灭。
+                //    🔴 C139：该颗的「锁标」已改为**灰色虚线空槽**，与战士头顶大招能量条的
+                //    免费档空槽同一视觉语言。仅显示层变更：免费档权限 / 能量累计 /
+                //    点按提示逻辑一概不动（卡内仍零文本）。
                 for (int i = 0; i < 2; i++)
                   Positioned.fromRect(
                     rect: layout.energyDotRect(i),
@@ -925,14 +926,21 @@ class _HouseSlot extends StatelessWidget {
   Widget build(BuildContext context) => ClipRect(child: GuardArt.house());
 }
 
+/// C139：免费档第 2 颗能量点的「灰色虚线空槽」参数 —— 与战士头顶大招能量条
+/// 免费档完全一致（灰 0xFF9E9E9E / dash 4-3 / 线宽 1.2）。
+const Color _kLockedEnergyDashColor = Color(0xFF9E9E9E);
+const double _kLockedEnergyDashWidth = 4.0;
+const double _kLockedEnergyDashSpace = 3.0;
+const double _kLockedEnergyDashStroke = 1.2;
+
 /// 能量点（B8 回归）：两态圆点 —— 亮 = 金色实心 + 深金描边，灭 = 空心灰环。
 ///
-/// 🔴 B13.8 档位制：[locked] = 免费档的第 2 颗 —— 灰环上叠**锁标**，可点
-/// （弹 C81 提示卡）；其余两态不可点。
+/// 🔴 B13.8 档位制：[locked] = 免费档的第 2 颗 —— C139 起改画**灰色虚线空槽**
+/// （与战士头顶能量条免费档同款灰 / dash 4-3 / 线宽 1.2），不再是锁标；仍可点
+/// （弹 C81 提示卡），其余两态不可点。权限 / 能量规则完全不变。
 ///
-/// 🔴 为什么圆点本体用 `Container` 而不是 `Icon`/`Text`：卡内文本护栏要求
-/// 圆点本身不出现 `Text`（大字号撑破卡的唯一入口）；锁标是图标 + 圆点是
-/// 纯色块，天然免疫（免费档小字在外层 Positioned 单独渲染）。
+/// 🔴 为什么圆点本体不用 `Icon`/`Text`：卡内文本护栏要求圆点本身不出现 `Text`
+/// （大字号撑破卡的唯一入口）；虚线由 [CustomPaint] 纯绘制，天然免疫。
 class _EnergyDot extends StatelessWidget {
   const _EnergyDot({
     super.key,
@@ -948,7 +956,7 @@ class _EnergyDot extends StatelessWidget {
   /// 锁标态（B13.8：免费档第 2 颗；灰环 + 🔒，可点）。
   final bool locked;
 
-  /// **平板 UI 放大倍率**（手机 = 1.0）：锁标图标按此放大，与卡同倍率。
+  /// **平板 UI 放大倍率**（手机 = 1.0）：虚线描边按此放大，与卡同倍率。
   final double uiScale;
 
   /// 点按回调（仅锁标态非 null）。
@@ -956,32 +964,34 @@ class _EnergyDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget dot = DecoratedBox(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: lit ? const Color(0xFFFFC93C) : const Color(0x00000000),
-        border: Border.all(
-          color: lit ? const Color(0xFFE8A600) : const Color(0x66A08C6A),
-          width: lit ? 2 : 1.5,
-        ),
-        boxShadow: lit
-            ? const <BoxShadow>[
-                BoxShadow(color: Color(0x33E8A600), blurRadius: 6)
-              ]
-            : null,
-      ),
-      child: locked
-          ? Center(
-              child: Icon(
-                Icons.lock_rounded,
-                size: 9 * uiScale,
-                color: const Color(0xFF8A7A66),
+    // C139：免费档第 2 颗（locked）只画灰色虚线空槽，与头顶能量条免费档同款；
+    // 不再叠锁标、也不画灰环实心壳（避免「虚线 + 实线」双重轮廓）。亮/灭两态原样。
+    Widget dot = locked
+        ? CustomPaint(
+            painter: _DashedEnergyDotPainter(
+              color: _kLockedEnergyDashColor,
+              strokeWidth: _kLockedEnergyDashStroke * uiScale,
+              dashWidth: _kLockedEnergyDashWidth * uiScale,
+              dashSpace: _kLockedEnergyDashSpace * uiScale,
+            ),
+          )
+        : DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: lit ? const Color(0xFFFFC93C) : const Color(0x00000000),
+              border: Border.all(
+                color: lit ? const Color(0xFFE8A600) : const Color(0x66A08C6A),
+                width: lit ? 2 : 1.5,
               ),
-            )
-          : null,
-    );
+              boxShadow: lit
+                  ? const <BoxShadow>[
+                      BoxShadow(color: Color(0x33E8A600), blurRadius: 6)
+                    ]
+                  : null,
+            ),
+          );
     if (onTap != null) {
-      // 锁标态可点（C81 ①：只弹提示卡）；热区即整个点槽位。
+      // 免费档第 2 颗可点（C81 ①：只弹提示卡）；热区即整个点槽位。逻辑未变。
       dot = Semantics(
         button: true,
         enabled: true,
@@ -994,6 +1004,57 @@ class _EnergyDot extends StatelessWidget {
     }
     return dot;
   }
+}
+
+/// C139：免费档第 2 颗能量点的虚线圆画师（Flutter 无内置 dashed border，不新增依赖）。
+///
+/// 与 `guard_ultimate_energy_bar` 的虚线画师同构（RRect + extractPath 逐段），
+/// 但本处槽位是正方形 ⇒ radius = 短边/2 即为正圆虚线。
+class _DashedEnergyDotPainter extends CustomPainter {
+  const _DashedEnergyDotPainter({
+    required this.color,
+    required this.strokeWidth,
+    required this.dashWidth,
+    required this.dashSpace,
+  });
+
+  final Color color;
+  final double strokeWidth;
+  final double dashWidth;
+  final double dashSpace;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double radius = size.shortestSide / 2 - strokeWidth / 2;
+    if (radius <= 0) return;
+    final Path path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Offset(strokeWidth / 2, strokeWidth / 2) &
+              Size(size.width - strokeWidth, size.height - strokeWidth),
+          Radius.circular(radius),
+        ),
+      );
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+    for (final metric in path.computeMetrics()) {
+      double distance = 0.0;
+      while (distance < metric.length) {
+        final double end = (distance + dashWidth).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + dashSpace;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedEnergyDotPainter oldDelegate) =>
+      color != oldDelegate.color ||
+      strokeWidth != oldDelegate.strokeWidth ||
+      dashWidth != oldDelegate.dashWidth ||
+      dashSpace != oldDelegate.dashSpace;
 }
 
 /// L1 草地板：**程序化**（渐变 + 草叶纹理），横向可无限拉伸。

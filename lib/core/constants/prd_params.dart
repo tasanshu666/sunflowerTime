@@ -781,6 +781,20 @@ const String kGardenAmbientAsset = 'assets/audio/bgm/background.mp3';
 /// 花园氛围音播放间隔（秒）：进入花园立即播一次，之后每隔 N 秒再播一次。
 const int kGardenAmbientIntervalSeconds = 30;
 
+/// 许愿树页专属背景音（玄参 2026-11-22 交付；实测 10.083250 s / 242048 B /
+/// md5 20fed91942ac72e7634d555c89c30cf8）。
+///
+/// 仅在 `/wish-tree` 页播放，离开即停（由 `AudioService.startWishTreeAmbient` /
+/// `AudioService.stopWishTreeAmbient` 成对驱动，页面生命周期为唯一真源）。
+const String kWishTreeAmbientAsset = 'assets/audio/bgm/wish_tree_ambient.mp3';
+
+/// 许愿树背景音**起播周期**（秒）：每 N 秒播一次（C138 玄参反馈「循环与花园一致」）。
+///
+/// 与 [kGardenAmbientIntervalSeconds] 同口径 = 30：花园是 `Timer.periodic(N)` 触发；
+/// 许愿树是「播完 → 等 N − 曲长占时 → 再播」的顺序协程，故两次起播间隔同样恒为 N。
+/// 本曲 10.08s ⇒ 播完约静默 20s（不再是原先「播完再静默 30s」的 40s 周期）。
+const int kWishTreeAmbientGapSeconds = 30;
+
 /// 花园氛围音「启动尝试次数」（首次 + 重试）· F82（玄参 2026-10-07：
 /// 「第一次安装后第一次进花园 BGM 不响，切几次 tab 才响」）。
 ///

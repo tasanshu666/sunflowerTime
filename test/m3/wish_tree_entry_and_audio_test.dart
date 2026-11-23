@@ -279,6 +279,7 @@ void main() {
       expect(tester.takeException(), isNull, reason: '前置：scope 常驻挂载无异常');
 
       // 挂载真实树页（= 任意入口 push 进 /wish-tree）。
+      final int wishPlayCallsBefore = audio.wishTreeAmbientPlayCalls;
       await tester.pumpWidget(UncontrolledProviderScope(
         container: h.container,
         child: const MaterialApp(home: WishTreePage()),
@@ -288,8 +289,14 @@ void main() {
       expect(find.byType(WishTreePage), findsOneWidget,
           reason: '真实树页已上树');
       expect(h.gate, isTrue, reason: '真实树页挂载即占台前 ⇒ 闸门开');
+      // C137：进入许愿树页必须请求起播**本页专属**背景音（观测点 = 起播请求计数，
+      // 不受 bgmOn=false / just_audio 后端影响 —— 与花园 `gardenAmbientPlayCalls` 同口径）。
+      expect(audio.wishTreeAmbientPlayCalls, wishPlayCallsBefore + 1,
+          reason: '真实树页 initState 帧后必须调 AudioService.startWishTreeAmbient()');
+      expect(audio.wishTreeAmbientShouldPlay, isTrue,
+          reason: '页内「应播」意图已记录（bgmOn=false 时同样记，等设置迟到补播）');
 
-      // 卸载真实树页（= pop 回花园）：闸门必须解除。
+      // 卸载真实树页（= pop 回花园）：闸门必须解除 + 专属背景音必须停。
       await tester.pumpWidget(UncontrolledProviderScope(
         container: h.container,
         child: const MaterialApp(home: SizedBox.shrink()),
@@ -299,6 +306,10 @@ void main() {
       expect(find.byType(WishTreePage), findsNothing);
       expect(h.gate, isFalse,
           reason: '真实树页 dispose 必须解除闸门（否则返回花园音乐不恢复）');
+      expect(audio.wishTreeAmbientShouldPlay, isFalse,
+          reason: 'C137：离开许愿树页必须停播专属背景音（其他界面不播放）');
+      expect(audio.wishTreeAmbientLooping, isFalse,
+          reason: 'C137：离开许愿树页循环必须收尾');
       expect(mountEx, isNull,
           reason: '真实树页 initState / 首帧不得抛「Tried to modify a provider while '
               'the widget tree was building」: $mountEx');
@@ -355,7 +366,7 @@ void main() {
       expect(popEx, isNull, reason: 'pop 不得抛生命周期异常: $popEx');
     });
 
-    test('花园页折入门闸且复用既有成对启停；树页零 AudioService 代码（源码守卫）', () {
+    test('花园页折入门闸且复用既有成对启停；树页有且仅有自己的专属背景音（源码守卫）', () {
       final String garden = File(
         'lib/presentation/child/pages/garden_page.dart',
       ).readAsStringSync();
@@ -369,7 +380,7 @@ void main() {
       expect(garden.contains('bool get _gardenVisible =>'), isTrue,
           reason: '共享 _gardenVisible getter 不动');
 
-      // 树页闸门**行为**已由上两条真实挂载用例覆盖；此处只守「零音频代码」纪律。
+      // 树页闸门**行为**已由上两条真实挂载用例覆盖；此处守「音频调用纪律」。
       // （不再断言 `.notifier).state = true` 文本 —— 那正是被修掉的 build 期写入写法。）
       final String tree = File(
         'lib/presentation/child/pages/wish_tree_page.dart',
@@ -379,8 +390,18 @@ void main() {
           .where((String line) => !line.trimLeft().startsWith('///'))
           .where((String line) => !line.trimLeft().startsWith('//'))
           .join('\n');
-      expect(treeCode.contains('AudioService'), isFalse,
-          reason: '树页不得出现任何音频服务代码（音频 API 冻结；注释提及不算）');
+      // C137（玄参 2026-11-22）：树页现在**必须**驱动自己的专属背景音，
+      // 「零 AudioService 代码」的旧纪律就此作废；改为守「只碰这两个成对 API」：
+      // 既不许它去动花园的氛围音（playGardenAmbient / stopGardenAmbient），
+      // 也不许它在 initState / dispose 里同步置播（会撞 WISH-V02-BUG-01 的生命周期坑）。
+      expect(treeCode.contains('startWishTreeAmbient()'), isTrue,
+          reason: 'C137：进入树页必须起播专属背景音');
+      expect(treeCode.contains('stopWishTreeAmbient('), isTrue,
+          reason: 'C137：离开树页必须停专属背景音');
+      expect(treeCode.contains('playGardenAmbient'), isFalse,
+          reason: '树页不得插手花园氛围音（两套音各自成对启停）');
+      expect(treeCode.contains('stopGardenAmbient'), isFalse,
+          reason: '树页不得插手花园氛围音（花园音由花园页自己停）');
       // 反向守卫：只允许通过 initState 捕获的 controller 写闸门，
       // 禁止 `ref.read(...notifier).state =` 这种 build/initState 期直接写（WISH-V02-BUG-01）。
       expect(

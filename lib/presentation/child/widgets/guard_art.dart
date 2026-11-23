@@ -53,6 +53,12 @@ const Color _bulletYellow = Color(0xFFFFD54F);
 
 /// B5b 资产路径契约（命名对齐《美术资源_序列帧与音频命名规范_v1》）。
 abstract final class _GuardAssetPaths {
+  /// 场景卡 L1 横幅底图（玄参新交付「背景图片.png」→ WebP q95；
+  /// 3712×640 完整横向草原+河流风景，不做裁边/缩放/gamma）。
+  ///
+  /// 渲染口径：BoxFit.cover 按卡高铺满、居中裁左右；不透明、无 alpha。
+  static const String sceneBackground = 'assets/guard/background.webp';
+
   /// 场景卡 L1 底图（房屋；浇水变体不接，见文件头注释）。
   static const String house = 'assets/guard/house.webp';
 
@@ -134,6 +140,12 @@ abstract final class _GuardAssetPaths {
 class GuardArt {
   const GuardArt._();
 
+  /// 场景卡 L1 横幅底图路径（3712×640，WebP q95）。
+  ///
+  /// 由 `GuardSceneCard` 的 `_GuardSceneBackdrop` 以 `BoxFit.cover` 绘制；
+  /// 测试据此断言资产名与 fit，避免路径散落在 widget 里。
+  static const String sceneBackgroundAsset = _GuardAssetPaths.sceneBackground;
+
   /// m1（馋光鼠）**UI 图标**（B13.26：结算卡「被偷行」用；静态首帧 =
   /// 序列 frame001，缺失时 `_ResultLine` 回退原 Icon）。
   static const String monsterM1Still = _GuardAssetPaths.monsterM1Still;
@@ -183,8 +195,8 @@ class GuardArt {
   /// 与今日页底图同色系）。
   ///
   /// ⚠️ B6 起**场景卡不再调用本函数**（玄参裁定：cover 在 iPad 宽卡上把
-  /// 1.77:1 的房屋图裁掉 75%，只剩巨型局部）。卡改为「程序化草地板（
-  /// [GuardSceneCard] 内 `_GrassBackdrop`）+ [house]（contain 完整可见）」。
+  /// 1.77:1 的房屋图裁掉 75%，只剩巨型局部）。卡内 L1 现为「新横幅风景图
+  /// [sceneBackgroundAsset]（cover）+ 程序化草地板兜底」+ [house]（contain 完整可见）。
   /// 本函数保留是为了：① 两个美术测试（`guard_art_live` / `guard_art_fallback`）
   /// 仍以它为「房屋素材位」的验收入口；② 其它页面若需要一张通栏封面图可直接用。
   /// 需要「完整房子」请用 [house]。

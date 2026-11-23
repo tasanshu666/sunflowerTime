@@ -91,8 +91,16 @@ class GuardSceneCard extends StatefulWidget {
   /// 第 [index] 个能量点的 Key（B8 回归；0 = 左、1 = 右）。
   static Key energyDotKey(int index) => Key('guardEnergyDot$index');
 
-  /// L1 草地板 Key（断言「底衬宽 = 卡宽，横向可拉伸」）。
+  /// L1 背景层 Key（断言「底衬宽 = 卡宽、高 = 卡高」）。
+  ///
+  /// 新横幅图接入后本 Key 落在**背景层根 Stack**上（底=渐变草地、上=图片），
+  /// 不再单独挂在 `_GrassBackdrop` 上 —— 既有 `find.byKey` 断言继续只命中一个。
   static const Key backdropKey = Key('guardSceneBackdrop');
+
+  /// L1 横幅图片 Key（测试读 `Image.fit` / `AssetImage.assetName`）。
+  ///
+  /// 与 [backdropKey] 是两个不同 Key：前者指图片本身，后者指整层背景。
+  static const Key backdropImageKey = Key('guardSceneBackgroundImage');
 
   /// 房子位 Key（断言「contain 完整可见 + 宽高比 ≈ 1.7746」）。
   static const Key houseKey = Key('guardSceneHouse');
@@ -450,9 +458,11 @@ class _GuardSceneCardState extends State<GuardSceneCard> {
               // 是给 ListView 开 clipBehavior: none（本报告已预留该选项）。
               clipBehavior: Clip.none,
               children: <Widget>[
-                // ── L1 草地板（程序化、横向无限拉伸 + 透明素材兜底）──────
+                // ── L1 背景（新横幅风景图 cover + 程序化草地板兜底）──────
+                // 图片按卡高铺满、居中裁左右（不压扁 / 不留边）；下方渐变草地
+                // 在图片解码中或加载失败时兜底，绝不出现白块。前景各层级不动。
                 const Positioned.fill(
-                  child: _GrassBackdrop(key: GuardSceneCard.backdropKey),
+                  child: _GuardSceneBackdrop(key: GuardSceneCard.backdropKey),
                 ),
 
                 // ── 房子（contain 完整可见；固定尺寸，跨屏宽逐位不变）────
@@ -1057,16 +1067,54 @@ class _DashedEnergyDotPainter extends CustomPainter {
       dashSpace != oldDelegate.dashSpace;
 }
 
+/// L1 背景层：**新横幅风景图 + 程序化草地板兜底**。
+///
+/// 根 Stack 从父级 `Positioned.fill` 拿到紧约束（宽=卡宽、高=卡高）。
+/// 图片用 `BoxFit.cover`：源图 3712×640（5.8:1）比任何机型的卡都宽，
+/// 故按**高度**缩放至恰好等于卡高，左右居中裁切 —— iPhone 390pt 卡裁掉两侧，
+/// iPad 11″/13″ 卡展示更多画面；比例不变、无上下留白、无 FittedBox 压字。
+///
+/// 底下的 [_GrassBackdrop] 常驻：图片解码中 / 加载失败（`errorBuilder` 返回
+/// 零尺寸盒）时仍显示原渐变草地，不会出现白块；house.webp 的透明像素
+/// 也继续由这层渐变兜住。
+class _GuardSceneBackdrop extends StatelessWidget {
+  const _GuardSceneBackdrop({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        const _GrassBackdrop(),
+        Positioned.fill(
+          child: Image.asset(
+            GuardArt.sceneBackgroundAsset,
+            key: GuardSceneCard.backdropImageKey,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            alignment: Alignment.center,
+            errorBuilder:
+                (BuildContext context, Object error, StackTrace? stackTrace) =>
+                    const SizedBox.shrink(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// L1 草地板：**程序化**（渐变 + 草叶纹理），横向可无限拉伸。
 ///
-/// 为什么不用位图：玄参后续可能换美术素材，但此刻必须有一块「怎么拉都不变形、
-/// 不会被 cover 裁切」的底 —— 位图在 iPad 992pt 宽卡上只会被裁成巨型局部
-/// （B6 诊断：1.77:1 的图铺 7:1 的卡，覆盖率只剩 25%）。
+/// 新横幅图接入后本层职责收窄为**兜底**：图片解码中 / 加载失败时仍显示
+/// 原渐变草地。历史「为什么不用位图」的顾虑（1.77:1 房屋图在 iPad 宽卡上
+/// 被 cover 裁成巨型局部，B6 诊断）已由 5.8:1 横幅素材化解：同一 cover
+/// 口径下 iPhone 裁左右、iPad 展示更多，而高度始终 = 卡高。
 ///
-/// 第二个职责：house.webp 是带 alpha 的抠图（37.6% 像素全透明），旧实现
-/// 透明处直接透出页面底色 —— 这层渐变把兜底做在卡内。
+/// 另一个职责不变：house.webp 是带 alpha 的抠图（37.6% 像素全透明），
+/// 透明处由这层渐变兜底，不直接透出页面底色。
 class _GrassBackdrop extends StatelessWidget {
-  const _GrassBackdrop({super.key});
+  const _GrassBackdrop();
 
   @override
   Widget build(BuildContext context) {

@@ -351,7 +351,7 @@ const String kOfficialWebsite = 'https://sunfocused.cn';
 /// 🔴 **与 `pubspec.yaml` 的 `version:` 同源**：改版本必须两处同步，
 /// `test/m3/f166_about_section_test.dart` 有守卫用例读 `pubspec.yaml` 断言一致
 ///（漂移 → 测试红），故「忘了改」在本仓不可能静默通过。
-const String kAppVersionName = '1.0.0';
+const String kAppVersionName = '1.1.0';
 
 /// App 构建号（`CFBundleVersion` 同值）。同源纪律见 [kAppVersionName]。
 ///
@@ -361,7 +361,9 @@ const String kAppVersionName = '1.0.0';
 /// 分不清「审核中的包」与「开发中的代码」。
 const String kAppBuildNumber = '2106';
 
-/// 关于页展示的版本串：`1.0.0 (2105)`。
+/// 关于页展示的版本串：`1.1.0 (2106)`。
+/// 🔴 升版本纪律见 [kAppVersionName]：pubspec `version:` 与本文件两处同源，
+/// 由 `test/m3/f166_about_section_test.dart` 守卫，漂移即测试红。
 const String kAppVersionLabel = '$kAppVersionName ($kAppBuildNumber)';
 
 /// 反馈邮件的主题前缀（正文由 ARB 组装，见 `parent_settings_contact_body`）。

@@ -15,6 +15,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:sunflower_time/core/constants/app_constants.dart';
 import 'package:sunflower_time/core/constants/build_flags.dart';
 
 String _projectRoot() {
@@ -63,6 +64,18 @@ void main() {
         lessThan(loadAt),
         reason: '🔴 强制解锁分支必须写在读票据之前：写在后面会被真实票据（free）覆盖，'
             '表现为「装了会员包却仍是免费档」',
+      );
+    });
+  });
+
+  group('DB 加密口令：运行时拼装等值守卫', () {
+    test('db passphrase runtime assembly keeps exact legacy value', () {
+      expect(
+        kDatabasePassphrase,
+        'sunfocus-planb-dev-passphrase-2026',
+        reason: '🔴 老用户设备上的 SQLCipher 库是用这个历史值加密的；'
+            '三段 const 片段拼装结果必须逐字节等于原完整串，'
+            '改任意一个字符都会导致已加密的老库打不开。改片段前先确认本断言仍绿。',
       );
     });
   });

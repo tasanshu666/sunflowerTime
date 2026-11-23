@@ -121,11 +121,28 @@ const int kFocusDurationDefaultMinutes = 20;
 /// 数据库文件名（SQLCipher 加密）。
 const String kDatabaseFileName = 'sunfocus.sqlite';
 
-/// 数据库加密口令。
+/// 数据库加密口令（运行时由三段 const 片段拼装）。
 ///
-/// ⚠️ 骨架阶段使用固定口令；生产应改为「设备级密钥派生 + flutter_secure_storage 保管」。
+/// 🔴 **拼装结果必须逐字节等于历史值 `sunfocus-planb-dev-passphrase-2026`**：
+/// 老用户设备上的 SQLCipher 库正是用这个值加密的，改动任意一个字符都会让老库打不开。
+/// `test/qa/build_flags_test.dart` 有等值断言守卫，改片段前务必先看那条测试。
+///
+/// 反编译防护：完整口令不再以单一字符串常量出现，而是拆成三段 const 片段、
+/// 经 getter 在运行期拼接，使 `strings` 无法直接扫出完整明文。
+/// 注意这不是加密——碎片本身仍可能残留在 release 二进制中，只是抬高静态提取门槛。
+/// 真正的「设备级密钥派生 + flutter_secure_storage 保管」属于后续独立方案，本轮不动。
 /// 见 `data/local/database/app_database.dart` 的 `openEncryptedDb()`。
-const String kDatabasePassphrase = 'sunfocus-planb-dev-passphrase-2026';
+String get kDatabasePassphrase =>
+    _kDbPassphraseP1 + _kDbPassphraseP2 + _kDbPassphraseP3;
+
+/// 口令片段 1/3（约 6 字节）。单独存在无意义，禁止在其附近写明文注释。
+const String _kDbPassphraseP1 = 'sunfoc';
+
+/// 口令片段 2/3（约 20 字节）。
+const String _kDbPassphraseP2 = 'us-planb-dev-passphr';
+
+/// 口令片段 3/3（约 8 字节）。
+const String _kDbPassphraseP3 = 'ase-2026';
 
 // ── 合规 / 首启（G0 合规落地，T25）─────────────────────────────────
 /// 首次启动同意流是否已完成的标记键（shared_preferences）。

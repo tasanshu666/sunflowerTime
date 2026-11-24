@@ -6,9 +6,13 @@
 /// （宽 48）→ B13.8 翻转卡（正面插画 / 点击翻面）→ **B13.9 横排卡**：翻转卡
 /// 退役（玄参反馈「不要点击翻面这种交互」），改为：
 /// * **左侧图标** = 券卡插画缩到 **24** 宽（48 的一半，AspectRatio 276/294）；
-/// * **右侧单行文字** = 「今日浇水 −1☀」（`guard_chip_inline_prefix` + `shortOf`
-///   + `effectValueOf` 组装，☀ 用 `assets/rewards/sunlight.png` 的 `WidgetSpan`
-///   内联小图，缺失回退内置 `Icons.wb_sunny`）。
+/// * **右侧文字** = 「今日浇水 −1☀」（`guard_chip_inline_prefix` + `shortOf`
+///   + `effectValueOf` 组装）。🔴 **B13.21 第 2 轮**：☀（`assets/rewards/sunlight.png`，
+///   缺失回退内置 `Icons.wb_sunny`）与免费券 `xN` 从 `Text.rich.children` 拆出，
+///   做成 Row 末尾**独立 widget**，不再跟着正文被 ellipsis 吞 —— en 截图原案
+///   「Today: Water 0☀ x1」曾因两行上限丢掉 ` x1`（剩余次数是 B13.20a 核心信息）。
+///   正文 `Text.rich` 只放前缀 + 动作词（数值 / ☀ / xN 组成 Row 末尾紧凑组），
+///   上限 5 行 + ellipsis 兜底；zh 短文案仍单行。
 /// * **无点击行为** ⇒ 🔴 **整卡包回 `IgnorePointer`**（B13.8 为翻转删过一次；
 ///   历史上它挡过花盆点击，横排纯展示必须包回去 —— 改动时重跑
 ///   `guard_voucher_garden_wiring_test` ⑤/⑭ 花盆点击用例确认）。
@@ -71,6 +75,10 @@ const String _kSunAsset = 'assets/rewards/sunlight.png';
 class GuardBuffChip extends StatelessWidget {
   /// 度量 / 查找用的稳定 Key（测试据此断言「券是否仍在屏上」）。
   static const Key chipKey = Key('gardenGuardBuffChip');
+
+  /// 数值 Text 的稳定 Key（修订方案：数值从正文段落挪到尾部紧凑组，测试据此
+  /// 用 `getBoxesForSelection` 钉住「数字真被绘制、没被 ellipsis 吞」）。
+  static const Key valueKey = Key('guardBuffChipValue');
 
   /// 今日 buff 快照（调用方保证非 null 且 `kind != none`）。
   final GuardBuffState buff;
@@ -264,6 +272,29 @@ class GuardBuffChip extends StatelessWidget {
     return line;
   }
 
+  /// 正文段（修订方案新增）：数值已挪到尾部紧凑组，正文只保留前缀 + 动作词。
+  /// 用完态文案口径与 [inlineTextOf] 同源；免费券例外（由 x0 承担用完态）。
+  /// [inlineTextOf] 本身一字不改，仅供测试/详情位复用。
+  static String inlineBodyOf(
+    GuardDropKind kind,
+    GuardBuffState buff,
+    AppLocalizations t,
+  ) {
+    final String action = shortOf(kind, t);
+    final String head = t.guard_chip_inline_prefix(action);
+    if (usedUpOf(kind, buff) && !_showsRemainingCount(kind)) {
+      // 🔴 真 Roboto 实测（QA F212 修订版）：en + 1.3× 下「Today: Feed · Used up」
+      // 会断成 3 行并把 up 孤立，卡高从 40pt 涨到 57pt，重新挡住植物。
+      // 用完态 en 改「动作词 ·\nUsed up」：仍两行、末行完整「Used up」，
+      // 且不牺牲默认字号 / zh 的单行零回归（zh 文案短，沿用原口径）。
+      if (t.localeName.startsWith('en')) {
+        return '$action ·\n${t.garden_guard_buff_exhausted}';
+      }
+      return '$head · ${t.garden_guard_buff_exhausted}';
+    }
+    return head;
+  }
+
   /// 🔴 B13.20a：免费券在横排 ☀ 小图**之后**的剩余次数后缀（玄参原话
   /// 「今日施肥0阳光 x2，用一次，就变x1，再用一次，就变成x0」）——
   /// ASCII 小写 x + [GuardBuffState.remaining]（钳到 ≥0）。非免费券返回
@@ -294,6 +325,13 @@ class GuardBuffChip extends StatelessWidget {
 
     final bool exhausted = usedUpOf(kind, buff);
     final Color textColor = exhausted ? _kGreyText : _kRedText;
+    // 正文 / 数值 / xN 三段共用同一样式，保证尾部紧凑组视觉与正文完全一致。
+    final TextStyle inlineStyle = TextStyle(
+      fontSize: 11,
+      height: 1.2,
+      fontWeight: FontWeight.w800,
+      color: textColor,
+    );
 
     return Material(
       key: GuardBuffChip.chipKey,
@@ -312,7 +350,7 @@ class GuardBuffChip extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 132 * uiScaleOf(context)),
+          constraints: BoxConstraints(maxWidth: 136 * uiScaleOf(context)),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -326,36 +364,56 @@ class GuardBuffChip extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              // 右：单行文字「今日浇水 −1☀」，☀ 用素材内联小图（WidgetSpan）。
+              // 🔴 修订方案：**正文只放「前缀 + 动作词」**，数值与 ☀ / xN 一起
+              //    组成 Row 末尾的紧凑视觉组，从此数值也不会被 ellipsis 截断。
               Flexible(
                 child: Text.rich(
                   TextSpan(
-                    text: inlineTextOf(kind, buff, t),
-                    style: TextStyle(
-                      fontSize: 11,
-                      height: 1.2,
-                      fontWeight: FontWeight.w800,
-                      color: textColor,
-                    ),
-                    children: <InlineSpan>[
-                      WidgetSpan(
-                        alignment: PlaceholderAlignment.middle,
-                        child: exhausted
-                            ? Opacity(
-                                opacity: 0.45,
-                                child: inlineSunGlyph(),
-                              )
-                            : inlineSunGlyph(),
-                      ),
-                      // 🔴 B13.20a：免费券剩余次数（玄参「今日施肥0阳光 x2」）
-                      // —— ASCII 小写 x，绝不写 `×`（④ 号测试禁令）；样式
-                      // 继承根 TextSpan（用完时同步灰显）。
-                      TextSpan(text: remainingSuffixOf(kind, buff)),
-                    ],
+                    text: inlineBodyOf(kind, buff, t),
+                    style: inlineStyle,
                   ),
-                  maxLines: 1,
+                  // 修订①：longestLine ⇒ 段落盒宽 = 最长**已排**行宽，不再取固有
+                  // 最大宽；用完态被迫两行时末行右侧不再留一大段假空白。
+                  textWidthBasis: TextWidthBasis.longestLine,
+                  // 行数上限 5：正文独占约 70~92pt 后，en 免费券要 3 行、
+                  // 施肥用完态「· Used up」4 行、1.3 倍字号最坏 5 行（实测）。
+                  // 上限只是天花板：zh 仍 1 行、常规 en 2~3 行，卡高按实际行数走。
+                  // ellipsis 仅作极端无障碍字号兜底；禁止 FittedBox。
+                  maxLines: 5,
                   overflow: TextOverflow.ellipsis,
                 ),
+              ),
+              // 🔴 修订②：正文与尾部紧凑组之间必须留 2px，否则会渲染成
+              // `Today: Water0 ☀ x1`（数值黏在正文末字上）。
+              const SizedBox(width: 2),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  Text(
+                    effectValueOf(kind),
+                    key: valueKey,
+                    style: inlineStyle,
+                    maxLines: 1,
+                  ),
+                  const SizedBox(width: 2),
+                  // ☀ 独立 widget：用完态降透明度，与灰显同口径。
+                  Opacity(
+                    opacity: exhausted ? 0.45 : 1.0,
+                    child: inlineSunGlyph(),
+                  ),
+                  // 🔴 B13.20a 免费券剩余次数独立 widget（玄参「今日施肥0阳光 x2」）：
+                  //    ASCII 小写 x，绝不写 `×`（④ 号测试禁令）；用完 x0 同步灰显。
+                  if (remainingSuffixOf(kind, buff).isNotEmpty) ...<Widget>[
+                    const SizedBox(width: 2),
+                    Text(
+                      remainingSuffixOf(kind, buff).trim(),
+                      key: const Key('guardBuffChipRemaining'),
+                      style: inlineStyle,
+                      maxLines: 1,
+                    ),
+                  ],
+                ],
               ),
             ],
           ),

@@ -1302,3 +1302,24 @@ UPDATE plants SET stage = 0, growth_progress = 0.0, stage_started_at = <unix秒>
 | **体验（C139 · 1 项）** | 守卫 `_EnergyDot.locked` 分支原在灰环上叠 `Icons.lock_rounded`，改 `CustomPaint(_DashedEnergyDotPainter)` 灰色虚线圆（`#9E9E9E` / dash 4-3 / 线宽 1.2），与向日葵战士头顶能量条免费档逐项一致。🔴 **只改显示层**：权限判定 `!isPremium && i==1`、能量累计 `i==0 && energy>=1`、点按提示卡 `_showEnergyLockedHint` 全未动。 |
 | **测试** | 全量 **5800 全绿 / 0 败**（5784→+16；2026-11-23 主理人实测）；analyze **0e/0w/76i**。QA 独立 16 例（`qa_independent_c138_wish_ambient_test.dart` 8 + `qa_independent_c139_energy_dot_test.dart` 8）；周期证据 P1 实测间隔 999~1008ms（旧口径约 1500ms）；**3 组变异全 RED 并恢复无残留**（音量 1.0 / 周期满 gap / 锁图标换回）；路由 NoOne。 |
 | **状态** | ✅ 代码 + 测试 + 文档已同步；✅ **玄参真机验收通过并点头提交**（2026-11-23，与 C137 背景音接入同批）。 |
+
+## F212 · 🔴 花园左上角守卫券英文文案截断（已修复 · 待玄参模拟器确认）
+
+| 项 | 内容 |
+|---|---|
+| **发现** | 2026-11-24 玄参模拟器截图（255×134）：花园页左上角「664 ☀」下方守卫券白卡英文显示「Today: Water 0...」，尾部被省略号截断；中文界面「今日浇水 -1」正常。 |
+| **真 Bug（1 项）** | `guard_buff_chip.dart` 原 `Text.rich` 把 ☀ WidgetSpan + 免费券 ` xN` TextSpan 挂在 children 里，跟正文一起被 ellipsis 截断；en 文案 `Today: Water 0☀ x1` 比 zh 长得多，手机 `uiScaleOf` 恒 1.0、文字槽仅约 104pt，单行/两行都放不下 ⇒ 尾部 ` x1`（剩余次数）或 ☀ 被吞。🔴 `x1` 是玄参 B13.20a 明确要的核心信息（「用一次变 x1」），吞掉等于功能显示失效。**修法（B13.21，两轮）**：① 把 ☀ 和 ` xN` 从 `Text.rich.children` **拆成 Row 末尾独立 widget**（xN 带 Key `guardBuffChipRemaining`、ASCII 小写 x、用完灰显；☀ 独立 Image、用完 opacity 0.45），从此**根本不进 ellipsis 路径**——结构性保证，与字体/字号无关；② 正文 `maxLines: 1→5`（天花板非定高，zh 仍 1 行、常规 en 2~3 行）保留 ellipsis 仅作极端字号兜底。`maxWidth:132*uiScale`、图标 24、gap、Wrap、`IgnorePointer`、`chipKey`、四个纯函数、ARB 全未动。 |
+| **非 Bug（2 项 · 定性）** | ① **测试字体假阳性**：QA 第 1 轮用 `flutter test` 默认 **Ahem** 字体报「施肥用完@1.3 卡高 91pt、遮植物 57%」并要求返工——Ahem 每字符≈1em、字宽是**真机 Roboto 的 2.17×**。用 SDK 真 Roboto 精确复刻：截图原案@1.0=90.7px(1行)、施肥用完@1.3=158px(2行)，两行容量 208px 均排得下；主理人按拆分版布局（文字槽 78~92pt）复算真机卡高 **31.6~40.3pt**；QA 随后用 `FontLoader` 注入 SDK 真 Roboto-Bold/Black 对**真实 widget** 一手实测：免费券@1.0=31.6pt / @1.3=40pt、施肥用完@1.0=32pt / @1.3=40pt（卡宽 143~144pt），与复算一致且 `didExceedMaxLines=false`、全部文案逐字符绘制——**真机卡高上限 40pt**（改动前 31.6pt，增量≤9pt），Ahem 同场景虚高至 45~91pt 纯属字体伪影；券卡 IgnorePointer、天气灯/FAB 零交集 ⇒ 判 **Ahem 伪影归档、不返工**。② ` xN` 从「空格分隔」变「2pt SizedBox gap」、☀ 从 `\uFFFC` 变独立 Image——信息完整、视觉可读，非缺陷。 |
+| **测试** | 全量 **5824 全绿 / 0 败**（基线 5822 → 用例⑥⑦各 +1；2026-11-24）；analyze **0e / 0w / 76i**。工程师测试 `guard_buff_inline_chip_test.dart` ⑥⑦ 用 `getBoxesForSelection` 逐字符判据（非只看原始串的假绿）；QA 独立逐字符复验 4/4 PASS（en 免费券@1.0/@1.3、施肥用完@1.0/@1.3 的 `x1`/`-2`/`Used up`/☀ 全有绘制 box、`didExceedMaxLines=false`）；**变异** `maxLines:5→2` ⑥⑦ 双 RED、逐字节恢复 GREEN、md5 一致；窄槽位 `guard_ui_boundary_test.dart:270`（160pt+en+1.3×）绿。QA 路由 **NoOne**。 |
+| **状态** | ✅ 代码 + 测试已落工作区、文档已同步；🔴 **未提交**（玄参本轮未授权）；⏸ **待玄参模拟器确认**英文券尾部 `x1`/☀ 可见（debug 模拟器与真机字体接近，最终以真机为准）。
+
+### B13.22 修订（2026-11-24 下午）· 以本段修订为准
+
+> 旧 F212 正文原样保留、不覆盖；与本段不一致之处以本段为准。玄参模拟器新截图暴露 F212 引入的排版松散：iPad 上数值 `0` 单独成行，iPhone 上正文与 ☀x0 之间出现大段假空白。
+
+- **前置核查**：9 券种 × zh/en × 手机（390，uiScale 1.0）/ iPad 13″（1032，uiScale 1.6）× 正常/用完态 = **44 组**，用 SDK 真 Roboto-Black 度量并按 Flutter `TextPainter._contentWidthFor` 布局模型复算。原方案（数值仍留在正文段落）**9 组不达标**，另有全局缺陷：正文与数值 0 间距，`Today: Water0 ☀ x1` 黏字。
+- **玄参批准的修订方案（四处落地）**：① 数值从正文拆进 Row 尾部紧凑组（`Text(effectValueOf, key: guardBuffChipValue, maxLines:1)` + 2px + Opacity(☀) +（免费券）2px + xN），正文改走新增的 `inlineBodyOf`；② 正文 `Text.rich` 加 **`textWidthBasis: TextWidthBasis.longestLine`**，段落盒宽取最长**已排**行宽，假空白归零；③ 正文与尾部组之间补回 **`SizedBox(width: 2)`**，消除黏字；④ 卡宽 **`132*uiScale → 136*uiScale`**（手机总宽 136+12=148 < 测试① 的 `<160`）。`maxLines:5` / ellipsis / fontSize 11·height 1.2·w800 / 白卡 / IgnorePointer / 24 宽插画 276:294 / gap 常量 / 既有纯函数全未动。
+- **QA 第 2 轮真 Roboto 探针挖出的真回归**：en + textScale 1.3 + 320×568 / 390×844 + 施肥券(quota2,used2) / 专注加餐券(quota1,used1) 用完态，正文断成 3 行、`up` 孤行，卡高 **57pt**（历史真机口径 40pt）。根因：`· Used up` 留在正文而数值被挪走后，正文槽仅约 70~79px，完整串宽 141.7 / 148.9px；单靠 NBSP 仍是 3 行，卡宽又受 136 硬约束不能再放宽。
+- **最终定稿（玄参已裁定维持现状）**：en 已用完且非免费券时，`inlineBodyOf` 返回 `动作词 ·\nUsed up`（如 `Feed ·\nUsed up`），主动去掉 `Today: ` 前缀，换两行且末行完整；zh 与其他状态零回归；**卡宽维持 136*uiScale，`maxWidth*textScaler` 公式作废**。曾为 Ahem 字体临时放宽的 `didExceedMaxLines` 断言已撤销、恢复严格判据，错误注释改为实测值。
+- **磁盘事实**：`lib/presentation/child/widgets/guard_buff_chip.dart` md5 `0ae5f8f493f305a1ec2650f63fb1d851`；`test/guard/guard_buff_inline_chip_test.dart` md5 `680f2de2665e9ee4a5374c30a7ee643d`。QA 真 Roboto 新探针 `test/guard/qa_guard_buff_roboto_orphan_test.dart` **4/4 绿**、目标测试 `guard_buff_inline_chip_test.dart` **14/14 绿**（主理人本地复算同）；QA 第 2 轮 44/44 组合、全量 5831、真 Roboto 180 组合全绿；analyze **0e/0w/76i**；en_overflow_probe 绿。
+- **状态**：✅ 孤行/超高 Bug 已修；✅ QA 第 2 轮 **NoOne**；✅ 玄参定夺维持现状；🔴 本轮未 git commit / push。

@@ -4,82 +4,90 @@
 
 ---
 
-> ## 🚧 施工入口
->
-> 开工前请先读 **[`docs/MVP执行规划_v2.md`](docs/MVP执行规划_v2.md)**。
-> 它是本仓库的**唯一施工真源**，优先级高于其他所有文档。
-> 当前第一批任务只有三个 spike，**不要开 M0**。
+## 当前状态（2026-11-24）
+
+| 项 | 值 |
+|---|---|
+| 版本 | `1.1.0+2107`（`pubspec.yaml` 与 `kAppBuildNumber` 两处同源，有守卫用例） |
+| iOS | **1.0.0 在售**；**1.1.0 (2107) 已提审**（2026-11-24） |
+| Android | 工程/签名/上架手册就绪，**未提审**（渠道加固待办、IAP 搁置） |
+| 质量基线 | 全量测试 **5831 全绿**；`flutter analyze` **0e / 0w / 76i**（全部既有 info） |
+| 数据版本 | `schemaVersion = 32`（Drift + SQLCipher，口令运行期拼装） |
+| 代码规模 | `lib` 275 文件 / 122.6K 行；`test` 420 文件 / 156.9K 行 |
+| Git | 提交 224 笔，tag `appstore-1.0.0-2105` |
+
+**项目全景与交接材料** → [`docs/项目现状总览_2026-11-24.md`](docs/项目现状总览_2026-11-24.md)
 
 ---
 
-## 真源优先级
-
-冲突时按此顺序裁决：
+## 真源优先级（冲突时按此裁决）
 
 | 顺位 | 文件 | 角色 |
 |---|---|---|
-| 1 | [docs/MVP执行规划_v2.md](docs/MVP执行规划_v2.md) | **唯一施工真源** |
-| 2 | [docs/口径裁定表_v1.md](docs/口径裁定表_v1.md) | 项目宪法（8 条裁定） |
-| 3 | [向日葵专注_开发计划_v1.0.md](向日葵专注_开发计划_v1.0.md) | 范围与 DoD 来源 |
-| 4 | [docs/验证计划_SunFocus_G0G2.md](docs/验证计划_SunFocus_G0G2.md) | 验证口径与埋点字段 |
-| 5 | [向日葵专注_PRD_v2.0.md](向日葵专注_PRD_v2.0.md) | 产品需求（正文待回写 v2.1） |
+| 1 | [`docs/项目进度跟踪表.md`](docs/项目进度跟踪表.md) **§0** | **活状态权威快照**（版本/基线/待办） |
+| 2 | [`docs/口径裁定表_v1.md`](docs/口径裁定表_v1.md) | **项目宪法**：C1–C145 拍板判例（翻案留痕） |
+| 3 | [`docs/bug记录表.md`](docs/bug记录表.md) | B 系列缺陷台账 + 修复证据 |
+| 4 | [`docs/待测清单_2106_真机回归.md`](docs/待测清单_2106_真机回归.md) | 当前待测/提审前置清单 |
+
+> 🔴 `docs/MVP执行规划_v2.md`（2026-09-15）与 `docs/历史归档/` 下早期 PRD/开发计划**已降级为历史快照**，不再作施工依据。
 
 ---
 
-## 当前状态
+## 技术栈
 
-- **阶段**：规划已收口，等待三个 spike 标定真实产出速度
-- **第一批任务**：S1 四档反馈 + 向日葵画布／S2 兑换服务纯逻辑／S3 打盹屏专注页，见执行规划 §4
-- **形态**：Plan B 纯本地单机（无账号 / 无家庭组 / 无云同步）；家长端本地 PIN 锁 + 同机核销；代码层预留账号 + 云同步接入点
-- **技术栈**：Flutter（MVP 先 Android）；Riverpod + Drift/SQLCipher + 原生动画 + just_audio
-- **人工待办**：见 [docs/人工清单.md](docs/人工清单.md)
+Flutter（iOS + Android 单库）· Riverpod · Drift/SQLCipher · just_audio · in_app_purchase · ARB 本地化（zh/en）
 
-### 排期纪律
+分层单向依赖：`domain`（纯业务 84 文件）← `data/local`（Drift 30）← `presentation`（UI 115）；辅助 `core` 28 / `shared` 8 / `platform` 4 / `l10n` 3。
 
-原 18 周排期建立在未标定的估算上。**三个 spike 完成后，用真实小时产出重算排期，再开 M0。**
+---
 
-### G2 起跑前置条件（硬）
+## 常用命令
 
-M2 完成 **且** 埋点最低事件集上线 **且** 完成 1 周埋点校准。三者缺一不起跑。
+```bash
+# 全量测试（必须摘代理，禁并发）
+env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
+  NO_PROXY=127.0.0.1,localhost ~/development/flutter/bin/flutter test --no-pub
+
+# 静态检查
+~/development/flutter/bin/flutter analyze --no-pub
+
+# iOS 上架包（混淆 + 符号拆分 + 自动签名 Team 6NW722K2GN）
+~/development/flutter/bin/flutter build ipa --release --obfuscate \
+  --split-debug-info=build/symbols/ios/1.1.0+2107
+
+# Android 上架包
+~/development/flutter/bin/flutter build apk --release --obfuscate \
+  --split-debug-info=build/symbols
+```
 
 ---
 
 ## 文档索引
 
-**施工用**
+### 进度与审计
+`项目进度跟踪表.md`（79K，§0 权威快照）· `口径裁定表_v1.md`（474K，判例）· `bug记录表.md`（375K）· `经验总结记录表.md`（21K）· `待测清单_2106_真机回归.md`
 
-| 文档 | 说明 |
-|---|---|
-| [docs/MVP执行规划_v2.md](docs/MVP执行规划_v2.md) | 施工真源：纪律 / 裁定摘要 / 三个 spike / 里程碑范围 / 埋点清单 |
-| [docs/口径裁定表_v1.md](docs/口径裁定表_v1.md) | 8 条口径裁定 + 施工指令 |
-| [docs/架构设计_SunFocus_MVP.md](docs/架构设计_SunFocus_MVP.md) | 系统架构、数据模型、28 项任务分解 |
-| [docs/验证计划_SunFocus_G0G2.md](docs/验证计划_SunFocus_G0G2.md) | G0 合规、G1 形态、G2 核心循环、M0–M4 验收标准 |
-| [docs/class-diagram.mermaid](docs/class-diagram.mermaid) | 类图 |
-| [docs/sequence-diagram.mermaid](docs/sequence-diagram.mermaid) | 时序图（专注闭环 / 兑换核销 / 每日额度与月度池） |
+### 设计文档（按模块，历史快照）
+- **天气系统**：A2 设计/PRD、A3/A4/A5/A7 增量设计、最终方案、季节权重
+- **花园守卫**：增量 PRD v1/v2、守卫战玩法、宝箱与结算演出、守卫大招、素材实体比
+- **许愿树**：增量 PRD v0.1–v0.3、架构设计 v0.1–v0.3、成长任务闭环、设计确认稿 + mermaid
+- **付费/称号**：付费墙阶段5、称号属性系统设计、购买页改版、F146 对比表
+- **其他**：专注等级、专注报告 v2、植物成长动画、软件设计文档 M0–M3M4
 
-**参考**
+### 上架与合规
+`上架执行手册_AppStore_v1.md` · `上架执行手册_安卓国内渠道_v1.md`（v1.3）· `上架注意事项_安卓国内渠道_v1.md` · `商店文案_AppStore_v1.md` · `商店文案_国内安卓_v1.md` · `签名密钥与发布.md` · `隐私政策_向日葵专注_v1.md`（+EN +发布版）· 备案四件套 + `备案材料/` · `软著材料/` · `商店截图/`
 
-| 文档 | 说明 |
-|---|---|
-| [向日葵专注_PRD_v2.0.md](向日葵专注_PRD_v2.0.md) | 产品需求文档 v2.0（正文待按 Plan B 回写 v2.1） |
-| [向日葵专注_开发计划_v1.0.md](向日葵专注_开发计划_v1.0.md) | MVP 开发计划总纲（排期与起步方式已被执行规划 v2 替代） |
-| [docs/人工清单.md](docs/人工清单.md) | 仅人工能做的三件事：下指令 / 拍视频 / 观察孩子 |
+### 历史归档
+`docs/历史归档/`（早期 PRD v2.0 / 开发计划 v1.0）· `项目进度跟踪表_历史归档_20261104.md` · `MVP执行规划_v2.md`（已降级）· 早期 QA 验收报告 / 耗时记录 / 提案 / ASC 沟通材料
 
 ---
 
-## 产品红线（贯穿全程）
+## 硬约束速查（改动前必读）
 
-1. 是工具，不是游戏（对外禁用「关卡 / 对战 / 玩家」等词）
-2. 隐私最小必要：本地处理专注状态，不联网、不上传
-3. 低打扰：无声为主、有声为辅
-4. 损失可挽回：任何惩罚都留有补救路径
-
----
-
-## 合规形态（Plan B）
-
-MVP 不建账号 / 家庭组 / 云同步，主张适用《儿童个人信息网络保护规定》第 28 条豁免精神（网络侧义务归零），本地基础义务做足：隐私说明、监护人本地同意流、删除权、本地加密存储、商店页如实表述。
-
----
-
-> 说明：`.workbuddy/` 为本地项目数据目录，不纳入版本库。
+- `schemaVersion = 32` 不得擅动；既有表加索引须先 `DROP INDEX IF EXISTS` → `createAll()`
+- 孩子端 5 tab：Today / Growth / Garden / Store / Mine（**无 My tab**）
+- 无通用 `spend()`；禁止给 `SunlightRepository` 加方法
+- 版本号两处同源：`pubspec.yaml` + `app_constants.dart`
+- iOS `CODE_SIGN_STYLE = Automatic` + Team `6NW722K2GN`，**勿再手写 `CODE_SIGN_IDENTITY`**（C145 判例）
+- release 出包必须带 `--obfuscate --split-debug-info`（防逆向，C142 纪律）
+- 历史文档留痕不抹除（设计快照/裁定判例不回改）

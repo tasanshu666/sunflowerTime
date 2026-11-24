@@ -376,9 +376,9 @@ const String kAppVersionName = '1.1.0';
 /// （tag `appstore-1.0.0-2105`），**构建号一经苹果接收不可重传**。本批改动
 /// （F168 溢出修复 + 花园统计 + 阳光胶囊爆发）**绝不能再打 2105**，否则回溯时
 /// 分不清「审核中的包」与「开发中的代码」。
-const String kAppBuildNumber = '2106';
+const String kAppBuildNumber = '2107';
 
-/// 关于页展示的版本串：`1.1.0 (2106)`。
+/// 关于页展示的版本串：`1.1.0 (2107)`。
 /// 🔴 升版本纪律见 [kAppVersionName]：pubspec `version:` 与本文件两处同源，
 /// 由 `test/m3/f166_about_section_test.dart` 守卫，漂移即测试红。
 const String kAppVersionLabel = '$kAppVersionName ($kAppBuildNumber)';

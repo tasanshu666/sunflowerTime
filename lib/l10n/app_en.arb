@@ -2205,6 +2205,14 @@
   "parent_premium_code_snack_retry": "Activation failed — please retry later or contact us",
   "parent_premium_code_snack_paste_empty": "Clipboard is empty",
   "parent_premium_note_android": "The Android version is sold directly on our website: after payment you receive an activation code — tap \"Enter activation code\" to unlock.",
+  "parent_premium_redeem_serial_label": "Activation code #{serial}",
+  "@parent_premium_redeem_serial_label": {
+    "placeholders": {
+      "serial": {
+        "type": "int"
+      }
+    }
+  },
   "parent_reward_category_label": "Type",
   "shared_lang_zh_name": "简体中文",
   "shared_task_category_other": "Other",

@@ -4733,6 +4733,12 @@ abstract class AppLocalizations {
   /// **'安卓版由官网直供：付款后你会收到一枚激活码，点「输入激活码解锁」即可解锁。'**
   String get parent_premium_note_android;
 
+  /// No description provided for @parent_premium_redeem_serial_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'激活码 #{serial}'**
+  String parent_premium_redeem_serial_label(int serial);
+
   /// No description provided for @parent_reward_category_label.
   ///
   /// In zh, this message translates to:

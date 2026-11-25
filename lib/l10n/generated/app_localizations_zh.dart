@@ -2749,6 +2749,11 @@ class AppLocalizationsZh extends AppLocalizations {
       '安卓版由官网直供：付款后你会收到一枚激活码，点「输入激活码解锁」即可解锁。';
 
   @override
+  String parent_premium_redeem_serial_label(int serial) {
+    return '激活码 #$serial';
+  }
+
+  @override
   String get parent_reward_category_label => '分类';
 
   @override

@@ -246,6 +246,10 @@ void main() {
       expect(find.text('已解锁 · 感谢支持'), findsOneWidget);
       expect(find.textContaining('已解锁，感谢支持'), findsOneWidget,
           reason: '成功也给 SnackBar 正反馈');
+      // 🆕 serial 落票据 + 主卡显示编号（本轮新增；iOS 不会出现，见下个用例）
+      expect(env.repo.stored.redeemSerial, 1234, reason: '票据必须记住是哪枚码');
+      expect(find.text('激活码 #1234'), findsOneWidget,
+          reason: '已解锁且票据带 serial 时，主卡要显示激活码编号');
 
       await drainSnack(tester);
     });
@@ -341,6 +345,8 @@ void main() {
       expect(find.text('恢复购买'), findsOneWidget);
       expect(find.text('输入激活码解锁'), findsNothing,
           reason: 'iOS 绝不能出现激活码入口（会绕过 Apple IAP → 拒审）');
+      expect(find.textContaining('激活码 #'), findsNothing,
+          reason: '🔴 iOS（IAP）票据没有 serial ⇒ 主卡不得出现「激活码 #…」一行');
     });
   });
 }

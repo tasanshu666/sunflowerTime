@@ -287,7 +287,8 @@ class MatrixEntitlementService
   ///  1. 已是 premium → [RedeemActivationResult.alreadyPremium]（幂等；**绝不重复写票据**，
   ///     避免无谓的安全区写放大，也避免覆盖掉最初的 `acquiredAt`）；
   ///  2. 验签（[RedeemCodeVerifier.verify]，自身不抛）→ 按四类原因映射；
-  ///  3. 通过 → 写票据（`jws: null`：激活码没有 Apple JWS，凭据是**已验签的码本身**），
+  ///  3. 通过 → 写票据（`jws: null`：激活码没有 Apple JWS，凭据是**已验签的码本身**；
+  ///     `redeemSerial: serial`：把签发序号一并落库，供售后对账 / 区分来源），
   ///     写成功后才刷新内存态 —— 顺序刻意如此：**先落库、后改内存**，
   ///     保证「内存态 premium ⇒ 票据一定已持久化」，重启不会退回 free；
   ///  4. 落库抛异常 → [RedeemActivationResult.failed]，内存态**保持 free**（不半成功）。
@@ -300,10 +301,13 @@ class MatrixEntitlementService
 
       final RedeemCodeResult result = await _redeemVerifier.verify(code);
       switch (result) {
-        case RedeemCodeValid():
+        case RedeemCodeValid(:final int serial):
           final Entitlement activated = Entitlement.lifetime(
             acquiredAt: _clock(),
             productId: kIapProductIdLifetime,
+            // 把签发序号一并落库（售后对账 / 区分「官网码」与「iOS IAP」）；
+            // 这是**唯一**会写 redeemSerial 的路径，IAP 两个方法保持 null。
+            redeemSerial: serial,
           );
           try {
             await _repository.write(activated, jws: null);

@@ -95,24 +95,41 @@ class Entitlement {
   /// 商品 ID（识别票据来源；free 时为 null）。
   final String? productId;
 
+  /// 激活码签发序号（**Android 官网直供版专有**；iOS IAP / 免费用户恒为 null）。
+  ///
+  /// 用途（玄参 2026-11-25 批准加入）：
+  ///  · **来源区分**：两条解锁路径写的 [productId] 都是 `kIapProductIdLifetime`，
+  ///    光看商品号分不出「官网激活码买的 / iOS IAP 买的」；serial 非 null ⇒ 官网码；
+  ///  · **售后对账**：客服拿到用户报的「激活码 #1024」能反查是哪一单；
+  ///  · **未来黑名单**：真要封停某枚码时有本地抓手（本期不做封停，只存号）。
+  ///
+  /// ⚠️ 纯展示 / 排查用，**不参与任何门控判定**（门控只读 [tier]，见 [isPremium]）。
+  final int? redeemSerial;
+
   const Entitlement({
     this.tier = EntitlementTier.free,
     this.acquiredAt,
     this.productId,
+    this.redeemSerial,
   });
 
   /// 安全默认：未开通。
   static const Entitlement free = Entitlement();
 
   /// 构造一个「永久买断」权益快照（不改状态，仅生成实体）。
+  ///
+  /// [redeemSerial] 只在**激活码路径**传入；IAP 路径（`purchaseLifetime` / `restore`）
+  /// 必须保持 null —— 那是「这枚权利来自官网码」的唯一标记。
   static Entitlement lifetime({
     DateTime? acquiredAt,
     String? productId,
+    int? redeemSerial,
   }) =>
       Entitlement(
         tier: EntitlementTier.premium,
         acquiredAt: acquiredAt,
         productId: productId,
+        redeemSerial: redeemSerial,
       );
 
   /// 是否已解锁全部付费能力（**权益侧唯一判定入口**；门控处一律走门控矩阵，勿直接
@@ -120,15 +137,22 @@ class Entitlement {
   bool get isPremium => tier == EntitlementTier.premium;
 
   /// 不可变副本。
+  ///
+  /// 🔴 [redeemSerial] 用 `?? this.redeemSerial`：**无法显式置 null**（想清空请直接造
+  /// 新的 [Entitlement] / [Entitlement.free]），与 [acquiredAt] / [productId] 的既有
+  /// 处理保持一致 —— 刻意**不**引入哨兵值，「null 表示不修改」是这个实体全字段的统一
+  /// 约定，加例外只会让调用方多一个要记的规矩。
   Entitlement copyWith({
     EntitlementTier? tier,
     DateTime? acquiredAt,
     String? productId,
+    int? redeemSerial,
   }) =>
       Entitlement(
         tier: tier ?? this.tier,
         acquiredAt: acquiredAt ?? this.acquiredAt,
         productId: productId ?? this.productId,
+        redeemSerial: redeemSerial ?? this.redeemSerial,
       );
 
   @override
@@ -137,14 +161,15 @@ class Entitlement {
       other is Entitlement &&
           other.tier == tier &&
           other.acquiredAt == acquiredAt &&
-          other.productId == productId;
+          other.productId == productId &&
+          other.redeemSerial == redeemSerial;
 
   @override
-  int get hashCode => Object.hash(tier, acquiredAt, productId);
+  int get hashCode => Object.hash(tier, acquiredAt, productId, redeemSerial);
 
   @override
-  String toString() =>
-      'Entitlement(tier: $tier, productId: $productId, acquiredAt: $acquiredAt)';
+  String toString() => 'Entitlement(tier: $tier, productId: $productId, '
+      'acquiredAt: $acquiredAt, redeemSerial: $redeemSerial)';
 }
 
 /// 恢复购买（Restore Purchases）的结果。

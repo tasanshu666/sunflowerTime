@@ -326,7 +326,7 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
           data: theme,
           child: Scaffold(
             appBar: AppBar(title: Text(t.parent_premium_title)),
-            body: _buildBody(t, entitlement.isPremium),
+            body: _buildBody(t, entitlement),
             // C83 吸底（玄参反馈：真实视口下「立即解锁」需滚动 ≈480pt 才可见）：
             // 主按钮 + 恢复购买入口搬到 `bottomNavigationBar` 槽位常驻底部 ——
             // 这是**唯一**允许的吸底方式（不用 Stack/Positioned 盖 body，不用
@@ -341,7 +341,8 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
     );
   }
 
-  Widget _buildBody(AppLocalizations t, bool unlocked) {
+  Widget _buildBody(AppLocalizations t, Entitlement entitlement) {
+    final bool unlocked = entitlement.isPremium;
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -350,7 +351,7 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
       // （32 → 16，仅保留常规页边距）。
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       children: <Widget>[
-        _buildHeroCard(t, unlocked),
+        _buildHeroCard(t, entitlement),
         const SizedBox(height: 16),
         if (_storeUnavailable) ...<Widget>[
           _buildUnavailableCard(t),
@@ -427,7 +428,15 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   ///
   /// ⚠️ 图标仍为向日葵美术（玄参 2026-10-14 反馈），见 [_PremiumSunflowerIcon]；
   /// 🔴 主卡保留**精确**「已解锁 / 未解锁」胶囊文案（测试依赖 `find.text('已解锁')`）。
-  Widget _buildHeroCard(AppLocalizations t, bool unlocked) {
+  ///
+  /// 🆕 已解锁 **且** 票据带激活码序号时，在胶囊下方补一行小字「激活码 #1024」：
+  ///  · 只在 `unlocked && redeemSerial != null` 时渲染 ⇒ **iOS（IAP）界面零变化**
+  ///    （IAP 票据的 serial 恒为 null，见 `Entitlement.redeemSerial` 文档）；
+  ///  · 不新增卡片、不动主按钮：只是主卡内的一行文字，`Wrap` 之后 6pt 间距；
+  ///  · 用 `_kInkSoft` 小字（与副标题同色阶），视觉上属于「票据信息」而非卖点。
+  Widget _buildHeroCard(AppLocalizations t, Entitlement entitlement) {
+    final bool unlocked = entitlement.isPremium;
+    final int? redeemSerial = entitlement.redeemSerial;
     final ({Color bg, Color fg}) tone = macaronColorById('premium');
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
@@ -503,6 +512,17 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
                         _GoldPill(text: t.parent_premium_gold_pill),
                       ],
                     ),
+                    // 激活码编号（Android 官网直供版专有）：仅「已解锁 + 票据带序号」时
+                    // 出现，故 iOS（IAP，serial 恒 null）界面上**永远不渲染**这一行。
+                    // 不加卡片、不加按钮：一行 12pt 柔灰字，Width 自适应（长号也不会撑破
+                    // 主卡，因为外层是 Expanded > Column）。
+                    if (unlocked && redeemSerial != null) ...<Widget>[
+                      const SizedBox(height: 6),
+                      Text(
+                        t.parent_premium_redeem_serial_label(redeemSerial),
+                        style: const TextStyle(fontSize: 12, color: _kInkSoft),
+                      ),
+                    ],
                   ],
                 ),
               ),

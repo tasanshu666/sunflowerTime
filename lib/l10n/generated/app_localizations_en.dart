@@ -2824,6 +2824,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'The Android version is sold directly on our website: after payment you receive an activation code — tap \"Enter activation code\" to unlock.';
 
   @override
+  String parent_premium_redeem_serial_label(int serial) {
+    return 'Activation code #$serial';
+  }
+
+  @override
   String get parent_reward_category_label => 'Type';
 
   @override

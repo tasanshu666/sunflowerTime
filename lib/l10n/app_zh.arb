@@ -2205,6 +2205,14 @@
   "parent_premium_code_snack_retry": "激活失败，请稍后重试或联系我们",
   "parent_premium_code_snack_paste_empty": "剪贴板里没有文字",
   "parent_premium_note_android": "安卓版由官网直供：付款后你会收到一枚激活码，点「输入激活码解锁」即可解锁。",
+  "parent_premium_redeem_serial_label": "激活码 #{serial}",
+  "@parent_premium_redeem_serial_label": {
+    "placeholders": {
+      "serial": {
+        "type": "int"
+      }
+    }
+  },
   "parent_reward_category_label": "分类",
   "shared_lang_zh_name": "简体中文",
   "shared_task_category_other": "其他",

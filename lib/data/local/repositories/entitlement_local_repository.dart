@@ -38,9 +38,13 @@ class EntitlementLocalRepository implements EntitlementRepository {
       // productId 改写成合法 id 的定向篡改。该剩余风险已登记；后续若接入
       // StoreKit 复验，就在本函数同一处补 JWS 校验（判定收敛点不扩散）。
       final String? acquiredRaw = await _store.readAcquiredAtRaw();
+      // 激活码序号（Android 官网直供版）：无此键 → null（iOS IAP / 免费用户）。
+      // 只在**白名单校验通过之后**才读，脏票据不必去碰这个键。
+      final int? redeemSerial = await _store.readRedeemSerial();
       return Entitlement.lifetime(
         productId: productId,
         acquiredAt: acquiredRaw == null ? null : DateTime.tryParse(acquiredRaw),
+        redeemSerial: redeemSerial,
       );
     } catch (_) {
       // 安全区不可用（测试环境 / 平台异常）→ 安全侧回退 free，绝不抛。
@@ -59,6 +63,8 @@ class EntitlementLocalRepository implements EntitlementRepository {
       productId: entitlement.productId!,
       jws: jws,
       acquiredAt: entitlement.acquiredAt ?? DateTime.now(),
+      // 激活码路径才有值；IAP 路径为 null（store 侧「null 不覆写」）。
+      redeemSerial: entitlement.redeemSerial,
     );
   }
 

@@ -14,9 +14,11 @@ library entitlement_service;
 
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/iap_product_ids.dart';
+import 'package:sunflower_time/core/constants/redeem_public_key.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
 import 'package:sunflower_time/domain/repositories/entitlement_repository.dart';
 import 'package:sunflower_time/domain/services/iap_contract.dart';
+import 'package:sunflower_time/domain/services/redeem_code.dart';
 
 /// 权益服务接口（架构 §「门控单点收口」）。
 ///
@@ -74,6 +76,61 @@ abstract interface class DebugEntitlementOverride {
   void debugOverrideCurrent(Entitlement entitlement);
 }
 
+/// 激活码激活的结果（Android 官网直供版 · 六态，失败原因分得足够细以给对提示语）。
+///
+/// 与 [RedeemCodeError]（验签层四态）的映射由 [RedeemCodeActivator.activate] 收口：
+/// 验签层的 [RedeemCodeError.malformed] → [malformedCode]，
+/// [RedeemCodeError.badSignature] / [RedeemCodeError.unsupportedVersion] → [invalidCode]，
+/// [RedeemCodeError.notConfigured] → [notConfigured]。
+enum RedeemActivationResult {
+  /// 首次激活成功：票据已落库，内存态已切 premium。
+  activated,
+
+  /// 当前已是 premium（幂等返回，**不重复写票据**）。
+  alreadyPremium,
+
+  /// 验签失败：签名不匹配 / 版本不受支持 —— 码本身不对（或已被改成无效）。
+  invalidCode,
+
+  /// 格式 / 编码错误：长度不对、不是 Base64URL 等 —— 用户大概率没复制全。
+  malformedCode,
+
+  /// 客户端公钥未配置（发布事故，不是用户的错）。
+  notConfigured,
+
+  /// 落库异常：票据没写成功，内存态**保持 free**（不半成功）。
+  failed,
+}
+
+/// 🔑 **激活码激活能力**（Android 官网直供版）—— 与 [DebugEntitlementOverride] 同款的
+/// **能力扩展模式**，理由完全一致：
+///
+/// [EntitlementService] 在测试里有 29 个 Fake 实现（见 [DebugEntitlementOverride] 的
+/// 说明）。给它加方法 → 全部 Fake 编译失败。故此处**新开一个独立
+/// `abstract interface class`**，由 [`MatrixEntitlementService`] 额外 `implements`；
+/// 调用方用 `is RedeemCodeActivator` 做运行时能力探测，不实现本接口的 Fake 自动降级为
+/// 「无激活能力」（UI 侧退化成「请稍后重试」），零编译影响、零行为变化。
+///
+/// ## 为什么不是「购买」（`purchaseLifetime`）的一个分支
+///
+/// `purchaseLifetime` 走的是**商店链路**（StoreKit / Play Billing），失败即静默保持
+/// free；激活码是**离线验签 + 落库**，且需要把「为什么失败」如实报给用户（格式错 vs
+/// 签名错 vs 未配置的提示语完全不同）。两者的返回值语义不一样，混在一个无返回值的
+/// 方法里会丢掉这些信息，故单独成接口。
+abstract interface class RedeemCodeActivator {
+  /// 用一枚激活码解锁 premium（**绝不抛异常**）。
+  ///
+  /// 语义契约：
+  ///  1. 已是 premium → [RedeemActivationResult.alreadyPremium]（幂等，**不写票据**）；
+  ///  2. 验签不通过 → 按原因返回 [RedeemActivationResult.malformedCode] /
+  ///     [RedeemActivationResult.invalidCode] / [RedeemActivationResult.notConfigured]，
+  ///     **票据不变、内存态不变**；
+  ///  3. 验签通过 → 写入 `Entitlement.lifetime(...)` 票据并刷新内存态 →
+  ///     [RedeemActivationResult.activated]；
+  ///  4. 落库抛异常 → [RedeemActivationResult.failed]，且内存态**保持 free**。
+  Future<RedeemActivationResult> activate(String code);
+}
+
 /// 基于**本地票据 + 门控矩阵**的纯逻辑判定实现。
 ///
 /// - 内存态 [_current] 默认 [Entitlement.free]（安全默认，构造即可用，不触平台）；
@@ -84,17 +141,22 @@ abstract interface class DebugEntitlementOverride {
 ///
 /// F142：额外实现 [DebugEntitlementOverride]，让仅调试用的「会员模式」开关
 /// （`debugSetPremiumUnlock`）能同时覆盖**领域层**判定源。
+///
+/// Android 官网直供版：额外实现 [RedeemCodeActivator]，用**离线验签的激活码**替代
+/// IAP 完成解锁（iOS 链路一字未动，仍走 [_iap]）。
 class MatrixEntitlementService
-    implements EntitlementService, DebugEntitlementOverride {
+    implements EntitlementService, DebugEntitlementOverride, RedeemCodeActivator {
   MatrixEntitlementService({
     required EntitlementRepository repository,
     IapClient? iap,
     Map<FeatureKey, FeatureRule> matrix = kEntitlementMatrix,
     DateTime Function()? clock,
+    RedeemCodeVerifier? redeemVerifier,
   })  : _repository = repository,
         _iap = iap,
         _matrix = matrix,
-        _clock = clock ?? DateTime.now;
+        _clock = clock ?? DateTime.now,
+        _injectedRedeemVerifier = redeemVerifier;
 
   final EntitlementRepository _repository;
 
@@ -108,6 +170,24 @@ class MatrixEntitlementService
 
   final Map<FeatureKey, FeatureRule> _matrix;
   final DateTime Function() _clock;
+
+  /// 测试 / 高阶层注入的验签器（可为 null → 用生产公钥常量惰性构造）。
+  ///
+  /// 🔴 惰性铁律：生产路径下**只有真的调用 [activate] 时**才构造验签器
+  /// （构造本身很便宜，但这与既有 `iap` 的「构造不触平台」纪律保持一致）。
+  final RedeemCodeVerifier? _injectedRedeemVerifier;
+
+  /// 惰性构造的生产验签器缓存（公钥取 [kRedeemPublicKeyBase64]）。
+  RedeemCodeVerifier? _lazyRedeemVerifier;
+
+  /// 生效的验签器：注入优先，否则用生产公钥常量惰性构造。
+  ///
+  /// 公钥为空串时 [RedeemCodeVerifier.verify] 自然返回 `notConfigured` ——
+  /// 故「未配置公钥」不需要额外的分支判断，也不会有任何误放。
+  RedeemCodeVerifier get _redeemVerifier =>
+      _injectedRedeemVerifier ??
+      (_lazyRedeemVerifier ??=
+          RedeemCodeVerifier(publicKeyBase64: kRedeemPublicKeyBase64));
 
   Entitlement _current = Entitlement.free;
 
@@ -195,5 +275,58 @@ class MatrixEntitlementService
   @override
   void debugOverrideCurrent(Entitlement entitlement) {
     _current = entitlement;
+  }
+
+  /// 🔑 用激活码解锁 premium（Android 官网直供版；**全程不抛异常**）。
+  ///
+  /// 与 [purchaseLifetime] 的分工：
+  ///  · [purchaseLifetime] = 商店链路（StoreKit / Play Billing），失败静默保持 free；
+  ///  · 本方法 = **离线验签 + 本地落库**，失败必须把原因如实交回 UI（提示语不同）。
+  ///
+  /// 顺序（每一步都是上一步的守卫）：
+  ///  1. 已是 premium → [RedeemActivationResult.alreadyPremium]（幂等；**绝不重复写票据**，
+  ///     避免无谓的安全区写放大，也避免覆盖掉最初的 `acquiredAt`）；
+  ///  2. 验签（[RedeemCodeVerifier.verify]，自身不抛）→ 按四类原因映射；
+  ///  3. 通过 → 写票据（`jws: null`：激活码没有 Apple JWS，凭据是**已验签的码本身**），
+  ///     写成功后才刷新内存态 —— 顺序刻意如此：**先落库、后改内存**，
+  ///     保证「内存态 premium ⇒ 票据一定已持久化」，重启不会退回 free；
+  ///  4. 落库抛异常 → [RedeemActivationResult.failed]，内存态**保持 free**（不半成功）。
+  @override
+  Future<RedeemActivationResult> activate(String code) async {
+    try {
+      if (_current.isPremium) {
+        return RedeemActivationResult.alreadyPremium;
+      }
+
+      final RedeemCodeResult result = await _redeemVerifier.verify(code);
+      switch (result) {
+        case RedeemCodeValid():
+          final Entitlement activated = Entitlement.lifetime(
+            acquiredAt: _clock(),
+            productId: kIapProductIdLifetime,
+          );
+          try {
+            await _repository.write(activated, jws: null);
+          } catch (_) {
+            // 落库失败：内存态保持 free（绝不半成功 —— 否则重启即「掉档」）。
+            return RedeemActivationResult.failed;
+          }
+          _current = activated;
+          return RedeemActivationResult.activated;
+        case RedeemCodeInvalid(error: final RedeemCodeError error):
+          switch (error) {
+            case RedeemCodeError.malformed:
+              return RedeemActivationResult.malformedCode;
+            case RedeemCodeError.badSignature:
+            case RedeemCodeError.unsupportedVersion:
+              return RedeemActivationResult.invalidCode;
+            case RedeemCodeError.notConfigured:
+              return RedeemActivationResult.notConfigured;
+          }
+      }
+    } catch (_) {
+      // 兜底（验签器已保证不抛）：任何意外都报 failed，绝不抛给 UI。
+      return RedeemActivationResult.failed;
+    }
   }
 }

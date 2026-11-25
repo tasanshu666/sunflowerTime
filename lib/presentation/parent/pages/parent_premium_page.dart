@@ -7,7 +7,18 @@
 ///    恢复 / 支付由 Apple 完成、开发者不接触支付信息）。
 ///
 /// 状态机（全部覆盖）：`加载中` / `加载失败·商店不可用`（降级文案 + 主按钮禁用，
-/// 绝不崩）/ `未解锁` / `已解锁` / `购买中`。
+/// 绝不崩）/ `未解锁` / `已解锁` / `购买中` / `激活中`（Android 激活码）。
+///
+/// ## Android 官网直供版（激活码解锁）
+///
+/// Android 版**不上任何应用商店**（国内买断制无法在国产品牌商店上架），故 Android 侧
+/// 没有可用的 Play Billing 商品：本页在 Android 上**不查商店**（否则必然落到「暂时连不上
+/// 商店」的降级态），主按钮直接变成「输入激活码解锁」→ 弹框粘贴 → 域层离线验签
+/// （`RedeemCodeActivator`）→ 票据落库即解锁。
+///
+/// 🔴 **iOS 链路一字未动**：iOS（及桌面调试 / widget 测试宿主）上
+/// [defaultRedeemCodeEntryEnabled] 为 false，主按钮 / 商店加载 / 说明文案
+/// **逐字节保持原样**，仍走 StoreKit → `purchaseLifetime`。
 ///
 /// C83 布局纪律：**主按钮 + 恢复入口常驻吸底**（`Scaffold.bottomNavigationBar`），
 /// 不随列表滚动 —— 真实 400×800 视口下原先两者在列表末尾，家长要滑 ≈480pt 才看到
@@ -21,7 +32,11 @@
 ///  · 商店不可用 / 取消 / 失败一律安全降级（域服务已保证不裸抛），本页再兜一层 try/catch。
 library parent_premium_page;
 
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
@@ -29,6 +44,7 @@ import 'package:sunflower_time/core/constants/iap_product_ids.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
+import 'package:sunflower_time/domain/services/entitlement_service.dart';
 import 'package:sunflower_time/domain/services/iap_contract.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
 import 'package:sunflower_time/presentation/parent/widgets/premium_unlock_table.dart';
@@ -48,6 +64,55 @@ const Key kPremiumMainButtonKey = Key('premiumMainButton');
 
 /// 「恢复购买」按钮 Key。
 const Key kPremiumRestoreButtonKey = Key('premiumRestoreButton');
+
+/// 激活码输入框 Key（Android 弹框内，供测试定位）。
+const Key kPremiumRedeemCodeFieldKey = Key('premiumRedeemCodeField');
+
+/// 激活码弹框「解锁」确认按钮 Key。
+const Key kPremiumRedeemCodeConfirmKey = Key('premiumRedeemCodeConfirm');
+
+/// 读剪贴板的超时上限（超过即当作「剪贴板为空」）。
+///
+/// 正常剪贴板读取是毫秒级；设 2s 是为了兜住「平台通道缺失 → Future 永不完成」的
+/// 极端情况（`flutter test` 宿主即如此，实测会一直挂着）。
+const Duration kPremiumClipboardTimeout = Duration(seconds: 2);
+
+/// 当前进程是否**真的**运行在 Android 上（真机 / 模拟器 / 集成测试）。
+///
+/// 🔴 **为什么不用 `defaultTargetPlatform`**（这是本页踩过的真坑）：
+/// `flutter_test` 会把 `defaultTargetPlatform` **硬钉成 `TargetPlatform.android`**
+/// —— 那是 Material 的样式默认值，**不代表真实设备**。若本页直接采信它，
+/// Android 专属分支（不查商店 / 主按钮变激活码 / 隐藏恢复购买 / 换说明文案）
+/// 会在**所有** widget 测试里生效，把 iOS 口径的既有守卫（主按钮文案、
+/// 吸底结构、Apple 要求的「恢复购买」入口、320pt 零溢出）全部推翻（实测 18 个用例红）。
+///
+/// 故这里读 `dart:io` 的真实宿主平台，口径与 `AppLocaleController` 的
+/// 「测试宿主」判定一致：`kIsWeb` 先行、`Platform` 调用包在 try 里（拿不到 → false，
+/// 安全侧：宁可不显示激活码入口，也不要污染 iOS / 桌面端）。
+bool get isAndroidRuntime {
+  if (kIsWeb) return false;
+  try {
+    return Platform.isAndroid;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// 「是否显示激活码入口」的**当前生效解析器**。
+///
+/// 生产恒为 [defaultRedeemCodeEntryEnabled]；**测试可整体替换**
+/// （先例：`core/utils/external_link.dart` 的 `externalLinkOpener`），
+/// 从而在 macOS 宿主的 widget 测试里也能覆盖 Android 分支的真实 UI 行为。
+///
+/// ⚠️ 替换后务必在 `addTearDown` 里还原成 [defaultRedeemCodeEntryEnabled]，
+/// 否则同文件后续用例共享脏状态（本仓已因「全局单例残留」翻过车，见 F155）。
+bool Function() redeemCodeEntryEnabledResolver = defaultRedeemCodeEntryEnabled;
+
+/// 生产判定（测试还原时引用它，禁止再新写一份逻辑）。
+///
+/// 策略：**只有 Android 用激活码解锁**。iOS 必须继续走 StoreKit（绕过 Apple IAP
+/// 会被拒审），macOS / Windows / Linux 仅用于开发者调试，一律保持 IAP 原状。
+bool defaultRedeemCodeEntryEnabled() => isAndroidRuntime;
 
 /// 家长端·解锁全部功能页。
 class ParentPremiumPage extends ConsumerStatefulWidget {
@@ -70,8 +135,17 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   /// 恢复购买进行中。
   bool _restoring = false;
 
+  /// 激活码激活进行中（Android）。
+  bool _activating = false;
+
   /// 商店返回的买断商品（`price` 为商店本地化价格串）。
   IapProduct? _product;
+
+  /// 当前平台是否用激活码解锁（Android 官网直供版）。
+  ///
+  /// 每次 getter 现算而**不缓存**：解析器可能被测试整体替换，现算才能让
+  /// 「同一次 pump 前后切换平台」立即生效（不缓存 = 没有「上次平台」的脏状态）。
+  bool get _usesRedeemCode => redeemCodeEntryEnabledResolver();
 
   @override
   void initState() {
@@ -80,7 +154,21 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   }
 
   /// 拉取商品详情（本地化价格）。失败 / 商店不可用 → 置降级态，绝不抛。
+  ///
+  /// 🔴 Android（官网直供版）**不查商店**：Play Billing 未接入、商品也未在商店登记，
+  /// 查询必然返回空列表 → 页面会落到「暂时连不上商店」的降级态并禁用主按钮，而
+  /// Android 的价格来自官网、根本不需要商店串。故此处直接置「可用」并跳过查询。
   Future<void> _loadProduct() async {
+    if (_usesRedeemCode) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _storeUnavailable = false;
+          _product = null;
+        });
+      }
+      return;
+    }
     if (mounted) {
       setState(() {
         _loading = true;
@@ -155,6 +243,68 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
     } finally {
       if (mounted) setState(() => _restoring = false);
     }
+  }
+
+  /// 用**激活码**解锁（Android 官网直供版）。
+  ///
+  /// 流程：弹框（输入框 + 「从剪贴板粘贴」）→ 域层离线验签（`RedeemCodeActivator`）
+  /// → 成功则刷新 [`entitlementProvider`] 并提示；六种结果各有明确反馈，
+  /// **全程不抛**（域服务已保证 + 本页再兜一层 try/catch）。
+  ///
+  /// 能力探测走 `is RedeemCodeActivator`（本项目的能力扩展模式）：拿不到该能力时
+  /// 退化为一句「请稍后重试或联系我们」，不崩、不误放。
+  Future<void> _activateWithCode() async {
+    if (_activating || _buying || _restoring) return;
+    // i18n B2：SnackBar / 弹框在 overlay 内重建 → 文案在此处（页级 scope 内）取好。
+    final AppLocalizations t = l10nOf(context);
+    final EntitlementService service = ref.read(entitlementServiceProvider);
+    // 能力探测（本项目的能力扩展模式）：不实现该接口的实现类自动降级为「无激活能力」。
+    // ⚠️ 必须显式 down-cast：Dart 的 `is` 只在「被测类型是声明类型的子类型」时才做
+    // 类型提升，而 [RedeemCodeActivator] 与 [EntitlementService] 是**平级的两条接口**
+    // （谁也不是谁的子类型）→ 不 cast 直接调会编译报错（F142 首次实现即踩过）。
+    if (service is! RedeemCodeActivator) {
+      _snack(t.parent_premium_code_snack_retry);
+      return;
+    }
+    final RedeemCodeActivator activator = service as RedeemCodeActivator;
+
+    final String? code = await _promptRedeemCode(t);
+    if (code == null || !mounted) return;
+
+    setState(() => _activating = true);
+    try {
+      final RedeemActivationResult result = await activator.activate(code);
+      // 无论成功与否都重读一次票据：`alreadyPremium` 也需要把 UI 态对齐真实票据
+      // （例如上一次激活写库成功但进程被杀，UI 还停在 free）。
+      final Entitlement e = await service.load();
+      ref.read(entitlementProvider.notifier).state = e;
+      switch (result) {
+        case RedeemActivationResult.activated:
+          _snack(t.parent_premium_snack_unlocked);
+        case RedeemActivationResult.alreadyPremium:
+          _snack(t.parent_premium_code_snack_already);
+        case RedeemActivationResult.malformedCode:
+          _snack(t.parent_premium_code_snack_malformed);
+        case RedeemActivationResult.invalidCode:
+          _snack(t.parent_premium_code_snack_invalid);
+        case RedeemActivationResult.notConfigured || RedeemActivationResult.failed:
+          // 这两种都不是用户的错（配置 / 落库异常）→ 统一「稍后重试或联系我们」，
+          // 绝不谎报「激活码无效」而让已付费用户以为自己被骗。
+          _snack(t.parent_premium_code_snack_retry);
+      }
+    } catch (_) {
+      _snack(t.parent_premium_code_snack_retry);
+    } finally {
+      if (mounted) setState(() => _activating = false);
+    }
+  }
+
+  /// 弹「输入激活码」对话框；返回清理后的码，用户取消 → null。
+  Future<String?> _promptRedeemCode(AppLocalizations t) {
+    return showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) => _RedeemCodeDialog(t: t),
+    );
   }
 
   void _snack(String msg) {
@@ -259,8 +409,13 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             _buildMainButton(t, unlocked),
-            const SizedBox(height: 6),
-            _buildRestoreButton(t),
+            // 「恢复购买」是 **Apple 对可恢复 IAP 的硬性要求**，iOS 必须常驻。
+            // Android 官网直供版没有 Play Billing 交易可恢复（换了手机重输激活码即可，
+            // 域层 activate 是幂等的），故 Android 上不渲染，避免家长点了必然失败。
+            if (!_usesRedeemCode) ...<Widget>[
+              const SizedBox(height: 6),
+              _buildRestoreButton(t),
+            ],
           ],
         ),
       ),
@@ -426,6 +581,23 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
           style: _goldButtonStyle(),
           icon: const Icon(Icons.verified),
           label: Text(t.parent_premium_btn_unlocked_done),
+        ),
+      );
+    }
+    // Android 官网直供版：主按钮即「输入激活码」入口（不查商店、不吃商店价格）。
+    if (_usesRedeemCode) {
+      return _goldButtonShell(
+        active: !_activating,
+        child: FilledButton.icon(
+          key: kPremiumMainButtonKey,
+          onPressed: _activating ? null : _activateWithCode,
+          style: _goldButtonStyle(),
+          icon: const Icon(Icons.vpn_key_rounded),
+          label: Text(
+            _activating
+                ? t.parent_premium_code_activating
+                : t.parent_premium_code_btn_unlock,
+          ),
         ),
       );
     }
@@ -613,12 +785,21 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   /// 批次 2 Ⓑ：合规条款**沉底 + 视觉减淡**——标题降为 `_kInkSoft` 小一号，
   /// 正文 13 → 12.5；信息一字不改（note_1–note_4 如实保留，Apple 合规红线）。
   Widget _buildNotesCard(AppLocalizations t) {
-    final List<String> notes = <String>[
-      t.parent_premium_note_1,
-      t.parent_premium_note_2,
-      t.parent_premium_note_3,
-      t.parent_premium_note_4,
-    ];
+    // Android 官网直供版：note_2（Apple ID 恢复）/ note_4（Apple 收款）在安卓上不成立，
+    // 换成一条「官网付款 → 收到激活码」的说明；note_1（一次买断）与 note_3（跨平台
+    // 不可互认）仍然为真，保留原文。
+    final List<String> notes = _usesRedeemCode
+        ? <String>[
+            t.parent_premium_note_1,
+            t.parent_premium_note_android,
+            t.parent_premium_note_3,
+          ]
+        : <String>[
+            t.parent_premium_note_1,
+            t.parent_premium_note_2,
+            t.parent_premium_note_3,
+            t.parent_premium_note_4,
+          ];
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: creamCardDecoration(),
@@ -687,7 +868,7 @@ class PremiumStatusText extends ConsumerWidget {
 
 /// 主卡的**向日葵形象**图标（玄参 2026-10-14 截图反馈：换掉 emoji 🌻）。
 ///
-/// 用仓库现有美术 `assets/plants/sunflower/species_sunflower_adult_bloomed.png`
+/// 用仓库现有美术 `assets/plants/sunflower/species_sunflower_adult_bloomed.webp`
 /// （向日葵盛开图，1200×2000 带盆竖版）。二轮反馈（同日下午）：44×44 +
 /// `BoxFit.cover` 会把非方形竖图的**花盆整个裁掉** → 改 **52×52 +
 /// `BoxFit.contain`** 完整展示整株（含盆）；52 而非 48：contain 后可见宽度只有
@@ -719,7 +900,7 @@ class _PremiumSunflowerIcon extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(_radius),
           child: Image.asset(
-            'assets/plants/sunflower/species_sunflower_adult_bloomed.png',
+            'assets/plants/sunflower/species_sunflower_adult_bloomed.webp',
             width: _size,
             height: _size,
             // 玄参二轮反馈：cover 会裁掉花盆 → contain 完整展示整株（含盆）。
@@ -730,6 +911,135 @@ class _PremiumSunflowerIcon extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// 「输入激活码」对话框（Android 官网直供版）。
+///
+/// 为什么单独一个 [StatefulWidget] 而不是 `showDialog` 里塞 `StatefulBuilder`：
+///  - 需要一个 `TextEditingController` 的**生命周期归属**（`dispose` 必调，
+///    `StatefulBuilder` 没有 dispose 钩子 → 每次开框都会漏一个 controller）；
+///  - 「从剪贴板粘贴」是异步的，需要 `setState` 刷新错误提示；
+///  - 文案由外部 [AppLocalizations] 传入而**不在框内 `l10nOf(context)`**：对话框挂在
+///    root overlay 上，可能不在页级 `L10nScope` 内，直接取会退化成默认语言
+///    （这是本仓 i18n B2 的既有坑）。
+///
+/// 返回值：用户点「解锁」→ 清理后的码；点「取消」/ 返回 → null。
+class _RedeemCodeDialog extends StatefulWidget {
+  const _RedeemCodeDialog({required this.t});
+
+  /// 页级取好的本地化表（在 scope 内取得，故一定是当前语言）。
+  final AppLocalizations t;
+
+  @override
+  State<_RedeemCodeDialog> createState() => _RedeemCodeDialogState();
+}
+
+class _RedeemCodeDialogState extends State<_RedeemCodeDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  /// 输入框下方的错误提示（目前只有「剪贴板为空 / 空提交」两种，均非致命）。
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// 从系统剪贴板取文本填进输入框（失败 / 为空 / 超时 → 就地给提示，绝不抛）。
+  ///
+  /// ⚠️ 不在这里做「清理空格 / 连字符」：那是域层 `normalizeRedeemCode` 的职责，
+  /// 这里只 `trim()` 去掉首尾空白（中间的 `-` 是数据字符，绝不能删）。
+  ///
+  /// 🔴 必须 `.timeout`：`Clipboard.getData` 走平台通道，**通道不在（如测试宿主、
+  /// 部分定制系统）时它既不返回也不抛** —— 不设超时的话按钮点了毫无反应，用户只会
+  /// 以为 App 卡死（本仓实测：`flutter test` 里该 Future 永不完成）。
+  Future<void> _pasteFromClipboard() async {
+    String text = '';
+    try {
+      final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain)
+          .timeout(kPremiumClipboardTimeout);
+      text = data?.text ?? '';
+    } catch (_) {
+      // 无剪贴板权限 / 通道缺失 / 超时：一律降级为「空」，交给下面的提示。
+      text = '';
+    }
+    if (!mounted) return;
+    final String trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      setState(() => _error = widget.t.parent_premium_code_snack_paste_empty);
+      return;
+    }
+    setState(() {
+      _error = null;
+      _controller.text = trimmed;
+    });
+  }
+
+  /// 提交：空输入 → 就地提示「请完整复制」；否则把码交回调用方。
+  void _submit() {
+    final String code = _controller.text.trim();
+    if (code.isEmpty) {
+      setState(
+          () => _error = widget.t.parent_premium_code_snack_malformed);
+      return;
+    }
+    Navigator.of(context).pop(code);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.t.parent_premium_code_dialog_title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            widget.t.parent_premium_code_dialog_hint,
+            style: const TextStyle(fontSize: 13, height: 1.45, color: _kInkSoft),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            key: kPremiumRedeemCodeFieldKey,
+            controller: _controller,
+            autofocus: true,
+            minLines: 1,
+            maxLines: 2,
+            style: const TextStyle(fontSize: 13, letterSpacing: 0.4),
+            decoration: InputDecoration(
+              labelText: widget.t.parent_premium_code_dialog_field,
+              border: const OutlineInputBorder(),
+              errorText: _error,
+              errorMaxLines: 2,
+            ),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _pasteFromClipboard,
+              icon: const Icon(Icons.content_paste_rounded, size: 18),
+              label: Text(widget.t.parent_premium_code_dialog_paste),
+            ),
+          ),
+        ],
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(widget.t.parent_premium_code_dialog_cancel),
+        ),
+        FilledButton(
+          key: kPremiumRedeemCodeConfirmKey,
+          onPressed: _submit,
+          child: Text(widget.t.parent_premium_code_dialog_confirm),
+        ),
+      ],
+    );
+  }
 }
 
 /// 顶部金胶囊（阶段 5）：金渐变底 + 白字，用于主卡「一次买断 · 永久」。

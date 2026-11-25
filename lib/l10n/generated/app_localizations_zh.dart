@@ -2706,6 +2706,49 @@ class AppLocalizationsZh extends AppLocalizations {
   String get parent_premium_snack_restore_failed => '恢复失败，请稍后重试';
 
   @override
+  String get parent_premium_code_btn_unlock => '输入激活码解锁';
+
+  @override
+  String get parent_premium_code_activating => '激活中…';
+
+  @override
+  String get parent_premium_code_dialog_title => '输入激活码';
+
+  @override
+  String get parent_premium_code_dialog_hint => '请粘贴在官网购买后收到的激活码，大小写与字符都要完整。';
+
+  @override
+  String get parent_premium_code_dialog_field => '激活码';
+
+  @override
+  String get parent_premium_code_dialog_paste => '从剪贴板粘贴';
+
+  @override
+  String get parent_premium_code_dialog_cancel => '取消';
+
+  @override
+  String get parent_premium_code_dialog_confirm => '解锁';
+
+  @override
+  String get parent_premium_code_snack_already => '你已经解锁过了，无需再次输入 🌻';
+
+  @override
+  String get parent_premium_code_snack_malformed => '激活码格式不对，请完整复制';
+
+  @override
+  String get parent_premium_code_snack_invalid => '激活码无效，请核对后再试';
+
+  @override
+  String get parent_premium_code_snack_retry => '激活失败，请稍后重试或联系我们';
+
+  @override
+  String get parent_premium_code_snack_paste_empty => '剪贴板里没有文字';
+
+  @override
+  String get parent_premium_note_android =>
+      '安卓版由官网直供：付款后你会收到一枚激活码，点「输入激活码解锁」即可解锁。';
+
+  @override
   String get parent_reward_category_label => '分类';
 
   @override

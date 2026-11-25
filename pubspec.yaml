@@ -50,6 +50,13 @@ dependencies:
   # 运动/语音识别/媒体库/健康 均无调用）→ 不触发 iOS 隐私串，无需新增 UsageDescription。
   # onboarding 审核铁律仍要求：接入后复核二进制敏感符号（见 `docs/上架执行手册`）。
   url_launcher: ^6.3.3
+  # ── 激活码离线验签（Android 官网直供版）：Ed25519。
+  # 为什么不自己做/用 crypto：`crypto` 只有哈希与 HMAC，没有非对称签名；
+  # 本包在 Dart VM / 移动端默认走**纯 Dart** 实现（DartEd25519），无平台通道，
+  # 故 `lib/domain/services/redeem_code.dart` 可直接被 `dart test` / `flutter test`
+  # 单测，也不需要任何原生依赖。
+  # 版本由 `flutter pub add` 按 SDK 约束（>=3.0.0 <4.0.0）解析为 2.9.0。
+  cryptography: ^2.9.0
 
 dev_dependencies:
   flutter_test:

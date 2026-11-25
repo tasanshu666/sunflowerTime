@@ -4649,6 +4649,90 @@ abstract class AppLocalizations {
   /// **'恢复失败，请稍后重试'**
   String get parent_premium_snack_restore_failed;
 
+  /// No description provided for @parent_premium_code_btn_unlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入激活码解锁'**
+  String get parent_premium_code_btn_unlock;
+
+  /// No description provided for @parent_premium_code_activating.
+  ///
+  /// In zh, this message translates to:
+  /// **'激活中…'**
+  String get parent_premium_code_activating;
+
+  /// No description provided for @parent_premium_code_dialog_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入激活码'**
+  String get parent_premium_code_dialog_title;
+
+  /// No description provided for @parent_premium_code_dialog_hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请粘贴在官网购买后收到的激活码，大小写与字符都要完整。'**
+  String get parent_premium_code_dialog_hint;
+
+  /// No description provided for @parent_premium_code_dialog_field.
+  ///
+  /// In zh, this message translates to:
+  /// **'激活码'**
+  String get parent_premium_code_dialog_field;
+
+  /// No description provided for @parent_premium_code_dialog_paste.
+  ///
+  /// In zh, this message translates to:
+  /// **'从剪贴板粘贴'**
+  String get parent_premium_code_dialog_paste;
+
+  /// No description provided for @parent_premium_code_dialog_cancel.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消'**
+  String get parent_premium_code_dialog_cancel;
+
+  /// No description provided for @parent_premium_code_dialog_confirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'解锁'**
+  String get parent_premium_code_dialog_confirm;
+
+  /// No description provided for @parent_premium_code_snack_already.
+  ///
+  /// In zh, this message translates to:
+  /// **'你已经解锁过了，无需再次输入 🌻'**
+  String get parent_premium_code_snack_already;
+
+  /// No description provided for @parent_premium_code_snack_malformed.
+  ///
+  /// In zh, this message translates to:
+  /// **'激活码格式不对，请完整复制'**
+  String get parent_premium_code_snack_malformed;
+
+  /// No description provided for @parent_premium_code_snack_invalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'激活码无效，请核对后再试'**
+  String get parent_premium_code_snack_invalid;
+
+  /// No description provided for @parent_premium_code_snack_retry.
+  ///
+  /// In zh, this message translates to:
+  /// **'激活失败，请稍后重试或联系我们'**
+  String get parent_premium_code_snack_retry;
+
+  /// No description provided for @parent_premium_code_snack_paste_empty.
+  ///
+  /// In zh, this message translates to:
+  /// **'剪贴板里没有文字'**
+  String get parent_premium_code_snack_paste_empty;
+
+  /// No description provided for @parent_premium_note_android.
+  ///
+  /// In zh, this message translates to:
+  /// **'安卓版由官网直供：付款后你会收到一枚激活码，点「输入激活码解锁」即可解锁。'**
+  String get parent_premium_note_android;
+
   /// No description provided for @parent_reward_category_label.
   ///
   /// In zh, this message translates to:

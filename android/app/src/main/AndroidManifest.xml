@@ -1,5 +1,19 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <!-- 🚫 刻意移除 Google Play 结算权限 `com.android.vending.BILLING`。
+         来源：`in_app_purchase` 的 Android 实现（BillingClient）在自己的 manifest 里
+         声明了该权限，manifest merger 会自动并进来 —— 本文件里没有写它。
+         为什么必须移除：
+           · 本产品**不上 Google Play**（国内买断制走不了国产品牌商店），Android 侧
+             解锁走「官网付款 → 激活码离线验签」，全程**不触碰 Play Billing**；
+           · 该权限在国内**完全无效**（没有 Google 服务框架就没有结算服务）；
+           · 部分安全软件 / 应用市场会把它当「内购扣费」风险项误报，影响官网 APK 的
+             信任度与安装转化。
+         ⚠️ iOS 侧的 StoreKit 与本次移除**无关**（Apple 不读 Android manifest）；
+            `in_app_purchase` 依赖本身保留（iOS 仍在用），只是不带走这个 Android 权限。
+         ⚠️ 若日后真接入 Play Billing，删掉这一行即可（不要同时删依赖）。 -->
+    <uses-permission android:name="com.android.vending.BILLING" tools:node="remove" />
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"

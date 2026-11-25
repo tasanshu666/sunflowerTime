@@ -2776,6 +2776,54 @@ class AppLocalizationsEn extends AppLocalizations {
       'Restore failed — try again later';
 
   @override
+  String get parent_premium_code_btn_unlock => 'Enter activation code';
+
+  @override
+  String get parent_premium_code_activating => 'Activating…';
+
+  @override
+  String get parent_premium_code_dialog_title => 'Enter activation code';
+
+  @override
+  String get parent_premium_code_dialog_hint =>
+      'Paste the activation code you received after purchasing on our website. Keep every character, including letter case.';
+
+  @override
+  String get parent_premium_code_dialog_field => 'Activation code';
+
+  @override
+  String get parent_premium_code_dialog_paste => 'Paste from clipboard';
+
+  @override
+  String get parent_premium_code_dialog_cancel => 'Cancel';
+
+  @override
+  String get parent_premium_code_dialog_confirm => 'Unlock';
+
+  @override
+  String get parent_premium_code_snack_already =>
+      'Already unlocked — no need to enter a code 🌻';
+
+  @override
+  String get parent_premium_code_snack_malformed =>
+      'That code looks incomplete — please copy it in full';
+
+  @override
+  String get parent_premium_code_snack_invalid =>
+      'Invalid activation code — please check and retry';
+
+  @override
+  String get parent_premium_code_snack_retry =>
+      'Activation failed — please retry later or contact us';
+
+  @override
+  String get parent_premium_code_snack_paste_empty => 'Clipboard is empty';
+
+  @override
+  String get parent_premium_note_android =>
+      'The Android version is sold directly on our website: after payment you receive an activation code — tap \"Enter activation code\" to unlock.';
+
+  @override
   String get parent_reward_category_label => 'Type';
 
   @override

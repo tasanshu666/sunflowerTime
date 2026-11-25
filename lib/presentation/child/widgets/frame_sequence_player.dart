@@ -3,9 +3,9 @@
 /// ## 资产契约（目录即接口，详见 `docs/美术资源_序列帧与音频命名规范_v1.md`）
 ///  · 成长过渡帧：`assets/fx/grow/{物种}/{过渡名}/frame001..N.webp`（**三位零填充**，
 ///    从 001 起，播放顺序 = 文件名字典序）；
-///  · 养护效果帧：`assets/fx/care/{water|fertilize}/frame001..N.png`（纯效果层，
+///  · 养护效果帧：`assets/fx/care/{water|fertilize|weed|pest}/frame001..N.webp`（纯效果层，
 ///    透明底、不含盆与植物 —— 播放时叠加在植物静态图**之上**，植物本体保持可见）；
-///  · 专注页向日葵帧：`assets/fx/focus/sunflower/{idle|collect|settle|return}/frame001..N.png`
+///  · 专注页向日葵帧：`assets/fx/focus/sunflower/{idle|collect|settle|return}/frame001..N.webp`
 ///    （透明底角色层，2026-09-29 玄参交付；**各组帧数不同**，见 `prd_params.dart`）。
 ///
 /// ## 播放口径（玄参拍板）
@@ -203,6 +203,14 @@ Future<List<String>> resolveGrowFxAssets(
   return _growFxResolved[key] = List<String>.unmodifiable(frames);
 }
 
+/// 「养护 / 除草 / 除虫」效果帧的扩展名 = **WebP**（2026-11-25 装包瘦身批）。
+///
+/// 12.37 MB PNG → 3.11 MB WebP q95（−75%），画布 720² 与 alpha 通道零变化；
+/// 管线 `tools/convert_assets_webp.py`（与 convert_eyecare640 / convert_grow_fx
+/// 同档口径）。**只改编码，不改帧数/尺寸** ⇒ 落点锚点常量（`kCareWeedAnchorX/Y` 等，
+/// 以帧内比例表达）继续有效。
+const String kCareFxFrameExt = 'webp';
+
 /// 浇水效果帧目录。
 const String kCareWaterFxDir = 'assets/fx/care/water';
 
@@ -214,6 +222,11 @@ const String kCareWeedFxDir = 'assets/fx/care/weed';
 
 /// 除虫效果帧目录（2026-10-03 玄参交付，27 帧 720×720）。
 const String kCarePestFxDir = 'assets/fx/care/pest';
+
+/// 「专注页向日葵」四组帧的扩展名 = **WebP**（2026-11-25 装包瘦身批）。
+///
+/// 35.06 MB PNG → 6.27 MB WebP q95（−82%），画布 720² 与 alpha 通道零变化。
+const String kFocusFxFrameExt = 'webp';
 
 /// 专注页 · 常态 idle 循环帧目录（2026-09-29 玄参交付）。
 const String kFocusIdleFxDir = 'assets/fx/focus/sunflower/idle';
@@ -229,7 +242,7 @@ const String kFocusReturnFxDir = 'assets/fx/focus/sunflower/return';
 
 /// 预热一组序列帧到 ImageCache（消除「画面一闪一闪」的换帧白屏）。
 ///
-/// 逐帧 `Image.asset` 换帧时会重新解码 720×720 PNG（异步）→ 旧图已丢弃则白屏闪烁
+/// 逐帧 `Image.asset` 换帧时会重新解码 720×720 位图（异步）→ 旧图已丢弃则白屏闪烁
 /// （玄参 2026-09-29 实测反馈）。播放前把帧解码进缓存即可消除。
 ///
 /// [start] / [count]：只预热 `[start, start+count)` 子区间（C43 滑动窗口预热用；

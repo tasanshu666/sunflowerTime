@@ -128,12 +128,12 @@ abstract final class _GuardAssetPaths {
 
   /// 专注双券（加餐 / 放大）共用图标（🔴 B13.20b，玄参 2026-11-13：
   /// 「专注放大券和专注加餐券应该是同一个图标」）—— 即**专注页向日葵
-  /// 待机动画的第一帧**（`assets/fx/focus/sunflower/idle/frame001.png`，
+  /// 待机动画的第一帧**（`assets/fx/focus/sunflower/idle/frame001.webp`，
   /// 720×720；B13.20a 先给加餐券用了这张，本批放大券对齐同款；
   /// 目录常量真源见 `frame_sequence_player.dart` 的 [kFocusIdleFxDir]，
   /// 此处只引首帧文件）。
   static const String voucherFocusIcon =
-      'assets/fx/focus/sunflower/idle/frame001.png';
+      'assets/fx/focus/sunflower/idle/frame001.webp';
 }
 
 /// 素材位取值函数集（纯静态，无状态；全部返回**新** widget）。

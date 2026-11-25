@@ -235,11 +235,11 @@ void main() {
           status: 'bloomed',
         ),
         <String>[
-          'assets/plants/rafflesia/species_rafflesia_adult_bloomed.png',
-          'assets/plants/rafflesia/species_rafflesia_adult.png',
-          'assets/plants/rafflesia/species_rafflesia.png',
-          'assets/plants/shared/shared_adult_bloomed.png',
-          'assets/plants/shared/shared_adult.png',
+          'assets/plants/rafflesia/species_rafflesia_adult_bloomed.webp',
+          'assets/plants/rafflesia/species_rafflesia_adult.webp',
+          'assets/plants/rafflesia/species_rafflesia.webp',
+          'assets/plants/shared/shared_adult_bloomed.webp',
+          'assets/plants/shared/shared_adult.webp',
         ],
       );
       expect(
@@ -248,7 +248,7 @@ void main() {
           stage: 'sprout',
           status: 'wilting',
         ).first,
-        'assets/plants/rafflesia/species_rafflesia_sprout_wilting.png',
+        'assets/plants/rafflesia/species_rafflesia_sprout_wilting.webp',
       );
       expect(growSpeciesDir(_kSpeciesId), _kDir);
     });
@@ -279,9 +279,9 @@ void main() {
   // B · 磁盘素材真实存在 + pubspec 登记
   // ═══════════════════════════════════════════════════════════════════════
   group('B · 大王花素材落盘与登记', () {
-    test('B1 · 7 张静态图真实存在', () {
+    test('B1 · 7 张静态图真实存在（2026-11-25 起为 WebP q95）', () {
       for (final String suffix in _kStaticSuffixes) {
-        _expectFileExists('assets/plants/rafflesia/species_rafflesia_$suffix.png');
+        _expectFileExists('assets/plants/rafflesia/species_rafflesia_$suffix.webp');
       }
     });
 
@@ -342,7 +342,7 @@ void main() {
     test('C1 · 静态图 / 帧 / 音效全部在包内', () {
       final List<String> expected = <String>[
         for (final String s in _kStaticSuffixes)
-          'assets/plants/rafflesia/species_rafflesia_$s.png',
+          'assets/plants/rafflesia/species_rafflesia_$s.webp',
         for (final String t in _kTransitionFallback.keys)
           for (int i = 1; i <= _kFramesPerTransition; i++)
             'assets/fx/grow/rafflesia/$t/frame${i.toString().padLeft(3, '0')}.webp',

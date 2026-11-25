@@ -10,7 +10,7 @@
 ///  · 所有动效参数收敛到文件顶部命名常量，**禁止散在 build 里**。
 ///
 /// ## 序列帧接口（2026-09-28 玄参素材落地，正式启用）
-/// [frames] 非 null 时改为逐帧轮播效果帧（`assets/fx/care/{water|fertilize}/frameNNN.png`，
+/// [frames] 非 null 时改为逐帧轮播效果帧（`assets/fx/care/{water|fertilize|weed|pest}/frameNNN.webp`，
 /// 三位零填充），**直接叠加在底层真实植物之上**（overlay 透明、不遮挡、不再自绘
 /// 植物副本 —— 2026-09-28 玄参实测「花盆上下移动」根因即副本错位，已删）：
 /// 帧为 720×720 方形画布，底对齐格子底边、宽度 = 格宽，`BoxFit.contain` 绘制。
@@ -157,7 +157,7 @@ class _CareEffectOverlayState extends State<CareEffectOverlay>
 
   /// 预解码全部帧到 ImageCache（消除首播切帧卡顿 / 闪烁）。
   ///
-  /// 逐帧 `Image.asset` 会在每次换帧时**重新解码 PNG**（720×720），首播尤其明显。
+  /// 逐帧 `Image.asset` 会在每次换帧时**重新解码位图**（720×720），首播尤其明显。
   /// 这里在播放前把整组帧预热进缓存；失败静默（最坏退回原行为，不崩）。
   bool _precached = false;
 

@@ -607,14 +607,15 @@ const int kMilestoneFirstBloomCount = 1;
 // 素材契约（`docs/美术资源_序列帧与音频命名规范_v1.md` + 交付实况）：
 //   · 序列帧目录 `assets/fx/grow/{物种}/{过渡名}/frame001..N.webp`（三位零填充；
 //     2026-10-13 起成长帧走 WebP q95 压缩管线 `tools/convert_grow_fx.py`）与
-//     `assets/fx/care/{water|fertilize}/frame001..N.png`；
+//     `assets/fx/care/{water|fertilize|weed|pest}/frame001..N.webp`（2026-11-25
+//     装包瘦身批：PNG→WebP q95，`tools/convert_assets_webp.py`）；
 //   · **每帧时长 = 音频时长 / 帧数**（玄参口径：「动画帧的播放速度与对应的音频时间
 //     保持一致」）——下列时长常量来自对交付 mp3 的 ffprobe 实测（192kbps）；
 //   · 花园氛围音 `assets/audio/bgm/background.mp3`（10s），花园 tab 每
 //     [kGardenAmbientIntervalSeconds] 秒播一次、离开即停（玄参拍板）。
 // ───────────────────────────────────────────────────────────────────────────
 
-/// 序列帧文件名起始编号（三位零填充，`frame001.png` 起）。
+/// 序列帧文件名起始编号（三位零填充，`frame001` 起）。
 const int kFxFirstFrameNumber = 1;
 
 /// 序列帧文件名位数（`frame001` → 3 位零填充）。
@@ -709,7 +710,7 @@ const int kPestFadeOutMs = 300;
 const int kFxDisplayFadeOutMs = 300;
 
 // ── 专注页向日葵序列帧（玄参 2026-09-29 素材落地）────────────────────────────
-// 目录：`assets/fx/focus/sunflower/{idle|collect|settle|return}/frame001..N.png`
+// 目录：`assets/fx/focus/sunflower/{idle|collect|settle|return}/frame001..N.webp`
 //（三位零填充、从 001 起，播放顺序 = 文件名字典序）；目录常量见
 // `frame_sequence_player.dart` 的 kFocus*FxDir。
 // 每帧时长 = 音频时长 / 帧数（时长常量来自交付 mp3 的 afinfo 实测）。
@@ -1553,20 +1554,23 @@ const String kFocusLevelRefIdPrefix = 'lv';
 
 // ── 升级演出序列帧素材（2026-10-14 玄参交付，C74 §6 修订二「每次升级都播」）─────
 
-/// 普通升级（非称号节点）：36 帧 PNG + `default_level_up.mp3`。
+/// 普通升级（非称号节点）：36 帧 + `default_level_up.mp3`。
 ///
 /// ⚠️ 目录名按玄参交付**原样使用**（`defaultLevelUp`，首字母大写驼峰）。
 const String kLevelUpDefaultFxDir = 'assets/fx/levelUp/defaultLevelUp';
 
-/// 称号节点（1/5/10/…/40）：41 帧 PNG + `5_level_up.mp3`。
+/// 称号节点（1/5/10/…/40）：41 帧 + `5_level_up.mp3`。
 ///
 /// ⚠️ **目录名拼写就是 `5leveUp`（少一个 `l`）** —— 玄参交付时即如此，按现状使用、
 /// **不重命名**（改名要同步 pubspec / 常量 / 素材目录三处，风险大于收益）。
 /// 帧数不写死：运行期由 `resolveFxFrames` 读 AssetManifest 实测，这里只是兜底契约值。
 const String kLevelUpTitleFxDir = 'assets/fx/levelUp/5leveUp';
 
-/// 升级演出帧扩展名（玄参交付为 PNG，未走 WebP 压缩管线）。
-const String kLevelUpFxFrameExt = 'png';
+/// 升级演出帧扩展名。
+///
+/// 2026-11-25 装包瘦身批：两套升级演出 35.15 MB PNG → 10.24 MB WebP q95
+/// （−71%，画布 720² 与 alpha 通道零变化，`tools/convert_assets_webp.py`）。
+const String kLevelUpFxFrameExt = 'webp';
 
 /// 普通升级帧数（**兜底契约值**，运行期以 AssetManifest 实测为准）。
 const int kLevelUpDefaultFrameCount = 36;
@@ -3764,7 +3768,7 @@ const double kWishTreeWeatherEntrySize = 56;
 
 /// 许愿树位图的**显示盒边长**（× `uiScaleOf`）= **52**（原 26 太小太糊）。
 ///
-/// `wish_tree_icon.png` 是 2048² 画布，树 alpha bbox 只占 70.7%×69.8%；
+/// `wish_tree_icon.webp` 是 2048² 画布，树 alpha bbox 只占 70.7%×69.8%；
 /// 26 盒里树实际仅 ≈18dp。52 盒内树 ≈36dp，接近天气位图在 56 盒里的视觉主体
 /// （26~40dp），且 52 < 56 容器边长、透明留白保证不顶边。仍走 `BoxFit.contain` +
 /// 显式宽高，不走 C13 归一管线（UI 图标非植物盆图）。

@@ -95,9 +95,11 @@ class _FocusSunflowerStageState extends State<FocusSunflowerStage>
   List<String> _framesFor(FocusStagePhase p) {
     switch (p) {
       case FocusStagePhase.collect:
-        return fxFrameAssets(kFocusCollectFxDir, kFocusCollectFrameCount);
+        return fxFrameAssets(kFocusCollectFxDir, kFocusCollectFrameCount,
+            ext: kFocusFxFrameExt);
       case FocusStagePhase.welcome:
-        return fxFrameAssets(kFocusReturnFxDir, kFocusReturnFrameCount);
+        return fxFrameAssets(kFocusReturnFxDir, kFocusReturnFrameCount,
+            ext: kFocusFxFrameExt);
       case FocusStagePhase.idle:
         return const <String>[];
     }
@@ -122,7 +124,8 @@ class _FocusSunflowerStageState extends State<FocusSunflowerStage>
       child: FrameSequencePlayer(
         // 稳定 key：idle 层生命周期与舞台一致，不随相位切换重建。
         key: const ValueKey<String>('idle'),
-        frames: fxFrameAssets(kFocusIdleFxDir, kFocusIdleFrameCount),
+        frames: fxFrameAssets(kFocusIdleFxDir, kFocusIdleFrameCount,
+            ext: kFocusFxFrameExt),
         durationMs: kFocusIdleLoopDurationMs,
         loop: true,
       ),

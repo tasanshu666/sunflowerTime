@@ -521,7 +521,7 @@ void main() {
               w is Image &&
               w.image is AssetImage &&
               (w.image as AssetImage).assetName ==
-                  'assets/fx/focus/sunflower/idle/frame001.png'),
+                  'assets/fx/focus/sunflower/idle/frame001.webp'),
         ),
         findsOneWidget,
         reason: '${kind.id} 图标 = 专注页向日葵待机首帧（双券同款）',

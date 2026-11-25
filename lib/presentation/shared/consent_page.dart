@@ -6,7 +6,7 @@
 ///
 /// 改版前：米色纯文字页（标题 + 三行小字 + 按钮），没有形象。改版后：
 ///  · 顶部**向日葵盛开美术图**作为吉祥物 / 标志性形象
-///    （`assets/plants/species_sunflower_adult_bloomed.png`，1200×2000，自带花盆）；
+///    （`assets/plants/sunflower/species_sunflower_adult_bloomed.webp`，1200×2000，自带花盆）；
 ///  · 奶油暖调底 + 白色大圆角卡片承载**合规文案**；
 ///  · 大号琥珀色圆角主按钮；
 ///  · 整体仍是竖屏友好 —— `SingleChildScrollView` + `ConstrainedBox(minHeight)`，
@@ -47,7 +47,7 @@ const Color _kAmber = Color(0xFFF9A825);
 
 /// 向日葵吉祥物图资源（1200×2000，自带花盆，盆底贴底）。
 const String kConsentSunflowerAsset =
-    'assets/plants/sunflower/species_sunflower_adult_bloomed.png';
+    'assets/plants/sunflower/species_sunflower_adult_bloomed.webp';
 
 /// 向日葵吉祥物图片的公开 Key（供 widget 测试定位 / 度量）。
 const Key kConsentSunflowerKey = Key('consentSunflowerMascot');

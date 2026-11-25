@@ -77,9 +77,12 @@ flutter:
   assets:
     - assets/audio/sfx/
     - assets/audio/bgm/
-    # 植物美术资源（2026-09-22 渲染抽象）：按「{speciesId}_{stage}_{status}.png」
+    # 植物美术资源（2026-09-22 渲染抽象）：按「{speciesId}_{stage}_{status}.webp」
     # 命名丢进对应**物种子目录**即自动生效，缺失时回退内置自绘。命名规范与
     # 目录结构见 lib/presentation/child/widgets/plant_artwork.dart 顶部文档注释。
+    # 🔴 2026-11-25 装包瘦身批：全部静态图 PNG → **WebP q95**（131.7 MB → 25.7 MB，
+    # 画布尺寸与 alpha 通道零变化，管线 tools/convert_assets_webp.py；原 PNG 在
+    # assets/_originals/png_webp_batch_2026_11/，该目录不在本声明里 ⇒ 不进包）。
     # 2026-10-08 目录重组：按物种分目录（10 物种 + shared 通用级）；⚠️ 目录声明
     # **不递归**，必须把叶子目录逐个列全（漏一行 = 图静默不进包）。
     - assets/plants/sunflower/
@@ -241,12 +244,15 @@ flutter:
     # 按名称关键词映射（单点收口见 growth_icons.dart），缺失/失败回退马卡龙色块+图标。
     - assets/ui/growth/
     - assets/ui/store/
-    # 许愿树场景美术资源（2026-11-19 玄参交付）：扁平目录，5 张透明 PNG
+    # 许愿树场景美术资源（2026-11-19 玄参交付）：扁平目录，5 张透明图
     # （大树 + 三种蛋 + 收藏箱 + 愿望池）+ 1 张不透明背景。文件名即契约，
+    # 🔴 2026-11-25 起为 **WebP q95**（8 张 17.1 MB → 2.8 MB，含入口图标
+    # wish_tree_icon.webp；画布/alpha 零变化，管线 tools/convert_assets_webp.py）。
     # 见 wish_tree_page.dart 的 kWishArt* 常量；⚠️ 目录声明不递归，这一行漏了
     # = 所有图静默不进包（Image.asset errorBuilder 回退占位）。
     - assets/wish_tree/
     # 2026-11-20 美术换批：51 张 3:4 循环树帧（frame001~051）。
+    # 2026-11-25 起为 WebP q95（720×960，48.5 MB → 24.6 MB）。
     # 🔴 Flutter 目录声明不递归，漏这行 = 51 帧静默不进包。
     - assets/wish_tree/tree_frames/
 

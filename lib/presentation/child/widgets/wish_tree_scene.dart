@@ -10,22 +10,22 @@
 ///  · 底层：背景湖景 `BoxFit.cover` + `Alignment.topCenter` 铺满**整个场景**。
 ///    用 [LayoutBuilder] 取真实场景约束，而非 MediaQuery 整屏高度 —— 本组件
 ///    被放进有 AppBar 的 Expanded 里，整屏高度与场景高度并不相等。
-///  · 中层：循环树帧 `tree_frames/frame001.png`~`frame051.png`（720×960，
+///  · 中层：循环树帧 `tree_frames/frame001.webp`~`frame051.webp`（720×960，
 ///    **3:4 竖图**）10 秒一轮无限循环；树高仍约为场景高 72%，树框宽 =
 ///    高 × 0.75。**真实树根像素**（图纵向 93.23%，PIL alpha>128 扫描
 ///    x∈[40%,60%] 主轴，最低不透明行 y=895/960 实测）锚定在背景土坡小岛
 ///    （原图纵向 79.0%，沙洲核心质心实测）。小岛在**场景**里的位置按 cover
 ///    缩放动态计算，而非写死 0.78 —— 这是 iPad 上树根浮空的根因。
-///    🔴 旧静态树 `tree.png` 是 2048² 方图、树根 0.852，换批后绝不能沿用
+///    🔴 旧静态树 `tree.webp` 是 2048² 方图、树根 0.852，换批后绝不能沿用
 ///    那套方图几何，否则树根陷进土坡、整棵树视觉下坠。
 ///  · 蛋按 [eggSpots] 挂在**树冠下方**（新帧纵向 63%~73%，横向 20%~80%
 ///    仍落在新树身上），横向铺开避开主干；蛋下不再挂任何文字角标。
 ///  · 顶层：愿望蛋可点击（进详情）；底部三按钮 —— 左收藏箱 / 中许愿 / 右愿望池。
 ///
 /// ## 三态蛋（玄参 2026-11-19 口径）
-///  · 许愿蛋 `egg_wish.png`    —— 刚许愿（S1 未回应 / S2 已回应未布置办法）。
-///  · 正在实现蛋 `egg_growing.png` —— 父母已布置达成任务（S3 hasWays）。
-///  · 达成蛋 `egg_done.png`    —— 愿望已完成（达成池）。
+///  · 许愿蛋 `egg_wish.webp`    —— 刚许愿（S1 未回应 / S2 已回应未布置办法）。
+///  · 正在实现蛋 `egg_growing.webp` —— 父母已布置达成任务（S3 hasWays）。
+///  · 达成蛋 `egg_done.webp`    —— 愿望已完成（达成池）。
 /// 选图在页面层完成（复用领域三态判据），本组件只认传入的 asset 字符串。
 /// S3 的办法数量证据下沉到详情浮层列表，树上蛋只呈现蛋图，不渲染角标。
 library wish_tree_scene;
@@ -33,27 +33,31 @@ library wish_tree_scene;
 import 'package:flutter/material.dart';
 
 /// 许愿树场景素材路径（扁平目录 `assets/wish_tree/`，pubspec 已声明）。
+///
+/// ⚠️ 2026-11-25 装包瘦身批：本目录 8 张 PNG → WebP q95（17.1 MB → 2.8 MB，
+/// PSNR 40~44 dB，画布/alpha 零变化，管线 `tools/convert_assets_webp.py`）。
+/// 树上 51 帧同批转 WebP（`tree_frames/*.webp`），帧数不变。
 class WishTreeArt {
   const WishTreeArt._();
 
-  static const String background = 'assets/wish_tree/background.png';
+  static const String background = 'assets/wish_tree/background.webp';
 
   /// 🔴 旧静态树（2048² 方图）**保留文件不删**（别处可能引用），但本场景
   /// 自 2026-11-20 起改用下方 51 帧循环树，不再渲染它。
-  static const String tree = 'assets/wish_tree/tree.png';
+  static const String tree = 'assets/wish_tree/tree.webp';
 
   /// 循环树帧目录（51 张，文件名 frame001…frame051，目录声明不递归）。
   static const String treeFrameDir = 'assets/wish_tree/tree_frames';
 
   /// 第 [index] 帧（0-based）的资源路径；越界由调用方 [wishTreeFrameIndex] 保证。
   static String treeFrameAsset(int index) =>
-      '$treeFrameDir/frame${(index + 1).toString().padLeft(3, '0')}.png';
+      '$treeFrameDir/frame${(index + 1).toString().padLeft(3, '0')}.webp';
 
-  static const String eggWish = 'assets/wish_tree/egg_wish.png';
-  static const String eggGrowing = 'assets/wish_tree/egg_growing.png';
-  static const String eggDone = 'assets/wish_tree/egg_done.png';
-  static const String box = 'assets/wish_tree/keepsake_box.png';
-  static const String pool = 'assets/wish_tree/wish_pool.png';
+  static const String eggWish = 'assets/wish_tree/egg_wish.webp';
+  static const String eggGrowing = 'assets/wish_tree/egg_growing.webp';
+  static const String eggDone = 'assets/wish_tree/egg_done.webp';
+  static const String box = 'assets/wish_tree/keepsake_box.webp';
+  static const String pool = 'assets/wish_tree/wish_pool.webp';
 }
 
 /// 循环树帧索引**纯函数**（QA 可直接变异测试，不依赖 Flutter 宿主）。
@@ -74,7 +78,7 @@ int wishTreeFrameIndex(double progress, int frameCount) {
 class WishTreeSceneLayout {
   const WishTreeSceneLayout._();
 
-  /// 循环树帧数（`frame001.png` ~ `frame051.png`）。
+  /// 循环树帧数（`frame001.webp` ~ `frame051.webp`）。
   static const int treeFrameCount = 51;
 
   /// 一轮循环时长（`AnimationController..repeat()`，页面不可见随与 vsync 停）。
@@ -94,14 +98,15 @@ class WishTreeSceneLayout {
 
   /// 树帧中**真实树根**所在的纵向比例。
   ///
-  /// 实测方法：PIL 读 `frame001.png`(720×960) alpha 通道，取 x∈[40%,60%]
+  /// 实测方法：PIL 读 `frame001.png`(720×960) alpha 通道（现已转 WebP，
+  /// 画布与 alpha 逐像素不变，比例口径继续有效），取 x∈[40%,60%]
   /// 树干主轴，6 帧抽样（001/011/021/026/041/051）alpha>128 的最低不透明行
   /// 均为 y=895 ⇒ 895/960 = 0.93229；整图可见 bbox 最低行同样是 895。
   /// 🔴 旧值 0.852 属于旧方图 2048² 的树根（1745/2048），换批后若沿用会让
   /// 新树整体下坠、树根陷进背景土坡。
   static const double treeRootFraction = 0.9323;
 
-  /// 背景图尺寸（`background.png` 实测 1728×2304）。
+  /// 背景图尺寸（`background.webp` 实测 1728×2304）。
   static const double backgroundWidth = 1728;
   static const double backgroundHeight = 2304;
 

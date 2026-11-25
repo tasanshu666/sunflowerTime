@@ -10,7 +10,7 @@
 /// 不使用 `FittedBox`（无障碍大字号下会压缩文本）。
 ///
 /// 玄参 2026-11-20 真机反馈：中心图标由系统 `Icons.park_outlined` 换成美术素材
-/// `许愿树1.png`（落盘 `assets/wish_tree/wish_tree_icon.png`），容器由正圆改为
+/// `许愿树1.png`（落盘 `assets/wish_tree/wish_tree_icon.webp`），容器由正圆改为
 /// 与天气徽标一致的 12dp 圆角方形（复用 `kGardenWeatherBadgeIconContainerRadius`，
 /// 圆角不乘 scale —— 与天气徽标写法保持一致）。
 ///
@@ -32,7 +32,7 @@ const Key kWishTreeWeatherEntryKey = Key('wish_tree_weather_entry');
 /// 许愿树入口图标资源路径（2048×2048 方图，UI 图标直接 `BoxFit.contain` 缩放，
 /// 不走植物盆图 C13 归一管线）。
 const String kWishTreeWeatherEntryIconAsset =
-    'assets/wish_tree/wish_tree_icon.png';
+    'assets/wish_tree/wish_tree_icon.webp';
 
 /// 天气下方许愿树入口。
 class WishTreeWeatherEntry extends StatelessWidget {

@@ -640,7 +640,8 @@ class _SettlePageState extends ConsumerState<SettlePage>
                                   height: 260 * uiS,
                                   child: FrameSequencePlayer(
                                     frames: fxFrameAssets(
-                                        kFocusSettleFxDir, kFocusSettleFrameCount),
+                                        kFocusSettleFxDir, kFocusSettleFrameCount,
+                                        ext: kFocusFxFrameExt),
                                     durationMs: kFocusSettleDurationMs,
                                     loop: false,
                                     holdLastFrame: true, // 播一次定格末帧（不循环、不渐隐）

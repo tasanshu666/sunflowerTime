@@ -349,7 +349,7 @@ void main() {
         tasksAllDone: true,
       );
       expect(done, WishTreeEgg.done);
-      expect(wishTreeEggAssetOf(done), 'assets/wish_tree/egg_done.png');
+      expect(wishTreeEggAssetOf(done), 'assets/wish_tree/egg_done.webp');
 
       // hasWays + 未完成 ⇒ 正在实现蛋
       final WishTreeEgg growing = wishTreeEggOf(
@@ -357,7 +357,7 @@ void main() {
         tasksAllDone: false,
       );
       expect(growing, WishTreeEgg.growing);
-      expect(wishTreeEggAssetOf(growing), 'assets/wish_tree/egg_growing.png');
+      expect(wishTreeEggAssetOf(growing), 'assets/wish_tree/egg_growing.webp');
 
       // 无任务（face != hasWays）即便空任务 tasksAllDone=true 也不误判
       for (final WishTreeFace face in <WishTreeFace>[
@@ -367,7 +367,7 @@ void main() {
         final WishTreeEgg egg =
             wishTreeEggOf(face: face, tasksAllDone: true);
         expect(egg, WishTreeEgg.wish, reason: '$face 必须保持 egg_wish');
-        expect(wishTreeEggAssetOf(egg), 'assets/wish_tree/egg_wish.png');
+        expect(wishTreeEggAssetOf(egg), 'assets/wish_tree/egg_wish.webp');
       }
       // 变异对照点③：去掉 tasksAllDone 条件 ⇒ growing 用例转 RED。
     });

@@ -9,13 +9,17 @@
 /// 平铺后图一多没法区分），按「物种_阶段_状态」命名，从最精确往回找；
 /// **物种级（①–③）恒在通用级（④–⑤）之前**，故已交付的物种图始终优先命中、行为不变：
 /// ```
-/// ① assets/plants/{dir}/{speciesId}_{stage}_{status}.png   物种·最精确，用于特殊状态
-/// ② assets/plants/{dir}/{speciesId}_{stage}.png            物种·该阶段
-/// ③ assets/plants/{dir}/{speciesId}.png                    物种·通用
-/// ④ assets/plants/shared/shared_{stage}_{status}.png       通用·该阶段·该状态（跨物种兜底）
-/// ⑤ assets/plants/shared/shared_{stage}.png                通用·该阶段（跨物种兜底）
+/// ① assets/plants/{dir}/{speciesId}_{stage}_{status}.webp   物种·最精确，用于特殊状态
+/// ② assets/plants/{dir}/{speciesId}_{stage}.webp            物种·该阶段
+/// ③ assets/plants/{dir}/{speciesId}.webp                    物种·通用
+/// ④ assets/plants/shared/shared_{stage}_{status}.webp       通用·该阶段·该状态（跨物种兜底）
+/// ⑤ assets/plants/shared/shared_{stage}.webp                通用·该阶段（跨物种兜底）
 /// ⑥ 以上都没有 → 回退到内置自绘简笔（[PlantPlaceholderArt]）
 /// ```
+/// ⚠️ 扩展名是 **`.webp`**（2026-11-25 装包瘦身批：131.7 MB PNG → 25.7 MB WebP q95，
+/// 画布尺寸与 alpha 通道零变化，管线 `tools/convert_assets_webp.py`；原 PNG 备份在
+/// `assets/_originals/png_webp_batch_2026_11/`，不进包）。画布尺寸口径不变
+/// （向日葵 1200×2000 legacy / 其余 1440×2000 归一化），见 `garden_pot.dart`。
 /// 其中：
 /// - `{speciesId}` = `PlantSpecies.id`（现为 `species_sunflower` 等 11 种，见 `plant_seed.dart`）
 /// - `{dir}` = 物种子目录 = `{speciesId}` 去掉 `species_` 前缀（如 `species_sunflower` → `sunflower`）
@@ -40,11 +44,11 @@
 ///
 /// 说明：④/⑤ 的「通用级」（`shared_*`）供**跨物种共用的阶段图**使用 —— 种子期各物种
 /// 形态相近，**全物种只出 3 张通用图**即可覆盖所有物种的种子期：
-/// `shared/shared_seed.png`（健康）/ `shared/shared_seed_wilting.png`（枯萎）/ `shared/shared_seed_dead.png`（死亡），
-/// 无需任何 `species_*_seed*.png`（见宪法 C20：种子阶段一律通用、禁止物种专属种子图）。
+/// `shared/shared_seed.webp`（健康）/ `shared/shared_seed_wilting.webp`（枯萎）/ `shared/shared_seed_dead.webp`（死亡），
+/// 无需任何 `species_*_seed*.webp`（见宪法 C20：种子阶段一律通用、禁止物种专属种子图）。
 /// 物种级（①–③）仅用于幼苗 / 成株 / 开花，一旦存在优先命中、通用级仅兜底。
 ///
-/// 例：`assets/plants/sunflower/species_sunflower_adult_bloomed.png`
+/// 例：`assets/plants/sunflower/species_sunflower_adult_bloomed.webp`
 /// 只要目录和文件名对上就会自动生效，新增植物/阶段都不需要改本文件。
 ///
 /// 资源是否存在的判定走 [AssetManifest.loadFromAssetBundle]（读的是编译期生成的
@@ -90,11 +94,11 @@ class PlantArtCandidates {
         ? speciesId.substring('species_'.length)
         : speciesId;
     return <String>[
-      'assets/plants/$dir/${speciesId}_${stage}_$status.png',
-      'assets/plants/$dir/${speciesId}_$stage.png',
-      'assets/plants/$dir/$speciesId.png',
-      'assets/plants/shared/shared_${stage}_$status.png',
-      'assets/plants/shared/shared_$stage.png',
+      'assets/plants/$dir/${speciesId}_${stage}_$status.webp',
+      'assets/plants/$dir/${speciesId}_$stage.webp',
+      'assets/plants/$dir/$speciesId.webp',
+      'assets/plants/shared/shared_${stage}_$status.webp',
+      'assets/plants/shared/shared_$stage.webp',
     ];
   }
 

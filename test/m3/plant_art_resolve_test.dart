@@ -38,20 +38,20 @@ void main() {
           status: 'bloomed',
         ),
         <String>[
-          'assets/plants/sunflower/species_sunflower_adult_bloomed.png',
-          'assets/plants/sunflower/species_sunflower_adult.png',
-          'assets/plants/sunflower/species_sunflower.png',
-          'assets/plants/shared/shared_adult_bloomed.png',
-          'assets/plants/shared/shared_adult.png',
+          'assets/plants/sunflower/species_sunflower_adult_bloomed.webp',
+          'assets/plants/sunflower/species_sunflower_adult.webp',
+          'assets/plants/sunflower/species_sunflower.webp',
+          'assets/plants/shared/shared_adult_bloomed.webp',
+          'assets/plants/shared/shared_adult.webp',
         ],
       );
     });
 
     test('A2 三者都存在时命中「最精确」那条（不能被粗粒度抢先）', () {
       final Set<String> assets = <String>{
-        'assets/plants/sunflower/species_sunflower.png',
-        'assets/plants/sunflower/species_sunflower_adult.png',
-        'assets/plants/sunflower/species_sunflower_adult_bloomed.png',
+        'assets/plants/sunflower/species_sunflower.webp',
+        'assets/plants/sunflower/species_sunflower_adult.webp',
+        'assets/plants/sunflower/species_sunflower_adult_bloomed.webp',
       };
       expect(
         PlantArtCandidates.resolve(
@@ -60,13 +60,13 @@ void main() {
           stage: 'adult',
           status: 'bloomed',
         ),
-        'assets/plants/sunflower/species_sunflower_adult_bloomed.png',
+        'assets/plants/sunflower/species_sunflower_adult_bloomed.webp',
       );
     });
 
     test('A3 缺精确图 → 回退到「物种_阶段」', () {
       final Set<String> assets = <String>{
-        'assets/plants/tomato/species_tomato_sprout.png',
+        'assets/plants/tomato/species_tomato_sprout.webp',
       };
       expect(
         PlantArtCandidates.resolve(
@@ -75,13 +75,13 @@ void main() {
           stage: 'sprout',
           status: 'wilting',
         ),
-        'assets/plants/tomato/species_tomato_sprout.png',
+        'assets/plants/tomato/species_tomato_sprout.webp',
       );
     });
 
     test('A4 只有物种总图 → 回退到「物种」', () {
       final Set<String> assets = <String>{
-        'assets/plants/coral_orchid/species_coral_orchid.png',
+        'assets/plants/coral_orchid/species_coral_orchid.webp',
       };
       expect(
         PlantArtCandidates.resolve(
@@ -90,7 +90,7 @@ void main() {
           stage: 'adult',
           status: 'dead',
         ),
-        'assets/plants/coral_orchid/species_coral_orchid.png',
+        'assets/plants/coral_orchid/species_coral_orchid.webp',
       );
     });
 
@@ -130,8 +130,8 @@ void main() {
 
     test('A7 物种图全缺 → 回退到「通用_阶段_状态」(shared/{stage}_{status})', () {
       final Set<String> assets = <String>{
-        'assets/plants/shared/shared_seed_growing.png',
-        'assets/plants/shared/shared_seed.png',
+        'assets/plants/shared/shared_seed_growing.webp',
+        'assets/plants/shared/shared_seed.webp',
       };
       expect(
         PlantArtCandidates.resolve(
@@ -140,13 +140,13 @@ void main() {
           stage: 'seed',
           status: 'growing',
         ),
-        'assets/plants/shared/shared_seed_growing.png',
+        'assets/plants/shared/shared_seed_growing.webp',
       );
     });
 
     test('A8 通用阶段状态图也缺 → 回退到「通用_阶段」(shared/{stage})', () {
       final Set<String> assets = <String>{
-        'assets/plants/shared/shared_seed.png',
+        'assets/plants/shared/shared_seed.webp',
       };
       expect(
         PlantArtCandidates.resolve(
@@ -155,17 +155,17 @@ void main() {
           stage: 'seed',
           status: 'wilting',
         ),
-        'assets/plants/shared/shared_seed.png',
+        'assets/plants/shared/shared_seed.webp',
       );
     });
 
     test('A9 物种级与通用级同时存在 → 必须命中物种级（顺序护栏）', () {
       final Set<String> assets = <String>{
         // 通用级齐备。
-        'assets/plants/shared/shared_sprout_growing.png',
-        'assets/plants/shared/shared_sprout.png',
+        'assets/plants/shared/shared_sprout_growing.webp',
+        'assets/plants/shared/shared_sprout.webp',
         // 仅物种级「阶段图」存在（最精确图缺）。
-        'assets/plants/sunflower/species_sunflower_sprout.png',
+        'assets/plants/sunflower/species_sunflower_sprout.webp',
       };
       expect(
         PlantArtCandidates.resolve(
@@ -174,7 +174,7 @@ void main() {
           stage: 'sprout',
           status: 'growing',
         ),
-        'assets/plants/sunflower/species_sunflower_sprout.png',
+        'assets/plants/sunflower/species_sunflower_sprout.webp',
         reason: '物种级必须优先于通用级，否则已交付的物种图会被通用图覆盖（行为回归）',
       );
     });
@@ -210,16 +210,17 @@ void main() {
             expect(c, hasLength(5));
             expect(
               c[0],
-              'assets/plants/$dir/${id}_${stage.name}_${status.name}.png',
+              'assets/plants/$dir/${id}_${stage.name}_${status.name}.webp',
             );
-            expect(c[1], 'assets/plants/$dir/${id}_${stage.name}.png');
-            expect(c[2], 'assets/plants/$dir/$id.png');
+            expect(c[1], 'assets/plants/$dir/${id}_${stage.name}.webp');
+            expect(c[2], 'assets/plants/$dir/$id.webp');
             expect(
               c[3],
-              'assets/plants/shared/shared_${stage.name}_${status.name}.png',
+              'assets/plants/shared/shared_${stage.name}_${status.name}.webp',
             );
-            expect(c[4], 'assets/plants/shared/shared_${stage.name}.png');
-            expect(c.every((String p) => p.endsWith('.png')), isTrue);
+            expect(c[4], 'assets/plants/shared/shared_${stage.name}.webp');
+            // 2026-11-25 装包瘦身批：静态植物图统一 WebP q95（画布/alpha 零变化）。
+            expect(c.every((String p) => p.endsWith('.webp')), isTrue);
             checked++;
           }
         }

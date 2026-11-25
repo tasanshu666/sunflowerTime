@@ -41,17 +41,15 @@ void main() {
       ..sort();
   }
 
-  List<String> pngsOf(String relDir) => framesOf(relDir, 'png');
-
   group('序列帧目录契约（frame001..N，三位零填充）', () {
-    // 生长帧已走 WebP 压缩管线（2026-10-13 `convert_grow_fx.py`），养护帧仍为 PNG
-    // —— 按目录登记期望扩展名。
+    // 生长帧 2026-10-13 走 WebP（`convert_grow_fx.py`）；养护 / 除草 / 除虫帧
+    // 2026-11-25 走 WebP（`convert_assets_webp.py`）—— 按目录登记期望扩展名。
     final Map<String, String> dirs = <String, String>{
       growFxDir('sunflower', GrowTransition.seedToSprout): kGrowFxFrameExt,
       growFxDir('sunflower', GrowTransition.sproutToAdult): kGrowFxFrameExt,
       growFxDir('sunflower', GrowTransition.adultToBloomed): kGrowFxFrameExt,
-      kCareWaterFxDir: 'png',
-      kCareFertilizeFxDir: 'png',
+      kCareWaterFxDir: kCareFxFrameExt,
+      kCareFertilizeFxDir: kCareFxFrameExt,
     };
 
     dirs.forEach((String dir, String ext) {
@@ -75,6 +73,11 @@ void main() {
           'assets/fx/care/water/frame002.png',
           'assets/fx/care/water/frame003.png',
         ],
+        reason: '默认 ext 仍是 png（调用方按需显式传 ext，本函数不猜目录）',
+      );
+      expect(
+        fxFrameAssets('assets/fx/care/water', 1, ext: kCareFxFrameExt),
+        <String>['assets/fx/care/water/frame001.webp'],
       );
     });
 
@@ -203,12 +206,13 @@ void main() {
 
     clearDirs.forEach((String dir, int count) {
       test('$dir：恰有 $count 张、文件名与 fxFrameAssets 契约一致', () {
-        final List<String> files = pngsOf(dir);
+        final List<String> files = framesOf(dir, kCareFxFrameExt);
         expect(files.length, count,
             reason: '$dir 帧数应为 $count，实际 ${files.length}');
-        final List<String> expected = fxFrameAssets(dir, count)
-            .map((String p) => p.split('/').last)
-            .toList();
+        final List<String> expected =
+            fxFrameAssets(dir, count, ext: kCareFxFrameExt)
+                .map((String p) => p.split('/').last)
+                .toList();
         expect(files, expected, reason: '$dir 文件名与契约不符');
       });
     });
@@ -224,12 +228,13 @@ void main() {
 
     focusDirs.forEach((String dir, int count) {
       test('$dir：恰有 $count 张、文件名与 fxFrameAssets 契约一致', () {
-        final List<String> files = pngsOf(dir);
+        final List<String> files = framesOf(dir, kFocusFxFrameExt);
         expect(files.length, count,
             reason: '$dir 帧数应为 $count，实际 ${files.length}');
-        final List<String> expected = fxFrameAssets(dir, count)
-            .map((String p) => p.split('/').last)
-            .toList();
+        final List<String> expected =
+            fxFrameAssets(dir, count, ext: kFocusFxFrameExt)
+                .map((String p) => p.split('/').last)
+                .toList();
         expect(files, expected, reason: '$dir 文件名与契约不符');
       });
     });
@@ -399,7 +404,7 @@ void main() {
 
     levelUpDirs.forEach((String dir, int count) {
       test('$dir：恰有 $count 张、文件名与 fxFrameAssets 契约一致', () {
-        final List<String> files = pngsOf(dir);
+        final List<String> files = framesOf(dir, kLevelUpFxFrameExt);
         expect(files.length, count,
             reason: '$dir 帧数应为 $count，实际 ${files.length}');
         final List<String> expected =
@@ -479,13 +484,16 @@ void main() {
   });
 
   group('植物静态图画布护栏（C13：1440×2000 全局等盆）', () {
-    test('全部 species_*_adult_bloomed.png 画布尺寸符合口径（直读 PNG IHDR）', () {
+    // 2026-11-25 装包瘦身批：静态植物图 PNG → WebP q95（131.7 MB → 25.7 MB）。
+    // 画布尺寸与 alpha 通道**零变化**（转换脚本逐张校验），故本护栏口径不变，
+    // 只是把「直读 PNG IHDR」换成「直读 WebP 头」。
+    test('全部 species_*_adult_bloomed.webp 画布尺寸符合口径（直读 WebP 头）', () {
       final Directory plants = Directory('$root/assets/plants');
       // 2026-10-08 目录重组：植物图按物种分目录存放，改**递归**扫描。
       final List<File> blooms = plants
           .listSync(recursive: true)
           .whereType<File>()
-          .where((File f) => f.path.endsWith('_adult_bloomed.png'))
+          .where((File f) => f.path.endsWith('_adult_bloomed.webp'))
           .toList();
       expect(blooms.length, 11,
           reason: '11 物种应各有 1 张盛开图（2026-10-08 删星辰花/虹影蕨后余 6，'
@@ -499,17 +507,14 @@ void main() {
       // 2026-10-11 画布收窄到 1440×2000（玄参 B 档：moon×3/coral×3 超宽垂叶
       // 真裁、其余无损收框，tools/trim_canvas_1440.py），盆占比升到 0.556。
       for (final File f in blooms) {
-        final RandomAccessFile raf = f.openSync();
-        final PngHead head = _readHead(raf);
-        raf.closeSync();
-        // PNG: 8 字节签名 + IHDR 长度/类型 8 字节 + 宽高各 4 字节（大端）。
-        final int w = head.w;
-        final int h = head.h;
+        // 画布面积即口径的唯一判据（1440×2000 = 2_880_000 / 1200×2000 = 2_400_000，
+        // 两组互不相同，且无其它合法画布能撞值）。
+        final int area = _webpSize(f);
         final bool isLegacySunflower =
-            f.path.contains('sunflower') && w == 1200 && h == 2000;
-        final bool isNewUniform = w == 1440 && h == 2000;
+            f.path.contains('sunflower') && area == 1200 * 2000;
+        final bool isNewUniform = area == 1440 * 2000;
         expect(isLegacySunflower || isNewUniform, isTrue,
-            reason: '${f.path.split('/').last} 画布 $w×$h 不符合口径：'
+            reason: '${f.path.split('/').last} 画布面积 $area 不符合口径：'
                 '向日葵 1200×2000（legacy 定稿）/ 其它物种 1440×2000（全局等盆）');
       }
     });

@@ -1508,19 +1508,23 @@ class _GardenPageState extends ConsumerState<GardenPage> with ChildTabAutoRefres
     final AudioCue cue;
     switch (type) {
       case CareEffectType.water:
-        frames = fxFrameAssets(kCareWaterFxDir, kFxFrameCount);
+        frames = fxFrameAssets(kCareWaterFxDir, kFxFrameCount,
+            ext: kCareFxFrameExt);
         durationMs = kCareWaterDurationMs;
         cue = AudioCue.careWater;
       case CareEffectType.fertilize:
-        frames = fxFrameAssets(kCareFertilizeFxDir, kFxFrameCount);
+        frames = fxFrameAssets(kCareFertilizeFxDir, kFxFrameCount,
+            ext: kCareFxFrameExt);
         durationMs = kCareFertilizeDurationMs;
         cue = AudioCue.careFertilize;
       case CareEffectType.weed:
-        frames = fxFrameAssets(kCareWeedFxDir, kCareWeedFrameCount);
+        frames = fxFrameAssets(kCareWeedFxDir, kCareWeedFrameCount,
+            ext: kCareFxFrameExt);
         durationMs = kCareWeedDurationMs;
         cue = AudioCue.careWeed;
       case CareEffectType.pest:
-        frames = fxFrameAssets(kCarePestFxDir, kCarePestFrameCount);
+        frames = fxFrameAssets(kCarePestFxDir, kCarePestFrameCount,
+            ext: kCareFxFrameExt);
         durationMs = kCarePestDurationMs;
         cue = AudioCue.carePest;
     }

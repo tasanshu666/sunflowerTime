@@ -1,6 +1,6 @@
 /// 许愿树入口换图 / 放大回归（玄参 2026-11-20 两次真机反馈）。
 ///
-/// 钉住四件事：① 中心是 `许愿树1.png`（`AssetImage`）而非系统 `Icon`；
+/// 钉住四件事：① 中心是许愿树图标（`AssetImage`，落盘 `wish_tree_icon.webp`）而非系统 `Icon`；
 /// ② 容器 / 热区都是 12dp 圆角方形（与天气徽标同常量、**不乘 uiScale**），
 ///    不是 `side / 2` 的正圆；③ 容器边长对齐天气徽标 56（原 48 小一圈）；
 /// ④ 位图显示盒放大到 52（原 26 下树实际仅 ≈18dp，又小又糊）。
@@ -71,7 +71,7 @@ void main() {
   });
 
   group('许愿树入口图标与形状', () {
-    testWidgets('手机：许愿树1.png + 56 容器 + 12dp 圆角方形（非正圆）',
+    testWidgets('手机：许愿树图标 + 56 容器 + 12dp 圆角方形（非正圆）',
         (WidgetTester tester) async {
       // flutter test 默认 800×600 会被判成平板（shortestSide=600），须显式设手机视口。
       tester.view.physicalSize = const Size(390, 844);

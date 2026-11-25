@@ -79,7 +79,7 @@ class WishPoolTile extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              // 玄参 2026-11-19 美术接入：达成奖杯 emoji → 达成蛋 PNG（缺失回退 emoji）。
+              // 玄参 2026-11-19 美术接入：达成奖杯 emoji → 达成蛋图（缺失回退 emoji）。
               Image.asset(
                 WishTreeArt.eggDone,
                 width: 34,

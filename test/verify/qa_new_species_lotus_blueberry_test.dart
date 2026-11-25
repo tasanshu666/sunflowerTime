@@ -438,7 +438,7 @@ void main() {
         final String dir = e.key;
         final String id = e.value;
         for (final String suffix in _kStaticArtSuffixes) {
-          final String path = 'assets/plants/$dir/${id}_$suffix.png';
+          final String path = 'assets/plants/$dir/${id}_$suffix.webp';
           if (!manifest.contains(path)) missing.add(path);
         }
       }
@@ -449,9 +449,10 @@ void main() {
       for (final MapEntry<String, String> e in _kNewSpeciesIdByDir.entries) {
         final int n = manifest
             .where((String p) =>
-                p.startsWith('assets/plants/${e.key}/') && p.endsWith('.png'))
+                p.startsWith('assets/plants/${e.key}/') &&
+                p.endsWith('.webp'))
             .length;
-        expect(n, 7, reason: 'assets/plants/${e.key}/ 清单内 png 数应为 7，实际 $n');
+        expect(n, 7, reason: 'assets/plants/${e.key}/ 清单内 webp 数应为 7，实际 $n');
       }
     });
 

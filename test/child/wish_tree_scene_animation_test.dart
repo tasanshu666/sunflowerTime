@@ -82,12 +82,12 @@ void main() {
         final String path = WishTreeArt.treeFrameAsset(i);
         expect(
           path,
-          'assets/wish_tree/tree_frames/frame${(i + 1).toString().padLeft(3, '0')}.png',
+          'assets/wish_tree/tree_frames/frame${(i + 1).toString().padLeft(3, '0')}.webp',
         );
         expect(File(path).existsSync(), isTrue, reason: '缺帧 $path');
       }
       expect(File(WishTreeArt.tree).existsSync(), isTrue,
-          reason: '旧 tree.png 保留不删');
+          reason: '旧静态树（现为 tree.webp）保留不删');
       expect(
         File('pubspec.yaml').readAsStringSync(),
         contains('- assets/wish_tree/tree_frames/'),
@@ -101,15 +101,15 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(_host(const Size(800, 600)));
       expect(find.byKey(_treeKey), findsOneWidget);
-      expect(_treeFrameName(tester), 'frame001.png');
+      expect(_treeFrameName(tester), 'frame001.webp');
 
       await tester.pump(const Duration(seconds: 1));
-      expect(_treeFrameName(tester), 'frame006.png',
+      expect(_treeFrameName(tester), 'frame006.webp',
           reason: '1/10 × 51 = 5.1 ⇒ 第 5 帧（frame006）');
 
       await tester.pump(const Duration(seconds: 9));
       await tester.pump(const Duration(milliseconds: 16));
-      expect(_treeFrameName(tester), 'frame001.png',
+      expect(_treeFrameName(tester), 'frame001.webp',
           reason: '10 秒一轮 repeat()，末帧回到第 0 帧');
 
       // 反复挂载/卸载不抛 Ticker 未 dispose 异常。

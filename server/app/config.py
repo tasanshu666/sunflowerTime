@@ -1,7 +1,7 @@
 """Configuration loaded from environment variables.
 
 所有密钥只从环境变量或 600 权限的密钥文件读取，源码中没有任何硬编码密钥。
-金额固定为字符串 ``"29.90"``，全程不做浮点转换（技术方案 §7）。
+金额固定为字符串 ``"49.90"``，全程不做浮点转换（技术方案 §7）。
 """
 
 from __future__ import annotations
@@ -11,9 +11,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-# 服务端定死的金额。必须是字符串：float("29.90") 会变成 29.899999...，
-# 与支付宝回传的 "29.90" 字符串比较必然不等（技术方案 §6.3 / §7）。
-AMOUNT: str = "29.90"
+# 服务端定死的金额（玄参 2026-11-26 拍板：29.90 -> 49.90）。必须是字符串：
+# float("49.90") 会变成 49.899999...，与支付宝回传的 "49.90" 字符串比较必然不等
+# （技术方案 §6.3 / §7）。涨价时务必同步本常量与支付宝商户后台商品价格。
+AMOUNT: str = "49.90"
 
 SANDBOX_GATEWAY: str = "https://openapi-sandbox.dl.alipaydev.com/gateway.do"
 PRODUCTION_GATEWAY: str = "https://openapi.alipay.com/gateway.do"

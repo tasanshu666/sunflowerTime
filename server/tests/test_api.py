@@ -100,7 +100,7 @@ def notify(test_client: TestClient, out_trade_no: str, **overrides):
         "out_trade_no": out_trade_no,
         "trade_no": f"ALIPAY-{out_trade_no}",
         "trade_status": "TRADE_SUCCESS",
-        "total_amount": "29.90",
+        "total_amount": "49.90",
         "seller_id": "seller-id-test",
         "gmt_payment": "2026-11-25 10:00:00",
         "sign_type": "RSA2",
@@ -127,11 +127,11 @@ def test_full_happy_path(client):
     assert created.status_code == 200, created.text
     data = created.json()["data"]
 
-    assert data["amount"] == "29.90"
+    assert data["amount"] == "49.90"
     assert data["expires_in"] == 900
     assert re.fullmatch(r"SF\d{6}[A-Z2-7]{8}", data["out_trade_no"])
     assert re.fullmatch(r"[0-9a-f]{32}", data["claim_token"])
-    assert builder.calls == [(data["out_trade_no"], "29.90")]
+    assert builder.calls == [(data["out_trade_no"], "49.90")]
 
     callback = notify(test_client, data["out_trade_no"])
     assert callback.status_code == 200
@@ -407,17 +407,17 @@ def test_real_rsa2_signing_and_notify_verification():
         BASE_SETTINGS, app_private_key=private_pem, sandbox_public_key=public_pem
     )
 
-    order_string = alipay.build_order_string(crypto_settings, "SF2611257K3M9QXA", "29.90")
+    order_string = alipay.build_order_string(crypto_settings, "SF2611257K3M9QXA", "49.90")
     parsed = {key: values[0] for key, values in parse_qs(order_string).items()}
     assert parsed["app_id"] == "app-id-test"
     assert parsed["sign_type"] == "RSA2"
-    assert '"total_amount":"29.90"' in parsed["biz_content"]
+    assert '"total_amount":"49.90"' in parsed["biz_content"]
     assert alipay.verify_rsa2(parsed, public_pem, parsed["sign"])
 
     notify_params = {
         "app_id": "app-id-test",
         "out_trade_no": "SF2611257K3M9QXA",
-        "total_amount": "29.90",
+        "total_amount": "49.90",
         "trade_status": "TRADE_SUCCESS",
         "sign_type": "RSA2",
     }
@@ -466,7 +466,7 @@ def test_sign_type_is_part_of_signed_string():
     params = {
         "app_id": "app-id-test",
         "out_trade_no": "SF261126SIGTYPE",
-        "total_amount": "29.90",
+        "total_amount": "49.90",
         "sign_type": "RSA2",
     }
     params["sign"] = alipay.sign_rsa2(params, private_pem)
@@ -525,7 +525,12 @@ def test_real_sandbox_notify_signature_excludes_sign_type():
         serialization.Encoding.PEM,
         serialization.PublicFormat.SubjectPublicKeyInfo,
     ).decode("ascii")
-    settings = dataclasses.replace(BASE_SETTINGS, sandbox_public_key=public_pem)
+    # 这是一笔历史真实付款：当时价格 ¥29.90（玄参 2026-11-26 晚涨到 49.90）。
+    # 上方 body 是支付宝原样推送的原文，逐字节保留、不改写金额与签名；
+    # 金额口径在这里显式钉成“当时的 29.90”，避免被现行 49.90 校验挡在门外。
+    settings = dataclasses.replace(
+        BASE_SETTINGS, sandbox_public_key=public_pem, amount="29.90"
+    )
     assert settings.alipay_public_key == public_pem
 
     # 模拟支付宝：按“排除 sign_type”规则用临时私钥重签真实参数。

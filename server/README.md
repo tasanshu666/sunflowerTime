@@ -37,7 +37,7 @@ server/
   .env.example        配置样例（无真实密钥；不要改造成 .env 提交）
   app/
     __init__.py
-    config.py         环境变量配置；金额常量 29.90；沙箱/生产网关与公钥分开
+    config.py         环境变量配置；金额常量 49.90；沙箱/生产网关与公钥分开
     db.py             SQLite schema（§7 DDL）+ 连接/事务工具
     pool.py           离线码池 JSON 导入（INSERT OR IGNORE）+ 余量查询
     alipay.py         RSA2 下单串签名 + notify 验签
@@ -93,7 +93,7 @@ curl http://127.0.0.1:8000/admin
 | `CREATE_RATE_*` / `REDEEM_RATE_*` | 见 `.env.example` | 内存限流阈值 |
 
 `amount` **不接受环境变量或客户端传值**，在 `app/config.py` 里固定为字符串
-`"29.90"`，全程不做 float 转换。
+`"49.90"`（玄参 2026-11-26 拍板，原为 29.90），全程不做 float 转换。
 
 ## 接口速查
 

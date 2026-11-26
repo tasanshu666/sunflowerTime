@@ -24,15 +24,27 @@
 ///
 /// # 3) 一次发一批（如补发 10 枚：serial 1..10）
 /// dart run tool/issue_redeem_code.dart --serial 1 --count 10 --private-key <私钥Base64>
+///
+/// # 4) 码池补货：写机器可读 JSON（stdout 只留一行摘要，不打印码本身）
+/// dart run tool/issue_redeem_code.dart --serial 1001 --count 1000 \
+///   --private-key <私钥Base64> --out build/codes_1001.json
 /// ```
 ///
-/// 输出里的激活码会按「每 23 字符一个**空格**」分组显示，方便人工抄写 / 复制；
-/// **粘贴到 App 时空格会被自动清理**（`normalizeRedeemCode`），带不带都行。
+/// 不带 `--out` 时，输出里的激活码按「每 23 字符一个**空格**」分组显示，
+/// 方便人工抄写 / 复制；**粘贴到 App 时空格会被自动清理**（`normalizeRedeemCode`），
+/// 带不带都行。带 `--out` 时写入 UTF-8 JSON 数组（`JsonEncoder.withIndent('  ')`）：
+///
+/// ```json
+/// [
+///   { "serial": 1001, "code": "AQAA...(92 字符 Base64URL 原码，无空格，保留 -)" }
+/// ]
+/// ```
 ///
 /// 🔴 分组符**只能用空格，绝不能用 `-`**：`-` 是 Base64URL 的合法数据字符
 /// （约三成码里自带），拿它当分组符会让「复制分组文本再粘贴」这条路静默废码。
+/// JSON 里的 `code` 是**不带分组空格的 92 字符原码**，`-` 原样保留。
 ///
-/// 退出码：成功 `0`；参数错误 `64`；签发失败 `1`。
+/// 退出码：成功 `0`；参数错误 `64`；签发失败 `1`；写文件失败 `2`。
 library issue_redeem_code;
 
 import 'dart:convert';
@@ -48,6 +60,9 @@ const int _kExitUsage = 64;
 
 /// 签发过程失败退出码。
 const int _kExitFailure = 1;
+
+/// 写 `--out` 文件失败退出码（与参数错误、签发失败区分，便于自动化补货脚本判断）。
+const int _kExitOutput = 2;
 
 Future<void> main(List<String> args) async {
   try {
@@ -67,6 +82,9 @@ Future<void> main(List<String> args) async {
     stderr.writeln();
     stderr.writeln(_kUsage);
     exit(_kExitUsage);
+  } on _OutputException catch (e) {
+    stderr.writeln('写文件失败：${e.message}');
+    exit(_kExitOutput);
   } catch (e) {
     stderr.writeln('签发失败：$e');
     exit(_kExitFailure);
@@ -117,12 +135,9 @@ Future<void> _issueCodes(_Options options) async {
   final SimpleKeyPair keyPair = await algorithm.newKeyPairFromSeed(seed);
   final SimplePublicKey publicKey = await keyPair.extractPublicKey();
 
-  stdout.writeln('公钥（应与 redeem_public_key.dart 一致）：'
-      '${base64.encode(publicKey.bytes)}');
-  stdout.writeln('共签发 ${options.count} 枚（serial $startSerial .. '
-      '${startSerial + options.count - 1}）：');
-  stdout.writeln();
-
+  // 先签名、后分流输出：两条路径共用同一批码，避免逻辑漂移。
+  final List<({int serial, String code})> issued =
+      <({int serial, String code})>[];
   for (int i = 0; i < options.count; i++) {
     final int serial = startSerial + i;
     final Uint8List payload = buildRedeemCodePayload(serial: serial);
@@ -131,14 +146,56 @@ Future<void> _issueCodes(_Options options) async {
       payload: payload,
       signatureBytes: signature.bytes,
     );
-    final String code = encodeRedeemCode(binary);
-    stdout.writeln('serial ${serial.toString().padLeft(6)}  '
-        '${formatRedeemCodeForDisplay(code)}');
+    issued.add((serial: serial, code: encodeRedeemCode(binary)));
   }
 
+  final String outPath = options.outPath;
+  if (outPath.isNotEmpty) {
+    await _writeJsonOutput(
+      path: outPath,
+      issued: issued,
+      startSerial: startSerial,
+    );
+    return;
+  }
+
+  // 🔴 不带 --out 的 stdout 是玄参现用的签发方式，逐字节保持向后兼容。
+  stdout.writeln('公钥（应与 redeem_public_key.dart 一致）：'
+      '${base64.encode(publicKey.bytes)}');
+  stdout.writeln('共签发 ${options.count} 枚（serial $startSerial .. '
+      '${startSerial + options.count - 1}）：');
+  stdout.writeln();
+  for (final ({int serial, String code}) row in issued) {
+    stdout.writeln('serial ${row.serial.toString().padLeft(6)}  '
+        '${formatRedeemCodeForDisplay(row.code)}');
+  }
   stdout.writeln();
   stdout.writeln('提示：以上分组里的空格只是给人看的；粘贴到 App 时会被自动清理，'
       '码本身固定 $kRedeemCodeEncodedLength 字符（其中 `-` 是数据字符，不能删）。');
+}
+
+/// 把签发结果写成机器可读 JSON 数组，终端只留一行摘要（码不进终端日志）。
+Future<void> _writeJsonOutput({
+  required String path,
+  required List<({int serial, String code})> issued,
+  required int startSerial,
+}) async {
+  final List<Map<String, Object>> rows = <Map<String, Object>>[
+    for (final ({int serial, String code}) row in issued)
+      <String, Object>{'serial': row.serial, 'code': row.code},
+  ];
+  final String content = '${const JsonEncoder.withIndent('  ').convert(rows)}\n';
+
+  try {
+    final File file = File(path);
+    await file.parent.create(recursive: true);
+    await file.writeAsString(content, encoding: utf8);
+  } catch (e) {
+    throw _OutputException('无法写入「$path」：$e');
+  }
+
+  stdout.writeln('已签发 ${issued.length} 枚激活码（serial '
+      '$startSerial .. ${startSerial + issued.length - 1}），JSON 已写入：$path');
 }
 
 /// 命令行参数（手写解析，零依赖 —— 本工具不该为几个 flag 引入 args 包）。
@@ -149,6 +206,7 @@ class _Options {
     required this.count,
     this.serial,
     this.privateKey = '',
+    this.outPath = '',
   });
 
   /// `--gen-keypair`：生成密钥对。
@@ -166,6 +224,9 @@ class _Options {
   /// `--private-key <Base64 种子>`。
   final String privateKey;
 
+  /// `--out <path>`：写机器可读 JSON；空字符串表示沿用 stdout 文本输出。
+  final String outPath;
+
   /// 解析参数；非法输入抛 [_UsageException]。
   factory _Options.parse(List<String> args) {
     bool generateKeyPair = false;
@@ -173,6 +234,7 @@ class _Options {
     int? serial;
     int count = 1;
     String privateKey = '';
+    String outPath = '';
 
     for (int i = 0; i < args.length; i++) {
       final String arg = args[i];
@@ -187,6 +249,11 @@ class _Options {
           count = _parseInt(_valueOf(args, ++i, '--count'), '--count');
         case '--private-key':
           privateKey = _valueOf(args, ++i, '--private-key');
+        case '--out':
+          outPath = _valueOf(args, ++i, '--out').trim();
+          if (outPath.isEmpty) {
+            throw const _UsageException('--out 后面缺少文件路径');
+          }
         default:
           throw _UsageException('未知参数：$arg');
       }
@@ -209,6 +276,7 @@ class _Options {
       serial: serial,
       count: count,
       privateKey: privateKey,
+      outPath: outPath,
     );
   }
 
@@ -238,6 +306,14 @@ class _UsageException implements Exception {
   final String message;
 }
 
+/// `--out` 写文件失败（仅本工具内部使用，退出码 [_kExitOutput]）。
+class _OutputException implements Exception {
+  const _OutputException(this.message);
+
+  /// 人类可读的原因。
+  final String message;
+}
+
 /// 用法说明。
 const String _kUsage = '''
 激活码发码工具 —— 用法：
@@ -246,8 +322,11 @@ const String _kUsage = '''
       生成一对 Ed25519 密钥：公钥填进 lib/core/constants/redeem_public_key.dart，
       私钥（Base64 种子）离线保管，绝不进仓库 / 绝不进 App 包。
 
-  dart run tool/issue_redeem_code.dart --serial <uint32> [--count N] --private-key <Base64>
+  dart run tool/issue_redeem_code.dart --serial <uint32> [--count N] --private-key <Base64> [--out <path>]
       签发激活码。--serial 建议从 1 开始逐单递增并记账；--count 默认 1。
+      不带 --out：分组文本打印到 stdout（人工抄写），逐字节兼容旧用法。
+      带 --out：写 UTF-8 JSON 数组 [{"serial": 1001, "code": "..."}] 到指定文件
+      （父目录自动创建、code 为 92 字符无空格原码），stdout 只留一行摘要。
 
-输出的激活码固定 $kRedeemCodeEncodedLength 字符，按每 23 字符插一个空格分组显示；
-粘贴到 App 时空格会被自动清理，带不带都行。''';
+输出的激活码固定 $kRedeemCodeEncodedLength 字符，stdout 分组文本按每 23 字符
+插一个空格；粘贴到 App 时空格会被自动清理，带不带都行。JSON 里的 code 不带空格。''';

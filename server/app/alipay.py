@@ -47,11 +47,24 @@ def _public_key(pem: str) -> rsa.RSAPublicKey:
     return key
 
 
-def canonical_string(params: Mapping[str, str]) -> str:
-    """Build Alipay's sign source: sorted ``key=value`` pairs, raw values."""
+def canonical_string(params: Mapping[str, str], *, exclude_sign_type: bool = False) -> str:
+    """Build Alipay's sign source: sorted ``key=value`` pairs, raw values.
+
+    ``sign`` is always excluded. Whether ``sign_type`` is excluded depends on
+    the direction, and the two rules are deliberately opposite:
+
+    * Order signing (us -> Alipay gateway): ``sign_type`` stays IN. The gateway
+      verifies against ``...&sign_type=RSA2``, so the default (``False``) keeps
+      it. This is the path used by ``sign_rsa2`` / ``build_order_string``.
+    * Notify verification (Alipay -> us): ``sign_type`` is OUT. The sandbox
+      callback signature is computed over a source string that omits
+      ``sign_type``; passing ``exclude_sign_type=True`` reproduces it.
+
+    Default ``False`` preserves the historical order-signing behaviour exactly.
+    """
     parts: list[str] = []
     for key in sorted(params):
-        if key in ("sign", "sign_type"):
+        if key == "sign" or (exclude_sign_type and key == "sign_type"):
             continue
         value = params[key]
         if value is None or value == "":
@@ -60,26 +73,43 @@ def canonical_string(params: Mapping[str, str]) -> str:
     return "&".join(parts)
 
 
-def sign_rsa2(params: Mapping[str, str], private_key_pem: str) -> str:
-    """RSA2 (SHA256withRSA) sign a parameter mapping, return base64 signature."""
+def sign_rsa2(
+    params: Mapping[str, str], private_key_pem: str, *, exclude_sign_type: bool = False
+) -> str:
+    """RSA2 (SHA256withRSA) sign a parameter mapping, return base64 signature.
+
+    ``exclude_sign_type`` is only needed to emulate Alipay's own callback
+    signing in tests; real order signing keeps the default (``sign_type`` in).
+    """
     if not private_key_pem:
         raise RuntimeError("ALIPAY_APP_PRIVATE_KEY 未配置，无法签发订单")
     signature = _private_key(private_key_pem).sign(
-        canonical_string(params).encode("utf-8"),
+        canonical_string(params, exclude_sign_type=exclude_sign_type).encode("utf-8"),
         padding.PKCS1v15(),
         hashes.SHA256(),
     )
     return base64.b64encode(signature).decode("ascii")
 
 
-def verify_rsa2(params: Mapping[str, str], public_key_pem: str, signature: str) -> bool:
-    """Verify an RSA2 signature over an Alipay parameter mapping."""
+def verify_rsa2(
+    params: Mapping[str, str],
+    public_key_pem: str,
+    signature: str,
+    *,
+    exclude_sign_type: bool = False,
+) -> bool:
+    """Verify an RSA2 signature via ``canonical_string`` (see its docstring).
+
+    For Alipay callbacks the sign source excludes ``sign_type``; callers should
+    pass ``exclude_sign_type=True``. Order signing is the opposite and keeps
+    ``sign_type`` in the source.
+    """
     if not public_key_pem or not signature:
         return False
     try:
         _public_key(public_key_pem).verify(
             base64.b64decode(signature),
-            canonical_string(params).encode("utf-8"),
+            canonical_string(params, exclude_sign_type=exclude_sign_type).encode("utf-8"),
             padding.PKCS1v15(),
             hashes.SHA256(),
         )
@@ -135,4 +165,7 @@ def verify_notify(params: Mapping[str, str], settings: Settings) -> bool:
     """
     if params.get("sign_type", SIGN_TYPE) != SIGN_TYPE:
         return False
-    return verify_rsa2(params, settings.alipay_public_key, params.get("sign", ""))
+    # 回调验签的源串排除 sign_type（与下单签名相反，见 canonical_string docstring）。
+    return verify_rsa2(
+        params, settings.alipay_public_key, params.get("sign", ""), exclude_sign_type=True
+    )

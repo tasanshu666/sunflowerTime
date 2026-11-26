@@ -421,7 +421,8 @@ def test_real_rsa2_signing_and_notify_verification():
         "trade_status": "TRADE_SUCCESS",
         "sign_type": "RSA2",
     }
-    notify_params["sign"] = alipay.sign_rsa2(notify_params, private_pem)
+    # 回调验签排除 sign_type，故模拟支付宝时必须同样排除，否则规则相反验不过。
+    notify_params["sign"] = alipay.sign_rsa2(notify_params, private_pem, exclude_sign_type=True)
     assert alipay.verify_notify(notify_params, crypto_settings)
     tampered = dict(notify_params, total_amount="0.01")
     assert not alipay.verify_notify(tampered, crypto_settings)
@@ -431,3 +432,106 @@ def test_real_rsa2_signing_and_notify_verification():
     )
     assert production_settings.alipay_public_key == "different-prod-key"
     assert crypto_settings.alipay_public_key == public_pem
+
+
+def test_sign_type_is_part_of_signed_string():
+    """sign_type stays in the sign source; only sign itself is excluded."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    from app import alipay
+
+    assert alipay.canonical_string(
+        {"b": "2", "sign_type": "RSA2", "a": "1", "sign": "xxx"}
+    ) == "a=1&b=2&sign_type=RSA2"
+
+    # 把两套相反规则都钉死：默认（下单）含 sign_type；回调排除 sign_type。
+    assert alipay.canonical_string(
+        {"a": "1", "sign_type": "RSA2", "sign": "x"}
+    ) == "a=1&sign_type=RSA2"
+    assert alipay.canonical_string(
+        {"a": "1", "sign_type": "RSA2", "sign": "x"}, exclude_sign_type=True
+    ) == "a=1"
+
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = private.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ).decode("ascii")
+    public_pem = private.public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode("ascii")
+    params = {
+        "app_id": "app-id-test",
+        "out_trade_no": "SF261126SIGTYPE",
+        "total_amount": "29.90",
+        "sign_type": "RSA2",
+    }
+    params["sign"] = alipay.sign_rsa2(params, private_pem)
+    assert alipay.verify_rsa2(params, public_pem, params["sign"])
+    tampered = dict(params, sign_type="HMAC-SHA256")
+    assert not alipay.verify_rsa2(tampered, public_pem, tampered["sign"])
+
+
+# ---------------------------------------------------------------------------
+# 真实沙箱回调端到端验签（内联原文，不联网）
+# ---------------------------------------------------------------------------
+def test_real_sandbox_notify_signature_excludes_sign_type():
+    """内联的真实回调 body：排除 sign_type + 原始 UTF-8 值才能验签通过。
+
+    pytest 内不能引用 .env 的真实支付宝公钥（那把公钥为真签名配），所以用
+    临时生成的 RSA 密钥对自签自验；参数结构与取值则完全来自真实回调原文。
+    """
+    from urllib.parse import parse_qs
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    from app import alipay
+
+    body = (
+        "gmt_create=2026-11-26+17%3A30%3A11&charset=GBK"
+        "&seller_email=vejpwe6892%40sandbox.com"
+        "&subject=%E5%B0%8F%E5%B0%8F%E8%91%B5%E7%95%AA%E8%8C%84%E9%92%9F-%E6%B0%B8%E4%B9%85%E8%A7%A3%E9%94%81"
+        "&sign=QGBhmKe9QbrWZ%2Fyo57jivCLXnVv5fwCIhvvZR8LAT7y7GlEtILnY36Uvsamn8V%2Bto9Qie28VeDAXIgt1LVObyeeXi3yEkptIFDWKGYGymhdie1HqkfV5kraXTFnyvYchVTTJLGmp1mWCHur25tQ589gbU3ljJsLI5P1j1dA5XPMpzFiMYsxpDS2cUY2dLtAeGLAhfTmaYxzJdJ"
+        "sFknRXUIkNCc9xahjcuAC8lF7vItF5sphthhi4FLniWuGosX%2BHXJ5zDjnhI0B7TDPvpqXMrEFMpIxC2gfNdI%2B%2FvVslQ5NhprcitOasHPj68j8REmjtvXc1jh23VyuYqEasvtXvHQ%3D%3D"
+        "&buyer_id=2088722121438732&invoice_amount=29.90"
+        "&notify_id=2026112601222173106138730509208175"
+        "&fund_bill_list=%5B%7B%22amount%22%3A%2229.90%22%2C%22fundChannel%22%3A%22ALIPAYACCOUNT%22%7D%5D"
+        "&notify_type=trade_status_sync&trade_status=TRADE_SUCCESS&receipt_amount=29.90"
+        "&buyer_pay_amount=29.90&app_id=9021000172667979&sign_type=RSA2"
+        "&seller_id=2088721121403223&gmt_payment=2026-11-26+17%3A31%3A05"
+        "&notify_time=2026-11-26+17%3A31%3A07&version=1.0&out_trade_no=SF261126WH00101"
+        "&total_amount=29.90&trade_no=2026112622001438730510724041"
+        "&auth_app_id=9021000172667979&buyer_logon_id=fxogcb7223%40sandbox.com"
+        "&point_amount=0.00"
+    )
+    # charset=GBK 但 subject 的百分编码字节是 UTF-8：必须按 utf-8 解码。
+    params = {key: values[0] for key, values in parse_qs(body, encoding="utf-8").items()}
+    assert params["subject"] == "小小葵番茄钟-永久解锁"
+    assert params["out_trade_no"] == "SF261126WH00101"
+    assert params["sign_type"] == "RSA2"
+    assert params["total_amount"] == "29.90"
+
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = private.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ).decode("ascii")
+    public_pem = private.public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode("ascii")
+    settings = dataclasses.replace(BASE_SETTINGS, sandbox_public_key=public_pem)
+    assert settings.alipay_public_key == public_pem
+
+    # 模拟支付宝：按“排除 sign_type”规则用临时私钥重签真实参数。
+    params["sign"] = alipay.sign_rsa2(params, private_pem, exclude_sign_type=True)
+    assert alipay.verify_notify(params, settings) is True
+
+    # 篡改 sign_type（业务校验）与 total_amount（验签）都应被拒绝。
+    assert alipay.verify_notify(dict(params, sign_type="HMAC-SHA256"), settings) is False
+    assert alipay.verify_notify(dict(params, total_amount="0.01"), settings) is False

@@ -18,7 +18,8 @@ Python + FastAPI + SQLite 的最小可用实现，对应
 > - 支付宝应用私钥泄露 → 可伪造下单 / 调退款；
 > - 发码私钥泄露 → 可无限伪造激活码，且离线验签**无法吊销**。
 >
-> 补货流程：在本机运行 `dart run tool/issue_redeem_code.dart --serial <起始> --count <数量> --out codes.json`
+> 补货流程：在本机运行 `dart tool/issue_redeem_code.dart --serial <起始> --count <数量> --out codes.json`
+> （🔴 用 `dart` 直调而非 `dart run`，否则 SDK 会多打一句 `Running build hooks...`）
 > 生成机器可读 JSON → `scp` 到服务器 `/tmp`（权限 600）→ 用下面的命令导入 →
 > **立即删除**本机与服务器上的临时 JSON → 把 serial 区间记入发放台账，防止区间重叠。
 > 对外正式发码从 **serial 1001** 起。

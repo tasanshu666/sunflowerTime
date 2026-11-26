@@ -1,0 +1,18 @@
+# 官网自动解锁方案 B · 服务端依赖
+# 安装：python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.27,<1.0
+pydantic>=2.6,<3.0
+
+# 支付宝官方 SDK（本项目直接用 cryptography 实现 RSA2 签名/验签，
+# 保留官方 SDK 以便后续接入退款 / 查询接口）
+alipay-sdk-python>=3.3.122
+cryptography>=42.0
+
+# 支付宝 notify 为 application/x-www-form-urlencoded，FastAPI 解析表单需要此包
+python-multipart>=0.0.9
+
+# 仅测试需要
+httpx>=0.27
+pytest>=8.0

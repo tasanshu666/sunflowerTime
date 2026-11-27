@@ -31,7 +31,17 @@ class ParentEntryAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final Widget button = IconButton(
       key: iconKey,
-      icon: const Icon(Icons.family_restroom),
+      // 🔴 2026-11-27 玄参交付美术图标（128² 透明 WebP q95，assets/ui/parent_hub.webp）
+      // 替代 Material Icons.family_restroom。28dp 与 IconButton 48dp 命中盒匹配；
+      // errorBuilder 保留原图标兜底 —— 缺素材 / 测试宿主零空白。
+      // 度量契约不变：iconKey 仍挂在 IconButton 上，徽章右对齐断言读同一 RenderBox。
+      icon: Image.asset(
+        'assets/ui/parent_hub.webp',
+        width: 28,
+        height: 28,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Icon(Icons.family_restroom),
+      ),
       // 🔴 F157-A2（玄参 2026-10-27 英文界面实测漏网）：这里原是硬编码中文
       // 「家长天地」—— tooltip 会在**长按**时上屏，且是**无障碍朗读**文案，
       // 英文界面串中文属上架风险。改走 l10n 单点（复用既有 `parent_home_title`：

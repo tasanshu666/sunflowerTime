@@ -4,7 +4,13 @@
 /// ## 职责（纯表现，零业务）
 /// 按今日日型画一层氛围粒子：晴=光斑呼吸 + 斜扫光束、微风=叶片横飘、多云/阴=云影横移、
 /// 小雨/暴雨=雨丝下落 + 触底水花（暴雨另有雨雾底层 + 暗角）、干旱=上飘的热气波纹 +
-/// 暖尘 + 暖光斑、大风=横向风线 + 快飘叶片、极寒=三档纯白雪花飘落自转。
+/// 暖尘 + 暖光斑、大风=横向风线 + 快飘叶片、极寒=三档雪花飘落自转。
+///
+/// ## 雪方位图批（2026-11-27 玄参交付 3 张透明 WebP q95）
+/// 极寒雪花由「代码圆 + 三枝」升级为 **3 张美术位图随机轮换**，手法与第十四批
+/// 风叶逐字同构：位图优先 / 缺图回退代码雪花（"美术永不阻塞"纪律）。
+/// 🔴 粒子数（44）、三档尺寸（8/14/20）、速度、α、摆动几何、自转整圈闭合
+///   **一律不动** —— 本批只换"用什么画"，不换"怎么动"，连续性探针口径零漂移。
 /// **不读天气、不读钟、不读账本**：日型由页面 `todayWeatherProvider` 快照传进来
 /// （A2-1 / A3 §13 源码守卫不变）。
 ///
@@ -259,10 +265,10 @@ class GardenWeatherFxParticle {
   /// true ⇒ [size] 解释为「画布宽的比例」（云影用）。
   final bool sizeIsFractionOfWidth;
 
-  /// 风叶**位图编号**（0..7，第十四批 2026-11-14）：仅 [GardenWeatherFxShape.leaf]
-  /// 使用 —— 生成时由固定种子随机选出（同 seed 逐位可复现），绘制时索引进
-  /// [loadGardenWeatherLeafSprites] 的缓存；位图未就绪 / 索引越界 ⇒ 回退代码梭形叶。
-  /// 其他形状一律 0（忽略）。
+  /// **位图编号**：leaf 0..7（第十四批 2026-11-14）/ snow 0..2（2026-11-27）。
+  /// 生成时由固定种子随机选出（同 seed 逐位可复现），绘制时分别索引进
+  /// [loadGardenWeatherLeafSprites] / [loadGardenWeatherSnowSprites] 的缓存；
+  /// 位图未就绪 / 索引越界 ⇒ 回退对应代码形状。其他形状一律 0（忽略）。
   final int spriteIndex;
 }
 
@@ -1101,12 +1107,14 @@ List<GardenWeatherFxParticle> buildGardenWeatherFxParticles(WeatherKind kind) {
         amplitude: layer.amplitudeMin +
             rnd.nextDouble() * (layer.amplitudeMax - layer.amplitudeMin),
         sizeIsFractionOfWidth: layer.sizeIsFractionOfWidth,
-        // 🔴 放在**所有**现有 rnd 调用之后：追加一次 nextInt 不改变前面字段的
+        // 🔴 放在**所有**现有 rnd 调用之后：追加的 nextInt 不改变前面字段的
         //    随机序列 ⇒ 第十三批及以前的粒子基线（位置 / 尺寸 / α）逐位不变，
-        //    连续性探针与全部既有断言零漂移。仅 leaf 层取 0..7，其余形状 0。
-        spriteIndex: layer.shape == GardenWeatherFxShape.leaf
-            ? rnd.nextInt(kGardenWeatherLeafSpriteCount)
-            : 0,
+        //    连续性探针与全部既有断言零漂移。leaf 取 0..7、snow 取 0..2，其余 0。
+        spriteIndex: switch (layer.shape) {
+          GardenWeatherFxShape.leaf => rnd.nextInt(kGardenWeatherLeafSpriteCount),
+          GardenWeatherFxShape.snow => rnd.nextInt(kGardenWeatherSnowSpriteCount),
+          _ => 0,
+        },
       ));
     }
   }
@@ -1151,6 +1159,47 @@ Future<List<ui.Image>?> _loadLeafSprites() async {
     return out.length == kGardenWeatherLeafSpriteCount ? out : null;
   } catch (_) {
     // 缺素材 / 测试宿主：整体回退代码叶，绝不抛。
+    return null;
+  }
+}
+
+// ── 雪方位图（2026-11-27 玄参交付 3 张透明雪花，256² WebP q95）────────────
+
+/// 雪方位图张数（`assets/fx/snow/snow_01..03.webp`，与 pubspec 目录一一对应）。
+const int kGardenWeatherSnowSpriteCount = 3;
+
+/// 雪方位图资产路径前缀（编号两位补零）。
+const String kGardenWeatherSnowSpriteAssetPrefix = 'assets/fx/snow/snow_';
+
+/// 进行中 / 已完成的加载 Future（并发调用复用同一 Future，绝不重复解码）。
+Future<List<ui.Image>?>? _snowSpriteLoad;
+
+/// 加载 3 张雪方位图：**全成功**返回表（按 snow_01..03 顺序）；任何一张缺失 /
+/// 解码失败返回 `null` ⇒ 绘制端回退代码雪花（与风叶同一条"美术永不阻塞"纪律）。
+///
+/// 幂等：首次调用后结果（含失败）被缓存，后续调用立即返回同一结果。
+Future<List<ui.Image>?> loadGardenWeatherSnowSprites() {
+  return _snowSpriteLoad ??= _loadSnowSprites();
+}
+
+Future<List<ui.Image>?> _loadSnowSprites() async {
+  try {
+    final List<ui.Image> out = <ui.Image>[];
+    for (int i = 1; i <= kGardenWeatherSnowSpriteCount; i++) {
+      final String path =
+          '$kGardenWeatherSnowSpriteAssetPrefix${i.toString().padLeft(2, '0')}.webp';
+      final ByteData data = await rootBundle.load(path);
+      final ui.Codec codec =
+          await ui.instantiateImageCodec(data.buffer.asUint8List());
+      try {
+        out.add((await codec.getNextFrame()).image);
+      } finally {
+        codec.dispose();
+      }
+    }
+    return out.length == kGardenWeatherSnowSpriteCount ? out : null;
+  } catch (_) {
+    // 缺素材 / 测试宿主：整体回退代码雪花，绝不抛。
     return null;
   }
 }
@@ -1201,12 +1250,16 @@ class _GardenWeatherFxState extends State<GardenWeatherFx>
   /// 加载完成 `setState` 一次触发重绘（动画帧由 controller 推动，与本字段无关）。
   List<ui.Image>? _leafSprites;
 
+  /// 雪方位图（2026-11-27）：`null` = 未加载完成 / 加载失败 ⇒ 回退代码雪花。
+  List<ui.Image>? _snowSprites;
+
   @override
   void initState() {
     super.initState();
     _syncParticles();
     _syncController();
     _loadLeafSprites();
+    _loadSnowSprites();
   }
 
   /// 火后不理（fire-and-forget）：结果由 painter 的回退逻辑兜底，绝不阻塞首帧。
@@ -1214,6 +1267,13 @@ class _GardenWeatherFxState extends State<GardenWeatherFx>
     final List<ui.Image>? sprites = await loadGardenWeatherLeafSprites();
     if (!mounted || sprites == null) return;
     setState(() => _leafSprites = sprites);
+  }
+
+  /// 雪方位图加载：与风叶同一条 fire-and-forget / 失败静默回退口径。
+  Future<void> _loadSnowSprites() async {
+    final List<ui.Image>? sprites = await loadGardenWeatherSnowSprites();
+    if (!mounted || sprites == null) return;
+    setState(() => _snowSprites = sprites);
   }
 
   @override
@@ -1281,6 +1341,7 @@ class _GardenWeatherFxState extends State<GardenWeatherFx>
             animation: _controller,
             groundY: widget.groundY,
             leafSprites: _leafSprites,
+            snowSprites: _snowSprites,
           ),
           // 外层 `Positioned.fill` 给的是紧约束 ⇒ 这里填满即可。
           size: Size.infinite,
@@ -1303,6 +1364,7 @@ class GardenWeatherFxPainter extends CustomPainter {
     this.animation,
     this.groundY,
     this.leafSprites,
+    this.snowSprites,
   }) : super(repaint: animation);
 
   /// 日型（决定形状、配色与全局氛围）。
@@ -1321,6 +1383,10 @@ class GardenWeatherFxPainter extends CustomPainter {
   /// （测试宿主与缺素材场景恒走回退，绘制口径与第十四批前逐位一致）。
   final List<ui.Image>? leafSprites;
 
+  /// 雪方位图（2026-11-27）：`null` / 空 ⇒ snow 回退代码雪花
+  /// （测试宿主与缺素材场景恒走回退，绘制口径与本批前逐位一致）。
+  final List<ui.Image>? snowSprites;
+
   /// 共享画笔（每帧只改字段、不 new —— 见类注释的性能口径）。
   final Paint _stroke = Paint()..strokeCap = StrokeCap.round;
 
@@ -1331,6 +1397,12 @@ class GardenWeatherFxPainter extends CustomPainter {
   /// 中等采样质量 —— 128px 源图缩到 14~36pt（第十五批 ×2 后），medium 足够
   /// 且平滑。
   final Paint _leafSpritePaint = Paint()
+    ..filterQuality = FilterQuality.medium
+    ..color = const Color(0xFFFFFFFF);
+
+  /// 雪花**位图**画笔：只调制 α（color 恒白，保留素材自带的白蓝配色），
+  /// 256px 源图缩到 8~20pt 用 medium 采样即可（与风叶同档）。
+  final Paint _snowSpritePaint = Paint()
     ..filterQuality = FilterQuality.medium
     ..color = const Color(0xFFFFFFFF);
 
@@ -1641,16 +1713,47 @@ class GardenWeatherFxPainter extends CustomPainter {
       case GardenWeatherFxShape.snow:
         // 雪花：从屏顶外入场、落到底缘以下离场（不会在屏内淡出再跳顶）。
         // 横向摆动用**整数个**正弦周期（2 圈）⇒ cycle 0/1 处位置连续。
-        final Paint fill = _fill..color = color;
-        canvas.drawCircle(center, p.size * 0.28, fill);
+        // 🔴 2026-11-27 位图批：3 张美术雪花按 spriteIndex 轮换，自转仍是
+        //    **整圈**（cycle 0/1 逐位闭合）；位图未就绪 ⇒ 回退原代码雪花，
+        //    两支共用同一个 center / cycle ⇒ 连续性探针口径完全一致。
+        final ui.Image? sprite =
+            (snowSprites == null || snowSprites!.isEmpty)
+                ? null
+                : snowSprites![p.spriteIndex % snowSprites!.length];
         final double spin = cycle * 2 * math.pi;
-        _stroke
-          ..color = color
-          ..strokeWidth = p.size >= 14 ? 1.3 : 1.0;
-        for (int i = 0; i < 3; i++) {
-          final double a = i * math.pi / 3 + spin;
-          final Offset d = Offset(math.cos(a), math.sin(a)) * (p.size * 0.5);
-          canvas.drawLine(center - d, center + d, _stroke);
+        if (sprite != null) {
+          final double ratio = sprite.width / sprite.height;
+          final double w = ratio >= 1 ? p.size : p.size * ratio;
+          final double h = ratio >= 1 ? p.size / ratio : p.size;
+          canvas.save();
+          canvas.translate(center.dx, center.dy);
+          canvas.rotate(spin);
+          _snowSpritePaint.color =
+              const Color(0xFFFFFFFF).withValues(alpha: p.alpha * s.opacity);
+          canvas.drawImageRect(
+            sprite,
+            Rect.fromLTWH(
+              0,
+              0,
+              sprite.width.toDouble(),
+              sprite.height.toDouble(),
+            ),
+            Rect.fromCenter(center: Offset.zero, width: w, height: h),
+            _snowSpritePaint,
+          );
+          canvas.restore();
+        } else {
+          final Paint fill = _fill..color = color;
+          canvas.drawCircle(center, p.size * 0.28, fill);
+          _stroke
+            ..color = color
+            ..strokeWidth = p.size >= 14 ? 1.3 : 1.0;
+          for (int i = 0; i < 3; i++) {
+            final double a = i * math.pi / 3 + spin;
+            final Offset d =
+                Offset(math.cos(a), math.sin(a)) * (p.size * 0.5);
+            canvas.drawLine(center - d, center + d, _stroke);
+          }
         }
     }
   }
@@ -1853,11 +1956,12 @@ class GardenWeatherFxPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant GardenWeatherFxPainter oldDelegate) {
     // 进度由 `repaint`（controller）推动，这里只需管「换了日型 / 换了动画源 /
-    // 位图刚加载完成（第十四批，identical 比较防列表逐元素开销）」。
+    // 位图刚加载完成（identical 比较防列表逐元素开销）」。
     return oldDelegate.kind != kind ||
         oldDelegate.animation != animation ||
         oldDelegate.groundY != groundY ||
         oldDelegate.particles != particles ||
-        !identical(oldDelegate.leafSprites, leafSprites);
+        !identical(oldDelegate.leafSprites, leafSprites) ||
+        !identical(oldDelegate.snowSprites, snowSprites);
   }
 }

@@ -202,6 +202,9 @@ flutter:
     # 风叶位图（2026-11-14 玄参交付 8 张去背景 PNG，缩到长边 128px）：微风 / 大风
     # 天气氛围层的落叶 + 花瓣。渲染与回退见 `garden_weather_fx.dart` 第十四批。
     - assets/fx/leaves/
+    # 雪方位图（2026-11-27 玄参交付 3 张透明 WebP q95，256²）：极寒天气氛围层。
+    # 位图优先、缺图回退代码雪花，见 `garden_weather_fx.dart` 雪方位图段。
+    - assets/fx/snow/
     # 专注页向日葵序列帧（2026-09-29 玄参交付）：常态 idle 循环 / 1-3 进度收集阳光 /
     # 结算庆祝 / 回来 四组，**各组帧数不同**（13/40/36/30）。同样受「目录声明不递归」
     # 约束 —— 四个叶子目录必须逐个列全。命名与规格见
@@ -241,6 +244,9 @@ flutter:
     # 按名称关键词映射（单点收口见 growth_icons.dart），缺失/失败回退马卡龙色块+图标。
     - assets/ui/growth/
     - assets/ui/store/
+    # 家长天地入口图标（2026-11-27 玄参交付，128² 透明 WebP q95）：孩子端 AppBar
+    # 右上角入口，替代 Material Icons.family_restroom；缺图回退原 Material 图标。
+    - assets/ui/
     # 许愿树场景美术资源（2026-11-19 玄参交付）：扁平目录，5 张透明 PNG
     # （大树 + 三种蛋 + 收藏箱 + 愿望池）+ 1 张不透明背景。文件名即契约，
     # 见 wish_tree_page.dart 的 kWishArt* 常量；⚠️ 目录声明不递归，这一行漏了

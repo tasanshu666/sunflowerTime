@@ -7,9 +7,11 @@
 /// 量到的就不是**真实渲染**的图标（玄参纪律「AI 不截图不自查 UI」要求实测）。
 /// 故把图标抽成本组件，shell 与测试**引用同一个** widget，度量与生产同源。
 ///
-/// ## 两种形态（与 [ChildShellPage] 沉浸式口径一致）
-///  · [immersive] = true：垫一层半透白胶囊（沉浸式 tab 是亮色场景，纯图标看不清）；
-///  · false：裸 [IconButton]（非沉浸 tab 原样）。
+/// ## 形态（2026-11-27 玄参二轮反馈后统一）
+/// 🔴 去掉原先 immersive=true 时垫的半透明白胶囊 —— 玄参实机见图标外一圈白底，
+/// 要求「所有页面家长天地图标不要白色背景、大小一致」。现所有 tab 一律裸
+/// [IconButton] + 48dp 美术图标（原白胶囊 48dp 命中盒，图标填满同尺寸）。
+/// [immersive] 参数保留仅为兼容既有调用点与测试宿主，**不再影响外观**。
 library parent_entry_action;
 
 import 'package:flutter/material.dart';
@@ -21,7 +23,8 @@ import 'package:sunflower_time/core/i18n/l10n_scope.dart' show l10nOf;
 class ParentEntryAction extends StatelessWidget {
   const ParentEntryAction({super.key, required this.immersive});
 
-  /// 是否沉浸式（今日 / 成长 / 商店三个整页底图 tab）—— 决定是否垫白胶囊。
+  /// 🔴 2026-11-27 起**不再影响外观**（白胶囊已按玄参反馈移除，所有页面统一裸图标）。
+  /// 参数保留仅为兼容既有调用点与测试宿主，避免改动 shell / 多套测试宿主签名。
   final bool immersive;
 
   /// 图标本体 Key（度量用：读它的 RenderBox 得到**真实**右上角图标矩形）。
@@ -29,16 +32,17 @@ class ParentEntryAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget button = IconButton(
+    // 🔴 2026-11-27 二轮反馈：去掉 immersive 白胶囊，所有页面统一裸图标。
+    // iconKey 仍挂 IconButton（48dp 命中盒）⇒ 徽章右对齐度量契约不变。
+    return IconButton(
       key: iconKey,
-      // 🔴 2026-11-27 玄参交付美术图标（128² 透明 WebP q95，assets/ui/parent_hub.webp）
-      // 替代 Material Icons.family_restroom。28dp 与 IconButton 48dp 命中盒匹配；
-      // errorBuilder 保留原图标兜底 —— 缺素材 / 测试宿主零空白。
-      // 度量契约不变：iconKey 仍挂在 IconButton 上，徽章右对齐断言读同一 RenderBox。
+      // 2026-11-27 玄参交付美术图标（128² 透明 WebP q95，assets/ui/parent_hub.webp）。
+      // 🔴 48dp = 原白胶囊的可视尺寸，按玄参「图标放大到当前白色背景大小」口径；
+      // errorBuilder 保留原 Material 图标兜底 —— 缺素材 / 测试宿主零空白。
       icon: Image.asset(
         'assets/ui/parent_hub.webp',
-        width: 28,
-        height: 28,
+        width: 48,
+        height: 48,
         fit: BoxFit.contain,
         errorBuilder: (_, __, ___) => const Icon(Icons.family_restroom),
       ),
@@ -50,16 +54,6 @@ class ParentEntryAction extends StatelessWidget {
       // 裸测试宿主直接挂载（无 delegates），`l10nOf` 自带中文回退。
       tooltip: l10nOf(context).parent_home_title,
       onPressed: () => context.go('/parent'),
-    );
-    if (!immersive) return button;
-    // C44e 二轮反馈（玄参 2026-10-09）：沉浸式亮场景底上纯图标看不清 → 垫白胶囊。
-    return Container(
-      margin: const EdgeInsets.only(right: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: button,
     );
   }
 }

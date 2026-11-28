@@ -4739,6 +4739,96 @@ abstract class AppLocalizations {
   /// **'激活码 #{serial}'**
   String parent_premium_redeem_serial_label(int serial);
 
+  /// No description provided for @parent_premium_alipay_btn_buy.
+  ///
+  /// In zh, this message translates to:
+  /// **'支付宝购买 ¥49.90'**
+  String get parent_premium_alipay_btn_buy;
+
+  /// No description provided for @parent_premium_alipay_btn_continue.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续支付'**
+  String get parent_premium_alipay_btn_continue;
+
+  /// No description provided for @parent_premium_alipay_btn_reorder.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新下单'**
+  String get parent_premium_alipay_btn_reorder;
+
+  /// No description provided for @parent_premium_alipay_code_entry.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入激活码'**
+  String get parent_premium_alipay_code_entry;
+
+  /// No description provided for @parent_premium_alipay_reclaim.
+  ///
+  /// In zh, this message translates to:
+  /// **'已付款但未解锁？重新领取'**
+  String get parent_premium_alipay_reclaim;
+
+  /// No description provided for @parent_premium_alipay_phase_awaiting.
+  ///
+  /// In zh, this message translates to:
+  /// **'订单已创建，请在支付宝完成付款'**
+  String get parent_premium_alipay_phase_awaiting;
+
+  /// No description provided for @parent_premium_alipay_phase_paid.
+  ///
+  /// In zh, this message translates to:
+  /// **'支付已提交，正在确认结果，请勿关闭页面'**
+  String get parent_premium_alipay_phase_paid;
+
+  /// No description provided for @parent_premium_alipay_phase_issuing.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在为你开通，请稍候'**
+  String get parent_premium_alipay_phase_issuing;
+
+  /// No description provided for @parent_premium_alipay_phase_unlocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已解锁，感谢支持！'**
+  String get parent_premium_alipay_phase_unlocked;
+
+  /// No description provided for @parent_premium_alipay_phase_expired.
+  ///
+  /// In zh, this message translates to:
+  /// **'订单已超时，请重新下单'**
+  String get parent_premium_alipay_phase_expired;
+
+  /// No description provided for @parent_premium_alipay_phase_duplicate.
+  ///
+  /// In zh, this message translates to:
+  /// **'你已经解锁过了，无需重复操作'**
+  String get parent_premium_alipay_phase_duplicate;
+
+  /// No description provided for @parent_premium_alipay_err_pool.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时无法购买，请联系客服'**
+  String get parent_premium_alipay_err_pool;
+
+  /// No description provided for @parent_premium_alipay_err_token.
+  ///
+  /// In zh, this message translates to:
+  /// **'领取凭据不匹配，请联系客服'**
+  String get parent_premium_alipay_err_token;
+
+  /// No description provided for @parent_premium_alipay_err_retry.
+  ///
+  /// In zh, this message translates to:
+  /// **'稍后重试或联系我们'**
+  String get parent_premium_alipay_err_retry;
+
+  /// No description provided for @parent_premium_alipay_note_refund.
+  ///
+  /// In zh, this message translates to:
+  /// **'虚拟商品激活后不支持退款'**
+  String get parent_premium_alipay_note_refund;
+
   /// No description provided for @parent_reward_category_label.
   ///
   /// In zh, this message translates to:

@@ -89,3 +89,11 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // 支付宝官方 Android SDK —— 仅 Android 依赖，iOS 工程零引用（技术方案 §10.3）。
+    // 版本锁定 15.8.42：Maven Central `com/alipay/sdk/alipaysdk-android/maven-metadata.xml`
+    // 的 <latest>/<release>（2026-05-11 发布，GPG 签名 AAR + POM，非 floating "+"）。
+    // 私钥 / 订单签名全在服务端，APK 内不含任何支付宝密钥。
+    implementation("com.alipay.sdk:alipaysdk-android:15.8.42")
+}

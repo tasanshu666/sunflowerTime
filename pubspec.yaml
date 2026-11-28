@@ -57,6 +57,10 @@ dependencies:
   # 单测，也不需要任何原生依赖。
   # 版本由 `flutter pub add` 按 SDK 约束（>=3.0.0 <4.0.0）解析为 2.9.0。
   cryptography: ^2.9.0
+  # ── App 内支付宝（Android 官网直供版）：下单 / 领取两接口走 HTTP。
+  # pubspec.lock 中 http 已以传递依赖存在且解析为 1.6.0，此处显式声明不漂移；
+  # 🔴 不引入任何支付宝 Flutter 插件（会污染 iOS Runner.app，违反方案 §10.3）。
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

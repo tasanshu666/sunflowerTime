@@ -2754,6 +2754,51 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get parent_premium_alipay_btn_buy => '支付宝购买 ¥49.90';
+
+  @override
+  String get parent_premium_alipay_btn_continue => '继续支付';
+
+  @override
+  String get parent_premium_alipay_btn_reorder => '重新下单';
+
+  @override
+  String get parent_premium_alipay_code_entry => '输入激活码';
+
+  @override
+  String get parent_premium_alipay_reclaim => '已付款但未解锁？重新领取';
+
+  @override
+  String get parent_premium_alipay_phase_awaiting => '订单已创建，请在支付宝完成付款';
+
+  @override
+  String get parent_premium_alipay_phase_paid => '支付已提交，正在确认结果，请勿关闭页面';
+
+  @override
+  String get parent_premium_alipay_phase_issuing => '正在为你开通，请稍候';
+
+  @override
+  String get parent_premium_alipay_phase_unlocked => '已解锁，感谢支持！';
+
+  @override
+  String get parent_premium_alipay_phase_expired => '订单已超时，请重新下单';
+
+  @override
+  String get parent_premium_alipay_phase_duplicate => '你已经解锁过了，无需重复操作';
+
+  @override
+  String get parent_premium_alipay_err_pool => '暂时无法购买，请联系客服';
+
+  @override
+  String get parent_premium_alipay_err_token => '领取凭据不匹配，请联系客服';
+
+  @override
+  String get parent_premium_alipay_err_retry => '稍后重试或联系我们';
+
+  @override
+  String get parent_premium_alipay_note_refund => '虚拟商品激活后不支持退款';
+
+  @override
   String get parent_reward_category_label => '分类';
 
   @override

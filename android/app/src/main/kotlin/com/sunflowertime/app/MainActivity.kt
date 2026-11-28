@@ -16,6 +16,8 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // 支付宝 Android 支付缝：同包注册，无需 pubspec 插件声明（iOS 工程零引用）。
+        AlipayPlugin.register(flutterEngine, this)
         val channel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             CHANNEL

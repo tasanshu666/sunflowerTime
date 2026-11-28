@@ -39,6 +39,8 @@ import 'package:sunflower_time/data/local/repositories/child_profile_local_repos
 import 'package:sunflower_time/data/local/repositories/entitlement_local_repository.dart';
 import 'package:sunflower_time/data/local/secure_entitlement_store.dart';
 import 'package:sunflower_time/data/local/secure_store.dart';
+import 'package:sunflower_time/data/local/pending_order_store.dart';
+import 'package:sunflower_time/data/remote/alipay_api_client.dart';
 import 'package:sunflower_time/data/local/settings_store.dart';
 import 'package:sunflower_time/domain/entities/child_profile.dart';
 import 'package:sunflower_time/domain/entities/check_in.dart';
@@ -77,6 +79,7 @@ import 'package:sunflower_time/domain/services/anti_addiction_service.dart';
 import 'package:sunflower_time/domain/services/account_service.dart';
 import 'package:sunflower_time/domain/services/wish_orchestration_service.dart';
 import 'package:sunflower_time/domain/services/entitlement_service.dart';
+import 'package:sunflower_time/domain/services/alipay_unlock_controller.dart';
 import 'package:sunflower_time/domain/services/weekly_pool_service.dart';
 import 'package:sunflower_time/domain/services/redemption_orchestration_service.dart';
 import 'package:sunflower_time/domain/services/plant_growth_service.dart';
@@ -86,6 +89,7 @@ import 'package:sunflower_time/domain/services/data_management_service.dart';
 import 'package:sunflower_time/domain/services/memoir_service.dart';
 import 'package:sunflower_time/platform/audio_service.dart';
 import 'package:sunflower_time/platform/iap_service.dart';
+import 'package:sunflower_time/platform/alipay_bridge.dart';
 import 'package:sunflower_time/domain/entities/settings.dart';
 import 'package:sunflower_time/presentation/child/state/app_usage_controller.dart';
 
@@ -796,4 +800,55 @@ void _applyDebugPremiumMode({
     // `undefined_method`（F142 首次实现即踩）。
     (service as DebugEntitlementOverride).debugOverrideCurrent(target);
   }
+}
+
+// ── App 内支付宝（Android 官网直供版）· 2026-11-28 ─────────────────────────
+//
+// 🔴 继续沿用付费墙三条惰性铁律：Provider 函数体只在首次 read 时执行；构造不触平台；
+//    既有 Provider（尤其 entitlementServiceProvider 装配）一字不动。
+// 🔴 本段只在 Android 分支被 UI read；iOS 测试宿主即便误 read 也只构造纯 Dart 对象，
+//    AlipayBridge 的 Platform.isAndroid 硬门控保证不触碰任何支付宝原生符号。
+
+/// 下单 / 领取 HTTP 客户端（惰性；构造只建 `http.Client`，不发请求）。
+final Provider<AlipayApi> alipayApiClientProvider = Provider<AlipayApi>(
+  (ref) => AlipayApiClient(),
+);
+
+/// pending 凭据安全区存储（惰性；构造只建 `FlutterSecureStorage` 包装，不读写）。
+final Provider<PendingOrderStore> pendingOrderStoreProvider =
+    Provider<PendingOrderStore>(
+  (ref) => PendingOrderStoreImpl(),
+);
+
+/// 支付宝唤起桥（惰性；`AlipayBridge` 构造不触 MethodChannel 调用）。
+final Provider<AlipayPayBridge> alipayPayBridgeProvider =
+    Provider<AlipayPayBridge>(
+  (ref) => AlipayBridge(),
+);
+
+/// 六态编排控制器（惰性；全部依赖都是上面的抽象端口 + 既有激活能力）。
+///
+/// 激活能力用 `is RedeemCodeActivator` 探测（与付费页 `_activateWithCode` 同款）：
+/// 测试里只实现 `EntitlementService` 的 Fake 自动降级为 no-op，编译 / 运行都不受影响。
+final Provider<AlipayUnlockController> alipayUnlockControllerProvider =
+    Provider<AlipayUnlockController>((ref) {
+  final EntitlementService service = ref.watch(entitlementServiceProvider);
+  final RedeemCodeActivator activator = service is RedeemCodeActivator
+      ? service as RedeemCodeActivator
+      : const _NoOpRedeemCodeActivator();
+  return AlipayUnlockController(
+    api: ref.watch(alipayApiClientProvider),
+    pending: ref.watch(pendingOrderStoreProvider),
+    bridge: ref.watch(alipayPayBridgeProvider),
+    activator: activator,
+  );
+});
+
+/// 无激活能力的降级实现（仅测试 Fake 服务命中；生产恒走 `MatrixEntitlementService`）。
+class _NoOpRedeemCodeActivator implements RedeemCodeActivator {
+  const _NoOpRedeemCodeActivator();
+
+  @override
+  Future<RedeemActivationResult> activate(String code) async =>
+      RedeemActivationResult.failed;
 }

@@ -1,0 +1,134 @@
+classDiagram
+    class AlipayUnlockPhase {
+        <<enumeration>>
+        awaitingPayment
+        paidAwaitingCode
+        issuing
+        unlocked
+        expired
+        duplicate
+    }
+
+    class AlipayApi {
+        <<interface>>
+        +createOrder(platform, appVersion, deviceHash) Future~CreateOrderData~
+        +redeem(outTradeNo, claimToken) Future~RedeemData~
+    }
+    class PendingOrderStore {
+        <<interface>>
+        +save(pending) Future~void~
+        +load() Future~PendingOrder?~
+        +clear() Future~void~
+    }
+    class AlipayPayBridge {
+        <<interface>>
+        +pay(orderString) Future~AlipayPayResult~
+        +isInstalled() Future~bool~
+    }
+    class RedeemCodeActivator {
+        <<interface>>
+        +activate(code) Future~RedeemActivationResult~
+    }
+
+    class AlipayUnlockController {
+        -AlipayApi _api
+        -PendingOrderStore _pending
+        -AlipayPayBridge _bridge
+        -RedeemCodeActivator _activator
+        -DateTime Function() _clock
+        -Future Function(Duration) _delay
+        -AlipayUnlockPhase _phase
+        -int _pollCount
+        +AlipayUnlockPhase phase
+        +start(deviceHash, appVersion) Future~AlipayUnlockResult~
+        +resumePending() Future~AlipayUnlockResult~
+        +retry() Future~AlipayUnlockResult~
+        -_onPayResult(status) Future~void~
+        -_pollRedeem() Future~AlipayUnlockResult~
+    }
+
+    class AlipayApiClient {
+        -Client _http
+        -String _baseUrl
+        +createOrder(...) Future~CreateOrderData~
+        +redeem(...) Future~RedeemData~
+        -_parseEnvelope(response) Map
+    }
+    class PendingOrderStoreImpl {
+        -FlutterSecureStorage _storage
+        +save(pending) Future~void~
+        +load() Future~PendingOrder?~
+        +clear() Future~void~
+    }
+    class AlipayBridge {
+        -MethodChannel _channel
+        +pay(orderString) Future~AlipayPayResult~
+        +isInstalled() Future~bool~
+    }
+    class AlipayPluginKotlin {
+        +payV2(orderStr) Map
+        +isInstalled() bool
+    }
+
+    class CreateOrderData {
+        +String outTradeNo
+        +String claimToken
+        +String orderString
+        +String amount
+        +int expiresIn
+    }
+    class RedeemData {
+        +RedeemStatus status
+        +String? redeemCode
+        +int? serial
+    }
+    class RedeemStatus {
+        <<enumeration>>
+        issued
+        pending
+        unpaid
+    }
+    class PendingOrder {
+        +String outTradeNo
+        +String claimToken
+        +DateTime createdAt
+        +bool isExpired(expiresIn, now) bool
+    }
+    class AlipayPayResult {
+        +String resultStatus
+        +String? memo
+        +bool isMayPaid
+        +bool isCanceled
+    }
+
+    class MatrixEntitlementService {
+        +activate(code) Future~RedeemActivationResult~
+        +load() Future~Entitlement~
+    }
+    class Entitlement {
+        +EntitlementTier tier
+        +int? redeemSerial
+        +bool isPremium
+    }
+    class ParentPremiumPage {
+        -bool _activating
+        -AlipayUnlockPhase _alipayPhase
+        +_buyWithAlipay() Future~void~
+        +_reclaimPaidOrder() Future~void~
+    }
+
+    AlipayUnlockController --> AlipayApi : uses
+    AlipayUnlockController --> PendingOrderStore : uses
+    AlipayUnlockController --> AlipayPayBridge : uses
+    AlipayUnlockController --> RedeemCodeActivator : uses
+    AlipayUnlockController --> AlipayUnlockPhase : owns
+    AlipayApiClient ..|> AlipayApi : implements
+    PendingOrderStoreImpl ..|> PendingOrderStore : implements
+    AlipayBridge ..|> AlipayPayBridge : implements
+    AlipayBridge --> AlipayPluginKotlin : MethodChannel
+    AlipayApiClient --> CreateOrderData : returns
+    AlipayApiClient --> RedeemData : returns
+    RedeemData --> RedeemStatus : has
+    MatrixEntitlementService ..|> RedeemCodeActivator : implements (既有，不改)
+    MatrixEntitlementService --> Entitlement : writes
+    ParentPremiumPage --> AlipayUnlockController : drives (Android only)

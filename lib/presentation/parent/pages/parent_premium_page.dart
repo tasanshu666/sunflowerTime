@@ -32,18 +32,24 @@
 ///  · 商店不可用 / 取消 / 失败一律安全降级（域服务已保证不裸抛），本页再兜一层 try/catch。
 library parent_premium_page;
 
+import 'dart:async' show unawaited;
+import 'dart:convert' show utf8;
 import 'dart:io' show Platform;
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart' show Uuid;
 
+import 'package:sunflower_time/core/constants/alipay_endpoints.dart';
 import 'package:sunflower_time/core/constants/entitlement_matrix.dart';
 import 'package:sunflower_time/core/constants/iap_product_ids.dart';
 import 'package:sunflower_time/core/di/providers.dart';
 import 'package:sunflower_time/core/i18n/l10n_scope.dart';
 import 'package:sunflower_time/domain/entities/entitlement.dart';
+import 'package:sunflower_time/domain/services/alipay_unlock_controller.dart';
 import 'package:sunflower_time/domain/services/entitlement_service.dart';
 import 'package:sunflower_time/domain/services/iap_contract.dart';
 import 'package:sunflower_time/l10n/generated/app_localizations.dart';
@@ -70,6 +76,19 @@ const Key kPremiumRedeemCodeFieldKey = Key('premiumRedeemCodeField');
 
 /// 激活码弹框「解锁」确认按钮 Key。
 const Key kPremiumRedeemCodeConfirmKey = Key('premiumRedeemCodeConfirm');
+
+/// 支付宝购买主按钮 Key（沿用 [kPremiumMainButtonKey]，此处仅为语义别名：
+/// 测试始终用主按钮 Key 定位，避免两套 Key 造成吸底栏重复按钮）。
+const Key kPremiumAlipayBuyKey = kPremiumMainButtonKey;
+
+/// 「输入激活码」次级入口 Key（Android 分支，降为次级后仍可直达）。
+const Key kPremiumAlipayCodeEntryKey = Key('premiumAlipayCodeEntry');
+
+/// 「已付款但未解锁？重新领取」入口 Key（Android 分支）。
+const Key kPremiumAlipayReclaimKey = Key('premiumAlipayReclaim');
+
+/// 六态文案 Key（Android 分支，仅已发起购买后显示）。
+const Key kPremiumAlipayPhaseKey = Key('premiumAlipayPhase');
 
 /// 读剪贴板的超时上限（超过即当作「剪贴板为空」）。
 ///
@@ -114,6 +133,19 @@ bool Function() redeemCodeEntryEnabledResolver = defaultRedeemCodeEntryEnabled;
 /// 会被拒审），macOS / Windows / Linux 仅用于开发者调试，一律保持 IAP 原状。
 bool defaultRedeemCodeEntryEnabled() => isAndroidRuntime;
 
+/// 「是否显示 App 内支付宝入口」的**独立解析器**。
+///
+/// 🔴 为什么与 [redeemCodeEntryEnabledResolver] 分开：
+/// 既有的 2 个激活码对照组测试（`premium_redeem_code_entry_test.dart` /
+/// `premium_redeem_code_a11y_test.dart`）只能替换 `redeemCodeEntryEnabledResolver`
+/// 来模拟 Android，且**零改动硬约束**要求它们继续看到「主按钮 = 输入激活码解锁」。
+/// 故支付宝入口单独用本解析器：生产恒为 [isAndroidRuntime]，只有新 QA 用例显式
+/// 替换它才会在测试宿主启用。真机 Android 上两者同时为 true → 支付宝为主、激活码次级。
+bool Function() alipayEntryEnabledResolver = defaultAlipayEntryEnabled;
+
+/// 生产判定：只有 Android 真机/模拟器显示 App 内支付宝入口。
+bool defaultAlipayEntryEnabled() => isAndroidRuntime;
+
 /// 家长端·解锁全部功能页。
 class ParentPremiumPage extends ConsumerStatefulWidget {
   const ParentPremiumPage({super.key});
@@ -138,6 +170,15 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   /// 激活码激活进行中（Android）。
   bool _activating = false;
 
+  /// 支付宝流程进行中（Android；下单 / 唤起收银台 / 轮询期间禁重复点击）。
+  bool _alipayBusy = false;
+
+  /// 本次会话是否已发起过支付宝购买（决定主按钮「购买」vs「继续支付」）。
+  bool _alipayStarted = false;
+
+  /// 支付宝六态（Android 分支文案 / 按钮禁用态的单点来源）。
+  AlipayUnlockPhase _alipayPhase = AlipayUnlockPhase.awaitingPayment;
+
   /// 商店返回的买断商品（`price` 为商店本地化价格串）。
   IapProduct? _product;
 
@@ -146,6 +187,9 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
   /// 每次 getter 现算而**不缓存**：解析器可能被测试整体替换，现算才能让
   /// 「同一次 pump 前后切换平台」立即生效（不缓存 = 没有「上次平台」的脏状态）。
   bool get _usesRedeemCode => redeemCodeEntryEnabledResolver();
+
+  /// 当前是否显示 App 内支付宝入口（真机 Android；测试可整体替换）。
+  bool get _usesAlipay => alipayEntryEnabledResolver();
 
   @override
   void initState() {
@@ -299,6 +343,136 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
     }
   }
 
+  /// 支付宝购买（**仅 Android 分支**）：下单 → 唤起收银台 → 轮询发码 → 解锁。
+  ///
+  /// 全程不抛：控制器契约已保证失败返回错误对象，这里再兜一层 try/catch。
+  /// 成功后刷新 [`entitlementProvider`]，与既有激活码 / IAP 路径同一出口。
+  Future<void> _buyWithAlipay() async {
+    if (_alipayBusy || _activating || _buying || _restoring) return;
+    final AppLocalizations t = l10nOf(context);
+    if (mounted) {
+      setState(() {
+        _alipayBusy = true;
+        _alipayStarted = true;
+        _alipayPhase = AlipayUnlockPhase.awaitingPayment;
+      });
+    }
+    try {
+      final String deviceHash = await _resolveDeviceHash();
+      final AlipayUnlockResult result =
+          await ref.read(alipayUnlockControllerProvider).start(
+                deviceHash: deviceHash,
+                appVersion: kAlipayAppVersion,
+              );
+      await _applyAlipayResult(result, t);
+    } catch (_) {
+      _snack(t.parent_premium_alipay_err_retry);
+    } finally {
+      if (mounted) setState(() => _alipayBusy = false);
+    }
+  }
+
+  /// 「已付款但未解锁？重新领取」：从安全区读 pending 立即补查一次（重启 / 回前台同样适用）。
+  Future<void> _reclaimPaidOrder() async {
+    if (_alipayBusy || _activating) return;
+    final AppLocalizations t = l10nOf(context);
+    if (mounted) setState(() => _alipayBusy = true);
+    try {
+      final AlipayUnlockResult result =
+          await ref.read(alipayUnlockControllerProvider).resumePending();
+      await _applyAlipayResult(result, t);
+    } catch (_) {
+      _snack(t.parent_premium_alipay_err_retry);
+    } finally {
+      if (mounted) setState(() => _alipayBusy = false);
+    }
+  }
+
+  /// 把控制器结果落到 UI：六态文案 + 解锁后刷新权益 + 错误码映射（§5.5）。
+  Future<void> _applyAlipayResult(
+    AlipayUnlockResult result,
+    AppLocalizations t,
+  ) async {
+    if (!mounted) return;
+    setState(() => _alipayPhase = result.phase);
+    if (result.isUnlocked) {
+      // 与 `_activateWithCode` 同款出口：重读票据 → 刷 entitlementProvider。
+      try {
+        final Entitlement e = await ref.read(entitlementServiceProvider).load();
+        if (mounted) ref.read(entitlementProvider.notifier).state = e;
+      } catch (_) {
+        // 域层 activate 已写库；读回失败只影响本次 UI 刷新，不谎报失败。
+      }
+      _snack(result.duplicate
+          ? t.parent_premium_alipay_phase_duplicate
+          : t.parent_premium_alipay_phase_unlocked);
+      return;
+    }
+    switch (result.error) {
+      case AlipayErrorCode.poolExhausted:
+        _snack(t.parent_premium_alipay_err_pool);
+      case AlipayErrorCode.claimTokenMismatch:
+        _snack(t.parent_premium_alipay_err_token);
+      case null:
+        // 202 pending / 退避中：六态文案已在底栏展示，不重复弹 SnackBar。
+        break;
+      default:
+        _snack(t.parent_premium_alipay_err_retry);
+    }
+  }
+
+  /// 稳定的设备哈希（sha256(deviceId + 盐)[0:32]，仅风控，不绑权益）。
+  ///
+  /// deviceId 存 SharedPreferences；不可用（测试宿主 / 无 prefs）时用随机 UUID 兜底，
+  /// 保证 body 的 `device_hash` 永远满足服务端 1–128 字符约束。
+  Future<String> _resolveDeviceHash() async {
+    const String deviceIdKey = 'alipay.device_id.v1';
+    try {
+      final String? existing =
+          ref.read(sharedPreferencesProvider).getString(deviceIdKey);
+      final String id = (existing == null || existing.isEmpty)
+          ? const Uuid().v4()
+          : existing;
+      if (existing == null || existing.isEmpty) {
+        await ref.read(sharedPreferencesProvider).setString(deviceIdKey, id);
+      }
+      return sha256
+          .convert(utf8.encode('$id$kAlipayDeviceHashSalt'))
+          .toString()
+          .substring(0, 32);
+    } catch (_) {
+      return sha256
+          .convert(utf8.encode(const Uuid().v4()))
+          .toString()
+          .substring(0, 32);
+    }
+  }
+
+  /// 六态用户文案（zh/en 由 ARB 对称提供）。
+  String _alipayPhaseText(AppLocalizations t) => switch (_alipayPhase) {
+        AlipayUnlockPhase.awaitingPayment =>
+          t.parent_premium_alipay_phase_awaiting,
+        AlipayUnlockPhase.paidAwaitingCode =>
+          t.parent_premium_alipay_phase_paid,
+        AlipayUnlockPhase.issuing => t.parent_premium_alipay_phase_issuing,
+        AlipayUnlockPhase.unlocked => t.parent_premium_alipay_phase_unlocked,
+        AlipayUnlockPhase.expired => t.parent_premium_alipay_phase_expired,
+        AlipayUnlockPhase.duplicate => t.parent_premium_alipay_phase_duplicate,
+      };
+
+  /// 主按钮文案：首次购买 / 继续支付 / 重新下单 / 轮询中提示。
+  String _alipayButtonText(AppLocalizations t) {
+    if (!_alipayStarted) return t.parent_premium_alipay_btn_buy;
+    return switch (_alipayPhase) {
+      AlipayUnlockPhase.expired => t.parent_premium_alipay_btn_reorder,
+      AlipayUnlockPhase.awaitingPayment => t.parent_premium_alipay_btn_continue,
+      AlipayUnlockPhase.paidAwaitingCode => t.parent_premium_alipay_phase_paid,
+      AlipayUnlockPhase.issuing => t.parent_premium_alipay_phase_issuing,
+      AlipayUnlockPhase.unlocked || AlipayUnlockPhase.duplicate =>
+        t.parent_premium_alipay_phase_unlocked,
+    };
+  }
+
   /// 弹「输入激活码」对话框；返回清理后的码，用户取消 → null。
   Future<String?> _promptRedeemCode(AppLocalizations t) {
     return showDialog<String>(
@@ -417,9 +591,52 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
               const SizedBox(height: 6),
               _buildRestoreButton(t),
             ],
+            // ↓↓ 以下两块**只在 Android 分支**渲染；iOS 的 children 与改动前逐字节一致。
+            if (_usesRedeemCode && _usesAlipay && !unlocked) ...<Widget>[
+              const SizedBox(height: 4),
+              _buildAlipaySecondaryActions(t),
+            ],
+            if (_usesRedeemCode && _usesAlipay && _alipayStarted) ...<Widget>[
+              const SizedBox(height: 2),
+              Text(
+                key: kPremiumAlipayPhaseKey,
+                _alipayPhaseText(t),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: _kInkSoft),
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  /// Android 次级入口：激活码（降级）+ 已付款未解锁重新领取。
+  ///
+  /// 都不是主按钮：主按钮常驻「支付宝购买 / 继续支付」，避免两条解锁路径互相抢焦点。
+  Widget _buildAlipaySecondaryActions(AppLocalizations t) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: <Widget>[
+        TextButton(
+          key: kPremiumAlipayCodeEntryKey,
+          onPressed: (_alipayBusy || _activating) ? null : _activateWithCode,
+          child: Text(
+            t.parent_premium_alipay_code_entry,
+            style: const TextStyle(fontSize: 13),
+          ),
+        ),
+        TextButton(
+          key: kPremiumAlipayReclaimKey,
+          onPressed: _alipayBusy
+              ? null
+              : () => unawaited(_reclaimPaidOrder()),
+          child: Text(
+            t.parent_premium_alipay_reclaim,
+            style: const TextStyle(fontSize: 13),
+          ),
+        ),
+      ],
     );
   }
 
@@ -604,7 +821,26 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
         ),
       );
     }
-    // Android 官网直供版：主按钮即「输入激活码」入口（不查商店、不吃商店价格）。
+    // Android 真机：主按钮 = 支付宝购买（金额由服务端定死，不查商店）；
+    // 「输入激活码」降为吸底栏次级入口（见 `_buildAlipaySecondaryActions`）。
+    if (_usesRedeemCode && _usesAlipay) {
+      final bool enabled = !_alipayBusy &&
+          !_activating &&
+          _alipayPhase != AlipayUnlockPhase.issuing &&
+          _alipayPhase != AlipayUnlockPhase.paidAwaitingCode;
+      return _goldButtonShell(
+        active: enabled,
+        child: FilledButton.icon(
+          key: kPremiumMainButtonKey,
+          onPressed: enabled ? _buyWithAlipay : null,
+          style: _goldButtonStyle(),
+          icon: const Icon(Icons.account_balance_wallet_rounded),
+          label: Text(_alipayButtonText(t)),
+        ),
+      );
+    }
+    // 兼容分支：激活码对照组测试宿主只替换 redeemCodeEntryEnabledResolver 模拟 Android，
+    // 支付宝入口未启用 → 主按钮**逐字节保持旧版**「输入激活码解锁」，零改动基线仍全绿。
     if (_usesRedeemCode) {
       return _goldButtonShell(
         active: !_activating,
@@ -813,6 +1049,9 @@ class _ParentPremiumPageState extends ConsumerState<ParentPremiumPage> {
             t.parent_premium_note_1,
             t.parent_premium_note_android,
             t.parent_premium_note_3,
+            // 技术方案 §9.3 / §11：数字商品激活后不支持退款的声明必须在购买页可见。
+            // 仅支付宝入口启用时追加：对照组测试的 3 条 note 基线保持不变。
+            if (_usesAlipay) t.parent_premium_alipay_note_refund,
           ]
         : <String>[
             t.parent_premium_note_1,

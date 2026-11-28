@@ -1,0 +1,83 @@
+sequenceDiagram
+    autonumber
+    actor U as 家长(Android)
+    participant P as ParentPremiumPage
+    participant C as AlipayUnlockController
+    participant A as AlipayApiClient
+    participant S as Server FastAPI
+    participant DB as SQLite orders/code_pool
+    participant B as AlipayBridge+Plugin
+    participant AP as 支付宝 App
+    participant AL as 支付宝网关
+    participant E as RedeemCodeActivator
+    participant ST as SecureEntitlementStore
+
+    U->>P: 点「支付宝购买 ¥49.90」
+    P->>C: start(deviceHash, appVersion)
+    C->>C: phase = awaitingPayment
+    C->>A: createOrder("android", appVersion, deviceHash)
+    A->>S: POST /v1/order/create {platform,app_version,device_hash}
+    S->>DB: 查码池 available>0? 否则 503
+    S->>S: alipay.build_order_string(out_trade_no,"49.90") RSA2 签名
+    S->>DB: INSERT orders(status='pending', claim_token)
+    S-->>A: 200 {out_trade_no,claim_token,order_string,amount,expires_in}
+    A-->>C: CreateOrderData
+    C->>C: PendingOrderStore.save(pending)
+    C->>B: pay(order_string)
+    B->>AP: PayTask.payV2(orderStr,true)
+    U->>AP: 输入密码确认付款
+    AP->>AL: 提交交易
+    AL-->>AP: 支付结果
+    AP-->>B: resultStatus=9000/8000/...
+    B-->>C: AlipayPayResult
+
+    par 服务端异步确认（唯一可信付款证明）
+        AL->>S: POST /v1/alipay/notify (form)
+        S->>S: RSA2 验签 + app_id/amount/trade_status/seller_id
+        S->>DB: UPDATE status pending→paid (CASE/COALESCE 幂等)
+        S-->>AL: 纯文本 success
+    and 客户端同步结果（仅作信号，不作发货依据）
+        C->>C: _onPayResult: 9000/8000/6004/6006/5000 → paidAwaitingCode
+        loop 7s 间隔，最多 12 次
+            C->>A: redeem(out_trade_no, claim_token)
+            A->>S: GET /v1/order/redeem
+            S->>DB: hmac 校验 claim_token
+            alt 已有码（幂等回读）
+                DB-->>S: redeem_code, serial
+                S-->>A: 200 {status:issued, redeem_code, serial}
+            else 已付款未发码
+                S->>DB: BEGIN IMMEDIATE → _claim_and_bind()
+                DB-->>S: code + serial
+                S-->>A: 200 {status:issued, redeem_code, serial}
+            else 回调未到
+                S-->>A: 202 {status:pending}
+            else 超时/未付
+                S-->>A: 200 {status:unpaid}
+            end
+            A-->>C: RedeemData
+        end
+    end
+
+    alt status == issued
+        C->>C: phase = issuing
+        C->>E: activate(redeem_code)
+        E->>E: Ed25519 离线验签(既有 RedeemCodeVerifier)
+        E->>ST: write(Entitlement.lifetime(redeemSerial:serial), jws:null)
+        ST-->>E: ok / throw
+        E-->>C: activated / alreadyPremium / failed
+        alt activated 或 alreadyPremium
+            C->>C: phase = (alreadyPremium ? duplicate : unlocked)
+            C->>C: PendingOrderStore.clear()
+            C-->>P: AlipayUnlockResult.unlocked
+            P->>P: entitlementProvider 刷新 → 「已解锁」
+        else 验签/落库失败
+            C->>C: phase = paidAwaitingCode, 保留 pending
+            C-->>P: 「稍后重试或联系我们」
+        end
+    else status == pending (轮询未结束)
+        C->>C: 保持 paidAwaitingCode，提示稍后重试
+    else status == unpaid
+        C->>C: phase = expired，提示重新下单
+    end
+
+    Note over C,DB: 重复回调：notify 重放 → status CASE 不降级；<br/>重复 redeem → WHERE redeem_code IS NULL 回读同一码；<br/>重复 activate → alreadyPremium 不写票据 ⇒ 三重幂等

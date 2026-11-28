@@ -2829,6 +2829,60 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get parent_premium_alipay_btn_buy => 'Pay with Alipay · ¥49.90';
+
+  @override
+  String get parent_premium_alipay_btn_continue => 'Continue payment';
+
+  @override
+  String get parent_premium_alipay_btn_reorder => 'Place a new order';
+
+  @override
+  String get parent_premium_alipay_code_entry => 'Enter activation code';
+
+  @override
+  String get parent_premium_alipay_reclaim => 'Paid but not unlocked? Reclaim';
+
+  @override
+  String get parent_premium_alipay_phase_awaiting =>
+      'Order created — please pay in Alipay';
+
+  @override
+  String get parent_premium_alipay_phase_paid =>
+      'Payment submitted — confirming, please stay on this page';
+
+  @override
+  String get parent_premium_alipay_phase_issuing =>
+      'Unlocking for you, one moment';
+
+  @override
+  String get parent_premium_alipay_phase_unlocked => 'Unlocked — thank you!';
+
+  @override
+  String get parent_premium_alipay_phase_expired =>
+      'Order expired — please place a new one';
+
+  @override
+  String get parent_premium_alipay_phase_duplicate =>
+      'Already unlocked — no action needed';
+
+  @override
+  String get parent_premium_alipay_err_pool =>
+      'Temporarily unavailable — please contact support';
+
+  @override
+  String get parent_premium_alipay_err_token =>
+      'Claim token mismatch — please contact support';
+
+  @override
+  String get parent_premium_alipay_err_retry =>
+      'Please retry later or contact us';
+
+  @override
+  String get parent_premium_alipay_note_refund =>
+      'Digital goods cannot be refunded once activated';
+
+  @override
   String get parent_reward_category_label => 'Type';
 
   @override
